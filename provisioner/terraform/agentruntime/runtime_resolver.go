@@ -1,6 +1,7 @@
 package agentruntime
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -530,7 +531,7 @@ func (r *Resolver) resourceAgentIDReferences(
 	expressionResultSuffix := r.configIndex.runtimeExpressionResultSuffix(
 		agentIDKey,
 	)
-	additionalReferences := []string(nil)
+	additionalReferences := []runtimeConfiguredReference(nil)
 	usesEachValueAsValue := r.configIndex.runtimeExpressionUsesEachValueAsValue(
 		agentIDKey, configuredResource.agentIDReferences,
 	)
@@ -548,7 +549,7 @@ func (r *Resolver) resourceAgentIDReferences(
 				stateResourceDiagnosticAddress(resource),
 			)
 		}
-		additionalReferences, err = mostSpecificTerraformReferences(
+		collections, err := mostSpecificTerraformReferences(
 			ctx,
 			r.configIndex.runtimeExpressionValueReferences(
 				forEachKey, configuredResource.forEachReferences,
@@ -556,6 +557,29 @@ func (r *Resolver) resourceAgentIDReferences(
 		)
 		if err != nil {
 			return tfaddr.ManagedResourceAddress{}, nil, err
+		}
+		for _, reference := range references {
+			suffix, iterator := runtimeIteratorReferenceSuffix(reference)
+			if !iterator {
+				continue
+			}
+			suffix = cmp.Or(expressionResultSuffix, suffix)
+			for _, collection := range collections {
+				if len(additionalReferences) >= r.limits.referenceCount {
+					return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+						"agent runtime resolution exceeds the limit of %d Terraform references",
+						r.limits.referenceCount,
+					)
+				}
+				additionalReferences = append(
+					additionalReferences,
+					runtimeConfiguredReference{
+						reference:      collection,
+						correlationKey: parsed.InstanceKey(),
+						resultSuffix:   suffix,
+					},
+				)
+			}
 		}
 	}
 	if exceedsLimit(
@@ -582,19 +606,21 @@ func (r *Resolver) resourceAgentIDReferences(
 			),
 		})
 	}
-	for _, reference := range additionalReferences {
-		result = append(result, runtimeConfiguredReference{
-			reference: reference,
-			resultSuffix: runtimeConfiguredResultSuffix(
-				reference, expressionResultSuffix,
-			),
-		})
-	}
+	result = append(result, additionalReferences...)
 	for _, reference := range result {
 		if err := ctx.Err(); err != nil {
 			return tfaddr.ManagedResourceAddress{}, nil, err
 		}
-		bytes := len(reference.reference) + len(reference.resultSuffix)
+		correlationKey, ok := runtimeInstanceKeyString(
+			reference.correlationKey,
+		)
+		if !ok {
+			return tfaddr.ManagedResourceAddress{}, nil, xerrors.New(
+				"agent runtime correlation key must be a string or integer",
+			)
+		}
+		bytes := len(reference.reference) + len(correlationKey) +
+			len(reference.resultSuffix)
 		if exceedsLimit(
 			referenceBytes, bytes, r.limits.referenceBytes,
 		) {

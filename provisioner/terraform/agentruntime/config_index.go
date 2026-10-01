@@ -23,8 +23,9 @@ type moduleCallKey struct {
 }
 
 type configModuleCall struct {
-	source          string
-	inputReferences map[string][]string
+	source            string
+	inputReferences   map[string][]string
+	forEachReferences []string
 }
 
 type configModule struct {
@@ -151,12 +152,20 @@ func (i *configIndex) indexModule(
 			}
 			inputReferences[inputName] = configExpressionReferences(expression)
 		}
+		var forEachReferences []string
+		if call.ForEachExpression != nil &&
+			call.ForEachExpression.ExpressionData != nil {
+			forEachReferences = slices.Clone(
+				call.ForEachExpression.References,
+			)
+		}
 		i.moduleCalls[moduleCallKey{
 			moduleAddress: moduleAddress,
 			moduleName:    name,
 		}] = configModuleCall{
-			source:          call.Source,
-			inputReferences: inputReferences,
+			source:            call.Source,
+			inputReferences:   inputReferences,
+			forEachReferences: forEachReferences,
 		}
 		if call.Module == nil {
 			continue

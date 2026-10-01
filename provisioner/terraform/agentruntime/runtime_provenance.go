@@ -24,8 +24,9 @@ const (
 )
 
 type runtimeConfiguredReference struct {
-	reference    string
-	resultSuffix string
+	reference      string
+	correlationKey cty.Value
+	resultSuffix   string
 }
 
 type runtimeResolvedReference struct {
@@ -34,9 +35,10 @@ type runtimeResolvedReference struct {
 }
 
 type runtimeProvenanceQuery struct {
-	modulePath   string
-	reference    string
-	resultSuffix string
+	modulePath     string
+	reference      string
+	correlationKey string
+	resultSuffix   string
 }
 
 type runtimeResolvedReferenceKey struct {
@@ -78,6 +80,7 @@ func (r *Resolver) resolveConfiguredRuntimeReferences(
 			ctx,
 			modulePath,
 			configuredReference.reference,
+			configuredReference.correlationKey,
 			configuredReference.resultSuffix,
 			0,
 		); err != nil {
@@ -103,6 +106,7 @@ func (r *runtimeProvenanceResolution) resolve(
 	ctx context.Context,
 	modulePath tfaddr.ModulePath,
 	reference string,
+	correlationKey cty.Value,
 	resultSuffix string,
 	depth int,
 ) error {
@@ -112,13 +116,40 @@ func (r *runtimeProvenanceResolution) resolve(
 	if err := r.budget.checkReferenceDepth(depth); err != nil {
 		return err
 	}
+	if correlationKey != cty.NilVal {
+		collection, err := runtimeCorrelatedCollection(reference)
+		if err != nil {
+			return err
+		}
+		if collection != "" {
+			correlatedReference := runtimeReferenceWithInstanceKey(
+				reference, collection, correlationKey,
+			)
+			correlatedCollection := runtimeReferenceWithInstanceKey(
+				collection, collection, correlationKey,
+			)
+			if strings.HasPrefix(collection, "module.") ||
+				len(r.resolver.runtimes.byInstanceAddress[correlatedCollection]) > 0 {
+				reference = correlatedReference
+			}
+			correlationKey = cty.NilVal
+		}
+	}
+	correlationAddressKey, ok := runtimeInstanceKeyString(correlationKey)
+	if !ok {
+		return xerrors.New(
+			"agent runtime provenance correlation key must be a string or integer",
+		)
+	}
 	key := runtimeProvenanceQuery{
-		modulePath:   modulePath.String(),
-		reference:    reference,
-		resultSuffix: resultSuffix,
+		modulePath:     modulePath.String(),
+		reference:      reference,
+		correlationKey: correlationAddressKey,
+		resultSuffix:   resultSuffix,
 	}
 	if err := r.budget.consumeReference(
-		len(key.modulePath) + len(key.reference) + len(key.resultSuffix),
+		len(key.modulePath) + len(key.reference) + len(key.correlationKey) +
+			len(key.resultSuffix),
 	); err != nil {
 		return err
 	}
@@ -187,10 +218,20 @@ func (r *runtimeProvenanceResolution) resolve(
 					return err
 				}
 			}
+			resolvedReference := localReference.reference
+			if localReference.correlatedCollection != "" &&
+				correlationKey != cty.NilVal {
+				resolvedReference = runtimeReferenceWithInstanceKey(
+					resolvedReference,
+					localReference.correlatedCollection,
+					correlationKey,
+				)
+			}
 			if err := r.resolve(
 				ctx,
 				modulePath,
-				localReference.reference,
+				resolvedReference,
+				cty.NilVal,
 				cmp.Or(
 					resultSuffix,
 					r.resolver.configIndex.runtimeExpressionResultSuffix(
@@ -249,25 +290,78 @@ func (r *runtimeProvenanceResolution) resolve(
 		if err != nil {
 			return err
 		}
-		for index, parentReference := range references {
-			if index%256 == 0 {
-				if err := ctx.Err(); err != nil {
+		parentCorrelationKey := cty.NilVal
+		if r.resolver.configIndex.runtimeExpressionUsesEachValueAsValue(
+			expressionKey, references,
+		) && len(call.forEachReferences) > 0 {
+			forEachKey := runtimeExpressionKey{
+				moduleAddress: parentAddress,
+				kind:          runtimeExpressionModuleCall,
+				name:          lastStep.Name(),
+				attribute:     "for_each",
+			}
+			if !r.resolver.configIndex.runtimeExpressionPreservesIdentity(
+				forEachKey,
+			) {
+				return xerrors.Errorf(
+					"module %q for_each expression does not preserve agent runtime identity",
+					lastStep.Name(),
+				)
+			}
+			collections, err := mostSpecificTerraformReferences(
+				ctx,
+				r.resolver.configIndex.runtimeExpressionValueReferences(
+					forEachKey, call.forEachReferences,
+				),
+			)
+			if err != nil {
+				return err
+			}
+			parentCorrelationKey = lastStep.InstanceKey()
+			err = visitRuntimeSubstitutedIteratorReferences(
+				references,
+				collections,
+				func(parentReference string) error {
+					return r.resolve(
+						ctx,
+						parentPath,
+						parentReference,
+						parentCorrelationKey,
+						cmp.Or(
+							resultSuffix,
+							r.resolver.configIndex.runtimeExpressionResultSuffix(
+								expressionKey,
+							),
+						),
+						depth+1,
+					)
+				},
+			)
+			if err != nil {
+				return err
+			}
+		} else {
+			for index, parentReference := range references {
+				if index%256 == 0 {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+				}
+				if err := r.resolve(
+					ctx,
+					parentPath,
+					parentReference,
+					parentCorrelationKey,
+					cmp.Or(
+						resultSuffix,
+						r.resolver.configIndex.runtimeExpressionResultSuffix(
+							expressionKey,
+						),
+					),
+					depth+1,
+				); err != nil {
 					return err
 				}
-			}
-			if err := r.resolve(
-				ctx,
-				parentPath,
-				parentReference,
-				cmp.Or(
-					resultSuffix,
-					r.resolver.configIndex.runtimeExpressionResultSuffix(
-						expressionKey,
-					),
-				),
-				depth+1,
-			); err != nil {
-				return err
 			}
 		}
 		r.completed[key] = struct{}{}
@@ -603,6 +697,85 @@ func runtimeReferenceSources(
 		})
 	}
 	return sources
+}
+
+func visitRuntimeSubstitutedIteratorReferences(
+	references []string,
+	collections []string,
+	visit func(string) error,
+) error {
+	for _, reference := range references {
+		suffix, iterator := runtimeIteratorReferenceSuffix(reference)
+		if !iterator {
+			if reference != "each" && !strings.HasPrefix(reference, "each.") {
+				if err := visit(reference); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		for _, collection := range collections {
+			if err := visit(collection + suffix); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func runtimeIteratorReferenceSuffix(
+	reference string,
+) (string, bool) {
+	for _, prefix := range []string{"each.value", `each["value"]`} {
+		suffix, iterator := strings.CutPrefix(reference, prefix)
+		if iterator && (suffix == "" || strings.HasPrefix(suffix, ".") ||
+			strings.HasPrefix(suffix, "[")) {
+			return suffix, true
+		}
+	}
+	return "", false
+}
+
+func runtimeReferenceWithInstanceKey(
+	reference string,
+	collection string,
+	instanceKey cty.Value,
+) string {
+	suffix, ok := strings.CutPrefix(reference, collection)
+	if !ok || (suffix != "" && !strings.HasPrefix(suffix, ".")) {
+		return reference
+	}
+	key, ok := runtimeInstanceKeyString(instanceKey)
+	if !ok || key == "" {
+		return reference
+	}
+	return collection + "[" + key + "]" + suffix
+}
+
+func runtimeCorrelatedCollection(reference string) (string, error) {
+	traversal, err := parseRuntimeTraversal(reference)
+	if err != nil {
+		return "", err
+	}
+	if len(traversal) < 2 {
+		return "", nil
+	}
+	root, ok := traversal[0].(hcl.TraverseRoot)
+	if !ok {
+		return "", nil
+	}
+	name, ok := traversal[1].(hcl.TraverseAttr)
+	if !ok {
+		return "", nil
+	}
+	switch root.Name {
+	case "module":
+		return "module." + name.Name, nil
+	case "coder_agent", "coder_devcontainer":
+		return root.Name + "." + name.Name, nil
+	default:
+		return "", nil
+	}
 }
 
 func runtimeConfiguredResultSuffix(
