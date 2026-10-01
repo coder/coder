@@ -92,4 +92,6 @@ const (
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
 	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
+	CheckWorkspaceSecretsRequiresTarget                      CheckConstraint = "workspace_secrets_requires_target"                         // workspace_secrets
+	CheckWorkspaceSecretsValueCleared                        CheckConstraint = "workspace_secrets_value_cleared"                           // workspace_secrets
 )

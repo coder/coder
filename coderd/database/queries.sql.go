@@ -35154,6 +35154,292 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
+const clearWorkspaceSecretsBeforeBuild = `-- name: ClearWorkspaceSecretsBeforeBuild :exec
+UPDATE workspace_secrets
+SET
+    value        = NULL,
+    value_key_id = NULL,
+    cleared_at   = CURRENT_TIMESTAMP
+FROM workspace_builds
+WHERE workspace_secrets.workspace_build_id = workspace_builds.id
+  AND workspace_secrets.workspace_id = $1
+  AND workspace_secrets.cleared_at IS NULL
+  AND workspace_builds.build_number < (
+      SELECT current_build.build_number
+      FROM workspace_builds AS current_build
+      WHERE current_build.id = $2
+  )
+`
+
+type ClearWorkspaceSecretsBeforeBuildParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+}
+
+// Drops the values of every live row that belongs to an earlier build of the
+// workspace (lower build number than the given build), keeping the rows so
+// the history of which secrets earlier builds received stays inspectable.
+// Rows of the given build and of any later build are left untouched, so a
+// build that clears out of order cannot wipe a newer build's secrets.
+func (q *sqlQuerier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg ClearWorkspaceSecretsBeforeBuildParams) error {
+	_, err := q.db.ExecContext(ctx, clearWorkspaceSecretsBeforeBuild, arg.WorkspaceID, arg.WorkspaceBuildID)
+	return err
+}
+
+const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+FROM workspace_secrets
+WHERE value IS NOT NULL
+ORDER BY workspace_id, workspace_build_id, name
+`
+
+// Returns every workspace secret that still holds a value across the
+// deployment. Used only by the dbcrypt key rotation utility.
+func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.CreatedAt,
+			&i.ClearedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceSecretsHistory = `-- name: GetWorkspaceSecretsHistory :many
+SELECT
+    id, workspace_id, workspace_build_id, name,
+    env_name, file_path, ephemeral, created_at, cleared_at
+FROM workspace_secrets
+WHERE workspace_id = $1
+ORDER BY created_at ASC, name ASC
+`
+
+type GetWorkspaceSecretsHistoryRow struct {
+	ID               uuid.UUID    `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID    `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID    `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string       `db:"name" json:"name"`
+	EnvName          string       `db:"env_name" json:"env_name"`
+	FilePath         string       `db:"file_path" json:"file_path"`
+	Ephemeral        bool         `db:"ephemeral" json:"ephemeral"`
+	CreatedAt        time.Time    `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime `db:"cleared_at" json:"cleared_at"`
+}
+
+// Returns metadata for every workspace secret row of a workspace, including
+// cleared rows, so the secrets each build received can be inspected. Values
+// are never selected.
+func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceSecretsHistoryRow
+	for rows.Next() {
+		var i GetWorkspaceSecretsHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.CreatedAt,
+			&i.ClearedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceSecret = `-- name: InsertWorkspaceSecret :one
+INSERT INTO workspace_secrets (
+    id,
+    workspace_id,
+    workspace_build_id,
+    name,
+    value,
+    value_key_id,
+    env_name,
+    file_path,
+    ephemeral
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+)
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+`
+
+type InsertWorkspaceSecretParams struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID      `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string         `db:"name" json:"name"`
+	Value            sql.NullString `db:"value" json:"value"`
+	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
+	EnvName          string         `db:"env_name" json:"env_name"`
+	FilePath         string         `db:"file_path" json:"file_path"`
+	Ephemeral        bool           `db:"ephemeral" json:"ephemeral"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorkspaceSecretParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceSecret,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.WorkspaceBuildID,
+		arg.Name,
+		arg.Value,
+		arg.ValueKeyID,
+		arg.EnvName,
+		arg.FilePath,
+		arg.Ephemeral,
+	)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.WorkspaceBuildID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.Ephemeral,
+		&i.CreatedAt,
+		&i.ClearedAt,
+	)
+	return i, err
+}
+
+const listActiveWorkspaceSecrets = `-- name: ListActiveWorkspaceSecrets :many
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+FROM workspace_secrets
+WHERE workspace_build_id = $1
+  AND cleared_at IS NULL
+ORDER BY name ASC
+`
+
+// Returns the live rows (value not yet cleared) linked to a build. Only the
+// latest build of a workspace has live rows, so an older build returns none.
+// Includes decrypted values, so this is used only by the agent manifest and
+// by the build transaction that copies secrets forward; there is no REST
+// endpoint that reads workspace secrets.
+func (q *sqlQuerier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveWorkspaceSecrets, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.Ephemeral,
+			&i.CreatedAt,
+			&i.ClearedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEncryptedWorkspaceSecretValue = `-- name: UpdateEncryptedWorkspaceSecretValue :one
+UPDATE workspace_secrets
+SET
+    value        = $1,
+    value_key_id = $2
+WHERE id = $3
+  AND cleared_at IS NULL
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+`
+
+type UpdateEncryptedWorkspaceSecretValueParams struct {
+	Value      sql.NullString `db:"value" json:"value"`
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
+	ID         uuid.UUID      `db:"id" json:"id"`
+}
+
+// Updates only the encrypted columns on a row. Used by the dbcrypt key
+// rotation utility to re-encrypt or decrypt rows in place.
+// Cleared rows are skipped: they hold no value, and a row cleared between
+// the rotation's list and this update must not have a value written back.
+func (q *sqlQuerier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg UpdateEncryptedWorkspaceSecretValueParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedWorkspaceSecretValue, arg.Value, arg.ValueKeyID, arg.ID)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.WorkspaceBuildID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.Ephemeral,
+		&i.CreatedAt,
+		&i.ClearedAt,
+	)
+	return i, err
+}
+
 const deleteStaleWorkspaceAgentContextResources = `-- name: DeleteStaleWorkspaceAgentContextResources :exec
 DELETE FROM workspace_agent_context_resources
 WHERE workspace_agent_id = $1

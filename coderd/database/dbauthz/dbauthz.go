@@ -907,6 +907,28 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// subjectWorkspaceSecretManager is the only subject that can read
+	// decrypted workspace secret values. It delivers them in the agent
+	// manifest and copies them forward onto each new workspace build,
+	// clearing the superseded build's rows.
+	subjectWorkspaceSecretManager = rbac.Subject{
+		Type:         rbac.SubjectTypeWorkspaceSecretManager,
+		FriendlyName: "Workspace Secret Manager",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "workspace-secret-manager"},
+				DisplayName: "Workspace Secret Manager",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceWorkspaceSecret.Type: {policy.ActionReadSecret, policy.ActionCreate, policy.ActionUpdate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -1065,6 +1087,13 @@ func AsSCIMProvisioner(ctx context.Context) context.Context {
 // read and refresh any user's external auth links.
 func AsExternalAuthCoordinator(ctx context.Context) context.Context {
 	return As(ctx, subjectExternalAuthCoordinator)
+}
+
+// AsWorkspaceSecretManager returns a context with an actor that can read
+// decrypted workspace secret values, copy them onto a new build, and clear
+// superseded rows. No user role can read secret values.
+func AsWorkspaceSecretManager(ctx context.Context) context.Context {
+	return As(ctx, subjectWorkspaceSecretManager)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1800,6 +1829,12 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
 }
 
+// workspaceSecretObject is the RBAC object for a workspace's secrets, owned
+// by the workspace owner within the workspace's organization.
+func workspaceSecretObject(workspace database.Workspace) rbac.Object {
+	return rbac.ResourceWorkspaceSecret.WithOwner(workspace.OwnerID.String()).InOrg(workspace.OrganizationID)
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2027,6 +2062,17 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 		return err
 	}
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
+}
+
+func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+		return err
+	}
+	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
 }
 
 func (q *querier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
@@ -6205,6 +6251,27 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceSecrets(ctx context.Context) ([]database.WorkspaceSecret, error) {
+	// Deployment-wide listing of decrypted values exists only for the
+	// dbcrypt key rotation utility.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceSecrets(ctx)
+}
+
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	// Metadata only; values are never selected.
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspaceSecretObject(workspace)); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceSecretsHistory(ctx, workspaceID)
+}
+
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -7143,6 +7210,17 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspaceSecretObject(workspace)); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return q.db.InsertWorkspaceSecret(ctx, arg)
+}
+
 func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7240,6 +7318,15 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 		return nil, err
 	}
 	return q.db.ListAIGatewayKeys(ctx)
+}
+
+func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	// Returns decrypted values. read_secret is granted only to
+	// AsWorkspaceSecretManager, never to user roles.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return nil, err
+	}
+	return q.db.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
@@ -8157,6 +8244,18 @@ func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg data
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	// Key rotation reads and rewrites values, so it needs read_secret as
+	// well as update. No user role holds read_secret.
+	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceSecret); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return q.db.UpdateEncryptedWorkspaceSecretValue(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
