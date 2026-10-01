@@ -896,11 +896,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Without both a header name and value, mcpclient sends no API key
-		// header at all. Only validate when the request touches API key auth
-		// so unrelated edits, such as toggling enabled, still work on rows
-		// saved before this check existed.
-		apiKeyAuthChanged := authType != existing.AuthType || req.APIKeyHeader != nil || req.APIKeyValue != nil
-		if authType == "api_key" && apiKeyAuthChanged && (apiKeyHeader == "" || apiKeyValue == "") {
+		// header at all.
+		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
 			return errAPIKeyAuthRequiresHeaderAndValue
 		}
 
