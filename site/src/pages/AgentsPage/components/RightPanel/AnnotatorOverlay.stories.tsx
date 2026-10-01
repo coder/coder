@@ -9,7 +9,10 @@ import { annotatorHostId, mountAnnotator } from "#/annotator/mountAnnotator";
  * annotator from `#/annotator` is mounted into this document exactly as
  * the injected script would do it, minus the postMessage bridge.
  */
-const DemoPage: React.FC<{ picking: boolean }> = ({ picking }) => {
+const DemoPage: React.FC<{ picking: boolean; highlight?: boolean }> = ({
+	picking,
+	highlight,
+}) => {
 	const [output, setOutput] = useState<string>();
 
 	useEffect(() => {
@@ -18,8 +21,18 @@ const DemoPage: React.FC<{ picking: boolean }> = ({ picking }) => {
 			onSubmit: (submission) => setOutput(formatAnnotations(submission)),
 		});
 		handle.setPicking(picking);
+		if (highlight) {
+			handle.setHighlights([
+				{
+					id: "1",
+					selector: '[data-testid="save-button"]',
+					url: window.location.href,
+				},
+				{ id: "2", selector: "h1", url: window.location.href },
+			]);
+		}
 		return () => handle.destroy();
-	}, [picking]);
+	}, [picking, highlight]);
 
 	return (
 		<main className="min-h-[520px] bg-white p-8 font-sans text-neutral-900">
@@ -126,4 +139,8 @@ export const SentOnSave: Story = {
 		await userEvent.click(canvas.getByTestId("save-button"));
 		await userEvent.type(commentBox(), "Use the primary style{enter}");
 	},
+};
+
+export const AgentWorking: Story = {
+	args: { highlight: true },
 };

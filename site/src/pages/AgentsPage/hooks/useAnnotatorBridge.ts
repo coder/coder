@@ -1,6 +1,7 @@
 import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import {
 	type AnnotationSubmission,
+	type HighlightItem,
 	type HostToAnnotatorMessage,
 	parseAnnotatorToHostMessage,
 } from "#/annotator/protocol";
@@ -58,6 +59,8 @@ type AnnotatorBridge = BridgeState & {
 	// Call from the iframe's onLoad. A React prop is attached before the
 	// frame can load, unlike a listener added from an effect.
 	frameLoaded: () => void;
+	highlight: (items: HighlightItem[]) => void;
+	clearHighlights: () => void;
 };
 
 // Only a document at the frame's origin can host the overlay, so a
@@ -257,5 +260,10 @@ export function useAnnotatorBridge({
 		update({ requested: next, loading: stateRef.current.loading || next });
 	};
 
-	return { ...state, setPicking, frameLoaded };
+	const highlight = (items: HighlightItem[]) =>
+		post({ type: "coder-annotator:highlight", items });
+	const clearHighlights = () =>
+		post({ type: "coder-annotator:clear-highlights" });
+
+	return { ...state, setPicking, frameLoaded, highlight, clearHighlights };
 }

@@ -1,11 +1,18 @@
 import { type CommentPopup, createCommentPopup } from "./commentPopup";
 import { describeElement } from "./describeElement";
 import { el } from "./dom";
+import { createHighlightLayer } from "./highlights";
 import { pointerIcon } from "./icons";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
 import { isOwnEvent, pickTarget } from "./pickTarget";
-import { type AnnotationSubmission, maxFieldLength } from "./protocol";
+import {
+	type Annotation,
+	type AnnotationSubmission,
+	annotationIdAttribute,
+	type HighlightItem,
+	maxFieldLength,
+} from "./protocol";
 import { randomId } from "./randomId";
 import annotatorStyles from "./styles.css?inline";
 
@@ -15,6 +22,7 @@ type AnnotatorState = {
 
 type AnnotatorHandle = {
 	setPicking(picking: boolean): void;
+	setHighlights(items: HighlightItem[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
 };
@@ -91,7 +99,11 @@ export function mountAnnotator(
 	toolbar.style.display = "none";
 
 	const outline = createPickOutline(win);
-	shadow.append(style, toolbar, outline.element);
+	const highlightsContainer = el(doc, "div", "highlights", {
+		"aria-hidden": "true",
+	});
+	shadow.append(style, toolbar, outline.element, highlightsContainer);
+	const highlights = createHighlightLayer(doc, win, highlightsContainer);
 	doc.body.append(host);
 
 	// Added to the page's own head while picking, since the cursor rule has
@@ -127,17 +139,16 @@ export function mountAnnotator(
 		comment: string,
 		selectedText: string | undefined,
 	) => {
-		options.onSubmit({
-			page: pageInfo(),
-			annotations: [
-				{
-					id: randomId(),
-					comment,
-					selectedText,
-					element: describeElement(target),
-				},
-			],
-		});
+		const annotation: Annotation = {
+			id: randomId(),
+			comment,
+			selectedText,
+			element: describeElement(target),
+		};
+		// Stamped after describing so the marker never leaks into the
+		// captured selector or opening tag.
+		target.setAttribute(annotationIdAttribute, annotation.id);
+		options.onSubmit({ page: pageInfo(), annotations: [annotation] });
 	};
 
 	// The outline stays on the element a comment is being written for and
@@ -268,9 +279,11 @@ export function mountAnnotator(
 
 	const handle: AnnotatorHandle = {
 		setPicking,
+		setHighlights: highlights.set,
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
+			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
 			if (layoutFrame !== 0) {

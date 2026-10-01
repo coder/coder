@@ -9,6 +9,7 @@ import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
+	type HighlightItem,
 } from "#/annotator/protocol";
 import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
@@ -36,6 +37,9 @@ const sendRetryMs = 500;
 const maxPendingSends = 3;
 const overlayUnavailableReason =
 	"The annotation overlay could not load in this app. It may block external scripts or not serve HTML.";
+// A sent annotation whose turn never starts within this window is
+// forgotten rather than left to light up during an unrelated later turn.
+const turnStartGraceMs = 15_000;
 
 // Sends one annotation message, retrying briefly while another submission
 // is in flight so a quick second comment is delayed rather than dropped.
@@ -75,12 +79,14 @@ function newSendQueue(): SendQueue {
 	return { chain: Promise.resolve(), pending: 0, sending: false, epoch: 0 };
 }
 
-// Queues one message behind the others. Returns false when the queue is
-// full and the message was not accepted.
+// Queues one message behind the others, calling `onSent` once the chat
+// accepts it. Returns false when the queue is full and the message was not
+// accepted.
 function enqueueSend(
 	queue: SendQueue,
 	composerRef: React.RefObject<ComposerHandle | undefined>,
 	message: string,
+	onSent: () => void,
 ): boolean {
 	if (queue.pending >= maxPendingSends) {
 		return false;
@@ -93,7 +99,9 @@ function enqueueSend(
 				return;
 			}
 			queue.sending = true;
-			await deliver(composerRef, message);
+			if (await deliver(composerRef, message)) {
+				onSent();
+			}
 		} finally {
 			queue.sending = false;
 			queue.pending--;
@@ -118,6 +126,9 @@ export const PortPreviewPanel: React.FC<{
 	// Shows the annotate control. Requires the chat-ui-annotations
 	// experiment so the app proxy injects the overlay.
 	canAnnotate?: boolean;
+	// Drives the shimmer over annotated elements: on while the agent works
+	// on a sent annotation message, cleared when it stops.
+	isAgentWorking?: boolean;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -125,6 +136,7 @@ export const PortPreviewPanel: React.FC<{
 	host,
 	tab,
 	canAnnotate = false,
+	isAgentWorking = false,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -153,15 +165,39 @@ export const PortPreviewPanel: React.FC<{
 	// inside the app keeps the overlay; a full navigation drops it until
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
+	// Elements from annotations sent this turn, highlighted in the preview
+	// until the agent's turn ends. `started` guards against a send resolving
+	// before the chat reports the turn as running; further annotations sent
+	// during the same turn accumulate rather than replace each other.
+	const [workingOn, setWorkingOn] = useState<{
+		items: HighlightItem[];
+		started: boolean;
+	}>();
 
 	// Each saved comment goes straight to the agent as its own message.
+	// The shimmer starts once the send is accepted.
 	const sendQueueRef = useRef(newSendQueue());
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
 			return;
 		}
 		const message = formatAnnotations(submission);
-		if (!enqueueSend(sendQueueRef.current, composerRef, message)) {
+		const items = submission.annotations.map(({ id, element }) => ({
+			id,
+			selector: element.selector,
+			url: submission.page.url,
+		}));
+		const accepted = enqueueSend(
+			sendQueueRef.current,
+			composerRef,
+			message,
+			() =>
+				setWorkingOn((current) => ({
+					items: [...(current?.items ?? []), ...items],
+					started: current?.started ?? false,
+				})),
+		);
+		if (!accepted) {
 			toast.error("Too many UI annotations at once; the latest was not sent.", {
 				id: "annotation-queue-full",
 			});
@@ -203,6 +239,36 @@ export const PortPreviewPanel: React.FC<{
 		}
 		bridge.setPicking(!bridge.requested);
 	};
+
+	// The overlay owns the drawing; this only tells it what to show. Runs
+	// again when the overlay reloads so a pending shimmer is restored.
+	useEffect(() => {
+		if (!workingOn || !bridge.ready) {
+			return;
+		}
+		if (isAgentWorking) {
+			bridge.highlight(workingOn.items);
+			if (!workingOn.started) {
+				setWorkingOn({ ...workingOn, started: true });
+			}
+			return;
+		}
+		if (workingOn.started) {
+			bridge.clearHighlights();
+			setWorkingOn(undefined);
+			return;
+		}
+		// Sent, but the turn has not begun. If it never does (the send was a
+		// no-op, or the turn ended before the status reached us), drop it.
+		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
+		return () => clearTimeout(timer);
+	}, [
+		workingOn,
+		isAgentWorking,
+		bridge.ready,
+		bridge.highlight,
+		bridge.clearHighlights,
+	]);
 
 	// Everything the control shows about annotate mode comes from what the
 	// dashboard asked for, never from what the overlay reports: the page
