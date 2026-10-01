@@ -2667,7 +2667,7 @@ export const StartWorkspaceCompletedWithAgentLogs: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: `Started ${MockWorkspace.name}` }),
 		);
-		await canvas.findByRole("region", { name: "Workspace agent startup log" });
+		await canvas.findByText("Agent startup");
 	},
 };
 
@@ -3248,8 +3248,8 @@ export const AllToolIconsTranscript: Story = {
 const policyCaseLabel = (name: string, index: number) =>
 	`policy case ${name} ${index}`;
 
-// WorkspaceBuildLogSection falls back to the workspace's latest build when a
-// tool result carries no build_id, so both must resolve to the seeded logs.
+// Workspace rows read this workspace for their stage label, so it must
+// resolve to seeded data.
 const showcaseBuildId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 const policyCaseWorkspace: TypesGen.Workspace = {
