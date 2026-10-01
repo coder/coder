@@ -350,6 +350,9 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
+      css.escape:
+        specifier: 1.5.1
+        version: 1.5.1
       dpdm:
         specifier: 3.15.1
         version: 3.15.1

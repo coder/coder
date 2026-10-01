@@ -46,6 +46,14 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Keep component files near 500 lines or less. Extract coherent sections when a file becomes difficult to navigate.
 - Use semantic theme colors and existing Tailwind tokens. Do not use the `dark:` prefix.
 
+## Annotator overlay (`src/annotator/`)
+
+Vanilla TypeScript that Coder injects into third-party web apps shown in agent chat port previews. See `src/annotator/README.md`.
+
+- No React, Tailwind, shared components, or dependencies: it runs inside pages we do not control and renders only inside its own shadow root. Every import is relative.
+- Nothing in `src/annotator/` imports from the rest of the site. The dashboard imports `#/annotator/protocol` and `#/annotator/formatAnnotations`; nothing flows the other way.
+- Treat everything read from the host page as untrusted: bound string lengths, never capture form state or raw markup, keep page-sourced text out of the user's voice in the output.
+
 ## TypeScript and data flow
 
 - Use ES modules and Biome. Prefer `for...of` over `forEach`.
