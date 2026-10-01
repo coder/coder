@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	ALL_TIME_PRESET_ID,
+	EPOCH,
 	lastSeenUrlState,
 	parseLastSeenRange,
 	resolveLastSeen,
@@ -32,7 +33,7 @@ describe("parseLastSeenRange", () => {
 				last_seen_before: start.toISOString(),
 			},
 		],
-	])("matches every user with %s", (_, values) => {
+	])("returns undefined for a user with %s", (_, values) => {
 		expect(parseLastSeenRange(values)).toBeUndefined();
 	});
 });
@@ -57,7 +58,7 @@ describe("withLastSeen", () => {
 	it("sends the epoch start for Over presets so never seen users are excluded", () => {
 		expect(
 			withLastSeen("status:active", {
-				start: new Date(0),
+				start: EPOCH,
 				end,
 				preset: "over_30d",
 			}),
@@ -77,7 +78,7 @@ describe("withLastSeen", () => {
 describe("resolveLastSeen", () => {
 	it("resolves a preset against the given time", () => {
 		expect(resolveLastSeen("over_30d", {}, end)).toEqual({
-			start: new Date(0),
+			start: EPOCH,
 			end: new Date("2026-02-10T12:00:00.000Z"),
 			preset: "over_30d",
 		});
@@ -98,7 +99,7 @@ describe("resolveLastSeen", () => {
 
 	it("falls back to All time", () => {
 		expect(resolveLastSeen(null, {}, end)).toEqual({
-			start: new Date(0),
+			start: EPOCH,
 			end,
 			preset: ALL_TIME_PRESET_ID,
 		});

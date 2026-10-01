@@ -42,7 +42,6 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
-	/** Prefixes the trigger's accessible name, e.g. "Last seen: Last 7 days". */
 	label?: string;
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start

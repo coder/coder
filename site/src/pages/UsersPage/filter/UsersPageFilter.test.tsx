@@ -5,6 +5,7 @@ import { API } from "#/api/api";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { render } from "#/testHelpers/renderHelpers";
+import { EPOCH } from "./lastSeenRange";
 import { UsersPageFilter } from "./UsersPageFilter";
 
 const lastSeenQuery =
@@ -62,7 +63,7 @@ describe("UsersPageFilter", () => {
 	it("reports a last seen preset picked from the default All time state", async () => {
 		const user = userEvent.setup();
 		const { onLastSeenChange } = renderFilter("", {
-			start: new Date(0),
+			start: EPOCH,
 			end: new Date("2026-03-12T12:00:00.000Z"),
 			preset: "all_time",
 		});

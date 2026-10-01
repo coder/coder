@@ -6,10 +6,9 @@ import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator
 
 type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
 
-const matches = (option: FilterOption, query: string): boolean => {
+const doesOptionMatchQuery = (option: FilterOption, query: string): boolean => {
 	const normalized = query.trim().toLowerCase();
 	return (
-		normalized.length === 0 ||
 		option.label.toLowerCase().includes(normalized) ||
 		option.value.toLowerCase().includes(normalized)
 	);
@@ -34,7 +33,7 @@ export const getStatusFilterOptions = async (
 			value: status.value,
 			startIcon: <StatusIndicatorDot variant={status.variant} size="md" />,
 		}),
-	).filter((option) => matches(option, query));
+	).filter((option) => doesOptionMatchQuery(option, query));
 
 export const getRoleFilterOptions = async (
 	query: string,
@@ -48,10 +47,9 @@ export const getRoleFilterOptions = async (
 				value: role.name,
 			}),
 		)
-		.filter((option) => matches(option, query));
+		.filter((option) => doesOptionMatchQuery(option, query));
 };
 
-/** Query keys shown as User type chips. */
 export const USER_TYPE_CHIP_KEYS: readonly string[] = ["service_account"];
 
 export const getUserTypeFilterOptions = async (
@@ -63,4 +61,4 @@ export const getUserTypeFilterOptions = async (
 			value: "service_account",
 			token: "service_account:true",
 		},
-	].filter((option) => matches(option, query));
+	].filter((option) => doesOptionMatchQuery(option, query));

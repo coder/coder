@@ -7,6 +7,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { EPOCH } from "./filter/lastSeenRange";
 import { UsersPageView } from "./UsersPageView";
 
 type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
@@ -17,7 +18,7 @@ const defaultFilterProps: FilterProps = {
 		values: { status: "active" },
 	}),
 	lastSeen: {
-		start: new Date(0),
+		start: EPOCH,
 		end: new Date("2026-03-12T12:00:00Z"),
 		preset: "all_time",
 	},
