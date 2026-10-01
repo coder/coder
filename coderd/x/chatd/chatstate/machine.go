@@ -52,14 +52,37 @@ func NewChatMachine(
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
-// and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
-// from the database on entry, so a bundle of transitions inside one
-// Update callback always validates against the latest committed state.
+// and the chat ID.
+//
+// Tx does not cache chat state across writes. The only row it holds is
+// the one returned by the transition lock, and that is consumed by the
+// first loadState call in the transaction. Every transition validates
+// before it writes, so that first call always runs before any
+// execution-state mutation and sees exactly the locked row. Later
+// calls read the chat row and queue cardinality from the database, so
+// a bundle of transitions inside one Update callback always validates
+// against the latest state.
+//
+// Tx also records write intent for the commit write: whether the
+// transaction changed chat history or the queue, and how many commit
+// writes ran. The helpers that perform those writes set the flags and
+// the next commit write consumes them (see takeVersionFlags).
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+
+	seed *txSeed
+
+	historyChanged bool
+	queueChanged   bool
+	commits        int
+}
+
+// txSeed is the chat row and queue flag returned by the transition lock.
+type txSeed struct {
+	chat      database.Chat
+	hasQueued bool
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -81,11 +104,23 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
-// active transaction, classifies the execution state, and returns the
-// inputs every transition method needs. Returns ErrChatNotFound if
-// the chat row was deleted in this transaction (or never existed).
+// loadState returns the current chat row and execution state. The
+// first call in a transaction returns the row the transition lock
+// already returned, avoiding a round trip while the row lock is held;
+// subsequent calls read the chat row and queue cardinality from the
+// active transaction. Returns ErrChatNotFound if the chat row was
+// deleted in this transaction (or never existed).
 func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
+	if s := tx.seed; s != nil {
+		tx.seed = nil
+		return s.chat, ClassifyExecutionState(s.chat, s.hasQueued, true), nil
+	}
+	return tx.readState()
+}
+
+// readState reads the chat row and queue cardinality from the active
+// transaction, ignoring the lock seed.
+func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -98,6 +133,39 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
 	}
 	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+}
+
+// Current returns the chat row and execution state without consuming
+// the lock seed, so a callback can inspect state and then call a
+// transition that still validates against the same row with no extra
+// round trip. Falls back to a database read once the seed is consumed.
+func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
+	if s := tx.seed; s != nil {
+		return s.chat, ClassifyExecutionState(s.chat, s.hasQueued, true), nil
+	}
+	return tx.loadState()
+}
+
+// takeVersionFlags returns and clears the pending history and queue
+// change flags and counts the commit write that consumes them. Every
+// statement that advances snapshot_version must go through this so the
+// version fields it writes reflect everything the transaction changed.
+func (tx *Tx) takeVersionFlags() (historyChanged, queueChanged bool) {
+	historyChanged, queueChanged = tx.historyChanged, tx.queueChanged
+	tx.historyChanged, tx.queueChanged = false, false
+	tx.commits++
+	return historyChanged, queueChanged
+}
+
+// requireNoVersionFlags is takeVersionFlags for commit writes that
+// cannot record history or queue changes. Pending flags would be lost,
+// so they are a programming error in the transition bundle.
+func (tx *Tx) requireNoVersionFlags(t Transition) error {
+	if tx.historyChanged || tx.queueChanged {
+		return xerrors.Errorf("chatstate: %s cannot commit pending history or queue changes", t)
+	}
+	tx.commits++
+	return nil
 }
 
 // requireFromAllowed loads the current state and validates t against
@@ -121,11 +189,16 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 
 // Update applies one or more transitions to the machine's chat.
 //
-// Update opens a transaction on the captured store, atomically locks
-// the chat row with FOR UPDATE and increments `snapshot_version`
-// exactly once, then runs fn against a fresh [*Tx] and the active
-// transaction store. It constructs a [PublishBuffer], enqueues
-// `chat:update` (and a `chat:ownership` hint
+// Update opens a transaction on the captured store, locks the chat row
+// with FOR NO KEY UPDATE without writing it, then runs fn against a
+// fresh [*Tx] and the active transaction store. Each transition ends
+// with a single commit write that advances `snapshot_version`; the lock
+// itself writes nothing so that commit write is the only UPDATE of the
+// row in the transaction and Postgres does not re-run the chat's foreign
+// key checks against parent rows shared by many chats. If fn performs
+// no commit write, Update bumps `snapshot_version` once after it so
+// every Update publishes a new version. Update constructs a
+// [PublishBuffer], enqueues `chat:update` (and a `chat:ownership` hint
 // when the post-transition state is worker-runnable and ownership is
 // missing or stale) inside the transaction, and flushes the buffer only after
 // the transaction function succeeds. If the transaction rolls back,
@@ -142,8 +215,8 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // If the chat row does not exist, Update returns [ErrChatNotFound]
 // without mutating anything.
 //
-// Callbacks that return an error roll back the transaction (rolling
-// back the automatic snapshot bump) and publish nothing.
+// Callbacks that return an error roll back the transaction and publish
+// nothing.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
@@ -159,21 +232,35 @@ func (m *ChatMachine) Update(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		locked, err := store.LockChatForTransition(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
-			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
+			return xerrors.Errorf("lock chat: %w", err)
 		}
 		tx := &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
+			seed:   &txSeed{chat: locked.Chat, hasQueued: locked.HasQueued},
 		}
 		if err := fn(tx, store); err != nil {
 			return err
 		}
-		chat, state, err := tx.loadState()
+		if tx.commits == 0 {
+			historyChanged, queueChanged := tx.takeVersionFlags()
+			if _, err := store.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+				ID:             m.chatID,
+				HistoryChanged: historyChanged,
+				QueueChanged:   queueChanged,
+			}); err != nil {
+				return xerrors.Errorf("bump chat snapshot: %w", err)
+			}
+		}
+		// The commit write changed the row, so publication must read it
+		// rather than the lock seed.
+		chat, state, err := tx.readState()
 		if err != nil {
 			return err
 		}
@@ -205,7 +292,7 @@ func (m *ChatMachine) Update(
 	return buffer.Flush()
 }
 
-// Lock locks the chat row with FOR UPDATE and runs fn in a
+// Lock locks the chat row with FOR NO KEY UPDATE and runs fn in a
 // transaction without advancing snapshot_version. It uses the store
 // captured by [NewChatMachine]. Use it when the caller needs a
 // consistent chat snapshot plus related rows such as messages or
