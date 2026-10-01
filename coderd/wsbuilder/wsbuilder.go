@@ -62,6 +62,7 @@ type Builder struct {
 	usageChecker     UsageChecker
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
+	secrets                 []codersdk.WorkspaceSecretInput
 	initiator               uuid.UUID
 	reason                  database.BuildReason
 	templateVersionPresetID uuid.UUID
@@ -209,6 +210,15 @@ func (b Builder) Reason(r database.BuildReason) Builder {
 func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Builder {
 	// nolint: revive
 	b.richParameterValues = p
+	return b
+}
+
+// Secrets sets or removes workspace secrets in the same transaction as the
+// build. Secrets are never forwarded to the provisioner; the agent manifest
+// delivers them at runtime. Inputs must already be validated.
+func (b Builder) Secrets(s []codersdk.WorkspaceSecretInput) Builder {
+	// nolint: revive
+	b.secrets = s
 	return b
 }
 
@@ -542,6 +552,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
 		}
 
+		if err := b.persistSecrets(store, workspaceBuildID); err != nil {
+			return err
+		}
+
 		workspaceBuild, err = store.GetWorkspaceBuildByID(b.ctx, workspaceBuildID)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get workspace build", err}
@@ -607,6 +621,112 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 
 	return &workspaceBuild, &provisionerJob, provisionerDaemons, nil
+}
+
+// persistSecrets links workspace secrets to the new build inside the build
+// transaction. The previous build's live, non-ephemeral secrets are copied
+// forward unless the request replaces or removes them by name, the request's
+// own entries are inserted, and the previous build's rows are then cleared
+// of their values so only the new build holds live secrets.
+//
+// Copying forward and clearing are bookkeeping, not a user writing secrets,
+// so they run as the workspace secret manager. This lets autostart, the build
+// orchestrator, and other non-user initiators rebuild workspaces that hold
+// secrets. Secrets in the request are authorized as the build's actor.
+func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUID) error {
+	requested := make(map[string]codersdk.WorkspaceSecretInput, len(b.secrets))
+	for _, secret := range b.secrets {
+		requested[secret.Name] = secret
+	}
+
+	// nolint:gocritic // See the function comment.
+	managerCtx := dbauthz.AsWorkspaceSecretManager(b.ctx)
+
+	var previous []database.WorkspaceSecret
+	firstBuild, err := b.firstBuild()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "check if first build", err}
+	}
+	if !firstBuild {
+		// getLastBuild was cached before the new build row was inserted, so
+		// it is the build being superseded.
+		lastBuild, err := b.getLastBuild()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get last build", err}
+		}
+		previous, err = store.ListActiveWorkspaceSecrets(managerCtx, lastBuild.ID)
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "list workspace secrets", err}
+		}
+	}
+
+	for _, prev := range previous {
+		if prev.Ephemeral || !prev.Value.Valid {
+			continue
+		}
+		if _, replaced := requested[prev.Name]; replaced {
+			continue
+		}
+		if err := b.insertSecret(managerCtx, store, workspaceBuildID, codersdk.WorkspaceSecretInput{
+			Name:     prev.Name,
+			Value:    prev.Value.String,
+			EnvName:  prev.EnvName,
+			FilePath: prev.FilePath,
+		}); err != nil {
+			return err
+		}
+	}
+
+	for _, secret := range b.secrets {
+		if secret.Remove() {
+			continue
+		}
+		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret); err != nil {
+			return err
+		}
+	}
+
+	if len(previous) == 0 {
+		return nil
+	}
+	err = store.ClearWorkspaceSecretsBeforeBuild(managerCtx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      b.workspace.ID,
+		WorkspaceBuildID: workspaceBuildID,
+	})
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "clear previous workspace secrets", err}
+	}
+	return nil
+}
+
+func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput) error {
+	_, err := store.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
+		ID:               uuid.New(),
+		WorkspaceID:      b.workspace.ID,
+		WorkspaceBuildID: workspaceBuildID,
+		Name:             secret.Name,
+		Value:            sql.NullString{String: secret.Value, Valid: true},
+		ValueKeyID:       sql.NullString{}, // dbcrypt sets this when encryption is enabled.
+		EnvName:          secret.EnvName,
+		FilePath:         secret.FilePath,
+		Ephemeral:        secret.Ephemeral,
+	})
+	if err == nil {
+		return nil
+	}
+	switch {
+	case database.IsUniqueViolation(err, database.UniqueWorkspaceSecretsBuildEnvNameIndex):
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q: env_name is already used by another workspace secret", secret.Name), err}
+	case database.IsUniqueViolation(err, database.UniqueWorkspaceSecretsBuildFilePathIndex):
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q: file_path is already used by another workspace secret", secret.Name), err}
+	case database.IsCheckViolation(err):
+		// Per-build limit triggers and the injection target constraint all
+		// raise check_violation.
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q rejected", secret.Name), err}
+	case rbac.IsUnauthorizedError(err):
+		return BuildError{http.StatusForbidden, fmt.Sprintf("set workspace secret %q", secret.Name), err}
+	}
+	return BuildError{http.StatusInternalServerError, fmt.Sprintf("set workspace secret %q", secret.Name), err}
 }
 
 func (b *Builder) getTemplate() (*database.Template, error) {
