@@ -2402,14 +2402,25 @@ func (p *Server) InterruptChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	var refreshed database.Chat
+	var (
+		refreshed      database.Chat
+		finishedInline bool
+	)
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		before, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat before interrupt: %w", err)
+		}
 		if _, err := tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
 		}); err != nil {
 			return err
 		}
+		// Interrupt finishes the interruption inline when no worker
+		// owns a running or interrupting chat.
+		finishedInline = !before.WorkerID.Valid &&
+			(before.Status == database.ChatStatusRunning || before.Status == database.ChatStatusInterrupting)
 		// Capture the post-interrupt chat inside the transaction so
 		// the returned chat and the watch event reflect the snapshot
 		// bump and status change produced by the transition itself.
@@ -2425,6 +2436,18 @@ func (p *Server) InterruptChat(
 	}
 
 	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	if finishedInline {
+		// Apply the side effects a worker applies after it finishes an
+		// interruption. The transition already committed, so a failure
+		// is logged instead of returned.
+		if err := p.afterInterruptionOutcome(ctx, interruptionOutcome{
+			Chat: refreshed,
+			Kind: runnerActionKindFinishInterruption,
+		}); err != nil {
+			p.logger.Warn(ctx, "interruption post-outcome side effects failed",
+				slog.F("chat_id", refreshed.ID), slog.Error(err))
+		}
+	}
 	return refreshed, nil
 }
 

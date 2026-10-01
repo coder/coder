@@ -10011,6 +10011,73 @@ func setOpenAIProviderBaseURL(
 	require.Fail(t, "openai provider not found")
 }
 
+// An unowned chat has no runner, so InterruptChat finishes the
+// interruption inline. It must still clear the cached turn summary, as
+// the worker does after it finishes an interruption.
+func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		interrupting bool
+	}{
+		{name: "Running"},
+		{name: "Interrupting", interrupting: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			// The server is never started, so no worker acquires the chat.
+			server := newChatdServer(t, ps, chatd.Config{
+				Logger:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Database:  db,
+				ReplicaID: uuid.New(),
+			})
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
+			user, org, model := seedChatDependencies(t, db)
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "interrupt-unowned",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+			})
+			require.NoError(t, err)
+			if tc.interrupting {
+				// A worker acquires the chat, sees it interrupted, and
+				// abandons it before its runner starts.
+				machine := chatstate.NewChatMachine(db, ps, chat.ID)
+				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
+						return err
+					}
+					if _, err := tx.Interrupt(chatstate.InterruptInput{}); err != nil {
+						return err
+					}
+					_, err := tx.Abandon(chatstate.AbandonInput{})
+					return err
+				}))
+			}
+			chat, err = db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.False(t, chat.WorkerID.Valid)
+			seedLastTurnSummary(ctx, t, db, chat, "previous summary")
+
+			updated, err := server.InterruptChat(ctx, chat)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				fromDB, err := db.GetChatByID(ctx, chat.ID)
+				return err == nil && !fromDB.LastTurnSummary.Valid
+			}, testutil.IntervalFast, "the inline interruption must clear the cached turn summary")
+		})
+	}
+}
+
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	t.Parallel()
 
