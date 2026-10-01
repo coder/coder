@@ -222,6 +222,7 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 		fields: []slog.Field{
 			slog.F("interception_id", req.InterceptionID),
 			slog.F("msg_id", req.MsgID),
+			slog.F("provider_model", req.ProviderModel),
 			slog.F("input_tokens", req.Input),
 			slog.F("output_tokens", req.Output),
 			slog.F("cache_read_input_tokens", req.CacheReadInputTokens),

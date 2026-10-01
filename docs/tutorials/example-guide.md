@@ -41,16 +41,17 @@ be omitted.
 ## Set up the routes
 
 Once you've written your guide, you'll need to add its route to
-`docs/manifest.json` under `Guides` > `"children"` at the bottom:
+`docs/manifest/tutorials.yml` under `children`:
 
-```json
-{
-  // Overrides the "# Guide Title" at the top of this file
-  "title": "Contributing to Guides",
-  "description": "How to add a guide",
-  "path": "./guides/my-guide-file.md"
-},
+```yaml
+# The title overrides the "# Guide Title" at the top of this file.
+- title: Contributing to Guides
+  description: How to add a guide
+  path: ./tutorials/my-guide-file.md
 ```
+
+Then run `make gen/docs-manifest` to format the sidebar sources and rebuild
+`docs/manifest.json`.
 
 ## Format before push
 

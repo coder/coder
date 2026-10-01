@@ -1,0 +1,16 @@
+title: Prepare prerequisites
+description: Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.
+path: ./install/prepare/index.md
+icon_path: ./images/icons/dependency.svg
+children:
+  - title: Licensing
+    description: Add and manage Coder licenses to unlock Premium and AI Governance features.
+    path: ./install/prepare/licensing.md
+    icon_path: ./images/icons/licensing.svg
+  - title: Air-gapped deployments
+    description: Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.
+    path: ./install/prepare/airgap.md
+    icon_path: ./images/icons/lan.svg
+  - title: Mirror the registry
+    description: Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments
+    path: ./install/prepare/registry-mirror.md
