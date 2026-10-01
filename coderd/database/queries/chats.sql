@@ -2192,9 +2192,14 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
+-- Returns the queue in promotion order (position ASC, id ASC), the same
+-- order chatstate uses to pick the head. Clients read the queue through
+-- this query, so it must not order by created_at: promoting a message
+-- changes only its position, and concurrent senders can commit with
+-- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY created_at ASC, id ASC;
+ORDER BY position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
