@@ -4,28 +4,30 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
-	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestAsActor(t *testing.T) {
 	t.Parallel()
 
-	// Given: a metadata map
-	metadata := recorder.Metadata{"key": "value"}
-
-	// When: storing an actor in the context
-	ctx := aibcontext.AsActor(context.Background(), "actor-123", "actor@example.com", metadata)
-
-	// Then: the actor should be retrievable with correct ID, email, and metadata
+	want := aibcontext.Actor{
+		ID:       uuid.New(),
+		APIKeyID: "test-key-id",
+		Username: "actor",
+		Email:    "actor@example.com",
+	}
+	ctx := aibcontext.AsActor(t.Context(), want)
 	actor := aibcontext.ActorFromContext(ctx)
 	require.NotNil(t, actor)
-	assert.Equal(t, "actor-123", actor.ID)
-	assert.Equal(t, "actor@example.com", actor.Email)
-	assert.Equal(t, "value", actor.Metadata["key"])
+	assert.Equal(t, want, *actor)
+
+	want.Username = "changed"
+	assert.Equal(t, "actor", actor.Username, "the context owns a copy of the actor")
+	assert.Same(t, actor, aibcontext.ActorFromContext(context.WithoutCancel(ctx)))
 }
 
 func TestActorFromContext(t *testing.T) {
@@ -35,14 +37,15 @@ func TestActorFromContext(t *testing.T) {
 		t.Parallel()
 
 		// Given: a context with an actor
-		ctx := aibcontext.AsActor(context.Background(), "test-id", "", recorder.Metadata{})
+		id := uuid.New()
+		ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: id})
 
 		// When: extracting the actor from context
 		actor := aibcontext.ActorFromContext(ctx)
 
 		// Then: the actor should be returned with correct ID
 		require.NotNil(t, actor)
-		assert.Equal(t, "test-id", actor.ID)
+		assert.Equal(t, id, actor.ID)
 	})
 
 	t.Run("returns nil when no actor", func(t *testing.T) {
@@ -66,13 +69,20 @@ func TestActorIDFromContext(t *testing.T) {
 		t.Parallel()
 
 		// Given: a context with an actor
-		ctx := aibcontext.AsActor(context.Background(), "test-actor-id", "", recorder.Metadata{})
+		id := uuid.New()
+		ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: id})
 
 		// When: extracting the actor ID from context
 		got := aibcontext.ActorIDFromContext(ctx)
 
 		// Then: the actor ID should be returned
-		assert.Equal(t, "test-actor-id", got)
+		assert.Equal(t, id.String(), got)
+	})
+
+	t.Run("returns empty string for nil ID", func(t *testing.T) {
+		t.Parallel()
+		ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{})
+		assert.Empty(t, aibcontext.ActorIDFromContext(ctx))
 	})
 
 	t.Run("returns empty string when no actor", func(t *testing.T) {

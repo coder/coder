@@ -27,6 +27,9 @@ type (
 
 	Provider = provider.Provider
 
+	// Actor is the authenticated identity of an AI Gateway request.
+	Actor = aibcontext.Actor
+
 	InterceptionRecord      = recorder.InterceptionRecord
 	InterceptionRecordEnded = recorder.InterceptionRecordEnded
 	TokenUsageRecord        = recorder.TokenUsageRecord
@@ -44,8 +47,9 @@ type (
 	CopilotConfig           = config.Copilot
 )
 
-func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metadata) context.Context {
-	return aibcontext.AsActor(ctx, actorID, email, metadata)
+// AsActor attaches the authenticated identity to an AI Gateway request context.
+func AsActor(ctx context.Context, actor Actor) context.Context {
+	return aibcontext.AsActor(ctx, actor)
 }
 
 // NewAnthropicProvider constructs the Anthropic provider. At most one of
