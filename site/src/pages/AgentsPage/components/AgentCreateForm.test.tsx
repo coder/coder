@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { QueryClient } from "react-query";
@@ -66,7 +72,7 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 const workspaceUploadUnavailableMessage =
 	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
 const removedQueuedFileMessage = "Removed 1 file that uploads to the workspace";
-const attachDuringSubmitMessage =
+const attachDuringSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
@@ -387,10 +393,11 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		await attachImageFile();
 
-		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSendMessage);
 	});
 
-	it("rejects pasted files while the submit is pending", async () => {
+	it("rejects a multi-file paste with one toast while the submit is pending", async () => {
+		const uploadChatFile = vi.spyOn(API.experimental, "uploadChatFile");
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const { onCreateChat } = renderForm();
 		onCreateChat.mockReturnValue(new Promise<void>(() => {}));
@@ -400,13 +407,84 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
 			clipboardData: {
-				files: [new File(["png"], "image.png", { type: "image/png" })],
+				files: [
+					new File(["png"], "image.png", { type: "image/png" }),
+					new File(["zip"], "data.zip", { type: "application/zip" }),
+				],
 				types: ["Files"],
 				getData: () => "",
 			},
 		});
 
-		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSendMessage);
+		expect(uploadChatFile).not.toHaveBeenCalled();
+	});
+
+	it("lets workspace chips be removed only until their uploads finish", async () => {
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const pendingUploads = new Map<
+			string,
+			{
+				signal: AbortSignal;
+				resolve: (response: TypesGen.UploadChatWorkspaceFileResponse) => void;
+			}
+		>();
+		vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockImplementation(
+			(_chatId, file, signal) =>
+				new Promise((resolve) => {
+					if (signal) {
+						pendingUploads.set(file.name, { signal, resolve });
+					}
+				}),
+		);
+		const sentNames: string[][] = [];
+		let failSend = () => {};
+		const { onCreateChat } = renderForm();
+		onCreateChat.mockImplementation(async ({ uploadWorkspaceFiles }) => {
+			const uploaded = (await uploadWorkspaceFiles?.("chat-1")) ?? [];
+			sentNames.push(uploaded.map((upload) => upload.file.name));
+			// The first message stays in flight until the test fails it.
+			await new Promise<void>((_, reject) => {
+				failSend = () => reject(new Error("send failed"));
+			});
+		});
+		const finishSecondUpload = () =>
+			pendingUploads.get("second.zip")?.resolve({
+				path: "/home/coder/second.zip",
+				name: "second.zip",
+				size: 3,
+				media_type: "application/zip",
+				workspace_id: mockWorkspace.id,
+			});
+
+		await user().upload(screen.getByTestId("chat-attachment-file-input"), [
+			new File(["zip"], "first.zip", { type: "application/zip" }),
+			new File(["zip"], "second.zip", { type: "application/zip" }),
+		]);
+		await submitMessage("inspect these archives");
+		await waitFor(() => expect(pendingUploads.size).toBe(2));
+
+		await user().click(
+			screen.getByRole("button", { name: "Remove first.zip" }),
+		);
+		expect(pendingUploads.get("first.zip")?.signal.aborted).toBe(true);
+
+		finishSecondUpload();
+		await waitFor(() => expect(sentNames).toEqual([["second.zip"]]));
+		// The finished upload belongs to the pending message, so this click
+		// must not drop it from the retry after the send fails.
+		await user().click(
+			screen.getByRole("button", { name: "Remove second.zip" }),
+		);
+		pendingUploads.clear();
+		await act(async () => failSend());
+		await clickSend();
+		await waitFor(() => expect(pendingUploads.has("second.zip")).toBe(true));
+		finishSecondUpload();
+		await waitFor(() =>
+			expect(sentNames).toEqual([["second.zip"], ["second.zip"]]),
+		);
 	});
 
 	it("rejects workspace files after the chat was created", async () => {
@@ -418,7 +496,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		await attachZipFile();
 
-		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSendMessage);
 	});
 
 	it("drops queued files when the workspace is detached", async () => {

@@ -1719,6 +1719,7 @@ export const DeferredErrorChipKeepsSendEnabled: Story = {
 			],
 			onAttach: fn(),
 			onRemove: fn(),
+			removeDisabled: false,
 			deferred: true,
 		},
 	},
@@ -1745,6 +1746,7 @@ export const ErrorChipAloneKeepsSendDisabled: Story = {
 			],
 			onAttach: fn(),
 			onRemove: fn(),
+			removeDisabled: false,
 		},
 	},
 	play: async ({ canvasElement }) => {
