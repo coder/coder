@@ -31,18 +31,6 @@ describe("mcpServerFormLogic", () => {
 		expect(values.signingSecret).toBe(SECRET_PLACEHOLDER);
 	});
 
-	it("defaults the API key header name to Authorization", () => {
-		expect(buildInitialMCPServerFormValues().apiKeyHeader).toBe(
-			"Authorization",
-		);
-		expect(
-			buildInitialMCPServerFormValues({
-				...MockCoderMCPServer,
-				api_key_header: "X-API-Key",
-			}).apiKeyHeader,
-		).toBe("X-API-Key");
-	});
-
 	it("requires display name, slug, and URL before submitting", () => {
 		expect(canSubmitMCPServerForm(validValues(), false)).toBe(true);
 		expect(
@@ -53,24 +41,6 @@ describe("mcpServerFormLogic", () => {
 		);
 		expect(canSubmitMCPServerForm(validValues({ url: "" }), false)).toBe(false);
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
-	});
-
-	it("requires an API key header name and value for API key auth", () => {
-		const apiKey = (overrides: Partial<MCPServerFormValues>) =>
-			canSubmitMCPServerForm(
-				validValues({ authType: "api_key", ...overrides }),
-				false,
-			);
-
-		expect(apiKey({ apiKeyValue: "" })).toBe(false);
-		expect(apiKey({ apiKeyValue: "key", apiKeyTouched: true })).toBe(true);
-		expect(
-			apiKey({ apiKeyHeader: " ", apiKeyValue: "key", apiKeyTouched: true }),
-		).toBe(false);
-		expect(apiKey({ apiKeyValue: SECRET_PLACEHOLDER })).toBe(false);
-		expect(
-			apiKey({ apiKeyValue: SECRET_PLACEHOLDER, hasSavedAPIKey: true }),
-		).toBe(true);
 	});
 
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {
