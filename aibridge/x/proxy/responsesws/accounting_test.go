@@ -3,6 +3,7 @@ package responsesws_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -346,7 +347,10 @@ func TestDroppedTerminalEndsWithOverload(t *testing.T) {
 	// The accountant is blocked on resp_0's usage with an empty queue.
 	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
 	responsesws.SetQueueBounds(h.sess, 1, extract.MaxEventBytes)
-	h.forward(`{"type":"response.in_progress","stream_id":"a","response":{"id":"resp_a"}}`, completed("a", "resp_a"))
+	h.forward(`{"type":"response.in_progress","stream_id":"a","response":{"id":"resp_a"}}`)
+	before := time.Now()
+	h.forward(completed("a", "resp_a"))
+	after := time.Now()
 	require.Equal(t, 1, h.logs.count("accounting queue full: dropped event"))
 
 	close(gate)
@@ -356,6 +360,8 @@ func TestDroppedTerminalEndsWithOverload(t *testing.T) {
 	require.NotNil(t, end)
 	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
 	require.Contains(t, end.ErrorMessage, "accounting queue overloaded")
+	// The end time is when the dropped terminal event arrived.
+	requireBetween(t, "end", end.EndedAt, before, after)
 	require.Equal(t, 1, h.rec.endCount(id))
 	require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 }
@@ -391,4 +397,137 @@ func TestOversizedTerminalEvent(t *testing.T) {
 			require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 		})
 	}
+}
+
+// requireBetween requires that at is within [before, after].
+func requireBetween(t *testing.T, what string, at, before, after time.Time) {
+	t.Helper()
+	require.False(t, at.Before(before) || at.After(after),
+		"%s at %s, want between %s and %s", what, at, before, after)
+}
+
+// TestSessionEndTimeIsObserved requires that interceptions ended at session
+// end carry the time the end was observed, not the time the accountant got
+// to them after a blocked record call.
+func TestSessionEndTimeIsObserved(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		// endSession ends the session and returns a channel that receives
+		// once ending it returned.
+		endSession func(h *harness) <-chan struct{}
+	}{
+		{name: "UpstreamEnds", endSession: func(h *harness) <-chan struct{} {
+			codertestutil.RequireSend(h.ctx, h.t, h.conn.readErrs, io.EOF)
+			done := make(chan struct{})
+			close(done)
+			return done
+		}},
+		{name: "Close", endSession: func(h *harness) <-chan struct{} {
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				_ = h.sess.Close(nil)
+			}()
+			return done
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := codertestutil.Context(t, codertestutil.WaitShort)
+			h := newHarness(ctx, t, nil)
+			require.NotNil(t, h.send(create("a", "model-a", "hi")))
+			h.relay(created("a", "resp_a", "model-a"))
+			gate := make(chan struct{})
+			h.rec.usageGate.Store(&gate)
+			h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+			// The accountant is blocked on resp_0's usage.
+			_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+			before := time.Now()
+			done := tc.endSession(h)
+			// Recv fails once the reader observed the end.
+			_, err := h.sess.Recv(ctx)
+			require.Error(t, err)
+			after := time.Now()
+			close(gate)
+			_ = codertestutil.TryReceive(ctx, t, done)
+			require.NoError(t, h.sess.Close(nil))
+
+			end := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-a").ID)
+			require.NotNil(t, end)
+			require.NotEmpty(t, end.ErrorType)
+			requireBetween(t, "end", end.EndedAt, before, after)
+		})
+	}
+}
+
+// TestRecvBufferIsClientOwned requires that the client may modify a frame
+// Recv returned before the accountant processed it, without changing what
+// is recorded.
+func TestRecvBufferIsClientOwned(t *testing.T) {
+	t.Parallel()
+	// scribble overwrites every byte of frame.
+	scribble := func(frame []byte) {
+		for i := range frame {
+			frame[i] = 'x'
+		}
+	}
+	// forwardAndScribble relays frame to the client and overwrites the
+	// buffer Recv returned.
+	forwardAndScribble := func(h *harness, frame string) {
+		codertestutil.RequireSend(h.ctx, h.t, h.conn.toClient, []byte(frame))
+		got, err := h.sess.Recv(h.ctx)
+		require.NoError(h.t, err)
+		require.Equal(h.t, frame, string(got))
+		scribble(got)
+	}
+	t.Run("QueuedEvent", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		require.NotNil(t, h.send(create("a", "model-a", "hi")))
+		h.relay(created("a", "resp_a", "model-a"))
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+		// The accountant is blocked on resp_0's usage.
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		forwardAndScribble(h, completed("a", "resp_a"))
+		close(gate)
+		require.NoError(t, responsesws.Drain(ctx, h.sess))
+
+		id := h.interceptionFor("model-a").ID
+		require.Equal(t, []string{id}, usagesByResponse(h)["resp_a"])
+		end := h.rec.RecordedInterceptionEnd(id)
+		require.NotNil(t, end)
+		require.Empty(t, end.ErrorType)
+	})
+	t.Run("RacedError", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		entered, release := make(chan struct{}), make(chan struct{})
+		write := func(ctx context.Context) error {
+			close(entered)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		h.conn.onWrite.Store(&write)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(create("", "model-create", "hi"))) }()
+		_ = codertestutil.TryReceive(ctx, t, entered)
+		forwardAndScribble(h, `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"invalid_value","message":"bad input"}}`)
+		close(release)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+
+		end := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-create").ID)
+		require.NotNil(t, end)
+		require.Equal(t, recorder.ErrorTypeBadRequest, end.ErrorType)
+		require.Equal(t, "bad input", end.ErrorMessage)
+	})
 }

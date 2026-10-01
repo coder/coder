@@ -1,6 +1,7 @@
 package responsesws
 
 import (
+	"bytes"
 	"context"
 	"maps"
 	"slices"
@@ -15,6 +16,14 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
+
+// Timestamp contract: every record timestamp (StartedAt, CreatedAt,
+// EndedAt) is the time of the event that caused the record, captured on the
+// goroutine that observed the event: the reader for server frames and the
+// session end it reads, Send for client frames and the failures it sees,
+// and Close for a close. Jobs and interceptions carry these times to the
+// accountant, which never reads the clock for a record, so queueing delay
+// never shifts a record.
 
 const (
 	// maxQueuedJobs bounds accounting jobs waiting for the accountant. Only
@@ -225,7 +234,7 @@ func (s *Session) runJob(j job) {
 				err = unparsedFailure(j.eventType)
 			}
 		}
-		s.endAt(ic, err, j.arrived)
+		s.end(ic, err, j.arrived)
 	}
 }
 
@@ -243,6 +252,8 @@ type overloadedEnd struct {
 	ic *interception
 	// seq is the number of jobs pushed before the drop.
 	seq uint64
+	// arrived is when the dropped terminal event arrived, and the end time.
+	arrived time.Time
 }
 
 // handOffLocked hands ic, whose terminal job was dropped, to the accountant
@@ -250,10 +261,10 @@ type overloadedEnd struct {
 // bookkeeping now. Each interception is handed off at most once, since its
 // bookkeeping no longer routes frames to it, so the list is bounded by the
 // open interceptions. It is called with s.mu held.
-func (s *Session) handOffLocked(ic *interception) {
+func (s *Session) handOffLocked(ic *interception, arrived time.Time) {
 	s.forgetLocked(ic)
 	pushed, _ := s.queue.counts()
-	s.overloaded = append(s.overloaded, overloadedEnd{ic: ic, seq: pushed})
+	s.overloaded = append(s.overloaded, overloadedEnd{ic: ic, seq: pushed, arrived: arrived})
 	select {
 	case s.overloadWake <- struct{}{}:
 	default:
@@ -279,7 +290,7 @@ func (s *Session) endOverloaded() {
 			s.forget(o.ic)
 			continue
 		}
-		s.end(o.ic, errAccountingOverloaded)
+		s.end(o.ic, errAccountingOverloaded, o.arrived)
 	}
 }
 
@@ -318,7 +329,7 @@ func (s *Session) sweep() {
 		err error
 	}
 	s.mu.Lock()
-	cause := s.endErr
+	cause, endedAt := s.endErr, s.endedAt
 	if cause == nil {
 		cause = ErrClosed
 	}
@@ -350,7 +361,7 @@ func (s *Session) sweep() {
 				slog.F("interception_id", e.ic.id), slog.F("response_id", e.ic.responseID))
 			continue
 		}
-		s.recordEnded(e.ic, e.err, time.Now())
+		s.recordEnded(e.ic, e.err, endedAt)
 	}
 }
 
@@ -358,6 +369,13 @@ func (s *Session) sweep() {
 // the last one, and marks ic so its end reports the loss. It is called with
 // s.mu held.
 func (s *Session) pushLocked(ic *interception, jobs ...job) bool {
+	// Queued frames are copied: the reader hands its frame to the client,
+	// which owns it and may modify it before the accountant runs.
+	for i := range jobs {
+		if jobs[i].frame != nil {
+			jobs[i].frame = bytes.Clone(jobs[i].frame)
+		}
+	}
 	if s.queue.push(jobs...) {
 		return true
 	}
