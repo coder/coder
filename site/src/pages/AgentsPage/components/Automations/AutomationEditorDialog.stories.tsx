@@ -378,3 +378,22 @@ export const RotateSecretForbidden: Story = {
 		],
 	},
 };
+
+export const RotateSecretConflict: Story = {
+	args: {
+		automation: mockWebhookAutomation,
+		rotateSecretError: mockApiError({
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
