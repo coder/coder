@@ -922,59 +922,201 @@ func usagesByResponse(h *harness) map[string][]string {
 }
 
 // TestResponseDuringBlockedWrite covers a response.created that the reader
-// handles while a create's upstream write has not returned. The response
-// never binds to the unwritten create: it gets its own interception, and its
-// usage is recorded whatever the write's outcome.
+// handles while a create's upstream write has not returned, as when the
+// upstream answers before Send marks the write done.
+//
+// Before the session marked creates in flight, such a response never bound
+// to the create: it got its own interception without a prompt, and the
+// create ended without its response. Under load that lost the prompt of a
+// first turn answered at once. Upstream answers only creates, and creates
+// on a lane are written one at a time, so the response answers the create
+// being written, and binds to it.
 func TestResponseDuringBlockedWrite(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name     string
-		writeErr error
-	}{
-		{"WriteFails", xerrors.New("broken pipe")},
-		{"WriteSucceeds", nil},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := codertestutil.Context(t, codertestutil.WaitShort)
-			h := newHarness(ctx, t, nil)
-			entered, release := make(chan struct{}), make(chan struct{})
-			write := func(ctx context.Context) error {
-				close(entered)
-				select {
-				case <-release:
-					return tc.writeErr
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+	// blockWrite makes the next upstream write wait until the returned
+	// release receives its result, and returns once the write started.
+	blockWrite := func(ctx context.Context, t *testing.T, h *harness, frame string) (chan<- error, <-chan error) {
+		t.Helper()
+		entered, release := make(chan struct{}), make(chan error, 1)
+		write := func(ctx context.Context) error {
+			close(entered)
+			select {
+			case err := <-release:
+				return err
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			h.conn.onWrite.Store(&write)
-			sent := make(chan error, 1)
-			go func() { sent <- h.sess.Send(ctx, []byte(create("", "model-create", "hi"))) }()
-			_ = codertestutil.TryReceive(ctx, t, entered)
-
-			h.relay(created("", "resp_1", "model-server"))
-			own := h.interceptionFor("model-server")
-			close(release)
-			err := codertestutil.TryReceive(ctx, t, sent)
-			h.conn.onWrite.Store(nil)
-			if tc.writeErr != nil {
-				require.ErrorIs(t, err, tc.writeErr)
-			} else {
-				require.NoError(t, err)
-				// The create that raced resp_1 is retired, so it cannot
-				// claim the next create's response.
-				require.NotNil(t, h.send(create("", "model-next", "next")))
-				h.relay(created("", "resp_2", "model-server-2"), completed("", "resp_2"))
-				require.Equal(t, []string{h.interceptionFor("model-next").ID}, usagesByResponse(h)["resp_2"])
-			}
-			h.relay(completed("", "resp_1"))
-			require.Equal(t, []string{own.ID}, usagesByResponse(h)["resp_1"])
-			require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-create").ID))
-			require.NoError(t, h.sess.Close(nil))
-			h.rec.VerifyAllInterceptionsEnded(t)
-		})
+		}
+		h.conn.onWrite.Store(&write)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(frame)) }()
+		_ = codertestutil.TryReceive(ctx, t, entered)
+		return release, sent
 	}
+
+	t.Run("WriteSucceeds", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.relay(created("", "resp_1", "model-create"))
+		release <- nil
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		h.conn.onWrite.Store(nil)
+
+		h.relay(completed("", "resp_1"))
+		own := h.interceptionFor("model-create")
+		require.Len(t, h.rec.RecordedInterceptions(), 1)
+		require.Equal(t, map[string][]string{"resp_1": {own.ID}}, usagesByResponse(h))
+		prompts := h.rec.RecordedPromptUsages()
+		require.Len(t, prompts, 1)
+		require.Equal(t, "first turn", prompts[0].Prompt)
+		require.Equal(t, own.ID, prompts[0].InterceptionID)
+		require.Empty(t, h.rec.RecordedInterceptionEnd(own.ID).ErrorType)
+
+		// The next create binds the next response.
+		require.NotNil(t, h.send(create("", "model-next", "next")))
+		h.relay(created("", "resp_2", "model-next"), completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-next").ID}, usagesByResponse(h)["resp_2"])
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+	// A write that fails after its create bound a response ends the create
+	// with the write error. The response's events queued before keep their
+	// records on the create; later ones open their own interception. The
+	// usage is recorded exactly once either way.
+	t.Run("WriteFailsBeforeTerminal", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.relay(created("", "resp_1", "model-create"))
+		release <- errWrite
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), errWrite)
+		h.conn.onWrite.Store(nil)
+		h.relay(completed("", "resp_1"))
+
+		own := h.interceptionFor("model-create")
+		end := h.rec.RecordedInterceptionEnd(own.ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, errWrite.Error())
+		usages := usagesByResponse(h)["resp_1"]
+		require.Len(t, usages, 1)
+		require.NotEqual(t, own.ID, usages[0])
+		require.Len(t, h.rec.RecordedPromptUsages(), 1)
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+	t.Run("WriteFailsAfterTerminal", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		// The accountant blocks on another lane, so resp_1's jobs are still
+		// queued when the write fails.
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(created("z", "resp_0", "model-z"), completed("z", "resp_0"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.forward(created("", "resp_1", "model-create"), completed("", "resp_1"))
+		release <- errWrite
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), errWrite)
+		close(gate)
+		require.NoError(t, responsesws.Drain(ctx, h.sess))
+
+		own := h.interceptionFor("model-create")
+		require.Equal(t, []string{own.ID}, usagesByResponse(h)["resp_1"])
+		end := h.rec.RecordedInterceptionEnd(own.ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, errWrite.Error())
+		require.Equal(t, 1, h.rec.endCount(own.ID))
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+}
+
+// TestContinuationNeverBindsToCreate requires that a steer's automatic
+// continuation, which answers no create, never binds to a create, so the
+// create keeps its own answer, also while the create is being written.
+func TestContinuationNeverBindsToCreate(t *testing.T) {
+	t.Parallel()
+	const steerAccepted = `{"type":"response.steer.accepted","steer":{"id":"steer_1","previous_response_id":"resp_1"}}`
+	// steered opens a session with resp_1 in flight on create "model-a" and
+	// a steer of resp_1 accepted.
+	steered := func(ctx context.Context, t *testing.T) *harness {
+		t.Helper()
+		h := newHarness(ctx, t, nil)
+		require.NotNil(t, h.send(create("", "model-a", "draft a plan")))
+		h.relay(created("", "resp_1", "model-a"))
+		require.NotNil(t, h.send(`{"type":"response.steer","previous_response_id":"resp_1","input":"shorter"}`))
+		h.relay(steerAccepted, terminal("", "response.incomplete", "resp_1", `,"status":"incomplete","incomplete_details":{"reason":"steered"}`))
+		return h
+	}
+	// writeDuring sends frame with its upstream write blocked while frames
+	// arrive from upstream.
+	writeDuring := func(ctx context.Context, t *testing.T, h *harness, frame string, frames ...string) {
+		t.Helper()
+		entered, release := make(chan struct{}), make(chan struct{})
+		write := func(context.Context) error {
+			close(entered)
+			<-release
+			return nil
+		}
+		h.conn.onWrite.Store(&write)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(frame)) }()
+		_ = codertestutil.TryReceive(ctx, t, entered)
+		h.relay(frames...)
+		close(release)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		h.conn.onWrite.Store(nil)
+	}
+
+	t.Run("WhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, create("", "model-b", "next"), continuationCreated("", "resp_2", "model-cont", "resp_1"))
+		h.relay(created("", "resp_3", "model-b"), completed("", "resp_2"), completed("", "resp_3"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.Equal(t, []string{h.interceptionFor("model-b").ID}, usagesByResponse(h)["resp_3"])
+	})
+	t.Run("Written", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		require.NotNil(t, h.send(create("", "model-b", "next")))
+		h.relay(continuationCreated("", "resp_2", "model-cont", "resp_1"), created("", "resp_3", "model-b"),
+			completed("", "resp_2"), completed("", "resp_3"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.Equal(t, []string{h.interceptionFor("model-b").ID}, usagesByResponse(h)["resp_3"])
+	})
+	// Without a previous_response_id, a response arriving while a steer
+	// awaits its continuation may be either, so it does not bind to the
+	// create being written, which ends without a response.
+	t.Run("UnmarkedWhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, create("", "model-b", "next"), created("", "resp_2", "model-cont"))
+		h.relay(completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID))
+	})
+	// A create continuing the steered response could be answered by the
+	// response, which is then either its answer or the continuation. It
+	// does not bind to the create being written, which ends without a
+	// response.
+	t.Run("AmbiguousWhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, `{"type":"response.create","model":"model-b","previous_response_id":"resp_1","input":"next"}`,
+			continuationCreated("", "resp_2", "model-cont", "resp_1"))
+		h.relay(completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID))
+	})
 }
 
 // TestTerminalForUnknownResponseRecordsUsage requires that a terminal

@@ -49,6 +49,9 @@ const (
 	jobEvent
 	// jobBarrier signals done once every earlier job was processed.
 	jobBarrier
+	// jobEnd ends the interception, with its end cause, once its earlier
+	// jobs ran.
+	jobEnd
 )
 
 // job is one unit of accounting work, processed by the accountant in queue
@@ -189,7 +192,7 @@ func (s *Session) runJobs() {
 		if !ok {
 			break
 		}
-		if j.kind != jobBarrier && s.cleanupCtx.Err() != nil {
+		if j.kind != jobBarrier && j.kind != jobEnd && s.cleanupCtx.Err() != nil {
 			dropped++
 			s.markLossy(j.ic)
 			continue
@@ -206,6 +209,8 @@ func (s *Session) runJob(j job) {
 	switch j.kind {
 	case jobBarrier:
 		close(j.done)
+	case jobEnd:
+		s.end(j.ic, nil, j.arrived)
 	case jobStart:
 		s.ensureStarted(j.ic)
 	case jobEvent:
@@ -360,6 +365,9 @@ func (s *Session) sweep() {
 			continue
 		}
 		err := cause
+		if ic.endCause != nil {
+			err = ic.endCause
+		}
 		if ic.lossy {
 			err = errAccountingOverloaded
 		}
@@ -371,6 +379,7 @@ func (s *Session) sweep() {
 	clear(s.active)
 	clear(s.responses)
 	clear(s.toolCalls)
+	s.steers = nil
 	s.mu.Unlock()
 	for _, e := range ended {
 		if !e.ic.started {

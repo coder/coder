@@ -9,18 +9,22 @@
 //     before it is forwarded.
 //   - Every response the provider announces or finishes is recorded on
 //     exactly one interception of the session. A response.created binds to
-//     the oldest create on its lane whose upstream write succeeded, else it
-//     opens an interception of its own. A terminal event for a response no
-//     interception owns also opens one, so terminal usage is never dropped.
-//   - A create whose write fails is never bound to a response. A create whose
-//     write was in flight when a response.created or error event on its lane
-//     could not be attributed ends without a response, since that event may
-//     have been its answer.
+//     the oldest create on its lane whose upstream write succeeded or is in
+//     flight, else it opens an interception of its own. A terminal event for
+//     a response no interception owns also opens one, so terminal usage is
+//     never dropped.
+//   - A create whose write fails ends with the write error. A response it
+//     bound while being written keeps the records its already queued events
+//     produce; its later events open an interception of their own. A create
+//     that a response.created or error event on its lane could not be
+//     attributed to before its write started ends without a response, since
+//     that event may have been its answer.
 //   - Steering frames are relayed unchanged, and steer input is recorded as a
-//     prompt on the interception owning the steered response. Automatic
-//     continuation responses are not promised to share that interception:
-//     they bind like any other response. Interceptions of one connection are
-//     grouped by client session.
+//     prompt on the interception owning the steered response. An automatic
+//     continuation recognized by its previous_response_id naming a response
+//     with a response.steer.accepted never binds to a create; see
+//     bindCreatedLocked for the ambiguous and unrecognized cases.
+//     Interceptions of one connection are grouped by client session.
 //   - An interception ends with its response's terminal event, an error event
 //     rejecting its create, or session end. Session end ends every open
 //     interception within one shared cleanup deadline.
@@ -105,6 +109,7 @@ const (
 
 	eventCreate     = "response.create"
 	eventSteer      = "response.steer"
+	eventSteerOK    = "response.steer.accepted"
 	eventCreated    = "response.created"
 	eventCompleted  = "response.completed"
 	eventFailed     = "response.failed"
@@ -220,6 +225,21 @@ type Session struct {
 	// tool call record exists by then, so only a create answering one of
 	// these calls waits before it is recorded.
 	toolCalls map[string]*interception
+	// steers holds, oldest first, the responses upstream accepted a steer
+	// for and whose automatic continuation has not been seen yet, at most
+	// maxPendingSteers. A continuation answers no create, so it never binds
+	// to a create whose write is in flight. See bindCreatedLocked.
+	steers []pendingSteer
+}
+
+// maxPendingSteers bounds Session.steers. Steers are rare, and a
+// continuation follows its accepted steer closely.
+const maxPendingSteers = 16
+
+// pendingSteer is a steered response whose continuation may still arrive.
+type pendingSteer struct {
+	lane       string
+	responseID string
 }
 
 type interception struct {
@@ -228,6 +248,8 @@ type interception struct {
 	// prompt is the create's last user prompt, recorded once its response ID
 	// is known. Empty for interceptions the server opened.
 	prompt string
+	// previousResponseID is the create's previous_response_id, if any.
+	previousResponseID string
 	// model and startedAt are recorded in the interception start record.
 	// startedAt is when the create was sent or the server frame arrived,
 	// not when the accountant records the start.
@@ -237,11 +259,18 @@ type interception struct {
 	// before they are forwarded; interceptions the server opened are
 	// started by the accountant, which alone reads and writes it for them.
 	started bool
-	// written marks a create whose upstream write succeeded. Only a written
-	// create binds a response. Guarded by Session.mu.
+	// written marks a create whose upstream write succeeded. Guarded by
+	// Session.mu.
 	written bool
-	// raced marks a create whose write was in flight when a response.created
-	// or error event on its lane could not be attributed. Guarded by
+	// writing marks a create whose upstream write started. A written or
+	// writing create binds a response: creates on a lane are written one at
+	// a time and in order, and upstream answers only creates, so a
+	// response.created that arrives while the lane's head create is being
+	// written answers it, even before the write call returns. Guarded by
+	// Session.mu.
+	writing bool
+	// raced marks a create, not yet being written, that an error event or
+	// response.created on its lane could not be attributed to. Guarded by
 	// Session.mu.
 	raced bool
 	// racedAt is when the first event that raced the create's write
@@ -269,6 +298,10 @@ type interception struct {
 	// settled, when a create waits for this interception, is closed once
 	// the interception ends. Guarded by Session.mu.
 	settled chan struct{}
+	// endCause, when set, is the cause the interception ends with, whoever
+	// ends it: the write error of a create that bound its response while
+	// being written. Guarded by Session.mu.
+	endCause error
 }
 
 // NewSession starts relaying upstream. ctx bounds the session and must carry
@@ -551,6 +584,7 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	}
 	ic, err := s.startInterception(opCtx, lane, model, sentAt, toolCallID, func(ic *interception) {
 		ic.prompt = facts.Prompt
+		ic.previousResponseID = gjson.GetBytes(frame, "previous_response_id").String()
 		s.pending[lane] = append(s.pending[lane], ic)
 	})
 	if err != nil {
@@ -565,8 +599,11 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	if aborted := s.sendAborted(ctx); aborted != nil {
 		return s.endStarted(ctx, ic, aborted)
 	}
+	s.mu.Lock()
+	ic.writing = true
+	s.mu.Unlock()
 	if err := s.upstream.Write(opCtx, frame); err != nil {
-		return s.endStarted(ctx, ic, xerrors.Errorf("write response.create upstream: %w", err))
+		return s.endUnwritten(ctx, ic, xerrors.Errorf("write response.create upstream: %w", err))
 	}
 	s.publish(ic)
 	return nil
@@ -626,14 +663,13 @@ func (s *Session) registerToolCallsLocked(ic *interception, eventType string, fr
 	}
 }
 
-// publish makes a create whose write succeeded bindable. The transition
-// happens under the lock, so a response.created handled before it never
-// binds to the create. If such a response opened its own interception while
-// the write was in flight, it may have been this create's answer, so the
-// create ends without a response instead: binding it to a later response
-// would shift every following response on the lane onto the wrong create.
-// An error event that raced the write is its answer, so it becomes the end
-// cause.
+// publish marks a create whose write succeeded as written. A
+// response.created that arrived while the write was in flight already bound
+// to it. If a response opened its own interception before the write
+// started, it may have been this create's answer, so the create ends
+// without a response instead: binding it to a later response would shift
+// every following response on the lane onto the wrong create. An error
+// event that raced the write is its answer, so it becomes the end cause.
 func (s *Session) publish(ic *interception) {
 	s.mu.Lock()
 	if ic.ended {
@@ -679,6 +715,41 @@ func (s *Session) endStarted(ctx context.Context, ic *interception, err error) e
 		s.end(ic, err, now)
 		return err
 	}
+}
+
+// endUnwritten ends a create whose write failed with err, classified like
+// [Session.endStarted]. A response the create bound while it was being
+// written stays recorded on the create: its jobs already queued still run,
+// and the create ends with the write error once they did. Later events of
+// that response open their own interception, as for any response no create
+// explains, so its usage is recorded exactly once.
+func (s *Session) endUnwritten(ctx context.Context, ic *interception, err error) error {
+	now := time.Now()
+	cause, endedAt, ret := err, now, err
+	switch {
+	case s.isClosed():
+		cause, endedAt, ret = context.Cause(s.ctx), s.sessionEndTime(now), ErrClosed
+	case ctx.Err() != nil:
+		cause, ret = ctx.Err(), ctx.Err()
+	}
+	s.mu.Lock()
+	if ic.responseID == "" || ic.ended {
+		s.mu.Unlock()
+		s.end(ic, cause, endedAt)
+		return ret
+	}
+	ic.endCause = cause
+	if s.responses[ic.responseID] == ic {
+		delete(s.responses, ic.responseID)
+	}
+	if s.active[ic.lane] == ic {
+		delete(s.active, ic.lane)
+	}
+	// On overload the session end sweep ends it instead, as an
+	// interception that lost a job.
+	s.pushLocked(ic, job{kind: jobEnd, ic: ic, arrived: endedAt})
+	s.mu.Unlock()
+	return ret
 }
 
 // startInterception records a new interception, started at startedAt, and
@@ -745,6 +816,9 @@ func (s *Session) route(frame []byte, arrived time.Time) {
 	case eventCreated:
 		s.bindCreatedLocked(lane, ev)
 		return
+	case eventSteerOK:
+		s.noteSteerLocked(lane, gjson.GetBytes(frame, "steer.previous_response_id").String())
+		ic = s.active[lane]
 	case eventCompleted, eventFailed, eventIncomplete:
 		response := gjson.GetBytes(frame, "response")
 		ic = s.responses[response.Get("id").String()]
@@ -805,28 +879,96 @@ func (s *Session) pushTerminalLocked(ic *interception, ev job) {
 }
 
 // bindCreatedLocked binds a new response to the oldest create on its lane
-// whose write succeeded. Otherwise the response opens its own interception
-// so nothing goes unrecorded; admission is not applied to such responses.
+// whose write succeeded, or whose write is in flight. A steer's automatic
+// continuation answers no create, so it never binds. Otherwise the response
+// opens its own interception so nothing goes unrecorded; admission is not
+// applied to such responses.
+//
+// A response whose previous_response_id names a response with an accepted
+// steer is that steer's continuation, unless the create it would bind to
+// continues the same response, which leaves it ambiguous: a written create
+// binds it, and a create still being written ends without a response, as
+// when the response arrives before the write starts. A response without a
+// previous_response_id, while a steer on its lane awaits its continuation,
+// does not bind to a create still being written either.
+//
+// Residual case: a continuation without a previous_response_id, arriving
+// after more than maxPendingSteers later accepted steers or without a
+// response.steer.accepted event, binds like any other response, possibly to
+// a create whose write is in flight. That create then records the
+// continuation's output and usage, and the create's own response opens an
+// interception without a prompt; no usage is lost or recorded twice.
 func (s *Session) bindCreatedLocked(lane string, ev job) {
-	responseID := gjson.GetBytes(ev.frame, "response.id").String()
+	response := gjson.GetBytes(ev.frame, "response")
+	responseID := response.Get("id").String()
+	previousID := response.Get("previous_response_id").String()
 	q := s.pending[lane]
-	if len(q) > 0 && q[0].written {
-		ic := q[0]
+	var head *interception
+	if len(q) > 0 {
+		head = q[0]
+	}
+	steered := s.steerAwaitedLocked(previousID)
+	ambiguous := steered && head != nil && head.previousResponseID == previousID
+	bind := false
+	switch {
+	case steered && !ambiguous:
+		s.takeSteerLocked(previousID)
+	case head == nil:
+	case head.written:
+		bind = true
+	case head.writing && !ambiguous && (previousID != "" || !s.steerPendingLocked(lane)):
+		bind = true
+	default:
+		// Creates are written in order, so the head is the create being
+		// written or the next one. See publish.
+		head.markRaced(ev.arrived)
+	}
+	if bind {
 		setQueue(s.pending, lane, q[1:])
-		ic.responseID = responseID
-		s.bindLocked(ic, responseID)
-		ev.ic = ic
-		s.pushLocked(ic, ev)
+		head.responseID = responseID
+		s.bindLocked(head, responseID)
+		ev.ic = head
+		s.pushLocked(head, ev)
 		return
 	}
-	if len(q) > 0 {
-		// Creates are written in order, so an unwritten head is the create
-		// whose write is in flight. See publish.
-		q[0].markRaced(ev.arrived)
-	}
-	if ic := s.openLocked(lane, gjson.GetBytes(ev.frame, "response.model").String(), responseID, ev); ic != nil {
+	if ic := s.openLocked(lane, response.Get("model").String(), responseID, ev); ic != nil {
 		s.bindLocked(ic, responseID)
 	}
+}
+
+// noteSteerLocked records that upstream accepted a steer for responseID on
+// lane, so its continuation is recognized. It is called with s.mu held.
+func (s *Session) noteSteerLocked(lane, responseID string) {
+	if responseID == "" {
+		return
+	}
+	for _, p := range s.steers {
+		if p.responseID == responseID {
+			return
+		}
+	}
+	if len(s.steers) == maxPendingSteers {
+		s.steers = slices.Delete(s.steers, 0, 1)
+	}
+	s.steers = append(s.steers, pendingSteer{lane: lane, responseID: responseID})
+}
+
+// steerAwaitedLocked reports whether responseID awaits a steer's
+// continuation. It is called with s.mu held.
+func (s *Session) steerAwaitedLocked(responseID string) bool {
+	return responseID != "" && slices.ContainsFunc(s.steers, func(p pendingSteer) bool { return p.responseID == responseID })
+}
+
+// takeSteerLocked stops awaiting the continuation of responseID. It is
+// called with s.mu held.
+func (s *Session) takeSteerLocked(responseID string) {
+	s.steers = slices.DeleteFunc(s.steers, func(p pendingSteer) bool { return p.responseID == responseID })
+}
+
+// steerPendingLocked reports whether a steer on lane awaits its
+// continuation. It is called with s.mu held.
+func (s *Session) steerPendingLocked(lane string) bool {
+	return slices.ContainsFunc(s.steers, func(p pendingSteer) bool { return p.lane == lane })
 }
 
 // bindLocked routes the lane's events and responseID's terminal event to ic.
@@ -868,6 +1010,9 @@ func (s *Session) end(ic *interception, err error, endedAt time.Time) {
 	if !s.markEndedLocked(ic) {
 		s.mu.Unlock()
 		return
+	}
+	if ic.endCause != nil {
+		err = ic.endCause
 	}
 	if ic.lossy {
 		err = errAccountingOverloaded

@@ -89,10 +89,10 @@ func TestAccountingOverloadIsLogged(t *testing.T) {
 	}
 }
 
-// TestRacedErrorKeepsCause covers events that race a create's write: an
-// error event is the create's answer and becomes its end cause, while a
-// response.created that opened its own interception retires the create
-// without an error.
+// TestRacedErrorKeepsCause covers error events that race a create's write:
+// the error is the create's answer and becomes its end cause. A
+// response.created that races the write binds to the create; see
+// TestResponseDuringBlockedWrite.
 func TestRacedErrorKeepsCause(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -106,7 +106,6 @@ func TestRacedErrorKeepsCause(t *testing.T) {
 			event:   `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"invalid_value","message":"bad input"}}`,
 			errType: recorder.ErrorTypeBadRequest, message: "bad input",
 		},
-		{name: "ResponseCreated", event: created("", "resp_1", "model-server")},
 		{
 			// Not kept, so the end cause names the unparsed event.
 			name:    "OversizedErrorEvent",
