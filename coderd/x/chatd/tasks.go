@@ -759,9 +759,9 @@ func (s *taskStarter) cancelableToolCallsFromHistory(ctx context.Context, chat d
 	return calls, ids
 }
 
-// cancelUnresolvedToolCalls cancels calls on the chat's agent and returns
-// their results by provider tool call ID. It logs a warning for each call
-// without a result.
+// cancelUnresolvedToolCalls sends the chat's agent a cancel request for each
+// call and returns the calls' results by provider tool call ID. It logs a
+// warning for each call without a result.
 func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat, calls []fantasy.ToolCallContent, ids map[string]uuid.UUID) map[string]fantasy.ToolResponse {
 	if len(calls) == 0 {
 		return nil
