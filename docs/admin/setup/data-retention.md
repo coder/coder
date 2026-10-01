@@ -1,5 +1,5 @@
 ---
-title: Data Retention
+title: Data retention
 ---
 
 Coder supports configurable retention policies that automatically purge old

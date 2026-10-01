@@ -1,0 +1,13 @@
+title: Customize your template
+description: Add a language, install command-line tools, and authenticate to GitHub
+path: ./get-started/customize-your-template/index.md
+children:
+  - title: Add a programming language
+    description: Expose a new programming language through a template parameter and install it at workspace startup.
+    path: ./get-started/customize-your-template/add-a-language.md
+  - title: Install your own command-line tools
+    description: Install your own command-line tools in a workspace and make them persist across rebuilds.
+    path: ./get-started/customize-your-template/install-command-line-tools.md
+  - title: Clone private repositories
+    description: Clone private GitHub repositories in your workspace using a Coder external-auth data source.
+    path: ./get-started/customize-your-template/authenticate-to-github.md

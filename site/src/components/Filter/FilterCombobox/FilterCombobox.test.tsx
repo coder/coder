@@ -22,6 +22,28 @@ const ownerCategory: FilterCategory = {
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
+const scopedOwnerCategory: FilterCategory = {
+	...ownerCategory,
+	scopeToggle: {
+		label: (owner) =>
+			owner
+				? `Include workspaces shared with ${owner}`
+				: "Include shared workspaces",
+		widenedKey: "user",
+		pillLabel: "include shared",
+		pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+		searchPhrase: "shared with owner",
+	},
+};
+
+const filteredScopedOwnerCategory: FilterCategory = {
+	...scopedOwnerCategory,
+	getOptions: async (query) =>
+		["me", "carol", "alice"]
+			.filter((name) => name.includes(query.toLowerCase()))
+			.map((name) => ({ label: name, value: name })),
+};
+
 const OWNER_NAMES = Array.from(
 	{ length: SEARCHABLE_OPTION_COUNT + 2 },
 	(_, index) => `user-${index}`,
@@ -2280,6 +2302,613 @@ describe("FilterCombobox", () => {
 		await getOptions.mock.results.at(-1)?.value;
 
 		await waitFor(() => expect(search).toHaveFocus());
+	});
+
+	describe("Owner scope", () => {
+		type Harness = ReturnType<typeof setup>;
+		type Via = "input" | "menu";
+
+		const ownerTableCategory: FilterCategory = {
+			...filteredScopedOwnerCategory,
+			aliases: ["creator"],
+		};
+
+		const findScopeSwitch = (owner?: string) =>
+			screen.findByRole("switch", {
+				name: owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			});
+
+		const openOwnerCategory = async ({ user, filtersButton }: Harness) => {
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+		};
+
+		const startTyping = async (harness: Harness, via: Via, typed: string) => {
+			if (via === "menu") {
+				await openOwnerCategory(harness);
+			} else {
+				await harness.user.click(harness.input);
+			}
+			if (typed) {
+				await harness.user.keyboard(typed);
+			}
+		};
+
+		it.each<[string, Via, string, string, string]>([
+			["", "input", "ali", "alice", "user:alice"],
+			["owner:bob", "input", "ali", "alice", "owner:alice"],
+			["", "input", "use{Tab}", "alice", "user:alice"],
+			["user:bob", "input", "creator:", "alice", "owner:alice"],
+			[
+				"user:me owner:carol",
+				"input",
+				"owner:",
+				"alice",
+				"user:me owner:alice",
+			],
+			[
+				"owner:bob user:carol",
+				"input",
+				"user:",
+				"alice",
+				"owner:bob user:alice",
+			],
+			["owner:bob", "input", "user:", "alice", "user:alice"],
+			[
+				"owner:bob user:carol",
+				"input",
+				"owner:",
+				"carol",
+				"owner:carol user:carol",
+			],
+			[
+				"user:me owner:carol",
+				"input",
+				"user:",
+				"carol",
+				"user:carol owner:carol",
+			],
+			["owner:me user:alice", "input", "ali", "alice", "owner:me"],
+			["", "menu", "", "alice", "user:alice"],
+			["owner:bob user:carol", "menu", "", "alice", "owner:alice user:carol"],
+			["user:me owner:carol", "menu", "", "carol", "user:me"],
+			["owner:me user:Alice", "menu", "", "alice", "owner:me"],
+		])(
+			"from %j, typing in the %s %j and clicking %s commits %j",
+			async (initialValue, via, typed, owner, expected) => {
+				const harness = setup([ownerTableCategory], { initialValue });
+				await startTyping(harness, via, typed);
+				await harness.user.click(
+					await screen.findByRole("option", { name: new RegExp(owner) }),
+				);
+
+				await waitFor(() =>
+					expect(harness.onChange).toHaveBeenLastCalledWith(expected),
+				);
+			},
+		);
+
+		it.each<[string, Via, string, string]>([
+			["", "input", "owner:ali", "owner:alice"],
+			["", "input", "user:ali", "user:alice"],
+			["", "input", "user:bob", "user:bob"],
+			["user:zed", "input", "owner:zed", "owner:zed"],
+			["user:me owner:carol", "menu", "carol", "user:me"],
+			["owner:me user:Alice", "menu", "alice", "owner:me"],
+			["user:me", "menu", "bob", "owner:bob"],
+			["user:zed", "menu", "zed", "user:zed"],
+			["owner:me user:zed", "menu", "zed", "owner:me user:zed"],
+		])(
+			"from %j, typing in the %s %j and pressing Enter leaves %j",
+			async (initialValue, via, typed, expected) => {
+				const harness = setup([ownerTableCategory], { initialValue });
+				await startTyping(harness, via, typed);
+				const name = typed.split(":").at(-1) ?? "";
+				if (
+					["me", "carol", "alice"].some((owner) =>
+						owner.includes(name.toLowerCase()),
+					)
+				) {
+					await screen.findByRole("option", { name: new RegExp(name, "i") });
+				} else {
+					await expectStatus("No Owner matches");
+				}
+				await harness.user.keyboard("{Enter}");
+
+				await waitFor(() =>
+					expect(harness.onChange.mock.calls.at(-1)?.[0] ?? initialValue).toBe(
+						expected,
+					),
+				);
+				// Committing the typed name must not briefly apply it under Owner.
+				if (!`${initialValue} ${expected}`.includes(`owner:${name}`)) {
+					expect(harness.onChange).not.toHaveBeenCalledWith(
+						expect.stringContaining(`owner:${name.toLowerCase()}`),
+					);
+				}
+			},
+		);
+
+		it("commits a typed listed owner under the switch key once the highlight leaves it", async () => {
+			const harness = setup([ownerTableCategory], { initialValue: "user:me" });
+			await startTyping(harness, "menu", "Alice");
+			const alice = await screen.findByRole("option", { name: "alice" });
+			await harness.user.hover(alice);
+			await harness.user.unhover(alice);
+			expect(alice).toHaveAttribute("aria-selected", "false");
+			await harness.user.keyboard("{Enter}");
+
+			await waitFor(() =>
+				expect(harness.onChange).toHaveBeenLastCalledWith("user:alice"),
+			);
+		});
+
+		it.each([
+			["with loaded options", scopedOwnerCategory],
+			[
+				"when the options failed to load",
+				{
+					...scopedOwnerCategory,
+					getOptions: async () => {
+						throw new Error("failed");
+					},
+				},
+			],
+		])("switches the scope off for %s", async (_, category) => {
+			const harness = setup([category], { initialValue: "user:alice" });
+			await openOwnerCategory(harness);
+			await harness.user.click(await findScopeSwitch("alice"));
+
+			await waitFor(() =>
+				expect(harness.onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		});
+
+		it("disables the scope switch until an owner is picked, then turns it on", async () => {
+			const harness = setup([scopedOwnerCategory]);
+			await openOwnerCategory(harness);
+			expect(await findScopeSwitch()).toBeDisabled();
+			await harness.user.keyboard("{ArrowDown}{Enter}");
+
+			await waitFor(() =>
+				expect(harness.onChange).toHaveBeenLastCalledWith("user:alice"),
+			);
+		});
+
+		it.each([
+			["an applied owner: chip", "owner:alice", ""],
+			["a typed owner: prefix", "", "owner:alice"],
+		])(
+			"turns the scope back on for the next owner after %s",
+			async (_, initialValue, typed) => {
+				const harness = setup([scopedOwnerCategory], { initialValue });
+				const { user, onChange, input } = harness;
+				if (typed) {
+					await user.click(input);
+					await user.keyboard(typed);
+					await screen.findByRole("option", { name: "alice" });
+					await user.keyboard("{Enter}");
+					await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(typed));
+				}
+
+				await user.click(
+					screen.getByRole("button", { name: "Remove owner:alice" }),
+				);
+				await user.keyboard("{Escape}");
+				await openOwnerCategory(harness);
+				await screen.findByRole("option", { name: "alice" });
+				await user.keyboard("{ArrowDown}{Enter}");
+
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+				);
+			},
+		);
+
+		it("applies a typed owner: prefix only when an option is picked", async () => {
+			const { user, onChange, input } = setup([scopedOwnerCategory], {
+				initialValue: "user:alice",
+			});
+			await user.click(input);
+			await user.type(input, "owner:");
+			await screen.findByRole("option", { name: "alice" });
+			await user.keyboard("{Escape}");
+			expect(onChange).not.toHaveBeenCalledWith("owner:alice");
+
+			await user.clear(input);
+			await user.type(input, "owner:");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		});
+
+		it("lets the scope switch override a typed owner: prefix", async () => {
+			const { user, input } = setup([scopedOwnerCategory], {
+				initialValue: "user:alice",
+			});
+			await user.click(input);
+			await user.type(input, "owner:");
+			const scopeSwitch = await findScopeSwitch("alice");
+			await user.click(scopeSwitch);
+
+			expect(scopeSwitch).toBeChecked();
+		});
+
+		it("follows the applied chip after leaving a typed owner: prefix", async () => {
+			const { user, onChange, input } = setup([filteredScopedOwnerCategory], {
+				initialValue: "user:me",
+			});
+
+			await user.click(input);
+			await user.type(input, "owner:");
+			expect(await findScopeSwitch("me")).not.toBeChecked();
+			await user.keyboard("{Backspace}");
+			await screen.findByRole("option", { name: "Owner" });
+			await user.keyboard("{ArrowRight}");
+			expect(await findScopeSwitch("me")).toBeChecked();
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+			);
+		});
+
+		it.each([
+			["user:me owner:carol", "me"],
+			["owner:bob user:carol", "bob"],
+		])(
+			"keeps both Owner chips of %s when the scope switch is clicked",
+			async (initialValue, owner) => {
+				const harness = setup([scopedOwnerCategory], { initialValue });
+				await openOwnerCategory(harness);
+				await harness.user.click(await findScopeSwitch(owner));
+				for (const [query] of harness.onChange.mock.calls) {
+					expect(query).toBe(initialValue);
+				}
+
+				await harness.user.click(harness.input);
+				await harness.user.keyboard("{Escape}{Backspace}");
+				await waitFor(() =>
+					expect(harness.onChange).toHaveBeenLastCalledWith(
+						initialValue.split(" ")[0],
+					),
+				);
+			},
+		);
+
+		it("keeps both Owner chips while typing and removes only the clicked one", async () => {
+			const { user, onChange, input } = setup([scopedOwnerCategory], {
+				initialValue: "owner:bob user:carol",
+			});
+			expect(input).toHaveValue("");
+
+			await user.click(input);
+			await user.type(input, "dev ");
+			await user.keyboard("{Backspace}{Escape}");
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:bob user:carol dev"),
+			);
+			expect(onChange).not.toHaveBeenCalledWith("owner:bob");
+
+			await user.click(
+				screen.getByRole("button", { name: "Remove user:carol" }),
+			);
+			expect(onChange).toHaveBeenLastCalledWith("owner:bob dev");
+		});
+
+		it.each([
+			["user:me owner:carol", "user:me", "owner:carol"],
+			[
+				"owner:bob user:carol status:running",
+				"status:running",
+				"owner:bob user:carol",
+			],
+		])(
+			"removes one chip of %s without touching the other Owner chip",
+			async (initialValue, chip, expected) => {
+				const { user, onChange } = setup(
+					[scopedOwnerCategory, statusCategory],
+					{
+						initialValue,
+					},
+				);
+				await user.click(
+					screen.getByRole("button", { name: `Remove ${chip}` }),
+				);
+
+				expect(onChange).toHaveBeenLastCalledWith(expected);
+			},
+		);
+
+		describe("scope pill", () => {
+			const hidePill = () =>
+				screen.getByRole("button", {
+					name: "Hide workspaces shared with alice",
+				});
+
+			it("shows the switch label in its tooltip", async () => {
+				const { user } = setup([scopedOwnerCategory], {
+					initialValue: "user:alice",
+				});
+				await user.hover(screen.getByText("include shared"));
+
+				expect(await screen.findByRole("tooltip")).toHaveTextContent(
+					"Include workspaces shared with alice",
+				);
+			});
+
+			it("narrows the chip from the keyboard and focuses the input", async () => {
+				const { user, onChange, input } = setup([scopedOwnerCategory], {
+					initialValue: "user:alice",
+				});
+				hidePill().focus();
+				await user.keyboard("{Enter}");
+
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+				);
+				expect(input).toHaveFocus();
+			});
+
+			it("is removed before its chip with Backspace", async () => {
+				const { user, onChange, input } = setup([scopedOwnerCategory], {
+					initialValue: "user:alice",
+				});
+				await user.click(input);
+				await user.keyboard("{Backspace}");
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+				);
+				await user.keyboard("{Backspace}");
+
+				await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+			});
+
+			it.each([
+				["typed search text", "xyz", "owner:alice xyz"],
+				["a typed owner: prefix", "owner:", "owner:alice"],
+			])("stays removable with %s", async (_, typed, expected) => {
+				const { user, onChange, input } = setup([scopedOwnerCategory], {
+					initialValue: "user:alice",
+					fakeTimers: true,
+				});
+				await user.click(input);
+				await user.type(input, typed);
+				await settleTypedText();
+				await user.click(hidePill());
+
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith(expected),
+				);
+			});
+		});
+
+		describe("keyboard", () => {
+			it("returns from the scope switch to the input with ArrowDown", async () => {
+				const { user, onChange, input, filtersButton } = setup(
+					[scopedOwnerCategory],
+					{ initialValue: "owner:alice" },
+				);
+				await user.click(filtersButton);
+				await user.keyboard("{ArrowDown}{ArrowRight}");
+				await screen.findByRole("option", { name: "alice" });
+				await user.tab();
+				expect(await findScopeSwitch("alice")).toHaveFocus();
+				await user.keyboard("{ArrowDown}");
+				expect(input).toHaveFocus();
+				await user.keyboard("{Enter}");
+
+				await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+			});
+
+			it("toggles the scope switch with Enter instead of picking an option", async () => {
+				const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
+					initialValue: "owner:alice",
+				});
+				await user.click(filtersButton);
+				await user.keyboard("{ArrowDown}{ArrowRight}");
+				await screen.findByRole("option", { name: "alice" });
+				await user.keyboard("{ArrowDown}");
+				await user.tab();
+				await user.keyboard("{Enter}");
+
+				await waitFor(() =>
+					expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+				);
+			});
+		});
+
+		describe("typing the scope phrase", () => {
+			const templateCategory: FilterCategory = {
+				key: "template",
+				label: "Template",
+				getOptions: async () => [{ label: "Docker", value: "docker" }],
+			};
+
+			it.each<{
+				name: string;
+				categories: FilterCategory[];
+				before?: (user: Harness["user"]) => Promise<void>;
+				skipHover?: boolean;
+			}>([
+				{
+					name: "from the input",
+					categories: [scopedOwnerCategory],
+					skipHover: true,
+				},
+				{
+					name: "after pressing End",
+					categories: [scopedOwnerCategory, statusCategory],
+					skipHover: true,
+					before: async (user) => {
+						await screen.findByRole("option", { name: "Running" });
+						await user.keyboard("{End}");
+					},
+				},
+				{
+					name: "while hovering Running",
+					categories: [scopedOwnerCategory, statusCategory],
+					before: async (user) => {
+						await user.hover(
+							await screen.findByRole("option", { name: "Running" }),
+						);
+					},
+				},
+				{
+					name: "after hovering Running and leaving the menu",
+					categories: [scopedOwnerCategory, statusCategory],
+					before: async (user) => {
+						const running = await screen.findByRole("option", {
+							name: "Running",
+						});
+						await user.hover(running);
+						await user.unhover(running);
+					},
+				},
+				{
+					name: "while another flyout is open",
+					categories: [scopedOwnerCategory, templateCategory],
+					skipHover: true,
+					before: async (user) => {
+						await user.hover(
+							await screen.findByRole("option", { name: "Template" }),
+						);
+						await screen.findByRole("button", { name: "Docker" });
+					},
+				},
+			])(
+				"opens the Owner flyout with its switch $name",
+				async ({ categories, before, skipHover }) => {
+					const { user, onChange, input } = setup(categories, {
+						initialValue: "owner:alice",
+						skipHover,
+					});
+					await user.click(input);
+					await before?.(user);
+					// user.type would click the input and move the pointer.
+					await user.keyboard("shared");
+					await user.click(await findScopeSwitch("alice"));
+
+					await waitFor(() =>
+						expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+					);
+					expect(input).toHaveValue("");
+					expect(await findScopeSwitch("alice")).toBeChecked();
+				},
+			);
+
+			it.each([
+				["shared", false],
+				["sh", true],
+				["with", true],
+			])("emits typed %s as workspace search: %s", async (typed, emitted) => {
+				const { user, onChange, input } = setup([scopedOwnerCategory], {
+					initialValue: "owner:alice",
+					skipHover: true,
+					fakeTimers: true,
+				});
+				await user.click(input);
+				await user.type(input, typed);
+				await settleTypedText();
+
+				if (emitted) {
+					expect(onChange).toHaveBeenLastCalledWith(`owner:alice ${typed}`);
+				} else {
+					expect(onChange).not.toHaveBeenCalledWith(`owner:alice ${typed}`);
+				}
+			});
+
+			it("keeps the flyout when the pointer leaves the menu", async () => {
+				const { user, input } = setup([scopedOwnerCategory, statusCategory], {
+					initialValue: "owner:alice",
+				});
+				await user.click(input);
+				await user.keyboard("sha");
+				const toggle = await findScopeSwitch("alice");
+				await user.hover(toggle);
+				await user.unhover(toggle);
+
+				expect(await findScopeSwitch("alice")).toBeInTheDocument();
+			});
+
+			it("hides the flyout when another row is highlighted", async () => {
+				const { user, input } = setup(
+					[
+						{
+							...scopedOwnerCategory,
+							getOptions: async () => [
+								{ label: "alice", value: "alice" },
+								{ label: "sharon", value: "sharon" },
+							],
+						},
+					],
+					{ initialValue: "owner:alice", skipHover: true },
+				);
+				await user.click(input);
+				await user.type(input, "sha");
+				await findScopeSwitch("alice");
+				await user.keyboard("{ArrowDown}{ArrowDown}");
+
+				expect(
+					await screen.findByRole("option", { name: /sharon/ }),
+				).toHaveAttribute("aria-selected", "true");
+				expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+			});
+
+			// An empty typed value relies on applied search text listing the
+			// Owner row.
+			it.each<[string, string, "enter" | "row" | "flyout" | "switch", string]>([
+				["owner:alice", "shared", "enter", "owner:alice shared"],
+				["owner:alice", "shared", "row", ""],
+				["user:alice", "sha", "flyout", ""],
+				["", "sha", "flyout", "user:alice"],
+				["user:alice shared", "", "switch", "owner:alice shared"],
+				["shared", "", "flyout", "user:alice shared"],
+			])(
+				"from %j, typing %j and using the %s leaves %j",
+				async (initialValue, typed, action, expected) => {
+					const { user, onChange, input } = setup([scopedOwnerCategory], {
+						initialValue,
+						skipHover: true,
+					});
+					await user.click(input);
+					if (typed) {
+						await user.keyboard(typed);
+					} else {
+						await screen.findByRole("option", { name: "Owner" });
+						await user.keyboard("{ArrowDown}");
+					}
+					if (action === "enter") {
+						await user.keyboard("{Enter}");
+					} else if (action === "row") {
+						await user.click(
+							await screen.findByRole("option", { name: "Owner" }),
+						);
+						await user.click(
+							await screen.findByRole("option", { name: "alice" }),
+						);
+					} else if (action === "switch") {
+						await user.click(await findScopeSwitch("alice"));
+					} else {
+						await user.click(
+							await screen.findByRole("button", { name: "alice" }),
+						);
+					}
+
+					await waitFor(() =>
+						expect(onChange).toHaveBeenLastCalledWith(expected),
+					);
+					if (typed && action !== "enter") {
+						expect(onChange).not.toHaveBeenCalledWith(
+							expect.stringContaining(typed),
+						);
+					}
+				},
+			);
+		});
 	});
 
 	it("clears every chip and the search text with Clear all", async () => {

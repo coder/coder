@@ -98,6 +98,32 @@ Each [standalone gateway](./standalone.md) replica accepts the same API dump set
 > information such as prompts, completions, and tool inputs. Protect the target
 > directory and disable dumping when diagnostics are complete.
 
+## Send actor headers
+
+Enable `send_actor_headers` to add authenticated actor identity to intercepted upstream requests.
+The setting is disabled by default.
+
+```sh
+CODER_AI_GATEWAY_SEND_ACTOR_HEADERS=true
+```
+
+You can also enable the setting with `--ai-gateway-send-actor-headers` or `ai_gateway.send_actor_headers`.
+Configure the ID, username, and email header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`, and `CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`:
+
+```yaml
+ai_gateway:
+  send_actor_headers: true
+  actor_header_id: X-AI-Bridge-Actor-ID
+  actor_header_username: X-AI-Bridge-Actor-Metadata-Username
+  actor_header_email: ""
+```
+
+The equivalent CLI options are `--ai-gateway-actor-header-id`, `--ai-gateway-actor-header-username`, and `--ai-gateway-actor-header-email`.
+The email header is empty by default.
+To forward email, set `actor_header_email`, for example to `X-AI-Bridge-Actor-Metadata-Email`.
+The setting applies to every configured provider, so enable it only if all of them, and any proxy in between, may receive user email addresses.
+For defaults, precedence, and privacy considerations, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
+
 ## Data Retention
 
 AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
