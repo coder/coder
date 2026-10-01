@@ -2,7 +2,11 @@ package aibridged
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -138,13 +142,6 @@ func TestServerShutdownMode(t *testing.T) {
 				}
 				server.backend.Store(current)
 			}
-			proxy := tc.selected && !tc.interception
-			if !proxy {
-				// An unused proxy gate must not delay interception or startup cleanup.
-				release, ok := server.inflight.Admit()
-				require.True(t, ok)
-				defer release()
-			}
 			require.ErrorIs(t, server.Shutdown(ctx), tc.poolErr)
 			expectedCalls := 0
 			if tc.interception {
@@ -152,12 +149,143 @@ func TestServerShutdownMode(t *testing.T) {
 			}
 			require.Equal(t, expectedCalls, calls)
 			release, ok := server.inflight.Admit()
-			require.Equal(t, !proxy, ok, "only proxy mode shuts down the proxy gate")
+			require.False(t, ok, "shutdown closes the gate even when it was unused")
 			if ok {
 				release()
 			}
 			_ = server.Shutdown(ctx)
 			require.Equal(t, expectedCalls, calls, "owned pool is shut down only once")
+		})
+	}
+}
+
+// TestServerShutdownDoesNotWaitForStalledConnectLoop asserts Shutdown bounds
+// its wait for the connect loop by the caller's context.
+func TestServerShutdownDoesNotWaitForStalledConnectLoop(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	dialStarted := make(chan struct{})
+	releaseDial := make(chan struct{})
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+		// The dialer ignores cancellation to model a stalled connection attempt.
+		clientDialer: func(context.Context) (DRPCClient, error) {
+			close(dialStarted)
+			<-releaseDial
+			return nil, xerrors.New("dial released")
+		},
+	}
+	connectDone := make(chan struct{})
+	server.wg.Add(1)
+	go func() {
+		defer close(connectDone)
+		server.connect()
+	}()
+	t.Cleanup(func() {
+		close(releaseDial)
+		select {
+		case <-connectDone:
+		case <-time.After(testutil.WaitShort):
+			t.Error("connect loop did not exit after the dial was released")
+		}
+	})
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, dialStarted)
+
+	shutdownCtx, cancelShutdown := context.WithCancel(t.Context())
+	cancelShutdown()
+	shutdownDone := make(chan error, 1)
+	go func() { shutdownDone <- server.Shutdown(shutdownCtx) }()
+	require.ErrorIs(t, testutil.RequireReceive(testCtx, t, shutdownDone), context.Canceled)
+	require.ErrorIs(t, context.Cause(lifecycleCtx), ErrShutdown)
+	select {
+	case <-connectDone:
+		t.Fatal("connect loop exited before the stalled dial was released")
+	default:
+	}
+}
+
+type blockingNameProvider struct {
+	aibridge.Provider
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (p *blockingNameProvider) Name() string {
+	p.once.Do(func() { close(p.started) })
+	<-p.release
+	return p.Provider.Name()
+}
+
+func TestReplaceProvidersDuringShutdownKeepsAdmissionClosed(t *testing.T) {
+	t.Parallel()
+
+	server := newProxyTestServer(t, http.NotFoundHandler())
+	require.NoError(t, server.ReplaceProviders(t.Context(), nil))
+	retained, err := server.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	retained.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/candidate/v1/models", nil))
+	require.Equal(t, http.StatusNotFound, rec.Code)
+
+	provider := &blockingNameProvider{
+		Provider: aibridge.NewOpenAIProvider(config.OpenAI{
+			Name:    "candidate",
+			BaseURL: "http://upstream.test",
+		}),
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	unblock := sync.OnceFunc(func() { close(provider.release) })
+	var replaceErr error
+	replaceDone := make(chan struct{})
+	go func() {
+		defer close(replaceDone)
+		replaceErr = server.ReplaceProviders(t.Context(), []aibridge.Provider{provider})
+	}()
+	t.Cleanup(func() {
+		unblock()
+		select {
+		case <-replaceDone:
+		case <-time.After(testutil.WaitShort):
+			t.Error("provider reload did not finish after release")
+		}
+	})
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, provider.started)
+
+	require.NoError(t, server.Shutdown(testCtx))
+	unblock()
+	testutil.TryReceive(testCtx, t, replaceDone)
+	if replaceErr != nil {
+		require.ErrorIs(t, replaceErr, ErrShutdown)
+	}
+	acquired, err := server.GetRequestHandler(testCtx, Request{})
+	require.NoError(t, err)
+
+	// Whether reload publishes or rejects the snapshot, all paths stay closed.
+	for _, tc := range []struct {
+		name    string
+		handler http.Handler
+	}{
+		{name: "Retained", handler: retained},
+		{name: "CurrentSnapshot", handler: server.backend.Load().proxyRouter},
+		{name: "AcquiredAfterShutdown", handler: acquired},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NotNil(t, tc.handler)
+			rec := httptest.NewRecorder()
+			tc.handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/candidate/v1/models", nil))
+			require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+			require.Equal(t, "AI Gateway is shutting down\n", rec.Body.String())
 		})
 	}
 }
