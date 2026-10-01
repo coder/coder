@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,9 +20,9 @@ import (
 
 // Limits on guest-initiated MCP calls in one box_run.
 const (
-	BoxMCPMaxCallsPerRun     = 200
-	BoxMCPMaxResultBytes     = 8 << 20
-	BoxMCPMaxTotalResultByte = 64 << 20
+	BoxMCPMaxCallsPerRun      = 200
+	BoxMCPMaxResultBytes      = 8 << 20
+	BoxMCPMaxTotalResultBytes = 64 << 20
 	// boxMCPCallTimeout bounds one call; the run deadline usually ends it
 	// sooner.
 	boxMCPCallTimeout = 60 * time.Second
@@ -33,24 +32,26 @@ const (
 	boxMCPLogNameLimit = 128
 )
 
-// Envelope codes returned to the guest by the dispatcher.
+// Envelope codes returned to the guest by the dispatcher. The channel
+// itself adds request_too_large, canceled, and internal, and the prelude
+// adds unavailable.
 const (
-	BoxMCPCodeUnknownTool    = "unknown_tool"
-	BoxMCPCodeAmbiguousTool  = "ambiguous_tool"
-	BoxMCPCodeInvalidArgs    = "invalid_args"
-	BoxMCPCodeInvalidRequest = "invalid_request"
-	BoxMCPCodeCallLimit      = "call_limit"
-	BoxMCPCodeResultBudget   = "result_budget"
-	BoxMCPCodeResultTooLarge = "result_too_large"
-	BoxMCPCodeTimeout        = "timeout"
-	BoxMCPCodeCallFailed     = "call_failed"
+	boxMCPCodeUnknownTool    = "unknown_tool"
+	boxMCPCodeAmbiguousTool  = "ambiguous_tool"
+	boxMCPCodeInvalidArgs    = "invalid_args"
+	boxMCPCodeInvalidRequest = "invalid_request"
+	boxMCPCodeCallLimit      = "call_limit"
+	boxMCPCodeResultBudget   = "result_budget"
+	boxMCPCodeResultTooLarge = "result_too_large"
+	boxMCPCodeTimeout        = "timeout"
+	boxMCPCodeCallFailed     = "call_failed"
 )
 
 // BoxMCPOptions configures guest MCP calls from a box.
 type BoxMCPOptions struct {
 	// Tools returns the turn's executable tools after the plan and Explore
 	// filters. Only tools implementing mcpclient.RawCaller are reachable.
-	// It is resolved on the first guest call of each run.
+	// It is called once per box_run.
 	Tools func() []fantasy.AgentTool
 	// ServerName returns the display name of the server behind tool, or
 	// "" when unknown.
@@ -70,22 +71,27 @@ func boxMCPDescription(opts BoxMCPOptions) string {
 	}
 	return "The program can call this chat's MCP tools synchronously: mcp.tools() lists them as {name, server, description} (including tools not yet loaded with find_tools), " +
 		"mcp.schema(name) returns a tool's input schema, mcp.call(name, args) returns the MCP result as {content, structuredContent, isError}, and mcp.text(result) joins its text blocks. " +
-		"mcp.call throws an MCPError whose message starts with a code ([unknown_tool], [call_limit], [result_too_large], [timeout], [call_failed], ...) on an unknown tool, a limit, or a transport failure; a result with isError true is returned, not thrown." + servers +
+		"A result with isError true is returned, not thrown. mcp.call throws an MCPError whose message starts with one of these codes: " +
+		"[unknown_tool] or [ambiguous_tool] (check mcp.tools()), [invalid_args] (args must be an object), [call_limit] (no more calls this run), " +
+		"[result_too_large] (one result over the per-call limit; request less), [result_budget] (the run's total result limit; stop calling), " +
+		"[request_too_large] (args over " + byteCountString(agentbox.MaxHostCallRequestBytes) + "), [timeout], [canceled] (the run was stopped), [call_failed] (the server or transport failed), [unavailable] (no MCP in this run)." + servers +
 		" Calls run one at a time and their waiting time counts against the run's time limit, so write intermediate results to /box between runs and keep only what you need from each result. " +
-		"Limits: " + strconv.Itoa(BoxMCPMaxCallsPerRun) + " calls per run, " + byteCountString(BoxMCPMaxResultBytes) + " per result, " + byteCountString(BoxMCPMaxTotalResultByte) + " of results per run. " +
-		"The result lists each call in mcp_calls (n, tool, ok, code, duration_ms, result_bytes as the redacted JSON size; at most " + strconv.Itoa(boxMCPMaxCallEntries) + " entries, failures kept first) with mcp_calls_total and mcp_calls_failed; limits_hit lists \"mcp_request\" when a request exceeded " + byteCountString(agentbox.MaxHostCallRequestBytes) + "."
+		"Limits: " + strconv.Itoa(BoxMCPMaxCallsPerRun) + " calls per run, " + byteCountString(BoxMCPMaxResultBytes) + " per result, " + byteCountString(BoxMCPMaxTotalResultBytes) + " of results per run. " +
+		"The result lists calls in mcp_calls (n, tool, ok, code, duration_ms, result_bytes as the redacted JSON size) in call order, keeping at most " + strconv.Itoa(boxMCPMaxCallEntries) + " entries with failures preferred, " +
+		"with mcp_calls_total (calls made), mcp_calls_failed, and mcp_calls_rejected (calls refused by the call or budget limit, not counted in the total); limits_hit lists \"mcp_request\" when a request exceeded " + byteCountString(agentbox.MaxHostCallRequestBytes) + "."
 }
 
-// BoxMCPTool is one entry of mcp.tools().
-type BoxMCPTool struct {
+// boxMCPTool is one entry of mcp.tools().
+type boxMCPTool struct {
 	Name        string `json:"name"`
 	Server      string `json:"server,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
-// BoxMCPCall is one entry of a box_run result's mcp_calls.
-type BoxMCPCall struct {
-	// N is the call's position in the run, starting at 1.
+// boxMCPCall is one entry of a box_run result's mcp_calls.
+type boxMCPCall struct {
+	// N is the call's position in the run, starting at 1. Rejected calls
+	// share the position of the call they would have been.
 	N           int    `json:"n"`
 	Tool        string `json:"tool"`
 	OK          bool   `json:"ok"`
@@ -94,11 +100,14 @@ type BoxMCPCall struct {
 	ResultBytes int    `json:"result_bytes"`
 }
 
-// BoxMCPSummary is what a run's guest calls add to the box_run result.
-type BoxMCPSummary struct {
-	Calls  []BoxMCPCall
+// boxMCPSummary is what a run's guest calls add to the box_run result.
+type boxMCPSummary struct {
+	Calls  []boxMCPCall
 	Total  int
 	Failed int
+	// Rejected counts calls refused by the call or budget limit before
+	// reaching a server.
+	Rejected int
 	// ResultBytes is the redacted, marshaled size of every result.
 	ResultBytes int64
 	Duration    time.Duration
@@ -115,14 +124,12 @@ type boxMCPRequest struct {
 type boxMCPRun struct {
 	opts   BoxMCPOptions
 	callID string
-
-	once   sync.Once
 	tools  []mcpclient.RawCaller
 	byName map[string][]mcpclient.RawCaller
 
 	mu      sync.Mutex
-	summary BoxMCPSummary
-	entries []BoxMCPCall
+	totals  boxMCPSummary
+	entries []boxMCPCall
 }
 
 // newBoxMCPRun returns a dispatcher when the turn has at least one MCP
@@ -131,28 +138,20 @@ func newBoxMCPRun(opts BoxMCPOptions, callID string) *boxMCPRun {
 	if opts.Tools == nil {
 		return nil
 	}
-	if !slices.ContainsFunc(opts.Tools(), func(tool fantasy.AgentTool) bool {
-		_, ok := tool.(mcpclient.RawCaller)
-		return ok
-	}) {
+	r := &boxMCPRun{opts: opts, callID: callID, byName: map[string][]mcpclient.RawCaller{}}
+	for _, tool := range opts.Tools() {
+		caller, ok := tool.(mcpclient.RawCaller)
+		if !ok {
+			continue
+		}
+		r.tools = append(r.tools, caller)
+		name := tool.Info().Name
+		r.byName[name] = append(r.byName[name], caller)
+	}
+	if len(r.tools) == 0 {
 		return nil
 	}
-	return &boxMCPRun{opts: opts, callID: callID}
-}
-
-func (r *boxMCPRun) load() {
-	r.once.Do(func() {
-		r.byName = make(map[string][]mcpclient.RawCaller)
-		for _, tool := range r.opts.Tools() {
-			caller, ok := tool.(mcpclient.RawCaller)
-			if !ok {
-				continue
-			}
-			r.tools = append(r.tools, caller)
-			name := tool.Info().Name
-			r.byName[name] = append(r.byName[name], caller)
-		}
-	})
+	return r
 }
 
 func (r *boxMCPRun) serverName(tool fantasy.AgentTool) string {
@@ -166,9 +165,8 @@ func (r *boxMCPRun) serverName(tool fantasy.AgentTool) string {
 func (r *boxMCPRun) hostCall(ctx context.Context, request []byte) ([]byte, error) {
 	var req boxMCPRequest
 	if err := json.Unmarshal(request, &req); err != nil {
-		return agentbox.HostCallError(BoxMCPCodeInvalidRequest, "malformed request: "+err.Error()), nil
+		return agentbox.HostCallError(boxMCPCodeInvalidRequest, "malformed request: "+err.Error()), nil
 	}
-	r.load()
 	switch req.Op {
 	case "tools":
 		return r.listTools()
@@ -177,17 +175,17 @@ func (r *boxMCPRun) hostCall(ctx context.Context, request []byte) ([]byte, error
 	case "call":
 		return r.call(ctx, req), nil
 	default:
-		return agentbox.HostCallError(BoxMCPCodeInvalidRequest, "unknown op "+strconv.Quote(req.Op)), nil
+		return agentbox.HostCallError(boxMCPCodeInvalidRequest, "unknown op "+strconv.Quote(truncateForLog(req.Op))), nil
 	}
 }
 
 func (r *boxMCPRun) listTools() ([]byte, error) {
-	list := make([]BoxMCPTool, 0, len(r.tools))
+	list := make([]boxMCPTool, 0, len(r.tools))
 	for _, tool := range r.tools {
 		info := tool.Info()
-		list = append(list, BoxMCPTool{Name: info.Name, Server: r.serverName(tool), Description: info.Description})
+		list = append(list, boxMCPTool{Name: info.Name, Server: r.serverName(tool), Description: info.Description})
 	}
-	sort.SliceStable(list, func(i, j int) bool { return list[i].Name < list[j].Name })
+	slices.SortStableFunc(list, func(a, b boxMCPTool) int { return strings.Compare(a.Name, b.Name) })
 	out, err := json.Marshal(list)
 	if err != nil {
 		return nil, xerrors.Errorf("encode tools: %w", err)
@@ -195,22 +193,24 @@ func (r *boxMCPRun) listTools() ([]byte, error) {
 	return agentbox.HostCallResult(out), nil
 }
 
-func (r *boxMCPRun) lookup(name string) (mcpclient.RawCaller, []byte) {
+// lookup resolves a guest-supplied tool name. On failure it returns the
+// envelope code and message.
+func (r *boxMCPRun) lookup(name string) (tool mcpclient.RawCaller, code, msg string) {
 	matches := r.byName[name]
 	switch len(matches) {
 	case 0:
-		return nil, agentbox.HostCallError(BoxMCPCodeUnknownTool, "unknown tool "+strconv.Quote(truncateForLog(name))+"; mcp.tools() lists the tools available in this run")
+		return nil, boxMCPCodeUnknownTool, "unknown tool " + strconv.Quote(truncateForLog(name)) + "; mcp.tools() lists the tools available in this run"
 	case 1:
-		return matches[0], nil
+		return matches[0], "", ""
 	default:
-		return nil, agentbox.HostCallError(BoxMCPCodeAmbiguousTool, "tool name "+strconv.Quote(name)+" belongs to more than one server in this turn")
+		return nil, boxMCPCodeAmbiguousTool, "tool name " + strconv.Quote(name) + " belongs to more than one server in this turn"
 	}
 }
 
 func (r *boxMCPRun) schema(name string) ([]byte, error) {
-	tool, errEnvelope := r.lookup(name)
-	if errEnvelope != nil {
-		return errEnvelope, nil
+	tool, code, msg := r.lookup(name)
+	if tool == nil {
+		return agentbox.HostCallError(code, msg), nil
 	}
 	info := tool.Info()
 	params, required := info.Parameters, info.Required
@@ -220,10 +220,7 @@ func (r *boxMCPRun) schema(name string) ([]byte, error) {
 		if inner, ok := params["properties"].(map[string]any); ok {
 			innerProps, _ := inner["properties"].(map[string]any)
 			params = innerProps
-			required = nil
-			if req, ok := inner["required"].([]string); ok {
-				required = req
-			}
+			required = stringSlice(inner["required"])
 		}
 	}
 	if params == nil {
@@ -243,29 +240,45 @@ func (r *boxMCPRun) schema(name string) ([]byte, error) {
 	return agentbox.HostCallResult(out), nil
 }
 
+// stringSlice reads a []string or a []any of strings; anything else is
+// nil.
+func stringSlice(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func (r *boxMCPRun) call(ctx context.Context, req boxMCPRequest) []byte {
 	r.mu.Lock()
-	if r.summary.Total >= BoxMCPMaxCallsPerRun {
+	if r.totals.Total >= BoxMCPMaxCallsPerRun {
+		n := r.totals.Total + 1
 		r.mu.Unlock()
-		return agentbox.HostCallError(BoxMCPCodeCallLimit, "this run already made "+strconv.Itoa(BoxMCPMaxCallsPerRun)+" MCP calls")
+		return r.reject(ctx, req.Tool, n, boxMCPCodeCallLimit, "this run already made "+strconv.Itoa(BoxMCPMaxCallsPerRun)+" MCP calls")
 	}
-	if r.summary.ResultBytes >= BoxMCPMaxTotalResultByte {
-		r.mu.Unlock()
-		return agentbox.HostCallError(BoxMCPCodeResultBudget, "this run already received "+byteCountString(BoxMCPMaxTotalResultByte)+" of MCP results")
-	}
-	r.summary.Total++
-	n := r.summary.Total
+	r.totals.Total++
+	n := r.totals.Total
 	r.mu.Unlock()
 
+	tool, code, msg := r.lookup(req.Tool)
+	if tool == nil {
+		return r.fail(ctx, req.Tool, n, 0, 0, code, msg)
+	}
 	var args map[string]any
 	if len(req.Args) > 0 && string(req.Args) != "null" {
 		if err := json.Unmarshal(req.Args, &args); err != nil {
-			return r.record(ctx, req.Tool, n, 0, 0, BoxMCPCodeInvalidArgs, "args must be a JSON object: "+err.Error())
+			return r.fail(ctx, req.Tool, n, 0, 0, boxMCPCodeInvalidArgs, "args must be a JSON object: "+err.Error())
 		}
-	}
-	tool, errEnvelope := r.lookup(req.Tool)
-	if errEnvelope != nil {
-		return r.recordEnvelope(ctx, req.Tool, n, 0, 0, errEnvelope)
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, boxMCPCallTimeout)
@@ -274,32 +287,34 @@ func (r *boxMCPRun) call(ctx context.Context, req boxMCPRequest) []byte {
 	raw, err := tool.CallRaw(callCtx, args, r.callID+":"+strconv.Itoa(n))
 	elapsed := time.Since(start)
 	if err != nil {
-		code := BoxMCPCodeCallFailed
+		code := boxMCPCodeCallFailed
 		switch {
 		case errors.Is(err, mcpclient.ErrResultTooLarge):
-			code = BoxMCPCodeResultTooLarge
+			code = boxMCPCodeResultTooLarge
+		case ctx.Err() != nil && errors.Is(err, context.Canceled):
+			code = agentbox.HostCallCodeCanceled
 		case errors.Is(err, context.DeadlineExceeded):
-			code = BoxMCPCodeTimeout
+			code = boxMCPCodeTimeout
 		}
-		return r.record(ctx, req.Tool, n, elapsed, 0, code, err.Error())
+		return r.fail(ctx, req.Tool, n, elapsed, 0, code, err.Error())
 	}
 	out, err := json.Marshal(raw)
 	if err != nil {
-		return r.record(ctx, req.Tool, n, elapsed, 0, BoxMCPCodeCallFailed, "encode result: "+err.Error())
+		return r.fail(ctx, req.Tool, n, elapsed, 0, boxMCPCodeCallFailed, "encode result: "+err.Error())
 	}
 	if len(out) > BoxMCPMaxResultBytes {
-		return r.record(ctx, req.Tool, n, elapsed, len(out), BoxMCPCodeResultTooLarge,
+		return r.fail(ctx, req.Tool, n, elapsed, len(out), boxMCPCodeResultTooLarge,
 			"result is "+byteCountString(int64(len(out)))+", over the "+byteCountString(BoxMCPMaxResultBytes)+" per-call limit; request less data")
 	}
 	r.mu.Lock()
-	if r.summary.ResultBytes+int64(len(out)) > BoxMCPMaxTotalResultByte {
+	if r.totals.ResultBytes+int64(len(out)) > BoxMCPMaxTotalResultBytes {
 		r.mu.Unlock()
-		return r.record(ctx, req.Tool, n, elapsed, len(out), BoxMCPCodeResultBudget,
-			"result would take this run past "+byteCountString(BoxMCPMaxTotalResultByte)+" of MCP results")
+		return r.fail(ctx, req.Tool, n, elapsed, len(out), boxMCPCodeResultBudget,
+			"result would take this run past "+byteCountString(BoxMCPMaxTotalResultBytes)+" of MCP results")
 	}
-	r.summary.ResultBytes += int64(len(out))
-	r.summary.Duration += elapsed
-	r.entries = append(r.entries, BoxMCPCall{N: n, Tool: req.Tool, OK: true, DurationMS: elapsed.Milliseconds(), ResultBytes: len(out)})
+	r.totals.ResultBytes += int64(len(out))
+	r.totals.Duration += elapsed
+	r.entries = append(r.entries, boxMCPCall{N: n, Tool: req.Tool, OK: true, DurationMS: elapsed.Milliseconds(), ResultBytes: len(out)})
 	r.mu.Unlock()
 	r.opts.Logger.Debug(ctx, "agent box mcp call",
 		slog.F("call", n), slog.F("tool", req.Tool), slog.F("ok", true),
@@ -307,33 +322,42 @@ func (r *boxMCPRun) call(ctx context.Context, req boxMCPRequest) []byte {
 	return agentbox.HostCallResult(out)
 }
 
-func (r *boxMCPRun) record(ctx context.Context, tool string, n int, elapsed time.Duration, resultBytes int, code, msg string) []byte {
-	return r.recordEnvelope(ctx, tool, n, elapsed, resultBytes, agentbox.HostCallError(code, msg))
+// reject records a call refused before reaching a server. It does not
+// count toward the total.
+func (r *boxMCPRun) reject(ctx context.Context, tool string, n int, code, msg string) []byte {
+	r.mu.Lock()
+	r.totals.Rejected++
+	// A guest looping on the limit could otherwise grow the list without
+	// bound.
+	if r.totals.Rejected <= boxMCPMaxCallEntries {
+		r.entries = append(r.entries, boxMCPCall{N: n, Tool: truncateForLog(tool), Code: code})
+	}
+	r.mu.Unlock()
+	r.opts.Logger.Debug(ctx, "agent box mcp call rejected", slog.F("call", n), slog.F("tool", truncateForLog(tool)), slog.F("code", code))
+	return agentbox.HostCallError(code, msg)
 }
 
-// recordEnvelope records a failed call and returns its envelope.
-func (r *boxMCPRun) recordEnvelope(ctx context.Context, tool string, n int, elapsed time.Duration, resultBytes int, envelope []byte) []byte {
-	var env agentbox.HostCallEnvelope
-	_ = json.Unmarshal(envelope, &env)
+// fail records a failed call and returns its envelope.
+func (r *boxMCPRun) fail(ctx context.Context, tool string, n int, elapsed time.Duration, resultBytes int, code, msg string) []byte {
 	r.mu.Lock()
-	r.summary.Failed++
-	r.summary.Duration += elapsed
-	r.entries = append(r.entries, BoxMCPCall{N: n, Tool: truncateForLog(tool), Code: env.Code, DurationMS: elapsed.Milliseconds(), ResultBytes: resultBytes})
+	r.totals.Failed++
+	r.totals.Duration += elapsed
+	r.entries = append(r.entries, boxMCPCall{N: n, Tool: truncateForLog(tool), Code: code, DurationMS: elapsed.Milliseconds(), ResultBytes: resultBytes})
 	r.mu.Unlock()
 	r.opts.Logger.Debug(ctx, "agent box mcp call",
-		slog.F("call", n), slog.F("tool", truncateForLog(tool)), slog.F("ok", false), slog.F("code", env.Code),
+		slog.F("call", n), slog.F("tool", truncateForLog(tool)), slog.F("ok", false), slog.F("code", code),
 		slog.F("duration_ms", elapsed.Milliseconds()))
-	return envelope
+	return agentbox.HostCallError(code, msg)
 }
 
-// Summary returns the run's calls, at most boxMCPMaxCallEntries of them.
-// Failures are kept in preference to successes so a long run does not
-// hide them; the kept entries are in call order.
-func (r *boxMCPRun) Summary() BoxMCPSummary {
+// summary returns the run's calls, at most boxMCPMaxCallEntries of them.
+// Failures and rejections are kept in preference to successes so a long
+// run does not hide them; the kept entries are in call order.
+func (r *boxMCPRun) summary() boxMCPSummary {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	s := r.summary
-	kept := make([]BoxMCPCall, 0, min(len(r.entries), boxMCPMaxCallEntries))
+	s := r.totals
+	kept := make([]boxMCPCall, 0, min(len(r.entries), boxMCPMaxCallEntries))
 	for _, e := range r.entries {
 		if !e.OK && len(kept) < boxMCPMaxCallEntries {
 			kept = append(kept, e)
@@ -347,7 +371,7 @@ func (r *boxMCPRun) Summary() BoxMCPSummary {
 			kept = append(kept, e)
 		}
 	}
-	sort.Slice(kept, func(i, j int) bool { return kept[i].N < kept[j].N })
+	slices.SortFunc(kept, func(a, b boxMCPCall) int { return a.N - b.N })
 	s.Calls = kept
 	return s
 }

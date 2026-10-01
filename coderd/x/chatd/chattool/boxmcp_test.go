@@ -7,12 +7,14 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
@@ -56,7 +58,12 @@ func (plainTool) Run(context.Context, fantasy.ToolCall) (fantasy.ToolResponse, e
 
 func newMCPHarness(t *testing.T, tools ...fantasy.AgentTool) *boxHarness {
 	t.Helper()
-	h := newBoxHarness(t)
+	return newMCPHarnessWithLimits(t, agentbox.Limits{OutputBytes: 64 << 10}, tools...)
+}
+
+func newMCPHarnessWithLimits(t *testing.T, limits agentbox.Limits, tools ...fantasy.AgentTool) *boxHarness {
+	t.Helper()
+	h := newBoxHarnessWithLimits(t, limits)
 	h.options.MCP = chattool.BoxMCPOptions{
 		Tools: func() []fantasy.AgentTool { return tools },
 		ServerName: func(tool fantasy.AgentTool) string {
@@ -102,22 +109,28 @@ func TestBoxMCP(t *testing.T) {
 			},
 		}
 	}
-	wrapped := &fakeRawCaller{
-		info: fantasy.ToolInfo{
-			Name: "gh__intent",
-			Parameters: map[string]any{
-				"model_intent": map[string]any{"type": "string"},
-				"properties":   map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}, "required": []string{"q"}},
+	// newWrapped builds a model_intent tool; required is the type a JSON
+	// round trip would produce.
+	newWrapped := func(required any) *fakeRawCaller {
+		return &fakeRawCaller{
+			info: fantasy.ToolInfo{
+				Name: "gh__intent",
+				Parameters: map[string]any{
+					"model_intent": map[string]any{"type": "string"},
+					"properties":   map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}, "required": required},
+				},
+				Required: []string{"model_intent", "properties"},
 			},
-			Required: []string{"model_intent", "properties"},
-		},
-		call: func(context.Context, map[string]any) (mcpclient.RawResult, error) { return textResult("ok"), nil },
+			call: func(context.Context, map[string]any) (mcpclient.RawResult, error) { return textResult("ok"), nil },
+		}
 	}
-	failing := &fakeRawCaller{
-		info: fantasy.ToolInfo{Name: "gh__fail"},
-		call: func(context.Context, map[string]any) (mcpclient.RawResult, error) {
-			return mcpclient.RawResult{}, xerrors.New("upstream down")
-		},
+	newFailing := func() *fakeRawCaller {
+		return &fakeRawCaller{
+			info: fantasy.ToolInfo{Name: "gh__fail"},
+			call: func(context.Context, map[string]any) (mcpclient.RawResult, error) {
+				return mcpclient.RawResult{}, xerrors.New("upstream down")
+			},
+		}
 	}
 	t.Run("NoMCPToolsLeavesMountOut", func(t *testing.T) {
 		t.Parallel()
@@ -134,7 +147,7 @@ func TestBoxMCP(t *testing.T) {
 	t.Run("CallAndPage", func(t *testing.T) {
 		t.Parallel()
 		pager := newPager()
-		h := newMCPHarness(t, plainTool{}, pager, failing)
+		h := newMCPHarness(t, plainTool{}, pager, newFailing())
 		result := runCode(t, h, `
 			let page = 0, texts = [];
 			for (;;) {
@@ -161,43 +174,51 @@ func TestBoxMCP(t *testing.T) {
 
 	t.Run("ToolsAndSchema", func(t *testing.T) {
 		t.Parallel()
-		h := newMCPHarness(t, wrapped, plainTool{}, newPager())
-		result := runCode(t, h, `
-			console.log(JSON.stringify(mcp.tools()));
-			console.log(JSON.stringify(mcp.schema("gh__intent")));
-			console.log(JSON.stringify(mcp.schema("gh__list")));
-		`)
-		assert.Equal(t,
-			`[{"name":"gh__intent","server":"gh"},{"name":"gh__list","server":"gh","description":"lists things"}]`+"\n"+
-				`{"properties":{"q":{"type":"string"}},"required":["q"],"type":"object"}`+"\n"+
-				`{"properties":{"page":{"type":"integer"}},"required":["page"],"type":"object"}`+"\n",
-			result["stdout"], result["stderr"])
-		assert.NotContains(t, result, "mcp_calls_total", "listing and schema are not calls")
+		for name, required := range map[string]any{"strings": []string{"q"}, "any": []any{"q"}} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				h := newMCPHarness(t, newWrapped(required), plainTool{}, newPager())
+				result := runCode(t, h, `
+					console.log(JSON.stringify(mcp.tools()));
+					console.log(JSON.stringify(mcp.schema("gh__intent")));
+					console.log(JSON.stringify(mcp.schema("gh__list")));
+				`)
+				assert.Equal(t,
+					`[{"name":"gh__intent","server":"gh"},{"name":"gh__list","server":"gh","description":"lists things"}]`+"\n"+
+						`{"properties":{"q":{"type":"string"}},"required":["q"],"type":"object"}`+"\n"+
+						`{"properties":{"page":{"type":"integer"}},"required":["page"],"type":"object"}`+"\n",
+					result["stdout"], result["stderr"])
+				assert.NotContains(t, result, "mcp_calls_total", "listing and schema are not calls")
+			})
+		}
 	})
 
 	t.Run("ErrorsAndCodes", func(t *testing.T) {
 		t.Parallel()
 		isError := newIsError()
-		h := newMCPHarness(t, newPager(), failing, isError)
+		h := newMCPHarness(t, newPager(), newFailing(), isError)
 		result := runCode(t, h, `
 			const codes = [];
 			const attempt = (f) => { try { f(); codes.push("ok"); } catch (e) { codes.push(e.code); } };
 			attempt(() => mcp.call("nope", {}));
 			attempt(() => mcp.call("gh__fail", {}));
 			attempt(() => mcp.call("gh__list", [1, 2]));
+			attempt(() => mcp.call("nope", [1, 2]));
 			attempt(() => { const r = mcp.call("gh__iserror"); if (!r.isError) throw new Error("expected isError"); });
 			attempt(() => mcp.schema("nope"));
 			console.log(codes.join(","));
 		`)
-		assert.Equal(t, "unknown_tool,call_failed,invalid_args,ok,unknown_tool\n", result["stdout"], result["stderr"])
-		assert.EqualValues(t, 4, result["mcp_calls_total"])
-		assert.EqualValues(t, 3, result["mcp_calls_failed"])
+		assert.Equal(t, "unknown_tool,call_failed,invalid_args,unknown_tool,ok,unknown_tool\n", result["stdout"], result["stderr"])
+		assert.EqualValues(t, 5, result["mcp_calls_total"])
+		assert.EqualValues(t, 4, result["mcp_calls_failed"])
+		assert.EqualValues(t, 0, result["mcp_calls_rejected"])
 		calls := result["mcp_calls"].([]any)
-		require.Len(t, calls, 4)
+		require.Len(t, calls, 5)
 		assert.Equal(t, "unknown_tool", calls[0].(map[string]any)["code"])
 		assert.Equal(t, "call_failed", calls[1].(map[string]any)["code"])
 		assert.Equal(t, "invalid_args", calls[2].(map[string]any)["code"])
-		assert.Equal(t, true, calls[3].(map[string]any)["ok"])
+		assert.Equal(t, "unknown_tool", calls[3].(map[string]any)["code"], "the tool is resolved before the arguments are checked")
+		assert.Equal(t, true, calls[4].(map[string]any)["ok"])
 		assert.Equal(t, map[string]any{}, isError.lastArgs.Load(), "missing args become an empty object")
 	})
 
@@ -212,7 +233,7 @@ func TestBoxMCP(t *testing.T) {
 
 	t.Run("CallLimitAndEntryCap", func(t *testing.T) {
 		t.Parallel()
-		h := newMCPHarness(t, newPager(), failing)
+		h := newMCPHarness(t, newPager(), newFailing())
 		result := runCode(t, h, `
 			let limited = 0, failed = 0;
 			for (let i = 0; i < `+strconv.Itoa(chattool.BoxMCPMaxCallsPerRun+5)+`; i++) {
@@ -224,21 +245,25 @@ func TestBoxMCP(t *testing.T) {
 		assert.Equal(t, "5 4\n", result["stdout"], result["stderr"])
 		assert.EqualValues(t, chattool.BoxMCPMaxCallsPerRun, result["mcp_calls_total"])
 		assert.EqualValues(t, 4, result["mcp_calls_failed"])
+		assert.EqualValues(t, 5, result["mcp_calls_rejected"])
 		calls := result["mcp_calls"].([]any)
 		require.Len(t, calls, 25)
-		// All four failures are kept even though they are spread across
-		// the run, and entries are in call order.
+		// The four failures and five rejections are kept even though they
+		// are spread across the run, and entries are in call order.
 		var failures []float64
+		var codes []string
 		prev := 0.0
 		for _, c := range calls {
 			entry := c.(map[string]any)
-			assert.Greater(t, entry["n"], prev)
+			assert.GreaterOrEqual(t, entry["n"], prev)
 			prev = entry["n"].(float64)
 			if ok, _ := entry["ok"].(bool); !ok {
 				failures = append(failures, entry["n"].(float64))
+				codes = append(codes, entry["code"].(string))
 			}
 		}
-		assert.Equal(t, []float64{1, 51, 101, 151}, failures)
+		assert.Equal(t, []float64{1, 51, 101, 151, 201, 201, 201, 201, 201}, failures)
+		assert.Equal(t, []string{"call_failed", "call_failed", "call_failed", "call_failed", "call_limit", "call_limit", "call_limit", "call_limit", "call_limit"}, codes)
 	})
 
 	t.Run("ResultTooLargeAndBudget", func(t *testing.T) {
@@ -250,7 +275,9 @@ func TestBoxMCP(t *testing.T) {
 				return textResult(strings.Repeat("x", int(size))), nil
 			},
 		}
-		h := newMCPHarness(t, big)
+		// Roughly 80 MiB of text goes through the guest; give the run room
+		// on a slow runner.
+		h := newMCPHarnessWithLimits(t, agentbox.Limits{OutputBytes: 64 << 10, RunTimeout: 5 * time.Minute}, big)
 		result := runCode(t, h, `
 			const codes = [];
 			try { mcp.call("gh__big", {size: `+strconv.Itoa(chattool.BoxMCPMaxResultBytes)+`}); codes.push("ok"); } catch (e) { codes.push(e.code); }

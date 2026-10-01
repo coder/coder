@@ -144,17 +144,19 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 			}
 			if limits := runLimitsHit(result); len(limits) > 0 {
 				fields["limits_hit"] = limits
-				fields["hint"] = "the program hit a sandbox limit; the failing calls returned EIO (errno 29, I/O error)"
+				fields["hint"] = runLimitsHint(result)
 			}
 			if mcpRun != nil {
-				if summary := mcpRun.Summary(); summary.Total > 0 {
+				if summary := mcpRun.summary(); summary.Total+summary.Rejected > 0 {
 					fields["mcp_calls"] = summary.Calls
 					fields["mcp_calls_total"] = summary.Total
 					fields["mcp_calls_failed"] = summary.Failed
+					fields["mcp_calls_rejected"] = summary.Rejected
 					options.MCP.Logger.Info(ctx, "agent box mcp calls",
 						slog.F("box_id", h.box.ID()),
 						slog.F("calls", summary.Total),
 						slog.F("failed", summary.Failed),
+						slog.F("rejected", summary.Rejected),
 						slog.F("result_bytes", summary.ResultBytes),
 						slog.F("mcp_ms", summary.Duration.Milliseconds()),
 					)
@@ -374,6 +376,19 @@ func runLimitsHit(result agentbox.RunResult) []string {
 		limits = append(limits, "mcp_request")
 	}
 	return limits
+}
+
+// runLimitsHint tells the model how the limits a run hit surfaced inside
+// the guest.
+func runLimitsHint(result agentbox.RunResult) string {
+	var hints []string
+	if result.DiskQuotaExceeded || result.OpenFileLimitReached {
+		hints = append(hints, "the program hit a sandbox limit; the failing calls returned EIO (errno 29, I/O error)")
+	}
+	if result.HostCallRequestTooLarge {
+		hints = append(hints, "an mcp.call request exceeded "+byteCountString(agentbox.MaxHostCallRequestBytes)+" and threw [request_too_large]; send smaller arguments")
+	}
+	return strings.Join(hints, "; ")
 }
 
 // fitStreams shrinks stdout and stderr so fields marshaled with both

@@ -26,10 +26,15 @@ type boxHarness struct {
 
 func newBoxHarness(t *testing.T) *boxHarness {
 	t.Helper()
+	return newBoxHarnessWithLimits(t, agentbox.Limits{OutputBytes: 64 << 10})
+}
+
+func newBoxHarnessWithLimits(t *testing.T, limits agentbox.Limits) *boxHarness {
+	t.Helper()
 	engine, err := agentbox.NewEngine(t.Context(), agentbox.Options{
 		Logger:  testutil.Logger(t),
 		RootDir: t.TempDir(),
-		Limits:  agentbox.Limits{OutputBytes: 64 << 10},
+		Limits:  limits,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = engine.Close(context.Background()) })
