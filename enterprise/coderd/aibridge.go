@@ -152,8 +152,18 @@ func AIGatewayDataPlaneMiddleware(cfg codersdk.AIBridgeConfig) func(http.Handler
 // and per-replica socket caps bound them instead. Until those sockets are
 // served, the upgrade is refused with 501 right away, so the exemption never
 // holds anything for long. Other upgrades stay limited.
+//
+// The match is exact on the escaped path: it must already be clean and end
+// in the intercepted route. A trailing slash, as in /v1/responses/{id}, names
+// a passthrough route whose upgrade the reverse proxy tunnels upstream for
+// as long as the tunnel lasts, so it must stay limited. Unclean or escaped
+// variants also stay limited.
 func isResponsesWebSocketUpgrade(r *http.Request) bool {
-	return aibheaders.IsWebSocketUpgrade(r) && strings.HasSuffix(path.Clean(r.URL.Path), "/v1/responses")
+	if !aibheaders.IsWebSocketUpgrade(r) {
+		return false
+	}
+	p := r.URL.EscapedPath()
+	return p == path.Clean(p) && strings.HasSuffix(p, "/v1/responses")
 }
 
 func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {

@@ -2018,6 +2018,11 @@ func TestAIGatewayDataPlaneMiddlewareWebSocketConcurrency(t *testing.T) {
 		{name: "StandaloneUpgradeToResponses", method: http.MethodGet, path: "/openai/v1/responses", upgrade: true, want: http.StatusOK},
 		{name: "HTTPToResponses", method: http.MethodPost, path: "/api/v2/ai-gateway/openai/v1/responses", want: http.StatusServiceUnavailable},
 		{name: "UpgradeToOtherRoute", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/chat/completions", upgrade: true, want: http.StatusServiceUnavailable},
+		// Passthrough routes under /v1/responses/ tunnel upgrades upstream.
+		{name: "UpgradeToResponsesTrailingSlash", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/responses/", upgrade: true, want: http.StatusServiceUnavailable},
+		{name: "UpgradeToResponsesByID", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/responses/resp_123", upgrade: true, want: http.StatusServiceUnavailable},
+		{name: "UpgradeToUncleanResponses", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/models/../responses", upgrade: true, want: http.StatusServiceUnavailable},
+		{name: "UpgradeToEscapedResponses", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1%2Fresponses", upgrade: true, want: http.StatusServiceUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, nil)
