@@ -139,10 +139,16 @@ Every other WebSocket upgrade gets `501 Not Implemented`, including upgrades to 
 The experiment is user-scoped, so you can target it with a [runtime rule](../../reference/feature-stages.md#target-experiments-at-runtime) instead of a restart.
 `coderd` decides the experiment for the owner of each request's API key, so set rules and the startup `--experiments` list on `coderd`, including when you run [standalone gateways](./standalone.md).
 
-To enable the mode for one group, then for every user:
+An experiment has one rule at a time, so each command replaces the previous rule.
+To enable the mode for one group:
 
 ```sh
 coder exp experiment-rules set ai-gateway-responses-websocket '"coder/beta-testers" in user.groups'
+```
+
+When you're ready to enable it for every user:
+
+```sh
 coder exp experiment-rules on ai-gateway-responses-websocket
 ```
 
@@ -155,11 +161,11 @@ AI Gateway never injects [MCP tools](./mcp.md) into WebSocket requests.
 
 Each gateway replica enforces fixed socket limits:
 
-| Limit                    | Value           | When the limit is reached                         |
-|--------------------------|-----------------|---------------------------------------------------|
-| Open sockets per user    | 16              | New upgrades get `426 Upgrade Required`           |
-| Open sockets per replica | 512             | New upgrades get `426 Upgrade Required`           |
-| Socket lifetime          | 60&nbsp;minutes | The socket closes, and the client opens a new one |
+| Limit                    | Value           | When the limit is reached                                         |
+|--------------------------|-----------------|-------------------------------------------------------------------|
+| Open sockets per user    | 16              | New upgrades get `426 Upgrade Required`                           |
+| Open sockets per replica | 512             | New upgrades get `426 Upgrade Required`                           |
+| Socket lifetime          | 60&nbsp;minutes | The gateway closes the socket, and the client must open a new one |
 
 Codex falls back to HTTPS immediately on a `426` response.
 While a replica shuts down, it refuses new upgrades with `503 Service Unavailable` and closes its open sockets.
