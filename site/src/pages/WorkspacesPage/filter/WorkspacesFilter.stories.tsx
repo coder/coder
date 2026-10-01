@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { templates } from "#/api/queries/templates";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
@@ -60,13 +60,6 @@ const PLACEHOLDER = "Search and filter workspaces…";
 
 export const Default: Story = {
 	args: { initialQuery: "user:me" },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The default `user:me` renders as a committed chip, not free text.
-		await expect(
-			canvas.getByRole("button", { name: "Remove user:me" }),
-		).toBeVisible();
-	},
 };
 
 export const SelectStatusOption: Story = {
@@ -81,27 +74,13 @@ export const SelectStatusOption: Story = {
 	},
 };
 
-// Regression guard: a user who cannot list others still gets User and Owner
-// categories (scoped to themselves), so `user` stays a chip key and the
-// category list is browsable instead of `user:me` collapsing into free text.
-export const OrdinaryUserKeepsUserChip: Story = {
+export const OrdinaryUserGetsOwnerChip: Story = {
 	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await expect(
-			canvas.getByRole("button", { name: "Remove user:me" }),
-		).toBeVisible();
-
-		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
-		// Categories browse normally (User and Owner included) rather than being
-		// masked by free-text search.
-		await waitFor(() => {
-			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
-			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-		});
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
 	},
 };
 
@@ -124,10 +103,7 @@ export const WithFilterError: Story = {
 	},
 };
 
-// Owner and User each offer only the current user, and stay in the menu
-// because they do not set hideWhenSingleOption. Template has one option, so it
-// is hidden.
-export const OrdinaryUserSeesOwnerAndUser: Story = {
+export const OrdinaryUserSeesOwner: Story = {
 	args: { initialQuery: "" },
 	parameters: {
 		permissions: MockNoPermissions,

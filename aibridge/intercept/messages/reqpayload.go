@@ -11,6 +11,8 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
+
+	aibconfig "github.com/coder/coder/v2/aibridge/config"
 )
 
 const (
@@ -116,6 +118,22 @@ func (p RequestPayload) Stream() bool {
 
 func (p RequestPayload) model() string {
 	return gjson.GetBytes(p, messagesReqPathModel).Str
+}
+
+// InvocationModel returns the exact upstream target before payload rewrites.
+// Call it on the original parsed request, before the interceptor rewrites its
+// model.
+// InvokeModel uses the configured primary or small/fast model, which may be an
+// inference profile ARN. Other protocols use the model from the request body.
+func (p RequestPayload) InvocationModel(bedrock *BedrockRuntime) string {
+	model := p.model()
+	if bedrock != nil && bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel {
+		if isSmallFastModel(model) {
+			return bedrock.ConfiguredSmallFastModel()
+		}
+		return bedrock.ConfiguredModel()
+	}
+	return model
 }
 
 func (p RequestPayload) correlatingToolCallID() *string {

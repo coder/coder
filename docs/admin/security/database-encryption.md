@@ -1,5 +1,5 @@
 ---
-title: Database Encryption
+title: Database encryption
 ---
 
 By default, Coder stores external user tokens and other sensitive values in

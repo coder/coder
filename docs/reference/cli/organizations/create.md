@@ -13,13 +13,3 @@ Create a new organization.
 ```console
 coder organizations create [flags] <organization name>
 ```
-
-## Options
-
-### -y, --yes
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Bypass confirmation prompts.

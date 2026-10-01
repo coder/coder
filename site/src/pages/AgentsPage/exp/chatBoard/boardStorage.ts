@@ -12,6 +12,8 @@ type WindowFrame = Readonly<{
 	y: number;
 	width: number;
 	height: number;
+	/** Hidden from the board and shown as a tab in the bottom bar until restored. */
+	minimized?: boolean;
 }>;
 
 /**
@@ -77,7 +79,7 @@ const readChatWindow = (value: unknown): ChatWindow | undefined => {
 	) {
 		return undefined;
 	}
-	return {
+	const win: ChatWindow = {
 		kind: "chat",
 		chatId: obj.chatId,
 		x: obj.x,
@@ -86,6 +88,9 @@ const readChatWindow = (value: unknown): ChatWindow | undefined => {
 		height: obj.height,
 		pinned: true,
 	};
+
+	if (obj.minimized === true) return { ...win, minimized: true };
+	return win;
 };
 
 /** The stored board state, or defaults when absent or unreadable. Previews are not restored. */
