@@ -155,4 +155,21 @@ func TestPing(t *testing.T) {
 		require.NotNil(t, result.Summary.AvgMS)
 		require.NotNil(t, result.Summary.MaxMS)
 	})
+
+	t.Run("JSONRequiresNum", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{
+			{"ping", "-o", "json", "my-workspace"},
+			{"ping", "-n", "0", "-o", "json", "my-workspace"},
+		} {
+			inv, _ := clitest.New(t, args...)
+			out := bytes.NewBuffer(nil)
+			inv.Stdout = out
+
+			err := inv.Run()
+			require.ErrorContains(t, err, "--output json requires --num")
+			assert.Empty(t, out.String())
+		}
+	})
 }

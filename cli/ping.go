@@ -151,6 +151,13 @@ func (r *RootCmd) ping() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			// JSON output is a single document printed when pinging ends. Without
+			// --num, pinging continues until interrupted, so stdout would stay
+			// empty and every pong would be held in memory until then.
+			if pingOutputFormat == "json" && pingNum <= 0 {
+				return xerrors.New("--output json requires --num, because pings continue until interrupted without it")
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -469,7 +476,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			Flag:          "output",
 			FlagShorthand: "o",
 			Default:       "table",
-			Description:   "Output format. Available formats: table, json.",
+			Description:   "Output format. Available formats: table, json. JSON output requires --num.",
 			Value:         serpent.EnumOf(&pingOutputFormat, "table", "json"),
 		},
 	}

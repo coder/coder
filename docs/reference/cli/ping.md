@@ -65,4 +65,4 @@ Show the response time of each pong in UTC (implies --time).
 | Type    | <code>table\|json</code> |
 | Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format. Available formats: table, json. JSON output requires --num.
