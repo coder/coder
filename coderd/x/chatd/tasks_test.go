@@ -6,17 +6,23 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -25,8 +31,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -844,6 +853,117 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
 }
 
+func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	saved := func(status int, body string) workspacesdk.CancelToolCallResponse {
+		return workspacesdk.CancelToolCallResponse{Received: true, Status: status, ContentType: "application/json", Body: []byte(body)}
+	}
+	exitCode := 0
+	tests := []struct {
+		name          string
+		toolName      string
+		notCancelable bool
+		cancel        workspacesdk.CancelToolCallResponse
+		cancelErr     error
+		cancelPanics  bool
+		output        *workspacesdk.ProcessOutputResponse
+		outputErr     error
+		wantError     bool
+		want          string
+	}{
+		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"tool call was canceled before it ran; no changes were made"}`},
+		// The agent has no record, but the cancel stopped the call's process.
+		{name: "ExecuteNoRecordProcessCanceled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"output":"partial","success":false}`},
+		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "tool call was canceled before it ran; no changes were made"},
+		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
+		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
+		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true}`},
+		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
+		// A result over the 64 KB default budget is capped and stays JSON.
+		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},
+		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "CancelPanic", toolName: "execute", cancelPanics: true, wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "OtherTool", toolName: "read_file", notCancelable: true, wantError: true, want: interruptedToolResultErrorMessage},
+	}
+
+	f := newTaskTestFixture(t)
+	calls := make([]codersdk.ChatMessagePart, 0, len(tests))
+	for _, tc := range tests {
+		calls = append(calls, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + tc.name, ToolName: tc.toolName, Args: json.RawMessage(`{}`)})
+	}
+	batch := interruptedBatchFixture(t, f, calls)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+	_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+	})
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+	require.NoError(t, err)
+	assistantID := messages[len(messages)-1].ID
+
+	// Each cancel waits until all cancels arrive, so sequential cancels
+	// would time out.
+	var pending atomic.Int64
+	for _, tc := range tests {
+		if !tc.notCancelable {
+			pending.Add(1)
+		}
+	}
+	allReceived := make(chan struct{})
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().SetExtraHeaders(gomock.Any())
+	for _, tc := range tests {
+		if tc.notCancelable {
+			continue
+		}
+		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
+		conn.EXPECT().CancelToolCall(gomock.Any(), id).DoAndReturn(func(ctx context.Context, _ uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+			if pending.Add(-1) == 0 {
+				close(allReceived)
+			}
+			select {
+			case <-allReceived:
+				if tc.cancelPanics {
+					panic("cancel panicked")
+				}
+				return tc.cancel, tc.cancelErr
+			case <-ctx.Done():
+				return workspacesdk.CancelToolCallResponse{}, ctx.Err()
+			}
+		})
+		if tc.output != nil || tc.outputErr != nil {
+			var output workspacesdk.ProcessOutputResponse
+			if tc.output != nil {
+				output = *tc.output
+			}
+			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), &workspacesdk.ProcessOutputOptions{Wait: true}).Return(output, tc.outputErr)
+		}
+	}
+	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return conn, func() {}, nil
+	}
+
+	messages = batch.interrupt(t, f)
+	for _, tc := range tests {
+		parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, "call_"+tc.name))
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		assert.Equal(t, tc.wantError, parts[0].IsError, tc.name)
+		// Compact the stored JSON with sorted keys.
+		var result any
+		require.NoError(t, json.Unmarshal(parts[0].Result, &result))
+		got, err := json.Marshal(result)
+		require.NoError(t, err)
+		assert.Contains(t, string(got), tc.want, tc.name)
+	}
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -1582,9 +1702,10 @@ type taskPublishedEvent struct {
 }
 
 type taskRecordingPubsub struct {
-	inner dbpubsub.Pubsub
-	mu    sync.Mutex
-	sent  []taskPublishedEvent
+	inner     dbpubsub.Pubsub
+	mu        sync.Mutex
+	sent      []taskPublishedEvent
+	onPublish func(channel string)
 }
 
 func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
@@ -1594,7 +1715,11 @@ func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
 func (p *taskRecordingPubsub) Publish(channel string, payload []byte) error {
 	p.mu.Lock()
 	p.sent = append(p.sent, taskPublishedEvent{channel: channel, payload: append([]byte(nil), payload...)})
+	onPublish := p.onPublish
 	p.mu.Unlock()
+	if onPublish != nil {
+		onPublish(channel)
+	}
 	return p.inner.Publish(channel, payload)
 }
 

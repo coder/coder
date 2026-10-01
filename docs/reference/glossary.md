@@ -278,7 +278,7 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 ### External authentication
 
 In-workspace OAuth to Git providers, artifact registries, and similar services, configured with `CODER_EXTERNAL_AUTH_*` variables.
-Refer to [External authentication](../admin/external-auth/index.md).
+Refer to [External authentication](../admin/external-auth.md).
 
 ### External provisioner
 
