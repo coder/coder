@@ -3,6 +3,7 @@ package agentbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"sync/atomic"
@@ -26,7 +27,8 @@ const MaxHostCallRequestBytes = 1 << 20
 // wrote and the returned bytes are what it reads back. An error is
 // delivered to the guest as an error envelope instead of aborting the run.
 // The function runs while Box.Run holds the box lock, so it must not call
-// Box methods. ctx ends when the run times out or the box closes.
+// Box methods. ctx ends when the run ends for any reason: timeout, box or
+// engine close, the caller's context, or the guest exiting.
 type HostCallFunc func(ctx context.Context, request []byte) ([]byte, error)
 
 // HostCallEnvelope is the JSON the guest reads for every host call.
@@ -74,6 +76,10 @@ type hostCallFS struct {
 	slot chan struct{}
 	// requestTooLarge is set when a guest write passed the request cap.
 	requestTooLarge atomic.Bool
+	// canceled is set once a canceled envelope was served. A guest that
+	// exits on it before the module is flagged closed was still
+	// interrupted.
+	canceled atomic.Bool
 }
 
 func newHostCallFS(ctx context.Context, call HostCallFunc) *hostCallFS {
@@ -83,7 +89,7 @@ func newHostCallFS(ctx context.Context, call HostCallFunc) *hostCallFS {
 func (f *hostCallFS) OpenFile(p string, _ experimentalsys.Oflag, _ fs.FileMode) (experimentalsys.File, experimentalsys.Errno) {
 	switch p {
 	case ".", "", "/":
-		return hostCallDir{}, 0
+		return &hostCallDir{}, 0
 	case hostCallFileName:
 		return &hostCallFile{fs: f}, 0
 	default:
@@ -114,18 +120,23 @@ func fileStat() sys.Stat_t {
 	return sys.Stat_t{Mode: 0o600, Nlink: 1}
 }
 
-// hostCallDir is the mount root. wazero opens it when the guest resolves
-// the preopen and on every path lookup under it.
+// hostCallDir is the mount root. It must open and stat as a directory;
+// any errno other than ENOENT from the root open is fatal to the mount.
 type hostCallDir struct {
 	experimentalsys.UnimplementedFile
+	listed bool
 }
 
 func (hostCallDir) IsDir() (bool, experimentalsys.Errno)      { return true, 0 }
 func (hostCallDir) Stat() (sys.Stat_t, experimentalsys.Errno) { return dirStat(), 0 }
 func (hostCallDir) Read([]byte) (int, experimentalsys.Errno)  { return 0, experimentalsys.EISDIR }
 func (hostCallDir) Write([]byte) (int, experimentalsys.Errno) { return 0, experimentalsys.EISDIR }
-func (hostCallDir) Readdir(int) ([]experimentalsys.Dirent, experimentalsys.Errno) {
-	return nil, 0
+func (d *hostCallDir) Readdir(n int) ([]experimentalsys.Dirent, experimentalsys.Errno) {
+	if n == 0 || d.listed {
+		return nil, 0
+	}
+	d.listed = true
+	return []experimentalsys.Dirent{{Name: hostCallFileName, Type: 0}}, 0
 }
 func (hostCallDir) Close() experimentalsys.Errno { return 0 }
 
@@ -166,8 +177,8 @@ func (f *hostCallFile) fail(code, msg string) {
 }
 
 // serve runs the host call once and fixes the response. The call runs in
-// its own goroutine so a callee that ignores ctx cannot keep the guest,
-// and with it Box.Close, waiting after the run is canceled.
+// its own goroutine so a callee that ignores ctx cannot block the guest
+// after the run is canceled.
 func (f *hostCallFile) serve() {
 	if f.served {
 		return
@@ -175,7 +186,7 @@ func (f *hostCallFile) serve() {
 	f.served = true
 	ctx := f.fs.ctx
 	if ctx.Err() != nil {
-		f.response = HostCallError(HostCallCodeCanceled, "run canceled")
+		f.cancel()
 		return
 	}
 	type outcome struct {
@@ -185,7 +196,7 @@ func (f *hostCallFile) serve() {
 	select {
 	case f.fs.slot <- struct{}{}:
 	case <-ctx.Done():
-		f.response = HostCallError(HostCallCodeCanceled, "run canceled")
+		f.cancel()
 		return
 	}
 	done := make(chan outcome, 1)
@@ -198,6 +209,8 @@ func (f *hostCallFile) serve() {
 	select {
 	case res := <-done:
 		switch {
+		case res.err != nil && ctx.Err() != nil && errors.Is(res.err, context.Canceled):
+			f.cancel()
 		case res.err != nil:
 			f.response = HostCallError(HostCallCodeInternal, res.err.Error())
 		case len(res.out) == 0:
@@ -206,8 +219,13 @@ func (f *hostCallFile) serve() {
 			f.response = res.out
 		}
 	case <-ctx.Done():
-		f.response = HostCallError(HostCallCodeCanceled, "run canceled")
+		f.cancel()
 	}
+}
+
+func (f *hostCallFile) cancel() {
+	f.fs.canceled.Store(true)
+	f.response = HostCallError(HostCallCodeCanceled, "run canceled")
 }
 
 func (f *hostCallFile) Read(buf []byte) (int, experimentalsys.Errno) {
@@ -221,10 +239,10 @@ func (f *hostCallFile) Read(buf []byte) (int, experimentalsys.Errno) {
 }
 
 func (f *hostCallFile) Pread(buf []byte, off int64) (int, experimentalsys.Errno) {
-	f.serve()
 	if off < 0 {
 		return 0, experimentalsys.EINVAL
 	}
+	f.serve()
 	if off >= int64(len(f.response)) {
 		return 0, 0
 	}
@@ -238,6 +256,7 @@ func (f *hostCallFile) Seek(offset int64, whence int) (int64, experimentalsys.Er
 	case io.SeekCurrent:
 		base = f.offset
 	case io.SeekEnd:
+		f.serve()
 		base = int64(len(f.response))
 	default:
 		return 0, experimentalsys.EINVAL

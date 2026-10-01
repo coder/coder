@@ -254,14 +254,18 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		DiskQuotaExceeded:    mounts.box.quotaHit.Load(),
 		OpenFileLimitReached: mounts.limit.hit.Load(),
 	}
+	// A guest that exits on a canceled host call envelope before the
+	// module is flagged closed was still stopped by the cancellation.
+	hostCallCanceled := false
 	if mounts.hostCall != nil {
 		result.HostCallRequestTooLarge = mounts.hostCall.requestTooLarge.Load()
+		hostCallCanceled = mounts.hostCall.canceled.Load()
 	}
 	exitErr, isExit := errors.AsType[*sys.ExitError](err)
 	switch {
-	case err == nil:
+	case err == nil && !hostCallCanceled:
 		return result, nil
-	case isExit && (!interrupted || !isInterruptExitCode(exitErr.ExitCode())):
+	case isExit && !hostCallCanceled && (!interrupted || !isInterruptExitCode(exitErr.ExitCode())):
 		// WASI exit statuses are uint32; a guest exit(-1) arrives as
 		// 0xffffffff. A guest that exits with one of wazero's interrupt
 		// codes just as runCtx ends is indistinguishable from an

@@ -78,6 +78,43 @@ func TestHostCallFile(t *testing.T) {
 		assert.Equal(t, experimentalsys.EINVAL, errno)
 	})
 
+	t.Run("RequestTooLarge", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		fsys := newHostCallFS(context.Background(), func(context.Context, []byte) ([]byte, error) {
+			called = true
+			return nil, nil
+		})
+		f := open(t, fsys)
+		n, errno := f.Write(make([]byte, MaxHostCallRequestBytes))
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		assert.Equal(t, MaxHostCallRequestBytes, n)
+		_, errno = f.Write([]byte("x"))
+		assert.Equal(t, experimentalsys.EIO, errno)
+		_, errno = f.Write([]byte("y"))
+		assert.Equal(t, experimentalsys.EIO, errno)
+		buf := make([]byte, 256)
+		n, errno = f.Read(buf)
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		assert.JSONEq(t, `{"ok":false,"code":"request_too_large","error":"request exceeds the host call request limit"}`, string(buf[:n]))
+		assert.True(t, fsys.requestTooLarge.Load())
+		assert.False(t, called)
+	})
+
+	t.Run("Readdir", func(t *testing.T) {
+		t.Parallel()
+		fsys := newHostCallFS(context.Background(), nil)
+		root, errno := fsys.OpenFile(".", experimentalsys.O_RDONLY, 0)
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		entries, errno := root.Readdir(-1)
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		require.Len(t, entries, 1)
+		assert.Equal(t, hostCallFileName, entries[0].Name)
+		entries, errno = root.Readdir(-1)
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		assert.Empty(t, entries)
+	})
+
 	t.Run("CanceledBeforeCall", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -93,5 +130,20 @@ func TestHostCallFile(t *testing.T) {
 		require.Equal(t, experimentalsys.Errno(0), errno)
 		assert.JSONEq(t, `{"ok":false,"code":"canceled","error":"run canceled"}`, string(buf[:n]))
 		assert.False(t, called)
+		assert.True(t, fsys.canceled.Load())
+	})
+
+	t.Run("CanceledCalleeError", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		fsys := newHostCallFS(ctx, func(ctx context.Context, _ []byte) ([]byte, error) {
+			cancel()
+			return nil, ctx.Err()
+		})
+		f := open(t, fsys)
+		buf := make([]byte, 256)
+		n, errno := f.Read(buf)
+		require.Equal(t, experimentalsys.Errno(0), errno)
+		assert.JSONEq(t, `{"ok":false,"code":"canceled","error":"run canceled"}`, string(buf[:n]))
 	})
 }
