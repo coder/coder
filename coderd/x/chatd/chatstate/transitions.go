@@ -503,15 +503,12 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
-	// Running, with or without a queue.
-	case StateR0, StateR1:
+	// Running or interrupting, with or without a queue. Interrupt
+	// lands in I1; queue keeps the input state.
+	case StateR0, StateR1, StateI0, StateI1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRunning(chat, from, input)
+			return tx.sendMessageInterrupt(chat, from, input)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
-
-	// Interrupting: queue regardless of busy behavior.
-	case StateI0, StateI1:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Requires-action: queue keeps A*; interrupt cancels pending
@@ -620,7 +617,11 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
+// sendMessageInterrupt queues the message and lands the chat in I1.
+// An owned chat stays there until its runner finishes the
+// interruption. An unowned chat, which can be running or already
+// interrupting, finishes the interruption in the same transaction.
+func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
 	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 	if err != nil || chat.WorkerID.Valid {
 		return result, err
@@ -631,7 +632,7 @@ func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionStat
 	}
 	result.InsertedMessages = finished.InsertedMessages
 	result.PromotedQueuedAt = finished.PromotedQueuedAt
-	if from == StateR0 {
+	if from == StateR0 || from == StateI0 {
 		// The queue held only this message, so it was promoted into
 		// history instead of staying queued.
 		result.QueuedMessage = nil
@@ -1042,15 +1043,29 @@ type InterruptResult struct {
 }
 
 // Interrupt requests interruption of an active or requires-action
-// chat.
+// chat. It also finishes the pending interruption of an unowned
+// interrupting chat.
 func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionInterrupt)
-	if err != nil {
-		return InterruptResult{}, err
-	}
 	reason := input.Reason
 	if reason == "" {
 		reason = "Tool execution interrupted by user"
+	}
+	if err != nil {
+		// The matrix rejects Interrupt from I*, because an owned
+		// interrupting chat is already being finished by its runner.
+		// An unowned one has no runner, and a worker would need a
+		// capacity slot to finish it, so finish it here instead.
+		if !errors.Is(err, ErrTransitionNotAllowed) || (from != StateI0 && from != StateI1) || chat.WorkerID.Valid {
+			return InterruptResult{}, err
+		}
+		finished, err := tx.finishUnownedInterruption(chat, reason)
+		if err != nil {
+			return InterruptResult{}, err
+		}
+		return InterruptResult{
+			CancellationMessages: finished.cancellations,
+		}, nil
 	}
 	switch from {
 	case StateR0, StateR1:
