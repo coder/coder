@@ -28,39 +28,34 @@ type EmojiPickerProps = Omit<
 	"custom" | "data" | "set" | "theme" | "getSpritesheetURL"
 >;
 
-/**
- * Style overrides injected into the picker's shadow root.
- *
- * - Custom emoji images render improperly without a 100% width.
- *   Issue:   https://github.com/missive/emoji-mart/issues/805
- *   Open PR: https://github.com/missive/emoji-mart/pull/806
- * - The default dark theme renders the preview placeholder ("Pick an
- *   emoji...") and shortcodes at 45% opacity, which fails the WCAG AA
- *   4.5:1 contrast ratio. 65% opacity gives roughly 6.3:1.
- */
-const pickerStyles = `
-.emoji-mart-emoji img { width: 100% }
-#root { --color-c: rgba(var(--em-rgb-color), .65); }
-`;
-
 const EmojiPicker: React.FC<EmojiPickerProps> = (props) => {
-	const containerRef = useRef<HTMLDivElement>(null);
+	const ref = useRef<HTMLDivElement>(null);
 
-	// Scope the lookup to this instance, since several pickers can be mounted
-	// at once (for example, the hidden preloaded one in IconField).
+	/**
+	 * Workaround for a bug in the emoji-mart library where custom emoji images render improperly.
+	 * Setting the image width to 100% ensures they display correctly.
+	 *
+	 * Issue:   https://github.com/missive/emoji-mart/issues/805
+	 * Open PR: https://github.com/missive/emoji-mart/pull/806
+	 *
+	 * Also raise the dark theme's 45% opacity secondary text ("Pick an emoji"
+	 * placeholder) to 65% so it meets the WCAG AA 4.5:1 contrast ratio.
+	 *
+	 * Query within this instance, since IconField also mounts a hidden picker.
+	 */
 	useEffect(() => {
-		const picker =
-			containerRef.current?.querySelector("em-emoji-picker")?.shadowRoot;
+		const picker = ref.current?.querySelector("em-emoji-picker")?.shadowRoot;
 		if (!picker) {
 			return;
 		}
 		const css = document.createElement("style");
-		css.textContent = pickerStyles;
+		css.textContent =
+			".emoji-mart-emoji img { width: 100% } #root { --color-c: rgba(var(--em-rgb-color), .65) }";
 		picker.appendChild(css);
 	}, []);
 
 	return (
-		<div ref={containerRef} className="contents">
+		<div ref={ref} className="contents">
 			<EmojiMart
 				theme="dark"
 				set="apple"
