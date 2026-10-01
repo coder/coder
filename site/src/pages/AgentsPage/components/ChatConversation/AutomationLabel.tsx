@@ -1,10 +1,17 @@
+import type { ChatAutomationNameMap } from "#/api/queries/chatAutomations";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ChatAutomationNames } from "../../hooks/useChatAutomationNames";
+
+export type ChatAutomationNames = {
+	names: ChatAutomationNameMap;
+	// State of the automations list: while "loading" (including refetches)
+	// a missing name may still resolve, and "error" means the list failed.
+	status: "loading" | "error" | "settled";
+};
 
 type AutomationLabelProps = {
 	automationId: string;

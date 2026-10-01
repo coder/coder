@@ -17,8 +17,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
-import type { ChatAutomationNames } from "../../hooks/useChatAutomationNames";
-
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -27,7 +25,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { AutomationLabel } from "./AutomationLabel";
+import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	type LiveStatusModel,

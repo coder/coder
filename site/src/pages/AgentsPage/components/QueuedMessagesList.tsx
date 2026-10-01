@@ -15,8 +15,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ChatAutomationNames } from "../hooks/useChatAutomationNames";
-import { AutomationLabel } from "./ChatConversation/AutomationLabel";
+import {
+	AutomationLabel,
+	type ChatAutomationNames,
+} from "./ChatConversation/AutomationLabel";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
