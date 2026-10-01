@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/hashicorp/hcl/v2"
 	tfjson "github.com/hashicorp/terraform-json"
 
 	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
@@ -16,6 +17,15 @@ type configResourceKey struct {
 	resourceName  string
 }
 
+type moduleCallKey struct {
+	moduleAddress string
+	moduleName    string
+}
+
+type configModuleCall struct {
+	source string
+}
+
 type configResource struct {
 	agentIDReferences []string
 	forEachReferences []string
@@ -24,7 +34,10 @@ type configResource struct {
 // configIndex maps evaluated module instances to shared configuration
 // declarations. Instance keys are omitted from its keys.
 type configIndex struct {
-	resources map[configResourceKey]configResource
+	modules                  map[string]struct{}
+	moduleCalls              map[moduleCallKey]configModuleCall
+	resources                map[configResourceKey]configResource
+	runtimeSourceExpressions map[runtimeExpressionKey]hcl.Expression
 }
 
 func newConfigIndex(
@@ -35,7 +48,10 @@ func newConfigIndex(
 		return nil, nil
 	}
 	index := &configIndex{
-		resources: map[configResourceKey]configResource{},
+		modules:                  map[string]struct{}{},
+		moduleCalls:              map[moduleCallKey]configModuleCall{},
+		resources:                map[configResourceKey]configResource{},
+		runtimeSourceExpressions: map[runtimeExpressionKey]hcl.Expression{},
 	}
 	if err := index.indexModule(ctx, "", config.RootModule); err != nil {
 		return nil, err
@@ -54,6 +70,7 @@ func (i *configIndex) indexModule(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	i.modules[moduleAddress] = struct{}{}
 	for _, resource := range module.Resources {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -91,7 +108,14 @@ func (i *configIndex) indexModule(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if call == nil || call.Module == nil {
+		if call == nil {
+			continue
+		}
+		i.moduleCalls[moduleCallKey{
+			moduleAddress: moduleAddress,
+			moduleName:    name,
+		}] = configModuleCall{source: call.Source}
+		if call.Module == nil {
 			continue
 		}
 		childAddress := "module." + name
