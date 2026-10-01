@@ -10,6 +10,7 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
@@ -202,38 +203,107 @@ describe("ChatPageInput", () => {
 	);
 });
 
+const automationInputID = "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e";
+
+const renderChatPageTimelineWithAutomationInput = () => {
+	const store = createChatStore();
+	store.replaceMessages([
+		{
+			...MockChatMessage,
+			id: 1,
+			automation_id: MockChatAutomation.id,
+			input_id: automationInputID,
+		},
+		{ ...MockChatMessage, id: 2 },
+	]);
+
+	return renderWithAuth(
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<ChatPageTimeline
+				organizationId="test-org-id"
+				store={store}
+				persistedError={undefined}
+				hasMoreMessages={false}
+				isFetchingMoreMessages={false}
+				isHydratingMessages={false}
+				hasFetchMoreError={false}
+				onFetchMoreMessages={async () => {}}
+			/>
+		</MessageScroller.Provider>,
+	);
+};
+
 describe("ChatPageTimeline", () => {
 	it("requests the automations list for the chat's organization when history has automation input", async () => {
 		mockChatAutomationsResponse();
 		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
-		const store = createChatStore();
-		store.replaceMessages([
-			{
-				...MockChatMessage,
-				id: 1,
-				automation_id: MockChatAutomation.id,
-				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
-			},
-			{ ...MockChatMessage, id: 2 },
-		]);
 
-		renderWithAuth(
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<ChatPageTimeline
-					organizationId="test-org-id"
-					store={store}
-					persistedError={undefined}
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
-					hasFetchMoreError={false}
-					onFetchMoreMessages={async () => {}}
-				/>
-			</MessageScroller.Provider>,
-		);
+		renderChatPageTimelineWithAutomationInput();
 
 		await waitFor(() =>
 			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
 		);
+	});
+
+	it("hides the automation ID while the automations list loads, then shows the name", async () => {
+		mockExperiments(["chat-automations"]);
+		const response = createDeferred<undefined>();
+		server.use(
+			http.get(
+				"/api/experimental/organizations/:organizationId/chat-automations",
+				async () => {
+					await response.promise;
+					return HttpResponse.json([MockChatAutomation]);
+				},
+			),
+		);
+
+		renderChatPageTimelineWithAutomationInput();
+
+		expect(
+			await screen.findByRole("button", {
+				name: "Automation run · input 0b6c4e2a",
+			}),
+		).toBeInTheDocument();
+
+		response.resolve(undefined);
+		expect(
+			await screen.findByRole("button", {
+				name: "Automation run · CI heartbeat · input 0b6c4e2a",
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("shows the automation ID and the load error when the automations list fails", async () => {
+		const user = userEvent.setup();
+		mockExperiments(["chat-automations"]);
+		server.use(
+			http.get(
+				"/api/experimental/organizations/:organizationId/chat-automations",
+				() => HttpResponse.json({ message: "boom" }, { status: 500 }),
+			),
+		);
+
+		renderChatPageTimelineWithAutomationInput();
+
+		const label = await screen.findByRole("button", {
+			name: "Automation run · 7f1c2b9e-4d3a-4c1f-9b2e-5a6d7e8f9a0b · input 0b6c4e2a",
+		});
+		await user.hover(label);
+		expect(
+			await screen.findByText("Could not load the automation name."),
+		).toBeInTheDocument();
+	});
+
+	it("shows the automation ID without requesting the list when the chat-automations experiment is off", async () => {
+		mockExperiments([]);
+		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
+
+		renderChatPageTimelineWithAutomationInput();
+
+		await screen.findByRole("button", {
+			name: "Automation run · 7f1c2b9e-4d3a-4c1f-9b2e-5a6d7e8f9a0b · input 0b6c4e2a",
+		});
+		expect(getChatAutomations).not.toHaveBeenCalled();
 	});
 });

@@ -435,6 +435,7 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
+	automationNames: { names: new Map(), status: "settled" },
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
