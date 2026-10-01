@@ -74,6 +74,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -1103,7 +1104,7 @@ func New(options *Options) *API {
 	// and in the build info response and the AI bridge config, so a runtime
 	// toggle would have to update all three.
 	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
-	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+	apiKeyConfig := httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
@@ -1114,7 +1115,8 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
 		AccessURL:                     options.AccessURL,
-	})
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(apiKeyConfig)
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1377,19 +1379,26 @@ func New(options *Options) *API {
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {
+					cfg := apiKeyConfig
+					cfg.ResourceURI = options.AccessURL.JoinPath(mcp.MCPEndpoint).String()
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint).String()
+					canonical := httpmw.ExtractAPIKeyMW(cfg)(next)
+					cfg.ResourceMetadataURL += "/"
+					trailingSlash := httpmw.ExtractAPIKeyMW(cfg)(next)
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						// Routing normalizes slashes, but OAuth resource identity
 						// must not admit aliases or arbitrary descendant paths.
 						switch r.URL.EscapedPath() {
-						case "/api/experimental/mcp/http", "/api/experimental/mcp/http/":
-							next.ServeHTTP(rw, r)
+						case mcp.MCPEndpoint:
+							canonical.ServeHTTP(rw, r)
+						case mcp.MCPEndpoint + "/":
+							trailingSlash.ServeHTTP(rw, r)
 						default:
 							httpapi.RouteNotFound(rw)
 						}
 					})
 				})
 				r.Use(
-					apiKeyMiddleware,
 					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
 				)

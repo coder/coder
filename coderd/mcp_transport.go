@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/mcp"
 )
 
 // mcpDelegatedReadHeaderTimeout bounds header reads on the in-process delegation
@@ -35,7 +36,7 @@ func newMCPDelegatedTransport(logger slog.Logger, handler http.Handler, accessUR
 		// faults; route them to the Coder logger instead of stderr.
 		ErrorLog: slog.Stdlib(ctx, logger.Named("mcp_delegated_transport"), slog.LevelError),
 		BaseContext: func(net.Listener) context.Context {
-			return httpmw.WithMCPDelegation(ctx, apiKeyID)
+			return httpmw.WithAPIKeyDelegation(ctx, accessURL.JoinPath(mcp.MCPEndpoint).String(), apiKeyID)
 		},
 	}
 	done := make(chan struct{})
