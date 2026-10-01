@@ -1385,6 +1385,13 @@ func New(options *Options) *API {
 				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
 			})
 		})
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			api.registerExperimentalOrganizationChatRoutes(r)
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
