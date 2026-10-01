@@ -231,17 +231,15 @@ Each entry includes the reason it belongs in the docs.
 
 These govern *how* content enters the docs, for both humans and the doc-check agent.
 
-- **Every new page must be added to `docs/manifest.json`.**
-  Pages not in the manifest don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+- **Every new page must be added to the sidebar sources in `docs/manifest/`.**
+  Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
-- **Premium features are marked explicitly.**
-  Both of the following are required for a Premium page:
-  1. The H1 title takes a `(Premium)` suffix.
-     Example: `# Template
-     Insights (Premium)`.
-  2. The page's `docs/manifest.json` entry gets `"state": ["premium"]`.
+- **Feature states are marked in navigation metadata.**
+  The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
+  Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
