@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -24,9 +25,9 @@ import (
 	"github.com/coder/flog"
 )
 
-// routeTitles is the manifest breadcrumb to this page's route. The page
-// mirrors that route's metadata into its front matter, so the manifest stays
-// the single source of the title and description.
+// routeTitles is the sidebar breadcrumb to this page's route. The page
+// mirrors that route's metadata into its front matter, so the sidebar sources
+// stay the single source of the title and description.
 var routeTitles = []string{"Reference", "API key scopes"}
 
 var exampleScopes = []rbac.ScopeName{
@@ -79,17 +80,17 @@ Use the canonical name.
 `
 
 func main() {
-	manifestPath := flag.String("manifest", "docs/manifest.json", "path to the docs manifest that supplies the page metadata")
+	sourcesDir := flag.String("manifest-sources", filepath.Join("docs", docgenenv.ManifestSourcesDir), "directory of the docs sidebar sources that supply the page metadata")
 	out := flag.String("out", "docs/reference/api-key-scopes.md", "path to write the generated reference page")
 	flag.Parse()
 
-	manifest, err := docgenenv.LoadManifest(*manifestPath)
+	manifest, err := docgenenv.LoadManifestSources(*sourcesDir)
 	if err != nil {
 		flog.Fatalf("%v", err)
 	}
 	route := manifest.FindRoute(routeTitles...)
 	if route == nil {
-		flog.Fatalf("manifest %q has no route %q", *manifestPath, strings.Join(routeTitles, " > "))
+		flog.Fatalf("sidebar sources %q have no route %q", *sourcesDir, strings.Join(routeTitles, " > "))
 	}
 
 	content, err := render(*route)

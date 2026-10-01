@@ -1426,7 +1426,7 @@ docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard 
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) docs/manifest.json _gen/bin/scopesdocgen | _gen
+docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/scopesdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
