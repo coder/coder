@@ -107,6 +107,12 @@ func TestRacedErrorKeepsCause(t *testing.T) {
 			errType: recorder.ErrorTypeBadRequest, message: "bad input",
 		},
 		{name: "ResponseCreated", event: created("", "resp_1", "model-server")},
+		{
+			// Not kept, so the end cause names the unparsed event.
+			name:    "OversizedErrorEvent",
+			event:   `{"type":"error","status":400,"error":{"message":"` + strings.Repeat("x", extract.MaxEventBytes) + `"}}`,
+			errType: recorder.ErrorTypeUnknown, message: "upstream error event was not parsed",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
