@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -83,7 +84,7 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}
 	})
 
-	t.Run("nok - missing scope", func(t *testing.T) {
+	t.Run("NOK - missing scope", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -95,12 +96,18 @@ func TestInboxNotification_Watch(t *testing.T) {
 			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
 		})
 		require.NoError(t, err)
-		client.SetSessionToken(token.Key)
 
-		resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil)
+		u, err := client.URL.Parse("/api/v2/notifications/inbox/watch")
 		require.NoError(t, err)
-		defer resp.Body.Close()
 
+		// nolint:bodyclose
+		_, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{token.Key},
+			},
+		})
+		require.Error(t, err)
+		require.NotNil(t, resp)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
@@ -875,9 +882,44 @@ func TestInboxNotifications_ReadStatus(t *testing.T) {
 		updatedNotif, err := client.UpdateInboxNotificationReadStatus(ctx, failingPaginationUUID.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
 			IsRead: true,
 		})
-		require.ErrorContains(t, err, `Failed to update inbox notification read status`)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		require.Equal(t, 0, updatedNotif.UnreadCount)
 		require.Empty(t, updatedNotif.Notification)
+	})
+
+	t.Run("NOK - other user's notification", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		notif := dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+			ID:         uuid.New(),
+			UserID:     member.ID,
+			TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+			Title:      "Notification",
+			Actions:    json.RawMessage("[]"),
+			Content:    "Content",
+			CreatedAt:  dbtime.Now(),
+		})
+
+		// Owners can update any inbox, but this endpoint only acts on their own.
+		updatedNotif, err := ownerClient.UpdateInboxNotificationReadStatus(ctx, notif.ID.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+			IsRead: true,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Empty(t, updatedNotif.Notification)
+
+		notifs, err := memberClient.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		require.NoError(t, err)
+		require.Len(t, notifs.Notifications, 1)
+		require.Nil(t, notifs.Notifications[0].ReadAt)
 	})
 }
 
@@ -962,34 +1004,47 @@ func TestInboxNotifications_Scopes(t *testing.T) {
 		update = codersdk.APIKeyScopeInboxNotificationUpdate
 	)
 
-	listInbox := func(ctx context.Context, client *codersdk.Client, _ uuid.UUID) error {
-		_, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
-		return err
+	// Unreadable rows are filtered out, not refused, so check the contents.
+	listInbox := func(ctx context.Context, client *codersdk.Client, id uuid.UUID) error {
+		res, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		if err != nil {
+			return err
+		}
+		if len(res.Notifications) != 1 || res.Notifications[0].ID != id || res.UnreadCount != 1 {
+			return xerrors.Errorf("want notification %s with 1 unread, got %+v", id, res)
+		}
+		return nil
 	}
 	markRead := func(ctx context.Context, client *codersdk.Client, id uuid.UUID) error {
-		_, err := client.UpdateInboxNotificationReadStatus(ctx, id.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+		res, err := client.UpdateInboxNotificationReadStatus(ctx, id.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
 			IsRead: true,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if res.Notification.ID != id || res.Notification.ReadAt == nil || res.UnreadCount != 0 {
+			return xerrors.Errorf("want notification %s read with 0 unread, got %+v", id, res)
+		}
+		return nil
 	}
 	markAllRead := func(ctx context.Context, client *codersdk.Client, _ uuid.UUID) error {
 		return client.MarkAllInboxNotificationsAsRead(ctx)
 	}
 
 	tests := []struct {
-		name      string
-		scopes    []codersdk.APIKeyScope
-		call      func(context.Context, *codersdk.Client, uuid.UUID) error
-		forbidden bool
-		wantRead  bool
+		name           string
+		scopes         []codersdk.APIKeyScope
+		call           func(context.Context, *codersdk.Client, uuid.UUID) error
+		missing        codersdk.APIKeyScope
+		wantMarkedRead bool
 	}{
-		{name: "list - ok", scopes: []codersdk.APIKeyScope{read}, call: listInbox},
-		{name: "list - nok - missing read", scopes: []codersdk.APIKeyScope{update}, call: listInbox, forbidden: true},
-		{name: "read status - ok", scopes: []codersdk.APIKeyScope{read, update}, call: markRead, wantRead: true},
-		{name: "read status - nok - missing read", scopes: []codersdk.APIKeyScope{update}, call: markRead, forbidden: true},
-		{name: "read status - nok - missing update", scopes: []codersdk.APIKeyScope{read}, call: markRead, forbidden: true},
-		{name: "mark all - ok", scopes: []codersdk.APIKeyScope{update}, call: markAllRead, wantRead: true},
-		{name: "mark all - nok - missing update", scopes: []codersdk.APIKeyScope{read}, call: markAllRead, forbidden: true},
+		{name: "OK - list", scopes: []codersdk.APIKeyScope{read}, call: listInbox},
+		{name: "NOK - list - missing read", scopes: []codersdk.APIKeyScope{update}, call: listInbox, missing: read},
+		{name: "OK - read status", scopes: []codersdk.APIKeyScope{read, update}, call: markRead, wantMarkedRead: true},
+		{name: "NOK - read status - missing read", scopes: []codersdk.APIKeyScope{update}, call: markRead, missing: read},
+		{name: "NOK - read status - missing update", scopes: []codersdk.APIKeyScope{read}, call: markRead, missing: update},
+		{name: "OK - mark all", scopes: []codersdk.APIKeyScope{update}, call: markAllRead, wantMarkedRead: true},
+		{name: "NOK - mark all - missing update", scopes: []codersdk.APIKeyScope{read}, call: markAllRead, missing: update},
 	}
 
 	for _, tt := range tests {
@@ -1019,10 +1074,11 @@ func TestInboxNotifications_Scopes(t *testing.T) {
 			scoped.SetSessionToken(token.Key)
 
 			err = tt.call(ctx, scoped, notif.ID)
-			if tt.forbidden {
+			if tt.missing != "" {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, string(tt.missing))
 			} else {
 				require.NoError(t, err)
 			}
@@ -1030,7 +1086,7 @@ func TestInboxNotifications_Scopes(t *testing.T) {
 			notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
 			require.NoError(t, err)
 			require.Len(t, notifs.Notifications, 1)
-			require.Equal(t, tt.wantRead, notifs.Notifications[0].ReadAt != nil)
+			require.Equal(t, tt.wantMarkedRead, notifs.Notifications[0].ReadAt != nil)
 		})
 	}
 }
