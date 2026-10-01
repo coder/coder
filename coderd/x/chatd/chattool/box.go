@@ -12,6 +12,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 )
 
@@ -54,6 +55,9 @@ type BoxOptions struct {
 	// past this size is no longer valid JSON, so both streams shrink until
 	// the result fits. Zero applies only the per-stream cap.
 	ResultBudgetBytes int
+	// MCP lets guest scripts call the turn's MCP tools. A zero value
+	// leaves /mcp unmounted.
+	MCP BoxMCPOptions
 }
 
 // boxTool runs box calls in tool-call order within a step so a script sees
@@ -74,7 +78,11 @@ type BoxRunArgs struct {
 
 // BoxRun returns the box_run tool.
 func BoxRun(options BoxOptions) fantasy.AgentTool {
-	description := "Run a program in a temporary sandbox that has no workspace, network, or package access. " +
+	network := "network"
+	if options.MCP.Tools != nil {
+		network = "direct network"
+	}
+	description := "Run a program in a temporary sandbox that has no workspace, " + network + ", or package access. " +
 		"Languages: " + strings.Join(options.Languages, ", ") + ". " +
 		"JavaScript runs on QuickJS with the std and os modules available as globals. " +
 		"The program itself runs from /script, so import modules staged in the box by absolute path, for example import { f } from \"/box/lib.mjs\". " +
@@ -87,13 +95,16 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		"limits_hit lists \"disk_quota\" or \"open_files\" when the program hit that limit; those calls fail with EIO inside the sandbox. " +
 		"queued_ms is set when the run waited for a free run slot before starting. " +
 		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
+	if options.MCP.Tools != nil {
+		description += " " + boxMCPDescription(options.MCP)
+	}
 	if options.AttachFile {
 		description += " Use box_attach_file to hand a result file to the user."
 	}
 	return boxTool{fantasy.NewAgentTool(
 		BoxRunToolName,
 		description,
-		func(ctx context.Context, args BoxRunArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args BoxRunArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if strings.TrimSpace(args.Language) == "" {
 				return fantasy.NewTextErrorResponse("language is required"), nil
 			}
@@ -104,12 +115,17 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 			if err != nil {
 				return boxErrorResponse(err), nil
 			}
-			result, err := h.box.Run(ctx, agentbox.RunRequest{
+			mcpRun := newBoxMCPRun(options.MCP, call.ID)
+			req := agentbox.RunRequest{
 				Language: args.Language,
 				Code:     args.Code,
 				Stdin:    args.Stdin,
 				Args:     args.Args,
-			})
+			}
+			if mcpRun != nil {
+				req.HostCall = mcpRun.hostCall
+			}
+			result, err := h.box.Run(ctx, req)
 			if err != nil {
 				return h.errorResponse(err), nil
 			}
@@ -129,6 +145,20 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 			if limits := runLimitsHit(result); len(limits) > 0 {
 				fields["limits_hit"] = limits
 				fields["hint"] = "the program hit a sandbox limit; the failing calls returned EIO (errno 29, I/O error)"
+			}
+			if mcpRun != nil {
+				if summary := mcpRun.Summary(); summary.Total > 0 {
+					fields["mcp_calls"] = summary.Calls
+					fields["mcp_calls_total"] = summary.Total
+					fields["mcp_calls_failed"] = summary.Failed
+					options.MCP.Logger.Info(ctx, "agent box mcp calls",
+						slog.F("box_id", h.box.ID()),
+						slog.F("calls", summary.Total),
+						slog.F("failed", summary.Failed),
+						slog.F("result_bytes", summary.ResultBytes),
+						slog.F("mcp_ms", summary.Duration.Milliseconds()),
+					)
+				}
 			}
 			stdout, stderr, fitCut := fitStreams(fields, stdout, stderr, options.ResultBudgetBytes)
 			fields["stdout"] = stdout
@@ -339,6 +369,9 @@ func runLimitsHit(result agentbox.RunResult) []string {
 	}
 	if result.OpenFileLimitReached {
 		limits = append(limits, "open_files")
+	}
+	if result.HostCallRequestTooLarge {
+		limits = append(limits, "mcp_request")
 	}
 	return limits
 }
