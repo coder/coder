@@ -352,237 +352,246 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									: "The trigger, webhook use, and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
-					{/* Radix Select triggers open on pointerdown, which browsers still
-					    dispatch to fieldset-disabled buttons. */}
-					<fieldset
-						disabled={isSubmitting}
-						className="m-0 flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto border-0 px-6 py-4 [&_button:disabled]:pointer-events-none"
-					>
-						{automation && automation.owner_id !== currentUserId && (
-							<p className="m-0 text-sm text-content-secondary">
-								Only the owner of this automation can change it.
-							</p>
-						)}
-						{showAlert && (
-							<Alert severity="error" prominent>
-								<AlertTitle>
-									{getErrorMessage(error, "Could not save the automation.")}
-								</AlertTitle>
-								{(apiError?.detail || alertValidations.length > 0) && (
-									<AlertDescription>
-										{apiError?.detail}
-										{alertValidations.map((validation) => (
-											<span key={validation.field} className="block">
-												{validation.field}: {validation.detail}
-											</span>
-										))}
-									</AlertDescription>
-								)}
-							</Alert>
-						)}
-						<FormField field={getFieldHelpers("name")} label="Name" required />
-						<FormField
-							field={getFieldHelpers("prompt")}
-							label="Prompt"
-							required
-							control={(props) => (
-								<Textarea
-									{...props}
-									{...form.getFieldProps("prompt")}
-									rows={4}
-								/>
-							)}
-						/>
-						<section className="flex flex-col gap-4">
-							{isCreate ? (
-								<>
-									<h3
-										id={triggerLabelId}
-										className="m-0 text-sm font-medium text-content-primary"
-									>
-										Trigger
-									</h3>
-									<RadioGroup
-										aria-labelledby={triggerLabelId}
-										value={form.values.kind}
-										onValueChange={(kind) => {
-											if (kind === "schedule" || kind === "webhook") {
-												if (!whenBusyChosen) {
-													form.setFieldValue(
-														"when_busy",
-														defaultWhenBusy(kind),
-													);
-												}
-												form.setFieldValue("kind", kind);
-											}
-										}}
-									>
-										<RadioOption value="schedule" label="Schedule" />
-										<RadioOption value="webhook" label="Webhook" />
-									</RadioGroup>
-								</>
-							) : (
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Trigger:{" "}
-									<span className="font-normal text-content-secondary">
-										{isSchedule ? "Schedule" : "Webhook"}
-									</span>
-								</h3>
-							)}
-							{isSchedule && (
-								<AutomationScheduleFields
-									organizationId={organizationId}
-									isCreate={isCreate}
-									cronField={getFieldHelpers("schedule_cron")}
-									timeZoneField={getFieldHelpers("schedule_time_zone")}
-									onCronChange={(cron) =>
-										form.setFieldValue("schedule_cron", cron)
-									}
-									onTimeZoneChange={(timeZone) =>
-										form.setFieldValue("schedule_time_zone", timeZone)
-									}
-								/>
-							)}
-							{!isSchedule && (
-								<AutomationWebhookFields
-									automation={automation}
-									origin={origin}
-									webhookUse={form.values.webhook_use}
-									onWebhookUseChange={(webhookUse) =>
-										form.setFieldValue("webhook_use", webhookUse)
-									}
-									rotateSecretError={rotateSecretError}
-									isRotatingSecret={isRotatingSecret}
-									isSubmitting={isSubmitting}
-									onRotateSecret={onRotateSecret}
-								/>
-							)}
-						</section>
-						<section className="flex flex-col gap-4">
-							<h3 className="m-0 text-sm font-medium text-content-primary">
-								Target
-							</h3>
-							{!isCreate && (
+					{/* The div scrolls because Chrome does not scroll a flex-sized
+					    fieldset. Radix Select triggers open on pointerdown, which
+					    browsers still dispatch to fieldset-disabled buttons. */}
+					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
+						<fieldset
+							disabled={isSubmitting}
+							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
+						>
+							{automation && automation.owner_id !== currentUserId && (
 								<p className="m-0 text-sm text-content-secondary">
-									Changes apply to the next run.
+									Only the owner of this automation can change it.
 								</p>
 							)}
-							{isCreate ? (
-								<RadioGroup
-									aria-label="Target"
-									value={form.values.target_mode}
-									onValueChange={(value) => {
-										if (value === "existing_chat" || value === "new_chat") {
-											form.setFieldValue("target_mode", value);
-										}
-									}}
-								>
-									<RadioOption value="existing_chat" label="Existing chat" />
-									<RadioOption value="new_chat" label="New chat each run" />
-								</RadioGroup>
-							) : (
-								<p className="m-0 text-sm text-content-secondary">
-									{isExistingChat ? "Existing chat" : "New chat each run"}
-								</p>
+							{showAlert && (
+								<Alert severity="error" prominent>
+									<AlertTitle>
+										{getErrorMessage(error, "Could not save the automation.")}
+									</AlertTitle>
+									{(apiError?.detail || alertValidations.length > 0) && (
+										<AlertDescription>
+											{apiError?.detail}
+											{alertValidations.map((validation) => (
+												<span key={validation.field} className="block">
+													{validation.field}: {validation.detail}
+												</span>
+											))}
+										</AlertDescription>
+									)}
+								</Alert>
 							)}
-							{isExistingChat ? (
-								<div className="grid grid-cols-2 gap-4">
-									<FormField
-										field={getFieldHelpers("target_chat_id")}
-										label="Chat"
-										control={(props) => (
-											<AutomationChatPicker
-												{...props}
-												organizationId={organizationId}
-												value={form.values.target_chat_id}
-												onChange={(chatId) =>
-													form.setFieldValue("target_chat_id", chatId)
-												}
-											/>
-										)}
+							<FormField
+								field={getFieldHelpers("name")}
+								label="Name"
+								required
+							/>
+							<FormField
+								field={getFieldHelpers("prompt")}
+								label="Prompt"
+								required
+								control={(props) => (
+									<Textarea
+										{...props}
+										{...form.getFieldProps("prompt")}
+										rows={4}
 									/>
-									<SelectField
-										field={getFieldHelpers("when_busy")}
-										label="When busy"
-										onValueChange={(value) => {
-											if (value === "skip" || value === "queue") {
-												setWhenBusyChosen(true);
-												form.setFieldValue("when_busy", value);
-											}
-										}}
-									>
-										<SelectItem value="skip">Skip the run</SelectItem>
-										<SelectItem value="queue">Queue the prompt</SelectItem>
-									</SelectField>
-								</div>
-							) : (
-								<div className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-content-primary">
-										Model
-									</span>
-									<div>
-										<ModelSelector
-											className="w-fit"
-											triggerAriaLabel="Model"
-											triggerAriaInvalid={modelField.error}
-											triggerAriaDescribedBy={
-												modelField.error ? modelErrorId : undefined
-											}
-											placeholder={getModelSelectorPlaceholder(
-												modelOptions,
-												isModelCatalogLoading,
-												hasConfiguredModels,
-												modelCatalog,
-											)}
-											options={modelOptions}
-											value={form.values.new_chat_model_config_id}
-											onValueChange={(modelId) => {
-												if (modelId !== form.values.new_chat_model_config_id) {
-													form.setFieldValue(
-														"new_chat_model_config_id",
-														modelId,
-													);
-													form.setFieldValue("reasoning_effort", "");
+								)}
+							/>
+							<section className="flex flex-col gap-4">
+								{isCreate ? (
+									<>
+										<h3
+											id={triggerLabelId}
+											className="m-0 text-sm font-medium text-content-primary"
+										>
+											Trigger
+										</h3>
+										<RadioGroup
+											aria-labelledby={triggerLabelId}
+											value={form.values.kind}
+											onValueChange={(kind) => {
+												if (kind === "schedule" || kind === "webhook") {
+													if (!whenBusyChosen) {
+														form.setFieldValue(
+															"when_busy",
+															defaultWhenBusy(kind),
+														);
+													}
+													form.setFieldValue("kind", kind);
 												}
 											}}
-											reasoningEffort={
-												selectedModel
-													? pickReasoningEffort(
-															form.values.reasoning_effort,
-															selectedModel.reasoningEfforts ?? [],
-															selectedModel.reasoningEffortDefault,
-														)
-													: form.values.reasoning_effort
+										>
+											<RadioOption value="schedule" label="Schedule" />
+											<RadioOption value="webhook" label="Webhook" />
+										</RadioGroup>
+									</>
+								) : (
+									<h3 className="m-0 text-sm font-medium text-content-primary">
+										Trigger:{" "}
+										<span className="font-normal text-content-secondary">
+											{isSchedule ? "Schedule" : "Webhook"}
+										</span>
+									</h3>
+								)}
+								{isSchedule && (
+									<AutomationScheduleFields
+										organizationId={organizationId}
+										isCreate={isCreate}
+										cronField={getFieldHelpers("schedule_cron")}
+										timeZoneField={getFieldHelpers("schedule_time_zone")}
+										onCronChange={(cron) =>
+											form.setFieldValue("schedule_cron", cron)
+										}
+										onTimeZoneChange={(timeZone) =>
+											form.setFieldValue("schedule_time_zone", timeZone)
+										}
+									/>
+								)}
+								{!isSchedule && (
+									<AutomationWebhookFields
+										automation={automation}
+										origin={origin}
+										webhookUse={form.values.webhook_use}
+										onWebhookUseChange={(webhookUse) =>
+											form.setFieldValue("webhook_use", webhookUse)
+										}
+										rotateSecretError={rotateSecretError}
+										isRotatingSecret={isRotatingSecret}
+										isSubmitting={isSubmitting}
+										onRotateSecret={onRotateSecret}
+									/>
+								)}
+							</section>
+							<section className="flex flex-col gap-4">
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Target
+								</h3>
+								{!isCreate && (
+									<p className="m-0 text-sm text-content-secondary">
+										Changes apply to the next run.
+									</p>
+								)}
+								{isCreate ? (
+									<RadioGroup
+										aria-label="Target"
+										value={form.values.target_mode}
+										onValueChange={(value) => {
+											if (value === "existing_chat" || value === "new_chat") {
+												form.setFieldValue("target_mode", value);
 											}
-											onReasoningEffortChange={(effort) =>
-												form.setFieldValue("reasoning_effort", effort)
-											}
-										/>
-										<div aria-live="polite">
-											{modelField.error && (
-												<p
-													id={modelErrorId}
-													className="m-0 mt-2 text-xs text-content-destructive"
-												>
-													{modelField.helperText}
-												</p>
+										}}
+									>
+										<RadioOption value="existing_chat" label="Existing chat" />
+										<RadioOption value="new_chat" label="New chat each run" />
+									</RadioGroup>
+								) : (
+									<p className="m-0 text-sm text-content-secondary">
+										{isExistingChat ? "Existing chat" : "New chat each run"}
+									</p>
+								)}
+								{isExistingChat ? (
+									<div className="grid grid-cols-2 gap-4">
+										<FormField
+											field={getFieldHelpers("target_chat_id")}
+											label="Chat"
+											control={(props) => (
+												<AutomationChatPicker
+													{...props}
+													organizationId={organizationId}
+													value={form.values.target_chat_id}
+													onChange={(chatId) =>
+														form.setFieldValue("target_chat_id", chatId)
+													}
+												/>
 											)}
-										</div>
+										/>
+										<SelectField
+											field={getFieldHelpers("when_busy")}
+											label="When busy"
+											onValueChange={(value) => {
+												if (value === "skip" || value === "queue") {
+													setWhenBusyChosen(true);
+													form.setFieldValue("when_busy", value);
+												}
+											}}
+										>
+											<SelectItem value="skip">Skip the run</SelectItem>
+											<SelectItem value="queue">Queue the prompt</SelectItem>
+										</SelectField>
 									</div>
-									{modelSelectorHelp && (
-										<span className="text-xs text-content-secondary">
-											{modelSelectorHelp}
+								) : (
+									<div className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-content-primary">
+											Model
 										</span>
-									)}
-									{modelsQuery.isError && (
-										<span className="text-xs text-content-destructive">
-											Could not load models.
-										</span>
-									)}
-								</div>
-							)}
-						</section>
-					</fieldset>
+										<div>
+											<ModelSelector
+												className="w-fit"
+												triggerAriaLabel="Model"
+												triggerAriaInvalid={modelField.error}
+												triggerAriaDescribedBy={
+													modelField.error ? modelErrorId : undefined
+												}
+												placeholder={getModelSelectorPlaceholder(
+													modelOptions,
+													isModelCatalogLoading,
+													hasConfiguredModels,
+													modelCatalog,
+												)}
+												options={modelOptions}
+												value={form.values.new_chat_model_config_id}
+												onValueChange={(modelId) => {
+													if (
+														modelId !== form.values.new_chat_model_config_id
+													) {
+														form.setFieldValue(
+															"new_chat_model_config_id",
+															modelId,
+														);
+														form.setFieldValue("reasoning_effort", "");
+													}
+												}}
+												reasoningEffort={
+													selectedModel
+														? pickReasoningEffort(
+																form.values.reasoning_effort,
+																selectedModel.reasoningEfforts ?? [],
+																selectedModel.reasoningEffortDefault,
+															)
+														: form.values.reasoning_effort
+												}
+												onReasoningEffortChange={(effort) =>
+													form.setFieldValue("reasoning_effort", effort)
+												}
+											/>
+											<div aria-live="polite">
+												{modelField.error && (
+													<p
+														id={modelErrorId}
+														className="m-0 mt-2 text-xs text-content-destructive"
+													>
+														{modelField.helperText}
+													</p>
+												)}
+											</div>
+										</div>
+										{modelSelectorHelp && (
+											<span className="text-xs text-content-secondary">
+												{modelSelectorHelp}
+											</span>
+										)}
+										{modelsQuery.isError && (
+											<span className="text-xs text-content-destructive">
+												Could not load models.
+											</span>
+										)}
+									</div>
+								)}
+							</section>
+						</fieldset>
+					</div>
 					<DialogFooter className="border-0 border-t border-solid border-border-default px-6 py-4">
 						<Button
 							type="button"

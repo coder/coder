@@ -564,6 +564,11 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UU
 		if row.Kind != database.ChatAutomationKindWebhook {
 			return automationFieldError("kind", "only webhook automations have a secret")
 		}
+		// Every delivery to a used single-use webhook is refused, so a new
+		// secret would be useless.
+		if isSingleUseWebhook(row) && row.WebhookConsumedAt.Valid {
+			return ErrAutomationWebhookConsumed
+		}
 		var hash []byte
 		secret, hash, err = newAutomationWebhookSecret()
 		if err != nil {
