@@ -186,6 +186,33 @@ func TestCollapse(t *testing.T) {
 	}
 }
 
+func TestSplitSentences(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"single sentence", "One sentence.", "One sentence."},
+		{"two sentences", "First one. Second one.", "First one.\nSecond one."},
+		{"question and exclamation", "Why? Because! Done.", "Why?\nBecause!\nDone."},
+		{"closing quote or code span", "Set to `true`. Then restart.", "Set to `true`.\nThen restart."},
+		{"bold deprecation marker", "**Deprecated.** Use the new flag.", "**Deprecated.**\nUse the new flag."},
+		{"abbreviation", "Headers, e.g. X-Forwarded-For. Done.", "Headers, e.g. X-Forwarded-For.\nDone."},
+		{"lowercase continuation", "Use a dot. e.g. foo.", "Use a dot. e.g. foo."},
+		{"no list marker at line start", "Pick a value. 1. is not allowed.", "Pick a value. 1. is not allowed."},
+		{"dot inside a word", "See example.com for details.", "See example.com for details."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := splitSentences(tt.in); got != tt.want {
+				t.Errorf("splitSentences(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestRenderDangerousWithDescription verifies the Caution alert uses the
 // Dangerous group's own codersdk description when it has one, instead of the
 // fallback copy.
@@ -249,7 +276,7 @@ func TestRenderPipeline(t *testing.T) {
 		// YAML key is the dotted group path.
 		"- YAML key: `email.from`",
 		// Deprecated marker is prepended for the UseInstead path.
-		"**Deprecated.** The sender address.",
+		"**Deprecated.**\nThe sender address.",
 		// A DefaultFn with no static Default is labeled, not evaluated.
 		"- Default value: `(computed at runtime)`",
 		"### Email authentication",
@@ -416,7 +443,7 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		"- Type: `enum`, must be `month`",
 		"- Type: `enum-array`, each value must be one of `read`, `write`",
 		"- Type: `enum-array`, each value must be `only`",
-		"- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.",
+		"- Holds a secret: Coder never writes this option to a YAML configuration file.\n  Set it through the environment variable above.",
 		"### Secret without environment variable\n\nClient secret for the identity provider.\n\n- Type: `string`\n- CLI flag: [`--oidc-client-secret`](../../reference/cli/server/index.md#--oidc-client-secret)\n- Holds a secret: Coder never writes this option to a YAML configuration file.\n",
 	}
 	for _, w := range wantContains {

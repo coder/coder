@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -29,25 +30,21 @@ toc_depth: 2
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
-Coder server is configured primarily through environment variables. This page
-lists every option so you can search by environment variable name, CLI flag, or
-YAML key. For first-time setup guidance and worked examples, see
-[Configure Control Plane Access](./index.md).
+Coder server is configured primarily through environment variables.
+This page lists every option so you can search by environment variable name, CLI flag, or YAML key.
+For first-time setup guidance and worked examples, see [Configure Control Plane Access](./index.md).
 
-Each option can be set through one or more of the methods below. An option lists
-only the methods that apply to it.
+Each option can be set through one or more of the methods below.
+An option lists only the methods that apply to it.
 
-- An environment variable (recommended for production deployments running as a
-  system service, container, or Helm chart).
-- A CLI flag passed to ` + "`coder server`" + ` (useful for one-off invocations
-  and local development).
+- An environment variable (recommended for production deployments running as a system service, container, or Helm chart).
+- A CLI flag passed to ` + "`coder server`" + ` (useful for one-off invocations and local development).
 - A key in a YAML configuration file passed with ` + "`--config`" + `.
 
-For a full description of each option's accepted values and behavior, follow the
-flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server/index.md).
+For a full description of each option's accepted values and behavior, follow the flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server/index.md).
 
-An option that holds a secret is marked as such. Coder never writes those
-options to a YAML configuration file.
+An option that holds a secret is marked as such.
+Coder never writes those options to a YAML configuration file.
 
 Deprecated options are listed at the end of each section.
 
@@ -321,11 +318,11 @@ func renderNode(b *strings.Builder, n *node, level int) {
 		if text == "" {
 			text = dangerousCaution
 		}
-		_, _ = fmt.Fprintf(b, "> [!CAUTION]\n> %s\n\n", text)
+		_, _ = fmt.Fprintf(b, "> [!CAUTION]\n> %s\n\n", strings.ReplaceAll(splitSentences(text), "\n", "\n> "))
 		intro = ""
 	}
 	if intro != "" {
-		_, _ = b.WriteString(intro)
+		_, _ = b.WriteString(splitSentences(intro))
 		_, _ = b.WriteString("\n\n")
 	}
 	for _, opt := range n.options {
@@ -367,7 +364,7 @@ func renderOption(b *strings.Builder, opt option, level int) {
 		desc = emphasizeDeprecation(desc)
 	}
 	if desc != "" {
-		_, _ = b.WriteString(desc)
+		_, _ = b.WriteString(splitSentences(desc))
 		_, _ = b.WriteString("\n\n")
 	}
 
@@ -402,11 +399,54 @@ func renderOption(b *strings.Builder, opt option, level int) {
 	if opt.secret {
 		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file.")
 		if opt.env != "" {
-			_, _ = b.WriteString(" Set it through the environment variable above.")
+			_, _ = b.WriteString("\n  Set it through the environment variable above.")
 		}
 		_, _ = b.WriteString("\n")
 	}
 	_, _ = b.WriteString("\n")
+}
+
+// abbreviations end in a period without ending a sentence.
+var abbreviations = map[string]bool{
+	"e.g.": true,
+	"i.e.": true,
+	"etc.": true,
+	"vs.":  true,
+	"aka.": true,
+}
+
+// splitSentences puts each sentence of a paragraph on its own line, matching
+// the docs' one-sentence-per-line convention. A sentence ends at '.', '!', or
+// '?' followed by a space and an uppercase letter, unless the word is a known
+// abbreviation. Requiring an uppercase letter keeps a line from starting with
+// Markdown block syntax such as a list marker.
+func splitSentences(s string) string {
+	words := strings.Split(s, " ")
+	var b strings.Builder
+	for i, w := range words {
+		if i > 0 {
+			if endsSentence(words[i-1]) && startsSentence(w) {
+				_, _ = b.WriteString("\n")
+			} else {
+				_, _ = b.WriteString(" ")
+			}
+		}
+		_, _ = b.WriteString(w)
+	}
+	return b.String()
+}
+
+func endsSentence(w string) bool {
+	if abbreviations[strings.ToLower(w)] {
+		return false
+	}
+	core := strings.TrimRight(w, "\"')`*")
+	return strings.HasSuffix(core, ".") || strings.HasSuffix(core, "!") || strings.HasSuffix(core, "?")
+}
+
+func startsSentence(w string) bool {
+	r, _ := utf8.DecodeRuneInString(w)
+	return unicode.IsUpper(r)
 }
 
 // codeList renders values as a comma-separated list of inline code spans.
