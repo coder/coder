@@ -18,6 +18,7 @@ type configResourceKey struct {
 
 type configResource struct {
 	agentIDReferences []string
+	forEachReferences []string
 }
 
 // configIndex maps evaluated module instances to shared configuration
@@ -69,12 +70,22 @@ func (i *configIndex) indexModule(
 		if _, exists := i.resources[key]; exists {
 			continue
 		}
-		var references []string
+		var agentIDReferences []string
 		agentID := resource.Expressions["agent_id"]
 		if agentID != nil && agentID.ExpressionData != nil {
-			references = slices.Clone(agentID.References)
+			agentIDReferences = slices.Clone(agentID.References)
 		}
-		i.resources[key] = configResource{agentIDReferences: references}
+		var forEachReferences []string
+		if resource.ForEachExpression != nil &&
+			resource.ForEachExpression.ExpressionData != nil {
+			forEachReferences = slices.Clone(
+				resource.ForEachExpression.References,
+			)
+		}
+		i.resources[key] = configResource{
+			agentIDReferences: agentIDReferences,
+			forEachReferences: forEachReferences,
+		}
 	}
 	for name, call := range module.ModuleCalls {
 		if err := ctx.Err(); err != nil {

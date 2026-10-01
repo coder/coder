@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
@@ -174,6 +175,15 @@ func (r *Resolver) runtimeCandidates(
 		if err != nil {
 			return runtimeCandidates{}, err
 		}
+		constraint := runtimeInstanceConstraintForReference(
+			resourceAddress.ModulePath(), reference,
+		)
+		if target == runtimeReferenceTargetDevcontainerParent {
+			// An index on coder_devcontainer constrains the intermediate
+			// devcontainer instance. Its parent coder_agent can have a different
+			// address and instance key, so it cannot inherit that constraint.
+			constraint = nil
+		}
 		for _, nodeID := range terminalNodes {
 			node, ok := r.graph.Node(nodeID)
 			if !ok {
@@ -182,11 +192,127 @@ func (r *Resolver) runtimeCandidates(
 				)
 			}
 			for _, runtimeID := range r.runtimes.runtimesForGraphNode(node) {
+				runtime := r.runtimes.runtimes[runtimeID]
+				if constraint != nil {
+					if !constraint.matches(runtime.parsed) {
+						continue
+					}
+				} else if !runtimeMatchesResourceModuleInstances(
+					resourceAddress, runtime.parsed,
+				) {
+					continue
+				}
 				candidates[runtimeID] = struct{}{}
 			}
 		}
 	}
+
+	instanceCandidates, found, err := r.runtimeCandidatesFromInstanceGraph(
+		ctx, resource.Address, candidates,
+	)
+	if err != nil {
+		return runtimeCandidates{}, err
+	}
+	if found {
+		candidates, err = intersectRuntimeCandidateSets(
+			ctx, candidates, instanceCandidates,
+		)
+		if err != nil {
+			return runtimeCandidates{}, err
+		}
+	}
 	return r.partitionRuntimeCandidates(ctx, candidates)
+}
+
+func (r *Resolver) runtimeCandidatesFromInstanceGraph(
+	ctx context.Context,
+	resourceAddress string,
+	configurationCandidates map[runtimeID]struct{},
+) (map[runtimeID]struct{}, bool, error) {
+	startNodes := r.graph.NodesForInstanceAddress(resourceAddress)
+	if len(startNodes) == 0 {
+		return nil, false, nil
+	}
+
+	candidates := map[runtimeID]struct{}{}
+	for _, kind := range []Kind{KindWorkspaceAgent, KindDevcontainer} {
+		if err := ctx.Err(); err != nil {
+			return nil, true, err
+		}
+		hasCandidateKind := false
+		for runtimeID := range configurationCandidates {
+			if r.runtimes.runtimes[runtimeID].target.Kind == kind {
+				hasCandidateKind = true
+				break
+			}
+		}
+		if !hasCandidateKind {
+			continue
+		}
+
+		terminalNodes, err := r.query.ReachableTerminalNodes(
+			ctx,
+			startNodes,
+			func(node tfgraph.Node) bool {
+				for _, runtimeID := range r.runtimes.runtimesForGraphNode(node) {
+					runtime := r.runtimes.runtimes[runtimeID]
+					if runtime.target.Kind != kind ||
+						runtime.target.Address == resourceAddress {
+						continue
+					}
+					if _, allowed := configurationCandidates[runtimeID]; allowed {
+						return true
+					}
+				}
+				return false
+			},
+		)
+		if err != nil {
+			return nil, true, err
+		}
+		for _, nodeID := range terminalNodes {
+			if err := ctx.Err(); err != nil {
+				return nil, true, err
+			}
+			node, ok := r.graph.Node(nodeID)
+			if !ok {
+				return nil, true, xerrors.New(
+					"agent runtime resolution references a Terraform graph node outside its index",
+				)
+			}
+			for _, runtimeID := range r.runtimes.runtimesForGraphNode(node) {
+				runtime := r.runtimes.runtimes[runtimeID]
+				if runtime.target.Kind != kind ||
+					runtime.target.Address == resourceAddress {
+					continue
+				}
+				if _, allowed := configurationCandidates[runtimeID]; allowed {
+					candidates[runtimeID] = struct{}{}
+				}
+			}
+		}
+	}
+	return candidates, true, nil
+}
+
+func intersectRuntimeCandidateSets(
+	ctx context.Context,
+	left map[runtimeID]struct{},
+	right map[runtimeID]struct{},
+) (map[runtimeID]struct{}, error) {
+	if len(left) > len(right) {
+		left, right = right, left
+	}
+	intersection := make(map[runtimeID]struct{}, len(left))
+	for runtimeID := range left {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if _, ok := right[runtimeID]; ok {
+			intersection[runtimeID] = struct{}{}
+		}
+	}
+	return intersection, nil
 }
 
 func (r *Resolver) runtimeNodesForReference(
@@ -281,9 +407,31 @@ func (r *Resolver) resourceAgentIDReferences(
 			stateResourceDiagnosticAddress(resource),
 		)
 	}
-	references, err := mostSpecificTerraformReferences(
-		ctx, configuredResource.agentIDReferences,
+	additionalReferences := []string(nil)
+	usesEachValueAsValue := false
+	for _, reference := range configuredResource.agentIDReferences {
+		suffix, eachValue := strings.CutPrefix(reference, "each.value")
+		if eachValue && (suffix == "" || strings.HasPrefix(suffix, ".") ||
+			strings.HasPrefix(suffix, "[")) {
+			usesEachValueAsValue = true
+			continue
+		}
+		if reference != "each" && !strings.HasPrefix(reference, "each.") {
+			usesEachValueAsValue = false
+			break
+		}
+	}
+	if usesEachValueAsValue {
+		additionalReferences = configuredResource.forEachReferences
+	}
+	references := make(
+		[]string,
+		0,
+		len(configuredResource.agentIDReferences)+len(additionalReferences),
 	)
+	references = append(references, configuredResource.agentIDReferences...)
+	references = append(references, additionalReferences...)
+	references, err = mostSpecificTerraformReferences(ctx, references)
 	if err != nil {
 		return tfaddr.ManagedResourceAddress{}, nil, err
 	}
@@ -322,6 +470,158 @@ func mostSpecificTerraformReferences(
 func terraformReferenceIsPrefix(prefix, reference string) bool {
 	return strings.HasPrefix(reference, prefix+".") ||
 		strings.HasPrefix(reference, prefix+"[")
+}
+
+type runtimeInstanceConstraint struct {
+	// An empty resourceType represents a module-instance constraint. Otherwise,
+	// the remaining fields identify one concrete resource instance.
+	moduleSteps  []tfaddr.ModuleStep
+	resourceType string
+	resourceName string
+	instanceKey  cty.Value
+}
+
+func runtimeInstanceConstraintForReference(
+	declaringModulePath tfaddr.ModulePath,
+	reference string,
+) *runtimeInstanceConstraint {
+	if strings.HasPrefix(reference, "module.") {
+		referencedModulePath, ok := referencedModulePath(reference)
+		if !ok {
+			return nil
+		}
+		referencedSteps := referencedModulePath.Steps()
+		if !slices.ContainsFunc(referencedSteps, func(step tfaddr.ModuleStep) bool {
+			return step.InstanceKey() != cty.NilVal
+		}) {
+			return nil
+		}
+		return &runtimeInstanceConstraint{
+			moduleSteps: slices.Concat(
+				declaringModulePath.Steps(), referencedSteps,
+			),
+		}
+	}
+
+	referencedResource, ok := referencedRuntimeResource(reference)
+	if !ok || referencedResource.InstanceKey() == cty.NilVal {
+		return nil
+	}
+	return &runtimeInstanceConstraint{
+		moduleSteps: slices.Concat(
+			declaringModulePath.Steps(), referencedResource.ModulePath().Steps(),
+		),
+		resourceType: referencedResource.ResourceType(),
+		resourceName: referencedResource.ResourceName(),
+		instanceKey:  referencedResource.InstanceKey(),
+	}
+}
+
+func referencedModulePath(reference string) (tfaddr.ModulePath, bool) {
+	for candidate := reference; candidate != ""; {
+		modulePath, err := tfaddr.ParseModulePath(candidate)
+		if err == nil && len(modulePath.Steps()) > 0 {
+			return modulePath, true
+		}
+		separator := strings.LastIndexByte(candidate, '.')
+		if separator < 0 {
+			break
+		}
+		candidate = candidate[:separator]
+	}
+	return tfaddr.ModulePath{}, false
+}
+
+func referencedRuntimeResource(
+	reference string,
+) (tfaddr.ManagedResourceAddress, bool) {
+	for candidate := reference; candidate != ""; {
+		resource, err := tfaddr.ParseManagedResourceAddress(candidate)
+		if err == nil && (resource.ResourceType() == "coder_agent" ||
+			resource.ResourceType() == "coder_devcontainer") {
+			return resource, true
+		}
+		separator := strings.LastIndexByte(candidate, '.')
+		if separator < 0 {
+			break
+		}
+		candidate = candidate[:separator]
+	}
+	return tfaddr.ManagedResourceAddress{}, false
+}
+
+func (c runtimeInstanceConstraint) matches(
+	runtime tfaddr.ManagedResourceAddress,
+) bool {
+	runtimeSteps := runtime.ModulePath().Steps()
+	if c.resourceType == "" &&
+		!modulePathHasConfigurationPrefix(runtimeSteps, c.moduleSteps) {
+		// A module output may re-export a runtime ID passed into the module.
+		// Instance keys on the module reference do not constrain such an
+		// external runtime resource.
+		return true
+	}
+	if len(runtimeSteps) < len(c.moduleSteps) {
+		return false
+	}
+	for index, expected := range c.moduleSteps {
+		actual := runtimeSteps[index]
+		if expected.Name() != actual.Name() {
+			return false
+		}
+		if expected.InstanceKey() != cty.NilVal &&
+			(actual.InstanceKey() == cty.NilVal || !tfaddr.InstanceKeysEqual(
+				expected.InstanceKey(), actual.InstanceKey(),
+			)) {
+			return false
+		}
+	}
+	if c.resourceType == "" {
+		return true
+	}
+	return len(runtimeSteps) == len(c.moduleSteps) &&
+		runtime.ResourceType() == c.resourceType &&
+		runtime.ResourceName() == c.resourceName &&
+		runtime.InstanceKey() != cty.NilVal &&
+		tfaddr.InstanceKeysEqual(c.instanceKey, runtime.InstanceKey())
+}
+
+func modulePathHasConfigurationPrefix(
+	path []tfaddr.ModuleStep,
+	prefix []tfaddr.ModuleStep,
+) bool {
+	if len(path) < len(prefix) {
+		return false
+	}
+	for index, expected := range prefix {
+		if path[index].Name() != expected.Name() {
+			return false
+		}
+	}
+	return true
+}
+
+func runtimeMatchesResourceModuleInstances(
+	resource tfaddr.ManagedResourceAddress,
+	runtime tfaddr.ManagedResourceAddress,
+) bool {
+	resourceSteps := resource.ModulePath().Steps()
+	runtimeSteps := runtime.ModulePath().Steps()
+	for index := range min(len(resourceSteps), len(runtimeSteps)) {
+		resourceStep := resourceSteps[index]
+		runtimeStep := runtimeSteps[index]
+		if resourceStep.Name() != runtimeStep.Name() {
+			break
+		}
+		if resourceStep.InstanceKey() != cty.NilVal &&
+			runtimeStep.InstanceKey() != cty.NilVal &&
+			!tfaddr.InstanceKeysEqual(
+				resourceStep.InstanceKey(), runtimeStep.InstanceKey(),
+			) {
+			return false
+		}
+	}
+	return true
 }
 
 func runtimeReferenceTargetForReference(reference string) runtimeReferenceTarget {
