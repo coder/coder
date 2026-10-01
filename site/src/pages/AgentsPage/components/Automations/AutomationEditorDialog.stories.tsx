@@ -68,6 +68,22 @@ const pinBrowserTimeZone = () => {
 	);
 };
 
+// formatDate renders in the browser's zone, which resolvedOptions does not
+// control. Pin it so dates like "Used on" render the same on every host.
+const pinDateDisplayZone = () => {
+	const toLocaleDateString = Date.prototype.toLocaleDateString;
+	spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
+		this: Date,
+		locales?: Intl.LocalesArgument,
+		options?: Intl.DateTimeFormatOptions,
+	) {
+		return toLocaleDateString.call(this, locales, {
+			...options,
+			timeZone: options?.timeZone ?? storyTimeZone,
+		});
+	});
+};
+
 const rejectChat = (status: number) => () => {
 	spyOn(API.experimental, "getChat").mockRejectedValue({
 		...mockApiError({ message: "Chat error." }),
@@ -340,6 +356,7 @@ export const EditUsedSingleUseWebhook: Story = {
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
 	},
+	beforeEach: pinDateDisplayZone,
 };
 
 export const ConfirmRotateSecret: Story = {
