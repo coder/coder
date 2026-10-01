@@ -99,8 +99,6 @@ export const buildInitialMCPServerFormValues = (
 	oauth2TokenURL: server?.oauth2_token_url ?? "",
 	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
 	oauth2Scopes: server?.oauth2_scopes ?? "",
-	// Most API-key MCP servers expect the Authorization header, and the
-	// backend rejects API-key auth without a header name.
 	apiKeyHeader: server?.api_key_header || "Authorization",
 	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
 	apiKeyTouched: false,
@@ -118,10 +116,8 @@ export const buildInitialMCPServerFormValues = (
 	customHeadersTouched: false,
 });
 
-// The backend rejects API key auth without a header name and value on
-// create, and saves an empty credential on update, so the form checks both.
-// An untouched placeholder counts only when the server already stores a key:
-// the secret input also restores the placeholder when a new value is cleared.
+// An untouched placeholder counts only when the server already stores a key,
+// because the secret input also restores it when a new value is cleared.
 const hasAPIKeyCredentials = (values: MCPServerFormValues): boolean => {
 	if (values.apiKeyHeader.trim() === "") {
 		return false;

@@ -1417,7 +1417,6 @@ func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
 	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, noAuth)
 	require.NoError(t, err)
 
-	// Switching to API key auth without credentials is rejected.
 	apiKeyAuth := "api_key"
 	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &apiKeyAuth,
@@ -1434,7 +1433,6 @@ func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updated.HasAPIKey)
 
-	// Clearing either field on an API key server is rejected.
 	empty := ""
 	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		APIKeyHeader: &empty,
@@ -1445,7 +1443,6 @@ func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
 	})
 	requireBadRequest(t, err)
 
-	// Updates that leave the saved credentials alone still succeed.
 	disabled := false
 	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		Enabled: &disabled,

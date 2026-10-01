@@ -67,7 +67,6 @@ describe("mcpServerFormLogic", () => {
 		expect(
 			apiKey({ apiKeyHeader: " ", apiKeyValue: "key", apiKeyTouched: true }),
 		).toBe(false);
-		// The secret input restores the placeholder when a new value is cleared.
 		expect(apiKey({ apiKeyValue: SECRET_PLACEHOLDER })).toBe(false);
 		expect(
 			apiKey({ apiKeyValue: SECRET_PLACEHOLDER, hasSavedAPIKey: true }),

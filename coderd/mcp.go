@@ -893,8 +893,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Without both a header name and value, mcpclient sends no API key
-		// header at all.
 		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
 			return errAPIKeyAuthRequiresHeaderAndValue
 		}
