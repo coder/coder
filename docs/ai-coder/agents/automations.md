@@ -70,7 +70,7 @@ When the experiment is off for a user:
   Coder checks for due schedules every 30&nbsp;seconds and accepts an occurrence up to 60&nbsp;seconds late.
   An occurrence that came due while the experiment was off runs once, late, if the experiment is back on at a check inside that window.
   Otherwise the occurrence counts as missed and the schedule continues from its next time.
-  To keep an occurrence, turn the experiment back on within 30&nbsp;seconds of its due time.
+  To be sure an occurrence runs, turn the experiment back on before its due time.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
 - Messages that automations already queued in a chat stay queued and still run.
   To remove them, turn off or delete the automation before you turn the experiment off, or select **Remove from queue** on each message in the chat.
@@ -238,11 +238,15 @@ Create a new automation instead.
 
 ## Create a schedule automation
 
-1. On the **Automations** page, select **New automation**.
+1. On the **Agents** page, select **Automations** in the sidebar.
+1. If you belong to several organizations, select the organization next to **New automation**.
+1. Select **New automation**.
 1. Enter a **Name**.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Schedule**.
-1. Set the schedule with a **Repeat** option and a **Time**, or with a **Cron expression**.
+1. Select a **Repeat** option.
+1. Select a **Time**.
+1. To write the schedule yourself, enter a **Cron expression** instead.
 1. Select a **Time zone**.
 1. Check the times under **Upcoming runs**.
 1. Under **Target**, select **Existing chat** or **New chat each run**.
@@ -402,6 +406,7 @@ To cap each user's AI spend, refer to [Spend management](./platform-controls/spe
 ### Silent failures
 
 Skipped and missed schedule runs appear only in the server logs, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
+A schedule whose target chat is archived or deleted, or whose owner isn't active, doesn't run and logs nothing.
 A refused webhook delivery appears in the HTTP response the sender receives.
 Refusals that depend on the target chat, such as a busy chat, a full queue, or a hook denial, also appear in the server logs as `chat automation input refused` messages.
 Coder keeps no run history for automations.
@@ -413,7 +418,7 @@ A webhook secret works like a credential for whatever the target chat can reach,
 People you share the chat with see everything that automation turns produce.
 
 Coder doesn't verify provider signatures.
-Webhooks that sign their payloads with HMAC, such as GitHub webhooks, can't call the endpoint directly; send them through a relay that adds the bearer token.
+Senders that sign their payloads with HMAC and can't set an `Authorization` header, such as GitHub webhooks, can't call the endpoint directly; send them through a relay that adds the bearer token.
 
 ### Audit logs
 
