@@ -84,6 +84,7 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
 		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
 		"exit_code is -1 when timed_out or canceled is true. " +
+		"limits_hit lists the disk quota or open file limit when the program hit one; those calls fail with EIO inside the sandbox. " +
 		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
 	if options.AttachFile {
 		description += " Use box_attach_file to hand a result file to the user."
@@ -119,6 +120,10 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 				"canceled":    result.Canceled,
 				"duration_ms": result.Duration.Milliseconds(),
 			})
+			if limits := runLimitsHit(result); len(limits) > 0 {
+				fields["limits_hit"] = limits
+				fields["hint"] = "the program hit a sandbox limit; the failing calls returned EIO (errno 29, I/O error)"
+			}
 			stdout, stderr, fitCut := fitStreams(fields, stdout, stderr, options.ResultBudgetBytes)
 			fields["stdout"] = stdout
 			fields["stderr"] = stderr
@@ -318,6 +323,18 @@ func truncateBoxOutput(output string) (string, bool) {
 		return output, false
 	}
 	return strings.ToValidUTF8(output[:maxBoxOutputToModel], ""), true
+}
+
+// runLimitsHit names the sandbox limits a run hit inside the guest.
+func runLimitsHit(result agentbox.RunResult) []string {
+	var limits []string
+	if result.DiskQuotaExceeded {
+		limits = append(limits, "disk_quota")
+	}
+	if result.OpenFileLimitReached {
+		limits = append(limits, "open_files")
+	}
+	return limits
 }
 
 // fitStreams shrinks stdout and stderr so fields marshaled with both

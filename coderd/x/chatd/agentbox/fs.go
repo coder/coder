@@ -80,9 +80,20 @@ type boxFS struct {
 	experimentalsys.FS
 	quota *quota
 
+	// quotaHit records that a guest call failed on the quota.
+	quotaHit atomic.Bool
+
 	mu       sync.Mutex
 	open     map[sys.Inode]int
 	orphaned map[sys.Inode]bool
+}
+
+func (f *boxFS) charge(n int64) bool {
+	if f.quota.charge(n) {
+		return true
+	}
+	f.quotaHit.Store(true)
+	return false
 }
 
 func newBoxFS(inner experimentalsys.FS, q *quota) *boxFS {
@@ -110,7 +121,7 @@ func (f *boxFS) OpenFile(p string, flag experimentalsys.Oflag, perm fs.FileMode)
 			return nil, errno
 		}
 	}
-	if created && !f.quota.charge(entryCost) {
+	if created && !f.charge(entryCost) {
 		return nil, errQuotaExceeded
 	}
 	file, errno := f.FS.OpenFile(p, flag, perm)
@@ -155,7 +166,7 @@ func (f *boxFS) release(ino sys.Inode, size int64) {
 }
 
 func (f *boxFS) Mkdir(p string, perm fs.FileMode) experimentalsys.Errno {
-	if !f.quota.charge(entryCost) {
+	if !f.charge(entryCost) {
 		return errQuotaExceeded
 	}
 	errno := f.FS.Mkdir(p, perm)
@@ -251,7 +262,7 @@ func (f *quotaFile) chargedWrite(off int64, n int, do func() (int, experimentals
 		off = size
 	}
 	charged := max(0, off+int64(n)-size)
-	if !f.fs.quota.charge(charged) {
+	if !f.fs.charge(charged) {
 		return 0, errQuotaExceeded
 	}
 	written, errno := do()
@@ -282,7 +293,7 @@ func (f *quotaFile) Truncate(size int64) experimentalsys.Errno {
 		return errno
 	}
 	growth := size - current
-	if !f.fs.quota.charge(growth) {
+	if !f.fs.charge(growth) {
 		return errQuotaExceeded
 	}
 	errno = f.File.Truncate(size)
@@ -311,11 +322,14 @@ func (f *quotaFile) Close() experimentalsys.Errno {
 type openLimit struct {
 	open atomic.Int64
 	max  int64
+	// hit records that an open failed on the limit.
+	hit atomic.Bool
 }
 
 func (l *openLimit) acquire() bool {
 	if l.open.Add(1) > l.max {
 		l.open.Add(-1)
+		l.hit.Store(true)
 		return false
 	}
 	return true

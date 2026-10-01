@@ -59,6 +59,8 @@ func TestRun(t *testing.T) {
 		assert.False(t, result.TimedOut)
 		assert.False(t, result.Canceled)
 		assert.False(t, result.StdoutTruncated)
+		assert.False(t, result.DiskQuotaExceeded)
+		assert.False(t, result.OpenFileLimitReached)
 	})
 
 	t.Run("NegativeExit", func(t *testing.T) {
@@ -421,6 +423,8 @@ func TestLimits(t *testing.T) {
 			console.log(sparse < 0, big < 0);
 		`)
 		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.True(t, result.DiskQuotaExceeded)
+		assert.False(t, result.OpenFileLimitReached)
 		assert.Equal(t, "true true\n", result.Stdout)
 		require.ErrorContains(t, box.WriteFile("host.bin", make([]byte, 2<<20)), "quota")
 	})
@@ -441,6 +445,8 @@ func TestLimits(t *testing.T) {
 			console.log(ok);
 		`)
 		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.True(t, result.DiskQuotaExceeded)
+		assert.False(t, result.OpenFileLimitReached)
 		assert.Equal(t, "1\n", result.Stdout)
 		// The run's handles closed when it ended, releasing the bytes.
 		require.NoError(t, box.WriteFile("after.bin", make([]byte, 900<<10)))
@@ -457,6 +463,8 @@ func TestLimits(t *testing.T) {
 			console.log(n);
 		`)
 		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.True(t, result.OpenFileLimitReached)
+		assert.False(t, result.DiskQuotaExceeded)
 		opened, err := strconv.Atoi(strings.TrimSpace(result.Stdout))
 		require.NoError(t, err)
 		assert.Greater(t, opened, 200)

@@ -57,7 +57,13 @@ type RunResult struct {
 	// Canceled reports that the caller's context or Close stopped the
 	// guest.
 	Canceled bool
-	Duration time.Duration
+	// DiskQuotaExceeded reports that a guest file operation failed
+	// because the box disk quota was used up. The guest sees EIO.
+	DiskQuotaExceeded bool
+	// OpenFileLimitReached reports that a guest open failed because the
+	// run held the maximum number of open files. The guest sees EIO.
+	OpenFileLimitReached bool
+	Duration             time.Duration
 }
 
 // ReadLinesResult mirrors the read_file tool result shape.
@@ -167,7 +173,7 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 
 	stdout := newBoundedWriter(b.engine.limits.OutputBytes)
 	stderr := newBoundedWriter(b.engine.limits.OutputBytes)
-	fsConfig, err := b.fsConfig()
+	fsConfig, mounts, err := b.fsConfig()
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -194,6 +200,9 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		StdoutTruncated: stdout.truncated(),
 		StderrTruncated: stderr.truncated(),
 		Duration:        duration,
+
+		DiskQuotaExceeded:    mounts.box.quotaHit.Load(),
+		OpenFileLimitReached: mounts.limit.hit.Load(),
 	}
 	exitErr, isExit := errors.AsType[*sys.ExitError](err)
 	switch {
@@ -219,23 +228,32 @@ func isInterruptExitCode(code uint32) bool {
 	return code == sys.ExitCodeContextCanceled || code == sys.ExitCodeDeadlineExceeded
 }
 
+// runMounts is the per-run state behind the guest mounts.
+type runMounts struct {
+	box   *boxFS
+	limit *openLimit
+}
+
 // fsConfig mounts the box directory at /box through the quota adapter and
 // the script directory read-only at /script. Both mounts share one open
 // file limit.
-func (b *Box) fsConfig() (wazero.FSConfig, error) {
-	limit := &openLimit{max: maxOpenFiles}
-	boxMount := limitedFS{FS: newBoxFS(sysfs.DirFS(b.rootDir), b.quota), limit: limit}
-	scriptMount := limitedFS{FS: &sysfs.ReadFS{FS: sysfs.DirFS(b.scriptDir)}, limit: limit}
+func (b *Box) fsConfig() (wazero.FSConfig, runMounts, error) {
+	mounts := runMounts{
+		box:   newBoxFS(sysfs.DirFS(b.rootDir), b.quota),
+		limit: &openLimit{max: maxOpenFiles},
+	}
+	boxMount := limitedFS{FS: mounts.box, limit: mounts.limit}
+	scriptMount := limitedFS{FS: &sysfs.ReadFS{FS: sysfs.DirFS(b.scriptDir)}, limit: mounts.limit}
 
 	base, ok := wazero.NewFSConfig().(sysfs.FSConfig)
 	if !ok {
-		return nil, xerrors.New("wazero FSConfig does not support sys.FS mounts")
+		return nil, mounts, xerrors.New("wazero FSConfig does not support sys.FS mounts")
 	}
 	withBox, ok := base.WithSysFSMount(boxMount, GuestDir).(sysfs.FSConfig)
 	if !ok {
-		return nil, xerrors.New("wazero FSConfig does not support sys.FS mounts")
+		return nil, mounts, xerrors.New("wazero FSConfig does not support sys.FS mounts")
 	}
-	return withBox.WithSysFSMount(scriptMount, guestScriptDir), nil
+	return withBox.WithSysFSMount(scriptMount, guestScriptDir), mounts, nil
 }
 
 // WriteFile writes data to p under the box, creating parent directories.

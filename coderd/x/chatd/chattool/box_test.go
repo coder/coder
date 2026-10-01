@@ -160,6 +160,28 @@ func TestBoxTools(t *testing.T) {
 		assert.Equal(t, false, result["stdout_truncated"])
 	})
 
+	t.Run("LimitsHit", func(t *testing.T) {
+		t.Parallel()
+		h := newBoxHarness(t)
+		_, result := runBoxTool(t, chattool.BoxRun(h.options), `{"language":"javascript","code":"console.log(1)"}`)
+		assert.NotContains(t, result, "limits_hit")
+		assert.NotContains(t, result, "hint")
+
+		// A write past a 1 TiB seek hole exceeds the quota without
+		// touching disk.
+		code := `const fd = os.open("/box/s", os.O_RDWR | os.O_CREAT, 0o600);
+			os.seek(fd, 2 ** 40, std.SEEK_SET);
+			console.log(os.write(fd, new Uint8Array(1).buffer, 0, 1));
+			for (let i = 0; i < 1000; i++) { if (os.open("/box/s", os.O_RDONLY) < 0) break; }`
+		input, err := json.Marshal(map[string]string{"language": "javascript", "code": code})
+		require.NoError(t, err)
+		_, result = runBoxTool(t, chattool.BoxRun(h.options), string(input))
+		assert.EqualValues(t, 0, result["exit_code"])
+		assert.Equal(t, "-29\n", result["stdout"])
+		assert.Equal(t, []any{"disk_quota", "open_files"}, result["limits_hit"])
+		assert.Contains(t, result["hint"], "EIO")
+	})
+
 	t.Run("ResetOnError", func(t *testing.T) {
 		t.Parallel()
 		h := newBoxHarness(t)
