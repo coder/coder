@@ -1,6 +1,10 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
-	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
+	"entry": [
+		"./src/index.tsx",
+		"./src/serviceWorker.ts",
+		"./src/annotator/main.ts"
+	],
 	"project": [
 		"./src/**/*.ts",
 		"./src/**/*.tsx",
