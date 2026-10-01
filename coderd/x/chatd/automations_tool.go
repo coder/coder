@@ -128,10 +128,15 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		return nil, xerrors.Errorf("unknown action %q: use list, get, disable, or delete", action)
 	}
 
+	// The model sees only fixed messages, so unexpected failures are
+	// logged with their cause first.
+	logger := p.logger.With(slog.F("chat_id", chatID), slog.F("action", action))
+
 	//nolint:gocritic // The tool reloads its own chat; the owner's permissions apply below.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	chat, err := p.db.GetChatByID(chatdCtx, chatID)
 	if err != nil {
+		logger.Warn(ctx, "manage_automations failed to load chat", slog.Error(err))
 		return nil, xerrors.New("failed to load this chat")
 	}
 	if !manageAutomationsAllowed(chat, func() bool {
@@ -144,12 +149,20 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	// and write runs as the owner.
 	owner, err := automationOwnerSubject(ctx, p.db, chat.OwnerID)
 	if err != nil {
+		// An inactive owner is an expected refusal; anything else is a
+		// server fault.
+		if errors.Is(err, ErrAutomationOwnerInactive) {
+			logger.Debug(ctx, "manage_automations refused for inactive chat owner", slog.Error(err))
+		} else {
+			logger.Warn(ctx, "manage_automations failed to load chat owner", slog.Error(err))
+		}
 		return nil, xerrors.New("the chat owner cannot manage automations")
 	}
 	ownerCtx := dbauthz.As(ctx, owner)
 
 	history, err := p.db.GetChatMessagesByChatID(chatdCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	if err != nil {
+		logger.Warn(ctx, "manage_automations failed to load chat history", slog.Error(err))
 		return nil, xerrors.New("failed to load chat history")
 	}
 	trigger := automationTurnTriggerFromHistory(history)
@@ -160,6 +173,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			OwnerID:        chat.OwnerID,
 		})
 		if err != nil {
+			logger.Warn(ctx, "manage_automations failed to list automations", slog.Error(err))
 			return nil, xerrors.New("failed to list automations")
 		}
 		automations := make([]codersdk.ChatAutomation, 0, len(rows))
@@ -179,11 +193,13 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	if err != nil {
 		return nil, xerrors.New("automation_id must be a valid UUID")
 	}
+	logger = logger.With(slog.F("automation_id", id))
 	row, err := p.db.GetChatAutomationByID(ownerCtx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
 			return nil, errManageAutomationsNotFound
 		}
+		logger.Warn(ctx, "manage_automations failed to load automation", slog.Error(err))
 		return nil, xerrors.New("failed to load automation")
 	}
 	if !manageAutomationsVisible(chat, trigger, row) {
@@ -197,7 +213,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		disabled := false
 		updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled})
 		if err != nil {
-			return nil, manageAutomationsError(err)
+			return nil, manageAutomationsError(ctx, logger, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
@@ -208,7 +224,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			return nil, xerrors.New("in a turn an automation started, delete only removes that automation; use disable for others")
 		}
 		if err := p.DeleteAutomation(ownerCtx, row.ID); err != nil {
-			return nil, manageAutomationsError(err)
+			return nil, manageAutomationsError(ctx, logger, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionDelete, row, database.ChatAutomation{})
 		return map[string]any{"deleted": true, "automation_id": row.ID.String()}, nil
@@ -238,7 +254,10 @@ func (p *Server) manageAutomationsView(row database.ChatAutomation) codersdk.Cha
 	return db2sdk.ChatAutomation(row, AutomationNextRuns(row, p.clock.Now(), manageAutomationsNextRunCount))
 }
 
-func manageAutomationsError(err error) error {
+// manageAutomationsError maps service errors to tool errors. Expected
+// refusals are returned as is; any other error is logged with logger
+// before it is replaced with a fixed message.
+func manageAutomationsError(ctx context.Context, logger slog.Logger, err error) error {
 	var validationErr *AutomationValidationError
 	switch {
 	case errors.Is(err, ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
@@ -248,6 +267,7 @@ func manageAutomationsError(err error) error {
 	case errors.As(err, &validationErr):
 		return validationErr
 	default:
+		logger.Warn(ctx, "manage_automations action failed", slog.Error(err))
 		return xerrors.New("failed to update automation")
 	}
 }
