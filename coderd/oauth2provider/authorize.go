@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -42,6 +43,8 @@ var (
 	// The coverage check itself failed. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
+	// The grant exceeds the signed-in session authorizing it.
+	errBeyondSession = xerrors.New("scope requests permissions beyond the signed-in session")
 )
 
 // canonicalScopes rewrites each name to its api_key_scope enum spelling and
@@ -181,6 +184,16 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return "", xerrors.Errorf("%q: %w", outside, errScopeNotAllowed)
 	}
 	return strings.Join(granted, " "), nil
+}
+
+// withinSession refuses a grant beyond the session authorizing it. Access
+// tokens are minted with `*:*`, so the session must allow everything too.
+func withinSession(session database.APIKey, granted string) error {
+	scopes := slice.StringEnums[database.APIKeyScope](strings.Fields(granted))
+	if _, _, err := apikey.CapToCaller(session, scopes, database.AllowList{rbac.AllowListAll()}); err != nil {
+		return errBeyondSession
+	}
+	return nil
 }
 
 // scopeFailureResponse maps a negotiateScope rejection to the client's error.
@@ -677,6 +690,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// fails before the consent page renders rather than after the user
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
+		if err == nil {
+			err = withinSession(httpmw.APIKey(r), grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)
@@ -758,6 +774,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
+		if err == nil {
+			err = withinSession(apiKey, grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)

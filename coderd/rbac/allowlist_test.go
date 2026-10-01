@@ -159,6 +159,45 @@ func TestIntersectAllowLists(t *testing.T) {
 	})
 }
 
+func TestFirstAllowListEntryNotCovered(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.NewString()
+	all := rbac.AllowListAll()
+	wsAll := rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: policy.WildcardSymbol}
+	wsID := rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: id}
+	wsOther := rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}
+	tplID := rbac.AllowListElement{Type: rbac.ResourceTemplate.Type, ID: id}
+	anyID := rbac.AllowListElement{Type: policy.WildcardSymbol, ID: id}
+	l := func(e ...rbac.AllowListElement) []rbac.AllowListElement { return e }
+
+	tests := []struct {
+		name               string
+		ceiling, requested []rbac.AllowListElement
+		want               rbac.AllowListElement // zero when covered
+	}{
+		{name: "all covers all", ceiling: l(all), requested: l(all)},
+		{name: "all covers specific", ceiling: l(all), requested: l(wsID, tplID)},
+		{name: "typed wildcard covers id", ceiling: l(wsAll), requested: l(wsID)},
+		{name: "wildcard type covers same id", ceiling: l(anyID), requested: l(wsID, tplID)},
+		{name: "nothing requested", ceiling: l(wsID)},
+		{name: "typed wildcard does not cover all", ceiling: l(wsAll), requested: l(all), want: all},
+		{name: "id does not cover typed wildcard", ceiling: l(wsID), requested: l(wsAll), want: wsAll},
+		{name: "other id", ceiling: l(wsID), requested: l(wsID, wsOther), want: wsOther},
+		{name: "other type", ceiling: l(wsAll), requested: l(tplID), want: tplID},
+		{name: "empty ceiling", requested: l(wsID), want: wsID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := rbac.FirstAllowListEntryNotCovered(tt.ceiling, tt.requested)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want != rbac.AllowListElement{}, ok)
+		})
+	}
+}
+
 func TestUnionAllowLists(t *testing.T) {
 	t.Parallel()
 
