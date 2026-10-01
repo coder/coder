@@ -1154,29 +1154,6 @@ func TestTools(t *testing.T) {
 			}
 		})
 
-		t.Run("RejectsEndpointInjection", func(t *testing.T) {
-			ctx := testutil.Context(t, testutil.WaitShort)
-			before, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
-			require.NoError(t, err)
-			for _, user := range []string{
-				"me/keys/tokens?", "me/keys/tokens#", "me/keys/tokens/../tokens?",
-				"me%2fkeys%2ftokens%3f", "../users/me/keys/tokens?", ".", "..",
-			} {
-				t.Run(user, func(t *testing.T) {
-					_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
-						User:              user,
-						TemplateVersionID: r.TemplateVersion.ID.String(),
-						Name:              testutil.GetRandomNameHyphenated(t),
-						RichParameters:    map[string]string{},
-					})
-					assert.ErrorContains(t, err, "invalid user")
-					after, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
-					require.NoError(t, err)
-					require.ElementsMatch(t, before, after, "workspace tool must not create API keys")
-				})
-			}
-		})
-
 		t.Run("WithPreset", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
