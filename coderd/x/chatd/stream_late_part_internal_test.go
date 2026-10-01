@@ -115,6 +115,43 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 	})
 }
 
+// TestStreamLoopLatePartAfterClearedRetry covers a retry that is recorded
+// and cleared again (for example by an interrupt during the backoff)
+// before the stream loop syncs. The loop never sees the payload, but the
+// advanced retry_state_version within the same episode still proves that
+// the current attempt failed.
+func TestStreamLoopLatePartAfterClearedRetry(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	worker := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	chat := database.Chat{
+		ID:                chatID,
+		Status:            database.ChatStatusRunning,
+		SnapshotVersion:   3,
+		HistoryVersion:    1,
+		GenerationAttempt: 1,
+		WorkerID:          worker,
+	}
+	loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+	_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 1, Part: codersdk.ChatMessageText("Hel")})
+	require.NoError(t, err)
+	require.True(t, accepted)
+
+	// RecordRetryState (snapshot 4) and Interrupt (snapshot 5) both commit
+	// before the next sync, which only sees the cleared payload.
+	chat.SnapshotVersion = 5
+	chat.Status = database.ChatStatusInterrupting
+	chat.RetryStateVersion = 5
+	events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+	require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
+
+	_, accepted, err = loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
+	require.NoError(t, err)
+	require.False(t, accepted, "part 2 of the failed attempt was delivered after its retry was recorded")
+}
+
 func eventTypes(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEventType {
 	types := make([]codersdk.ChatStreamEventType, 0, len(events))
 	for _, event := range events {

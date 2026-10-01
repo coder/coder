@@ -297,7 +297,12 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	// attempt failed, and the chats trigger clears it when the attempt
 	// changes. Clients drop their preview on the retry event, so parts of
 	// the failed attempt that are still in flight must not reach them.
-	if chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0 {
+	// Within one episode retry_state only changes when a retry is recorded
+	// for the current attempt or that pending retry is cleared, so an
+	// advanced retry_state_version also retires the attempt when the
+	// payload was cleared again before this sync.
+	retryChangedInEpisode := chat.RetryStateVersion > l.state.retryVersion && !historyChanged && !generationChanged
+	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) {
 		l.state.attemptRetired = true
 	}
 
