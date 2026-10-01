@@ -3,6 +3,10 @@ import { userEvent, within } from "storybook/test";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { ComposerContext } from "../../context/ComposerContext";
+import {
+	type TabPopoutMessage,
+	tabPopoutChannelName,
+} from "../../utils/rightPanelTabPopout";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -19,6 +23,7 @@ const meta = {
 	title: "pages/AgentsPage/components/RightPanel/PortPreviewPanel",
 	component: PortPreviewPanel,
 	args: {
+		chatId: "chat-1",
 		workspace: MockWorkspace,
 		agent: MockWorkspaceAgent,
 		host: "*.apps.example.com",
@@ -127,4 +132,26 @@ export const AnnotateUnavailable: Story = {
 			await userEvent.hover(wrapper);
 		}
 	},
+};
+
+// The chat page steps aside while the tab is shown in its own window; the
+// window announces itself over the tab's channel.
+export const PoppedOut: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const channel = new BroadcastChannel(tabPopoutChannelName(previewTab.id));
+		channel.postMessage({ type: "popout-opened" } satisfies TabPopoutMessage);
+		channel.close();
+		// Settles once the placeholder has replaced the frame.
+		await canvas.findByRole("button", { name: "Bring back" });
+	},
+};
+
+// The same panel as rendered by the tab's own window: annotate mode is on
+// from the start and the app can be opened directly instead of popped out.
+export const InPopoutWindow: Story = {
+	args: { canAnnotate: true, isPopoutWindow: true },
+	decorators: [withComposer],
 };
