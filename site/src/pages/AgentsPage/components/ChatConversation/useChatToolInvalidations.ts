@@ -117,9 +117,10 @@ export function useChatToolInvalidations({
 			}
 
 			if (toolResult.name === "manage_automations") {
+				// The server trims the action before running it.
 				const action = asString(
 					parseArgs(readToolCallArgs(toolResult.id))?.action,
-				);
+				).trim();
 				if (
 					toolResult.isError ||
 					!MANAGE_AUTOMATIONS_WRITE_ACTIONS.has(action)

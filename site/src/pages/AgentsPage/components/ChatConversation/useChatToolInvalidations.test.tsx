@@ -335,7 +335,7 @@ describe("useChatToolInvalidations", () => {
 		});
 	});
 
-	it.each(["create", "update", "enable", "disable", "delete"])(
+	it.each(["create", "update", "enable", "disable", "delete", " update "])(
 		"invalidates automations after a successful manage_automations %s",
 		async (action) => {
 			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
