@@ -146,17 +146,28 @@ To enable the mode for one group:
 coder exp experiment-rules set ai-gateway-responses-websocket '"coder/beta-testers" in user.groups'
 ```
 
+The command confirms the new rule:
+
+```txt
+Experiment "ai-gateway-responses-websocket" rule is now condition (revision <n>).
+```
+
 When you're ready to enable it for every user:
 
 ```sh
 coder exp experiment-rules on ai-gateway-responses-websocket
 ```
 
-To turn it off for every user, run `coder exp experiment-rules off ai-gateway-responses-websocket`.
-A socket reads the experiment once, when it opens.
-After you turn the experiment off, new upgrades are refused, and open sockets continue until they close.
+The command confirms that the rule is now `on`.
 
-Each `response.create` on a socket is recorded, rate limited, and checked against [budgets](./cost-controls.md) like a separate HTTP request.
+To turn it off for every user, run `coder exp experiment-rules off ai-gateway-responses-websocket`.
+The command confirms that the rule is now `off`.
+
+AI Gateway authorizes a socket once, when it opens.
+After you turn the experiment off, or revoke or expire the API key that opened a socket, new upgrades are refused, but open sockets keep serving requests until they close or reach their lifetime limit.
+
+Each `response.create` on a socket is rate limited and checked against [budgets](./cost-controls.md) like a separate HTTP request.
+AI Gateway records each `response.create` that passes these checks.
 AI Gateway never injects [MCP tools](./mcp.md) into WebSocket requests.
 
 Each gateway replica enforces fixed socket limits:
@@ -168,7 +179,7 @@ Each gateway replica enforces fixed socket limits:
 | Socket lifetime          | 60&nbsp;minutes | The gateway closes the socket, and the client must open a new one |
 
 Codex falls back to HTTPS immediately on a `426` response.
-While a replica shuts down, it refuses new upgrades with `503 Service Unavailable` and closes its open sockets.
+When a replica shuts down, it closes its open sockets, and an upgrade that reaches it during shutdown can get `503 Service Unavailable`.
 
 To monitor sockets, use the `coder_ai_gateway_responses_websockets_open` and `coder_ai_gateway_responses_websockets_refusals_total` [Prometheus metrics](../../admin/integrations/prometheus.md).
 
