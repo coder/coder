@@ -1,6 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
+import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { ComposerContext } from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -24,6 +26,8 @@ const meta = {
 	},
 	parameters: {
 		layout: "centered",
+		// Live port previews embed a cross-origin iframe that Pixel cannot capture
+		// deterministically; submission behavior is covered in PortPreviewPanel.test.tsx.
 		pixel: { exclude: true },
 	},
 	decorators: [
@@ -38,46 +42,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Ready: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByTitle("Preview :3000")).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toHaveAttribute(
-			"href",
-			expect.stringContaining("3000--"),
-		);
-	},
-};
+export const Ready: Story = {};
 
 export const MissingWildcardHost: Story = {
-	args: {
-		host: "",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Port previews require a wildcard access URL."),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
-	},
+	args: { host: "" },
+	parameters: { pixel: { exclude: false } },
 };
 
 export const AgentDisconnected: Story = {
-	args: {
-		agent: {
-			...MockWorkspaceAgent,
-			status: "disconnected",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(
-				"Port preview will be available once the workspace agent reconnects.",
-			),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
-	},
+	args: { agent: { ...MockWorkspaceAgent, status: "disconnected" } },
+	parameters: { pixel: { exclude: false } },
 };
 
 export const InvalidWildcardHost: Story = {
@@ -86,13 +60,71 @@ export const InvalidWildcardHost: Story = {
 		// so use a forbidden host code point that actually fails URL parsing.
 		host: "bad^host",
 	},
+	parameters: { pixel: { exclude: false } },
+};
+
+const withComposer: Decorator = (Story) => (
+	<ComposerContext value={{ send: () => Promise.resolve("sent") }}>
+		<Story />
+	</ComposerContext>
+);
+
+// What the overlay inside the preview would post to the dashboard.
+function postFromPreview(
+	canvasElement: HTMLElement,
+	data: AnnotatorToHostMessage,
+) {
+	const frame =
+		within(canvasElement).getByTitle<HTMLIFrameElement>("Preview :3000");
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data,
+			origin: new URL(frame.src).origin,
+			source: frame.contentWindow,
+		}),
+	);
+}
+
+export const CanAnnotate: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+};
+
+export const AnnotatePicking: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(
-				"The wildcard access URL produced an invalid preview URL. Check the deployment's wildcard access URL configuration.",
-			),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		postFromPreview(canvasElement, { type: "coder-annotator:ready" });
+		postFromPreview(canvasElement, {
+			type: "coder-annotator:state",
+			picking: true,
+		});
+	},
+};
+
+export const AnnotateUnavailable: Story = {
+	args: { canAnnotate: true, annotatorReadyTimeoutMs: 0 },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		canvas
+			.getByTitle<HTMLIFrameElement>("Preview :3000")
+			.dispatchEvent(new Event("load"));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		// The disabled button has pointer-events: none; its wrapper span is
+		// the tooltip trigger.
+		const wrapper = canvas.getByRole("button", {
+			name: "Annotate elements",
+		}).parentElement;
+		if (wrapper) {
+			await userEvent.hover(wrapper);
+		}
 	},
 };
