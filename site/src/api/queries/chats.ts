@@ -210,6 +210,21 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
+	const prependToList = (queryKey: QueryKey) => {
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
+			if (!prev?.pages) return prev;
+			// Check across ALL pages to avoid duplicates.
+			const exists = prev.pages.some((page) =>
+				page.some((c) => c.id === chat.id),
+			);
+			if (exists) return prev;
+			// Only prepend to the first page.
+			const nextPages = prev.pages.map((page, i) =>
+				i === 0 ? [chat, ...page] : page,
+			);
+			return { ...prev, pages: nextPages };
+		});
+	};
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
 	});
@@ -236,19 +251,11 @@ export const prependToInfiniteChatsCache = (
 		) {
 			continue;
 		}
-		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
-			if (!prev?.pages) return prev;
-			// Check across ALL pages to avoid duplicates.
-			const exists = prev.pages.some((page) =>
-				page.some((c) => c.id === chat.id),
-			);
-			if (exists) return prev;
-			// Only prepend to the first page.
-			const nextPages = prev.pages.map((page, i) =>
-				i === 0 ? [chat, ...page] : page,
-			);
-			return { ...prev, pages: nextPages };
-		});
+		prependToList(queryKey);
+	}
+	// Project lists hold the project's unarchived root chats.
+	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
+		prependToList(projectChatsKey(chat.project_id));
 	}
 };
 
@@ -256,7 +263,7 @@ export const prependToInfiniteChatsCache = (
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
-export const readInfiniteChatsCache = (
+const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
@@ -265,6 +272,31 @@ export const readInfiniteChatsCache = (
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
+		}
+	}
+	return undefined;
+};
+
+/**
+ * Finds a root chat in any cached sidebar or project chat list. A chat shown
+ * on a project page can be missing from every sidebar list, for example when
+ * the sidebar filters exclude it.
+ */
+export const findChatInListCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+): TypesGen.Chat | undefined => {
+	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
+		const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+			queryKey,
+		});
+		for (const [, data] of queries) {
+			for (const page of data?.pages ?? []) {
+				const chat = page.find((c) => c.id === chatId);
+				if (chat) {
+					return chat;
+				}
+			}
 		}
 	}
 	return undefined;
@@ -425,15 +457,25 @@ export const applyChatArchiveStateToCaches = (
 		);
 	}
 
-	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
-		queryKey: chatListFamilyKey,
-	});
+	// Project lists only hold unarchived chats.
+	const queries = [
+		...queryClient
+			.getQueriesData<InfiniteChatsCacheData>({ queryKey: chatListFamilyKey })
+			.map(
+				([queryKey, data]) =>
+					[queryKey, data, archivedFilterForChatListKey(queryKey)] as const,
+			),
+		...queryClient
+			.getQueriesData<InfiniteChatsCacheData>({
+				queryKey: chatProjectListFamilyKey,
+			})
+			.map(([queryKey, data]) => [queryKey, data, false] as const),
+	];
 
-	for (const [queryKey, data] of queries) {
+	for (const [queryKey, data, archivedFilter] of queries) {
 		if (!isInfiniteChatsCacheData(data)) {
 			continue;
 		}
-		const archivedFilter = archivedFilterForChatListKey(queryKey);
 		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
 			if (!isInfiniteChatsCacheData(prev)) {
 				return prev;

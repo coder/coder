@@ -67,6 +67,7 @@ import {
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	findChatInListCaches,
 	getChatListQueryString,
 	getOpenChatPollInterval,
 	infiniteChats,
@@ -2575,6 +2576,65 @@ describe("updateInfiniteChatsCache", () => {
 			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
 				?.pages[0]?.[0]?.title,
 		).toBe("renamed");
+	});
+});
+
+describe("project chat list caches", () => {
+	const seedProjectChats = (
+		queryClient: QueryClient,
+		projectId: string,
+		chats: TypesGen.Chat[],
+	) => {
+		queryClient.setQueryData(projectChatsKey(projectId), {
+			pages: [chats],
+			pageParams: [0],
+		});
+	};
+	const readProjectChats = (queryClient: QueryClient, projectId: string) =>
+		queryClient
+			.getQueryData<InfiniteData>(projectChatsKey(projectId))
+			?.pages.flat();
+
+	it("drops a chat archived elsewhere from its project list", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-1"),
+			makeChat("chat-2"),
+		]);
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-2"]);
+	});
+
+	it("prepends a new chat only to its own project list", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-2", [makeChat("chat-2")]);
+
+		prependToInfiniteChatsCache(
+			queryClient,
+			makeChat("chat-3", { project_id: "project-1" }),
+		);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-3", "chat-1"]);
+		expect(
+			readProjectChats(queryClient, "project-2")?.map((c) => c.id),
+		).toEqual(["chat-2"]);
+	});
+
+	it("finds a chat that is only cached in a project list", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-2", { status: "running" }),
+		]);
+
+		expect(findChatInListCaches(queryClient, "chat-2")?.status).toBe("running");
 	});
 });
 
