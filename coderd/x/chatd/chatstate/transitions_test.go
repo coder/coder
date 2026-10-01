@@ -1020,6 +1020,9 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitShort)
 				m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 				require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+					if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+						return err
+					}
 					_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 					return err
 				}))

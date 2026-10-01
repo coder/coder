@@ -1,6 +1,7 @@
 package chatstate_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -195,6 +196,112 @@ func TestSetFamilyArchivedAcceptsAlreadyDesiredMembers(t *testing.T) {
 	childAfter, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.True(t, childAfter.Archived)
+}
+
+// TestCreateChildChatWaitsForFamilyArchive verifies that creating a
+// child chat serializes with SetFamilyArchived. The child creation
+// blocks on the root lock the archive holds, then observes the
+// committed archive and refuses to join the archived family.
+func TestCreateChildChatWaitsForFamilyArchive(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusWaiting,
+	})
+
+	archived := make(chan struct{})
+	release := make(chan struct{})
+	archiveErr := make(chan error, 1)
+	go func() {
+		archiveErr <- db.InTx(func(tx database.Store) error {
+			// SetFamilyArchived reuses the outer transaction, so its
+			// root lock is held until the test releases it.
+			_, err := chatstate.SetFamilyArchived(ctx, tx, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{
+				RootID:   root.ID,
+				Archived: true,
+			})
+			if err != nil {
+				return err
+			}
+			close(archived)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}, nil)
+	}()
+	select {
+	case <-archived:
+	case err := <-archiveErr:
+		t.Fatalf("archive failed before holding the root lock: %v", err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the archive to lock the root")
+	}
+
+	createErr := make(chan error, 1)
+	go func() {
+		_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			Title:             "child",
+			ClientType:        database.ChatClientTypeApi,
+			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+			InitialStatus:     database.ChatStatusRunning,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", user.ID, model.ID),
+			},
+		})
+		createErr <- err
+	}()
+
+	// Wait until the child creation blocks on the root row lock.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: GetChatByIDForShare%'
+`).Scan(&waiting)
+		return err == nil && waiting == 1
+	}, testutil.IntervalFast, "wait for child creation to block on the root lock")
+	require.NoError(t, ctx.Err(), "waiting for child creation to block")
+	select {
+	case err := <-createErr:
+		t.Fatalf("child creation finished while the archive held the root lock: %v", err)
+	default:
+	}
+
+	close(release)
+	select {
+	case err := <-archiveErr:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the archive to commit")
+	}
+	select {
+	case err := <-createErr:
+		require.ErrorIs(t, err, chatstate.ErrChatFamilyArchived)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for child creation")
+	}
+
+	ids, err := db.GetChatFamilyIDsByRootID(ctx, root.ID)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{root.ID}, ids, "no child may join the archived family")
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {

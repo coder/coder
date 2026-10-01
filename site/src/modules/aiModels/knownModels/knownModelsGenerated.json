@@ -942,9 +942,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 3,
-			"outputCost": 15,
-			"cacheReadCost": 0.3
+			"inputCost": 0.6913,
+			"outputCost": 10,
+			"cacheReadCost": 0.6913
 		},
 		{
 			"provider": "openrouter",
@@ -953,8 +953,8 @@
 			"aliases": [],
 			"contextLimit": 262144,
 			"maxOutputTokens": 235929,
-			"inputCost": 0.6562,
-			"outputCost": 3.3,
+			"inputCost": 0.6712,
+			"outputCost": 3.35,
 			"cacheReadCost": 0.18
 		},
 		{
@@ -962,18 +962,18 @@
 			"modelIdentifier": "z-ai/glm-5.3",
 			"displayName": "GLM-5.3",
 			"aliases": [],
-			"contextLimit": 1310720,
-			"maxOutputTokens": 943717,
-			"inputCost": 1.4,
+			"contextLimit": 1048576,
+			"maxOutputTokens": 943718,
+			"inputCost": 0.2219,
 			"outputCost": 4.4,
-			"cacheReadCost": 0.26
+			"cacheReadCost": 0.1775
 		},
 		{
 			"provider": "openrouter",
 			"modelIdentifier": "z-ai/glm-5.3-flash",
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
-			"contextLimit": 1310720,
+			"contextLimit": 1048576,
 			"maxOutputTokens": 943717,
 			"inputCost": 0.15,
 			"outputCost": 0.5,
@@ -986,9 +986,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.1949,
-			"outputCost": 3.99,
-			"cacheReadCost": 0.1559
+			"inputCost": 1.4,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.26
 		},
 		{
 			"provider": "openrouter",
@@ -1153,9 +1153,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 0.3,
-			"outputCost": 1.2,
-			"cacheReadCost": 0.006
+			"inputCost": 0.03,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.01
 		},
 		{
 			"provider": "openrouter",
@@ -1163,10 +1163,10 @@
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.0763,
-			"outputCost": 0.1526,
-			"cacheReadCost": 0.01526
+			"maxOutputTokens": 384000,
+			"inputCost": 0.042,
+			"outputCost": 0.084,
+			"cacheReadCost": 0.0084
 		},
 		{
 			"provider": "openrouter",
@@ -1175,9 +1175,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.915936,
-			"outputCost": 1.831872,
-			"cacheReadCost": 0.076328
+			"inputCost": 0.2088,
+			"outputCost": 0.4176,
+			"cacheReadCost": 0.0174
 		},
 		{
 			"provider": "openrouter",
