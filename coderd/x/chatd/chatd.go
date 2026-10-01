@@ -3475,16 +3475,22 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	}
 }
 
+// builtinToolAllowedForTurn reports whether a built-in tool is offered in
+// a turn with the given plan mode.
+func builtinToolAllowedForTurn(name string, mode database.NullChatPlanMode, isRootChat bool) bool {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return true
+	}
+	return builtinPlanToolAllowed(name, isRootChat)
+}
+
 func toolAllowedForTurn(
 	tool fantasy.AgentTool,
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) bool {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return true
-	}
-	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
+	if builtinToolAllowedForTurn(tool.Info().Name, mode, !parentChatID.Valid) {
 		return true
 	}
 	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
@@ -270,17 +271,23 @@ func TestAgentBoxSurvivesRequiresAction(t *testing.T) {
 func TestAgentBoxToolGating(t *testing.T) {
 	t.Parallel()
 
-	newChat := func(t *testing.T, experimentOn bool, opts func(*chatd.CreateOptions)) []string {
+	type turn struct {
+		tools  []string
+		system string
+	}
+	// startChat creates a chat and returns the tools and system prompt of
+	// its first model call. With withParent, the chat is a child of a
+	// root chat created first.
+	startChat := func(t *testing.T, experimentOn, withParent bool, opts func(*chatd.CreateOptions)) turn {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
-		var tools atomic.Pointer[[]string]
+		var last atomic.Pointer[turn]
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			if !req.Stream {
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
-			names := anthropicToolNames(req)
-			tools.Store(&names)
+			last.Store(&turn{tools: anthropicToolNames(req), system: string(req.System)})
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("ok")...)
 		})
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
@@ -302,15 +309,30 @@ func TestAgentBoxToolGating(t *testing.T) {
 				codersdk.ChatMessageText("hello"),
 			},
 		}
+		if withParent {
+			parent, err := server.CreateChat(ctx, create)
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, parent.ID, database.ChatStatusWaiting)
+			last.Store(nil)
+			create.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+			create.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		}
 		if opts != nil {
 			opts(&create)
 		}
 		chat, err := server.CreateChat(ctx, create)
 		require.NoError(t, err)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-		got := tools.Load()
+		got := last.Load()
 		require.NotNil(t, got)
 		return *got
+	}
+	newChat := func(t *testing.T, experimentOn bool, opts func(*chatd.CreateOptions)) []string {
+		t.Helper()
+		return startChat(t, experimentOn, false, opts).tools
+	}
+	planMode := func(o *chatd.CreateOptions) {
+		o.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
 	}
 
 	hasBoxTools := func(names []string) bool {
@@ -324,12 +346,20 @@ func TestAgentBoxToolGating(t *testing.T) {
 
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
-		names := newChat(t, true, func(o *chatd.CreateOptions) {
-			o.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
-		})
+		got := startChat(t, true, false, planMode)
 		for _, name := range chattool.BoxToolNames() {
-			require.Contains(t, names, name)
+			require.Contains(t, got.tools, name)
 		}
+		require.Contains(t, got.system, chattool.BoxAttachFileToolName)
+	})
+
+	t.Run("ChildPlanMode", func(t *testing.T) {
+		t.Parallel()
+		got := startChat(t, true, true, planMode)
+		require.Contains(t, got.tools, chattool.BoxRunToolName)
+		require.NotContains(t, got.tools, chattool.BoxAttachFileToolName)
+		require.Contains(t, got.system, chattool.BoxRunToolName)
+		require.NotContains(t, got.system, chattool.BoxAttachFileToolName, "the prompt matches the offered tools")
 	})
 
 	t.Run("ExploreSubagent", func(t *testing.T) {

@@ -287,7 +287,7 @@ func TestAgentBoxSystemPrompt(t *testing.T) {
 	}))
 	require.Contains(t, text, "<agent-box>")
 	require.Contains(t, text, chattool.BoxRunToolName)
-	require.NotContains(t, text, chattool.BoxAttachFileToolName, "child plan turns do not register box_attach_file")
+	require.NotContains(t, text, chattool.BoxAttachFileToolName, "child plan turns do not offer box_attach_file")
 
 	text = systemPromptText(t, buildSystemPrompt(nil, "", "", nil, "", systemPromptBehaviorContext{
 		agentBoxes: true,

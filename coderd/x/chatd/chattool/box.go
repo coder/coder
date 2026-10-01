@@ -83,8 +83,8 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		byteCountString(int64(options.Limits.MemoryBytes)) + " memory, " +
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
 		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
-		"exit_code is -1 when timed_out or canceled is true. " +
-		"limits_hit lists the disk quota or open file limit when the program hit one; those calls fail with EIO inside the sandbox. " +
+		"timed_out or canceled means the run was stopped and exit_code is -1; a program can also exit with -1 itself. " +
+		"limits_hit lists \"disk_quota\" or \"open_files\" when the program hit that limit; those calls fail with EIO inside the sandbox. " +
 		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
 	if options.AttachFile {
 		description += " Use box_attach_file to hand a result file to the user."
