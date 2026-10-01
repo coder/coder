@@ -137,17 +137,16 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		automation: ChatAutomation,
 		enabled: boolean,
 	) => {
-		updateMutation.mutate(
-			{ automationId: automation.id, req: { enabled } },
-			{
-				onError: (error) => {
-					toast.error(
-						getErrorMessage(error, `Could not update ${automation.name}.`),
-						{ description: getErrorDetail(error) },
-					);
-				},
-			},
-		);
+		// mutate's per-call callbacks run only for the latest call, so a later
+		// toggle on another row would swallow this row's error toast.
+		updateMutation
+			.mutateAsync({ automationId: automation.id, req: { enabled } })
+			.catch((error) => {
+				toast.error(
+					getErrorMessage(error, `Could not update ${automation.name}.`),
+					{ description: getErrorDetail(error) },
+				);
+			});
 	};
 
 	const handleRunNow = (automation: ChatAutomation) => {

@@ -178,7 +178,7 @@ export const AgentAutomationsPageView: React.FC<
 				isOwner={automation.owner_id === currentUserId}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
-				isRunPending={runningAutomationId !== undefined}
+				isAnyRunPending={runningAutomationId !== undefined}
 				onToggleEnabled={onToggleEnabled}
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
