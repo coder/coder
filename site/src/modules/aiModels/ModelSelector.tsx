@@ -118,15 +118,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 
-	useAnchoredOverlayPosition(
-		mobileAnchor,
-		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-			null,
-		isBelowMd && open,
-	);
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+				null,
+		);
+	};
+
+	useAnchoredOverlayPosition(mobileAnchor, menuWrapper, isBelowMd && open);
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
@@ -203,7 +205,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				ref={setMenuElement}
+				ref={handleMenuRef}
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(

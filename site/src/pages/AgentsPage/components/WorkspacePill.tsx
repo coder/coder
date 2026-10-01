@@ -106,14 +106,16 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
-	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
 
-	useAnchoredOverlayPosition(
-		composer,
-		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-			null,
-		isBelowMd && open,
-	);
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+				null,
+		);
+	};
+
+	useAnchoredOverlayPosition(composer, menuWrapper, isBelowMd && open);
 
 	const portsData = usePortsData(
 		workspace,
@@ -177,7 +179,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
-				ref={setMenuElement}
+				ref={handleMenuRef}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot

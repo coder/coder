@@ -187,15 +187,17 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 
-	useAnchoredOverlayPosition(
-		anchor,
-		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-			null,
-		isBelowMd && shouldRender,
-	);
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+				null,
+		);
+	};
+
+	useAnchoredOverlayPosition(anchor, menuWrapper, isBelowMd && shouldRender);
 
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
@@ -243,7 +245,7 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
-				ref={setMenuElement}
+				ref={handleMenuRef}
 				align="start"
 				side="top"
 				sideOffset={8}
