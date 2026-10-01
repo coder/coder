@@ -2048,6 +2048,15 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
+// CountChatProjectsByOwnerID counts a user's projects across organizations,
+// so it requires deployment-wide chat project read.
+func (q *querier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProjectsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -2286,6 +2295,10 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
+}
+
+func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
 }
 
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
@@ -3669,6 +3682,14 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 		return "", err
 	}
 	return q.db.GetChatPlanModeInstructions(ctx)
+}
+
+func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
+}
+
+func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -6346,6 +6367,10 @@ func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.Insert
 	return insert(q.log, q.auth, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID), q.db.InsertChatModelConfig)(ctx, arg)
 }
 
+func (q *querier) InsertChatProject(ctx context.Context, arg database.InsertChatProjectParams) (database.ChatProject, error) {
+	return insert(q.log, q.auth, rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), q.db.InsertChatProject)(ctx, arg)
+}
+
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7832,6 +7857,12 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
+	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
+		return q.db.GetChatProjectByID(ctx, arg.ID)
+	}, q.db.UpdateChatProjectByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.
@@ -7878,6 +7909,17 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatTitleByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatTitleByIDIfTitle(ctx context.Context, arg database.UpdateChatTitleByIDIfTitleParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatTitleByIDIfTitle(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
