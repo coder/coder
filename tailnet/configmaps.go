@@ -495,6 +495,9 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		}
 		if lc.node != nil {
 			old := lc.node.KeepAlive
+			// Clone instead of mutating: log entries keep a pointer to the node,
+			// and a flight recorder may format them later without holding c.L.
+			lc.node = lc.node.Clone()
 			lc.node.KeepAlive = c.nodeKeepalive(lc, status, lc.node)
 			dirty = dirty || (old != lc.node.KeepAlive)
 		}
