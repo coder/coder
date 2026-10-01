@@ -379,6 +379,14 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
 	s.backend.Store(&backend{proxyRouter: router})
+	if current.proxyRouter != nil {
+		current.proxyRouter.CloseIdleConnections()
+	}
+	// Shutdown does not wait for provider construction. If it raced publication,
+	// release the new snapshot too; the shared inflight gate remains closed.
+	if s.isShutdown() {
+		router.CloseIdleConnections()
+	}
 	return nil
 }
 
@@ -450,6 +458,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
 		s.shuttingDown.Store(true)
+		defer func() {
+			if current := s.backend.Load(); current != nil && current.proxyRouter != nil {
+				current.proxyRouter.CloseIdleConnections()
+			}
+		}()
 
 		// Safe to call in both modes. The inflight gate is idle in
 		// interception mode.
