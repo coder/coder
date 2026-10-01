@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Exercises the unexported manage_automations tool and turn helper.
+package chatd
 
 import (
 	"context"

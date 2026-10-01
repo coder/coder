@@ -1,7 +1,8 @@
 DROP VIEW IF EXISTS chats_expanded;
 
+DROP INDEX IF EXISTS chats_automation_idx;
 ALTER TABLE chats
-    DROP COLUMN manage_automations_enabled;
+    DROP COLUMN automation_id;
 
 CREATE VIEW chats_expanded AS
  SELECT c.id,
@@ -29,6 +30,7 @@ CREATE VIEW chats_expanded AS
     c.last_read_message_id,
     c.dynamic_tools,
     c.organization_id,
+    c.project_id,
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
@@ -50,8 +52,27 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at,
-    c.automation_id
+    c.compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
+
+DROP INDEX IF EXISTS chat_messages_automation_idx;
+ALTER TABLE chat_messages
+    DROP COLUMN input_id,
+    DROP COLUMN automation_id;
+
+DROP INDEX IF EXISTS chat_queued_messages_automation_idx;
+ALTER TABLE chat_queued_messages
+    DROP CONSTRAINT chat_queued_messages_automation_shape,
+    DROP COLUMN queue_generation,
+    DROP COLUMN input_id,
+    DROP COLUMN automation_id;
+
+DROP TABLE IF EXISTS chat_automations;
+DROP FUNCTION IF EXISTS enforce_chat_automation_chat_organization();
+
+DROP TYPE IF EXISTS chat_automation_when_busy;
+DROP TYPE IF EXISTS chat_automation_webhook_use;
+DROP TYPE IF EXISTS chat_automation_target_mode;
+DROP TYPE IF EXISTS chat_automation_kind;
