@@ -23,6 +23,7 @@ import (
 type CreateChatInput struct {
 	OrganizationID    uuid.UUID
 	OwnerID           uuid.UUID
+	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
 	AgentID           uuid.NullUUID
@@ -65,6 +66,9 @@ type CreateChatResult struct {
 // Validation:
 //   - InitialMessages must be non-empty.
 //   - InitialStatus must be `waiting`, `running`, or empty (`running`).
+//   - When RootChatID is set, the root chat must exist and must not be
+//     archived; otherwise CreateChat returns [ErrChatNotFound] or
+//     [ErrChatFamilyArchived].
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -125,10 +129,30 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.RootChatID.Valid {
+			// Lock the family root before inserting the child so this
+			// transaction serializes with SetFamilyArchived, which also
+			// locks the root first and then writes the members. FOR
+			// SHARE conflicts with that FOR UPDATE lock and with the
+			// row lock of any plain UPDATE on the root, so the archived
+			// flag read here holds until commit. Concurrent child
+			// creations under the same root still run in parallel.
+			root, err := store.GetChatByIDForShare(ctx, input.RootChatID.UUID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatNotFound
+				}
+				return xerrors.Errorf("lock root chat: %w", err)
+			}
+			if root.Archived {
+				return ErrChatFamilyArchived
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
+			ProjectID:         input.ProjectID,
 			WorkspaceID:       input.WorkspaceID,
 			BuildID:           input.BuildID,
 			AgentID:           input.AgentID,
@@ -436,6 +460,8 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -477,17 +503,10 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
-	// Running with no queue.
-	case StateR0:
+	// Running, with or without a queue.
+	case StateR0, StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
-		}
-		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
-
-	// Running with queue.
-	case StateR1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageInterruptRunning(chat, from, input)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
@@ -567,6 +586,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	return SendMessageResult{
 		InsertedMessages: inserted,
 		QueuedMessage:    &queued,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -598,6 +618,25 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	return SendMessageResult{
 		QueuedMessage: &queued,
 	}, nil
+}
+
+func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
+	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+	if err != nil || chat.WorkerID.Valid {
+		return result, err
+	}
+	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message")
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	result.InsertedMessages = finished.InsertedMessages
+	result.PromotedQueuedAt = finished.PromotedQueuedAt
+	if from == StateR0 {
+		// The queue held only this message, so it was promoted into
+		// history instead of staying queued.
+		result.QueuedMessage = nil
+	}
+	return result, nil
 }
 
 func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
@@ -898,6 +937,8 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
+	// PromotedQueuedAt is zero when the row only moved to the queue head.
+	PromotedQueuedAt time.Time
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
@@ -986,6 +1027,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
 
@@ -1006,6 +1048,10 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	if err != nil {
 		return InterruptResult{}, err
 	}
+	reason := input.Reason
+	if reason == "" {
+		reason = "Tool execution interrupted by user"
+	}
 	switch from {
 	case StateR0, StateR1:
 		if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1018,12 +1064,17 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		}); err != nil {
 			return InterruptResult{}, xerrors.Errorf("set interrupting: %w", err)
 		}
-		return InterruptResult{}, nil
-	case StateA0, StateA1:
-		reason := input.Reason
-		if reason == "" {
-			reason = "Tool execution interrupted by user"
+		if chat.WorkerID.Valid {
+			return InterruptResult{}, nil
 		}
+		finished, err := tx.finishUnownedInterruption(chat, reason)
+		if err != nil {
+			return InterruptResult{}, err
+		}
+		return InterruptResult{
+			CancellationMessages: finished.cancellations,
+		}, nil
+	case StateA0, StateA1:
 		cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, true)
 		if err != nil {
 			return InterruptResult{}, err
@@ -1048,6 +1099,43 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	default:
 		return InterruptResult{}, newTransitionError(TransitionInterrupt, from, "unhandled state in Interrupt")
 	}
+}
+
+type unownedInterruption struct {
+	FinishInterruptionResult
+	cancellations []database.ChatMessage
+}
+
+// finishUnownedInterruption completes an interruption that has no
+// owner. With no runner there is no generation, message part episode,
+// or tool execution in flight, so the chat can land in waiting, or in
+// running with the queue head promoted, without waiting for a worker.
+// A worker would need a capacity slot to finish the interruption, and
+// the pool may be full. The chat stays unowned, so a promoted turn
+// still goes through capacity admission. Orphaned tool calls from an
+// earlier runner receive synthetic cancellations.
+func (tx *Tx) finishUnownedInterruption(chat database.Chat, reason string) (unownedInterruption, error) {
+	if chat.WorkerID.Valid {
+		return unownedInterruption{}, xerrors.New("finish unowned interruption: chat is owned")
+	}
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, false)
+	if err != nil {
+		return unownedInterruption{}, err
+	}
+	finished, err := tx.FinishInterruption(FinishInterruptionInput{PartialMessages: cancels})
+	if err != nil {
+		return unownedInterruption{}, xerrors.Errorf("finish unowned interruption: %w", err)
+	}
+	if len(finished.InsertedMessages) < len(cancels) {
+		return unownedInterruption{}, xerrors.Errorf(
+			"finish unowned interruption: inserted %d messages, want at least %d",
+			len(finished.InsertedMessages), len(cancels),
+		)
+	}
+	return unownedInterruption{
+		FinishInterruptionResult: finished,
+		cancellations:            finished.InsertedMessages[:len(cancels)],
+	}, nil
 }
 
 // ToolResultInput is one submitted dynamic-tool result.
@@ -1397,6 +1485,8 @@ type FinishInterruptionInput struct {
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
 	PromotedMessage  *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
@@ -1472,6 +1562,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
 		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -1482,6 +1573,8 @@ type FinishTurnInput struct{}
 type FinishTurnResult struct {
 	Chat            database.Chat
 	PromotedMessage *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishTurn completes a running turn.
@@ -1540,8 +1633,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		promoted = &inserted[len(inserted)-1]
 	}
 	return FinishTurnResult{
-		Chat:            updated,
-		PromotedMessage: promoted,
+		Chat:             updated,
+		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 

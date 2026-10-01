@@ -1,0 +1,35 @@
+title: Users
+description: Learn how to create, manage, and audit users and their access in your Coder deployment.
+path: ./admin/users/index.md
+icon_path: ./images/icons/users.svg
+children:
+  - include: admin/users/oidc-auth.yml
+  - title: GitHub
+    description: Set up authentication through GitHub OAuth to enable secure user login and sign-up
+    path: ./admin/users/github-auth.md
+  - title: Password authentication
+    description: Manage username/password authentication settings and user password reset workflows
+    path: ./admin/users/password-auth.md
+  - title: Headless authentication
+    description: Create and manage headless service accounts for automated systems and API integrations
+    path: ./admin/users/headless-auth.md
+    state: [premium]
+  - title: Groups and roles
+    description: Manage access control with user groups and role-based permissions for Coder resources
+    path: ./admin/users/groups-roles.md
+    state: [premium]
+  - title: IdP sync
+    description: Synchronize user groups, roles, and organizations from your identity provider to Coder
+    path: ./admin/users/idp-sync.md
+    state: [premium]
+  - title: Organizations
+    description: Segment and isolate resources by creating separate organizations for different teams or projects
+    path: ./admin/users/organizations.md
+    state: [premium]
+  - title: Quotas
+    description: Control resource usage by implementing workspace budgets and credit-based cost management
+    path: ./admin/users/quotas.md
+    state: [premium]
+  - title: API & session tokens
+    description: Manage authentication tokens for API access and configure session duration policies
+    path: ./admin/users/sessions-tokens.md

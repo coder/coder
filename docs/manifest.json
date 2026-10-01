@@ -562,7 +562,7 @@
 							"state": ["premium"]
 						},
 						{
-							"title": "API \u0026 session tokens",
+							"title": "API & session tokens",
 							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
@@ -775,7 +775,7 @@
 				{
 					"title": "External authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
-					"path": "./admin/external-auth/index.md",
+					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -1125,7 +1125,7 @@
 						{
 							"title": "Tools",
 							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
+							"path": "./ai-coder/agents/tools.md"
 						},
 						{
 							"title": "Chat sharing",
@@ -1138,7 +1138,7 @@
 							"path": "./ai-coder/agents/chat-search-syntax.md"
 						},
 						{
-							"title": "Licensing \u0026 usage",
+							"title": "Licensing & usage",
 							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
@@ -2328,6 +2328,28 @@
 							]
 						},
 						{
+							"title": "`sharing`",
+							"description": "Commands for managing shared workspaces",
+							"path": "reference/cli/sharing/index.md",
+							"children": [
+								{
+									"title": "`add`",
+									"description": "Share a workspace with a user or group.",
+									"path": "reference/cli/sharing/add.md"
+								},
+								{
+									"title": "`remove`",
+									"description": "Remove shared access for users or groups from a workspace.",
+									"path": "reference/cli/sharing/remove.md"
+								},
+								{
+									"title": "`status`",
+									"description": "List all users and groups the given Workspace is shared with.",
+									"path": "reference/cli/sharing/status.md"
+								}
+							]
+						},
+						{
 							"title": "`show`",
 							"description": "Display details of a workspace's resources and agents",
 							"path": "reference/cli/show.md"
@@ -2568,7 +2590,7 @@
 								},
 								{
 									"title": "`suspend`",
-									"description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
+									"description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform. Suspending a user stops their running workspaces; activating the user again does not restart them.",
 									"path": "reference/cli/users/suspend.md"
 								}
 							]
@@ -2582,8 +2604,51 @@
 							"title": "`whoami`",
 							"description": "Fetch authenticated user info for Coder deployment",
 							"path": "reference/cli/whoami.md"
+						},
+						{
+							"title": "`workspace-proxy`",
+							"description": "Workspace proxies provide low-latency experiences for geo-distributed teams.",
+							"path": "reference/cli/workspace-proxy/index.md",
+							"children": [
+								{
+									"title": "`create`",
+									"description": "Create a workspace proxy",
+									"path": "reference/cli/workspace-proxy/create.md"
+								},
+								{
+									"title": "`delete`",
+									"description": "Delete a workspace proxy",
+									"path": "reference/cli/workspace-proxy/delete.md"
+								},
+								{
+									"title": "`edit`",
+									"description": "Edit a workspace proxy",
+									"path": "reference/cli/workspace-proxy/edit.md"
+								},
+								{
+									"title": "`ls`",
+									"description": "List all workspace proxies",
+									"path": "reference/cli/workspace-proxy/ls.md"
+								},
+								{
+									"title": "`regenerate-token`",
+									"description": "Regenerate a workspace proxy authentication token. This will invalidate the existing authentication token.",
+									"path": "reference/cli/workspace-proxy/regenerate-token.md"
+								},
+								{
+									"title": "`server`",
+									"description": "Start a workspace proxy server",
+									"path": "reference/cli/workspace-proxy/server.md"
+								}
+							]
 						}
 					]
+				},
+				{
+					"title": "API key scopes",
+					"description": "Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.",
+					"path": "./reference/api-key-scopes.md",
+					"icon_path": "./images/icons/api.svg"
 				},
 				{
 					"title": "Agent API",

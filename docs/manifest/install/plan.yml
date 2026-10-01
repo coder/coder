@@ -1,0 +1,9 @@
+title: Plan your deployment
+description: Learn the architecture, size the deployment, and record the decisions that shape it.
+path: ./install/plan/index.md
+icon_path: ./images/icons/notes.svg
+children:
+  - title: Architecture
+    description: Learn about Coder's architecture and the components that make up a deployment.
+    path: ./install/plan/architecture.md
+  - include: install/plan/sizing.yml
