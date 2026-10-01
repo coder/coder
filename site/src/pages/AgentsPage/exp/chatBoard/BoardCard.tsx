@@ -160,6 +160,8 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 					"relative grid cursor-grab touch-none grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 px-3 pt-2.5 active:cursor-grabbing",
 					single ? "pb-2.5" : "pb-1.5",
 					cardTint({ color: card.color }),
+					// Without a tint, a group's header reads as one more chat row.
+					!single && !card.color && "bg-surface-secondary",
 				)}
 				{...dragHandleListeners(listeners)}
 				{...attributes}
