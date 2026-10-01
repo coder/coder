@@ -1,11 +1,13 @@
 /**
  * The chat board is an experiment. Everything it owns lives in this folder,
  * production code reaches in only through a handful of hook points, and this
- * flag keeps every one of them inert until the user opts in through the
- * settings toggle, the one hook point that stays live. The flag is
- * frontend-only so the experiment can change without touching the server.
+ * flag keeps every one of them inert until the deployment enables the
+ * chat-board experiment and the user opts in through the settings toggle.
+ * The experiment hides the board from deployments that have not asked for
+ * it; the opt-in is per browser so trying it affects no one else.
  */
 import { useSyncExternalStore } from "react";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 const KEY = "agents.exp.chat-board";
 
@@ -15,11 +17,11 @@ export const CHAT_BOARD_PATH = "/agents/board";
 // saving notifies same-tab subscribers directly.
 const listeners = new Set<() => void>();
 
-export function getChatBoardEnabled(): boolean {
+function getOptIn(): boolean {
 	return localStorage.getItem(KEY) === "true";
 }
 
-export function saveChatBoardEnabled(value: boolean): void {
+export function saveChatBoardOptIn(value: boolean): void {
 	localStorage.setItem(KEY, String(value));
 	for (const fn of listeners) {
 		fn();
@@ -42,7 +44,22 @@ function subscribe(callback: () => void): () => void {
 	};
 }
 
-/** The opt-in, live: every consumer re-renders when it is saved. */
+/** This browser's opt-in, live: every consumer re-renders when it is saved. */
+export function useChatBoardOptIn(): boolean {
+	return useSyncExternalStore(subscribe, getOptIn);
+}
+
+/** Whether the deployment offers the board, which shows its settings toggle. */
+export function useChatBoardAvailable(): boolean {
+	return useDashboard().experiments.includes("chat-board");
+}
+
+/**
+ * Whether the board is on. The opt-in is kept while the deployment
+ * experiment is off, so re-enabling the experiment restores the board.
+ */
 export function useChatBoardEnabled(): boolean {
-	return useSyncExternalStore(subscribe, getChatBoardEnabled);
+	const available = useChatBoardAvailable();
+	const optedIn = useChatBoardOptIn();
+	return available && optedIn;
 }

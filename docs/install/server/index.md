@@ -1,4 +1,6 @@
-# Install the control plane
+---
+title: Install the control plane
+---
 
 The pages in this section are alternatives, not sequential steps.
 Choose the one that matches the platform your team already operates, or intends to operate, then follow it through to the end.

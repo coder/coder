@@ -1,9 +1,9 @@
 import { Switch } from "#/components/Switch/Switch";
-import { saveChatBoardEnabled, useChatBoardEnabled } from "./chatBoardFlag";
+import { saveChatBoardOptIn, useChatBoardOptIn } from "./chatBoardFlag";
 
 /** Opt-in switch for the chat board, listed under Experiments in settings. */
 export const ChatBoardSettings: React.FC = () => {
-	const enabled = useChatBoardEnabled();
+	const optedIn = useChatBoardOptIn();
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -19,8 +19,8 @@ export const ChatBoardSettings: React.FC = () => {
 					and reset if its storage is cleared.
 				</p>
 				<Switch
-					checked={enabled}
-					onCheckedChange={(checked) => saveChatBoardEnabled(Boolean(checked))}
+					checked={optedIn}
+					onCheckedChange={(checked) => saveChatBoardOptIn(Boolean(checked))}
 					aria-label="Chat board"
 				/>
 			</div>

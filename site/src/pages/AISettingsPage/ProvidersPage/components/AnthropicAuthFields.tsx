@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { Badge } from "#/components/Badge/Badge";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { Link as DocsLink } from "#/components/Link/Link";
@@ -54,9 +53,6 @@ export const AnthropicAuthMethodField: React.FC<
 					<SelectItem value="api_key">Anthropic API</SelectItem>
 					<SelectItem value="claude_platform_aws">
 						Claude Platform for AWS
-						<Badge variant="default" className="ml-2">
-							Experimental
-						</Badge>
 					</SelectItem>
 				</SelectContent>
 			</Select>
@@ -84,17 +80,6 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 	onCredentialFocus,
 }) => (
 	<>
-		<p className="text-sm text-content-secondary m-0">
-			Claude Platform for AWS support is experimental and may change.{" "}
-			<DocsLink
-				size="sm"
-				href={docs("/ai-coder/ai-gateway/providers#claude-platform-for-aws")}
-				target="_blank"
-				rel="noreferrer"
-			>
-				View docs
-			</DocsLink>
-		</p>
 		<div className="grid grid-cols-2 items-start gap-4">
 			<FormField
 				required
@@ -138,7 +123,15 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			Optional. Client keys take precedence when BYOK is enabled, followed by
 			stored provider keys. Without either, requests use the gateway's ambient
 			AWS credentials. AWS identity is configured on the gateway, not per
-			provider.
+			provider.{" "}
+			<DocsLink
+				size="sm"
+				href={docs("/ai-coder/ai-gateway/providers#claude-platform-for-aws")}
+				target="_blank"
+				rel="noreferrer"
+			>
+				View docs
+			</DocsLink>
 		</p>
 	</>
 );

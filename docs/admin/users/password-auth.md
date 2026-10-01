@@ -1,5 +1,5 @@
 ---
-title: Password Authentication
+title: Password authentication
 ---
 
 Coder has password authentication enabled by default. The account created during
