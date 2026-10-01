@@ -1,5 +1,10 @@
+import { sliceAtGraphemeBoundary } from "./SmoothText";
+
 const DEFAULT_THINKING_TITLE = "Thinking";
 const PREVIEW_TITLE_MAX_LENGTH = 100;
+// Bounds the cleanup work: the preview is recomputed for every streamed
+// chunk of reasoning, which can grow to many kilobytes.
+const PREVIEW_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_LENGTH * 4;
 
 type LineRange = {
 	line: string;
@@ -15,21 +20,39 @@ type HeadingMatch = {
 
 type ThinkingDisclosureDisplay = {
 	title: string;
+	/** Accessible name for titles that do not say "Thinking" themselves. */
+	ariaLabel?: string;
 	body: string;
 };
 
+// CommonMark drops one space of padding from each side of a code span.
+const getCodeSpanText = (code: string): string => {
+	const text = code.replace(/\r\n?|\n/g, " ");
+	return text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text)
+		? text.slice(1, -1)
+		: text;
+};
+
 const cleanHeadingText = (text: string): string => {
-	// Code spans are set aside so the emphasis and HTML rules below cannot
-	// strip characters inside them, such as `Map<string, User>`. As in
-	// Markdown, asterisks next to inner whitespace stay literal, so
-	// `2 * n * m` is not emphasis.
-	const codeSpans: string[] = [];
+	// Backslash escapes and code spans render literally, so they are set aside
+	// while the rules below run. One pass keeps their Markdown precedence, and
+	// unmatched backtick runs are consumed whole so no code span starts inside
+	// one. HTML-like text and spaced asterisks (`2 * n * m`) also stay literal.
+	const literals: string[] = [];
+	const setAside = (literal: string): string => {
+		literals.push(literal);
+		return `\uE000${literals.length - 1}\uE001`;
+	};
 	return text
-		.replace(/\\([\\`*_[\]{}()#+.!-])/g, "$1")
-		.replace(/`([^`]*)`/g, (_match, code: string) => {
-			codeSpans.push(code);
-			return `\uE000${codeSpans.length - 1}\uE001`;
-		})
+		.replace(
+			/\\([!-/:-@[-`{-~])|(`+)([^`]|[^`][\s\S]*?[^`])\2(?!`)|`+/g,
+			(match, escaped?: string, _fence?: string, code?: string) => {
+				if (escaped !== undefined) {
+					return setAside(escaped);
+				}
+				return code === undefined ? match : setAside(getCodeSpanText(code));
+			},
+		)
 		.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
 		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
 		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
@@ -37,10 +60,9 @@ const cleanHeadingText = (text: string): string => {
 		.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1")
 		.replace(/\b_([^_]+)_\b/g, "$1")
 		.replace(/~~([^~]+)~~/g, "$1")
-		.replace(/<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>/g, "")
 		.replace(
 			/\uE000(\d+)\uE001/g,
-			(match, index: string) => codeSpans[Number(index)] ?? match,
+			(match, index: string) => literals[Number(index)] ?? match,
 		)
 		.replace(/\s+/g, " ")
 		.trim();
@@ -110,6 +132,9 @@ const hasBodyAfterLine = (
 	index: number,
 ): boolean => lines.slice(index + 1).some(({ line }) => line.trim().length > 0);
 
+const isListItem = (line: string): boolean =>
+	/^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/.test(line);
+
 const getEmphasizedLineHeadingText = (line: string): string | undefined => {
 	const match = line.match(/^ {0,3}(?:\*\*([^*]+)\*\*|__([^_]+)__)[ \t]*$/);
 	if (!match) {
@@ -127,7 +152,7 @@ const isHeadingLikeParagraph = (
 ): string | undefined => {
 	const lineRange = lines[index];
 	const prefix = text.slice(0, lineRange.start);
-	if (prefix.trim()) {
+	if (prefix.trim() || isListItem(lineRange.line)) {
 		return undefined;
 	}
 
@@ -209,8 +234,7 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 			};
 		}
 
-		const trimmedLine = line.trim();
-		setextCandidate = trimmedLine ? lineRange : undefined;
+		setextCandidate = line.trim() && !isListItem(line) ? lineRange : undefined;
 	}
 
 	return undefined;
@@ -235,26 +259,37 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 };
 
 const getPreviewTitle = (text: string): string => {
-	// Bound the cleanup work: this runs on every streamed chunk of reasoning
-	// that can grow to many kilobytes.
-	const preview = cleanHeadingText(text.slice(0, PREVIEW_TITLE_MAX_LENGTH * 4));
-	if (!preview) {
-		return DEFAULT_THINKING_TITLE;
-	}
-	const characters = Array.from(preview);
-	if (characters.length <= PREVIEW_TITLE_MAX_LENGTH) {
+	const source = sliceAtGraphemeBoundary(text, PREVIEW_SOURCE_MAX_LENGTH);
+	const preview = cleanHeadingText(source);
+	const isSourceCut = source.length < text.length;
+	if (
+		!preview ||
+		(preview.length <= PREVIEW_TITLE_MAX_LENGTH && !isSourceCut)
+	) {
 		return preview;
 	}
-	return `${characters.slice(0, PREVIEW_TITLE_MAX_LENGTH).join("").trimEnd()}…`;
+	return `${sliceAtGraphemeBoundary(preview, PREVIEW_TITLE_MAX_LENGTH).trimEnd()}…`;
 };
+
+// A streamed heading arrives before its closing markup, so its opening
+// markup would otherwise flash as the preview title.
+const isHeadingInProgress = (text: string): boolean =>
+	/^(?:#{1,6}[ \t]*|(\*\*|__)(?:(?!\1).)*)$/.test(text.trimStart());
 
 export const getThinkingDisclosureDisplay = (
 	text: string,
+	{ isStreaming = false }: { isStreaming?: boolean } = {},
 ): ThinkingDisclosureDisplay => {
 	const heading = getFirstHeading(text);
 	if (!heading) {
+		const preview =
+			isStreaming && isHeadingInProgress(text) ? "" : getPreviewTitle(text);
+		if (!preview) {
+			return { title: DEFAULT_THINKING_TITLE, body: text };
+		}
 		return {
-			title: getPreviewTitle(text),
+			title: preview,
+			ariaLabel: `${DEFAULT_THINKING_TITLE}: ${preview}`,
 			body: text,
 		};
 	}

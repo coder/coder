@@ -313,7 +313,7 @@ const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
  * handling; otherwise the function falls back to iterating by
  * codepoint which still avoids splitting surrogate pairs.
  */
-function sliceAtGraphemeBoundary(
+export function sliceAtGraphemeBoundary(
 	text: string,
 	maxCodeUnitLength: number,
 ): string {

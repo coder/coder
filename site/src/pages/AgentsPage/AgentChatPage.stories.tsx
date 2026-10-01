@@ -2019,7 +2019,9 @@ export const WithReasoningInline: Story = {
 		const canvas = within(canvasElement);
 
 		// Reasoning renders inside a collapsible disclosure.
-		const trigger = canvas.getByRole("button", { name: "Reasoning body" });
+		const trigger = canvas.getByRole("button", {
+			name: "Thinking: Reasoning body",
+		});
 		await userEvent.click(trigger);
 	},
 };
