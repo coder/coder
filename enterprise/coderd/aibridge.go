@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
@@ -133,37 +131,8 @@ func AIGatewayDataPlaneMiddleware(cfg codersdk.AIBridgeConfig) func(http.Handler
 	rateLimiter := httpmw.RateLimitByAuthToken(int(cfg.RateLimit.Value()), aiBridgeRateLimitWindow)
 	byokGuard := aiGatewayBYOKGuard(cfg)
 	return func(next http.Handler) http.Handler {
-		limited := concurrencyLimiter(rateLimiter(byokGuard(next)))
-		exempt := rateLimiter(byokGuard(next))
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if isResponsesWebSocketUpgrade(r) {
-				exempt.ServeHTTP(rw, r)
-				return
-			}
-			limited.ServeHTTP(rw, r)
-		})
+		return concurrencyLimiter(rateLimiter(byokGuard(next)))
 	}
-}
-
-// isResponsesWebSocketUpgrade reports whether r opens a Responses WebSocket.
-// Such requests skip the concurrency limit: it holds a slot for the handler's
-// lifetime, which for a socket is up to the socket's maximum lifetime of 60
-// minutes, so a few sockets would starve every HTTP request. The per-actor
-// and per-replica socket caps bound them instead. Until those sockets are
-// served, the upgrade is refused with 501 right away, so the exemption never
-// holds anything for long. Other upgrades stay limited.
-//
-// The match is exact on the escaped path: it must already be clean and end
-// in the intercepted route. A trailing slash, as in /v1/responses/{id}, names
-// a passthrough route whose upgrade the reverse proxy tunnels upstream for
-// as long as the tunnel lasts, so it must stay limited. Unclean or escaped
-// variants also stay limited.
-func isResponsesWebSocketUpgrade(r *http.Request) bool {
-	if !aibheaders.IsWebSocketUpgrade(r) {
-		return false
-	}
-	p := r.URL.EscapedPath()
-	return p == path.Clean(p) && strings.HasSuffix(p, "/v1/responses")
 }
 
 func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {

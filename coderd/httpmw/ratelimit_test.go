@@ -419,6 +419,49 @@ func TestConcurrencyLimit(t *testing.T) {
 		}
 	})
 
+	// A handler that releases its slot early frees it for the next request,
+	// exactly once: repeated calls and the release on return free nothing
+	// more.
+	t.Run("ReleaseFreesSlotOnce", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		released, finish := make(chan struct{}), make(chan struct{})
+		holding, unhold := make(chan struct{}), make(chan struct{})
+		handler := httpmw.ConcurrencyLimit(1, "Test")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/release":
+				release := aibridge.ConcurrencySlotReleaseFromContext(r.Context())
+				release()
+				release()
+				close(released)
+				<-finish
+			case "/hold":
+				close(holding)
+				<-unhold
+			}
+			rw.WriteHeader(http.StatusOK)
+		}))
+		serve := func(path string) int {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			return rec.Code
+		}
+
+		first := make(chan int, 1)
+		go func() { first <- serve("/release") }()
+		_ = testutil.TryReceive(ctx, t, released)
+		require.Equal(t, http.StatusOK, serve("/"))
+
+		close(finish)
+		require.Equal(t, http.StatusOK, testutil.TryReceive(ctx, t, first))
+		held := make(chan int, 1)
+		go func() { held <- serve("/hold") }()
+		_ = testutil.TryReceive(ctx, t, holding)
+		require.Equal(t, http.StatusServiceUnavailable, serve("/"))
+		close(unhold)
+		require.Equal(t, http.StatusOK, testutil.TryReceive(ctx, t, held))
+	})
+
 	t.Run("DisabledWhenZero", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()

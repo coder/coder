@@ -435,15 +435,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Safe to call in both modes. The proxy gate is idle in interception mode.
 		err = s.inflight.Shutdown(ctx)
 		s.inflight.Close()
+
+		// Sockets outlive the bridges in the pool, so they are ended here.
+		// They end before the lifecycle does: canceling it closes the coderd
+		// connection, and a closing socket still records its last usage and
+		// interception ends through Client.
+		if drainErr := s.sockets.Shutdown(ctx); drainErr != nil {
+			s.logger.Debug(ctx, "shutdown deadline passed with Responses WebSockets open", slog.Error(drainErr))
+		}
+
 		s.cancelFn(ErrShutdown)
 		if err != nil {
 			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(err))
 			return
-		}
-
-		// Sockets outlive the bridges in the pool, so they are ended here.
-		if drainErr := s.sockets.Shutdown(ctx); drainErr != nil {
-			s.logger.Debug(ctx, "shutdown deadline passed with Responses WebSockets open", slog.Error(drainErr))
 		}
 
 		// Wait for connections to terminate, bounded by the shutdown deadline.

@@ -100,6 +100,33 @@ func RateLimitConsumerFromContext(ctx context.Context) RateLimitConsumer {
 	return consume
 }
 
+// ConcurrencySlotRelease releases the AI Gateway concurrency slot of the
+// HTTP request that carried it before the request's handler returns. The
+// slot is otherwise released when the handler returns, so calling it is
+// optional, and calls after the first do nothing. It is safe for concurrent
+// use.
+//
+// A Responses WebSocket handler calls it once the socket holds a lease from
+// the socket registry: the handshake, authorization and budget check stay
+// bounded by the concurrency limit, while the open socket, which can last
+// up to its maximum lifetime, is bounded by the socket caps instead.
+type ConcurrencySlotRelease func()
+
+type concurrencySlotReleaseCtxKey struct{}
+
+// WithConcurrencySlotRelease returns a copy of ctx carrying release. Only
+// the AI Gateway concurrency limiting middleware sets it.
+func WithConcurrencySlotRelease(ctx context.Context, release ConcurrencySlotRelease) context.Context {
+	return context.WithValue(ctx, concurrencySlotReleaseCtxKey{}, release)
+}
+
+// ConcurrencySlotReleaseFromContext returns the release attached by
+// [WithConcurrencySlotRelease], or nil when the request holds no slot.
+func ConcurrencySlotReleaseFromContext(ctx context.Context) ConcurrencySlotRelease {
+	release, _ := ctx.Value(concurrencySlotReleaseCtxKey{}).(ConcurrencySlotRelease)
+	return release
+}
+
 type (
 	deletedAPIKeyIDCtxKey      struct{}
 	delegatedAttributionCtxKey struct{}

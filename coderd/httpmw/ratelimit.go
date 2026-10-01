@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -245,6 +246,10 @@ func (discardResponseWriter) WriteHeader(int)             {}
 
 // ConcurrencyLimit returns a handler that limits the number of concurrent
 // requests. When the limit is exceeded, it returns HTTP 503 Service Unavailable.
+//
+// Admitted requests carry an [aibridge.ConcurrencySlotRelease] that frees
+// their slot before the handler returns, for a handler that keeps serving a
+// long-lived connection after its admission work is done.
 func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handler) http.Handler {
 	if maxConcurrent <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -256,7 +261,9 @@ func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			c := current.Add(1)
-			defer current.Add(-1)
+			var once sync.Once
+			release := func() { once.Do(func() { current.Add(-1) }) }
+			defer release()
 
 			if c > maxConcurrent {
 				httpapi.Write(r.Context(), w, http.StatusServiceUnavailable, codersdk.Response{
@@ -264,7 +271,7 @@ func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handle
 				})
 				return
 			}
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(aibridge.WithConcurrencySlotRelease(r.Context(), release)))
 		})
 	}
 }

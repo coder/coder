@@ -216,8 +216,16 @@ func TestServerShutdownEndsSockets(t *testing.T) {
 	go func() { done <- srv.Shutdown(ctx) }()
 	<-lease.Context().Done()
 	require.ErrorIs(t, context.Cause(lease.Context()), ErrShutdown)
+	// The connection to coderd stays up until the socket released its
+	// lease, so a closing socket can still record.
+	select {
+	case <-srv.Done():
+		t.Fatal("server lifecycle ended before the socket was released")
+	default:
+	}
 	lease.Release()
 	require.NoError(t, testutil.TryReceive(ctx, t, done))
+	_ = testutil.TryReceive(ctx, t, srv.Done())
 	_, err = srv.Sockets().Acquire(ctx, "a", "openai")
 	require.ErrorIs(t, err, ErrShutdown)
 }

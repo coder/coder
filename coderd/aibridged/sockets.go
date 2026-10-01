@@ -153,7 +153,9 @@ func (l *SocketLease) Context() context.Context {
 	return l.ctx
 }
 
-// Release ends the lease and frees its place. It is idempotent.
+// Release ends the lease and frees its place. It is idempotent. Call it
+// after the socket's session finished recording, since Shutdown waits for
+// releases before it closes the connection to coderd that records use.
 func (l *SocketLease) Release() {
 	l.once.Do(func() {
 		l.timer.Stop()
