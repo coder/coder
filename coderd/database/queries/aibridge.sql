@@ -43,10 +43,10 @@ WHERE aibridge_interceptions.id = (
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 ) VALUES (
   @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, @cache_read_input_tokens, @cache_write_input_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at,
-  @effective_group_id, @input_price_micros, @output_price_micros, @cache_read_price_micros, @cache_write_price_micros, @cost_micros
+  @effective_group_id, @input_price_micros, @output_price_micros, @cache_read_price_micros, @cache_write_price_micros, @cost_micros, @provider_model, @priced_model
 )
 RETURNING *;
 
@@ -659,7 +659,8 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 1000);
 
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
--- Threads are paginated by (started_at, thread_id) cursor.
+-- Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+-- returns every thread in the session.
 WITH paginated_threads AS (
 	SELECT
 		-- Find thread root interceptions (thread_root_id IS NULL), apply cursor
@@ -689,7 +690,7 @@ WITH paginated_threads AS (
 	ORDER BY
 		aibridge_interceptions.started_at ASC,
 		aibridge_interceptions.id ASC
-	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+	LIMIT NULLIF(@limit_::integer, 0)
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,

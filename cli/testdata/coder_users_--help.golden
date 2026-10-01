@@ -18,7 +18,9 @@ SUBCOMMANDS:
     show           Show a single user. Use 'me' to indicate the currently
                    authenticated user.
     suspend        Update a user's status to 'suspended'. A suspended user
-                   cannot log into the platform
+                   cannot log into the platform. Suspending a user stops their
+                   running workspaces; activating the user again does not
+                   restart them.
 
 ———
 Run `coder --help` for a list of global options.

@@ -26,6 +26,7 @@ const renderWindow = ({
 	cardAssistant?: { cardTitle: string; open: () => void };
 } = {}) => {
 	const onChange = vi.fn();
+	const onMinimize = vi.fn();
 	renderComponent(
 		<FloatingChat
 			window={{ ...win, ...frame }}
@@ -33,6 +34,7 @@ const renderWindow = ({
 			color={undefined}
 			onChange={onChange}
 			onClose={vi.fn()}
+			onMinimize={onMinimize}
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
@@ -41,7 +43,7 @@ const renderWindow = ({
 			<div>chat body</div>
 		</FloatingChat>,
 	);
-	return { onChange };
+	return { onChange, onMinimize };
 };
 
 const drag = (
@@ -175,5 +177,17 @@ describe("FloatingChat", () => {
 		);
 
 		expect(open).toHaveBeenCalledTimes(1);
+	});
+
+	it("minimizes from the title bar without starting a drag", async () => {
+		const user = userEvent.setup();
+		const { onChange, onMinimize } = renderWindow();
+
+		await user.click(
+			screen.getByRole("button", { name: `Minimize ${MockChat.title}` }),
+		);
+
+		expect(onMinimize).toHaveBeenCalledTimes(1);
+		expect(onChange).not.toHaveBeenCalled();
 	});
 });
