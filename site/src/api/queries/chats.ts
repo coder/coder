@@ -1435,11 +1435,8 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 
 type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
 
-// Writes one chat field into the list and entity caches before the server
-// responds, and restores it from the entity snapshot when the update fails.
-const optimisticChatFieldUpdate = <
-	K extends "plan_mode" | "manage_automations_enabled",
->(
+// The list rollback reads the field from the entity snapshot.
+const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 	queryClient: QueryClient,
 	field: K,
 ) => ({

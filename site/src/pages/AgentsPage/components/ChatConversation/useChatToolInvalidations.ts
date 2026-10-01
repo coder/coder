@@ -10,6 +10,7 @@ import {
 	invalidateChatsByWorkspace,
 } from "#/api/queries/chats";
 import { invalidateWorkspaceMutationQueries } from "#/api/queries/workspaces";
+import type { ChatToolCallPart } from "#/api/typesGenerated";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { parseArgs } from "../ChatElements/tools/utils";
 import { type ChatStore, useChatSelector } from "./chatStore";
@@ -65,11 +66,8 @@ export function useChatToolInvalidations({
 	const toolResults = useChatSelector(store, selectStreamToolResults);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 	const chatIDRef = useRef(chatID);
-	// Not subscribed: a tool call's args land before its result, so the
-	// snapshot is current whenever a new result triggers the effect. The
-	// server persists the assistant tool-call message before its tools run
-	// and the live stream resets, so a streamed result usually has only the
-	// durable call.
+	// Not subscribed: a call's args land before its result. The live call is
+	// usually gone by then, so fall back to the durable message.
 	const readToolCallArgs = useEffectEvent((toolCallID: string): unknown => {
 		const { streamState, messagesByID, orderedMessageIDs } =
 			store.getSnapshot();
@@ -83,9 +81,10 @@ export function useChatToolInvalidations({
 				continue;
 			}
 			const part = message.content?.find(
-				(part) => part.type === "tool-call" && part.tool_call_id === toolCallID,
+				(part): part is ChatToolCallPart =>
+					part.type === "tool-call" && part.tool_call_id === toolCallID,
 			);
-			if (part?.type === "tool-call") {
+			if (part) {
 				return part.args;
 			}
 		}

@@ -392,8 +392,6 @@ describe("useChatToolInvalidations", () => {
 		queryClient.setQueryData(chatAutomationsKey("org-1"), []);
 		queryClient.setQueryData(infiniteChatsKey, { pages: [], pageParams: [] });
 		const { store, setStreamState } = renderInvalidations();
-		// The server persists the assistant tool-call message before the tool
-		// runs, so the streamed result arrives without a live call.
 		const { toolResults } = createStreamState("manage_automations");
 
 		await act(async () => {
