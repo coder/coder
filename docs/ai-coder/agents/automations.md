@@ -227,8 +227,8 @@ The **Copy the webhook secret** dialog shows the new secret.
 To rotate it with the API, send a `POST` request to `/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate`.
 The response contains `webhook_secret` and `webhook_secret_version`.
 
-Rotation doesn't reset a used single-use webhook.
-Its deliveries keep returning `409`, and the dashboard hides **Rotate secret** for it.
+You can't rotate the secret of a used single-use webhook.
+The dashboard hides **Rotate secret** for it, and the rotate request returns `409`.
 Create a new automation instead.
 
 ## Create a schedule automation
@@ -345,13 +345,14 @@ The tool keeps the agent close to its own chat:
 - An existing chat automation that the agent manages must target the calling chat.
 - A new chat automation must use the chat's model, or a model without provider tools such as web search.
 
+The agent can update, enable, or run only automations that follow these rules, and Coder checks them again when it applies the change.
+
 In a turn that an automation started, the agent can't create, update, enable, or run automations.
 It sees only automations that target the chat or that created it, and it can delete only the automation that started the turn.
 A message you send right after an automation message, before the agent responds, counts as part of that turn.
 
-The tool never returns the secret of a multi-use webhook.
-It returns the secret of a single-use webhook that targets the calling chat once, at creation, and only in a turn that a person started.
-To get the secret of another webhook an agent created, rotate the secret in the dashboard.
+The tool never returns a webhook secret, because tool results stay in the chat.
+To get the secret of a webhook an agent created, rotate the secret in the dashboard.
 
 ### Heartbeats
 
