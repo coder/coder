@@ -53,10 +53,6 @@ func WithCreateAdmission(ctx context.Context, admit CreateAdmissionFunc) context
 	return aibcontext.WithCreateAdmission(ctx, admit)
 }
 
-func CreateAdmissionFromContext(ctx context.Context) CreateAdmissionFunc {
-	return aibcontext.CreateAdmissionFromContext(ctx)
-}
-
 // NewAnthropicProvider constructs the Anthropic provider. At most one of
 // bedrockCfg and claudePlatformCfg may be non-nil; both nil means direct
 // Anthropic API access.

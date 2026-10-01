@@ -117,16 +117,11 @@ func TestSocketRegistryShutdown(t *testing.T) {
 	_, err = reg.Acquire(ctx, "c", "openai")
 	require.ErrorIs(t, err, ErrShutdown)
 
-	done := make(chan error, 1)
-	go func() { done <- reg.Shutdown(ctx) }()
+	// Shutdown still waits while any lease is held.
 	first.Release()
-	select {
-	case err := <-done:
-		t.Fatalf("shutdown returned with a lease held: %v", err)
-	default:
-	}
+	require.ErrorIs(t, reg.Shutdown(expired), context.Canceled)
 	second.Release()
-	require.NoError(t, testutil.TryReceive(ctx, t, done))
+	require.NoError(t, reg.Shutdown(ctx))
 }
 
 // TestSocketRegistryAcquireRacesShutdown requires that every lease granted

@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -454,7 +455,7 @@ func TestServeHTTP_CreateAdmission(t *testing.T) {
 			admissions := make(chan aibridge.CreateAdmissionFunc, 1)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
 				http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-					admissions <- aibridge.CreateAdmissionFromContext(r.Context())
+					admissions <- aibcontext.CreateAdmissionFromContext(r.Context())
 					rw.WriteHeader(http.StatusOK)
 				}), nil)
 
