@@ -24,49 +24,48 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestNewRecorder(t *testing.T) {
+func TestRecorders(t *testing.T) {
 	t.Parallel()
 	drpcErr := xerrors.New("DRPC recording was attempted")
 	for _, tc := range []struct {
-		structuredLogging       bool
-		disableContentRecording bool
-		wantClientCalls         int
-		wantLogs                int
-		wantContentErr          error // nil means no content recording is expected
+		policy          RecordPolicy
+		wantClientCalls int
+		wantLogs        int
+		wantContentErr  error // nil means no content recording is expected
 	}{
 		{
 			wantClientCalls: 6,
 			wantContentErr:  drpcErr,
 		},
 		{
-			structuredLogging: true,
-			wantClientCalls:   6,
-			wantLogs:          6,
-			wantContentErr:    drpcErr,
+			policy:          RecordPolicy{StructuredLogging: true},
+			wantClientCalls: 6,
+			wantLogs:        6,
+			wantContentErr:  drpcErr,
 		},
 		{
-			disableContentRecording: true,
-			wantClientCalls:         3,
+			policy:          RecordPolicy{DisableContentRecording: true},
+			wantClientCalls: 3,
 		},
 		{
-			structuredLogging:       true,
-			disableContentRecording: true,
-			wantClientCalls:         3,
-			wantLogs:                6,
+			policy:          RecordPolicy{StructuredLogging: true, DisableContentRecording: true},
+			wantClientCalls: 3,
+			wantLogs:        6,
 		},
 	} {
-		t.Run(fmt.Sprintf("Structured=%t/DisableContent=%t", tc.structuredLogging, tc.disableContentRecording), func(t *testing.T) {
+		t.Run(fmt.Sprintf("StructuredLogging=%t,DisableContentRecording=%t", tc.policy.StructuredLogging, tc.policy.DisableContentRecording), func(t *testing.T) {
 			t.Parallel()
 			apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
 			now := time.Now().UTC()
 			type contextKey struct{}
 			sink := testutil.NewFakeSink(t)
 			clientCalls := 0
-			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, tc.structuredLogging, tc.disableContentRecording, func(ctx context.Context) (DRPCClient, error) {
+			recorders := NewRecorders(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), tc.policy, func(ctx context.Context) (DRPCClient, error) {
 				clientCalls++
 				require.Equal(t, "record context", ctx.Value(contextKey{}))
 				return nil, drpcErr
 			})
+			rec := recorders.For(apiKeyID)
 			require.Zero(t, clientCalls, "creating a recorder must not acquire a client")
 			ctx := context.WithValue(t.Context(), contextKey{}, "record context")
 			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: interceptionID, StartedAt: now}), drpcErr)
@@ -84,15 +83,19 @@ func TestNewRecorder(t *testing.T) {
 	}
 	t.Run("APIKeyID", func(t *testing.T) {
 		t.Parallel()
-		apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
 		client := &interceptionRecordingClient{}
-		rec := newRecorder(testutil.NewFakeSink(t).Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, false, false, func(context.Context) (DRPCClient, error) {
+		recorders := NewRecorders(testutil.NewFakeSink(t).Logger(), noop.NewTracerProvider().Tracer(t.Name()), RecordPolicy{}, func(context.Context) (DRPCClient, error) {
 			return client, nil
 		})
-		require.NoError(t, rec.RecordInterception(t.Context(), &recorder.InterceptionRecord{ID: interceptionID, StartedAt: time.Now().UTC()}))
-		require.Len(t, client.requests, 1)
-		require.Equal(t, apiKeyID, client.requests[0].GetApiKeyId())
-		require.Equal(t, interceptionID, client.requests[0].GetId())
+		// One Recorders serves every API key, binding each to its own recorder.
+		apiKeyIDs := []string{uuid.NewString(), uuid.NewString()}
+		for _, apiKeyID := range apiKeyIDs {
+			require.NoError(t, recorders.For(apiKeyID).RecordInterception(t.Context(), &recorder.InterceptionRecord{ID: uuid.NewString(), StartedAt: time.Now().UTC()}))
+		}
+		require.Len(t, client.requests, len(apiKeyIDs))
+		for i, apiKeyID := range apiKeyIDs {
+			require.Equal(t, apiKeyID, client.requests[i].GetApiKeyId())
+		}
 	})
 }
 

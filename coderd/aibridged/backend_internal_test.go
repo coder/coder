@@ -52,7 +52,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 
 	// Interception reloads update metrics from the same registered collector.
 	firstProvider := newProvider(t, "first")
-	pool, err := NewCachedBridgePool(DefaultPoolOptions, []aibridge.Provider{firstProvider}, slogtest.Make(t, nil), nil, nil)
+	pool, err := NewCachedBridgePool(DefaultPoolOptions, []aibridge.Provider{firstProvider}, NewRecorders(slogtest.Make(t, nil), nil, RecordPolicy{}, server.Client), slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
 	server.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})

@@ -90,9 +90,7 @@ func TestNewAIBridgeDaemonOwnsKeyPoolStateCollector(t *testing.T) {
 }
 
 // TestNewAIBridgeDaemonAppliesRecordPolicy asserts the deployment's record
-// policy reaches the daemon. The policy is only observable on the pool the
-// daemon builds for itself, so a daemon constructed from configuration that
-// never reaches that pool fails here.
+// policy reaches the daemon, which creates every recorder from it.
 func TestNewAIBridgeDaemonAppliesRecordPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -134,7 +132,7 @@ func TestNewAIBridgeDaemonAppliesRecordPolicy(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 			t.Cleanup(unsubscribe)
 
-			require.Equal(t, aibridged.PoolOptionsFromConfig(t.Context(), testutil.Logger(t), dv.AI.BridgeConfig), srv.PoolOptions())
+			require.Equal(t, aibridged.RecordPolicyFromConfig(t.Context(), testutil.Logger(t), dv.AI.BridgeConfig), srv.RecordPolicy())
 		})
 	}
 }

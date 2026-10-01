@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -33,7 +32,7 @@ const (
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
 	KeyPools() []*keypool.Pool
-	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
+	Acquire(ctx context.Context, req Request, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	// ReplaceProviders swaps the providers used to construct future
 	// RequestBridge instances and clears the cache. Disabled providers
 	// must be included; the bridge serves a 503 sentinel on their
@@ -53,38 +52,9 @@ type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
 	Clock    quartz.Clock
-
-	// StructuredLogging makes each bridge emit AI Gateway interception
-	// records in the format described by
-	// [github.com/coder/coder/v2/aibridge/recorder.InterceptionLogMarker].
-	StructuredLogging bool
-	// DisableContentRecording stops prompts, tool call arguments and model
-	// thoughts from being recorded. Interceptions and token usage are still
-	// recorded, so AI spend accounting and budget enforcement are unaffected.
-	DisableContentRecording bool
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
-
-// PoolOptionsFromConfig returns DefaultPoolOptions with the record policy the
-// deployment configured. Every construction site uses it, so the in-process
-// daemon, the standalone gateway and the test harness cannot drift.
-//
-// It also reports a deployment that drops content records without exporting
-// them anywhere: they never reach coderd, so if coderd is the only emitter the
-// deployment has silently stopped exporting the very records it is declining to
-// store. Nothing else reports this.
-func PoolOptionsFromConfig(ctx context.Context, logger slog.Logger, cfg codersdk.AIBridgeConfig) PoolOptions {
-	options := DefaultPoolOptions
-	options.StructuredLogging = cfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceGateway)
-	options.DisableContentRecording = cfg.DisableContentRecording.Value()
-
-	if options.DisableContentRecording && !options.StructuredLogging {
-		logger.Warn(ctx, "content recording is disabled but structured logs are emitted by coderd, so prompts, tool calls and model thoughts will not be exported; set --ai-gateway-structured-logging-source to gateway or both to keep exporting them")
-	}
-
-	return options
-}
 
 var _ Pooler = &CachedBridgePool{}
 
@@ -97,6 +67,7 @@ type CachedBridgePool struct {
 	providerVersion atomic.Int64
 	logger          slog.Logger
 	options         PoolOptions
+	recorders       *Recorders
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
@@ -117,7 +88,11 @@ func (p *CachedBridgePool) Options() PoolOptions {
 	return p.options
 }
 
-func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
+// NewCachedBridgePool creates a pool whose bridges record through recorders.
+func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, recorders *Recorders, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
+	if recorders == nil {
+		return nil, xerrors.New("nil recorders given")
+	}
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
@@ -151,12 +126,13 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 	}
 
 	pool := &CachedBridgePool{
-		cache:   cache,
-		clock:   clk,
-		options: options,
-		metrics: metrics,
-		tracer:  tracer,
-		logger:  logger,
+		cache:     cache,
+		clock:     clk,
+		options:   options,
+		recorders: recorders,
+		metrics:   metrics,
+		tracer:    tracer,
+		logger:    logger,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
@@ -215,7 +191,7 @@ func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (_ http.Handler, outErr error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, mcpProxyFactory MCPProxyBuilder) (_ http.Handler, outErr error) {
 	spanAttrs := []attribute.KeyValue{
 		attribute.String(tracing.InitiatorID, req.InitiatorID.String()),
 		attribute.String(tracing.APIKeyID, req.APIKeyID),
@@ -258,7 +234,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	rec := newRecorder(p.logger, p.tracer, req.APIKeyID, p.options.StructuredLogging, p.options.DisableContentRecording, clientFn)
+	rec := p.recorders.For(req.APIKeyID)
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.

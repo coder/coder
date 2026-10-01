@@ -87,7 +87,7 @@ func NewAIBridgeDaemon(ctx context.Context, opts AIBridgeDaemonOptions) (*aibrid
 	// srv.Client to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer, coderAPI.Experiments, metrics, aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(ctx, logger, cfg)))
+	}, logger, tracer, coderAPI.Experiments, metrics, aibridged.WithRecordPolicy(aibridged.RecordPolicyFromConfig(ctx, logger, cfg)))
 	if err != nil {
 		return nil, nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}

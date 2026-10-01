@@ -14,7 +14,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestPoolOptionsFromConfig(t *testing.T) {
+func TestRecordPolicyFromConfig(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -86,16 +86,11 @@ func TestPoolOptionsFromConfig(t *testing.T) {
 
 			sink := &warningSink{}
 			logger := slog.Make(sink)
-			options := aibridged.PoolOptionsFromConfig(t.Context(), logger, tc.cfg)
+			policy := aibridged.RecordPolicyFromConfig(t.Context(), logger, tc.cfg)
 
-			require.Equal(t, tc.wantStructuredLogging, options.StructuredLogging, "StructuredLogging")
-			require.Equal(t, tc.wantDisableContentRecording, options.DisableContentRecording, "DisableContentRecording")
+			require.Equal(t, tc.wantStructuredLogging, policy.StructuredLogging, "StructuredLogging")
+			require.Equal(t, tc.wantDisableContentRecording, policy.DisableContentRecording, "DisableContentRecording")
 			require.Equal(t, tc.wantWarning, sink.warned("content recording is disabled"), "startup warning")
-
-			// The record policy must not disturb the cache sizing the
-			// deployment relies on.
-			require.Equal(t, aibridged.DefaultPoolOptions.MaxItems, options.MaxItems, "MaxItems")
-			require.Equal(t, aibridged.DefaultPoolOptions.TTL, options.TTL, "TTL")
 		})
 	}
 }

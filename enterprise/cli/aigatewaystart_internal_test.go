@@ -96,7 +96,12 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 
 	logger := slog.Make()
 	tracer := sdktrace.NewTracerProvider().Tracer("test")
-	cachedPool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
+	// The pool records through the gateway's daemon, which is created below.
+	var daemon *aibridged.Server
+	recorders := aibridged.NewRecorders(logger, tracer, aibridged.RecordPolicy{}, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return daemon.Client(ctx)
+	})
+	cachedPool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, recorders, logger, nil, tracer)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, shutdownWithTimeout(cachedPool.Shutdown, testutil.WaitShort))
@@ -117,6 +122,7 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 
 	gateway, err := newStandaloneGateway(params)
 	require.NoError(t, err)
+	daemon = gateway.daemon
 	require.NoError(t, gateway.daemon.SetPoolForTest(testutil.Context(t, testutil.WaitShort), t, pool))
 
 	t.Cleanup(func() {

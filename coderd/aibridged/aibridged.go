@@ -16,7 +16,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -72,6 +71,10 @@ type Server struct {
 
 	// poolOptions configures the interception pool created at startup.
 	poolOptions PoolOptions
+	// recordPolicy is how every recorder this server creates handles records.
+	recordPolicy RecordPolicy
+	// recorders creates the recorder for each API key, in either mode.
+	recorders *Recorders
 
 	shutdownOnce sync.Once
 }
@@ -80,10 +83,15 @@ type Server struct {
 type ServerOption func(*Server)
 
 // WithPoolOptions builds the server's interception pool with options instead of
-// [DefaultPoolOptions]. The deployment's record policy reaches the pool that
-// serves requests this way; see [PoolOptionsFromConfig].
+// [DefaultPoolOptions].
 func WithPoolOptions(options PoolOptions) ServerOption {
 	return func(s *Server) { s.poolOptions = options }
+}
+
+// WithRecordPolicy sets how the server's recorders handle records, instead of
+// the zero [RecordPolicy]; see [RecordPolicyFromConfig].
+func WithRecordPolicy(policy RecordPolicy) ServerOption {
+	return func(s *Server) { s.recordPolicy = policy }
 }
 
 // backend holds either an interception pool or a proxy router.
@@ -119,6 +127,7 @@ func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace
 	for _, opt := range opts {
 		opt(daemon)
 	}
+	daemon.recorders = NewRecorders(logger.Named("recorder"), tracer, daemon.recordPolicy, daemon.Client)
 
 	if !daemon.reverseProxyExp {
 		if err := daemon.initializeInterception(); err != nil {
@@ -270,7 +279,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 
 // initializeInterception creates and publishes the server-owned request pool.
 func (s *Server) initializeInterception() error {
-	pool, err := NewCachedBridgePool(s.poolOptions, nil, s.logger.Named("pool"), s.metrics, s.tracer)
+	pool, err := NewCachedBridgePool(s.poolOptions, nil, s.recorders, s.logger.Named("pool"), s.metrics, s.tracer)
 	if err != nil {
 		return xerrors.Errorf("create request pool: %w", err)
 	}
@@ -326,7 +335,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return http.HandlerFunc(notReadyHandler), nil
 	}
 	if current.pool != nil {
-		reqBridge, err := current.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+		reqBridge, err := current.pool.Acquire(ctx, req, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
 		if err != nil {
 			return nil, xerrors.Errorf("acquire request bridge: %w", err)
 		}
@@ -381,32 +390,14 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	return nil
 }
 
-// newRecorder builds the recorder for one API key.
-//
-// revive:disable-next-line:flag-parameter // Constructor configuration flags.
-func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structuredLogging bool, disableContentRecording bool, clientFn ClientFunc) recorder.Recorder {
-	var middleware []recorder.Middleware
-	if disableContentRecording {
-		middleware = append(middleware, recorder.WithoutRecords(recorder.DisabledRecords{
-			PromptUsage:  true,
-			ToolUsage:    true,
-			ModelThought: true,
-		}))
-	}
-	return aibridge.NewRecorder(
-		logger.Named("recorder"), tracer, apiKeyID, structuredLogging,
-		recorder.NewDRPCRecorder(apiKeyID, func(ctx context.Context) (proto.DRPCRecorderClient, error) {
-			// The recorder outlives its caller, so acquire the client with each
-			// record call's context.
-			return clientFn(ctx)
-		}),
-		middleware...,
-	)
+// RecordPolicy reports the policy the server's recorders were created with, so
+// a caller can assert that its configuration reached the server.
+func (s *Server) RecordPolicy() RecordPolicy {
+	return s.recordPolicy
 }
 
 // PoolOptions reports the options the published interception pool was built
-// with, so a caller can assert that its configuration reached the pool serving
-// requests. It reports the zero value in proxy mode, which has no pool.
+// with. It reports the zero value in proxy mode, which has no pool.
 func (s *Server) PoolOptions() PoolOptions {
 	current := s.backend.Load()
 	if current == nil {
