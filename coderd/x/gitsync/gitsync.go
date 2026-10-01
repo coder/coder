@@ -335,8 +335,10 @@ func (r *Refresher) refreshOne(
 
 	now := r.clock.Now().UTC()
 	params := &database.UpsertChatDiffStatusParams{
-		ChatID: row.ChatID,
-		Url:    sql.NullString{String: prURL, Valid: prURL != ""},
+		ChatID:          row.ChatID,
+		GitRemoteOrigin: row.GitRemoteOrigin,
+		GitBranch:       row.GitBranch,
+		Url:             sql.NullString{String: prURL, Valid: prURL != ""},
 		PullRequestState: sql.NullString{
 			String: string(status.State),
 			Valid:  status.State != "",
