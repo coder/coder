@@ -2719,7 +2719,7 @@ export const StartWorkspaceCompletedWithAgentLogs: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: `Started ${MockWorkspace.name}` }),
 		);
-		await canvas.findByRole("region", { name: "Workspace agent startup log" });
+		await canvas.findByText("Agent startup");
 	},
 };
 

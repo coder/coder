@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -34,9 +34,6 @@ describe("Tool workspace lifecycle rows", () => {
 			const watchBuildLogs = vi
 				.spyOn(apiModule, "watchBuildLogsByBuildId")
 				.mockImplementation(() => createMockWebSocket("ws://test")[0]);
-			const getBuildLogs = vi
-				.spyOn(API, "getWorkspaceBuildLogs")
-				.mockResolvedValue([]);
 			const watchAgentLogs = vi
 				.spyOn(apiModule, "watchWorkspaceAgentLogs")
 				.mockImplementation(
@@ -76,18 +73,11 @@ describe("Tool workspace lifecycle rows", () => {
 			);
 
 			expect(watchBuildLogs).not.toHaveBeenCalled();
-			expect(getBuildLogs).not.toHaveBeenCalled();
 			expect(watchAgentLogs).not.toHaveBeenCalled();
 
 			await userEvent.click(screen.getByRole("button", { expanded: false }));
 
-			if (isRunning) {
-				expect(watchBuildLogs).toHaveBeenCalledWith(buildId, expect.anything());
-			} else {
-				await waitFor(() => {
-					expect(getBuildLogs).toHaveBeenCalledWith(buildId);
-				});
-			}
+			expect(watchBuildLogs).toHaveBeenCalledWith(buildId, expect.anything());
 			if (streamsAgentLogs) {
 				expect(watchAgentLogs).toHaveBeenCalledWith(
 					MockWorkspaceAgent.id,
