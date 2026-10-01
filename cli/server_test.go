@@ -2567,7 +2567,8 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	cacheDir := t.TempDir()
 	runServer := func(t *testing.T, opts runServerOpts) (chan error, context.CancelFunc) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		inv, _ := clitest.New(t,
+		t.Cleanup(cancelFunc)
+		inv, cfg := clitest.New(t,
 			"server",
 			"--postgres-url", dbConnURL,
 			"--http-address", "127.0.0.1:0",
@@ -2594,6 +2595,19 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		if opts.waitForTelemetryDisabledCheck {
 			stdout.ExpectMatch(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
 		}
+
+		// Telemetry can initialize before the server is healthy.
+		// Wait for HTTP serving so context cancellation does not interrupt startup.
+		client := codersdk.New(waitAccessURL(t, cfg))
+		healthCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(healthCtx, t, func(ctx context.Context) bool {
+			resp, err := client.Request(ctx, http.MethodGet, "/healthz", nil)
+			if err != nil {
+				return false
+			}
+			defer resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}, testutil.IntervalFast, "server did not become healthy")
 		return errChan, cancelFunc
 	}
 	waitForShutdown := func(t *testing.T, errChan chan error) error {
