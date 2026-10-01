@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // Attribution carries contextual per-request attribution data for a request.
@@ -70,6 +71,33 @@ func WithResponsesWebSocketEnabled(ctx context.Context, enabled bool) context.Co
 func ResponsesWebSocketEnabled(ctx context.Context) bool {
 	enabled, _ := ctx.Value(responsesWebSocketEnabledCtxKey{}).(bool)
 	return enabled
+}
+
+// ErrRateLimited is returned by a [RateLimitConsumer] whose bucket is
+// exhausted.
+var ErrRateLimited = xerrors.New("rate limited")
+
+// RateLimitConsumer counts one more request against the AI Gateway rate
+// limiter bucket of the HTTP request that carried it, and returns
+// [ErrRateLimited] when that request would exceed the limit. It is safe for
+// concurrent use.
+type RateLimitConsumer func() error
+
+type rateLimitConsumerCtxKey struct{}
+
+// WithRateLimitConsumer returns a copy of ctx carrying consume. Only the AI
+// Gateway rate limiting middleware sets it, so work that one HTTP request
+// carries out many times, such as each response.create of a Responses
+// WebSocket, counts against the same limiter and key as the request.
+func WithRateLimitConsumer(ctx context.Context, consume RateLimitConsumer) context.Context {
+	return context.WithValue(ctx, rateLimitConsumerCtxKey{}, consume)
+}
+
+// RateLimitConsumerFromContext returns the consumer attached by
+// [WithRateLimitConsumer], or nil when the request is not rate limited.
+func RateLimitConsumerFromContext(ctx context.Context) RateLimitConsumer {
+	consume, _ := ctx.Value(rateLimitConsumerCtxKey{}).(RateLimitConsumer)
+	return consume
 }
 
 type (

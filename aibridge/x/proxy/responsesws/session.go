@@ -31,6 +31,26 @@
 // order, and ends the interception from its outcome. The accounting queue
 // is bounded: on overload the reader drops accounting jobs, never frames,
 // logs each drop, and the affected interception ends with an overload error.
+//
+// Wire limits and memory:
+//
+// The transport bounds each client frame by MaxClientFrameBytes and each
+// upstream frame by MaxUpstreamFrameBytes, by setting them as the read
+// limits of its connections. Upstream frames read ahead of Recv are bounded
+// by count (frameBuffer) and by bytes (maxBufferedFrameBytes, or one frame
+// of any size when nothing else is buffered). When the buffer is full the
+// reader stops reading upstream, so a slow client slows only its own
+// upstream. Accounting copies only frames the extractor can parse: a frame
+// over extract.MaxEventBytes is accounted by its type and arrival time.
+//
+// In the worst case a session holds 56 MiB: 16 MiB of buffered frames, a
+// 16 MiB frame the reader waits to buffer, 16 MiB of queued accounting
+// frames (maxQueuedBytes), a 4 MiB frame being accounted, and a 4 MiB error
+// frame that raced a create's write. The transport adds its own buffers: one
+// upstream frame being read, one frame being written to the client, and one
+// client frame, up to 64 MiB together. At the AI Gateway's cap of 512
+// sockets per replica, the session-held worst case is 28 GiB per replica;
+// real frames are usually a few KiB.
 package responsesws
 
 import (
@@ -52,16 +72,33 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extract"
 	respextract "github.com/coder/coder/v2/aibridge/extract/responses"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 )
 
 const (
+	// MaxClientFrameBytes bounds one client frame. It equals the HTTP
+	// request body limit, so any request the HTTP endpoint accepts is also
+	// accepted over WebSocket.
+	MaxClientFrameBytes = routing.MaxRequestBodyBytes
+	// MaxUpstreamFrameBytes bounds one upstream frame. The largest server
+	// events carry a whole response object, such as response.completed with
+	// base64 image generation output, and stay well below it. It is separate
+	// from MaxClientFrameBytes because it also bounds what the gateway
+	// buffers per socket for a client that reads slowly.
+	MaxUpstreamFrameBytes = 16 << 20
+
 	// frameBuffer bounds upstream frames read ahead of Recv. The reader stops
 	// reading upstream while it is full.
 	frameBuffer = 16
+	// maxBufferedFrameBytes bounds the bytes of upstream frames read ahead
+	// of Recv. A larger frame is buffered only when no other frame is, so
+	// one frame of up to MaxUpstreamFrameBytes always passes.
+	maxBufferedFrameBytes = 8 << 20
 	// errorBuffer bounds synthesized error events waiting for Recv. It matches
 	// the upstream limit of 16 in-flight responses per connection.
 	errorBuffer = 16
@@ -98,8 +135,9 @@ type Provider interface {
 // AdmitFunc decides whether a client response.create for model may be
 // forwarded. A returned *intercept.ResponseError is relayed to the client
 // with its status, code, and message. Other errors are relayed as a generic
-// 403 refusal so internal details are not exposed.
-type AdmitFunc func(ctx context.Context, model string) error
+// 403 refusal so internal details are not exposed. The gateway's per-create
+// admission, from aibcontext.CreateAdmissionFromContext, is one.
+type AdmitFunc = aibcontext.CreateAdmissionFunc
 
 // Options configures a Session.
 type Options struct {
@@ -127,10 +165,12 @@ type Session struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 
-	frames   chan []byte
-	errors   chan []byte
-	readDone chan struct{}
-	readErr  error // Written before readDone is closed.
+	frames chan []byte
+	// frameBytes bounds the bytes of the frames in frames.
+	frameBytes *byteBudget
+	errors     chan []byte
+	readDone   chan struct{}
+	readErr    error // Written before readDone is closed.
 
 	closeOnce sync.Once
 	closeErr  error
@@ -192,8 +232,9 @@ type interception struct {
 	// Session.mu.
 	raced bool
 	// racedAt is when the first event that raced the create's write
-	// arrived. racedErr is the first error event that raced it, which
-	// arrived at racedErrAt. The error becomes the create's end cause, else
+	// arrived. racedErrAt is when the first error event that raced it
+	// arrived, and racedErr that event, unless it exceeds
+	// extract.MaxEventBytes. The error becomes the create's end cause, else
 	// the create ends without one at racedAt. Guarded by Session.mu.
 	racedAt    time.Time
 	racedErr   []byte
@@ -234,6 +275,7 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 		ctx:           sessionCtx,
 		cancel:        cancel,
 		frames:        make(chan []byte, frameBuffer),
+		frameBytes:    newByteBudget(maxBufferedFrameBytes),
 		errors:        make(chan []byte, errorBuffer),
 		readDone:      make(chan struct{}),
 		queue:         newJobQueue(),
@@ -352,12 +394,14 @@ func (s *Session) Recv(ctx context.Context) ([]byte, error) {
 	case ev := <-s.errors:
 		return ev, nil
 	case frame := <-s.frames:
+		s.frameBytes.release(len(frame))
 		return frame, nil
 	case <-s.readDone:
 		select {
 		case ev := <-s.errors:
 			return ev, nil
 		case frame := <-s.frames:
+			s.frameBytes.release(len(frame))
 			return frame, nil
 		default:
 			return nil, s.readErr
@@ -396,10 +440,12 @@ func (s *Session) readLoop() {
 			// copy and may modify it.
 			frame = bytes.Clone(frame)
 			s.route(frame, arrived)
-			select {
-			case s.frames <- frame:
-				continue
-			case <-s.ctx.Done():
+			if s.frameBytes.acquire(s.ctx, len(frame)) {
+				select {
+				case s.frames <- frame:
+					continue
+				case <-s.ctx.Done():
+				}
 			}
 		}
 		endedAt := time.Now()
@@ -522,8 +568,13 @@ func (s *Session) publish(ic *interception) {
 	}
 	racedErr, racedErrAt, racedAt := ic.racedErr, ic.racedErrAt, ic.racedAt
 	s.mu.Unlock()
-	if racedErr == nil {
+	switch {
+	case racedErrAt.IsZero():
 		s.end(ic, nil, racedAt)
+		return
+	case racedErr == nil:
+		// The error was too large to parse, but still rejected the create.
+		s.end(ic, unparsedFailure(eventError), racedErrAt)
 		return
 	}
 	// The create was never bound, so no other goroutine records for it.
@@ -640,9 +691,13 @@ func (s *Session) route(frame []byte, arrived time.Time) {
 			// The error may answer the create whose write is in flight. See
 			// publish.
 			q[0].markRaced(arrived)
-			if q[0].racedErr == nil {
-				// Copied, since the client owns frame.
-				q[0].racedErr, q[0].racedErrAt = bytes.Clone(frame), arrived
+			if q[0].racedErrAt.IsZero() {
+				q[0].racedErrAt = arrived
+				// Copied, since the client owns frame. A frame the extractor
+				// would skip is not kept.
+				if len(frame) <= extract.MaxEventBytes {
+					q[0].racedErr = bytes.Clone(frame)
+				}
 			}
 		}
 		return

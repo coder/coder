@@ -142,7 +142,7 @@ func TestRacedErrorKeepsCause(t *testing.T) {
 
 // TestUnknownFramesUnchanged requires that frames the extractor cannot use,
 // including invalid JSON and oversized events, are forwarded byte for byte
-// while recording is blocked, and produce parse notes but no records.
+// while recording is blocked, and produce warnings but no records.
 func TestUnknownFramesUnchanged(t *testing.T) {
 	t.Parallel()
 	ctx := codertestutil.Context(t, codertestutil.WaitShort)
@@ -162,8 +162,10 @@ func TestUnknownFramesUnchanged(t *testing.T) {
 		fmt.Sprintf(`{"type":"response.output_text.delta","delta":%q}`, strings.Repeat("y", 1024)),
 	)
 	require.NoError(t, responsesws.Drain(ctx, h.sess))
-	// Invalid JSON and the oversized event reach the extractor as notes.
-	require.Equal(t, 2, h.logs.count("extractor parse note"))
+	// Invalid JSON reaches the extractor as a note; the oversized event is
+	// skipped before it.
+	require.Equal(t, 1, h.logs.count("extractor parse note"))
+	require.Equal(t, 1, h.logs.count("skipped accounting of an event over the size limit"))
 	require.Len(t, h.rec.RecordedPromptUsages(), prompts)
 	require.Empty(t, h.rec.RecordedTokenUsages())
 	require.Empty(t, h.rec.RecordedToolUsages())
@@ -368,7 +370,9 @@ func TestDroppedTerminalEndsWithOverload(t *testing.T) {
 
 // TestOversizedTerminalEvent requires that a terminal event the extractor
 // skips as oversized still ends its interception by the event's type: a
-// failure as an upstream error, an incomplete response without one.
+// failure as an upstream error, an incomplete response without one. Its
+// bytes are not queued, so a frame larger than the accounting queue's byte
+// bound does not end the interception as overloaded.
 func TestOversizedTerminalEvent(t *testing.T) {
 	t.Parallel()
 	pad := `,"pad":"` + strings.Repeat("x", extract.MaxEventBytes) + `"`
@@ -384,6 +388,8 @@ func TestOversizedTerminalEvent(t *testing.T) {
 			t.Parallel()
 			ctx := codertestutil.Context(t, codertestutil.WaitShort)
 			h := newHarness(ctx, t, nil)
+			// The terminal frame alone exceeds the queue's byte bound.
+			responsesws.SetQueueBounds(h.sess, 64, extract.MaxEventBytes)
 			require.NotNil(t, h.send(create("a", "model-a", "hi")))
 			h.relay(created("a", "resp_a", "model-a"), terminal("a", tc.eventType, "resp_a", tc.extra+pad))
 
@@ -393,7 +399,9 @@ func TestOversizedTerminalEvent(t *testing.T) {
 			if tc.errType != "" {
 				require.Contains(t, end.ErrorMessage, tc.eventType)
 			}
+			require.NotContains(t, end.ErrorMessage, "overloaded")
 			require.Equal(t, 1, h.logs.count("extractor skipped a terminal event"))
+			require.Zero(t, h.logs.count("accounting queue full: dropped event"))
 			require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 		})
 	}

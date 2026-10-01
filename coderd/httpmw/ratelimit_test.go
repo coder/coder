@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -278,6 +279,37 @@ func TestRateLimitByAuthToken(t *testing.T) {
 			_ = resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode, "request %d should succeed", i)
 		}
+	})
+
+	// Work a request carries out many times, such as the creates of a
+	// Responses WebSocket, counts against the request's own bucket.
+	t.Run("ConsumerSharesBucket", func(t *testing.T) {
+		t.Parallel()
+		var consume aibridge.RateLimitConsumer
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByAuthToken(3, time.Hour))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			consume = aibridge.RateLimitConsumerFromContext(r.Context())
+			rw.WriteHeader(http.StatusOK)
+		})
+		serve := func(token string) int {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			return rec.Code
+		}
+
+		require.Equal(t, http.StatusOK, serve("token-a"))
+		require.NotNil(t, consume)
+		require.NoError(t, consume())
+		// The request and one consumed unit leave one request for token-a.
+		require.Equal(t, http.StatusOK, serve("token-a"))
+		require.ErrorIs(t, consume(), aibridge.ErrRateLimited)
+		require.Equal(t, http.StatusTooManyRequests, serve("token-a"))
+		// Other tokens keep their own buckets.
+		require.Equal(t, http.StatusOK, serve("token-b"))
+		require.NoError(t, consume())
 	})
 
 	t.Run("DisabledWhenZero", func(t *testing.T) {

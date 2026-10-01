@@ -1974,6 +1974,64 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	}
 }
 
+// TestAIGatewayDataPlaneMiddlewareWebSocketConcurrency requires that only
+// WebSocket upgrades to a Responses route skip the concurrency limit, which
+// would otherwise hold a slot for a socket's whole lifetime. Other requests
+// to the route and upgrades to other routes stay limited.
+//
+//nolint:tparallel,paralleltest // Subtests share the one held slot.
+func TestAIGatewayDataPlaneMiddlewareWebSocketConcurrency(t *testing.T) {
+	t.Parallel()
+
+	cfg := codersdk.AIBridgeConfig{MaxConcurrency: 1}
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	handler := entcoderd.AIGatewayDataPlaneMiddleware(cfg)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/hold" {
+			close(started)
+			<-unblock
+		}
+		rw.WriteHeader(http.StatusOK)
+	}))
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Hold the only slot.
+	held := make(chan struct{})
+	go func() {
+		defer close(held)
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/hold", nil))
+	}()
+	_ = testutil.TryReceive(ctx, t, started)
+	defer func() {
+		close(unblock)
+		_ = testutil.TryReceive(ctx, t, held)
+	}()
+
+	for _, tc := range []struct {
+		name    string
+		method  string
+		path    string
+		upgrade bool
+		want    int
+	}{
+		{name: "UpgradeToResponses", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/responses", upgrade: true, want: http.StatusOK},
+		{name: "StandaloneUpgradeToResponses", method: http.MethodGet, path: "/openai/v1/responses", upgrade: true, want: http.StatusOK},
+		{name: "HTTPToResponses", method: http.MethodPost, path: "/api/v2/ai-gateway/openai/v1/responses", want: http.StatusServiceUnavailable},
+		{name: "UpgradeToOtherRoute", method: http.MethodGet, path: "/api/v2/ai-gateway/openai/v1/chat/completions", upgrade: true, want: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			if tc.upgrade {
+				req.Header.Set("Connection", "Upgrade")
+				req.Header.Set("Upgrade", "websocket")
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			require.Equal(t, tc.want, rec.Code)
+		})
+	}
+}
+
 type boundaryLogSeed struct {
 	seq     int32
 	proto   string

@@ -3,6 +3,7 @@ package aibridged_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -22,11 +24,13 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -373,6 +377,108 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			require.NoError(t, err, "read response body")
 			require.Contains(t, string(body), tc.expectedErr.Error())
 			require.Equal(t, tc.expectedStatus, resp.StatusCode)
+		})
+	}
+}
+
+// TestServeHTTP_CreateAdmission requires that every authorized request
+// carries the admission each response.create of a Responses WebSocket runs:
+// the create counts against the request's rate limiter bucket and the user's
+// budget is checked again, and refusals are OpenAI-shaped errors with the
+// HTTP status of the matching HTTP refusal.
+func TestServeHTTP_CreateAdmission(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		// rateLimit is the requests per hour allowed per token, or 0 for no
+		// limit.
+		rateLimit int
+		// budget is the result of the create's budget check. The request's
+		// own check always passes.
+		budget       func() (*proto.IsBudgetExceededResponse, error)
+		expectStatus int
+		expectType   string
+		expectCode   string
+		expectMsg    string
+	}{
+		{
+			name:   "admitted",
+			budget: func() (*proto.IsBudgetExceededResponse, error) { return &proto.IsBudgetExceededResponse{}, nil },
+		},
+		{
+			// The request used the only request of its bucket.
+			name:         "rate limited",
+			rateLimit:    1,
+			expectStatus: http.StatusTooManyRequests,
+			expectType:   intercept.OpenAIErrTypeRateLimit,
+			expectCode:   intercept.OpenAIErrCodeRateLimit,
+			expectMsg:    "rate limited",
+		},
+		{
+			name:      "budget exceeded",
+			rateLimit: 2,
+			budget: func() (*proto.IsBudgetExceededResponse, error) {
+				return &proto.IsBudgetExceededResponse{Exceeded: true, SpendLimitMicros: new(int64(1_500_000))}, nil
+			},
+			expectStatus: http.StatusForbidden,
+			expectType:   "insufficient_quota",
+			expectCode:   "insufficient_quota",
+			expectMsg:    "AI budget of US$1.50 exceeded",
+		},
+		{
+			name:         "budget check failed",
+			budget:       func() (*proto.IsBudgetExceededResponse, error) { return nil, xerrors.New("oops") },
+			expectStatus: http.StatusInternalServerError,
+			expectType:   intercept.OpenAIErrTypeAPI,
+			expectCode:   intercept.OpenAIErrCodeServer,
+			expectMsg:    aibridged.ErrBudgetCheck.Error(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, client, pool := newTestServerWithDialer(t, nil, &slogtest.Options{IgnoreErrors: true})
+			userID := uuid.New()
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{OwnerId: userID.String()}, nil)
+			budgetRequest := &proto.IsBudgetExceededRequest{UserId: userID.String()}
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Eq(budgetRequest)).Return(&proto.IsBudgetExceededResponse{}, nil)
+			if tc.budget != nil {
+				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Eq(budgetRequest)).DoAndReturn(
+					func(context.Context, *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
+						return tc.budget()
+					})
+			}
+			admissions := make(chan aibridge.CreateAdmissionFunc, 1)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
+				http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					admissions <- aibridge.CreateAdmissionFromContext(r.Context())
+					rw.WriteHeader(http.StatusOK)
+				}), nil)
+
+			handler := httpmw.RateLimitByAuthToken(tc.rateLimit, time.Hour)(srv)
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+			req.Header.Set("Authorization", "Bearer key")
+			handler.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			admit := testutil.TryReceive(ctx, t, admissions)
+			require.NotNil(t, admit)
+			err := admit(ctx, "gpt-5")
+			if tc.expectStatus == 0 {
+				require.NoError(t, err)
+				return
+			}
+			respErr, ok := errors.AsType[*intercept.ResponseError](err)
+			require.True(t, ok, "refusal must be a ResponseError: %v", err)
+			require.Equal(t, tc.expectStatus, respErr.StatusCode)
+			require.Equal(t, tc.expectType, respErr.ErrorObject.Type)
+			require.Equal(t, tc.expectCode, respErr.ErrorObject.Code)
+			require.Contains(t, respErr.ErrorObject.Message, tc.expectMsg)
 		})
 	}
 }

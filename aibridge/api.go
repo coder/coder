@@ -34,6 +34,7 @@ type (
 	ToolUsageRecord         = recorder.ToolUsageRecord
 	ModelThoughtRecord      = recorder.ModelThoughtRecord
 	Recorder                = recorder.Recorder
+	CreateAdmissionFunc     = aibcontext.CreateAdmissionFunc
 	Metadata                = recorder.Metadata
 	ErrorType               = recorder.ErrorType
 
@@ -46,6 +47,14 @@ type (
 
 func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metadata) context.Context {
 	return aibcontext.AsActor(ctx, actorID, email, metadata)
+}
+
+func WithCreateAdmission(ctx context.Context, admit CreateAdmissionFunc) context.Context {
+	return aibcontext.WithCreateAdmission(ctx, admit)
+}
+
+func CreateAdmissionFromContext(ctx context.Context) CreateAdmissionFunc {
+	return aibcontext.CreateAdmissionFromContext(ctx)
 }
 
 // NewAnthropicProvider constructs the Anthropic provider. At most one of

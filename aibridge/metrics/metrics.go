@@ -43,6 +43,10 @@ type Metrics struct {
 	// Keys attempted before success or exhaustion, per interception for
 	// bridged requests and per request for passthrough requests.
 	KeyPoolFailoverAttempts *prometheus.HistogramVec
+
+	// Responses WebSocket metrics.
+	ResponsesWebSocketsOpen    *prometheus.GaugeVec   // Sockets holding a lease, connecting ones included.
+	ResponsesWebSocketRefusals *prometheus.CounterVec // Sockets refused before upgrade.
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -164,5 +168,21 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 				"passthrough requests.",
 			Buckets: []float64{1, 2, 3, 4, 5, 10, 25},
 		}, []string{"provider"}),
+
+		// Responses WebSocket metrics.
+
+		// Pessimistic cardinality: N provider names = up to N.
+		ResponsesWebSocketsOpen: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Subsystem: "responses_websockets",
+			Name:      "open",
+			Help:      "The number of open Responses WebSocket connections, including connecting ones.",
+		}, []string{"provider"}),
+		// Pessimistic cardinality: N provider names, 3 reasons = up to 3N.
+		ResponsesWebSocketRefusals: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "responses_websockets",
+			Name:      "refusals_total",
+			Help: "The number of Responses WebSocket connections refused before upgrade " +
+				"(reason: actor_limit, replica_limit, shutdown).",
+		}, []string{"provider", "reason"}),
 	}
 }

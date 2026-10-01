@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -165,19 +167,18 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// the gateway cannot evaluate per-user experiment rules itself.
 	ctx = agplaibridge.WithResponsesWebSocketEnabled(ctx, resp.GetResponsesWebsocketEnabled())
 
-	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
-		UserId: id.String(),
-	})
+	// A Responses WebSocket the request opens checks each of its creates
+	// like a separate HTTP request.
+	ctx = aibridge.WithCreateAdmission(ctx, s.createAdmission(logger, id, agplaibridge.RateLimitConsumerFromContext(ctx)))
+
+	refusal, err := budgetRefusal(ctx, client, id)
 	if err != nil {
 		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
 		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
 		return
 	}
-	if budgetResp.GetExceeded() {
-		http.Error(rw, fmt.Sprintf(
-			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
-			float64(budgetResp.GetSpendLimitMicros())/1_000_000,
-		), http.StatusForbidden)
+	if refusal != "" {
+		http.Error(rw, refusal, http.StatusForbidden)
 		return
 	}
 
@@ -203,6 +204,68 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.ServeHTTP(rw, r)
+}
+
+// Refusals of a Responses WebSocket response.create. They match the HTTP
+// refusals in status and message; the OpenAI error type and code name the
+// cause for clients that parse them.
+const (
+	rateLimitedMessage = "You've been rate limited. Please try again later."
+	// OpenAI reports an exhausted quota with this type and code.
+	budgetExceededErrType = "insufficient_quota"
+	budgetExceededErrCode = "insufficient_quota"
+)
+
+// budgetRefusal checks the AI budget of the user and returns the message a
+// request is refused with when it is exceeded, or "" when it is not.
+func budgetRefusal(ctx context.Context, client DRPCClient, userID uuid.UUID) (string, error) {
+	resp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+		UserId: userID.String(),
+	})
+	if err != nil {
+		return "", err
+	}
+	if !resp.GetExceeded() {
+		return "", nil
+	}
+	return fmt.Sprintf(
+		"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
+		float64(resp.GetSpendLimitMicros())/1_000_000,
+	), nil
+}
+
+// createAdmission returns the admission every Responses WebSocket
+// response.create of a request runs: the create counts against the request's
+// rate limiter bucket, when the request is rate limited, and then the user's
+// AI budget is checked, as for a separate HTTP request. A refusal is an
+// *intercept.ResponseError, so the client receives an error event and keeps
+// its connection. A failed budget check refuses the create.
+func (s *Server) createAdmission(logger slog.Logger, userID uuid.UUID, consumeRate agplaibridge.RateLimitConsumer) aibridge.CreateAdmissionFunc {
+	return func(ctx context.Context, _ string) error {
+		if consumeRate != nil {
+			if err := consumeRate(); err != nil {
+				return intercept.NewResponseError(rateLimitedMessage, intercept.OpenAIErrTypeRateLimit, intercept.OpenAIErrCodeRateLimit, http.StatusTooManyRequests, 0)
+			}
+		}
+		checkFailed := func(err error) error {
+			logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
+			return intercept.NewResponseError(ErrBudgetCheck.Error(), intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, http.StatusInternalServerError, 0)
+		}
+		// The connection to coderd may have been replaced since the request
+		// was authorized, so each create acquires the current client.
+		client, err := s.Client(ctx)
+		if err != nil {
+			return checkFailed(err)
+		}
+		refusal, err := budgetRefusal(ctx, client, userID)
+		if err != nil {
+			return checkFailed(err)
+		}
+		if refusal != "" {
+			return intercept.NewResponseError(refusal, budgetExceededErrType, budgetExceededErrCode, http.StatusForbidden, 0)
+		}
+		return nil
+	}
 }
 
 // attributionFromAuthorization extracts the workspace ID from the
