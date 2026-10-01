@@ -321,7 +321,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		arg := automationUpdateParams(row, now)
 		// Work computed from an older prompt or schedule is stale once
 		// either changes.
-		scheduleChanged := false
+		invalidatesPendingRuns := false
 
 		if req.Name != nil {
 			arg.Name, err = validateAutomationName(*req.Name)
@@ -333,7 +333,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			if err := validateAutomationPrompt(*req.Prompt); err != nil {
 				return err
 			}
-			scheduleChanged = scheduleChanged || *req.Prompt != row.Prompt
+			invalidatesPendingRuns = invalidatesPendingRuns || *req.Prompt != row.Prompt
 			arg.Prompt = *req.Prompt
 		}
 		if req.ScheduleCron != nil || req.ScheduleTimeZone != nil {
@@ -356,7 +356,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 				return err
 			}
 			if sched.Cron() != row.ScheduleCron.String || timeZone != row.ScheduleTimeZone.String {
-				scheduleChanged = true
+				invalidatesPendingRuns = true
 				arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
 				arg.ScheduleTimeZone = sql.NullString{String: timeZone, Valid: true}
 				// A disabled automation has no pending occurrence.
@@ -408,7 +408,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			}
 			arg.NewChatModelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
 		}
-		if scheduleChanged && row.Kind == database.ChatAutomationKindSchedule {
+		if invalidatesPendingRuns && row.Kind == database.ChatAutomationKindSchedule {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
 		switch {
