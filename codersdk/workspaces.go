@@ -387,6 +387,43 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	return nil
 }
 
+// PostWorkspaceUsageRequest is ignored by the server.
+//
+// Deprecated: use PostWorkspaceUsage, which sends no body.
+type PostWorkspaceUsageRequest struct {
+	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
+	AppName string    `json:"app_name"`
+}
+
+// UsageAppName is the app name previously sent in PostWorkspaceUsageRequest.
+//
+// Deprecated: the server ignores usage app names.
+type UsageAppName string
+
+// Deprecated: the server ignores usage app names.
+const (
+	UsageAppNameVscode          UsageAppName = "vscode"
+	UsageAppNameJetbrains       UsageAppName = "jetbrains"
+	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
+	UsageAppNameSSH             UsageAppName = "ssh"
+)
+
+// PostWorkspaceUsageWithBody marks the workspace as having been used recently.
+// The request body is ignored.
+//
+// Deprecated: use PostWorkspaceUsage instead.
+func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, _ PostWorkspaceUsageRequest) error {
+	return c.PostWorkspaceUsage(ctx, id)
+}
+
+// UpdateWorkspaceUsageWithBodyContext periodically posts workspace usage for
+// the workspace in the background. The request body is ignored.
+//
+// Deprecated: use UpdateWorkspaceUsageContext instead.
+func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, workspaceID uuid.UUID, _ PostWorkspaceUsageRequest) func() {
+	return c.UpdateWorkspaceUsageContext(ctx, workspaceID)
+}
+
 // PostWorkspaceUsage marks the workspace as having been used recently.
 func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())

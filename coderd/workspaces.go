@@ -1789,7 +1789,9 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @ID post-workspace-usage-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
+// @Accept json
 // @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.PostWorkspaceUsageRequest false "Deprecated and ignored"
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {

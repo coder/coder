@@ -5517,6 +5517,11 @@ const (
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 )
 
+// ExperimentWorkspaceUsage has no effect and is not a known experiment.
+//
+// Deprecated: workspace usage is always tracked the same way.
+const ExperimentWorkspaceUsage Experiment = "workspace-usage"
+
 func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:

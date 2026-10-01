@@ -16849,6 +16849,9 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/usage": {
             "post": {
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -16862,6 +16865,14 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Deprecated and ignored",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceUsageRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -23997,7 +24008,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-board",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24035,7 +24047,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Offers the Coder Agents chat board as a per-browser opt-in.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                ""
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24054,7 +24067,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatBoard",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentWorkspaceUsage"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -27151,6 +27165,18 @@ const docTemplate = `{
                 },
                 "scope": {
                     "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PostWorkspaceUsageRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_name": {
                     "type": "string"
                 }
             }

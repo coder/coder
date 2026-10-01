@@ -5306,7 +5306,8 @@ export type Experiment =
 	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
-	| "workspace-capable-licensing";
+	| "workspace-capable-licensing"
+	| "workspace-usage";
 
 // From codersdk/experimentrules.go
 /**
@@ -5387,6 +5388,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
+	"workspace-usage",
 ];
 
 // From codersdk/scopes_catalog.go
@@ -7947,6 +7949,17 @@ export interface PostOAuth2ProviderAppRequest {
 	 * granted. Leave empty, or omit, for unrestricted.
 	 */
 	readonly scope?: string;
+}
+
+// From codersdk/workspaces.go
+/**
+ * PostWorkspaceUsageRequest is ignored by the server.
+ *
+ * @deprecated use PostWorkspaceUsage, which sends no body.
+ */
+export interface PostWorkspaceUsageRequest {
+	readonly agent_id: string;
+	readonly app_name: string;
 }
 
 // From codersdk/deployment.go
@@ -11022,6 +11035,16 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly share_level: WorkspaceAgentPortShareLevel;
 	readonly protocol: WorkspaceAgentPortShareProtocol;
 }
+
+// From codersdk/workspaces.go
+export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
+
+export const UsageAppNames: UsageAppName[] = [
+	"jetbrains",
+	"reconnecting-pty",
+	"ssh",
+	"vscode",
+];
 
 // From codersdk/deployment.go
 export interface UsagePeriod {
