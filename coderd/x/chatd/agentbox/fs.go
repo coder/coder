@@ -166,6 +166,9 @@ func (f *boxFS) release(ino sys.Inode, size int64) {
 }
 
 func (f *boxFS) Mkdir(p string, perm fs.FileMode) experimentalsys.Errno {
+	if _, errno := f.Lstat(p); errno == 0 {
+		return experimentalsys.EEXIST
+	}
 	if !f.charge(entryCost) {
 		return errQuotaExceeded
 	}

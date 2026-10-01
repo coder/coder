@@ -13,10 +13,10 @@ import (
 func TestMmapMemory(t *testing.T) {
 	t.Parallel()
 	const page = wasmPageSize
-	allocator := newMemoryAllocator(4 * page)
 
 	t.Run("GrowsInPlace", func(t *testing.T) {
 		t.Parallel()
+		allocator, free := newRunMemory(4 * page)
 		mem := allocator.Allocate(page, 16*page)
 		buf := mem.Reallocate(page)
 		require.Len(t, buf, page)
@@ -25,7 +25,7 @@ func TestMmapMemory(t *testing.T) {
 
 		grown := mem.Reallocate(3 * page)
 		require.Len(t, grown, 3*page)
-		assert.Equal(t, unsafe.SliceData(buf), unsafe.SliceData(grown), "growth keeps the address")
+		assert.Equal(t, uintptr(unsafe.Pointer(unsafe.SliceData(buf))), uintptr(unsafe.Pointer(unsafe.SliceData(grown))), "growth keeps the address")
 		assert.Equal(t, byte(1), grown[0])
 		assert.Equal(t, byte(2), grown[page-1])
 		assert.Zero(t, grown[3*page-1], "new pages are zeroed")
@@ -34,16 +34,32 @@ func TestMmapMemory(t *testing.T) {
 		assert.Nil(t, mem.Reallocate(5*page), "growth past the engine limit fails")
 		assert.Len(t, mem.Reallocate(4*page), 4*page)
 		mem.Free()
-		mem.Free()
+		free()
+		free()
 	})
 
 	t.Run("ZeroSize", func(t *testing.T) {
 		t.Parallel()
+		allocator, free := newRunMemory(4 * page)
+		defer free()
 		mem := allocator.Allocate(0, 0)
 		buf := mem.Reallocate(0)
 		require.NotNil(t, buf)
 		assert.Empty(t, buf)
 		assert.Nil(t, mem.Reallocate(page))
-		mem.Free()
+	})
+
+	t.Run("FreeReleasesEveryMemory", func(t *testing.T) {
+		t.Parallel()
+		allocator, free := newRunMemory(4 * page)
+		first, ok := allocator.Allocate(0, page).(*mmapMemory)
+		require.True(t, ok)
+		second, ok := allocator.Allocate(0, page).(*mmapMemory)
+		require.True(t, ok)
+		require.Len(t, first.Reallocate(page), page)
+		require.Len(t, second.Reallocate(page), page)
+		free()
+		assert.Nil(t, first.mapping)
+		assert.Nil(t, second.mapping)
 	})
 }

@@ -72,6 +72,16 @@ func TestRun(t *testing.T) {
 		assert.False(t, result.Canceled)
 	})
 
+	t.Run("GuestExitMinusOne", func(t *testing.T) {
+		t.Parallel()
+		box := newBox(t, engine)
+		// exit(-1) arrives as wazero's context-canceled code.
+		result := runJS(t, box, `std.exit(-1);`)
+		assert.Equal(t, -1, result.ExitCode)
+		assert.False(t, result.TimedOut)
+		assert.False(t, result.Canceled)
+	})
+
 	t.Run("CallerCancel", func(t *testing.T) {
 		t.Parallel()
 		mClock := quartz.NewMock(t)
@@ -503,10 +513,17 @@ func TestLimits(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		trap.MustWait(ctx).MustRelease(ctx)
 
+		expired, cancelExpired := context.WithDeadline(ctx, time.Unix(0, 0))
+		defer cancelExpired()
+		_, err := second.Run(expired, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
+		require.ErrorIs(t, err, agentbox.ErrBusy)
+
+		// A canceled wait is not a capacity error.
 		canceled, cancel := context.WithCancel(ctx)
 		cancel()
-		_, err := second.Run(canceled, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
-		require.ErrorIs(t, err, agentbox.ErrBusy)
+		_, err = second.Run(canceled, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
+		require.ErrorIs(t, err, context.Canceled)
+		require.NotErrorIs(t, err, agentbox.ErrBusy)
 
 		require.NoError(t, first.Close())
 		testutil.TryReceive(ctx, t, done)
@@ -578,6 +595,33 @@ func TestLifecycle(t *testing.T) {
 		require.NoError(t, box.Close())
 		require.NoError(t, testutil.RequireReceive(ctx, t, first))
 		require.ErrorIs(t, testutil.RequireReceive(ctx, t, second), agentbox.ErrClosed)
+	})
+
+	t.Run("EngineCloseStopsRuns", func(t *testing.T) {
+		t.Parallel()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().AfterFunc("agentbox", "run-timeout")
+		defer trap.Close()
+		engine := newEngine(t, agentbox.Options{Clock: mClock})
+		box, err := engine.NewBox()
+		require.NoError(t, err)
+		done := make(chan agentbox.RunResult, 1)
+		go func() {
+			result, err := box.Run(context.Background(), agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `for (;;) {}`})
+			assert.NoError(t, err)
+			done <- result
+		}()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// The box is never closed; Close must still stop the run before
+		// releasing the runtime.
+		require.NoError(t, engine.Close(ctx))
+		result := testutil.RequireReceive(ctx, t, done)
+		assert.True(t, result.Canceled)
+		assert.Equal(t, agentbox.ExitCodeInterrupted, result.ExitCode)
+		_, err = box.Run(ctx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
+		require.ErrorIs(t, err, agentbox.ErrClosed)
 	})
 
 	t.Run("EngineCloseWaitsForAsyncClose", func(t *testing.T) {

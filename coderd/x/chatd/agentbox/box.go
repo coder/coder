@@ -126,9 +126,13 @@ func (b *Box) ID() string {
 	return b.id
 }
 
+// errRunTimeout is the cancellation cause of a run that hit its timeout.
+var errRunTimeout = xerrors.New("agent box run timed out")
+
 // Run executes req.Code with the requested language runtime. The guest
 // sees the box at /box; stdout and stderr are captured up to the output
-// limit. ErrBusy is returned when ctx ends before a run slot is free.
+// limit. Run waits for a free run slot; ErrBusy is returned when ctx's
+// deadline passes first and ErrClosed when the box or engine closes.
 func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 	rt, ok := runtimes[req.Language]
 	if !ok {
@@ -141,20 +145,26 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		return RunResult{}, ErrClosed
 	}
 
-	// Close cancels runCtx, so every blocking phase below (slot wait,
-	// first-use compile, execution) ends promptly when the box goes away.
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	b.runCancel.Store(&cancel)
+	// Box and engine close cancel runCtx with ErrClosed, so every blocking
+	// phase below (slot wait, first-use compile, execution) ends promptly.
+	runCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	closeRun := context.CancelFunc(func() { cancel(ErrClosed) })
+	b.runCancel.Store(&closeRun)
 	defer b.runCancel.Store(nil)
+	stopEngineCancel := context.AfterFunc(b.engine.runsCtx, closeRun)
+	defer stopEngineCancel()
 	if b.closing.Load() {
 		return RunResult{}, ErrClosed
 	}
 
 	if err := b.engine.runs.Acquire(runCtx, 1); err != nil {
-		return RunResult{}, xerrors.Errorf("acquire run slot (%v): %w", err, ErrBusy)
+		return RunResult{}, slotWaitError(runCtx)
 	}
 	defer b.engine.runs.Release(1)
+	if b.engine.closed.Load() {
+		return RunResult{}, ErrClosed
+	}
 
 	compiled, err := b.engine.compile(runCtx, rt)
 	if err != nil {
@@ -165,10 +175,8 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		return RunResult{}, xerrors.Errorf("write script: %w", err)
 	}
 
-	var timedOut atomic.Bool
 	timer := b.engine.clock.AfterFunc(b.engine.limits.RunTimeout, func() {
-		timedOut.Store(true)
-		cancel()
+		cancel(errRunTimeout)
 	}, "agentbox", "run-timeout")
 	defer timer.Stop()
 
@@ -188,16 +196,25 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		WithSysWalltime().
 		WithSysNanotime()
 
-	start := b.engine.clock.Now("agentbox", "run-start")
 	instantiateCtx := runCtx
-	if b.engine.memory != nil {
-		instantiateCtx = experimental.WithMemoryAllocator(runCtx, b.engine.memory)
+	allocator, freeMemory := newRunMemory(b.engine.memoryLimit)
+	if allocator != nil {
+		instantiateCtx = experimental.WithMemoryAllocator(runCtx, allocator)
 	}
+	start := b.engine.clock.Now("agentbox", "run-start")
 	mod, err := b.engine.runtime.InstantiateModule(instantiateCtx, compiled, config)
 	duration := b.engine.clock.Since(start, "agentbox", "run-end")
+	// Read the outcome before anything else can cancel runCtx. The first
+	// cancellation cause wins, so a timeout and a close cannot both claim
+	// the run.
+	interrupted := runCtx.Err() != nil
+	timedOut := errors.Is(context.Cause(runCtx), errRunTimeout)
 	if mod != nil {
 		_ = mod.Close(context.WithoutCancel(ctx))
 	}
+	// The guest has returned, so its memory can be released even when
+	// wazero did not close the module itself.
+	freeMemory()
 
 	result := RunResult{
 		Stdout:          stdout.String(),
@@ -213,18 +230,33 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 	switch {
 	case err == nil:
 		return result, nil
-	case isExit && (runCtx.Err() == nil || !isInterruptExitCode(exitErr.ExitCode())):
+	case isExit && (!interrupted || !isInterruptExitCode(exitErr.ExitCode())):
 		// WASI exit statuses are uint32; a guest exit(-1) arrives as
-		// 0xffffffff.
+		// 0xffffffff. A guest that exits with one of wazero's interrupt
+		// codes just as runCtx ends is indistinguishable from an
+		// interrupted run.
 		result.ExitCode = int(int32(exitErr.ExitCode())) //nolint:gosec // Intentional two's complement reinterpretation.
 		return result, nil
-	case isExit || runCtx.Err() != nil:
+	case isExit || interrupted:
 		result.ExitCode = ExitCodeInterrupted
-		result.TimedOut = timedOut.Load()
-		result.Canceled = !result.TimedOut
+		result.TimedOut = timedOut
+		result.Canceled = !timedOut
 		return result, nil
 	}
 	return RunResult{}, xerrors.Errorf("run guest: %w", err)
+}
+
+// slotWaitError explains why a wait for a run slot ended.
+func slotWaitError(runCtx context.Context) error {
+	cause := context.Cause(runCtx)
+	switch {
+	case errors.Is(cause, ErrClosed):
+		return ErrClosed
+	case errors.Is(cause, context.DeadlineExceeded):
+		return xerrors.Errorf("wait for a run slot: %w", ErrBusy)
+	default:
+		return xerrors.Errorf("wait for a run slot: %w", cause)
+	}
 }
 
 // isInterruptExitCode reports whether code is one wazero uses when it

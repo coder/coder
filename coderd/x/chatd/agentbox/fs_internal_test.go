@@ -131,6 +131,17 @@ func TestBoxFS(t *testing.T) {
 		assert.Equal(t, int64(1<<20), q.remaining.Load(), "last close refunds the bytes")
 	})
 
+	t.Run("MkdirExistingAtQuota", func(t *testing.T) {
+		t.Parallel()
+		f, q := newFS(t, entryCost)
+		require.Zero(t, f.Mkdir("d", 0o700))
+		require.Zero(t, q.remaining.Load())
+		assert.Equal(t, experimentalsys.EEXIST, f.Mkdir("d", 0o700))
+		assert.False(t, f.quotaHit.Load(), "an existing directory is not a quota failure")
+		assert.Equal(t, errQuotaExceeded, f.Mkdir("e", 0o700))
+		assert.True(t, f.quotaHit.Load())
+	})
+
 	t.Run("ProtectsMountRoot", func(t *testing.T) {
 		t.Parallel()
 		f, _ := newFS(t, 1<<20)

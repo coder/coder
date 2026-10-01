@@ -25,7 +25,6 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/experimental"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
@@ -55,7 +54,8 @@ var (
 	// ErrClosed is returned by operations on a closed box or engine.
 	ErrClosed = xerrors.New("agent box is closed")
 	// ErrBusy is returned when a run cannot start because the engine is at
-	// its concurrent run limit and the caller's context ended while waiting.
+	// its concurrent run limit and the caller's context deadline passed
+	// while waiting.
 	ErrBusy = xerrors.New("agent box engine is busy")
 	// ErrTooManyBoxes is returned by NewBox at the live box limit.
 	ErrTooManyBoxes = xerrors.New("too many live agent boxes")
@@ -114,16 +114,19 @@ type Options struct {
 // Engine compiles embedded runtimes once and creates boxes under one
 // process-private root directory.
 type Engine struct {
-	logger   slog.Logger
-	clock    quartz.Clock
-	limits   Limits
-	rootDir  string
-	lock     *flock.Flock
-	runtime  wazero.Runtime
-	runs     *semaphore.Weighted
-	maxBoxes int
-	// memory backs guest linear memory; nil uses wazero's default.
-	memory experimental.MemoryAllocator
+	logger        slog.Logger
+	clock         quartz.Clock
+	limits        Limits
+	rootDir       string
+	lock          *flock.Flock
+	runtime       wazero.Runtime
+	runs          *semaphore.Weighted
+	maxConcurrent int
+	maxBoxes      int
+	memoryLimit   uint64
+	// runsCtx is canceled by Close to stop every run.
+	runsCtx    context.Context
+	cancelRuns context.CancelFunc
 
 	compiled map[string]func() (wazero.CompiledModule, error)
 
@@ -185,9 +188,11 @@ func NewEngine(ctx context.Context, opts Options) (*Engine, error) {
 		lock:     lock,
 		runs:     semaphore.NewWeighted(int64(maxConcurrent)),
 		maxBoxes: maxBoxes,
-		memory:   newMemoryAllocator(uint64(limits.MemoryBytes/wasmPageSize) * wasmPageSize),
 		compiled: make(map[string]func() (wazero.CompiledModule, error), len(runtimes)),
 	}
+	e.maxConcurrent = maxConcurrent
+	e.memoryLimit = uint64(limits.MemoryBytes/wasmPageSize) * wasmPageSize
+	e.runsCtx, e.cancelRuns = context.WithCancel(context.WithoutCancel(ctx))
 	e.runtime = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
 		WithMemoryLimitPages(limits.MemoryBytes/wasmPageSize).
 		WithCloseOnContextDone(true))
@@ -300,14 +305,21 @@ func (e *Engine) compile(ctx context.Context, rt guestRuntime) (wazero.CompiledM
 	return compiled, nil
 }
 
-// Close waits for boxes closing in the background, releases the wazero
-// runtime, and removes the engine root. Boxes still open lose their
-// directories; callers close boxes first.
+// Close stops in-flight runs and waits for them and for boxes closing in
+// the background, then releases the wazero runtime and removes the engine
+// root. Boxes still open lose their directories; callers close boxes
+// first. Guest memory is unmapped when the runtime closes, so if ctx ends
+// before every run has returned, Close leaves the runtime open and
+// returns an error.
 func (e *Engine) Close(ctx context.Context) error {
 	if !e.closed.CompareAndSwap(false, true) {
 		return nil
 	}
+	e.cancelRuns()
 	e.closes.Wait()
+	if err := e.runs.Acquire(ctx, int64(e.maxConcurrent)); err != nil {
+		return xerrors.Errorf("wait for agent box runs: %w", err)
+	}
 	var errs []error
 	if err := e.runtime.Close(ctx); err != nil {
 		errs = append(errs, xerrors.Errorf("close wazero runtime: %w", err))

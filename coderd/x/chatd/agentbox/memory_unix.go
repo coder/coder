@@ -4,17 +4,36 @@ package agentbox
 
 import (
 	"math"
+	"sync"
 
 	"github.com/tetratelabs/wazero/experimental"
 	"golang.org/x/sys/unix"
 )
 
-// newMemoryAllocator backs guest linear memory with anonymous mappings.
-// limit caps the address space reserved per memory.
-func newMemoryAllocator(limit uint64) experimental.MemoryAllocator {
-	return experimental.MemoryAllocatorFunc(func(_, maxBytes uint64) experimental.LinearMemory {
-		return &mmapMemory{reserve: min(maxBytes, limit)}
+// newRunMemory returns an allocator that backs one run's guest linear
+// memory with anonymous mappings, and a function that frees every memory
+// it allocated. limit caps the address space reserved per memory. The
+// free function must only be called once the guest has returned.
+func newRunMemory(limit uint64) (experimental.MemoryAllocator, func()) {
+	var (
+		mu       sync.Mutex
+		memories []*mmapMemory
+	)
+	allocator := experimental.MemoryAllocatorFunc(func(_, maxBytes uint64) experimental.LinearMemory {
+		mem := &mmapMemory{reserve: min(maxBytes, limit)}
+		mu.Lock()
+		memories = append(memories, mem)
+		mu.Unlock()
+		return mem
 	})
+	return allocator, func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, mem := range memories {
+			mem.Free()
+		}
+		memories = nil
+	}
 }
 
 // mmapMemory reserves its maximum size as an inaccessible mapping on
@@ -30,7 +49,7 @@ type mmapMemory struct {
 }
 
 func (m *mmapMemory) Reallocate(size uint64) []byte {
-	if size > m.reserve {
+	if size > m.reserve || size > math.MaxInt {
 		return nil
 	}
 	if m.mapping == nil && m.heap == nil && m.reserve > 0 && m.reserve <= math.MaxInt {
@@ -39,23 +58,30 @@ func (m *mmapMemory) Reallocate(size uint64) []byte {
 			m.mapping = mapping
 		}
 	}
-	if m.mapping == nil {
-		if grow := int(size) - len(m.heap); grow > 0 { //nolint:gosec // size <= reserve <= math.MaxInt or the heap path.
-			m.heap = append(m.heap, make([]byte, grow)...)
-		}
-		if m.heap == nil {
-			m.heap = []byte{}
-		}
-		return m.heap[:size]
-	}
-	if size > m.committed {
+	if m.mapping != nil && size > m.committed {
 		// Wasm pages are 64 KiB, so both bounds are OS page aligned.
-		if err := unix.Mprotect(m.mapping[m.committed:size], unix.PROT_READ|unix.PROT_WRITE); err != nil {
+		err := unix.Mprotect(m.mapping[m.committed:size], unix.PROT_READ|unix.PROT_WRITE)
+		switch {
+		case err == nil:
+			m.committed = size
+		case m.committed == 0:
+			// wazero panics if the initial size cannot be provided.
+			_ = unix.Munmap(m.mapping)
+			m.mapping = nil
+		default:
 			return nil
 		}
-		m.committed = size
 	}
-	return m.mapping[:size:size]
+	if m.mapping != nil {
+		return m.mapping[:size:size]
+	}
+	if grow := int(size) - len(m.heap); grow > 0 { //nolint:gosec // size <= math.MaxInt is checked above.
+		m.heap = append(m.heap, make([]byte, grow)...)
+	}
+	if m.heap == nil {
+		m.heap = []byte{}
+	}
+	return m.heap[:size]
 }
 
 func (m *mmapMemory) Free() {
