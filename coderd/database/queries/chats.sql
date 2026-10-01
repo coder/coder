@@ -2485,8 +2485,11 @@ WHERE chat_id = @chat_id::uuid
 
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
--- Interrupting chats finish active work first. Requires-action chats follow so
--- their runner can enforce the action deadline before new generations start.
+-- Within each pool, interrupting chats finish active work first, and
+-- requires-action chats follow so their runner can enforce the action deadline
+-- before new generations start. Pools are interleaved by that per-pool rank, so
+-- a saturated pool's refused high-priority rows cannot crowd the other pool's
+-- candidates out of the limit.
 WITH candidate_partitions AS (
     SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
     UNION ALL
@@ -2503,11 +2506,10 @@ WITH candidate_partitions AS (
 candidates AS (
     SELECT
         candidate.id,
-        candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
-            ORDER BY candidate.updated_at ASC, candidate.id ASC
+            PARTITION BY candidate_partitions.is_root
+            ORDER BY candidate_partitions.status_priority ASC, candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
@@ -2538,7 +2540,6 @@ SELECT
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
-    candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
     chats.id ASC

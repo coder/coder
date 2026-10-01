@@ -163,6 +163,32 @@ func TestWorker_AcquisitionCandidatesInterleavePools(t *testing.T) {
 	})
 }
 
+// A saturated pool refuses its own high-priority rows, so those rows must not
+// fill the candidate limit and hide the other pool's lower-status chats.
+func TestWorker_AcquisitionCandidatesRankStatusWithinPool(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const limit = 4
+	rootRequiresAction := make([]database.Chat, 0, limit)
+	for range limit {
+		rootRequiresAction = append(rootRequiresAction, f.createRequiresActionChat(t))
+	}
+	sub := f.createRunningSubagentChat(t, rootRequiresAction[0].ID)
+	require.Equal(t, database.ChatStatusRunning, sub.Status)
+
+	rows, err := f.db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
+		StaleSeconds: 30,
+		LimitCount:   limit,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, limit)
+	require.Equal(t, database.ChatStatusRequiresAction, rows[0].Status)
+	require.False(t, rows[0].ParentChatID.Valid)
+	require.Equal(t, sub.ID, rows[1].ID)
+}
+
 func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

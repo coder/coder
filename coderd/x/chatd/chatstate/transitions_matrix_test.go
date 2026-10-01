@@ -121,7 +121,7 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 
 func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, f, tx, seeded, from); err != nil {
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
 		return err
 	}
 	var err error
@@ -173,7 +173,7 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 
 func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, f, tx, seeded, from); err != nil {
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
 		return err
 	}
 	var err error
@@ -2010,10 +2010,10 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 // ownRunningChat owns a seeded running chat before an interrupt so the
 // matrix covers the interrupting states. The unowned variants finish
 // the interruption inline and have their own tests.
-func ownRunningChat(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
 	t.Helper()
 	if from != chatstate.StateR0 && from != chatstate.StateR1 {
 		return nil
 	}
-	return ownChat(testutil.Context(t, testutil.WaitShort), tx, f.DB, seeded.chatID)
+	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
 }
