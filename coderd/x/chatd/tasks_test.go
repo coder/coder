@@ -1599,7 +1599,7 @@ func (f *taskTestFixture) forceExecutionState(t *testing.T, chatID uuid.UUID, st
 		if err != nil {
 			return err
 		}
-		updated, err = store.UpdateChatExecutionState(testutil.Context(t, testutil.WaitShort), database.UpdateChatExecutionStateParams{
+		row, err := store.UpdateChatExecutionState(testutil.Context(t, testutil.WaitShort), database.UpdateChatExecutionStateParams{
 			ID:                       chat.ID,
 			Status:                   status,
 			Archived:                 archived,
@@ -1608,6 +1608,7 @@ func (f *taskTestFixture) forceExecutionState(t *testing.T, chatID uuid.UUID, st
 			LastError:                chat.LastError,
 			RequiresActionDeadlineAt: deadline,
 		})
+		updated = row.Chat
 		return err
 	}, nil))
 	f.pubsub.clear()
