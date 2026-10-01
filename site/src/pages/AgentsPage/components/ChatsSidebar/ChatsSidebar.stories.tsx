@@ -2507,3 +2507,16 @@ export const MobileWithAutomations: Story = {
 		),
 	],
 };
+
+export const AutomationsActive: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations" },
+			routing: agentsRouting,
+		}),
+	},
+};
