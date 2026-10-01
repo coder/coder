@@ -4,8 +4,7 @@ import { Link } from "react-router";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { ToolCall } from "./ToolCall";
 import { asString, parseArgs, type ToolStatus } from "./utils";
-import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
-import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
+import { WorkspaceLogBox } from "./WorkspaceLogBox";
 import type { WorkspaceToolOutcome } from "./workspaceToolOutcome";
 import { useWorkspaceToolStage } from "./workspaceToolStage";
 
@@ -113,8 +112,12 @@ export const CreateWorkspaceTool: React.FC<{
 				)}
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
-				<WorkspaceBuildLogSection status={status} buildId={buildId} />
-				<WorkspaceAgentLogSection status={status} buildId={buildId} />
+				<WorkspaceLogBox
+					status={status}
+					buildId={buildId}
+					action="create"
+					notice={notice}
+				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

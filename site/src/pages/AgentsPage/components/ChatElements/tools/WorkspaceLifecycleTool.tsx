@@ -1,8 +1,7 @@
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
-import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
-import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
+import { WorkspaceLogBox } from "./WorkspaceLogBox";
 import type { WorkspaceToolOutcome } from "./workspaceToolOutcome";
 import { useWorkspaceToolStage } from "./workspaceToolStage";
 
@@ -85,11 +84,12 @@ export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
 				)}
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
-				<WorkspaceBuildLogSection status={status} buildId={buildId} />
-				{/* The backend does not wait for an agent after a stop build. */}
-				{action === "start" && (
-					<WorkspaceAgentLogSection status={status} buildId={buildId} />
-				)}
+				<WorkspaceLogBox
+					status={status}
+					buildId={buildId}
+					action={action}
+					notice={notice}
+				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
