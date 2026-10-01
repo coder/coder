@@ -174,6 +174,30 @@ func (q *querier) authorizeWorkspaceByAgentID(ctx context.Context, agentID uuid.
 	return q.authorizeContext(ctx, action, workspace)
 }
 
+// authorizeChatByID authorizes an action against the chat with the given ID.
+//
+// Fast path: a chat RBAC object cached in the context by [WithChatRBAC] for
+// this chat ID avoids the GetChatByID query. The cached object carries no
+// ACLs, so any authorization failure falls back to the slow path; a stale or
+// ACL-dependent grant is never served from the cache.
+//
+// Slow path: fetch the chat and authorize against it.
+func (q *querier) authorizeChatByID(ctx context.Context, chatID uuid.UUID, action policy.Action) error {
+	if rbacObj, ok := ChatRBACFromContext(ctx); ok && rbacObj.ID == chatID.String() {
+		if err := q.authorizeContext(ctx, action, rbacObj); err == nil {
+			return nil
+		}
+		q.log.Debug(ctx, "fast path authorization failed for chat, using slow path",
+			slog.F("chat_id", chatID))
+	}
+
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, chat)
+}
+
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
 // supporting delete operations. This function first attempts normal workspace
@@ -1924,13 +1948,9 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
-func (q *querier) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+func (q *querier) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.BumpChatSnapshotVersionRow, error) {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.BumpChatSnapshotVersionRow{}, err
 	}
 	return q.db.BumpChatSnapshotVersion(ctx, arg)
 }
@@ -2048,8 +2068,7 @@ func (q *querier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.U
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
+	if err := q.authorizeChatByID(ctx, chatID, policy.ActionRead); err != nil {
 		return 0, err
 	}
 	return q.db.CountChatQueuedMessages(ctx, chatID)
@@ -6110,16 +6129,11 @@ func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.Hyd
 	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
 
-func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return 0, err
+func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, arg database.IncrementChatGenerationAttemptParams) (database.IncrementChatGenerationAttemptRow, error) {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.IncrementChatGenerationAttemptRow{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	_ = chat
-	return q.db.IncrementChatGenerationAttempt(ctx, id)
+	return q.db.IncrementChatGenerationAttempt(ctx, arg)
 }
 
 func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {
@@ -6278,11 +6292,7 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 
 func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	// Authorize create on the parent chat (using update permission).
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeChatByID(ctx, arg.ChatID, policy.ActionUpdate); err != nil {
 		return nil, err
 	}
 	return q.db.InsertChatMessages(ctx, arg)
@@ -6941,8 +6951,7 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 }
 
 func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
-	_, err := q.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
+	if err := q.authorizeChatByID(ctx, arg.ChatID, policy.ActionRead); err != nil {
 		return false, err
 	}
 	return q.db.IsChatHeartbeatStale(ctx, arg)
@@ -7149,11 +7158,7 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 func (q *querier) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
 	// The lock starts a transition, so it requires the same permission as
 	// the writes that follow it.
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return database.LockChatForTransitionRow{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeChatByID(ctx, id, policy.ActionUpdate); err != nil {
 		return database.LockChatForTransitionRow{}, err
 	}
 	return q.db.LockChatForTransition(ctx, id)
@@ -7616,15 +7621,10 @@ func (q *querier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg data
 	return q.db.UpdateChatDiffStatusReferenceURL(ctx, arg)
 }
 
-func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
+func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.UpdateChatExecutionStateRow, error) {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.UpdateChatExecutionStateRow{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	_ = chat
 	return q.db.UpdateChatExecutionState(ctx, arg)
 }
 
@@ -7754,15 +7754,11 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
 }
 
-func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
+func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.UpdateChatRetryStateRow, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.UpdateChatRetryStateRow{}, err
 	}
 	return q.db.UpdateChatRetryState(ctx, arg)
 }

@@ -325,11 +325,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 
 	canceled := s.cancelUnresolvedToolCalls(ctx, chat, cancelable, toolCallIDs)
 
-	var (
-		committed        database.Chat
-		promotedQueuedAt time.Time
-	)
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	var promotedQueuedAt time.Time
+	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -351,10 +348,6 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
 		promotedQueuedAt = finishResult.PromotedQueuedAt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
 		return nil
 	})
 	if err != nil {
@@ -474,8 +467,7 @@ func (s *taskStarter) cancelRequiresAction(
 	input chatWorkerTaskStartInput,
 	reason string,
 ) error {
-	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -491,10 +483,6 @@ func (s *taskStarter) cancelRequiresAction(
 		}
 		if _, err := tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{Reason: reason}); err != nil {
 			return xerrors.Errorf("cancel requires action: %w", err)
-		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
 		}
 		return nil
 	})
