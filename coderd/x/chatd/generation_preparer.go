@@ -598,10 +598,11 @@ func (server *Server) prepareGeneration(
 	agentBoxes := server.agentBoxes != nil && input.TurnBoxes != nil && !isExploreSubagent
 	if agentBoxes {
 		boxOptions := chattool.BoxOptions{
-			GetBox:    newTurnBoxGetter(logger, server.agentBoxes, input.TurnBoxes, input.Messages),
-			Languages: server.agentBoxes.Languages(),
-			Limits:    server.agentBoxes.Limits(),
-			StoreFile: storeChatAttachment,
+			GetBox:     newTurnBoxGetter(logger, server.agentBoxes, input.TurnBoxes, input.Messages),
+			Languages:  server.agentBoxes.Languages(),
+			Limits:     server.agentBoxes.Limits(),
+			StoreFile:  storeChatAttachment,
+			AttachFile: slices.Contains(agentBoxToolNamesForTurn(currentPlanMode, isRootChat), chattool.BoxAttachFileToolName),
 			// Results can also be capped at the unknown-model budget,
 			// so the smaller of the two applies.
 			ResultBudgetBytes: min(

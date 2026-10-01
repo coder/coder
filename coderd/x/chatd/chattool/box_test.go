@@ -44,8 +44,9 @@ func newBoxHarness(t *testing.T) *boxHarness {
 			}
 			return h.box, h.reset, nil
 		},
-		Languages: engine.Languages(),
-		Limits:    engine.Limits(),
+		Languages:  engine.Languages(),
+		Limits:     engine.Limits(),
+		AttachFile: true,
 		StoreFile: func(_ context.Context, name string, _ string, data []byte) (chattool.AttachmentMetadata, error) {
 			return chattool.AttachmentMetadata{FileID: uuid.New(), MediaType: "text/plain", Name: name + ":" + string(data)}, nil
 		},
@@ -88,6 +89,9 @@ func TestBoxTools(t *testing.T) {
 		assert.Contains(t, run.Description, "javascript")
 		assert.Contains(t, run.Description, "1m0s per run")
 		assert.Contains(t, run.Description, "256 MiB memory")
+		assert.Contains(t, run.Description, chattool.BoxAttachFileToolName)
+		h.options.AttachFile = false
+		assert.NotContains(t, chattool.BoxRun(h.options).Info().Description, chattool.BoxAttachFileToolName)
 		assert.ElementsMatch(t, []string{"path", "content"}, chattool.BoxWriteFile(h.options).Info().Required)
 		assert.ElementsMatch(t, []string{"path"}, chattool.BoxReadFile(h.options).Info().Required)
 		assert.ElementsMatch(t, []string{"path"}, chattool.BoxAttachFile(h.options).Info().Required)

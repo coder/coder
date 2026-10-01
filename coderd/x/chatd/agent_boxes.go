@@ -118,6 +118,18 @@ func (r *runner) closeTurnBoxSync() {
 	}
 }
 
+// agentBoxToolNamesForTurn lists the box tools usable in a turn with the
+// given plan mode.
+func agentBoxToolNamesForTurn(planMode database.NullChatPlanMode, isRootChat bool) []string {
+	names := chattool.BoxToolNames()
+	if !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
+		return names
+	}
+	return slices.DeleteFunc(names, func(name string) bool {
+		return !builtinPlanToolAllowed(name, isRootChat)
+	})
+}
+
 // lastTurnBoxID returns the box_id of the most recent box tool result in
 // the current turn, or "" when the turn has none.
 func lastTurnBoxID(messages []database.ChatMessage) string {

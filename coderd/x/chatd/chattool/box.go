@@ -47,6 +47,9 @@ type BoxOptions struct {
 	Limits agentbox.Limits
 	// StoreFile persists box_attach_file output as a chat attachment.
 	StoreFile StoreFileFunc
+	// AttachFile reports that box_attach_file is usable in the turn, so
+	// the box_run description may point to it.
+	AttachFile bool
 	// ResultBudgetBytes caps the marshaled box_run result. A result cut
 	// past this size is no longer valid JSON, so both streams shrink until
 	// the result fits. Zero applies only the per-stream cap.
@@ -81,7 +84,10 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
 		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
 		"exit_code is -1 when timed_out or canceled is true. " +
-		"Use box_write_file to stage inputs, box_read_file to inspect outputs, and box_attach_file to hand a result file to the user."
+		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
+	if options.AttachFile {
+		description += " Use box_attach_file to hand a result file to the user."
+	}
 	return boxTool{fantasy.NewAgentTool(
 		BoxRunToolName,
 		description,

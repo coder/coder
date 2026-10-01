@@ -268,8 +268,26 @@ func TestAgentBoxSystemPrompt(t *testing.T) {
 	require.Contains(t, text, "<agent-box>")
 	require.Less(t, strings.Index(text, "<agent-box>"), strings.Index(text, "user instructions"), "user instructions come last")
 
+	require.Contains(t, text, chattool.BoxAttachFileToolName)
+
 	text = systemPromptText(t, buildSystemPrompt(nil, "", "", nil, "", systemPromptBehaviorContext{}))
 	require.NotContains(t, text, "<agent-box>")
+
+	planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	text = systemPromptText(t, buildSystemPrompt(nil, "", "", nil, "", systemPromptBehaviorContext{
+		agentBoxes: true,
+		planMode:   planMode,
+		isRootChat: true,
+	}))
+	require.Contains(t, text, chattool.BoxAttachFileToolName, "root plan turns keep box_attach_file")
+
+	text = systemPromptText(t, buildSystemPrompt(nil, "", "", nil, "", systemPromptBehaviorContext{
+		agentBoxes: true,
+		planMode:   planMode,
+	}))
+	require.Contains(t, text, "<agent-box>")
+	require.Contains(t, text, chattool.BoxRunToolName)
+	require.NotContains(t, text, chattool.BoxAttachFileToolName, "child plan turns do not register box_attach_file")
 
 	text = systemPromptText(t, buildSystemPrompt(nil, "", "", nil, "", systemPromptBehaviorContext{
 		agentBoxes: true,

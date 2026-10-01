@@ -3676,7 +3676,9 @@ func buildSystemPrompt(
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
 	if behaviorContext.agentBoxes && !isExploreSubagentMode(behaviorContext.chatMode) {
-		prompt = chatprompt.InsertSystem(prompt, AgentBoxPromptBlock)
+		prompt = chatprompt.InsertSystem(prompt, agentBoxPromptBlock(
+			agentBoxToolNamesForTurn(behaviorContext.planMode, behaviorContext.isRootChat),
+		))
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)

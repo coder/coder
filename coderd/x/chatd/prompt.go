@@ -1,6 +1,10 @@
 package chatd
 
-import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
+import (
+	"slices"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+)
 
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
 
@@ -15,13 +19,27 @@ An error status is often recoverable. When message_agent is available, use it to
 If you lose track of your spawned agents, call list_agents to recover them before finishing.
 </subagent-orchestration>`
 
-// AgentBoxPromptBlock advertises the box tools. It is inserted only when
-// the tools are registered for the turn.
-const AgentBoxPromptBlock = `<agent-box>
-A temporary sandbox is available through box_run, box_write_file, box_read_file, and box_attach_file. It runs JavaScript (QuickJS with the std and os modules) without a workspace, network, or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns. Import modules you stage in the box by absolute path, for example "/box/lib.mjs".
-Use it for self-contained computation: parsing or transforming data the user pasted, checking arithmetic, generating a file to attach, or prototyping an algorithm. Use workspace tools when the task needs the repository, installed tooling, or persistent files. Stage inputs with box_write_file, and hand results to the user with box_attach_file before the turn ends.
-If a result carries box_reset, the sandbox was replaced and earlier files are gone; recreate what you need.
-</agent-box>`
+// agentBoxPromptBlock advertises the box tools registered for the turn.
+// The block assumes box_run, box_write_file, and box_read_file are among
+// toolNames and mentions box_attach_file only when it is.
+func agentBoxPromptBlock(toolNames []string) string {
+	tools := "box_run, box_write_file, and box_read_file"
+	uses := "parsing or transforming data the user pasted, checking arithmetic, or prototyping an algorithm"
+	handoff := "Stage inputs with box_write_file, and report what you need from /box in your reply; files cannot be attached to the chat in this turn."
+	if slices.Contains(toolNames, chattool.BoxAttachFileToolName) {
+		tools = "box_run, box_write_file, box_read_file, and box_attach_file"
+		uses = "parsing or transforming data the user pasted, checking arithmetic, generating a file to attach, or prototyping an algorithm"
+		handoff = "Stage inputs with box_write_file, and hand results to the user with box_attach_file before the turn ends."
+	}
+	return "<agent-box>\n" +
+		"A temporary sandbox is available through " + tools + ". " +
+		"It runs JavaScript (QuickJS with the std and os modules) without a workspace, network, or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns. " +
+		"Import modules you stage in the box by absolute path, for example \"/box/lib.mjs\".\n" +
+		"Use it for self-contained computation: " + uses + ". " +
+		"Use workspace tools when the task needs the repository, installed tooling, or persistent files. " + handoff + "\n" +
+		"If a result carries box_reset, the sandbox was replaced and earlier files are gone; recreate what you need.\n" +
+		"</agent-box>"
+}
 
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
