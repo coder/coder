@@ -31,6 +31,14 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	// flash the UUID.
 	const showNameLoading = !automationName && nameStatus === "loading";
 	const nameOrId = showNameLoading ? "" : (automationName ?? automationId);
+	let statusText = "Automation name unavailable.";
+	if (automationName) {
+		statusText = `Automation: ${automationName}`;
+	} else if (showNameLoading) {
+		statusText = "Loading automation name.";
+	} else if (nameStatus === "error") {
+		statusText = "Could not load the automation name.";
+	}
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -61,15 +69,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 				</Badge>
 			</TooltipTrigger>
 			<TooltipContent side="top" className="max-w-xs break-words">
-				{automationName ? (
-					<div>Automation: {automationName}</div>
-				) : showNameLoading ? (
-					<div>Loading automation name.</div>
-				) : nameStatus === "error" ? (
-					<div>Could not load the automation name.</div>
-				) : (
-					<div>Automation name unavailable.</div>
-				)}
+				<div>{statusText}</div>
 				<div className="font-mono">Automation ID: {automationId}</div>
 				{inputId && <div className="font-mono">Input ID: {inputId}</div>}
 			</TooltipContent>
