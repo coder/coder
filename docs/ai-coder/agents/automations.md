@@ -3,11 +3,11 @@ title: Automations
 ---
 
 > [!NOTE]
-> This feature is experimental. Pin a release before broad rollout and review
-> the release notes before upgrading.
+> This feature is experimental. Pin a release before broad rollout and review the release notes before upgrading.
 
 An automation sends a saved prompt to a Coder Agents chat when a trigger fires.
-This page is for Coder Agents users who create automations and for the administrators who turn the feature on.
+This page is for Coder Agents users who create and run automations.
+An administrator must turn on the feature first, as described in [Enable automations](#enable-automations).
 
 Each automation has one trigger and one target:
 
@@ -55,7 +55,8 @@ To turn automations off for every user, even if the startup `--experiments` list
 coder exp experiment-rules off chat-automations
 ```
 
-Use `off` as the kill switch.
+The command prints the new rule, for example `Experiment "chat-automations" rule is now off (revision 2).`
+Use `off` to stop automations for every user.
 `coder exp experiment-rules reset chat-automations` restores the startup default, which can leave automations on for every user.
 
 ### What happens when automations are off
@@ -93,11 +94,14 @@ You can create an automation on the **Automations** page or with the API.
 1. On the **Agents** page, select **Automations** in the sidebar.
 1. If you belong to several organizations, select the organization next to **New automation**.
 1. Select **New automation**.
-1. Enter a **Name** and a **Prompt**.
+1. Enter a **Name**.
+1. Enter a **Prompt**.
 1. Under **Trigger**, select **Webhook**.
 1. Under **Use**, select **Single-use** or **Multi-use**.
-1. Under **Target**, select **Existing chat** and pick a **Chat**, or select **New chat each run** and pick a **Model**.
-1. For an existing chat, choose a **When busy** option.
+1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. For an existing chat, select a **Chat**.
+1. For an existing chat, select a **When busy** option.
+1. For a new chat, select a **Model**.
 1. Select **Save**.
 
 The **Copy the webhook secret** dialog shows the **Publish endpoint**, the **Secret**, and an **Example request**.
@@ -168,7 +172,8 @@ curl -X POST "$CODER_URL/api/experimental/chat-automations/$AUTOMATION_ID/events
   -d '{"event":"deploy","status":"failed"}'
 ```
 
-The endpoint path carries the `/api/experimental` prefix and changes when the feature leaves the experimental stage.
+The endpoint path carries the `/api/experimental` prefix.
+Experimental API paths can change in a later release, so keep the URL easy to update in your senders.
 
 The body must be valid JSON of at most 256&nbsp;KiB.
 Any JSON value is accepted.
@@ -234,13 +239,16 @@ Create a new automation instead.
 ## Create a schedule automation
 
 1. On the **Automations** page, select **New automation**.
-1. Enter a **Name** and a **Prompt**.
+1. Enter a **Name**.
+1. Enter a **Prompt**.
 1. Under **Trigger**, select **Schedule**.
-1. Choose a **Repeat** option and a **Time**, or enter a **Cron expression**.
+1. Set the schedule with a **Repeat** option and a **Time**, or with a **Cron expression**.
 1. Select a **Time zone**.
 1. Check the times under **Upcoming runs**.
-1. Under **Target**, select **Existing chat** and pick a **Chat**, or select **New chat each run** and pick a **Model**.
-1. For an existing chat, choose a **When busy** option.
+1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. For an existing chat, select a **Chat**.
+1. For an existing chat, select a **When busy** option.
+1. For a new chat, select a **Model**.
 1. Select **Save**.
 
 With the API, send `"kind": "schedule"` with `schedule_cron` and `schedule_time_zone` in the create request.
