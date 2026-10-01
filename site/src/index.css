@@ -320,25 +320,25 @@
 		/* Keyboard-sensitive menus keep geometry on their own positioning wrapper. */
 		[data-radix-popper-content-wrapper]:has(> &) {
 			position: fixed !important;
-			left: var(--mobile-menu-left) !important;
-			width: var(--mobile-menu-width) !important;
+			left: var(--anchored-overlay-left) !important;
+			width: var(--anchored-overlay-width) !important;
 			min-width: 0 !important;
 			transform: none !important;
-			bottom: var(--mobile-menu-bottom) !important;
+			bottom: var(--anchored-overlay-bottom) !important;
 			top: auto !important;
-			max-height: var(--mobile-menu-max-height) !important;
+			max-height: var(--anchored-overlay-max-height) !important;
 			overflow: hidden !important;
 		}
 
 		width: 100% !important;
 		min-width: 0 !important;
 		max-width: none !important;
-		max-height: var(--mobile-menu-max-height) !important;
+		max-height: var(--anchored-overlay-max-height) !important;
 		overflow: hidden !important;
 		display: flex !important;
 		flex-direction: column !important;
 
-		/* Position tracking ends on close, so do not animate at stale coordinates. */
+		/* Geometry is supplied only while open, so hide exit content before cleanup. */
 		&[data-state="closed"] {
 			animation: none !important;
 			visibility: hidden !important;

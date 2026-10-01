@@ -21,7 +21,7 @@ const stubMobileViewport = (belowMd: boolean) => {
 
 // Excludes style writes from Radix and the theme provider.
 const geometryCallCount = (calls: readonly [string, ...unknown[]][]) =>
-	calls.filter(([name]) => name.startsWith("--mobile-menu-")).length;
+	calls.filter(([name]) => name.startsWith("--anchored-overlay-")).length;
 
 const Composer = ({
 	onValueChange,

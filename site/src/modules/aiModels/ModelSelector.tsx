@@ -22,10 +22,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
+import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 export type ModelSelectorOption = {
 	id: string;
@@ -120,7 +122,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const menuRef = useMobileMenuPosition(mobileAnchor, open);
+	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
+
+	useAnchoredOverlayPosition(
+		mobileAnchor,
+		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+			null,
+		isBelowMd && open,
+	);
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
@@ -199,7 +209,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				ref={menuRef}
+				ref={setMenuElement}
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
