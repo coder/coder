@@ -84,7 +84,12 @@ const ManageAutomationsLabel: React.FC<ToolLabelProps> = ({
 	isError,
 }) => {
 	const parsed = parseArgs(args);
-	const labels = manageAutomationsLabels[asString(parsed?.action).trim()];
+	const action = asString(parsed?.action).trim();
+	// The action comes from model output, so ignore inherited keys such as
+	// "constructor" instead of reading them as label tuples.
+	const labels = Object.hasOwn(manageAutomationsLabels, action)
+		? manageAutomationsLabels[action]
+		: undefined;
 	const parsedResult = asRecord(result);
 	const automationName =
 		asString(asRecord(parsedResult?.automation)?.name) ||
