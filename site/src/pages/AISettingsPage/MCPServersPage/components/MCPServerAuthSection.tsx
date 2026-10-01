@@ -161,27 +161,35 @@ const APIKeyFields: React.FC<MCPServerAuthFieldsProps> = ({
 	formId,
 	disabled,
 }) => (
-	<div className="grid items-start gap-4 sm:grid-cols-2">
-		<Field label="Header" htmlFor={`${formId}-api-header`}>
-			<Input
-				id={`${formId}-api-header`}
-				className="shadow-none"
-				{...form.getFieldProps("apiKeyHeader")}
-				placeholder="Authorization"
-				disabled={disabled}
-			/>
-		</Field>
-		<Field label="API key" htmlFor={`${formId}-api-key`}>
-			<SecretInput
-				id={`${formId}-api-key`}
-				value={form.values.apiKeyValue}
-				touched={form.values.apiKeyTouched}
-				onTouch={() => void form.setFieldValue("apiKeyTouched", true)}
-				onValueChange={(value) => void form.setFieldValue("apiKeyValue", value)}
-				onReset={() => void form.setFieldValue("apiKeyTouched", false)}
-				disabled={disabled}
-			/>
-		</Field>
+	<div className="space-y-3">
+		<p className="m-0 text-sm text-content-secondary">
+			The header value is sent as-is. Include any prefix the server expects, for
+			example <code>Bearer &lt;token&gt;</code>.
+		</p>
+		<div className="grid items-start gap-4 sm:grid-cols-2">
+			<Field label="Header name" htmlFor={`${formId}-api-header`} required>
+				<Input
+					id={`${formId}-api-header`}
+					className="shadow-none"
+					{...form.getFieldProps("apiKeyHeader")}
+					placeholder="Authorization"
+					disabled={disabled}
+				/>
+			</Field>
+			<Field label="Header value" htmlFor={`${formId}-api-key`} required>
+				<SecretInput
+					id={`${formId}-api-key`}
+					value={form.values.apiKeyValue}
+					touched={form.values.apiKeyTouched}
+					onTouch={() => void form.setFieldValue("apiKeyTouched", true)}
+					onValueChange={(value) =>
+						void form.setFieldValue("apiKeyValue", value)
+					}
+					onReset={() => void form.setFieldValue("apiKeyTouched", false)}
+					disabled={disabled}
+				/>
+			</Field>
+		</div>
 	</div>
 );
 

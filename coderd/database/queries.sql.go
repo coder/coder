@@ -7911,15 +7911,13 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- NOTE: updated_at is intentionally NOT touched here so
-        -- the worker can read it as "when was this row last
-        -- externally changed" (by MarkStale or a successful
-        -- refresh).
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
-        chat_id IN (
+        (chat_id, git_remote_origin, git_branch) IN (
             SELECT
-                cds.chat_id
+                cds.chat_id,
+                cds.git_remote_origin,
+                cds.git_branch
             FROM
                 chat_diff_statuses cds
             INNER JOIN
@@ -8380,22 +8378,27 @@ const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
 UPDATE
     chat_diff_statuses
 SET
-    -- NOTE: updated_at is intentionally NOT touched here so
-    -- the worker can read it as "when was this row last
-    -- externally changed" (by MarkStale or a successful
-    -- refresh).
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
+    AND git_remote_origin = $3::text
+    AND git_branch = $4::text
 `
 
 type BackoffChatDiffStatusParams struct {
-	StaleAt time.Time `db:"stale_at" json:"stale_at"`
-	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
 func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error {
-	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus, arg.StaleAt, arg.ChatID)
+	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
 	return err
 }
 
@@ -8421,25 +8424,6 @@ func (q *sqlQuerier) BatchDeleteChatHeartbeats(ctx context.Context, arg BatchDel
 	return result.RowsAffected()
 }
 
-const batchUpsertChatHeartbeats = `-- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
-FROM unnest($1::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
-JOIN unnest($2::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at
-`
-
-type BatchUpsertChatHeartbeatsParams struct {
-	ChatIds   []uuid.UUID `db:"chat_ids" json:"chat_ids"`
-	RunnerIds []uuid.UUID `db:"runner_ids" json:"runner_ids"`
-}
-
-func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
-	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
-	return err
-}
-
 const clearChatDiffStatusPR = `-- name: ClearChatDiffStatusPR :exec
 UPDATE
     chat_diff_statuses
@@ -8463,15 +8447,24 @@ SET
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
+    AND git_remote_origin = $3::text
+    AND git_branch = $4::text
 `
 
 type ClearChatDiffStatusPRParams struct {
-	StaleAt time.Time `db:"stale_at" json:"stale_at"`
-	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
 func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error {
-	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR, arg.StaleAt, arg.ChatID)
+	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
 	return err
 }
 
@@ -8511,7 +8504,7 @@ SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL
@@ -8531,6 +8524,9 @@ type CountChatCapacityQueuedByPoolRow struct {
 	QueuedSubagentCount int64 `db:"queued_subagent_count" json:"queued_subagent_count"`
 }
 
+// Every runnable status needs capacity admission before a worker can own
+// the chat, so interrupting and requires_action chats without a fresh lease
+// also wait for a slot.
 func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error) {
 	row := q.db.QueryRowContext(ctx, countChatCapacityQueuedByPool, staleSeconds)
 	var i CountChatCapacityQueuedByPoolRow
@@ -8760,6 +8756,152 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 		return nil, err
 	}
 	return items, nil
+}
+
+const getAutoArchiveInactiveChatCandidateByID = `-- name: GetAutoArchiveInactiveChatCandidateByID :one
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
+FROM chats_expanded
+LEFT JOIN LATERAL (
+    SELECT MAX(chat_messages.created_at) AS last_activity_at
+    FROM chat_messages
+    JOIN chats family_chat ON family_chat.id = chat_messages.chat_id
+    WHERE (family_chat.id = chats_expanded.id OR family_chat.root_chat_id = chats_expanded.id)
+      AND chat_messages.deleted = false
+) activity ON TRUE
+WHERE
+    chats_expanded.id = $1::uuid
+    AND chats_expanded.archived = false
+    AND chats_expanded.pin_order = 0
+    AND chats_expanded.parent_chat_id IS NULL
+    AND chats_expanded.created_at < $2::timestamptz
+    AND chats_expanded.status NOT IN (
+        'running'::chat_status,
+        'interrupting'::chat_status,
+        'requires_action'::chat_status
+    )
+    AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < $2::timestamptz
+`
+
+type GetAutoArchiveInactiveChatCandidateByIDParams struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	ArchiveCutoff time.Time `db:"archive_cutoff" json:"archive_cutoff"`
+}
+
+type GetAutoArchiveInactiveChatCandidateByIDRow struct {
+	ID                       uuid.UUID               `db:"id" json:"id"`
+	OwnerID                  uuid.UUID               `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
+	Title                    string                  `db:"title" json:"title"`
+	Status                   ChatStatus              `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID           `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime            `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time               `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
+	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	Archived                 bool                    `db:"archived" json:"archived"`
+	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode            `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap               `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID           `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID           `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                   `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
+	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
+	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
+	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString          `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
+	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
+	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                   `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                   `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID           `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                  ChatACL                 `db:"user_acl" json:"user_acl"`
+	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
+	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
+	OwnerName                string                  `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError             string                  `db:"context_error" json:"context_error"`
+	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	LastActivityAt           time.Time               `db:"last_activity_at" json:"last_activity_at"`
+}
+
+// Rechecks one root chat against the GetAutoArchiveInactiveChatCandidates
+// filters. Auto-archive calls it inside the archive transaction after the
+// family rows are locked, so activity that landed after the unlocked
+// candidate read is observed. Returns no rows when the chat no longer
+// qualifies. Keep the filters in sync with
+// GetAutoArchiveInactiveChatCandidates.
+func (q *sqlQuerier) GetAutoArchiveInactiveChatCandidateByID(ctx context.Context, arg GetAutoArchiveInactiveChatCandidateByIDParams) (GetAutoArchiveInactiveChatCandidateByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAutoArchiveInactiveChatCandidateByID, arg.ID, arg.ArchiveCutoff)
+	var i GetAutoArchiveInactiveChatCandidateByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.LastReasoningEffort,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.CompactionRequestedAt,
+		&i.LastActivityAt,
+	)
+	return i, err
 }
 
 const getAutoArchiveInactiveChatCandidates = `-- name: GetAutoArchiveInactiveChatCandidates :many
@@ -9250,46 +9392,6 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
-const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
-SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
-FROM
-    chat_diff_statuses
-WHERE
-    chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
-	row := q.db.QueryRowContext(ctx, getChatDiffStatusByChatID, chatID)
-	var i ChatDiffStatus
-	err := row.Scan(
-		&i.ChatID,
-		&i.Url,
-		&i.PullRequestState,
-		&i.ChangesRequested,
-		&i.Additions,
-		&i.Deletions,
-		&i.ChangedFiles,
-		&i.RefreshedAt,
-		&i.StaleAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.GitBranch,
-		&i.GitRemoteOrigin,
-		&i.PullRequestTitle,
-		&i.PullRequestDraft,
-		&i.AuthorLogin,
-		&i.AuthorAvatarUrl,
-		&i.BaseBranch,
-		&i.PrNumber,
-		&i.Commits,
-		&i.Approved,
-		&i.ReviewerCount,
-		&i.HeadBranch,
-	)
-	return i, err
-}
-
 const getChatDiffStatusSummary = `-- name: GetChatDiffStatusSummary :one
 WITH deduped AS (
     SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
@@ -9297,7 +9399,7 @@ WITH deduped AS (
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
     WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.refreshed_at DESC NULLS LAST, cds.updated_at DESC, c.id DESC
 )
 SELECT
     COUNT(*)::bigint AS total,
@@ -9332,6 +9434,66 @@ func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffS
 	return i, err
 }
 
+const getChatDiffStatusesByChatID = `-- name: GetChatDiffStatusesByChatID :many
+SELECT
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+FROM
+    chat_diff_statuses
+WHERE
+    chat_id = $1::uuid
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch
+`
+
+func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDiffStatus
+	for rows.Next() {
+		var i ChatDiffStatus
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Url,
+			&i.PullRequestState,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
+			&i.PullRequestTitle,
+			&i.PullRequestDraft,
+			&i.AuthorLogin,
+			&i.AuthorAvatarUrl,
+			&i.BaseBranch,
+			&i.PrNumber,
+			&i.Commits,
+			&i.Approved,
+			&i.ReviewerCount,
+			&i.HeadBranch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
@@ -9339,6 +9501,10 @@ FROM
     chat_diff_statuses
 WHERE
     chat_id = ANY($1::uuid[])
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch
 `
 
 func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
@@ -10342,11 +10508,10 @@ WITH candidate_partitions AS (
 candidates AS (
     SELECT
         candidate.id,
-        candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
-            ORDER BY candidate.updated_at ASC, candidate.id ASC
+            PARTITION BY candidate_partitions.is_root
+            ORDER BY candidate_partitions.status_priority ASC, candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
@@ -10377,7 +10542,6 @@ SELECT
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
-    candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
     chats.id ASC
@@ -10396,8 +10560,11 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 }
 
 // Returns a bounded, pool-interleaved set of chats that workers may acquire.
-// Interrupting chats finish active work first. Requires-action chats follow so
-// their runner can enforce the action deadline before new generations start.
+// Within each pool, interrupting chats finish active work first, and
+// requires-action chats follow so their runner can enforce the action deadline
+// before new generations start. Pools are interleaved by that per-pool rank, so
+// a saturated pool's refused high-priority rows cannot crowd the other pool's
+// candidates out of the limit.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.LimitCount, arg.StaleSeconds)
 	if err != nil {
@@ -11026,7 +11193,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 }
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
-SELECT
+SELECT DISTINCT ON (c.id)
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
@@ -11035,6 +11202,7 @@ SELECT
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > $1
+ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -12461,6 +12629,62 @@ func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batc
 	return result.RowsAffected()
 }
 
+const renewChatHeartbeats = `-- name: RenewChatHeartbeats :many
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
+FROM unnest($2::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
+JOIN unnest($3::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * $1::int)
+RETURNING hb.chat_id, hb.runner_id
+`
+
+type RenewChatHeartbeatsParams struct {
+	StaleSeconds int32       `db:"stale_seconds" json:"stale_seconds"`
+	ChatIds      []uuid.UUID `db:"chat_ids" json:"chat_ids"`
+	RunnerIds    []uuid.UUID `db:"runner_ids" json:"runner_ids"`
+}
+
+type RenewChatHeartbeatsRow struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	RunnerID uuid.UUID `db:"runner_id" json:"runner_id"`
+}
+
+// Renews (chat_id, runner_id) leases that are still fresh and still own
+// their chat, and returns the renewed pairs. A stale lease is never
+// revived because capacity admission may already have given its slot to
+// another chat; its runner must stop instead. Callers hold the capacity
+// admission lock, and statement_timestamp() is read after that lock is
+// granted, so a lease that a committed admission counted as stale cannot
+// be renewed afterwards.
+func (q *sqlQuerier) RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, renewChatHeartbeats, arg.StaleSeconds, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RenewChatHeartbeatsRow
+	for rows.Next() {
+		var i RenewChatHeartbeatsRow
+		if err := rows.Scan(&i.ChatID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows
 UPDATE chat_queued_messages AS target
 SET created_at = (
@@ -13169,6 +13393,37 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
+const updateChatDiffStatusReferenceURL = `-- name: UpdateChatDiffStatusReferenceURL :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = $1::text,
+    stale_at = $2::timestamptz
+WHERE
+    chat_id = $3::uuid
+    AND git_remote_origin = $4::text
+    AND git_branch = $5::text
+`
+
+type UpdateChatDiffStatusReferenceURLParams struct {
+	Url             string    `db:"url" json:"url"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
+}
+
+func (q *sqlQuerier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatDiffStatusReferenceURL,
+		arg.Url,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
+	return err
+}
+
 const updateChatExecutionState = `-- name: UpdateChatExecutionState :one
 WITH updated_chat AS (
     UPDATE chats
@@ -13182,7 +13437,10 @@ WITH updated_chat AS (
         compaction_requested_at = $7::timestamptz,
         history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
         generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
+        retry_state = CASE
+            WHEN $8::boolean OR $1::chat_status <> 'running'::chat_status THEN NULL
+            ELSE retry_state
+        END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = $9::uuid
@@ -13267,6 +13525,10 @@ type UpdateChatExecutionStateParams struct {
 // grant_history_epoch gives a turn that inserts no history the same
 // fresh retry budget and message part episode keys a history change
 // would grant, mirroring the chat_messages trigger postcondition.
+//
+// retry_state is a pending retry of a running turn, so it is cleared
+// whenever the chat leaves running. Otherwise an interrupted or failed
+// chat would keep announcing a retry that will never happen.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,
@@ -14459,6 +14721,145 @@ func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitl
 	return i, err
 }
 
+const updateChatTitleByIDIfTitle = `-- name: UpdateChatTitleByIDIfTitle :one
+WITH updated_chat AS (
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = $1::text
+WHERE
+    id = $2::uuid
+    AND title = $3::text
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.project_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+FROM chats_expanded
+`
+
+type UpdateChatTitleByIDIfTitleParams struct {
+	Title         string    `db:"title" json:"title"`
+	ID            uuid.UUID `db:"id" json:"id"`
+	ExpectedTitle string    `db:"expected_title" json:"expected_title"`
+}
+
+// Compare-and-set variant of UpdateChatTitleByID: the title is only
+// written when the stored title still equals @expected_title. Automatic
+// title generation uses it so a rename that lands while the model call
+// runs is not overwritten. Returns no rows when the title changed.
+func (q *sqlQuerier) UpdateChatTitleByIDIfTitle(ctx context.Context, arg UpdateChatTitleByIDIfTitleParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatTitleByIDIfTitle, arg.Title, arg.ID, arg.ExpectedTitle)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.LastReasoningEffort,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.CompactionRequestedAt,
+	)
+	return i, err
+}
+
 const updateChatWorkspaceBinding = `-- name: UpdateChatWorkspaceBinding :one
 WITH current_chat AS (
     SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
@@ -14621,6 +15022,8 @@ const upsertChatDiffStatus = `-- name: UpsertChatDiffStatus :one
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
+    git_branch,
+    git_remote_origin,
     pull_request_state,
     pull_request_title,
     pull_request_draft,
@@ -14643,23 +15046,25 @@ INSERT INTO chat_diff_statuses (
     $2::text,
     $3::text,
     $4::text,
-    $5::boolean,
-    $6::boolean,
-    $7::integer,
-    $8::integer,
+    $5::text,
+    $6::text,
+    $7::boolean,
+    $8::boolean,
     $9::integer,
-    $10::text,
-    $11::text,
+    $10::integer,
+    $11::integer,
     $12::text,
     $13::text,
-    $14::integer,
-    $15::integer,
-    $16::boolean,
+    $14::text,
+    $15::text,
+    $16::integer,
     $17::integer,
-    $18::timestamptz,
-    $19::timestamptz
+    $18::boolean,
+    $19::integer,
+    $20::timestamptz,
+    $21::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = EXCLUDED.url,
     pull_request_state = EXCLUDED.pull_request_state,
@@ -14678,8 +15083,7 @@ SET
     approved = EXCLUDED.approved,
     reviewer_count = EXCLUDED.reviewer_count,
     refreshed_at = EXCLUDED.refreshed_at,
-    stale_at = EXCLUDED.stale_at,
-    updated_at = NOW()
+    stale_at = EXCLUDED.stale_at
 RETURNING
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
@@ -14687,6 +15091,8 @@ RETURNING
 type UpsertChatDiffStatusParams struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
 	Url              sql.NullString `db:"url" json:"url"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
@@ -14710,6 +15116,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatus,
 		arg.ChatID,
 		arg.Url,
+		arg.GitBranch,
+		arg.GitRemoteOrigin,
 		arg.PullRequestState,
 		arg.PullRequestTitle,
 		arg.PullRequestDraft,
@@ -14771,19 +15179,11 @@ INSERT INTO chat_diff_statuses (
     $4::text,
     $5::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = CASE
         WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url
         ELSE chat_diff_statuses.url
-    END,
-    git_branch = CASE
-        WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch
-        ELSE chat_diff_statuses.git_branch
-    END,
-    git_remote_origin = CASE
-        WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin
-        ELSE chat_diff_statuses.git_remote_origin
     END,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
@@ -18871,6 +19271,18 @@ SELECT pg_advisory_xact_lock($1)
 // released when the transaction ends.
 func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
+	return err
+}
+
+const setTransactionLockTimeout = `-- name: SetTransactionLockTimeout :exec
+SELECT set_config('lock_timeout', format('%sms', $1::bigint), true)
+`
+
+// Bounds how long later lock waits in the current transaction may block.
+// A wait longer than lock_timeout_ms fails with lock_not_available
+// instead of blocking. The setting reverts when the transaction ends.
+func (q *sqlQuerier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	_, err := q.db.ExecContext(ctx, setTransactionLockTimeout, lockTimeoutMs)
 	return err
 }
 

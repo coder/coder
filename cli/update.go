@@ -23,6 +23,9 @@ func (r *RootCmd) update() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
+		Options: serpent.OptionSet{
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
 			if err != nil {
@@ -45,6 +48,16 @@ func (r *RootCmd) update() *serpent.Command {
 			// updating. Simply performing a new start transition may not work if the
 			// template specifies ignore_changes.
 			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+				if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
+					_, err = cliui.Prompt(inv, cliui.PromptOptions{
+						Text:      "Updating your workspace will start the workspace on the latest template version. This can delete non-persistent data. Continue?",
+						IsConfirm: true,
+					})
+					if err != nil {
+						return err
+					}
+				}
+
 				build, err := stopWorkspace(inv, client, workspace, bflags)
 				if err != nil {
 					return xerrors.Errorf("stop workspace: %w", err)

@@ -3,7 +3,7 @@ title: Git providers
 ---
 
 Coder Agents leverages your existing
-[external authentication](../../../admin/external-auth/index.md) configuration
+[external authentication](../../../admin/external-auth.md) configuration
 to power the in-chat diff viewer.
 Self-hosted GitHub Enterprise deployments require one additional setting
 (`API_BASE_URL`) for this feature to work.
@@ -13,7 +13,7 @@ Self-hosted GitHub Enterprise deployments require one additional setting
 For public `github.com`, no additional configuration is needed.
 
 For self-hosted GitHub Enterprise, add `API_BASE_URL` to your
-[existing configuration](../../../admin/external-auth/index.md#github-enterprise):
+[existing configuration](../../../admin/external-auth.md#github-enterprise):
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
