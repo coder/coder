@@ -354,7 +354,7 @@ The tool supports the `list`, `get`, `create`, `update`, `enable`, `disable`, `d
 The agent acts as you, so its automations count toward your limit and appear on your **Automations** page with a **Created by agent in** link to the chat.
 
 In a turn that you start, the agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
-Reading an automation shows its prompt in the chat.
+Listing automations leaves out their prompts, but reading one automation shows its prompt in the chat.
 
 The agent can create, update, enable, or run only automations that stay close to its own chat:
 
