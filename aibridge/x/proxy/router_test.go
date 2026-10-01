@@ -343,22 +343,44 @@ func TestRouterBridgedRemainsStubbed(t *testing.T) {
 
 func TestRouterBedrockBridgedRemainsDisabled(t *testing.T) {
 	t.Parallel()
-	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("Bedrock forwarding is not supported")
-	}))
-	t.Cleanup(upstream.Close)
-	prov, err := provider.NewBedrock(t.Context(), config.Anthropic{BaseURL: upstream.URL}, config.AWSBedrock{
-		Region: "us-east-1", AccessKey: "test-key", AccessKeySecret: "test-secret",
-		Model: "test-model", SmallFastModel: "test-small-model",
-	})
-	require.NoError(t, err)
-	router, err := proxy.NewRouter(t.Context(), []provider.Provider{prov}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
-	require.NoError(t, err)
-	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
-	for _, route := range prov.BridgedRoutes() {
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+route, nil).WithContext(ctx))
-		require.Equal(t, http.StatusNotFound, response.Code)
+
+	for _, tc := range []struct {
+		name          string
+		authorization string
+	}{
+		{
+			name: "NoAuth",
+		},
+		{
+			name:          "BYOK",
+			authorization: "Bearer user-key",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+			t.Cleanup(upstream.Close)
+			prov, err := provider.NewBedrock(t.Context(), config.Anthropic{BaseURL: upstream.URL}, config.AWSBedrock{
+				Region: "us-east-1", AccessKey: "test-key", AccessKeySecret: "test-secret",
+				Model: "test-model", SmallFastModel: "test-small-model",
+			})
+			require.NoError(t, err)
+			router, err := proxy.NewRouter(t.Context(), []provider.Provider{prov}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &struct{ recorder.Recorder }{})
+			require.NoError(t, err)
+			ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
+			for _, route := range prov.BridgedRoutes() {
+				req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+route, nil).WithContext(ctx)
+				if tc.authorization != "" {
+					req.Header.Set("Authorization", tc.authorization)
+				}
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, req)
+				require.Equal(t, http.StatusNotFound, response.Code)
+				require.Equal(t, "404 page not found\n", response.Body.String())
+			}
+			require.Zero(t, calls.Load(), "Bedrock forwarding is not supported")
+		})
 	}
 }
 
