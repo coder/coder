@@ -16,9 +16,14 @@ type guestRuntime struct {
 	module []byte
 	// entry is the file name of the script inside the /script mount.
 	entry string
-	// argv builds the guest argv for a script at scriptPath with the
-	// caller's extra arguments.
-	argv func(scriptPath string, args []string) []string
+	// prelude, when set, is written next to the script and evaluated
+	// before it. preludeEntry is its file name.
+	prelude      []byte
+	preludeEntry string
+	// argv builds the guest argv for a script at scriptPath, a prelude at
+	// preludePath (empty when the runtime has none), and the caller's
+	// extra arguments.
+	argv func(scriptPath, preludePath string, args []string) []string
 }
 
 // runtimes maps language names to embedded runtimes. Adding a language is

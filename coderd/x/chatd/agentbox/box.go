@@ -37,6 +37,9 @@ type RunRequest struct {
 	Code     string
 	Stdin    string
 	Args     []string
+	// HostCall, when set, is mounted at /mcp and served to the guest for
+	// the duration of the run. Nil leaves /mcp unmounted.
+	HostCall HostCallFunc
 }
 
 // ExitCodeInterrupted is the RunResult.ExitCode of a run stopped by its
@@ -71,7 +74,10 @@ type RunResult struct {
 	// OpenFileLimitReached reports that a guest open failed because the
 	// run held the maximum number of open files. The guest sees EIO.
 	OpenFileLimitReached bool
-	Duration             time.Duration
+	// HostCallRequestTooLarge reports that a guest host call request
+	// exceeded MaxHostCallRequestBytes. The guest sees an error envelope.
+	HostCallRequestTooLarge bool
+	Duration                time.Duration
 }
 
 // ReadLinesResult mirrors the read_file tool result shape.
@@ -186,6 +192,13 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 	if err := os.WriteFile(scriptPath, []byte(req.Code), 0o600); err != nil {
 		return RunResult{}, xerrors.Errorf("write script: %w", err)
 	}
+	guestPrelude := ""
+	if rt.prelude != nil {
+		if err := os.WriteFile(filepath.Join(b.scriptDir, rt.preludeEntry), rt.prelude, 0o600); err != nil {
+			return RunResult{}, xerrors.Errorf("write prelude: %w", err)
+		}
+		guestPrelude = path.Join(guestScriptDir, rt.preludeEntry)
+	}
 
 	timer := b.engine.clock.AfterFunc(b.engine.limits.RunTimeout, func() {
 		cancel(errRunTimeout)
@@ -194,13 +207,13 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 
 	stdout := newBoundedWriter(b.engine.limits.OutputBytes)
 	stderr := newBoundedWriter(b.engine.limits.OutputBytes)
-	fsConfig, mounts, err := b.fsConfig()
+	fsConfig, mounts, err := b.fsConfig(runCtx, req.HostCall)
 	if err != nil {
 		return RunResult{}, err
 	}
 	config := wazero.NewModuleConfig().
 		WithName("").
-		WithArgs(rt.argv(path.Join(guestScriptDir, rt.entry), req.Args)...).
+		WithArgs(rt.argv(path.Join(guestScriptDir, rt.entry), guestPrelude, req.Args)...).
 		WithStdin(strings.NewReader(req.Stdin)).
 		WithStdout(stdout).
 		WithStderr(stderr).
@@ -240,6 +253,9 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 
 		DiskQuotaExceeded:    mounts.box.quotaHit.Load(),
 		OpenFileLimitReached: mounts.limit.hit.Load(),
+	}
+	if mounts.hostCall != nil {
+		result.HostCallRequestTooLarge = mounts.hostCall.requestTooLarge.Load()
 	}
 	exitErr, isExit := errors.AsType[*sys.ExitError](err)
 	switch {
@@ -282,14 +298,16 @@ func isInterruptExitCode(code uint32) bool {
 
 // runMounts is the per-run state behind the guest mounts.
 type runMounts struct {
-	box   *boxFS
-	limit *openLimit
+	box      *boxFS
+	limit    *openLimit
+	hostCall *hostCallFS
 }
 
-// fsConfig mounts the box directory at /box through the quota adapter and
-// the script directory read-only at /script. Both mounts share one open
-// file limit.
-func (b *Box) fsConfig() (wazero.FSConfig, runMounts, error) {
+// fsConfig mounts the box directory at /box through the quota adapter,
+// the script directory read-only at /script, and the host call channel at
+// /mcp when hostCall is set. The box and script mounts share one open
+// file limit; the channel holds no host descriptors.
+func (b *Box) fsConfig(ctx context.Context, hostCall HostCallFunc) (wazero.FSConfig, runMounts, error) {
 	mounts := runMounts{
 		box:   newBoxFS(sysfs.DirFS(b.rootDir), b.quota),
 		limit: &openLimit{max: maxOpenFiles},
@@ -305,7 +323,15 @@ func (b *Box) fsConfig() (wazero.FSConfig, runMounts, error) {
 	if !ok {
 		return nil, mounts, xerrors.New("wazero FSConfig does not support sys.FS mounts")
 	}
-	return withBox.WithSysFSMount(scriptMount, guestScriptDir), mounts, nil
+	if hostCall == nil {
+		return withBox.WithSysFSMount(scriptMount, guestScriptDir), mounts, nil
+	}
+	withScript, ok := withBox.WithSysFSMount(scriptMount, guestScriptDir).(sysfs.FSConfig)
+	if !ok {
+		return nil, mounts, xerrors.New("wazero FSConfig does not support sys.FS mounts")
+	}
+	mounts.hostCall = newHostCallFS(ctx, hostCall)
+	return withScript.WithSysFSMount(mounts.hostCall, guestHostCallDir), mounts, nil
 }
 
 // WriteFile writes data to p under the box, creating parent directories.
