@@ -29,17 +29,23 @@ const HEAT_LABELS: Record<ChatHeat["label"], string> = {
 const EXPIRY_CHECK_INTERVAL_MS = 15_000;
 const CACHE_IDLE_TTL_MINUTES = CACHE_IDLE_TTL_MS / 60_000;
 
-// Blends success to warning over the first half of the heat range and
-// warning to destructive over the second half.
+// Blends cool to warm over the first half of the heat range and warm to hot
+// over the second half.
 const heatColor = (heat: number): string => {
 	const clamped = Math.min(Math.max(heat, 0), 1);
 	if (clamped <= 0.5) {
 		const stop = Math.round((clamped / 0.5) * 100);
-		return `color-mix(in oklab, var(--color-content-success), var(--color-content-warning) ${stop}%)`;
+		return `color-mix(in oklab, var(--color-heat-cool), var(--color-heat-warm) ${stop}%)`;
 	}
 	const stop = Math.round(((clamped - 0.5) / 0.5) * 100);
-	return `color-mix(in oklab, var(--color-content-warning), var(--color-content-destructive) ${stop}%)`;
+	return `color-mix(in oklab, var(--color-heat-warm), var(--color-heat-hot) ${stop}%)`;
 };
+
+// The fill carries the hue; the outline is pulled toward the primary text
+// colour so even the light yellow stop keeps at least 3:1 contrast against
+// the composer.
+const heatOutlineColor = (fill: string): string =>
+	`color-mix(in oklab, ${fill}, var(--color-content-primary) 50%)`;
 
 const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
@@ -53,6 +59,7 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	isCacheExpired,
 }) => {
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
+	const fillColor = heatColor(heat.heat);
 	const label = HEAT_LABELS[heat.label];
 	const ariaLabel = `Chat heat: ${label}, ${formatPercent(heat.heat)}.${
 		isCacheExpired ? " Cache likely expired." : ""
@@ -102,15 +109,16 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 		>
 			<FlameIcon
 				className="size-4"
-				style={{ color: heatColor(heat.heat) }}
+				fill={fillColor}
+				style={{ color: heatOutlineColor(fillColor) }}
 				aria-hidden="true"
 			/>
 			{isCacheExpired && (
 				<span
 					aria-hidden="true"
-					className="absolute bottom-0 right-0 flex size-3 items-center justify-center rounded-full border border-solid border-border bg-surface-primary text-content-primary"
+					className="absolute bottom-0 right-0 flex size-3.5 items-center justify-center rounded-full border border-solid border-surface-primary bg-content-primary text-surface-primary"
 				>
-					<ClockIcon className="size-2" strokeWidth={3} />
+					<ClockIcon className="size-2.5" strokeWidth={3} />
 				</span>
 			)}
 		</button>
