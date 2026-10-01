@@ -153,6 +153,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// for display; collisions affect the display label and search
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
+	case database.ChatProject:
+		return typed.Name
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
 	case database.MCPServerConfig:
@@ -167,6 +169,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.ChatOperationalSettings:
 		return ""
+	case database.ExperimentRule:
+		return typed.Experiment
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -262,6 +266,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.Chat:
 		return typed.ID
+	case database.ChatProject:
+		return typed.ID
 	case database.ChatModelConfig:
 		return typed.ID
 	case database.MCPServerConfig:
@@ -274,6 +280,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
 	case database.ChatOperationalSettings:
+		return typed.ID
+	case database.ExperimentRule:
+		// Derived from the experiment name by experiments.AuditRecord.
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
@@ -344,6 +353,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserAIBudgetOverride
 	case database.Chat:
 		return database.ResourceTypeChat
+	case database.ChatProject:
+		return database.ResourceTypeChatProject
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
 	case database.MCPServerConfig:
@@ -356,6 +367,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
 		return database.ResourceTypeChatOperationalSettings
+	case database.ExperimentRule:
+		return database.ResourceTypeExperimentRule
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -438,6 +451,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Chats always have a non-null organization_id (since
 		// migration 000467).
 		return true
+	case database.ChatProject:
+		return true
 	case database.ChatModelConfig:
 		return true
 	case database.MCPServerConfig:
@@ -453,6 +468,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Deployment settings, not scoped to any organization.
 		return false
 	case database.ChatOperationalSettings:
+		return false
+	case database.ExperimentRule:
+		// Deployment settings, not scoped to any organization.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

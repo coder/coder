@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { action } from "storybook/actions";
 import { FormField } from "#/components/FormField/FormField";
 import { getFormHelpers } from "./formUtils";
@@ -10,7 +9,7 @@ type ExampleFormProps = {
 	maxLength?: number;
 };
 
-const ExampleForm: FC<ExampleFormProps> = ({ value, maxLength }) => {
+const ExampleForm: React.FC<ExampleFormProps> = ({ value, maxLength }) => {
 	const form = useFormik({
 		initialValues: {
 			value,

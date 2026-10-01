@@ -75,7 +75,9 @@ manually configured SSH connection.
 
    ![Gateway Settings and Marketplace](../../../images/gateway/plugin-settings-marketplace.png)
 
-### Configuring the Gateway plugin to use internal certificates
+<a id="configuring-the-gateway-plugin-to-use-internal-certificates"></a>
+
+### Configure the Gateway plugin to use internal certificates
 
 When you attempt to connect to a Coder deployment that uses internally signed
 certificates, you might receive the following error in Gateway:
@@ -201,6 +203,8 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
    ![Gateway IDE Opened](../../../images/gateway/gateway-intellij-opened.png)
 
-## Using an existing JetBrains installation in the workspace
+<a id="using-an-existing-jetbrains-installation-in-the-workspace"></a>
+
+## Use an existing JetBrains installation in the workspace
 
 You can ask your template administrator to [pre-install the JetBrains IDEs backend](../../../admin/templates/extending-templates/jetbrains-preinstall.md) in a template to make JetBrains IDE start faster on first connection.

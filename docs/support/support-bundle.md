@@ -1,33 +1,38 @@
 ---
-title: Generate and upload a support bundle to Coder Support
+title: Generate a support bundle
 ---
 
-When you engage with Coder support to diagnose an issue with your deployment,
-you may be asked to generate and upload a "Support Bundle" for offline analysis.
-This document explains the contents of a support bundle and the steps to submit
-a support bundle to Coder staff.
+To troubleshoot a deployment or workspace issue with Coder support, you can collect a support bundle from the CLI or VS Code.
+A support bundle is a ZIP archive of deployment, workspace, agent, and connection diagnostics.
 
-## What is a Support Bundle?
+> [!WARNING]
+> Review the archive before sharing it through a trusted channel.
+> Redaction cannot guarantee that logs, settings, template source, or workspace files are free of credentials or other sensitive data.
 
-A support bundle is an archive containing a snapshot of information about your
-Coder deployment.
+<a id="what-is-a-support-bundle"></a>
 
-It contains information about the workspace, the template it uses, running
-agents in the workspace, and other detailed information useful for
-troubleshooting.
+## Bundle contents
 
-It is primarily intended for troubleshooting connectivity issues to workspaces,
-but can be useful for diagnosing other issues as well.
+The CLI collects deployment and connection diagnostics, plus workspace and agent details when you specify a workspace.
+With workspace agent version 2.35.0 or later, agent logs include up to 10&nbsp;MiB of the active log plus retained rotated logs modified in the last 24&nbsp;hours, capped at 100&nbsp;MiB in total.
+Older agents return only the active log.
+The lookback doesn't guarantee a full 24&nbsp;hours of history because rotation can remove older logs.
+Additional workspace files are opt-in through `--workspace-file`.
+IDE integrations add their own diagnostics, which aren't included by the CLI alone.
 
-**While we attempt to redact sensitive information from support bundles, they
-may contain information deemed sensitive by your organization and should be
-treated as such.**
+Any authenticated user can generate a bundle.
+Your permissions, deployment configuration, and agent connectivity determine which data is available.
+Users with the Owner role get the most complete bundle; unavailable data can leave files empty or JSON values `null`.
 
-A brief overview of all files contained in the bundle is provided below:
+Choose a collection method:
 
-> [!NOTE]
-> Detailed descriptions of all the information available in the bundle is
-> out of scope, as support bundles are primarily intended for internal use.
+- [CLI](#generate-with-the-cli)
+- [VS Code](#vs-code)
+
+<details>
+<summary>Detailed archive contents</summary>
+
+The archive contains the following files when the corresponding data is available:
 
 | Filename                                      | Description                                                                                                                                                                            |
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -35,21 +40,30 @@ A brief overview of all files contained in the bundle is provided below:
 | `agent/agent_magicsock.html`                  | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                                                                                                 |
 | `agent/client_magicsock.html`                 | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                                                                                                |
 | `agent/listening_ports.json`                  | The listening ports detected by the selected agent running in the workspace.                                                                                                           |
-| `agent/logs.txt`                              | Active agent log plus rotated agent logs modified in the last 24 hours, capped at 100 MiB.                                                                                             |
+| `agent/logs.txt`                              | Up to 10&nbsp;MiB of the active agent log. Agents on version 2.35.0 or later also include retained rotated logs modified in the last 24&nbsp;hours, capped at 100&nbsp;MiB in total.   |
 | `agent/workspace_files/collection_errors.txt` | Workspace file entries dropped while assembling the bundle, such as entries exceeding the size budget. Only present when entries were dropped.                                         |
 | `agent/workspace_files/files/`                | Files collected from inside the remote workspace with `--workspace-file`. Only present when workspace paths are requested.                                                             |
 | `agent/workspace_files/manifest.json`         | Describes the remote workspace file collection: requested patterns, collected files, per-path errors, truncation, and applied limits. Only present when workspace paths are requested. |
 | `agent/manifest.json`                         | The manifest of the selected agent with environment variables stripped.                                                                                                                |
 | `agent/startup_logs.txt`                      | Startup logs of the workspace agent.                                                                                                                                                   |
+| `agent/peer_diagnostics.json`                 | Connection details for the selected agent's peer.                                                                                                                                      |
+| `agent/ping_result.json`                      | Results of a connection check to the selected agent.                                                                                                                                   |
 | `agent/prometheus.txt`                        | The contents of the agent's Prometheus endpoint.                                                                                                                                       |
 | `cli_logs.txt`                                | Logs from running the `coder support bundle` command.                                                                                                                                  |
 | `deployment/buildinfo.json`                   | Coder version and build information.                                                                                                                                                   |
 | `deployment/config.json`                      | Deployment [configuration](../reference/api/general.md#get-deployment-config), with secret values removed. *Requires Owner role.*                                                      |
-| `deployment/experiments.json`                 | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.                                                                                      |
+| `deployment/experiments.json`                 | Any [experiments](../reference/cli/server/index.md#--experiments) currently enabled for the deployment.                                                                                |
 | `deployment/health.json`                      | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment. *Requires Owner role.*                                                                       |
+| `deployment/stats.json`                       | Aggregated workspace and session metrics, subject to your permissions.                                                                                                                 |
+| `deployment/entitlements.json`                | Feature entitlements, when available.                                                                                                                                                  |
+| `deployment/health_settings.json`             | Dismissed health checks, subject to your permissions.                                                                                                                                  |
+| `deployment/workspaces.json`                  | Workspaces you can access, with agent environment values redacted. Limited to 10 workspaces by default.                                                                                |
+| `deployment/prometheus.txt`                   | Control plane Prometheus metrics, when enabled and accessible.                                                                                                                         |
+| `license-status.txt`                          | License status, when available.                                                                                                                                                        |
 | `logs.txt`                                    | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                           |
 | `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                          |
 | `network/coordinator_debug.html`              | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                                                                     |
+| `network/interfaces.json`                     | Network interfaces on the machine running the CLI.                                                                                                                                     |
 | `network/netcheck.json`                       | Results of running `coder netcheck` locally.                                                                                                                                           |
 | `network/tailnet_debug.html`                  | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels. *Requires Owner role.*                                                                                       |
 | `workspace/build_logs.txt`                    | Build logs of the selected workspace.                                                                                                                                                  |
@@ -58,76 +72,138 @@ A brief overview of all files contained in the bundle is provided below:
 | `workspace/template.json`                     | The template currently in use by the selected workspace.                                                                                                                               |
 | `workspace/template_file.zip`                 | The source code of the template currently in use by the selected workspace.                                                                                                            |
 | `workspace/template_version.json`             | The template version currently in use by the selected workspace.                                                                                                                       |
-| `vscode-logs/`                                | Only present when generated from the VS Code Coder Remote extension. Includes logs, redacted settings, and local telemetry files.                                                      |
+| `templates/<name>/`                           | Template details, active version, and source archive requested with `--template`.                                                                                                      |
+| `pprof/`                                      | Control plane profiling data requested with `--pprof`; agent profiles are under `pprof/agent/`.                                                                                        |
+| `vscode-logs/`                                | Only present when generated from the VS Code Coder Remote extension. Includes logs, selected settings, and local telemetry files.                                                      |
 
-## How do I generate a Support Bundle?
+</details>
 
-1. Ensure your deployment is up and running. Generating a support bundle
-   requires the Coder deployment to be available.
+<a id="how-do-i-generate-a-support-bundle"></a>
 
-2. Ensure you have the Coder CLI installed on a local machine. See
-   [installation](../install/index.md) for steps on how to do this.
+## Generate with the CLI
 
-   > [!NOTE]
-   > It is recommended to generate a support bundle from a location
-   > experiencing workspace connectivity issues.
+Use a machine on the network where you connect to your workspace so that the bundle captures that machine's connection diagnostics.
+Your Coder deployment must be available.
+A running, reachable workspace provides the most complete agent diagnostics.
 
-3. Ensure you are [logged in](../reference/cli/login.md) to your Coder
-   deployment. Any authenticated user can generate a support bundle. Users with
-   the Owner role will get the most complete bundle; non-admin users will still
-   get a useful bundle but some admin-only data will be omitted (see the note
-   below).
-
-4. Run `coder support bundle [owner/workspace]`, and respond `yes` to the
-   prompt. The support bundle will be generated in the current directory with
-   the filename `coder-support-$TIMESTAMP.zip`.
-
-   If you use VS Code, you can also run **Coder: Create Support Bundle** from
-   the Command Palette. The VS Code Coder Remote extension runs
-   `coder support bundle` and appends recent VS Code diagnostics to the
-   generated archive. Bundles created with the CLI alone do not include
-   `vscode-logs/`. Learn more about
-   [VS Code diagnostics](../user-guides/workspace-access/vscode.md#diagnostics-and-support-bundles).
-
-   > [!NOTE]
-   > While support bundles can be generated without a running workspace, it is
-   > recommended to specify one to maximize troubleshooting information.
-
-   To collect workspace-side files such as editor or service logs, add one
-   `--workspace-file` flag for each path or glob. This is explicit
-   opt-in. The CLI sends each value to the workspace agent, so quote globs to
-   prevent your local shell from expanding them:
+1. [Install the Coder CLI](../install/index.md) on your local machine.
+1. [Log in](../reference/cli/login/index.md) to your deployment.
+1. Run the following command, replacing `owner/workspace` with your workspace's owner and name:
 
    ```sh
-   coder support bundle my-workspace \
-     --workspace-file '$HOME/.vscode-server/data/logs/**/*.log' \
-     --workspace-file '$HOME/.local/share/code-server/coder-logs/**/*.log'
+   coder support bundle owner/workspace
    ```
 
-   Workspace paths and globs are evaluated by the workspace agent.
-   Environment variables such as `$HOME` expand in the workspace, and `~/`
-   resolves against the agent user's home directory; any absolute path in
-   the workspace can be requested. Symlinks are followed for directly
-   requested paths, but not during glob traversal. Collection is limited to
-   10000 files and 100 MiB in total; files larger than 10 MiB are truncated
-   to their last 10 MiB and marked as truncated in the manifest. Collected
-   files are stored under `agent/workspace_files/files/`, and collection
-   metadata is stored in `agent/workspace_files/manifest.json`.
+1. Review the collection notice and enter `yes` to confirm.
 
-   > [!WARNING]
-   > Workspace files can contain tokens, credentials, source code, or other
-   > sensitive data. Extract and review `agent/workspace_files/` before sharing
-   > the bundle.
+The CLI saves `coder-support-<timestamp>.zip` in the current directory and prints `Wrote support bundle to` followed by its path.
+To select an agent in a workspace with multiple agents, append its name: `coder support bundle owner/workspace agent-name`.
+If you omit the workspace when running inside one, the CLI infers the workspace and agent from the environment.
+Network diagnostics then reflect the workspace rather than your local machine.
+Outside a workspace, omitting the workspace produces deployment and local network diagnostics without workspace-specific data.
 
-5. (Recommended) Extract the support bundle and review its contents, redacting
-   any information you deem necessary.
+### Include workspace files
 
-6. Coder staff will provide you a link where you can upload the bundle along
-   with any other necessary supporting files.
+To include editor or service logs from the workspace, add one `--workspace-file` flag per path or glob.
+These files come from the remote workspace, not from the machine running the CLI.
+Workspace file collection requires Coder version 2.36.0 or later for both the CLI and the workspace agent.
+The workspace agent must be reachable.
 
-   > [!NOTE]
-   > It is helpful to leave an informative message regarding the nature of
-   > supporting files.
+> [!WARNING]
+> Requested workspace files are not redacted and can contain tokens, credentials, or source code.
+> Review `agent/workspace_files/` before sharing the archive to avoid exposing sensitive data.
 
-Coder support will then review the information you provided and respond to you
-with next steps.
+Run the following command with the paths you want to collect.
+Quote each pattern so that your local shell doesn't expand it:
+
+```sh
+coder support bundle owner/workspace \
+  --workspace-file '$HOME/.vscode-server/data/logs/**/*.log' \
+  --workspace-file '$HOME/.local/share/code-server/coder-logs/**/*.log'
+```
+
+After confirmation, the CLI writes a ZIP archive with collected files under `agent/workspace_files/files/`.
+The `agent/workspace_files/manifest.json` file records requested patterns, collected files, errors, truncation, and limits.
+An agent that doesn't support collection records that limitation in the manifest instead of collecting the requested files.
+
+The workspace agent evaluates paths and globs:
+
+- Environment variables such as `$HOME` expand inside the workspace.
+- Paths must resolve to absolute paths or start with `~/`, which resolves to the agent user's home directory.
+- Direct paths follow symlinks; glob traversal doesn't follow symlinks.
+- Collection is limited to 10,000 files and 100&nbsp;MiB in total.
+- Each file contributes at most its last 10&nbsp;MiB, or less if the total budget is nearly exhausted, with truncation recorded in the manifest.
+
+### Customize collection
+
+Use these options to adjust the bundle:
+
+| Option                           | Effect                                                                                                                                                                                                           |
+|----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--output-file <path>`           | Choose where to save the ZIP archive.                                                                                                                                                                            |
+| `--workspaces-total-cap <count>` | Set the maximum number of entries in `deployment/workspaces.json`. Defaults to 10; zero or a negative value removes the cap.                                                                                     |
+| `--template <name>`              | Include a template's active version and source, independently of the selected workspace. Use `org_name/template_name` if the name exists in multiple organizations.                                              |
+| `--pprof`                        | Include control plane and agent profiling data. Requires Coder version 2.28.0 or later. CPU and trace profiles sample 30&nbsp;seconds per target; collecting both control plane and agent profiles takes longer. |
+
+For all options, refer to the [`coder support bundle` reference](../reference/cli/support/bundle.md).
+
+## Generate from your IDE
+
+Use your IDE's collection action to include its local diagnostics alongside the Coder bundle.
+Running the CLI separately doesn't collect those local IDE files.
+
+### VS Code
+
+Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
+Sign in to your Coder deployment in the extension before collecting a bundle.
+
+- Bundle generation requires Coder version 2.10.0 or later.
+- Remote editor server log collection requires Coder version 2.36.0 or later, including a reachable workspace agent on that version or later.
+
+By default, the extension downloads a CLI that matches your deployment.
+If you configure a custom CLI, it must also meet these version requirements.
+
+> [!WARNING]
+> Remote workspace logs are not redacted and can contain credentials or source code.
+> Review these files before sharing the archive to avoid exposing sensitive data.
+
+1. Open the Command Palette.
+1. Run **Coder: Create Support Bundle**.
+1. If prompted, select a running workspace.
+1. Review **Create a support bundle?** and select **Continue**.
+1. Choose a local destination in **Save Support Bundle**.
+   The extension confirms the saved archive's location and offers **Reveal in File Explorer**.
+1. [Review the archive before sharing it](#review-and-share-the-bundle).
+
+You can also open the context menu for a running workspace or one of its agents in the Coder sidebar and select **Support Bundle**.
+To target a specific agent when you aren't connected, start from that agent's context menu.
+
+The extension runs `coder support bundle` and adds local diagnostics under `vscode-logs/`:
+
+- Coder extension logs from recent windows and sessions.
+- SSH proxy and Remote-SSH logs.
+- Selected VS Code settings.
+- Local telemetry files, when available.
+
+The extension masks configured values for `coder.globalFlags`, `coder.headerCommand`, and `coder.tlsCertRefreshCommand`.
+Other collected settings, including deployment URLs, TLS file paths, and SSH flags, are included unchanged.
+Review these values before sharing.
+
+Extension version 1.16.1 or later adds session identifiers and logs workspace and agent state changes.
+With extension version 1.16.4 or later, bundles can include recent connection logs even if you didn't turn on debug logging.
+Collection is best effort, so the latest entries may be missing.
+To turn off buffering, set `coder.connectionLogBuffer.size` to `0`.
+
+Remote editor server logs appear under `agent/workspace_files/`, separately from the local VS Code diagnostics.
+
+For telemetry controls and retention, refer to [VS Code local telemetry](../user-guides/workspace-access/vscode.md#local-telemetry).
+For extension installation and settings, refer to the [Coder Remote README](https://github.com/coder/vscode-coder/blob/main/README.md#getting-started).
+
+## Review and share the bundle
+
+1. Extract the ZIP archive.
+1. Review its contents and remove sensitive information before sharing.
+1. Create a new ZIP archive from the reviewed contents.
+1. Upload the reviewed archive through the link Coder support provides.
+
+Include a description of the issue and any supporting files requested by Coder support.

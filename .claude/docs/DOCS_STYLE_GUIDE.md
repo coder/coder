@@ -9,10 +9,12 @@ This guide documents structure, research, and content patterns for documentation
 > guidelines, the content guidelines govern.
 >
 > **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
-> Vale rules under `docs/.style/styles/Coder/` enforce those rules incrementally as each rule lands.
+> Vale rules under `docs/.style/styles/Coder/` enforce a small subset of that guide and run advisory; markdownlint and the em-dash check enforce a few more and do fail the build.
+> Read the guide and apply it; a clean lint run is not conformance.
+> Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > This file remains authoritative for structure, research, and content patterns.
 
-See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -163,7 +165,7 @@ superseded by the canonical content guidelines.
 ### Instructions
 
 - **Numbered lists** for sequential steps
-- **Start with verb**: "Navigate to", "Click", "Select", "Run"
+- **Start with verb**: "Navigate to", "Select", "Run" (write `select`, not `click`; DOC6 in [docs/AGENTS.md](../../docs/AGENTS.md))
 - **Be specific**: Include exact button/menu names in bold
 
 ## Code Examples
@@ -274,7 +276,7 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-**CRITICAL**: All documentation pages must be added to `docs/manifest.json` to appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
+Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
 
 ## Documentation lands with the change
 
@@ -370,7 +372,7 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 2. **Be precise** - Use exact numbers, permission names, and API paths for
    the values that belong on the page per
    [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-3. **Visual structure** - Organize around screenshots when available
+3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
-5. **Manifest inclusion** - Add to manifest.json for navigation
+5. **Manifest inclusion** - Add to `docs/manifest/` for navigation
 6. **Add redirects** - When moving/renaming pages, add redirects in coder/coder.com repo

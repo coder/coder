@@ -46,7 +46,8 @@ export const SingleMessage: Story = {
 	},
 };
 
-// Several messages queued up at once.
+// Several messages queued up at once. The phone viewport hides the
+// Enter-to-send hint below the sm breakpoint.
 export const SeveralMessages: Story = {
 	args: {
 		messages: [
@@ -54,6 +55,10 @@ export const SeveralMessages: Story = {
 			buildMessage(2, textContent("Run database migrations")),
 			buildMessage(3, textContent("Start the dev server")),
 		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 

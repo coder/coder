@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -157,7 +156,9 @@ const isDefaultModeOption = (
 	return value === "chat_default" || value === "deployment_default";
 };
 
-export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
+export const PersonalModelOverrideRow: React.FC<
+	PersonalModelOverrideRowProps
+> = ({
 	context,
 	title,
 	description,

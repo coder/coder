@@ -182,7 +182,7 @@ The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
 | `message`      | A complete message has been persisted                   |
 | `status`       | The chat status changed (e.g. `running` → `waiting`)    |
 | `error`        | An error occurred during processing                     |
-| `retry`        | The server is retrying a failed LLM call                |
+| `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
 Use `after_id` as a query parameter when reconnecting to skip messages the
@@ -632,17 +632,17 @@ curl -s -X PATCH \
 
 ### Quick checklist
 
-Use this checklist to confirm each part of your integration:
+Use this list to confirm each part of your integration:
 
-- [ ] At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
-- [ ] `POST /chats` creates a chat and returns a valid `Chat` object
-- [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
-- [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
-- [ ] Chat attached to a workspace from the converted template runs
-      tools against that workspace
-- [ ] `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
-- [ ] Archive and restore via `PATCH /chats/{chat}` works
-- [ ] (If applicable) GitHub Actions workflow creates chats successfully
+- At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
+- `POST /chats` creates a chat and returns a valid `Chat` object
+- WebSocket stream at `/chats/{chat}/stream` delivers events
+- Follow-up messages via `/chats/{chat}/messages` are accepted
+- Chat attached to a workspace from the converted template runs
+  tools against that workspace
+- `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
+- Archive and restore via `PATCH /chats/{chat}` works
+- (If applicable) GitHub Actions workflow creates chats successfully
 
 ## Features available only in the Chats API
 

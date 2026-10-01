@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -540,6 +541,31 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
+	appInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "app_info",
+		Help:      "The current family of each registered session app. Value is always 1.",
+	}, []string{"app_name", "family"})
+	for appName, family := range codersdk.SessionCountAppFamilies() {
+		appInfoGauge.WithLabelValues(appName, string(family)).Set(1)
+	}
+	if err := registerer.Register(appInfoGauge); err != nil {
+		return nil, err
+	}
+
+	sessionCountLabels := append(slices.Clone(aggregateByLabels), "app_name")
+	agentStatsSessionCountGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "session_count",
+		Help:      "The number of sessions established by app name",
+	}, sessionCountLabels))
+	err = registerer.Register(agentStatsSessionCountGauge)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -579,7 +605,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 			} else {
 				for _, agentStat := range stats {
-					var labelValues []string
+					labelValues := make([]string, 0, len(aggregateByLabels))
 					for _, label := range aggregateByLabels {
 						switch label {
 						case agentmetrics.LabelUsername:
@@ -597,18 +623,24 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
 
-					// The query sums sessions per app name, so a session reported
-					// under a name this version does not know about is counted
-					// here rather than dropped. A malformed sum leaves the other
-					// gauges for this agent intact.
-					sessionCounts, err := codersdk.SessionCountsByFamilyJSON(agentStat.SessionCounts)
+					// A malformed payload leaves this agent's other gauges intact.
+					appCounts, err := codersdk.DecodeAppMap[int64](agentStat.SessionCounts)
 					if err != nil {
-						logger.Error(ctx, "can't group agent session counts by app family",
+						logger.Error(ctx, "can't decode agent session counts",
 							slog.F("agent_name", agentStat.AgentName),
 							slog.F("workspace_name", agentStat.WorkspaceName),
 							slog.Error(err),
 						)
 						continue
+					}
+					sessionCounts := make(map[codersdk.AppFamilyName]int64)
+					for appName, count := range appCounts {
+						family := codersdk.AppNameFamily(appName)
+						sessionCounts[family] += count
+						// The gauge retains the slice, so give each series its own. Add,
+						// not Set: aggregateByLabels can collapse agents onto one series.
+						appLabels := append(slices.Clone(labelValues), appName)
+						agentStatsSessionCountGauge.WithLabelValues(VectorOperationAdd, float64(count), appLabels...)
 					}
 
 					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyJetBrains]), labelValues...)
@@ -617,6 +649,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyVSCode]), labelValues...)
 				}
 
+				// An empty window keeps the last published values.
 				if len(stats) > 0 {
 					agentStatsRxBytesGauge.Commit()
 					agentStatsTxBytesGauge.Commit()
@@ -624,6 +657,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionCountGauge.Commit()
 					agentStatsConnectionMedianLatencyGauge.Commit()
 
+					agentStatsSessionCountGauge.Commit()
 					agentStatsSessionCountJetBrainsGauge.Commit()
 					agentStatsSessionCountReconnectingPTYGauge.Commit()
 					agentStatsSessionCountSSHGauge.Commit()

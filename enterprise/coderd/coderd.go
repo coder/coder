@@ -357,6 +357,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.listAIModelPrices)
 			r.Post("/", api.upsertAIModelPrices)
 		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/users", api.organizationAISpendUsers)
+		})
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -568,7 +577,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/export", api.exportOrganizationAISpend)
-			r.Get("/users", api.organizationAISpendUsers)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(

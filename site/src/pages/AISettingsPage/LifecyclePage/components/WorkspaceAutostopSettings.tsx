@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -39,7 +38,9 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
+export const WorkspaceAutostopSettings: React.FC<
+	WorkspaceAutostopSettingsProps
+> = ({
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,

@@ -72,11 +72,11 @@ Docs claims should be checked against the actual implementation, not approximati
 - Exact RBAC action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
-  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150 ms".
+  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5 minutes" can't drift-fail, but `300s default` can.
+*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
 Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
@@ -138,7 +138,7 @@ Don't conflate them:
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early Access, Beta, or General Availability.
-  Refer to [Feature stages](../install/releases/feature-stages.md).
+  Refer to [Feature stages](../reference/feature-stages.md).
 
 Practical impact for docs:
 
@@ -231,17 +231,15 @@ Each entry includes the reason it belongs in the docs.
 
 These govern *how* content enters the docs, for both humans and the doc-check agent.
 
-- **Every new page must be added to `docs/manifest.json`.**
-  Pages not in the manifest don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+- **Every new page must be added to the sidebar sources in `docs/manifest/`.**
+  Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
-- **Premium features are marked explicitly.**
-  Both of the following are required for a Premium page:
-  1. The H1 title takes a `(Premium)` suffix.
-     Example: `# Template
-     Insights (Premium)`.
-  2. The page's `docs/manifest.json` entry gets `"state": ["premium"]`.
+- **Feature states are marked in navigation metadata.**
+  The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
+  Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.

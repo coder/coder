@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -60,7 +60,7 @@ const getMCPOutcomeBadgeVariant = (outcome: string) => {
 	}
 };
 
-export const DebugRunCard: FC<DebugRunCardProps> = ({
+export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,

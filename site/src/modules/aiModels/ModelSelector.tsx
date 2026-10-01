@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -41,7 +41,7 @@ export type ModelSelectorOption = {
 
 type ModelSelectorProps = {
 	options: readonly ModelSelectorOption[];
-	value: string;
+	value: string | undefined;
 	onValueChange: (value: string) => void;
 	/**
 	 * When set, the trigger's accessible name is this contextual label followed
@@ -93,7 +93,7 @@ const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
 		.join(" ")
 		.toLowerCase();
 
-export const ModelSelector: FC<ModelSelectorProps> = ({
+export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
@@ -327,7 +327,7 @@ type ReasoningEffortRowProps = {
 // Effort row pinned below the model list. Lives outside the Command
 // so it stays visible while the list scrolls and cmdk's arrow-key
 // navigation does not capture the slider's keyboard interaction.
-const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
+const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	option,
 	value,
 	onChange,
@@ -374,8 +374,21 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 				max={selectableEfforts.length - 1}
 				step={1}
 			/>
-			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
-				{formatReasoningEffort(value)}
+			{/* Rendering every label in one grid cell keeps this slot at the width
+			    of the longest label, so the slider does not resize while dragging.
+			    The badge itself hugs its text and sits at the right edge. */}
+			<span className="grid shrink-0 justify-items-end">
+				{selectableEfforts.map((effort, index) => (
+					<span
+						key={effort}
+						className={cn(
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							index !== effortIndex && "invisible",
+						)}
+					>
+						{formatReasoningEffort(effort)}
+					</span>
+				))}
 			</span>
 		</div>
 	);
@@ -387,7 +400,7 @@ type ModelOptionItemProps = {
 	onSelect: () => void;
 };
 
-const ModelOptionItem: FC<ModelOptionItemProps> = ({
+const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 	option,
 	isSelected,
 	onSelect,

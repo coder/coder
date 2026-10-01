@@ -15,6 +15,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -30,6 +32,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 		wantCompletionTokens int64
 		wantTotalTokens      int64
 		wantServiceTier      string
+		wantModel            string
 	}{
 		{
 			name: "cumulative snapshots with trailing usage-less chunk",
@@ -64,6 +67,17 @@ func TestStreamProcessorUsage(t *testing.T) {
 			wantCompletionTokens: 30,
 			wantTotalTokens:      6030,
 			wantServiceTier:      "priority",
+		},
+		{
+			name: "model reported by the provider",
+			chunks: []string{
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{"content":"one"}}]}`,
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+			},
+			wantPromptTokens:     6000,
+			wantCompletionTokens: 30,
+			wantTotalTokens:      6030,
+			wantModel:            "provider-model",
 		},
 	}
 
@@ -101,6 +115,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 			assert.Equal(t, tt.wantCompletionTokens, usage.CompletionTokens)
 			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
 			assert.Equal(t, tt.wantServiceTier, processor.serviceTier)
+			assert.Equal(t, tt.wantModel, processor.getModel())
 		})
 	}
 }
@@ -130,7 +145,7 @@ func TestStreamingInterceptionRecordsLatestUsageWithZeroCompletionTokens(t *test
 		uuid.New(),
 		req,
 		intercept.Config{BaseURL: upstream.URL},
-		intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization},
+		credential.BYOK{Secret: "test-key", Header: aibheaders.AuthHeaderAuthorization},
 		httpReq.Header,
 		otel.Tracer("test"),
 	)
@@ -213,7 +228,7 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			cfg := intercept.Config{
 				BaseURL: mockServer.URL,
 			}
-			cred := intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization}
+			cred := credential.BYOK{Secret: "test-key", Header: aibheaders.AuthHeaderAuthorization}
 
 			req := &ChatCompletionNewParamsWrapper{
 				ChatCompletionNewParams: openai.ChatCompletionNewParams{

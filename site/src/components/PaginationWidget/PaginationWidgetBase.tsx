@@ -1,5 +1,4 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";
 import { PaginationNavButton } from "./PaginationNavButton";
 import { buildPagedList } from "./utils";
@@ -18,7 +17,7 @@ export type PaginationWidgetBaseProps = {
 	totalPages?: number;
 };
 
-export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
+export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 	currentPage,
 	pageSize,
 	totalRecords,
@@ -89,7 +88,7 @@ type PaginationRowProps = {
 	onChange: (newPage: number) => void;
 };
 
-const PaginationRow: FC<PaginationRowProps> = ({
+const PaginationRow: React.FC<PaginationRowProps> = ({
 	currentPage,
 	totalPages,
 	onChange,

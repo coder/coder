@@ -1,10 +1,9 @@
-import type { FC } from "react";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 
-export const ConnectionLogHelpPopover: FC = () => {
+export const ConnectionLogHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip>
 			<TooltipTitle>Why are some events missing?</TooltipTitle>

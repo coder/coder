@@ -61,7 +61,7 @@ export const WithValidationError: Story = {
 				message: "Validation failed",
 				validations: [
 					{ field: "name", detail: "name error" },
-					{ field: "callback_url", detail: "url error" },
+					{ field: "redirect_uris", detail: "url error" },
 					{ field: "icon", detail: "icon error" },
 				],
 			}),
@@ -71,7 +71,7 @@ export const WithValidationError: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
 		await userEvent.type(
-			canvas.getByLabelText(/callback url/i),
+			canvas.getByLabelText(/default callback/i),
 			"https://example.com/callback",
 		);
 		await userEvent.click(
@@ -87,7 +87,7 @@ export const InvalidCallbackURL: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
-		const callbackInput = canvas.getByLabelText(/callback url/i);
+		const callbackInput = canvas.getByLabelText(/default callback/i);
 		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises callback URL rejection.
 		await userEvent.type(callbackInput, "javascript:alert(1)");
 		await userEvent.tab();
@@ -102,8 +102,46 @@ export const DynamicallyRegisteredValues: Story = {
 			"VS Code Coder Extension",
 		);
 		await userEvent.type(
-			canvas.getByLabelText(/callback url/i),
+			canvas.getByLabelText(/default callback/i),
 			"vscode://coder.coder-remote/oauth/callback",
+		);
+		await userEvent.tab();
+	},
+};
+
+export const MultipleRedirectURIs: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByLabelText(/^name/i),
+			"VS Code Coder Extension",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/default callback/i),
+			"vscode://coder.coder-remote/oauth/callback",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add redirect uri/i }),
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			"https://example.com/callback",
+		);
+	},
+};
+
+export const InvalidRowState: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add redirect uri/i }),
+		);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises redirect URI rejection.
+		const invalidRedirectURI = "javascript:alert(1)";
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			invalidRedirectURI,
 		);
 		await userEvent.tab();
 	},

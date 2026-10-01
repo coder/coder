@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -20,7 +19,7 @@ type PromptTableProps = {
 	className?: string;
 };
 
-export const PromptTable: FC<PromptTableProps> = ({
+export const PromptTable: React.FC<PromptTableProps> = ({
 	timestamp,
 	model,
 	inputTokens,

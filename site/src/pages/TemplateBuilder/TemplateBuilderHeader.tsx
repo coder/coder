@@ -1,10 +1,10 @@
-import type { FC, PropsWithChildren } from "react";
-
-export const TemplateBuilderTitle: FC<PropsWithChildren> = ({ children }) => {
+export const TemplateBuilderTitle: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <h2 className="mt-0 text-xl font-semibold mb-1">{children}</h2>;
 };
 
-export const TemplateBuilderSubtitle: FC<PropsWithChildren> = ({
+export const TemplateBuilderSubtitle: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	return (

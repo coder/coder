@@ -116,11 +116,13 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
+	CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
@@ -911,6 +913,10 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// TimeoutMs is the wait timeout in milliseconds after the process
+	// starts; see ProcessOutputOptions.TimeoutFromStartProcess. Not allowed
+	// with Background.
+	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
@@ -944,6 +950,8 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
+	TimedOut  bool               `json:"timed_out,omitempty"` // running past StartProcessRequest.TimeoutMs
+	Canceled  bool               `json:"canceled,omitempty"`  // its tool call was canceled while it ran
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -952,6 +960,9 @@ type ProcessOutputOptions struct {
 	// Wait enables blocking mode. When true, the request
 	// blocks until the process exits or the context expires.
 	Wait bool
+	// TimeoutFromStartProcess also ends a blocking wait at
+	// StartProcessRequest.TimeoutMs.
+	TimeoutFromStartProcess bool
 }
 
 // ProcessTruncation describes how process output was truncated.
@@ -1116,13 +1127,17 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
+	res, err := c.toolCallRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
 		"path": []string{path},
 	}), reader)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readWriteFileResponse(res)
+}
+
+func readWriteFileResponse(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
 		return codersdk.ReadBodyAsError(res)
 	}
@@ -1132,6 +1147,53 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// UploadChatFileRequest is the streaming request for the agent's
+// chat-file upload endpoint.
+type UploadChatFileRequest struct {
+	// ChatID is the full chat UUID used to namespace the upload directory.
+	ChatID string
+	// Name is the filename. Coderd sanitizes it before the call; the
+	// agent sanitizes again as defense in depth for direct tailnet
+	// callers.
+	Name string
+	// Body must remain readable until UploadChatFile returns.
+	Body io.Reader
+}
+
+// AgentUploadChatFileResponse is the response from uploading to a workspace agent.
+type AgentUploadChatFileResponse struct {
+	// Path is the absolute path where the file was written on the workspace.
+	Path string `json:"path"`
+	// Name is the final basename after sanitization and collision suffixing.
+	Name string `json:"name"`
+	// Size is the number of bytes written to the workspace.
+	Size int64 `json:"size"`
+}
+
+// UploadChatFile streams a file body to the workspace agent.
+func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/upload-chat-file", neturl.Values{
+		"chat_id": []string{req.ChatID},
+		"name":    []string{req.Name},
+	}), req.Body)
+	if err != nil {
+		return AgentUploadChatFileResponse{}, xerrors.Errorf("upload chat file: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentUploadChatFileResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var out AgentUploadChatFileResponse
+	if err := decodeAgentJSON(res, &out); err != nil {
+		return AgentUploadChatFileResponse{}, xerrors.Errorf("decode upload chat file response: %w", err)
+	}
+	return out, nil
 }
 
 // ReadFileLinesResponse is the response from the line-based file reader.
@@ -1322,15 +1384,37 @@ type MCPToolContent struct {
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
+	res, err := c.toolCallRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
 	if err != nil {
 		return StartProcessResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readStartProcessResponse(res)
+}
+
+func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) {
 	if res.StatusCode != http.StatusOK {
 		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp StartProcessResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// CancelToolCall cancels tool call id of the connection's chat. The agent
+// refuses later requests for it, waits for a running request, stops its
+// process, and returns the saved response.
+func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil)
+	if err != nil {
+		return CancelToolCallResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CancelToolCallResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CancelToolCallResponse
 	return resp, decodeAgentJSON(res, &resp)
 }
 
@@ -1388,11 +1472,14 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	path := "/api/v0/processes/" + id + "/output"
+	query := neturl.Values{}
 	if opts != nil && opts.Wait {
-		path += "?wait=true"
+		query.Set("wait", "true")
+		if opts.TimeoutFromStartProcess {
+			query.Set("timeout_from_start_process", "true")
+		}
 	}
-	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/processes/"+id+"/output", query), nil)
 	if err != nil {
 		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -1430,11 +1517,15 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
+	res, err := c.toolCallRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
 		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readEditFilesResponse(res)
+}
+
+func readEditFilesResponse(res *http.Response) (FileEditResponse, error) {
 	if res.StatusCode != http.StatusOK {
 		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
@@ -1456,6 +1547,21 @@ func agentAPIPath(path string, query neturl.Values) string {
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	return c.apiRequestWithHeader(ctx, method, path, body, nil)
+}
+
+// toolCallRequest is apiRequest with CoderToolCallIDHeader from ctx. Use
+// it only for requests that perform the tool call: the agent responds to
+// any other request carrying the ID with the saved response.
+func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	header := http.Header{}
+	if id, ok := ToolCallIDFromContext(ctx); ok {
+		header.Set(CoderToolCallIDHeader, id.String())
+	}
+	return c.apiRequestWithHeader(ctx, method, path, body, header)
+}
+
+func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path string, body interface{}, header http.Header) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -1494,6 +1600,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
+	}
+	for key, values := range header {
+		req.Header[key] = values
 	}
 
 	return c.apiClient(ctx).Do(req)

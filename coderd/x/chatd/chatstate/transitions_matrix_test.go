@@ -114,16 +114,21 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-queue", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorQueue,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }
 
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }
@@ -166,8 +171,11 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 	return err
 }
 
-func applyInterrupt(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.interrupt, err = tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 	return err
@@ -989,6 +997,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
 				require.Equal(t, seeded.chatID, inserted.ChatID)
 				assertChatMessageText(t, inserted, "sm-queue")
+				require.False(t, inserted.QueuedMessageID.Valid,
+					"SendMessage(queue) into W/E0 is a direct send, not a promotion")
 				require.False(t, after.LastError.Valid,
 					"SendMessage(queue) clears last_error when transitioning out of an error state")
 				require.Equal(t, database.ChatStatusRunning, after.Status,
@@ -1022,6 +1032,9 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
+				require.NotEqual(t, newQueued.ID, promoted.QueuedMessageID.Int64,
+					"the promoted old head must not link to the new tail")
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
 						": queue must end with only the new tail")
@@ -1099,6 +1112,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
 				require.Equal(t, seeded.chatID, inserted.ChatID)
 				assertChatMessageText(t, inserted, "sm-interrupt")
+				require.False(t, inserted.QueuedMessageID.Valid,
+					"SendMessage(interrupt) into W/E0 is a direct send, not a promotion")
 				require.False(t, after.LastError.Valid,
 					"SendMessage(interrupt) into W/E0 clears last_error")
 				require.Equal(t, database.ChatStatusRunning, after.Status,
@@ -1129,6 +1144,9 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
+				require.NotEqual(t, newQueued.ID, promoted.QueuedMessageID.Int64,
+					"the promoted old head must not link to the new tail")
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
 						" interrupt: queue must end with only the new tail")
@@ -1380,6 +1398,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				require.NotEmpty(t, seeded.queuedMessageBodies,
 					"E1/A1 seed must record queued message bodies")
 				assertChatMessageText(t, inserted, seeded.queuedMessageBodies[targetIdx])
+				requireQueuedMessageLink(t, inserted, targetID)
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, targetID)
 				wantRemaining := remainingExcluding(base.queueIDs, targetIdx)
 				require.Equal(t, wantRemaining, afterQueueIDs,
@@ -1787,6 +1806,9 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 				nonDynamicAssistantToolCallMessage(t, f.Model.ID, nonDynCallID))
 
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+					return err
+				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 				return err
 			}))
@@ -1848,6 +1870,7 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 					"I1 seed must record queued message bodies")
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				require.NotEmpty(t, base.queueIDs)
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
 				require.Equal(t, wantRemaining, afterQueueIDs,
@@ -1901,6 +1924,7 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 					"R1 seed must record queued message bodies")
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				require.NotEmpty(t, base.queueIDs)
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
 				require.Equal(t, wantRemaining, afterQueueIDs,
@@ -1981,4 +2005,15 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 		}
 	}
 	return spec
+}
+
+// ownRunningChat owns a seeded running chat before an interrupt so the
+// matrix covers the interrupting states. The unowned variants finish
+// the interruption inline and have their own tests.
+func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+	t.Helper()
+	if from != chatstate.StateR0 && from != chatstate.StateR1 {
+		return nil
+	}
+	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
 }

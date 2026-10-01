@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type WorkspaceStatus string
@@ -169,6 +170,10 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	}
 
 	return obj
+}
+
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
 }
 
 func (c Chat) RBACObject() rbac.Object {
@@ -660,6 +665,16 @@ func (a OAuth2ProviderApp) IsPublic() bool {
 	return a.ClientType == OAuth2ProviderAppClientTypePublic
 }
 
+// RegisteredRedirectURIs returns the redirect URIs the authorize and token
+// endpoints accept, primary first. RedirectUris is the source of truth.
+// The result is never empty: callers index the first entry directly.
+func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
+	if len(a.RedirectUris) == 0 {
+		return []string{a.CallbackURL}
+	}
+	return slice.Unique(a.RedirectUris)
+}
+
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
@@ -1013,6 +1028,7 @@ type UpsertConnectionLogParams struct {
 	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
 	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }

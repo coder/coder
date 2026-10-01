@@ -1,6 +1,6 @@
 ---
 name: doc-check
-description: Checks if code changes require documentation updates
+description: Checks if code changes require documentation updates. Use when reviewing a PR or diff for missing, stale, or incorrect docs under docs/; to write or restructure docs, use write-docs.
 ---
 
 # Documentation Check Skill
@@ -163,9 +163,7 @@ second one, and how the Slack notice knows a review had findings. A
 comment without it reads as silence to everything downstream.
 
 After you post or edit, read the comment back and confirm the marker is
-there. If it is not, edit the comment to add it. This happened on
-`coder/coder#28723`: the review found a real gap, posted it without the
-marker, and the notice said "No docs needed".
+there. If it is not, edit the comment to add it.
 
 ### One comment per pull request
 
@@ -260,8 +258,10 @@ only on the user-facing portion.
 
 ## Key Documentation Info
 
-- **`docs/manifest.json`** is the navigation structure; new pages MUST be
-  added here.
+- **`docs/manifest/**/*.yml`** is the navigation structure; new pages MUST be
+  added to the right source file there. Each file holds one route and its
+  direct children, and `include` pulls in a child's own file. `docs/manifest.json` is compiled
+  from it by `make gen/docs-manifest`; don't edit the JSON directly.
 - **`docs/reference/cli/*.md`** is auto-generated from Go code. Don't
   edit directly.
 - **`docs/.style/content-guidelines.md`** is the canonical source for
@@ -269,12 +269,9 @@ only on the user-facing portion.
 
 ### Premium feature signaling
 
-A page documenting a Premium feature requires **both** of the following.
-Missing either one is a defect:
-
-1. The H1 title takes a `(Premium)` suffix. Example:
-   `# Template Insights (Premium)`.
-2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
+Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
+The state is displayed in navigation metadata.
 
 ### Evidence versus claim
 

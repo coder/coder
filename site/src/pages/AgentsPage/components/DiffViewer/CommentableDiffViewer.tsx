@@ -4,13 +4,7 @@ import type {
 	SelectedLineRange,
 } from "@pierre/diffs";
 import { ArrowUpIcon } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	annotationLineForBox,
@@ -108,7 +102,7 @@ export function extractDiffContent(
  * line(s). Supports multiline via Shift+Enter. Enter submits,
  * Escape dismisses.
  */
-export const InlinePromptInput: FC<{
+export const InlinePromptInput: React.FC<{
 	onSubmit: (text: string) => void;
 	onCancel: () => void;
 }> = ({ onSubmit, onCancel }) => {
@@ -188,7 +182,7 @@ type CommentableDiffViewerProps = {
 	/** Which diff rendering style to use. */
 	diffStyle: DiffStyle;
 	/** Ref to the chat message input for inserting comments. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 	/** Scroll to a specific file. */
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
@@ -200,7 +194,7 @@ type CommentableDiffViewerProps = {
  * number or select a range to open a comment input that inserts a
  * file reference chip and text into the chat input.
  */
-export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
+export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 	parsedFiles,
 	chatInputRef,
 	...diffViewerProps

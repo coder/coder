@@ -5,8 +5,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -24,6 +27,43 @@ type exclusion struct {
 	flag bool
 	env  bool
 	yaml bool
+}
+
+// TestExperimentDisplayNames pins the display name of every known experiment.
+// DisplayName falls back to a title-cased key, so an experiment missing its
+// case renders a guess in the product UI instead of failing loudly. The length
+// assertion forces a new experiment to be named here as well.
+func TestExperimentDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	expected := map[codersdk.Experiment]string{
+		codersdk.ExperimentExample:                   "Example Experiment",
+		codersdk.ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
+		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
+		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
+		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
+		codersdk.ExperimentMCPToolSearch:             "MCP Tool Search",
+		codersdk.ExperimentNoNATSPubsub:              "No NATS Pubsub",
+		codersdk.ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
+		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
+		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
+		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
+		codersdk.ExperimentChatProjects:              "Chat Projects",
+		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
+		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
+		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
+		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
+		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
+		codersdk.ExperimentChatBoard:                 "Chat Board",
+		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+	}
+
+	require.Len(t, expected, len(codersdk.ExperimentsKnown))
+	for _, experiment := range codersdk.ExperimentsKnown {
+		displayName, ok := expected[experiment]
+		require.Truef(t, ok, "experiment %q has no expected display name", experiment)
+		require.Equal(t, displayName, experiment.DisplayName())
+	}
 }
 
 func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
@@ -572,6 +612,193 @@ func must[T any](value T, err error) T {
 	return value
 }
 
+func TestAIGatewayActorHeaderNames(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		environ      serpent.Environ
+		config       string
+		wantID       string
+		wantUsername string
+		wantEmail    string
+	}{
+		{
+			name:         "defaults",
+			wantID:       "X-AI-Bridge-Actor-ID",
+			wantUsername: "X-AI-Bridge-Actor-Metadata-Username",
+			wantEmail:    "",
+		},
+		{
+			name:         "flags",
+			args:         []string{"--ai-gateway-actor-header-id", "X-User-ID", "--ai-gateway-actor-header-username", "X-Username", "--ai-gateway-actor-header-email", "X-Email"},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+		{
+			name: "environment",
+			environ: serpent.Environ{
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_ID", Value: "X-User-ID"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", Value: "X-Username"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", Value: "X-Email"},
+			},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+		{
+			name:         "YAML",
+			config:       "ai_gateway:\n  actor_header_id: X-User-ID\n  actor_header_username: X-Username\n  actor_header_email: X-Email\n",
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dv := &codersdk.DeploymentValues{}
+			called := false
+			cmd := &serpent.Command{
+				Use:     "test",
+				Options: dv.Options(),
+				Handler: func(_ *serpent.Invocation) error {
+					called = true
+					require.Equal(t, tc.wantID, dv.AI.BridgeConfig.ActorHeaderID.Value())
+					require.Equal(t, tc.wantUsername, dv.AI.BridgeConfig.ActorHeaderUsername.Value())
+					require.Equal(t, tc.wantEmail, dv.AI.BridgeConfig.ActorHeaderEmail.Value())
+					return dv.Validate()
+				},
+			}
+			inv := cmd.Invoke(tc.args...)
+			inv.Environ = append(serpent.Environ{}, tc.environ...)
+			if tc.config != "" {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				require.NoError(t, os.WriteFile(path, []byte(tc.config), 0o600))
+				inv.Environ = append(inv.Environ, serpent.EnvVar{Name: "CODER_CONFIG_PATH", Value: path})
+			}
+			require.NoError(t, inv.Run())
+			require.True(t, called, "configuration must reach validation")
+		})
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := codersdk.AIBridgeConfig{
+			ActorHeaderID:       serpent.String("X-User-ID"),
+			ActorHeaderUsername: serpent.String("X-Username"),
+			ActorHeaderEmail:    serpent.String("X-Email"),
+		}
+		encoded, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(encoded, &fields))
+		require.JSONEq(t, `"X-User-ID"`, string(fields["actor_header_id"]))
+		require.JSONEq(t, `"X-Username"`, string(fields["actor_header_username"]))
+		require.JSONEq(t, `"X-Email"`, string(fields["actor_header_email"]))
+		require.NotContains(t, fields, "actor_header_names")
+		require.NotContains(t, fields, "actor_header_meta_username")
+	})
+
+	t.Run("validation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			email    string
+			wantErr  string
+		}{
+			{name: "both empty"},
+			{name: "ID only", id: "X-User-ID"},
+			{name: "username only", username: "X-Username"},
+			{name: "email only", email: "X-Email"},
+			{name: "custom names", id: "X-User-ID", username: "X-Username", email: "X-Email"},
+			{name: "invalid", username: "Bad: Header", wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
+			{name: "email standard exception", email: "x-ai-bridge-actor-metadata-email"},
+			{name: "email collision", username: "X-User", email: "x-user", wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME and CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.wantErr != "" {
+					require.EqualError(t, err, tc.wantErr)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("actor prefix", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			email    string
+			reserved string
+		}{
+			{name: "own standard names", id: "x-aI-bRiDgE-aCtOr-iD", username: "x-aI-bRiDgE-aCtOr-mEtAdAtA-uSeRnAmE"},
+			{name: "ID uses username header", id: "x-ai-bridge-actor-metadata-username", reserved: "x-ai-bridge-actor-metadata-username"},
+			{name: "username uses ID header", username: "x-ai-bridge-actor-id", reserved: "x-ai-bridge-actor-id"},
+			{name: "mixed-case metadata prefix", id: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr", reserved: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr"},
+			{name: "exact prefix", username: "x-aI-bRiDgE-aCtOr", reserved: "x-aI-bRiDgE-aCtOr"},
+			{name: "prefix without separator", username: "x-aI-bRiDgE-aCtOrOther", reserved: "x-aI-bRiDgE-aCtOrOther"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.reserved != "" {
+					require.EqualError(t, err, fmt.Sprintf("reserved AI Gateway actor header name %q", tc.reserved))
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("reserved names", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{
+			"Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number",
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{ActorHeaderID: serpent.String(name)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", name))
+
+				lower := strings.ToLower(name)
+				cfg = codersdk.AIBridgeConfig{ActorHeaderUsername: serpent.String(lower)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", lower))
+			})
+		}
+	})
+}
+
 func TestAIGatewayCompatibilityAliases(t *testing.T) {
 	t.Parallel()
 
@@ -720,20 +947,29 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 	})
 }
 
+// defaultDeploymentValues returns deployment values with every option set to
+// its default, which passes Validate.
+func defaultDeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	t.Helper()
+	dv := &codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	return dv
+}
+
 func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Parallel()
 
-	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
-		dv := &codersdk.DeploymentValues{}
+	mk := func(t *testing.T, access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := defaultDeploymentValues(t)
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
-		dv.AI.Chat.HookTimeout = serpent.Duration(1500 * time.Millisecond)
 		return dv
 	}
 
 	t.Run("EqualDurations_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 1*time.Hour)
+		dv := mk(t, 1*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -741,7 +977,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshShorter_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(2*time.Hour, 1*time.Hour)
+		dv := mk(t, 2*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -749,7 +985,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshZero_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 0)
+		dv := mk(t, 1*time.Hour, 0)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -758,7 +994,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Run("AccessUninitialized_Error", func(t *testing.T) {
 		t.Parallel()
 		// Access duration is zero (uninitialized); refresh is valid.
-		dv := mk(0, 48*time.Hour)
+		dv := mk(t, 0, 48*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
@@ -766,10 +1002,52 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshLonger_OK", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 48*time.Hour)
+		dv := mk(t, 1*time.Hour, 48*time.Hour)
 		err := dv.Validate()
 		require.NoError(t, err)
 	})
+}
+
+func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
+	t.Parallel()
+
+	limits := []struct {
+		flag  string
+		value func(*codersdk.DeploymentValues) *serpent.Int64
+	}{
+		{"chat-max-steps-per-turn", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxStepsPerTurn }},
+		{"chat-max-generation-retries", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxGenerationRetries }},
+		{"chat-max-queued-messages-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxQueuedMessagesPerChat }},
+		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
+		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
+		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+	}
+	values := []struct {
+		value int64
+		valid bool
+	}{
+		{value: -1},
+		{value: 0},
+		{value: 1, valid: true},
+		{value: math.MaxInt32, valid: true},
+		{value: math.MaxInt32 + 1},
+	}
+
+	for _, limit := range limits {
+		for _, tc := range values {
+			t.Run(fmt.Sprintf("%s=%d", limit.flag, tc.value), func(t *testing.T) {
+				t.Parallel()
+				dv := defaultDeploymentValues(t)
+				*limit.value(dv) = serpent.Int64(tc.value)
+				err := dv.Validate()
+				if tc.valid {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, fmt.Sprintf("--%s (%d) must be between 1 and", limit.flag, tc.value))
+			})
+		}
+	}
 }
 
 func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
@@ -925,9 +1203,7 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			dv := &codersdk.DeploymentValues{}
-			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv := defaultDeploymentValues(t)
 			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
 			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
 			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
@@ -964,9 +1240,7 @@ func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			dv := &codersdk.DeploymentValues{}
-			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv := defaultDeploymentValues(t)
 			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
 
 			err := dv.Validate()
@@ -1913,5 +2187,13 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 				handler.ServeHTTP(rw, req)
 			}
 		})
+	}
+}
+
+func TestExperimentsSafeAreKnown(t *testing.T) {
+	t.Parallel()
+
+	for _, ex := range codersdk.ExperimentsSafe {
+		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
 }

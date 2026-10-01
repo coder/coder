@@ -32,6 +32,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -98,6 +99,7 @@ chats_expanded AS (
         updated_chats.last_read_message_id,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
+        updated_chats.project_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
@@ -589,6 +591,10 @@ WHERE
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
+        WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
@@ -644,23 +650,43 @@ WHERE
         ) = sqlc.narg('has_unread')::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length(@chat_statuses::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY(@chat_statuses::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
+    -- "none" matches chats with no pull request: no diff-status row, or a
+    -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN EXISTS (
-            SELECT 1
-            FROM chat_diff_statuses cds
-            WHERE cds.chat_id = chats_expanded.id
-                AND (
-                    CASE
-                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                        WHEN cds.pull_request_state = 'open' THEN 'open'
-                        ELSE cds.pull_request_state
-                    END
-                ) = ANY(@pull_request_statuses::text[])
+        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN (
+            (
+                'none' = ANY(@pull_request_statuses::text[])
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND NULLIF(cds.pull_request_state, '') IS NOT NULL
+                )
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM chat_diff_statuses cds
+                WHERE cds.chat_id = chats_expanded.id
+                    AND (
+                        CASE
+                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                            WHEN cds.pull_request_state = 'open' THEN 'open'
+                            ELSE cds.pull_request_state
+                        END
+                    ) = ANY(@pull_request_statuses::text[])
+            )
         )
         ELSE true
     END
@@ -794,6 +820,7 @@ INSERT INTO chats (
     id,
     organization_id,
     owner_id,
+    project_id,
     workspace_id,
     build_id,
     agent_id,
@@ -812,6 +839,7 @@ INSERT INTO chats (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
+    sqlc.narg('project_id')::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('build_id')::uuid,
     sqlc.narg('agent_id')::uuid,
@@ -856,6 +884,7 @@ chats_expanded AS (
         inserted_chat.last_read_message_id,
         inserted_chat.dynamic_tools,
         inserted_chat.organization_id,
+        inserted_chat.project_id,
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
@@ -954,7 +983,9 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id,
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -974,7 +1005,10 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
+        NULLIF((@provider_response_id::text[])[allocated.ord], ''),
+        -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
 )
@@ -1020,6 +1054,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1090,6 +1125,83 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
+
+-- name: UpdateChatTitleByIDIfTitle :one
+-- Compare-and-set variant of UpdateChatTitleByID: the title is only
+-- written when the stored title still equals @expected_title. Automatic
+-- title generation uses it so a rename that lands while the model call
+-- runs is not overwritten. Returns no rows when the title changed.
+WITH updated_chat AS (
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
+WHERE
+    id = @id::uuid
+    AND title = @expected_title::text
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1158,6 +1270,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1226,6 +1339,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1294,6 +1408,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1382,6 +1497,7 @@ chats_expanded AS (
         result_chat.last_read_message_id,
         result_chat.dynamic_tools,
         result_chat.organization_id,
+        result_chat.project_id,
         result_chat.plan_mode,
         result_chat.client_type,
         result_chat.last_turn_summary,
@@ -1449,6 +1565,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1545,6 +1662,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1801,8 +1919,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files;
 
 -- name: UpdateChatStatus :one
 WITH updated_chat AS (
@@ -1846,6 +1964,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -1915,13 +2034,17 @@ WHERE
     AND status = 'running'::chat_status
 RETURNING id;
 
--- name: GetChatDiffStatusByChatID :one
+-- name: GetChatDiffStatusesByChatID :many
 SELECT
     *
 FROM
     chat_diff_statuses
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch;
 
 -- name: GetChatDiffStatusesByChatIDs :many
 SELECT
@@ -1929,7 +2052,22 @@ SELECT
 FROM
     chat_diff_statuses
 WHERE
-    chat_id = ANY(@chat_ids::uuid[]);
+    chat_id = ANY(@chat_ids::uuid[])
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch;
+
+-- name: UpdateChatDiffStatusReferenceURL :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = @url::text,
+    stale_at = @stale_at::timestamptz
+WHERE
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
 
 -- name: UpsertChatDiffStatusReference :one
 INSERT INTO chat_diff_statuses (
@@ -1945,19 +2083,11 @@ INSERT INTO chat_diff_statuses (
     @git_remote_origin::text,
     @stale_at::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = CASE
         WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url
         ELSE chat_diff_statuses.url
-    END,
-    git_branch = CASE
-        WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch
-        ELSE chat_diff_statuses.git_branch
-    END,
-    git_remote_origin = CASE
-        WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin
-        ELSE chat_diff_statuses.git_remote_origin
     END,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
@@ -1968,6 +2098,8 @@ RETURNING
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
+    git_branch,
+    git_remote_origin,
     pull_request_state,
     pull_request_title,
     pull_request_draft,
@@ -1988,6 +2120,8 @@ INSERT INTO chat_diff_statuses (
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('url')::text,
+    @git_branch::text,
+    @git_remote_origin::text,
     sqlc.narg('pull_request_state')::text,
     @pull_request_title::text,
     @pull_request_draft::boolean,
@@ -2006,7 +2140,7 @@ INSERT INTO chat_diff_statuses (
     @refreshed_at::timestamptz,
     @stale_at::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = EXCLUDED.url,
     pull_request_state = EXCLUDED.pull_request_state,
@@ -2025,8 +2159,7 @@ SET
     approved = EXCLUDED.approved,
     reviewer_count = EXCLUDED.reviewer_count,
     refreshed_at = EXCLUDED.refreshed_at,
-    stale_at = EXCLUDED.stale_at,
-    updated_at = NOW()
+    stale_at = EXCLUDED.stale_at
 RETURNING
     *;
 
@@ -2046,9 +2179,14 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
+-- Returns the queue in promotion order (position ASC, id ASC), the same
+-- order chatstate uses to pick the head. Clients read the queue through
+-- this query, so it must not order by created_at: promoting a message
+-- changes only its position, and concurrent senders can commit with
+-- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY created_at ASC, id ASC;
+ORDER BY position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -2133,6 +2271,7 @@ chats_expanded AS (
         locked_chat.last_read_message_id,
         locked_chat.dynamic_tools,
         locked_chat.organization_id,
+        locked_chat.project_id,
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
@@ -2197,6 +2336,7 @@ chats_expanded AS (
         shared_chat.last_read_message_id,
         shared_chat.dynamic_tools,
         shared_chat.organization_id,
+        shared_chat.project_id,
         shared_chat.plan_mode,
         shared_chat.client_type,
         shared_chat.last_turn_summary,
@@ -2250,15 +2390,13 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- NOTE: updated_at is intentionally NOT touched here so
-        -- the worker can read it as "when was this row last
-        -- externally changed" (by MarkStale or a successful
-        -- refresh).
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
-        chat_id IN (
+        (chat_id, git_remote_origin, git_branch) IN (
             SELECT
-                cds.chat_id
+                cds.chat_id,
+                cds.git_remote_origin,
+                cds.git_branch
             FROM
                 chat_diff_statuses cds
             INNER JOIN
@@ -2289,13 +2427,11 @@ INNER JOIN
 UPDATE
     chat_diff_statuses
 SET
-    -- NOTE: updated_at is intentionally NOT touched here so
-    -- the worker can read it as "when was this row last
-    -- externally changed" (by MarkStale or a successful
-    -- refresh).
     stale_at = @stale_at::timestamptz
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
 
 -- name: ClearChatDiffStatusPR :exec
 UPDATE
@@ -2319,7 +2455,9 @@ SET
     reviewer_count = NULL,
     stale_at = @stale_at::timestamptz
 WHERE
-    chat_id = @chat_id::uuid;
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
 
 -- name: GetChatDiffStatusSummary :one
 -- Returns aggregate PR counts across all agent chats for telemetry.
@@ -2334,7 +2472,7 @@ WITH deduped AS (
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
     WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.refreshed_at DESC NULLS LAST, cds.updated_at DESC, c.id DESC
 )
 SELECT
     COUNT(*)::bigint AS total,
@@ -2361,9 +2499,10 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: UpdateChatLastReadMessageID :exec
 -- Updates the last read message ID for a chat. This is used to track
--- which messages the owner has seen, enabling unread indicators.
+-- which messages the owner has seen, enabling unread indicators. A NULL
+-- value clears the cursor, marking every message unread again.
 UPDATE chats
-SET last_read_message_id = @last_read_message_id::bigint
+SET last_read_message_id = sqlc.narg('last_read_message_id')::bigint
 WHERE id = @id::uuid;
 
 -- name: DeleteOldChats :execrows
@@ -2388,7 +2527,7 @@ WHERE chats.id = deletable.id
 -- Retrieves chats updated after the given timestamp for telemetry
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
-SELECT
+SELECT DISTINCT ON (c.id)
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
@@ -2396,7 +2535,8 @@ SELECT
     cds.pull_request_state
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
-WHERE c.updated_at > @updated_after;
+WHERE c.updated_at > @updated_after
+ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created
@@ -2446,8 +2586,11 @@ WHERE chat_id = @chat_id::uuid
 
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
--- Interrupting chats finish active work first. Requires-action chats follow so
--- their runner can enforce the action deadline before new generations start.
+-- Within each pool, interrupting chats finish active work first, and
+-- requires-action chats follow so their runner can enforce the action deadline
+-- before new generations start. Pools are interleaved by that per-pool rank, so
+-- a saturated pool's refused high-priority rows cannot crowd the other pool's
+-- candidates out of the limit.
 WITH candidate_partitions AS (
     SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
     UNION ALL
@@ -2464,11 +2607,10 @@ WITH candidate_partitions AS (
 candidates AS (
     SELECT
         candidate.id,
-        candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
-            ORDER BY candidate.updated_at ASC, candidate.id ASC
+            PARTITION BY candidate_partitions.is_root
+            ORDER BY candidate_partitions.status_priority ASC, candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
@@ -2499,7 +2641,6 @@ SELECT
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
-    candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
     chats.id ASC
@@ -2511,13 +2652,26 @@ FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
--- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
+-- name: RenewChatHeartbeats :many
+-- Renews (chat_id, runner_id) leases that are still fresh and still own
+-- their chat, and returns the renewed pairs. A stale lease is never
+-- revived because capacity admission may already have given its slot to
+-- another chat; its runner must stop instead. Callers hold the capacity
+-- admission lock, and statement_timestamp() is read after that lock is
+-- granted, so a lease that a committed admission counted as stale cannot
+-- be renewed afterwards.
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
 FROM unnest(@chat_ids::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
 JOIN unnest(@runner_ids::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at;
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * @stale_seconds::int)
+RETURNING hb.chat_id, hb.runner_id;
 
 -- name: DeleteStaleChatHeartbeats :execrows
 DELETE FROM chat_heartbeats
@@ -2551,6 +2705,37 @@ WHERE
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
 LIMIT @limit_count::int;
+
+-- name: GetAutoArchiveInactiveChatCandidateByID :one
+-- Rechecks one root chat against the GetAutoArchiveInactiveChatCandidates
+-- filters. Auto-archive calls it inside the archive transaction after the
+-- family rows are locked, so activity that landed after the unlocked
+-- candidate read is observed. Returns no rows when the chat no longer
+-- qualifies. Keep the filters in sync with
+-- GetAutoArchiveInactiveChatCandidates.
+SELECT
+    chats_expanded.*,
+    COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
+FROM chats_expanded
+LEFT JOIN LATERAL (
+    SELECT MAX(chat_messages.created_at) AS last_activity_at
+    FROM chat_messages
+    JOIN chats family_chat ON family_chat.id = chat_messages.chat_id
+    WHERE (family_chat.id = chats_expanded.id OR family_chat.root_chat_id = chats_expanded.id)
+      AND chat_messages.deleted = false
+) activity ON TRUE
+WHERE
+    chats_expanded.id = @id::uuid
+    AND chats_expanded.archived = false
+    AND chats_expanded.pin_order = 0
+    AND chats_expanded.parent_chat_id IS NULL
+    AND chats_expanded.created_at < @archive_cutoff::timestamptz
+    AND chats_expanded.status NOT IN (
+        'running'::chat_status,
+        'interrupting'::chat_status,
+        'requires_action'::chat_status
+    )
+    AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
 
 
 -- name: LockChatAndBumpSnapshotVersion :one
@@ -2595,6 +2780,7 @@ chats_expanded AS (
         bumped_chat.last_read_message_id,
         bumped_chat.dynamic_tools,
         bumped_chat.organization_id,
+        bumped_chat.project_id,
         bumped_chat.plan_mode,
         bumped_chat.client_type,
         bumped_chat.last_turn_summary,
@@ -2634,6 +2820,10 @@ FROM chats_expanded;
 -- grant_history_epoch gives a turn that inserts no history the same
 -- fresh retry budget and message part episode keys a history change
 -- would grant, mirroring the chat_messages trigger postcondition.
+--
+-- retry_state is a pending retry of a running turn, so it is cleared
+-- whenever the chat leaves running. Otherwise an interrupted or failed
+-- chat would keep announcing a retry that will never happen.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2646,7 +2836,10 @@ WITH updated_chat AS (
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
         history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
         generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN @grant_history_epoch::boolean THEN NULL ELSE retry_state END,
+        retry_state = CASE
+            WHEN @grant_history_epoch::boolean OR @status::chat_status <> 'running'::chat_status THEN NULL
+            ELSE retry_state
+        END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid
@@ -2679,6 +2872,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -2746,6 +2940,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
@@ -2975,11 +3170,14 @@ WHERE c.worker_id IS NOT NULL
   AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 
 -- name: CountChatCapacityQueuedByPool :one
+-- Every runnable status needs capacity admission before a worker can own
+-- the chat, so interrupting and requires_action chats without a fresh lease
+-- also wait for a slot.
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL

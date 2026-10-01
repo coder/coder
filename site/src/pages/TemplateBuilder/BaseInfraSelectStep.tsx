@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,7 +25,7 @@ function detailsUrl(baseId: string): string {
 // mirroring the client-side module prioritization in ModuleSelectStep.
 const BASE_PRIORITY: readonly string[] = ["quickstart", "docker"];
 
-export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
+export const BaseInfraSelectStep: React.FC<BaseInfraSelectStepProps> = ({
 	selectedBaseId,
 	onSelectBase,
 }) => {

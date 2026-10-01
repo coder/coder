@@ -136,7 +136,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	// Unit tests should not retry serial transaction failures.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
 
-	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
