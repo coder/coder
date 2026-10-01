@@ -245,7 +245,7 @@ Create a new automation instead.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Schedule**.
 1. Select a **Repeat** option.
-1. Select a **Time**.
+1. If the **Repeat** option runs at a time of day, select a **Time**.
 1. To write the schedule yourself, enter a **Cron expression** instead.
 1. Select a **Time zone**.
 1. Check the times under **Upcoming runs**.
@@ -418,7 +418,8 @@ A webhook secret works like a credential for whatever the target chat can reach,
 People you share the chat with see everything that automation turns produce.
 
 Coder doesn't verify provider signatures.
-Senders that sign their payloads with HMAC and can't set an `Authorization` header, such as GitHub webhooks, can't call the endpoint directly; send them through a relay that adds the bearer token.
+Senders that sign their payloads with HMAC and can't set an `Authorization` header, such as GitHub webhooks, can't call the endpoint directly.
+Send them through a relay that verifies the sender's signature, rejects requests with an invalid signature, and only then forwards the payload with the bearer token.
 
 ### Audit logs
 
