@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -83,7 +84,8 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
 		return nil, nil
 	}
-	if _, _, err := headers.ExtractAgentFirewallHeaders(r); err != nil {
+	firewallID, firewallSequence, err := headers.ExtractAgentFirewallHeaders(r)
+	if err != nil {
 		logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
 		return nil, nil
@@ -101,8 +103,42 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		return nil, nil
 	}
 
-	// TODO: validate actor, recorder, and credentials; populate record metadata.
-	return &recorder.InterceptionRecord{}, nil
+	actor := aibcontext.ActorFromContext(ctx)
+	if actor == nil {
+		http.Error(w, "no actor found", http.StatusBadRequest)
+		return nil, nil
+	}
+	if h.recorder == nil {
+		http.Error(w, "recorder unavailable", http.StatusInternalServerError)
+		return nil, nil
+	}
+	cred, err := h.provider.ResolveCredential(r)
+	if err != nil {
+		http.Error(w, "upstream authentication unavailable", http.StatusBadGateway)
+		return nil, nil
+	}
+	switch cred.(type) {
+	case credential.BYOK, *credential.CentralizedPool:
+	default:
+		http.Error(w, "upstream authentication is not supported in proxy mode", http.StatusNotImplemented)
+		return nil, nil
+	}
+	var metadata recorder.Metadata
+	if actor.Username != "" {
+		metadata = recorder.Metadata{"Username": actor.Username}
+	}
+	return &recorder.InterceptionRecord{
+		InitiatorID:                 actor.ID.String(),
+		Metadata:                    metadata,
+		Provider:                    h.provider.Type(),
+		ProviderName:                h.provider.Name(),
+		Client:                      string(client),
+		UserAgent:                   r.UserAgent(),
+		AgentFirewallSessionID:      firewallID,
+		AgentFirewallSequenceNumber: firewallSequence,
+		CredentialKind:              cred.Kind(),
+		CredentialHint:              cred.Hint(),
+	}, cred
 }
 
 func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential) *http.Request {

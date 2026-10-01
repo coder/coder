@@ -16,12 +16,18 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	"github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 func TestForwardingHandlerPlaceholder(t *testing.T) {
@@ -84,6 +90,117 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 			require.NoError(t, gate.Shutdown(ctx), "completed requests must release their admission")
+		})
+	}
+}
+
+func recordedRequest(t *testing.T, body io.Reader) *http.Request {
+	t.Helper()
+	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{
+		ID:       uuid.New(),
+		APIKeyID: uuid.NewString(),
+		Username: t.Name(),
+		Email:    "actor@example.test",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
+	req.Pattern = "/openai/v1/chat/completions"
+	req.Header.Set("Authorization", "Bearer user-secret-key")
+	return req
+}
+
+func TestForwardingHandlerRejectsRequest(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"MissingActor", "MissingRecorder", "WebSocket", "Firewall", "DeclaredOversize", "MissingCredential", "UnsupportedSigning"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var rec recorder.Recorder = &struct{ recorder.Recorder }{}
+			body := &unreadBody{}
+			req := recordedRequest(t, body)
+			var prov provider.Provider = provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"})
+			status := http.StatusBadRequest
+			switch name {
+			case "MissingActor":
+				req = req.WithContext(t.Context())
+			case "MissingRecorder":
+				rec = nil
+				status = http.StatusInternalServerError
+			case "WebSocket":
+				req.Method = http.MethodGet
+				req.Header.Set("Connection", "Upgrade")
+				req.Header.Set("Upgrade", "websocket")
+				status = http.StatusNotImplemented
+			case "Firewall":
+				req.Header.Set("X-Coder-Agent-Firewall-Session-Id", "invalid")
+			case "DeclaredOversize":
+				req.ContentLength = routing.MaxRequestBodyBytes + 1
+				status = http.StatusRequestEntityTooLarge
+			case "MissingCredential":
+				req.Header.Del("Authorization")
+				status = http.StatusBadGateway
+			case "UnsupportedSigning":
+				var err error
+				prov, err = provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: "https://upstream.example.test"}, nil, &config.AWSClaudePlatform{Region: "us-west-2", WorkspaceID: "wrkspc_test"})
+				require.NoError(t, err)
+				req.Header.Del("Authorization")
+				status = http.StatusNotImplemented
+			}
+			h := &forwardingHandler{provider: prov, logger: slogtest.Make(t, nil), recorder: rec}
+			response := httptest.NewRecorder()
+			record, cred := h.checkRequest(response, req)
+			require.Nil(t, record)
+			require.Nil(t, cred)
+			require.Equal(t, status, response.Code)
+			require.False(t, body.read, "preflight must not read the request body")
+			require.Equal(t, name == "DeclaredOversize", body.closed)
+		})
+	}
+}
+
+func TestForwardingHandlerRequestMetadata(t *testing.T) {
+	t.Parallel()
+	for _, pooled := range []bool{false, true} {
+		name := "BYOK"
+		if pooled {
+			name = "Pool"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := &unreadBody{}
+			req := recordedRequest(t, body)
+			req.Header.Set("User-Agent", "claude-code/1.0")
+			req.Header.Set("X-Coder-Agent-Firewall-Session-Id", "e5f6a7b8-1234-5678-9abc-def012345678")
+			req.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "42")
+			var pool *keypool.Pool
+			kind, hint := credential.KindBYOK, utils.MaskSecret("user-secret-key")
+			if pooled {
+				var err error
+				pool, err = keypool.New("openai", []string{"pool-key"}, quartz.NewMock(t), nil)
+				require.NoError(t, err)
+				req.Header.Del("Authorization")
+				kind, hint = credential.KindCentralized, credential.HintFailoverKey
+			}
+			h := &forwardingHandler{
+				provider: provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test", KeyPool: pool}),
+				recorder: &struct{ recorder.Recorder }{},
+			}
+			response := httptest.NewRecorder()
+			record, cred := h.checkRequest(response, req)
+			require.NotNil(t, record)
+			require.NotNil(t, cred)
+			require.Equal(t, kind, cred.Kind())
+			require.Equal(t, kind, record.CredentialKind)
+			require.Equal(t, hint, record.CredentialHint)
+			require.Equal(t, aibcontext.ActorIDFromContext(req.Context()), record.InitiatorID)
+			require.Equal(t, recorder.Metadata{"Username": t.Name()}, record.Metadata)
+			require.Equal(t, "openai", record.ProviderName)
+			require.Equal(t, string(client.ClaudeCode), record.Client)
+			require.Equal(t, req.UserAgent(), record.UserAgent)
+			require.Equal(t, new("e5f6a7b8-1234-5678-9abc-def012345678"), record.AgentFirewallSessionID)
+			require.Equal(t, new(int32(42)), record.AgentFirewallSequenceNumber)
+			require.Empty(t, record.Model)
+			require.Empty(t, response.Body.String())
+			require.False(t, body.read)
+			require.False(t, body.closed)
 		})
 	}
 }
