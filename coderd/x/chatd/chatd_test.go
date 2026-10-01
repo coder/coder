@@ -12579,10 +12579,10 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnPrepareError(t *testing
 	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
-	// Serving the first assistant stream arms the failure, so the
-	// next preparation completes its MCP connect phase and then
-	// fails reading the compaction override before returning a
-	// prepared generation.
+	// Serving the first assistant stream arms the failure. The tool call
+	// keeps the turn going, so the next preparation completes its MCP
+	// connect phase and then fails reading the compaction override
+	// before returning a prepared generation.
 	var failOverrideReads atomic.Bool
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -12590,7 +12590,10 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnPrepareError(t *testing
 		}
 		failOverrideReads.Store(true)
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Done!")...,
+			chattest.OpenAIToolCallChunk(
+				"test-mcp__echo",
+				`{"input":"hello from LLM"}`,
+			),
 		)
 	})
 
@@ -15704,11 +15707,11 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		for _, step := range steps {
 			requireChild(t, step, turn)
 		}
+		// Without hooks the step's commit also finishes the turn, so there
+		// is no separate finish_turn step.
+		require.Len(t, steps, 1)
 		generate := stepByAction(t, steps, "generate_assistant")
-		finish := stepByAction(t, steps, "finish_turn")
-		for _, step := range []sdktrace.ReadOnlySpan{generate, finish} {
-			requireChild(t, childOf(t, index, chatloop.StagePrepare, step), step)
-		}
+		requireChild(t, childOf(t, index, chatloop.StagePrepare, generate), generate)
 		stream := single(t, index, chatloop.StageStream)
 		requireChild(t, stream, generate)
 		requireChild(t, single(t, index, chatloop.StageTimeToFirstToken), stream)
