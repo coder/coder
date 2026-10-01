@@ -255,7 +255,7 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 		name string
 		// enter moves the seeded R1 chat into the state the path
 		// promotes from.
-		enter func(tx *chatstate.Tx) error
+		enter func(ctx context.Context, tx *chatstate.Tx, store database.Store, chatID uuid.UUID) error
 		// promote runs the transition and returns the promoted message.
 		promote func(t *testing.T, f *testFixture, tx *chatstate.Tx) (*database.ChatMessage, error)
 		// tail lists bodies the transition itself queues.
@@ -271,7 +271,12 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 		},
 		{
 			name: "FinishInterruption",
-			enter: func(tx *chatstate.Tx) error {
+			enter: func(ctx context.Context, tx *chatstate.Tx, store database.Store, chatID uuid.UUID) error {
+				// An unowned chat finishes the interruption inside
+				// Interrupt, before the head is made stale.
+				if err := ownChat(ctx, tx, store, chatID); err != nil {
+					return err
+				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 				return err
 			},
@@ -282,7 +287,7 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 		},
 		{
 			name: "SendMessageE1",
-			enter: func(tx *chatstate.Tx) error {
+			enter: func(_ context.Context, tx *chatstate.Tx, _ database.Store, _ uuid.UUID) error {
 				_, err := tx.FinishError(chatstate.FinishErrorInput{})
 				return err
 			},
@@ -319,8 +324,8 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 				// the guard deletes only rejected heads.
 				queueAutomationMessage(t, f, m, "stale behind", provenanceFor(stale))
 				if path.enter != nil {
-					require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-						return path.enter(tx)
+					require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+						return path.enter(ctx, tx, store, chat.Chat.ID)
 					}))
 				}
 				reason.apply(ctx, t, f, stale.ID)
@@ -341,6 +346,107 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 				require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chat.Chat.ID))
 			})
 		}
+	}
+}
+
+// TestQueuePromotionGuard_UnownedInterrupt covers the paths that finish
+// the interruption of an unowned running chat inline: they promote
+// through the guard, and the chat stays unowned.
+func TestQueuePromotionGuard_UnownedInterrupt(t *testing.T) {
+	t.Parallel()
+
+	interrupt := func(ctx context.Context, t *testing.T, m *chatstate.ChatMachine) {
+		t.Helper()
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
+			return err
+		}))
+	}
+
+	for _, reason := range staleReasons {
+		t.Run("InterruptPromotesLiveRow/"+reason.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			chat := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, chat.Chat.ID)
+			stale := f.newAutomation(t)
+			live := f.newAutomation(t)
+			staleRow := queueAutomationMessage(t, f, m, "stale", provenanceFor(stale))
+			liveProvenance := provenanceFor(live)
+			liveRow := queueAutomationMessage(t, f, m, "live", liveProvenance)
+			sendQueuedMessage(t, f, m, "ordinary")
+			reason.apply(ctx, t, f, stale.ID)
+
+			interrupt(ctx, t, m)
+
+			history := historyMessageIDs(ctx, t, f, chat.Chat.ID)
+			require.NotEmpty(t, history)
+			got := requireChatMessageByID(ctx, t, f, history[len(history)-1])
+			assertChatMessageText(t, got, "live")
+			requireQueuedMessageLink(t, got, liveRow.ID)
+			requireAutomationProvenance(t, got, liveProvenance)
+			requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, staleRow.ID)
+			assertQueueBodiesInOrder(ctx, t, f, chat.Chat.ID, []string{"ordinary"})
+			require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chat.Chat.ID))
+			require.False(t, f.readChat(ctx, t, chat.Chat.ID).WorkerID.Valid)
+		})
+
+		t.Run("InterruptAllStaleLandsInWaiting/"+reason.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			chat := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, chat.Chat.ID)
+			stale := f.newAutomation(t)
+			first := queueAutomationMessage(t, f, m, "stale one", provenanceFor(stale))
+			second := queueAutomationMessage(t, f, m, "stale two", provenanceFor(stale))
+			before := historyMessageIDs(ctx, t, f, chat.Chat.ID)
+			reason.apply(ctx, t, f, stale.ID)
+
+			interrupt(ctx, t, m)
+
+			requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, first.ID)
+			requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, second.ID)
+			require.Empty(t, queuedIDsByPosition(ctx, t, f, chat.Chat.ID))
+			require.Equal(t, before, historyMessageIDs(ctx, t, f, chat.Chat.ID),
+				"landing in waiting inserts no history")
+			require.Equal(t, chatstate.StateW, f.classify(ctx, t, chat.Chat.ID))
+			require.False(t, f.readChat(ctx, t, chat.Chat.ID).WorkerID.Valid)
+		})
+
+		t.Run("SendMessageInterruptPromotesNewMessage/"+reason.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			chat := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, chat.Chat.ID)
+			stale := f.newAutomation(t)
+			staleRow := queueAutomationMessage(t, f, m, "stale", provenanceFor(stale))
+			reason.apply(ctx, t, f, stale.ID)
+
+			var result chatstate.SendMessageResult
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				result, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("new", f.User.ID, f.Model.ID),
+					BusyBehavior: chatstate.BusyBehaviorInterrupt,
+					MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+				})
+				return err
+			}))
+
+			require.Nil(t, result.QueuedMessage, "the promoted new message is not reported as queued")
+			require.NotEmpty(t, result.InsertedMessages)
+			promoted := requireChatMessageByID(ctx, t, f,
+				result.InsertedMessages[len(result.InsertedMessages)-1].ID)
+			assertChatMessageText(t, promoted, "new")
+			require.True(t, promoted.QueuedMessageID.Valid)
+			requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, staleRow.ID)
+			require.Empty(t, queuedIDsByPosition(ctx, t, f, chat.Chat.ID))
+			require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chat.Chat.ID))
+			require.False(t, f.readChat(ctx, t, chat.Chat.ID).WorkerID.Valid)
+		})
 	}
 }
 
