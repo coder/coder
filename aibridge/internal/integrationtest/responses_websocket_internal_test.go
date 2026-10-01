@@ -360,6 +360,11 @@ func TestResponsesWebSocketUpstreamHeaders(t *testing.T) {
 				"Cookie":                      {"coder_session_token=secret"},
 				codersdk.SessionTokenHeader:   {"coder-secret"},
 				agplaibridge.HeaderCoderToken: {"coder-secret"},
+				// The gateway negotiates its own handshake with upstream,
+				// and a browser's Origin is not forwarded.
+				"Sec-WebSocket-Protocol":   {"client-protocol"},
+				"Sec-WebSocket-Extensions": {"permessage-deflate"},
+				"Origin":                   {g.URL},
 			}
 			if tc.auth != "" {
 				header.Set("Authorization", tc.auth)
@@ -380,7 +385,7 @@ func TestResponsesWebSocketUpstreamHeaders(t *testing.T) {
 			got := handshakes[0]
 			assert.Equal(t, []string{tc.wantAuth}, got.Values("Authorization"))
 			assert.Equal(t, "kept", got.Get("X-Client-Header"))
-			for _, name := range []string{"Cookie", codersdk.SessionTokenHeader, agplaibridge.HeaderCoderToken} {
+			for _, name := range []string{"Cookie", codersdk.SessionTokenHeader, agplaibridge.HeaderCoderToken, "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions", "Origin"} {
 				assert.Empty(t, got.Values(name), name)
 			}
 			require.Len(t, sent.headers, 1)
