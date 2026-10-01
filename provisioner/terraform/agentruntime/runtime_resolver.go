@@ -37,6 +37,12 @@ type runtimeReferenceQuery struct {
 	reference     string
 }
 
+type runtimeCandidateReference struct {
+	resourceAddress           tfaddr.ManagedResourceAddress
+	resourceDiagnosticAddress string
+	resolvedReference         runtimeResolvedReference
+}
+
 // Resolver resolves Terraform resources to cataloged workspace-agent and
 // devcontainer-subagent runtimes. It is request-local and must not be used
 // concurrently.
@@ -193,11 +199,60 @@ func (r *Resolver) runtimeCandidates(
 		return runtimeCandidates{}, err
 	}
 
+	var (
+		pending               []runtimeCandidateReference
+		pendingReferenceBytes int
+	)
+	appendPending := func(
+		resourceAddress tfaddr.ManagedResourceAddress,
+		resourceDiagnosticAddress string,
+		references []runtimeResolvedReference,
+	) error {
+		if exceedsLimit(
+			len(pending), len(references), r.limits.referenceCount,
+		) {
+			return xerrors.Errorf(
+				"agent runtime resolution exceeds the limit of %d Terraform references",
+				r.limits.referenceCount,
+			)
+		}
+		for _, reference := range references {
+			referenceBytes := len(resourceDiagnosticAddress) +
+				len(reference.modulePath.ConfigurationAddress()) +
+				len(reference.reference)
+			if exceedsLimit(
+				pendingReferenceBytes,
+				referenceBytes,
+				r.limits.referenceBytes,
+			) {
+				return xerrors.Errorf(
+					"agent runtime resolution exceeds the limit of %d Terraform reference bytes",
+					r.limits.referenceBytes,
+				)
+			}
+			pendingReferenceBytes += referenceBytes
+			pending = append(pending, runtimeCandidateReference{
+				resourceAddress:           resourceAddress,
+				resourceDiagnosticAddress: resourceDiagnosticAddress,
+				resolvedReference:         reference,
+			})
+		}
+		return nil
+	}
+	if err := appendPending(
+		resourceAddress, resource.Address, resolvedReferences,
+	); err != nil {
+		return runtimeCandidates{}, err
+	}
+
 	candidates := map[runtimeID]struct{}{}
-	for _, resolvedReference := range resolvedReferences {
+	expandedParentDevcontainers := map[string]struct{}{}
+	for next := 0; next < len(pending); next++ {
 		if err := ctx.Err(); err != nil {
 			return runtimeCandidates{}, err
 		}
+		candidateReference := pending[next]
+		resolvedReference := candidateReference.resolvedReference
 		reference := resolvedReference.reference
 		target, err := r.runtimeReferenceTarget(
 			ctx, resolvedReference.modulePath, reference,
@@ -208,6 +263,73 @@ func (r *Resolver) runtimeCandidates(
 				truncateDiagnosticValue(reference),
 				truncateDiagnosticValue(err.Error()),
 			)
+		}
+		if target == runtimeReferenceTargetDevcontainerParent {
+			runtimeIDs, direct, err := r.devcontainerRuntimesForParentReference(
+				ctx, resolvedReference.modulePath, reference,
+			)
+			if err != nil {
+				return runtimeCandidates{}, err
+			}
+			if direct {
+				for _, runtimeID := range runtimeIDs {
+					runtime := r.runtimes.runtimes[runtimeID]
+					_, configured, err := r.configIndex.resource(
+						runtime.parsed.ModulePath().String(),
+						tfjson.ManagedResourceMode,
+						runtime.parsed.ResourceType(),
+						runtime.parsed.ResourceName(),
+					)
+					if err != nil {
+						return runtimeCandidates{}, err
+					}
+					if !configured {
+						direct = false
+						break
+					}
+				}
+			}
+			if direct {
+				for _, runtimeID := range runtimeIDs {
+					runtime := r.runtimes.runtimes[runtimeID]
+					runtimeAddress := runtime.target.Address
+					if _, expanded := expandedParentDevcontainers[runtimeAddress]; expanded {
+						continue
+					}
+					expandedParentDevcontainers[runtimeAddress] = struct{}{}
+					devcontainerResource := &tfjson.StateResource{
+						Address: runtimeAddress,
+						Mode:    tfjson.ManagedResourceMode,
+						Type:    runtime.parsed.ResourceType(),
+						Name:    runtime.parsed.ResourceName(),
+					}
+					devcontainerAddress, configuredReferences, err :=
+						r.resourceAgentIDReferences(ctx, devcontainerResource)
+					if err != nil {
+						return runtimeCandidates{}, xerrors.Errorf(
+							"resolve devcontainer %q parent agent_id expression: %w",
+							truncateDiagnosticValue(runtimeAddress), err,
+						)
+					}
+					parentReferences, err := r.resolveConfiguredRuntimeReferences(
+						ctx,
+						devcontainerAddress.ModulePath(),
+						configuredReferences,
+						r.provenanceBudget,
+					)
+					if err != nil {
+						return runtimeCandidates{}, err
+					}
+					if err := appendPending(
+						devcontainerAddress,
+						runtimeAddress,
+						parentReferences,
+					); err != nil {
+						return runtimeCandidates{}, err
+					}
+				}
+				continue
+			}
 		}
 		terminalNodes, err := r.runtimeNodesForReference(
 			ctx, resolvedReference.modulePath, reference, target,
@@ -245,7 +367,9 @@ func (r *Resolver) runtimeCandidates(
 				}
 				runtime := r.runtimes.runtimes[runtimeID]
 				if err := r.budget.consumeCandidateMatchBytes(
-					len(reference)+len(resource.Address)+len(runtime.target.Address),
+					len(reference)+
+						len(candidateReference.resourceDiagnosticAddress)+
+						len(runtime.target.Address),
 					r.limits.candidateMatchBytes,
 				); err != nil {
 					return runtimeCandidates{}, err
@@ -255,7 +379,7 @@ func (r *Resolver) runtimeCandidates(
 						continue
 					}
 				} else if !runtimeMatchesResourceModuleInstances(
-					resourceAddress, runtime.parsed,
+					candidateReference.resourceAddress, runtime.parsed,
 				) {
 					continue
 				}
@@ -279,6 +403,63 @@ func (r *Resolver) runtimeCandidates(
 		}
 	}
 	return r.partitionRuntimeCandidates(ctx, candidates)
+}
+
+func (r *Resolver) devcontainerRuntimesForParentReference(
+	ctx context.Context,
+	modulePath tfaddr.ModulePath,
+	reference string,
+) ([]runtimeID, bool, error) {
+	resourceReference, ok := strings.CutSuffix(reference, ".agent_id")
+	if !ok {
+		return nil, false, nil
+	}
+	parsed, err := tfaddr.ParseManagedResourceAddress(resourceReference)
+	if err != nil || len(parsed.ModulePath().Steps()) > 0 ||
+		parsed.ResourceType() != "coder_devcontainer" {
+		return nil, false, nil
+	}
+
+	configurationAddress := runtimeQualifyConfigurationAddress(
+		modulePath.ConfigurationAddress(), parsed.ConfigurationAddress(),
+	)
+	runtimeIDs := r.runtimes.byConfigurationAddress[configurationAddress]
+	if err := r.budget.consumeCandidateChecks(
+		len(runtimeIDs), r.limits.candidateChecks,
+	); err != nil {
+		return nil, false, err
+	}
+	moduleConstraint := runtimeInstanceConstraint{
+		moduleSteps: modulePath.Steps(),
+	}
+	var matches []runtimeID
+	for index, runtimeID := range runtimeIDs {
+		if index%256 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, false, err
+			}
+		}
+		runtime := r.runtimes.runtimes[runtimeID]
+		if err := r.budget.consumeCandidateMatchBytes(
+			len(reference)+len(configurationAddress)+len(runtime.target.Address),
+			r.limits.candidateMatchBytes,
+		); err != nil {
+			return nil, false, err
+		}
+		if runtime.target.Kind != KindDevcontainer ||
+			!moduleConstraint.matches(runtime.parsed) {
+			continue
+		}
+		if parsed.InstanceKey() != cty.NilVal &&
+			(runtime.parsed.InstanceKey() == cty.NilVal ||
+				!tfaddr.InstanceKeysEqual(
+					parsed.InstanceKey(), runtime.parsed.InstanceKey(),
+				)) {
+			continue
+		}
+		matches = append(matches, runtimeID)
+	}
+	return matches, true, nil
 }
 
 func (r *Resolver) runtimeCandidatesFromInstanceGraph(

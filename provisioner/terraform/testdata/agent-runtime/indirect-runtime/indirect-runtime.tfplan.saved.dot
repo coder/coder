@@ -1,0 +1,90 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.root" [label = "coder_agent.root", shape = "box"]
+		"[root] coder_agent.root (expand)" [label = "coder_agent.root", shape = "box"]
+		"[root] coder_agent.service (expand)" [label = "coder_agent.service", shape = "box"]
+		"[root] coder_agent.service[\"api\"]" [label = "coder_agent.service", shape = "box"]
+		"[root] coder_agent.service[\"worker\"]" [label = "coder_agent.service", shape = "box"]
+		"[root] coder_devcontainer.root" [label = "coder_devcontainer.root", shape = "box"]
+		"[root] coder_devcontainer.root (expand)" [label = "coder_devcontainer.root", shape = "box"]
+		"[root] coder_script.local_agent" [label = "coder_script.local_agent", shape = "box"]
+		"[root] coder_script.local_agent (expand)" [label = "coder_script.local_agent", shape = "box"]
+		"[root] coder_script.local_parent" [label = "coder_script.local_parent", shape = "box"]
+		"[root] coder_script.local_parent (expand)" [label = "coder_script.local_parent", shape = "box"]
+		"[root] coder_script.module_agent (expand)" [label = "coder_script.module_agent", shape = "box"]
+		"[root] coder_script.module_agent[\"api\"]" [label = "coder_script.module_agent", shape = "box"]
+		"[root] coder_script.module_agent[\"worker\"]" [label = "coder_script.module_agent", shape = "box"]
+		"[root] coder_script.module_parent (expand)" [label = "coder_script.module_parent", shape = "box"]
+		"[root] coder_script.module_parent[\"api\"]" [label = "coder_script.module_parent", shape = "box"]
+		"[root] coder_script.module_parent[\"worker\"]" [label = "coder_script.module_parent", shape = "box"]
+		"[root] module.feature.coder_script.work (expand)" [label = "module.feature.coder_script.work", shape = "box"]
+		"[root] module.feature[\"api\"].coder_script.work" [label = "module.feature.coder_script.work", shape = "box"]
+		"[root] module.feature[\"worker\"].coder_script.work" [label = "module.feature.coder_script.work", shape = "box"]
+		"[root] module.runtime.coder_agent.main (expand)" [label = "module.runtime.coder_agent.main", shape = "box"]
+		"[root] module.runtime.coder_devcontainer.repo (expand)" [label = "module.runtime.coder_devcontainer.repo", shape = "box"]
+		"[root] module.runtime[\"api\"].coder_agent.main" [label = "module.runtime.coder_agent.main", shape = "box"]
+		"[root] module.runtime[\"api\"].coder_devcontainer.repo" [label = "module.runtime.coder_devcontainer.repo", shape = "box"]
+		"[root] module.runtime[\"worker\"].coder_agent.main" [label = "module.runtime.coder_agent.main", shape = "box"]
+		"[root] module.runtime[\"worker\"].coder_devcontainer.repo" [label = "module.runtime.coder_devcontainer.repo", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] coder_agent.root (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_agent.root" -> "[root] coder_agent.root (expand)"
+		"[root] coder_agent.service (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_agent.service[\"api\"]" -> "[root] coder_agent.service (expand)"
+		"[root] coder_agent.service[\"worker\"]" -> "[root] coder_agent.service (expand)"
+		"[root] coder_devcontainer.root (expand)" -> "[root] coder_agent.root"
+		"[root] coder_devcontainer.root" -> "[root] coder_devcontainer.root (expand)"
+		"[root] coder_script.local_agent (expand)" -> "[root] local.root_agent_id (expand)"
+		"[root] coder_script.local_agent" -> "[root] coder_script.local_agent (expand)"
+		"[root] coder_script.local_parent (expand)" -> "[root] local.root_parent_agent_id (expand)"
+		"[root] coder_script.local_parent" -> "[root] coder_script.local_parent (expand)"
+		"[root] coder_script.module_agent (expand)" -> "[root] local.module_agent_ids (expand)"
+		"[root] coder_script.module_agent[\"api\"]" -> "[root] coder_script.module_agent (expand)"
+		"[root] coder_script.module_agent[\"worker\"]" -> "[root] coder_script.module_agent (expand)"
+		"[root] coder_script.module_parent (expand)" -> "[root] local.module_parent_agent_ids (expand)"
+		"[root] coder_script.module_parent[\"api\"]" -> "[root] coder_script.module_parent (expand)"
+		"[root] coder_script.module_parent[\"worker\"]" -> "[root] coder_script.module_parent (expand)"
+		"[root] local.module_agent_ids (expand)" -> "[root] module.runtime (close)"
+		"[root] local.module_parent_agent_ids (expand)" -> "[root] module.runtime (close)"
+		"[root] local.root_agent_id (expand)" -> "[root] coder_agent.root"
+		"[root] local.root_parent_agent_id (expand)" -> "[root] coder_devcontainer.root"
+		"[root] module.feature (close)" -> "[root] module.feature[\"api\"].coder_script.work"
+		"[root] module.feature (close)" -> "[root] module.feature[\"worker\"].coder_script.work"
+		"[root] module.feature (expand)" -> "[root] coder_agent.service[\"api\"]"
+		"[root] module.feature (expand)" -> "[root] coder_agent.service[\"worker\"]"
+		"[root] module.feature.coder_script.work (expand)" -> "[root] module.feature.var.agent_id (expand)"
+		"[root] module.feature.coder_script.work (expand)" -> "[root] module.feature.var.name (expand)"
+		"[root] module.feature.var.agent_id (expand)" -> "[root] module.feature (expand)"
+		"[root] module.feature.var.name (expand)" -> "[root] module.feature (expand)"
+		"[root] module.feature[\"api\"].coder_script.work" -> "[root] module.feature.coder_script.work (expand)"
+		"[root] module.feature[\"worker\"].coder_script.work" -> "[root] module.feature.coder_script.work (expand)"
+		"[root] module.runtime (close)" -> "[root] module.runtime.output.agent_id (expand)"
+		"[root] module.runtime (close)" -> "[root] module.runtime.output.parent_agent_id (expand)"
+		"[root] module.runtime.coder_agent.main (expand)" -> "[root] module.runtime (expand)"
+		"[root] module.runtime.coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.runtime.coder_devcontainer.repo (expand)" -> "[root] module.runtime.var.name (expand)"
+		"[root] module.runtime.coder_devcontainer.repo (expand)" -> "[root] module.runtime[\"api\"].coder_agent.main"
+		"[root] module.runtime.coder_devcontainer.repo (expand)" -> "[root] module.runtime[\"worker\"].coder_agent.main"
+		"[root] module.runtime.output.agent_id (expand)" -> "[root] module.runtime[\"api\"].coder_agent.main"
+		"[root] module.runtime.output.agent_id (expand)" -> "[root] module.runtime[\"worker\"].coder_agent.main"
+		"[root] module.runtime.output.parent_agent_id (expand)" -> "[root] module.runtime[\"api\"].coder_devcontainer.repo"
+		"[root] module.runtime.output.parent_agent_id (expand)" -> "[root] module.runtime[\"worker\"].coder_devcontainer.repo"
+		"[root] module.runtime.var.name (expand)" -> "[root] module.runtime (expand)"
+		"[root] module.runtime[\"api\"].coder_agent.main" -> "[root] module.runtime.coder_agent.main (expand)"
+		"[root] module.runtime[\"api\"].coder_devcontainer.repo" -> "[root] module.runtime.coder_devcontainer.repo (expand)"
+		"[root] module.runtime[\"worker\"].coder_agent.main" -> "[root] module.runtime.coder_agent.main (expand)"
+		"[root] module.runtime[\"worker\"].coder_devcontainer.repo" -> "[root] module.runtime.coder_devcontainer.repo (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.local_agent"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.local_parent"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.module_agent[\"api\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.module_agent[\"worker\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.module_parent[\"api\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.module_parent[\"worker\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.feature[\"api\"].coder_script.work"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.feature[\"worker\"].coder_script.work"
+		"[root] root" -> "[root] module.feature (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+	}
+}
