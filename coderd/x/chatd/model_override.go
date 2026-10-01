@@ -188,8 +188,7 @@ func modelOverrideErrorLabel(overrideContext string) string {
 }
 
 func userCanUseProviderKeys(providerKeys chatprovider.ProviderAPIKeys, providerName string) bool {
-	return providerKeys.APIKey(providerName) != "" ||
-		(chatprovider.ProviderAllowsAmbientCredentials(providerName) && providerKeys.HasProvider(providerName))
+	return providerKeys.APIKey(providerName) != "" || providerKeys.HasProvider(providerName)
 }
 
 func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
