@@ -222,14 +222,17 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 };
 
 const getPreviewTitle = (text: string): string => {
-	const preview = cleanHeadingText(text);
+	// Bound the cleanup work: this runs on every streamed chunk of reasoning
+	// that can grow to many kilobytes.
+	const preview = cleanHeadingText(text.slice(0, PREVIEW_TITLE_MAX_LENGTH * 4));
 	if (!preview) {
 		return DEFAULT_THINKING_TITLE;
 	}
-	if (preview.length <= PREVIEW_TITLE_MAX_LENGTH) {
+	const characters = Array.from(preview);
+	if (characters.length <= PREVIEW_TITLE_MAX_LENGTH) {
 		return preview;
 	}
-	return `${preview.slice(0, PREVIEW_TITLE_MAX_LENGTH).trimEnd()}...`;
+	return `${characters.slice(0, PREVIEW_TITLE_MAX_LENGTH).join("").trimEnd()}…`;
 };
 
 export const getThinkingDisclosureDisplay = (

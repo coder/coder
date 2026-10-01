@@ -2102,6 +2102,42 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 };
 
+export const ThinkingBlockLongPreview: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "This pattern looks like stacked merges through a merge queue or Graphite-style tool, where commits land in order once each parent branch is merged.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+};
+
 export const SequentialReadFilesCollapsed: Story = {
 	args: {
 		...defaultArgs,

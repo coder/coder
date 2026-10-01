@@ -12,7 +12,15 @@ describe("getThinkingDisclosureDisplay", () => {
 	it("truncates long text without a heading into the title", () => {
 		const text = `${"a".repeat(120)} more`;
 		expect(getThinkingDisclosureDisplay(text)).toEqual({
-			title: `${"a".repeat(100)}...`,
+			title: `${"a".repeat(100)}…`,
+			body: text,
+		});
+	});
+
+	it("strips inline Markdown from the preview title", () => {
+		const text = "Check **the** `config` in [docs](https://example.com)\nnow.";
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title: "Check the config in docs now.",
 			body: text,
 		});
 	});
