@@ -1201,6 +1201,7 @@ chats_expanded AS (
         updated_chat.last_read_message_id,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
+        updated_chat.project_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
