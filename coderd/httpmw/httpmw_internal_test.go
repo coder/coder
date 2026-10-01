@@ -216,22 +216,39 @@ func TestBuildWWWAuthenticateHeaderResourceMetadata(t *testing.T) {
 	accessURL, err := url.Parse("https://coder.example.com")
 	require.NoError(t, err)
 	for _, tc := range []struct {
-		path   string
-		suffix string
+		path        string
+		metadataURL string
+		expectedURL string
 	}{
-		{path: "/api/experimental/mcp/http", suffix: "/api/experimental/mcp/http"},
-		{path: "/api/experimental/mcp/http/", suffix: "/api/experimental/mcp/http/"},
+		{path: "/api/experimental/mcp/http"},
+		{path: "/api/experimental/mcp/http/"},
 		{path: "/api/experimental/mcp/http/child"},
-		{path: "/api/experimental/mcp/http?toolset=chatgpt", suffix: "/api/experimental/mcp/http"},
+		{path: "/api/experimental/mcp/http?toolset=chatgpt"},
 		{path: "/api/experimental/mcp/http-extra"},
 		{path: "/api/v2/users/me"},
+		{
+			path: "/reports", metadataURL: "https://discovery.example.com/reports",
+			expectedURL: "https://discovery.example.com/reports",
+		},
+		{
+			path: "/reports/", metadataURL: "https://discovery.example.com/reports/",
+			expectedURL: "https://discovery.example.com/reports/",
+		},
+		{
+			path: "/reports?resource_metadata=https://untrusted.example.com", metadataURL: "https://discovery.example.com/reports",
+			expectedURL: "https://discovery.example.com/reports",
+		},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest(http.MethodPost, "https://untrusted.example.com"+tc.path, nil)
+			expectedURL := tc.expectedURL
+			if expectedURL == "" {
+				expectedURL = "https://coder.example.com/.well-known/oauth-protected-resource"
+			}
 			for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-				header := buildWWWAuthenticateHeader(accessURL, req, code, codersdk.Response{})
-				require.Contains(t, header, `resource_metadata="https://coder.example.com/.well-known/oauth-protected-resource`+tc.suffix+`"`)
+				header := buildWWWAuthenticateHeader(accessURL, tc.metadataURL, req, code, codersdk.Response{})
+				require.Contains(t, header, `resource_metadata="`+expectedURL+`"`)
 			}
 		})
 	}
@@ -263,18 +280,18 @@ func TestExtractExpectedAudience(t *testing.T) {
 			expected: "https://api.example.com/",
 		},
 		{
-			name:     "MCP",
+			name:     "MCPWithoutOverride",
 			scheme:   "https",
 			host:     "example.com",
 			path:     "/api/experimental/mcp/http",
-			expected: "https://example.com/api/experimental/mcp/http",
+			expected: "https://example.com/",
 		},
 		{
-			name:     "MCPWithTrailingSlash",
+			name:     "MCPWithTrailingSlashWithoutOverride",
 			scheme:   "https",
 			host:     "example.com",
 			path:     "/api/experimental/mcp/http/",
-			expected: "https://example.com/api/experimental/mcp/http",
+			expected: "https://example.com/",
 		},
 		{
 			name:     "MCPPrefixLookalike",
