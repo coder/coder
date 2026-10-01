@@ -189,7 +189,6 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// responsesWebSocketAcceptOptions accepts client sockets.
 var responsesWebSocketAcceptOptions = &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled}
 
 // validClientHandshake reports whether r passes the checks websocket.Accept

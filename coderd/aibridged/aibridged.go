@@ -488,8 +488,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // socketShutdownShare divides the remaining shutdown deadline: ending
-// Responses WebSockets may take 1/socketShutdownShare of it. Closing a socket sends a going-away
-// close to both of its sides and records the end of its open interceptions.
+// Responses WebSockets may take 1/socketShutdownShare of it. Closing a
+// socket sends a going-away close to both of its sides and records the end
+// of its open interceptions.
 const socketShutdownShare = 2
 
 // socketShutdownContext returns the context that bounds ending Responses
