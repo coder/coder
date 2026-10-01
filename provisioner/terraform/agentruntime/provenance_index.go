@@ -170,6 +170,7 @@ func (i *configIndex) indexRuntimeSourceExpressionsWithLimits(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	i.runtimeSourceIndexed = false
 	clear(i.runtimeSourceExpressions)
 
 	moduleDirs, err := i.runtimeModuleDirectoriesWithLimit(
@@ -294,7 +295,7 @@ func (i *configIndex) indexRuntimeSourceExpressionsWithLimits(
 			}
 		}
 	}
-	return nil
+	return i.analyzeRuntimeSourceExpressions(ctx, budget)
 }
 
 func (i *configIndex) indexRuntimeSourceFile(

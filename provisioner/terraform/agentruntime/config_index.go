@@ -34,10 +34,16 @@ type configResource struct {
 // configIndex maps evaluated module instances to shared configuration
 // declarations. Instance keys are omitted from its keys.
 type configIndex struct {
-	modules                  map[string]struct{}
-	moduleCalls              map[moduleCallKey]configModuleCall
-	resources                map[configResourceKey]configResource
-	runtimeSourceExpressions map[runtimeExpressionKey]hcl.Expression
+	modules                     map[string]struct{}
+	moduleCalls                 map[moduleCallKey]configModuleCall
+	resources                   map[configResourceKey]configResource
+	runtimeSourceExpressions    map[runtimeExpressionKey]hcl.Expression
+	localRuntime                map[runtimeLocalKey][]runtimeLocalReference
+	runtimeSourceIndexed        bool
+	runtimeIdentityExpressions  map[runtimeExpressionKey]bool
+	runtimeEachValueExpressions map[runtimeExpressionKey]bool
+	runtimeResultSuffixes       map[runtimeExpressionKey]string
+	runtimeValueReferences      map[runtimeExpressionKey][]string
 }
 
 func newConfigIndex(
@@ -48,10 +54,15 @@ func newConfigIndex(
 		return nil, nil
 	}
 	index := &configIndex{
-		modules:                  map[string]struct{}{},
-		moduleCalls:              map[moduleCallKey]configModuleCall{},
-		resources:                map[configResourceKey]configResource{},
-		runtimeSourceExpressions: map[runtimeExpressionKey]hcl.Expression{},
+		modules:                     map[string]struct{}{},
+		moduleCalls:                 map[moduleCallKey]configModuleCall{},
+		resources:                   map[configResourceKey]configResource{},
+		runtimeSourceExpressions:    map[runtimeExpressionKey]hcl.Expression{},
+		localRuntime:                map[runtimeLocalKey][]runtimeLocalReference{},
+		runtimeIdentityExpressions:  map[runtimeExpressionKey]bool{},
+		runtimeEachValueExpressions: map[runtimeExpressionKey]bool{},
+		runtimeResultSuffixes:       map[runtimeExpressionKey]string{},
+		runtimeValueReferences:      map[runtimeExpressionKey][]string{},
 	}
 	if err := index.indexModule(ctx, "", config.RootModule); err != nil {
 		return nil, err
