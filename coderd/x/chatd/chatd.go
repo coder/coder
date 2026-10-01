@@ -3634,6 +3634,8 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 	// agentBoxes reports that the box tools are registered for the turn.
 	agentBoxes bool
+	// boxMCPServers names the MCP servers box scripts can reach.
+	boxMCPServers []string
 }
 
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
@@ -3684,6 +3686,7 @@ func buildSystemPrompt(
 	if behaviorContext.agentBoxes && !isExploreSubagentMode(behaviorContext.chatMode) {
 		prompt = chatprompt.InsertSystem(prompt, agentBoxPromptBlock(
 			agentBoxToolNamesForTurn(behaviorContext.planMode, behaviorContext.isRootChat),
+			behaviorContext.boxMCPServers,
 		))
 	}
 	if userPrompt != "" {

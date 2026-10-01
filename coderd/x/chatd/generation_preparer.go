@@ -536,6 +536,30 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
+	// Box scripts reach the same MCP tools the model can run this turn.
+	// The server list for the prompt applies the plan filter now; the tool
+	// list itself is bound after filterToolsForTurn below.
+	agentBoxes := server.agentBoxes != nil && input.TurnBoxes != nil && !isExploreSubagent
+	var (
+		boxMCPServerNames []string
+		boxMCPNamer       func(fantasy.AgentTool) string
+		boxMCPTools       []fantasy.AgentTool
+	)
+	if agentBoxes {
+		slugByConfigID := make(map[uuid.UUID]string, len(mcpConnectConfigs)+len(inlineMCPSummaries))
+		for _, config := range mcpConnectConfigs {
+			slugByConfigID[config.ID] = config.Slug
+		}
+		for _, summary := range inlineMCPSummaries {
+			slugByConfigID[summary.ConfigID] = summary.Slug
+		}
+		boxMCPNamer = boxMCPServerNamer(slugByConfigID)
+		sources := slices.Concat(mcpTools, inlineMCPTools, workspaceMCPTools)
+		boxMCPServerNames = boxMCPServers(sources, boxMCPNamer, func(tool fantasy.AgentTool) bool {
+			return toolAllowedForTurn(tool, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+		})
+	}
+
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -548,6 +572,7 @@ func (server *Server) prepareGeneration(
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
 			agentBoxes:           server.agentBoxes != nil && input.TurnBoxes != nil,
+			boxMCPServers:        boxMCPServerNames,
 		},
 	)
 	if advisorRuntime != nil {
@@ -595,7 +620,6 @@ func (server *Server) prepareGeneration(
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
-	agentBoxes := server.agentBoxes != nil && input.TurnBoxes != nil && !isExploreSubagent
 	if agentBoxes {
 		boxOptions := chattool.BoxOptions{
 			GetBox:     newTurnBoxGetter(logger, server.agentBoxes, input.TurnBoxes, input.Messages),
@@ -609,6 +633,16 @@ func (server *Server) prepareGeneration(
 				chatloop.ToolResultByteBudget(modelConfig.ContextLimit),
 				chatloop.ToolResultByteBudget(0),
 			),
+		}
+		if len(boxMCPServerNames) > 0 {
+			boxOptions.MCP = chattool.BoxMCPOptions{
+				// Tool handlers run only after preparation returns, by
+				// which time boxMCPTools is set.
+				Tools:      func() []fantasy.AgentTool { return boxMCPTools },
+				ServerName: boxMCPNamer,
+				Servers:    boxMCPServerNames,
+				Logger:     logger.Named("agentbox-mcp").With(slog.F("chat_id", chat.ID)),
+			}
 		}
 		tools = append(tools,
 			chattool.BoxRun(boxOptions),
@@ -706,6 +740,9 @@ func (server *Server) prepareGeneration(
 	// plan-mode filter so they are subject to the same approved set.
 	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	// Snapshot before dynamic tools join: those run on the client and
+	// are not MCP, and deferred MCP tools are still in the list.
+	boxMCPTools = slices.Clone(tools)
 
 	var dynamicToolNames map[string]bool
 	if server.disableCallerSuppliedTools {

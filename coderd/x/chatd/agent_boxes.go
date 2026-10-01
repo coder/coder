@@ -3,9 +3,12 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"sync"
 
+	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -13,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -187,4 +191,38 @@ func newTurnBoxGetter(
 		previous := lastTurnBoxID(messages)
 		return box, previous != "" && previous != box.ID(), nil
 	}
+}
+
+// boxMCPServerNamer returns the display name of an MCP tool's server:
+// the config slug for org and inline tools, or the workspace server name.
+func boxMCPServerNamer(slugByConfigID map[uuid.UUID]string) func(fantasy.AgentTool) string {
+	return func(tool fantasy.AgentTool) string {
+		if identified, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+			if slug, ok := slugByConfigID[identified.MCPServerConfigID()]; ok {
+				return slug
+			}
+		}
+		return workspaceMCPServerName(tool)
+	}
+}
+
+// boxMCPServers lists, sorted and deduplicated, the servers behind the
+// MCP tools in tools that the turn allows.
+func boxMCPServers(
+	tools []fantasy.AgentTool,
+	namer func(fantasy.AgentTool) string,
+	allowed func(fantasy.AgentTool) bool,
+) []string {
+	seen := map[string]struct{}{}
+	for _, tool := range tools {
+		if _, ok := tool.(mcpclient.RawCaller); !ok || !allowed(tool) {
+			continue
+		}
+		name := namer(tool)
+		if name == "" {
+			continue
+		}
+		seen[name] = struct{}{}
+	}
+	return slices.Sorted(maps.Keys(seen))
 }

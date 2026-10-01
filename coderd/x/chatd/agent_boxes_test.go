@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -368,5 +369,116 @@ func TestAgentBoxToolGating(t *testing.T) {
 			o.ChatMode = database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 		})
 		require.False(t, hasBoxTools(names))
+	})
+}
+
+// A box script calls an org MCP tool twice through mcp.call and the
+// box_run result records both calls. In plan mode a server without
+// allow_in_plan_mode is neither advertised nor callable from the box.
+func TestAgentBoxMCP(t *testing.T) {
+	t.Parallel()
+
+	const code = `const names = mcp.tools().map((t) => t.name).join(",");
+let out = [];
+for (let i = 0; i < 2; i++) { out.push(mcp.text(mcp.call("paged__echo", {input: "p" + i}))); }
+let hidden = "";
+try { mcp.call("hidden__echo", {input: "x"}); hidden = "called"; } catch (e) { hidden = e.code; }
+console.log(names, out.join("|"), hidden);`
+
+	type outcome struct {
+		system string
+		run    map[string]any
+	}
+	runTurn := func(t *testing.T, planMode bool) outcome {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var modelCalls atomic.Int32
+		var systemPrompt atomic.Pointer[string]
+		codeJSON, err := json.Marshal(code)
+		require.NoError(t, err)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			if modelCalls.Add(1) == 1 {
+				system := string(req.System)
+				systemPrompt.Store(&system)
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicToolCallChunks(
+					chattool.BoxRunToolName,
+					`{"language":"javascript","code":`+string(codeJSON)+`}`,
+				)...)
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		pagedURL := newEchoMCPTestServer(t, "paged")
+		hiddenURL := newEchoMCPTestServer(t, "hidden")
+		paged := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID:  org.ID,
+			DisplayName:     "Paged",
+			Slug:            "paged",
+			Url:             pagedURL,
+			AllowInPlanMode: true,
+			CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		hidden := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Hidden",
+			Slug:           "hidden",
+			Url:            hiddenURL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AgentBoxRootDir = t.TempDir()
+		})
+		create := chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "agent-box-mcp",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{paged.ID, hidden.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("page the data"),
+			},
+		}
+		if planMode {
+			create.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+		}
+		chat, err := server.CreateChat(ctx, create)
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		run := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), chattool.BoxRunToolName)
+		require.False(t, run.IsError, string(run.Result))
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(run.Result, &result))
+		return outcome{system: *systemPrompt.Load(), run: result}
+	}
+
+	t.Run("Default", func(t *testing.T) {
+		t.Parallel()
+		got := runTurn(t, false)
+		require.Equal(t, "hidden__echo,paged__echo echo: p0|echo: p1 called\n", got.run["stdout"], got.run["stderr"])
+		require.EqualValues(t, 3, got.run["mcp_calls_total"])
+		require.EqualValues(t, 0, got.run["mcp_calls_failed"])
+		calls, ok := got.run["mcp_calls"].([]any)
+		require.True(t, ok)
+		require.Len(t, calls, 3)
+		require.Contains(t, got.system, "servers: hidden, paged")
+		require.Contains(t, got.system, "mcp.call(name, args)")
+	})
+
+	t.Run("PlanMode", func(t *testing.T) {
+		t.Parallel()
+		got := runTurn(t, true)
+		require.Equal(t, "paged__echo echo: p0|echo: p1 unknown_tool\n", got.run["stdout"], got.run["stderr"])
+		require.EqualValues(t, 3, got.run["mcp_calls_total"])
+		require.EqualValues(t, 1, got.run["mcp_calls_failed"])
+		require.Contains(t, got.system, "servers: paged)")
+		require.NotContains(t, got.system, "hidden")
 	})
 }

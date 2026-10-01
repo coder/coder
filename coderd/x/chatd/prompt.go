@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
@@ -21,8 +22,9 @@ If you lose track of your spawned agents, call list_agents to recover them befor
 
 // agentBoxPromptBlock advertises the box tools registered for the turn.
 // The block assumes box_run, box_write_file, and box_read_file are among
-// toolNames and mentions box_attach_file only when it is.
-func agentBoxPromptBlock(toolNames []string) string {
+// toolNames and mentions box_attach_file only when it is. mcpServers
+// names the MCP servers scripts can reach; empty means none.
+func agentBoxPromptBlock(toolNames []string, mcpServers []string) string {
 	tools := "box_run, box_write_file, and box_read_file"
 	uses := "parsing or transforming data the user pasted, checking arithmetic, or prototyping an algorithm"
 	handoff := "Stage inputs with box_write_file, and report what you need from /box in your reply; files cannot be attached to the chat in this turn."
@@ -31,12 +33,25 @@ func agentBoxPromptBlock(toolNames []string) string {
 		uses = "parsing or transforming data the user pasted, checking arithmetic, generating a file to attach, or prototyping an algorithm"
 		handoff = "Stage inputs with box_write_file, and hand results to the user with box_attach_file before the turn ends."
 	}
+	network := "network"
+	mcp := ""
+	if len(mcpServers) > 0 {
+		network = "direct network access"
+		uses += ", or fetching, paging, and combining data from this chat's MCP tools"
+		mcp = "Scripts can call this chat's MCP tools synchronously (servers: " + strings.Join(mcpServers, ", ") + "): " +
+			"mcp.tools() lists them, including tools not yet loaded with find_tools; mcp.schema(name) gives a tool's input schema; " +
+			"mcp.call(name, args) returns {content, structuredContent, isError} and mcp.text(result) joins the text blocks. " +
+			"mcp.call throws an MCPError with a [code] prefix on an unknown tool, a limit, or a transport failure; a result with isError true is returned, not thrown. " +
+			"Prefer it over relaying MCP data through your own tool calls when the data is large or needs loops or paging. " +
+			"Calls are serial and their waiting time counts against the run's time limit, so write intermediate results to /box between runs and keep only what you need from each result; see the box_run description for the call and size limits.\n"
+	}
 	return "<agent-box>\n" +
 		"A temporary sandbox is available through " + tools + ". " +
-		"It runs JavaScript (QuickJS with the std and os modules) without a workspace, network, or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns. " +
+		"It runs JavaScript (QuickJS with the std and os modules) without a workspace, " + network + ", or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns. " +
 		"Import modules you stage in the box by absolute path, for example \"/box/lib.mjs\".\n" +
 		"Use it for self-contained computation: " + uses + ". " +
 		"Use workspace tools when the task needs the repository, installed tooling, or persistent files. " + handoff + "\n" +
+		mcp +
 		"If a result carries box_reset, the sandbox was replaced and earlier files are gone; recreate what you need.\n" +
 		"</agent-box>"
 }
