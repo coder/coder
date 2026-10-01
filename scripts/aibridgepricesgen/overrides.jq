@@ -47,35 +47,21 @@ end
     )
   end
 
-# gpt-daybreak-blue-latest is an alias for gpt-5.6-sol. Copy its pricing
-# until models.dev includes the alias. Recheck the target when OpenAI updates it.
-# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
-| if (.openai.models | has("gpt-daybreak-blue-latest")) then
-    error("overrides.jq: gpt-daybreak-blue-latest now present upstream; drop the injection")
-  elif (.openai.models."gpt-5.6-sol".cost | (.input | type) != "number" or (.output | type) != "number") then
-    error("overrides.jq: gpt-5.6-sol pricing missing upstream; update the gpt-daybreak-blue-latest source")
+# anthropic.claude-sonnet-5-5: bedrock-runtime serves this model only through
+# the global inference profile, which is all models.dev lists. bedrock-mantle
+# takes the bare ID, and models.dev prices bare Claude IDs like their global
+# profiles, so inject the bare ID as a copy of the global entry.
+# Ref: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
+| if (."amazon-bedrock".models | has("global.anthropic.claude-sonnet-5-5") | not) then
+    error("overrides.jq: global.anthropic.claude-sonnet-5-5 gone from upstream; the anthropic.claude-sonnet-5-5 copy has no source")
+  elif (."amazon-bedrock".models | has("anthropic.claude-sonnet-5-5")) then
+    error("overrides.jq: anthropic.claude-sonnet-5-5 now present upstream; drop the injection")
   else
-    .openai.models."gpt-daybreak-blue-latest" = (
-      .openai.models."gpt-5.6-sol"
-      | .id = "gpt-daybreak-blue-latest"
-      | .name = "GPT Daybreak Blue Latest"
+    ."amazon-bedrock".models."anthropic.claude-sonnet-5-5" = (
+      ."amazon-bedrock".models."global.anthropic.claude-sonnet-5-5"
+      | .id = "anthropic.claude-sonnet-5-5"
+      | .name = "Claude Sonnet 5.5"
     )
-  end
-
-# gpt-daybreak-red-latest is an alias for gpt-5.6-cyber. Neither is listed
-# on models.dev, so use OpenAI's USD-per-million-token prices directly.
-# Recheck the target and rates when OpenAI updates the alias.
-# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
-| if (.openai.models | has("gpt-daybreak-red-latest")) then
-    error("overrides.jq: gpt-daybreak-red-latest now present upstream; drop the injection")
-  elif (.openai.models | has("gpt-5.6-cyber")) then
-    error("overrides.jq: gpt-5.6-cyber now present upstream; copy its pricing for gpt-daybreak-red-latest")
-  else
-    .openai.models."gpt-daybreak-red-latest" = {
-      id: "gpt-daybreak-red-latest",
-      name: "GPT Daybreak Red Latest",
-      cost: {input: 12.5, output: 75, cache_read: 1.25, cache_write: 15.625}
-    }
   end
 
 # Copilot does not charge for background utility calls using GPT-4o mini,

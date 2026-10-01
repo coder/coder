@@ -1,0 +1,18 @@
+title: Run AI coding agents in Coder
+description: Run and manage AI coding agents like Claude Code and Codex in Coder workspaces, alongside your existing development environments.
+path: ./ai-coder/index.md
+icon_path: ./images/icons/wand.svg
+children:
+  - title: Best practices
+    description: Cultural and technical best practices for introducing AI coding agents into your organization.
+    path: ./ai-coder/best-practices.md
+  - title: In the IDE
+    description: Run in-IDE AI coding assistants and agents while backing their compute with Coder workspaces.
+    path: ./ai-coder/ide-agents.md
+  - include: ai-coder/agents.yml
+  - include: ai-coder/agent-relay.yml
+  - include: ai-coder/ai-governance.yml
+  - title: MCP server
+    description: Connect external AI coding agents to Coder using its built-in Model Context Protocol server.
+    path: ./ai-coder/mcp-server.md
+    state: [beta]
