@@ -1,16 +1,16 @@
 import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	getAnchoredOverlayPosition,
-	useAnchoredOverlayPosition,
-} from "./useAnchoredOverlayPosition";
+	getOverlayPositionAboveAnchor,
+	usePositionOverlayAboveAnchor,
+} from "./usePositionOverlayAboveAnchor";
 
 // Layout viewport 800px tall (the hook reads it from a fixed probe); the
 // composer sits at the bottom unless a case says otherwise.
 const layoutViewportBottom = 800;
 const composer = { left: 16, top: 600, width: 358 };
 
-describe("getAnchoredOverlayPosition", () => {
+describe("getOverlayPositionAboveAnchor", () => {
 	it.each([
 		{
 			name: "keyboard closed: 8px above the composer, capped 16px below the top",
@@ -50,7 +50,7 @@ describe("getAnchoredOverlayPosition", () => {
 		},
 	])("$name", ({ anchor, viewport, expected }) => {
 		expect(
-			getAnchoredOverlayPosition(anchor, layoutViewportBottom, viewport),
+			getOverlayPositionAboveAnchor(anchor, layoutViewportBottom, viewport),
 		).toEqual(expected);
 	});
 });
@@ -59,7 +59,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe("useAnchoredOverlayPosition", () => {
+describe("usePositionOverlayAboveAnchor", () => {
 	it("owns geometry on the supplied overlay only while enabled", () => {
 		const anchor = document.createElement("button");
 		const firstOverlay = document.createElement("div");
@@ -77,7 +77,11 @@ describe("useAnchoredOverlayPosition", () => {
 			overlay: HTMLElement;
 			enabled: boolean;
 		}) => {
-			useAnchoredOverlayPosition(anchor, overlay, enabled);
+			usePositionOverlayAboveAnchor({
+				anchorElement: anchor,
+				overlayElement: overlay,
+				enabled,
+			});
 
 			return null;
 		};
