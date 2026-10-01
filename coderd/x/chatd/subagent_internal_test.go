@@ -20,6 +20,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -85,6 +86,8 @@ type internalTestServerConfig struct {
 	experiments      codersdk.Experiments
 	transportFactory *atomic.Pointer[aibridge.TransportFactory]
 	limits           Limits
+	registry         prometheus.Registerer
+	tracerProvider   trace.TracerProvider
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -110,6 +113,18 @@ func withInternalTestServerWorker() internalTestServerOpt {
 func withInternalTestServerExperiments(experiments codersdk.Experiments) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.experiments = experiments
+	}
+}
+
+func withInternalTestServerRegistry(registry prometheus.Registerer) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.registry = registry
+	}
+}
+
+func withInternalTestServerTracerProvider(provider trace.TracerProvider) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.tracerProvider = provider
 	}
 }
 
@@ -171,6 +186,8 @@ func newInternalTestServer(
 		ExperimentEvaluator:        evaluator,
 		AIBridgeTransportFactory:   cfg.transportFactory,
 		Limits:                     cfg.limits,
+		PrometheusRegistry:         cfg.registry,
+		TracerProvider:             cfg.tracerProvider,
 	})
 	require.NoError(t, err)
 	if cfg.startWorker {

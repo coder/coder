@@ -16,18 +16,24 @@ func (r *RootCmd) update() *serpent.Command {
 		bflags         buildFlags
 	)
 	cmd := &serpent.Command{
-		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
+		Options: serpent.OptionSet{
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
+			// The invocation logger records debug detail and emits it to stderr
+			// only if the command fails (see flightRecorderMiddleware).
+			client.SetLogger(inv.Logger)
 
 			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
@@ -42,6 +48,16 @@ func (r *RootCmd) update() *serpent.Command {
 			// updating. Simply performing a new start transition may not work if the
 			// template specifies ignore_changes.
 			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+				if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
+					_, err = cliui.Prompt(inv, cliui.PromptOptions{
+						Text:      "Updating your workspace will start the workspace on the latest template version. This can delete non-persistent data. Continue?",
+						IsConfirm: true,
+					})
+					if err != nil {
+						return err
+					}
+				}
+
 				build, err := stopWorkspace(inv, client, workspace, bflags)
 				if err != nil {
 					return xerrors.Errorf("stop workspace: %w", err)

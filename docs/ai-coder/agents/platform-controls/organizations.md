@@ -1,4 +1,6 @@
-# Organization scope
+---
+title: Organization scope
+---
 
 Coder Agents configuration is split between deployment-wide settings and organization-scoped settings.
 Deployment-wide settings apply to every chat in the deployment.

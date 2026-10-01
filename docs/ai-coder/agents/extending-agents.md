@@ -1,5 +1,5 @@
 ---
-title: Extending Agents
+title: Extending agents
 ---
 
 Workspace templates can extend the agent with custom skills and MCP tools.
