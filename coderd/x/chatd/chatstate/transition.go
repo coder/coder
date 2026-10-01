@@ -19,6 +19,7 @@ const (
 	TransitionInterrupt               Transition = "Interrupt"
 	TransitionCompleteRequiresAction  Transition = "CompleteRequiresAction"
 	TransitionAbandon                 Transition = "Abandon"
+	TransitionAcquire                 Transition = "Acquire"
 	TransitionRecordGenerationAttempt Transition = "RecordGenerationAttempt"
 	TransitionRecordRetryState        Transition = "RecordRetryState"
 	TransitionCommitStep              Transition = "CommitStep"

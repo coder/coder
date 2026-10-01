@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -31,6 +32,7 @@ type ChatMachine struct {
 	store     database.Store
 	publisher Publisher
 	chatID    uuid.UUID
+	metrics   *Metrics
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -50,16 +52,27 @@ func NewChatMachine(
 	}
 }
 
+// WithMetrics makes Update record its transactions in metrics. A nil
+// value leaves recording off.
+func (m *ChatMachine) WithMetrics(metrics *Metrics) *ChatMachine {
+	m.metrics = metrics
+	return m
+}
+
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID. Tx does not cache mutable chat state across calls:
 // every transition method reads the chat row and queue cardinality
 // from the database on entry, so a bundle of transitions inside one
 // Update callback always validates against the latest committed state.
+//
+// The transitions the callback invoked are kept for metrics.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+
+	transitions []Transition
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -100,12 +113,20 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 	return chat, ClassifyExecutionState(chat, count > 0, true), nil
 }
 
+// enter records that the callback invoked transition t, for metrics.
+// Transitions that validate through requireFromAllowed are recorded
+// there; the ones that load state directly call enter themselves.
+func (tx *Tx) enter(t Transition) {
+	tx.transitions = append(tx.transitions, t)
+}
+
 // requireFromAllowed loads the current state and validates t against
 // the transition matrix. Returns the loaded chat and execution state
 // on success, [ErrInvalidState] when the chat is in an invalid state
 // and t is not [TransitionReconcileInvalidState], and a typed
 // *TransitionError otherwise.
 func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, error) {
+	tx.enter(t)
 	chat, from, err := tx.loadState()
 	if err != nil {
 		return chat, from, err
@@ -158,14 +179,28 @@ func (m *ChatMachine) Update(
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
+	// Phase boundaries for metrics: pre_lock is BeginTx (including any wait
+	// for a pooled connection), lock_wait is the lock statement, callback is
+	// everything run while holding the row, commit is COMMIT or ROLLBACK.
+	var (
+		start       = time.Now()
+		lockStart   time.Time
+		lockEnd     time.Time
+		callbackEnd time.Time
+		tx          *Tx
+	)
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		lockStart = time.Now()
+		defer func() { callbackEnd = time.Now() }()
+		_, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+		lockEnd = time.Now()
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
-		tx := &Tx{
+		tx = &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
@@ -199,6 +234,17 @@ func (m *ChatMachine) Update(
 		}
 		return nil
 	}, nil)
+	var transitions []Transition
+	if tx != nil {
+		transitions = tx.transitions
+	}
+	m.metrics.observe(transitions, err, transitionPhases{
+		start:       start,
+		lockStart:   lockStart,
+		lockEnd:     lockEnd,
+		callbackEnd: callbackEnd,
+		end:         time.Now(),
+	})
 	if err != nil {
 		return err
 	}

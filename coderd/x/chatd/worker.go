@@ -261,7 +261,7 @@ func (w *chatWorker) acquireCandidate(
 ) (bool, error) {
 	runnerID := uuid.New()
 	var takenOver bool
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -358,7 +358,7 @@ func (w *chatWorker) leaseStaleUnderAdmissionLock(ctx context.Context, store dat
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics)
 	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(cleanupCtx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
