@@ -6,6 +6,7 @@ import { HttpResponse, http } from "msw";
 import type { QueryClient } from "react-query";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -960,13 +961,18 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		).toHaveFocus();
-		// The endpoint and the curl example use the configured dashboard URL.
-		expect(
-			within(secretDialog).getAllByText(
-				`${new URL(MockBuildInfo.dashboard_url).origin}/api/experimental/chat-automations/`,
-				{ exact: false },
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		await user.click(
+			within(secretDialog).getByRole("button", { name: "Copy endpoint" }),
+		);
+		expect(writeText).toHaveBeenCalledWith(
+			webhookPublishEndpoint(
+				new URL(MockBuildInfo.dashboard_url).origin,
+				mockWebhookAutomation.id,
 			),
-		).toHaveLength(2);
+		);
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
