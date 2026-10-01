@@ -417,7 +417,7 @@ func TestRenderTypeAndSecret(t *testing.T) {
 		"- Type: `enum-array`, each value must be one of `read`, `write`",
 		"- Type: `enum-array`, each value must be `only`",
 		"- Holds a secret: Coder never writes this option to a YAML configuration file. Set it through the environment variable above.",
-		"### Secret without environment variable\n\nClient secret for the identity provider.\n\n- Type: `string`\n- CLI flag: [`--oidc-client-secret`](../../reference/cli/server.md#--oidc-client-secret)\n- Holds a secret: Coder never writes this option to a YAML configuration file.\n",
+		"### Secret without environment variable\n\nClient secret for the identity provider.\n\n- Type: `string`\n- CLI flag: [`--oidc-client-secret`](../../reference/cli/server/index.md#--oidc-client-secret)\n- Holds a secret: Coder never writes this option to a YAML configuration file.\n",
 	}
 	for _, w := range wantContains {
 		if !strings.Contains(got, w) {
