@@ -63,6 +63,7 @@ import {
 import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 
 import { WriteFileTool } from "./WriteFileTool";
+import { getWorkspaceToolOutcome } from "./workspaceToolOutcome";
 
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	organizationId?: string;
@@ -427,17 +428,21 @@ const CreateWorkspaceRenderer: React.FC<ToolRendererProps> = ({
 	const hasErrorInResult = Boolean(rec?.error);
 	const created = rec?.created !== false;
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
+	const failed = isError || hasErrorInResult;
+	const outcome =
+		failed || quotaTitle ? undefined : getWorkspaceToolOutcome(result);
 
 	return (
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
 			status={status}
-			isError={isError || hasErrorInResult}
+			isError={failed}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
 			labelOverride={quotaTitle}
+			outcome={outcome}
 		/>
 	);
 };
@@ -1165,17 +1170,25 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	const hasErrorInResult = Boolean(rec?.error);
 	const noBuild = Boolean(rec?.no_build);
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
+	const action = name === "stop_workspace" ? "stop" : "start";
+	const failed = isError || hasErrorInResult;
+	// The backend does not wait for an agent after a stop build.
+	const outcome =
+		action === "stop" || failed || quotaTitle
+			? undefined
+			: getWorkspaceToolOutcome(result);
 
 	return (
 		<WorkspaceLifecycleTool
-			action={name === "stop_workspace" ? "stop" : "start"}
+			action={action}
 			status={status}
 			buildId={buildId}
 			workspaceName={wsName}
-			isError={isError || hasErrorInResult}
+			isError={failed}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
 			labelOverride={quotaTitle}
+			outcome={outcome}
 		/>
 	);
 };

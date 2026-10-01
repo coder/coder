@@ -27,7 +27,7 @@ describe("Tool workspace lifecycle rows", () => {
 			{ ...row, status: "completed" as const },
 		]),
 	)(
-		"$name $status shows its build's logs, agent logs: $streamsAgentLogs",
+		"$name $status opens no logs until expanded, agent logs: $streamsAgentLogs",
 		async ({ name, status, streamsAgentLogs }) => {
 			const buildId = MockWorkspace.latest_build.id;
 			const isRunning = status === "running";
@@ -47,7 +47,9 @@ describe("Tool workspace lifecycle rows", () => {
 								createMockWebSocket(url, protocol)[0],
 						}),
 				);
-			vi.spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
+			// useWorkspaceWatch owns this cache entry in the app. A pending
+			// mount refetch keeps the seeded workspace in place.
+			vi.spyOn(API, "getWorkspace").mockReturnValue(new Promise(() => {}));
 			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(
 				workspaceByIdKey(MockWorkspace.id),
@@ -72,9 +74,12 @@ describe("Tool workspace lifecycle rows", () => {
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
 			);
-			if (!isRunning) {
-				await userEvent.click(screen.getByRole("button", { expanded: false }));
-			}
+
+			expect(watchBuildLogs).not.toHaveBeenCalled();
+			expect(getBuildLogs).not.toHaveBeenCalled();
+			expect(watchAgentLogs).not.toHaveBeenCalled();
+
+			await userEvent.click(screen.getByRole("button", { expanded: false }));
 
 			if (isRunning) {
 				expect(watchBuildLogs).toHaveBeenCalledWith(buildId, expect.anything());

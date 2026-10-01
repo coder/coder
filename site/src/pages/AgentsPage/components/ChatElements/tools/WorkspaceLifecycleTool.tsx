@@ -1,7 +1,10 @@
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
+import type { WorkspaceToolOutcome } from "./workspaceToolOutcome";
+import { useWorkspaceToolStage } from "./workspaceToolStage";
 
 type WorkspaceLifecycleToolProps = {
 	action: "start" | "stop";
@@ -12,6 +15,8 @@ type WorkspaceLifecycleToolProps = {
 	errorMessage?: string;
 	noBuild?: boolean;
 	labelOverride?: string;
+	/** Agent wait outcome of a successful start call. */
+	outcome?: WorkspaceToolOutcome;
 };
 
 export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
@@ -23,19 +28,28 @@ export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
 	errorMessage,
 	noBuild,
 	labelOverride,
+	outcome,
 }) => {
 	const isRunning = status === "running";
-	const completed = action === "start" ? "Started" : "Stopped";
+	const stage = useWorkspaceToolStage(action, isRunning);
+	const success = `${action === "start" ? "Started" : "Stopped"} ${workspaceName || "workspace"}`;
+
+	const failure = outcome && "failure" in outcome ? outcome.failure : undefined;
+	const notice = outcome && "notice" in outcome ? outcome.notice : undefined;
 
 	let label: string;
 	if (isRunning) {
-		label = action === "start" ? "Starting workspace…" : "Stopping workspace…";
+		label =
+			stage ??
+			(action === "start" ? "Starting workspace…" : "Stopping workspace…");
 	} else if (labelOverride) {
 		label = labelOverride;
 	} else if (isError) {
 		label = `Failed to ${action} ${workspaceName || "workspace"}`;
+	} else if (failure) {
+		label = `${success}, ${failure.labelSuffix}`;
 	} else {
-		label = `${completed} ${workspaceName || "workspace"}`;
+		label = success;
 	}
 
 	const hasBuildLogs = (isRunning || Boolean(buildId)) && !noBuild;
@@ -44,12 +58,32 @@ export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
-			errorMessage={errorMessage || `Failed to ${action} workspace`}
+			isError={isError || Boolean(failure)}
+			errorMessage={
+				failure?.tooltip || errorMessage || `Failed to ${action} workspace`
+			}
 			hasContent={hasBuildLogs}
-			defaultExpanded={isRunning}
+			defaultExpanded={false}
 		>
-			<ToolCall.Header iconName={`${action}_workspace`} label={label} />
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton>
+					<ToolCall.LeadingIcon name={`${action}_workspace`} />
+					<ToolCall.Label>{label}</ToolCall.Label>
+					<ToolCall.Status />
+					<ToolCall.Chevron />
+				</ToolCall.HeaderButton>
+				{notice && (
+					<ToolCall.HeaderActions>
+						<InfoTooltip
+							type="info"
+							size="small"
+							ariaLabel="Startup scripts notice"
+						>
+							{notice}
+						</InfoTooltip>
+					</ToolCall.HeaderActions>
+				)}
+			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
 				<WorkspaceBuildLogSection status={status} buildId={buildId} />
 				{/* The backend does not wait for an agent after a stop build. */}

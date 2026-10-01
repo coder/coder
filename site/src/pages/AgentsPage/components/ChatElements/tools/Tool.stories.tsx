@@ -8,12 +8,17 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
+	MockPendingWorkspace,
+	MockStartingWorkspace,
 	MockStoppingWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceAgentConnecting,
 	MockWorkspaceAgentLogs,
+	MockWorkspaceAgentStarting,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
+	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
@@ -2453,6 +2458,10 @@ export const StartWorkspaceRunning: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
+	},
 };
 
 export const StartWorkspaceCompleted: Story = {
@@ -2591,6 +2600,10 @@ export const StartWorkspaceAgentLogsStreaming: Story = {
 			],
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
+	},
 };
 
 export const StartWorkspaceAgentNotInLatestBuild: Story = {
@@ -2620,6 +2633,10 @@ export const StartWorkspaceAgentNotInLatestBuild: Story = {
 				data: JSON.stringify(log),
 			})),
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
 	},
 };
 
@@ -2651,6 +2668,10 @@ export const StartWorkspaceAgentNoLogs: Story = {
 			})),
 			"/workspaceagents/": [],
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
 	},
 };
 
@@ -2718,6 +2739,10 @@ export const StopWorkspaceRunning: Story = {
 			</ChatWorkspaceContext>
 		),
 	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
+	},
 };
 
 export const StopWorkspaceCompleted: Story = {
@@ -2820,6 +2845,10 @@ export const CreateWorkspaceRunning: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { expanded: false }));
+	},
 };
 
 export const CreateWorkspaceCompleted: Story = {
@@ -2919,6 +2948,279 @@ export const CreateWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Workspace row stages and agent wait outcomes
+// ---------------------------------------------------------------------------
+
+const workspaceWithConnectingAgent: TypesGen.Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentConnecting] },
+		],
+	},
+};
+
+const workspaceWithStartingAgent: TypesGen.Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
+		],
+	},
+};
+
+const pendingStopWorkspace: TypesGen.Workspace = {
+	...MockStoppingWorkspace,
+	latest_build: { ...MockStoppingWorkspace.latest_build, status: "pending" },
+};
+
+export const StartWorkspaceStageQueued: Story = {
+	args: { name: "start_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockPendingWorkspace.id,
+					buildId: MockPendingWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgentConnecting.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockPendingWorkspace.id),
+				data: MockPendingWorkspace,
+			},
+		],
+	},
+};
+
+export const StartWorkspaceStageBuilding: Story = {
+	args: { name: "start_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockStartingWorkspace.id,
+					buildId: MockStartingWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgentStarting.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockStartingWorkspace.id),
+				data: MockStartingWorkspace,
+			},
+		],
+	},
+};
+
+export const StartWorkspaceStageWaitingForAgent: Story = {
+	args: { name: "start_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: workspaceWithConnectingAgent.id,
+					buildId: workspaceWithConnectingAgent.latest_build.id,
+					agentId: MockWorkspaceAgentConnecting.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(workspaceWithConnectingAgent.id),
+				data: workspaceWithConnectingAgent,
+			},
+		],
+	},
+};
+
+export const StartWorkspaceStageStartupScripts: Story = {
+	args: { name: "start_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: workspaceWithStartingAgent.id,
+					buildId: workspaceWithStartingAgent.latest_build.id,
+					agentId: MockWorkspaceAgentStarting.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(workspaceWithStartingAgent.id),
+				data: workspaceWithStartingAgent,
+			},
+		],
+	},
+};
+
+export const CreateWorkspaceStageBuilding: Story = {
+	args: { name: "create_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockStartingWorkspace.id,
+					buildId: MockStartingWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgentStarting.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockStartingWorkspace.id),
+				data: MockStartingWorkspace,
+			},
+		],
+	},
+};
+
+export const StopWorkspaceStageQueued: Story = {
+	args: { name: "stop_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: pendingStopWorkspace.id,
+					buildId: pendingStopWorkspace.latest_build.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(pendingStopWorkspace.id),
+				data: pendingStopWorkspace,
+			},
+		],
+	},
+};
+
+export const StopWorkspaceStageStopping: Story = {
+	args: { name: "stop_workspace", status: "running" },
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockStoppingWorkspace.id,
+					buildId: MockStoppingWorkspace.latest_build.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey(MockStoppingWorkspace.id),
+				data: MockStoppingWorkspace,
+			},
+		],
+	},
+};
+
+export const StartWorkspaceStartupScriptsFailed: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "my-project",
+			agent_status: "ready",
+			startup_scripts: "startup_scripts_failed",
+			lifecycle_state: "start_error",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Startup scripts notice" }),
+		);
+	},
+};
+
+export const CreateWorkspaceStartupScriptsTimeout: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "my-project",
+			agent_status: "ready",
+			startup_scripts: "startup_scripts_timeout",
+		},
+	},
+};
+
+export const StartWorkspaceAgentNotReady: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "my-project",
+			agent_status: "not_ready",
+			agent_error: "timed out waiting for the workspace agent to connect",
+		},
+	},
+};
+
+export const StartWorkspaceNoAgent: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "my-project",
+			agent_status: "no_agent",
+		},
+	},
+};
+
+export const CreateWorkspaceAgentSelectionError: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			created: true,
+			workspace_name: "my-project",
+			agent_status: "selection_error",
+			agent_error: "workspace has multiple agents",
+		},
 	},
 };
 
