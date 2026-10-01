@@ -31,9 +31,6 @@ const (
 	// automationScheduleGrace is how late an occurrence may still be
 	// accepted. Older occurrences are missed and never replayed.
 	automationScheduleGrace = 60 * time.Second
-	// automationScheduleBatchSize is how many due automations a scan
-	// reads per page.
-	automationScheduleBatchSize = 500
 	// automationScheduleConcurrency bounds the occurrences one scan
 	// publishes at once, so an occurrence that waits for a lock or a slow
 	// hook does not hold back the others past the grace window.
@@ -71,7 +68,6 @@ type automationOccurrence struct {
 // A clock that is off by d only shifts the window in which an occurrence
 // can be accepted to [cursor-d, cursor+grace+d] in true time, and a
 // clock that runs ahead can skip the occurrences within d of true time.
-
 func checkAutomationOccurrence(automation database.ChatAutomation, occurrence automationOccurrence, now time.Time) error {
 	if automation.Kind != database.ChatAutomationKindSchedule ||
 		automation.ScheduleRevision != occurrence.revision ||
@@ -113,7 +109,7 @@ func advanceAutomationSchedule(ctx context.Context, store database.Store, automa
 // automationScheduleLoop scans for due schedule automations at start and
 // then every AutomationScheduleInterval.
 func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
-	w.server.scanAutomationSchedules(ctx)
+	w.server.scanAutomationSchedules(ctx, w.opts.AutomationScheduleBatchSize)
 
 	ticker := w.opts.Clock.NewTicker(w.opts.AutomationScheduleInterval, "chatworker", "automation-schedules")
 	defer ticker.Stop("chatworker", "automation-schedules")
@@ -121,7 +117,7 @@ func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			ticker.Stop("chatworker", "automation-schedules")
-			w.server.scanAutomationSchedules(ctx)
+			w.server.scanAutomationSchedules(ctx, w.opts.AutomationScheduleBatchSize)
 			ticker.Reset(w.opts.AutomationScheduleInterval, "chatworker", "automation-schedules")
 		case <-ctx.Done():
 			return
@@ -133,17 +129,13 @@ func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
 // due rows are read without locks; each publish rechecks its occurrence
 // under the chat and automation locks, so concurrent scans on several
 // instances accept each occurrence at most once.
-func (p *Server) scanAutomationSchedules(ctx context.Context) {
-	p.scanAutomationSchedulePages(ctx, automationScheduleBatchSize)
-}
-
-// scanAutomationSchedulePages reads the due rows in pages of batchSize
-// until a page comes back short. Rows that stay due, such as those of
-// owners with the experiment off, therefore never hide the rows behind
-// them. Occurrences are published concurrently, at most
-// automationScheduleConcurrency at a time, and the scan returns once all
-// of them are done.
-func (p *Server) scanAutomationSchedulePages(ctx context.Context, batchSize int32) {
+//
+// The due rows are read in pages of batchSize until a page comes back
+// short. Rows that stay due, such as those of owners with the experiment
+// off, therefore never hide the rows behind them. Occurrences are
+// published concurrently, at most automationScheduleConcurrency at a
+// time, and the scan returns once all of them are done.
+func (p *Server) scanAutomationSchedules(ctx context.Context, batchSize int32) {
 	var publishes errgroup.Group
 	publishes.SetLimit(automationScheduleConcurrency)
 	defer func() { _ = publishes.Wait() }()

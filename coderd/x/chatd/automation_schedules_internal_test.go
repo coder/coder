@@ -288,7 +288,7 @@ WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_ty
 func scanAsync(ctx context.Context, servers ...*Server) func() {
 	var wg sync.WaitGroup
 	for _, server := range servers {
-		wg.Go(func() { server.scanAutomationSchedules(ctx) })
+		wg.Go(func() { server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize) })
 	}
 	return wg.Wait
 }
@@ -379,7 +379,7 @@ func TestAutomationScheduleScan(t *testing.T) {
 				limits:   Limits{MaxQueuedMessagesPerChat: 2},
 				fill: func(ctx context.Context, t *testing.T, f *scheduleFixture, server *Server, automation database.ChatAutomation) int {
 					f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
-					server.scanAutomationSchedules(ctx)
+					server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 					return 1
 				},
 			},
@@ -412,13 +412,13 @@ func TestAutomationScheduleScan(t *testing.T) {
 				refused := f.cursor(ctx, t, automation.ID)
 				f.advanceTo(ctx, t, refused)
 
-				server.scanAutomationSchedules(ctx)
+				server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 				require.Equal(t, saved, f.inputs(ctx, t))
 				next := refused.Add(time.Minute)
 				require.Equal(t, next, f.cursor(ctx, t, automation.ID))
 
 				// The cursor is in the future, so a repeat scan does nothing.
-				server.scanAutomationSchedules(ctx)
+				server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 				require.Equal(t, saved, f.inputs(ctx, t))
 				require.Equal(t, next, f.cursor(ctx, t, automation.ID))
 			})
@@ -470,7 +470,7 @@ WHERE id = $1`, automation.ID, edited)
 
 				restarted := f.newServer(t, Limits{})
 				for range 2 {
-					restarted.scanAutomationSchedules(ctx)
+					restarted.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 					require.Equal(t, tc.accepted, f.inputs(ctx, t))
 					// Missed runs are not replayed: the cursor moves to the
 					// first run after now.
@@ -492,7 +492,7 @@ WHERE id = $1`, automation.ID, edited)
 		for i, run := range previews[:3] {
 			require.Equal(t, run, f.cursor(ctx, t, automation.ID))
 			f.advanceTo(ctx, t, run)
-			server.scanAutomationSchedules(ctx)
+			server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 			require.Len(t, f.createdChats(ctx, t), i+1)
 			require.Equal(t, previews[i+1], f.cursor(ctx, t, automation.ID))
 		}
@@ -551,7 +551,7 @@ WHERE id = $1`, automation.ID, edited)
 			run := f.cursor(ctx, t, automation.ID)
 			runs = append(runs, run)
 			f.advanceTo(ctx, t, run)
-			server.scanAutomationSchedules(ctx)
+			server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 			require.Equal(t, nextRun(t, "0 9 * * *", "America/New_York", run), f.cursor(ctx, t, automation.ID))
 		}
 		for _, run := range runs {
@@ -575,7 +575,7 @@ WHERE id = $1`, automation.ID, edited)
 		f.experiment.off.Store(true)
 
 		// The scan drops the owner and leaves the cursor.
-		server.scanAutomationSchedules(ctx)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Zero(t, f.inputs(ctx, t))
 		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
 
@@ -590,7 +590,7 @@ WHERE id = $1`, automation.ID, edited)
 
 		// Within the grace window, the next scan accepts it once.
 		f.experiment.off.Store(false)
-		server.scanAutomationSchedules(ctx)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Equal(t, 1, f.inputs(ctx, t))
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
 	})
@@ -643,7 +643,7 @@ WHERE id = $1`, automation.ID, edited)
 		// Accepted at the end of the grace window, a minute after the
 		// 10:01 UTC occurrence.
 		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(automationScheduleGrace))
-		server.scanAutomationSchedules(ctx)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		chats := f.createdChats(ctx, t)
 		require.Len(t, chats, 1)
 		require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
@@ -683,7 +683,7 @@ WHERE id = $1`, automation.ID, edited)
 		f.advanceTo(ctx, t, due)
 
 		// One row per page: the scan pages past the dropped rows.
-		server.scanAutomationSchedulePages(ctx, 1)
+		server.scanAutomationSchedules(ctx, 1)
 		require.Equal(t, 1, f.inputs(ctx, t))
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
 		for _, row := range dropped {
