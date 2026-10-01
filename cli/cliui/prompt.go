@@ -43,6 +43,15 @@ func SkipPromptOption() serpent.Option {
 	}
 }
 
+// HiddenSkipPromptOption accepts -y/--yes as a hidden no-op, for commands with
+// no confirmation prompt that must keep accepting -y so existing scripts don't
+// break.
+func HiddenSkipPromptOption() serpent.Option {
+	opt := SkipPromptOption()
+	opt.Hidden = true
+	return opt
+}
+
 const (
 	ConfirmYes = "yes"
 	ConfirmNo  = "no"

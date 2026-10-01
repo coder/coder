@@ -22,6 +22,14 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ## Options
 
+### -y, --yes
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Bypass confirmation prompts.
+
 ### --build-option
 
 |             |                                  |

@@ -146,7 +146,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		i.recordTokenUsage(ctx, completion.ID, lastUsage, string(completion.ServiceTier))
+		i.recordTokenUsage(ctx, completion.ID, completion.Model, lastUsage, string(completion.ServiceTier))
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion

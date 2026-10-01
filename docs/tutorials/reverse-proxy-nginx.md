@@ -1,5 +1,5 @@
 ---
-title: How to use NGINX as a reverse-proxy with LetsEncrypt
+title: How to use NGINX as a reverse proxy with Let's Encrypt
 ---
 
 ## Requirements

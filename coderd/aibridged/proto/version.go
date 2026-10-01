@@ -20,6 +20,8 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.3:
 //   - Adds workspace_id to RecordInterceptionRequest and IsAuthorizedResponse.
+//   - Adds provider_model to RecordTokenUsageRequest.
+//   - Adds the authenticated user's email to IsAuthorizedResponse.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 3

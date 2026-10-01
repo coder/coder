@@ -1,0 +1,70 @@
+title: Extend templates
+description: Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.
+path: ./admin/templates/extending-templates/index.md
+children:
+  - title: Agent metadata
+    description: Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.
+    path: ./admin/templates/extending-templates/agent-metadata.md
+  - title: Parameters
+    description: Use build parameters to prompt users and customize each workspace when it is created.
+    path: ./admin/templates/extending-templates/parameters.md
+  - title: Dynamic parameters
+    description: Build conditional, identity-aware template forms with Coder's dynamic parameters.
+    path: ./admin/templates/extending-templates/dynamic-parameters.md
+  - title: Prebuilt workspaces
+    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters
+    path: ./admin/templates/extending-templates/prebuilt-workspaces.md
+    state: [premium]
+  - title: Icons
+    description: Customize your Coder templates and resources with built-in or custom icons.
+    path: ./admin/templates/extending-templates/icons.md
+  - title: Resource metadata
+    description: Expose key workspace resource information to your users in the Coder dashboard with metadata.
+    path: ./admin/templates/extending-templates/resource-metadata.md
+  - title: Resource monitoring
+    description: Monitor workspace resource usage and alert on thresholds from the Coder dashboard.
+    path: ./admin/templates/extending-templates/resource-monitoring.md
+  - title: UI resource ordering
+    description: Control the order that resources and parameters appear in the workspace creation UI.
+    path: ./admin/templates/extending-templates/resource-ordering.md
+  - title: Resource persistence
+    description: Control which workspace resources persist across restarts and which are recreated on each build.
+    path: ./admin/templates/extending-templates/resource-persistence.md
+  - title: Environment variables
+    description: Inject environment variables into Coder workspaces using the coder_env Terraform resource.
+    path: ./admin/templates/extending-templates/environment-variables.md
+  - title: Terraform template-wide variables
+    description: Use Terraform template-wide variables to parameterize and manage your Coder templates.
+    path: ./admin/templates/extending-templates/variables.md
+  - title: Reuse template code
+    description: Reuse Terraform code across your Coder templates with shared, versioned modules.
+    path: ./admin/templates/extending-templates/modules.md
+  - title: Web IDEs in templates
+    description: Add and configure web IDEs in your Coder templates as coder_app resources.
+    path: ./admin/templates/extending-templates/web-ides.md
+  - title: Pre-install JetBrains IDEs
+    description: Pre-install JetBrains IDE backends in your template for faster first-time connections.
+    path: ./admin/templates/extending-templates/jetbrains-preinstall.md
+  - title: JetBrains IDEs in an air-gapped environment
+    description: Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.
+    path: ./admin/templates/extending-templates/jetbrains-airgapped.md
+  - title: Docker in workspaces
+    description: Run Docker inside container-based Coder workspaces using several supported approaches.
+    path: ./admin/templates/extending-templates/docker-in-workspaces.md
+  - title: Workspace tags
+    description: Route workspace builds to specific provisioners using workspace tags and parameters.
+    path: ./admin/templates/extending-templates/workspace-tags.md
+  - title: Provider authentication
+    description: Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.
+    path: ./admin/templates/extending-templates/provider-authentication.md
+  - title: Dev Containers
+    description: Extend your Coder templates with containerized dev container development environments.
+    path: ./admin/templates/extending-templates/devcontainers.md
+  - title: Improve agent resiliency
+    description: Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.
+    path: ./admin/templates/extending-templates/process-priority.md
+  - title: Workspace process logging
+    description: Log all system-level process activity inside workspaces for security and auditing.
+    path: ./admin/templates/extending-templates/process-logging.md
+    state: [premium]
+  - include: admin/templates/extending-templates/startup-coordination.yml
