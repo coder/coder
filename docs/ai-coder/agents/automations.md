@@ -66,8 +66,10 @@ When the experiment is off for a user:
 - Webhook deliveries to automations that user owns return `404` when the secret is valid.
   A wrong secret still returns `401`.
 - Schedules that user owns don't run.
-  If the experiment comes back on within 60&nbsp;seconds of a due time, that occurrence runs once, late.
+  Coder checks for due schedules every 30&nbsp;seconds and accepts an occurrence up to 60&nbsp;seconds late.
+  An occurrence that came due while the experiment was off runs once, late, if the experiment is back on at a check inside that window.
   Otherwise the occurrence counts as missed and the schedule continues from its next time.
+  To keep an occurrence, turn the experiment back on within 30&nbsp;seconds of its due time.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
 - Messages that automations already queued in a chat stay queued and still run.
   To remove them, turn off or delete the automation.
@@ -211,6 +213,8 @@ A multi-use webhook accepts events until you turn the automation off.
 A single-use webhook accepts one event.
 Later deliveries return `409`, and the automation stays turned on.
 A delivery that Coder refuses doesn't use up a single-use webhook.
+You choose single use or multi use when you create the webhook and can't change it later.
+An update request that includes `webhook_use` doesn't fail, but Coder ignores the field.
 
 ### Rotate the webhook secret
 
