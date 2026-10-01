@@ -536,11 +536,13 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
-	// Box scripts reach the same MCP tools the model can run this turn.
-	// The server list for the prompt applies the plan filter now; the tool
-	// list itself is bound after filterToolsForTurn below.
+	// Box scripts reach the same MCP tools the model can run this turn:
+	// the prompt's server list is plan-filtered here and the tool list is
+	// the plan-filtered snapshot. Inline tools dropped later for a name
+	// collision can still be named here.
 	agentBoxes := server.agentBoxes != nil && input.TurnBoxes != nil && !isExploreSubagent
 	var (
+		boxMCPReachable   int
 		boxMCPServerNames []string
 		boxMCPNamer       func(fantasy.AgentTool) string
 		boxMCPTools       []fantasy.AgentTool
@@ -555,7 +557,7 @@ func (server *Server) prepareGeneration(
 		}
 		boxMCPNamer = boxMCPServerNamer(slugByConfigID)
 		sources := slices.Concat(mcpTools, inlineMCPTools, workspaceMCPTools)
-		boxMCPServerNames = boxMCPServers(sources, boxMCPNamer, func(tool fantasy.AgentTool) bool {
+		boxMCPReachable, boxMCPServerNames = boxMCPServers(sources, boxMCPNamer, func(tool fantasy.AgentTool) bool {
 			return toolAllowedForTurn(tool, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 		})
 	}
@@ -634,7 +636,7 @@ func (server *Server) prepareGeneration(
 				chatloop.ToolResultByteBudget(0),
 			),
 		}
-		if len(boxMCPServerNames) > 0 {
+		if boxMCPReachable > 0 {
 			boxOptions.MCP = chattool.BoxMCPOptions{
 				// Tool handlers run only after preparation returns, by
 				// which time boxMCPTools is set.

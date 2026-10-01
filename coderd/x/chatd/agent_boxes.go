@@ -206,23 +206,23 @@ func boxMCPServerNamer(slugByConfigID map[uuid.UUID]string) func(fantasy.AgentTo
 	}
 }
 
-// boxMCPServers lists, sorted and deduplicated, the servers behind the
-// MCP tools in tools that the turn allows.
+// boxMCPServers counts the MCP tools in tools that the turn allows and
+// lists, sorted and deduplicated, the servers behind them. A tool with no
+// resolvable server name is counted but not listed.
 func boxMCPServers(
 	tools []fantasy.AgentTool,
 	namer func(fantasy.AgentTool) string,
 	allowed func(fantasy.AgentTool) bool,
-) []string {
+) (reachable int, servers []string) {
 	seen := map[string]struct{}{}
 	for _, tool := range tools {
 		if _, ok := tool.(mcpclient.RawCaller); !ok || !allowed(tool) {
 			continue
 		}
-		name := namer(tool)
-		if name == "" {
-			continue
+		reachable++
+		if name := namer(tool); name != "" {
+			seen[name] = struct{}{}
 		}
-		seen[name] = struct{}{}
 	}
-	return slices.Sorted(maps.Keys(seen))
+	return reachable, slices.Sorted(maps.Keys(seen))
 }

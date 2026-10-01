@@ -41,7 +41,7 @@ func agentBoxPromptBlock(toolNames []string, mcpServers []string) string {
 		mcp = "Scripts can call this chat's MCP tools synchronously (servers: " + strings.Join(mcpServers, ", ") + "): " +
 			"mcp.tools() lists them, including tools not yet loaded with find_tools; mcp.schema(name) gives a tool's input schema; " +
 			"mcp.call(name, args) returns {content, structuredContent, isError} and mcp.text(result) joins the text blocks. " +
-			"mcp.call throws an MCPError with a [code] prefix on an unknown tool, a limit, or a transport failure; a result with isError true is returned, not thrown. " +
+			"mcp.call throws an MCPError whose message starts with a code such as [unknown_tool], [invalid_args], [call_limit], [result_too_large], [result_budget], [timeout], or [call_failed]; a result with isError true is returned, not thrown. " +
 			"Prefer it over relaying MCP data through your own tool calls when the data is large or needs loops or paging. " +
 			"Calls are serial and their waiting time counts against the run's time limit, so write intermediate results to /box between runs and keep only what you need from each result; see the box_run description for the call and size limits.\n"
 	}
