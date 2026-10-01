@@ -82,6 +82,16 @@ func startWSGateway(ctx context.Context, t *testing.T, experiments ...codersdk.E
 		APIKeys: []string{"sk-embedded"},
 	})
 	require.NoError(t, err)
+	// An OpenAI-compatible upstream does not serve Responses WebSocket mode.
+	//nolint:gocritic // Owner role is needed for provider management.
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenAICompat,
+		Name:    "compat",
+		Enabled: true,
+		BaseURL: upstream.URL,
+		APIKeys: []string{"sk-compat"},
+	})
+	require.NoError(t, err)
 	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api.AGPL, nil)
 	d.db = db
 	d.userClient, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
@@ -89,12 +99,20 @@ func startWSGateway(ctx context.Context, t *testing.T, experiments ...codersdk.E
 }
 
 func (d *wsGatewayDeployment) url(path string) string {
-	return d.userClient.URL.String() + "/api/v2/ai-gateway/openai/v1" + path
+	return d.providerURL("openai", path)
+}
+
+func (d *wsGatewayDeployment) providerURL(provider, path string) string {
+	return d.userClient.URL.String() + "/api/v2/ai-gateway/" + provider + "/v1" + path
 }
 
 func (d *wsGatewayDeployment) dial(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
+	return d.dialProvider(ctx, "openai", path)
+}
+
+func (d *wsGatewayDeployment) dialProvider(ctx context.Context, provider, path string) (*websocket.Conn, *http.Response, error) {
 	//nolint:bodyclose // Dial owns the response body.
-	return websocket.Dial(ctx, "ws"+strings.TrimPrefix(d.url(path), "http"), &websocket.DialOptions{
+	return websocket.Dial(ctx, "ws"+strings.TrimPrefix(d.providerURL(provider, path), "http"), &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + d.userClient.SessionToken()}},
 	})
 }
@@ -103,7 +121,8 @@ func (d *wsGatewayDeployment) dial(ctx context.Context, path string) (*websocket
 // experiment on gets Responses WebSocket mode through /api/v2/ai-gateway:
 // the socket reaches upstream with only the provider key, frees its
 // concurrency slot while open, and its create is recorded like an HTTP
-// request. Passthrough routes refuse upgrades.
+// request. Passthrough routes and OpenAI-compatible providers refuse
+// upgrades.
 func TestEmbeddedAIGatewayResponsesWebSocket(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -145,6 +164,13 @@ func TestEmbeddedAIGatewayResponsesWebSocket(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+
+	//nolint:bodyclose // Dial owns the response body.
+	_, resp, err = d.dialProvider(ctx, "compat", "/responses")
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	assert.Empty(t, d.headers, "an OpenAI-compatible provider must not dial upstream")
 
 	var interceptions []database.AIBridgeInterception
 	require.Eventually(t, func() bool {

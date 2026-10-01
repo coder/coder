@@ -188,6 +188,10 @@ type OpenAI struct {
 	// ActorHeaderNames maps actor attributes to upstream header names.
 	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
+	// ResponsesWebSocket serves Responses API WebSocket mode on the
+	// Responses route. Only OpenAI's own API supports it; OpenAI-compatible
+	// upstreams leave it off.
+	ResponsesWebSocket bool
 }
 
 type Copilot struct {

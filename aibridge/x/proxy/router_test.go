@@ -174,7 +174,7 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 func TestRouterOpensNoResponsesWebSocket(t *testing.T) {
 	t.Parallel()
 
-	router, err := proxy.NewRouter([]provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: "http://127.0.0.1:1"})}, slogtest.Make(t, nil))
+	router, err := proxy.NewRouter([]provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: "http://127.0.0.1:1", ResponsesWebSocket: true})}, slogtest.Make(t, nil))
 	require.NoError(t, err)
 
 	acquired := false

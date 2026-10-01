@@ -2,10 +2,13 @@ package aibridge
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,6 +67,13 @@ type actorHeaderNamer interface {
 	ActorHeaderNames() map[string]string
 }
 
+// servesResponsesWebSocket reports whether prov serves Responses API
+// WebSocket mode on its Responses route.
+func servesResponsesWebSocket(prov provider.Provider) bool {
+	ws, ok := prov.(interface{ ServesResponsesWebSocket() bool })
+	return ok && ws.ServesResponsesWebSocket()
+}
+
 // responsesWebSocketHandler serves OpenAI Responses API WebSocket mode on an
 // OpenAI provider's bridged Responses route. It relays every frame unchanged
 // through a [responsesws.Session], which records one interception per
@@ -106,6 +116,16 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		http.Error(w, "no actor found", http.StatusBadRequest)
 		return
 	}
+	// Refuse a handshake the client could never complete before it takes
+	// a lease or an upstream connection and key attempt.
+	if !validClientHandshake(r) {
+		logger.Debug(ctx, "refusing invalid Responses WebSocket handshake")
+		if conn, err := websocket.Accept(w, r, responsesWebSocketAcceptOptions); err == nil {
+			// validClientHandshake refused a handshake Accept took.
+			_ = conn.Close(websocket.StatusInternalError, "invalid handshake")
+		}
+		return
+	}
 
 	lease, err := acquire(ctx, actor.ID, h.provider.Name())
 	if err != nil {
@@ -143,7 +163,7 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	conn, err := websocket.Accept(w, r, responsesWebSocketAcceptOptions)
 	if err != nil {
 		// Accept already wrote the HTTP error. Send it before closing
 		// upstream, which waits for upstream to answer the close.
@@ -167,6 +187,30 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		CredentialKind:  cred.Kind(),
 		CredentialHint:  cred.Hint(),
 	})
+}
+
+// responsesWebSocketAcceptOptions accepts client sockets.
+var responsesWebSocketAcceptOptions = &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled}
+
+// validClientHandshake reports whether r passes the checks websocket.Accept
+// makes beyond those of [aibheaders.IsWebSocketUpgrade]: protocol version
+// 13, one 16 byte Sec-WebSocket-Key, and, from a browser, an Origin on the
+// request's host. Accept refuses every request it rejects.
+func validClientHandshake(r *http.Request) bool {
+	keys := r.Header.Values("Sec-WebSocket-Key")
+	if !r.ProtoAtLeast(1, 1) || r.Header.Get("Sec-WebSocket-Version") != "13" || len(keys) != 1 {
+		return false
+	}
+	if key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(keys[0])); err != nil || len(key) != 16 {
+		return false
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil || !strings.EqualFold(u.Host, r.Host) {
+			return false
+		}
+	}
+	return true
 }
 
 // dialUpstream opens the upstream WebSocket under ctx. A centralized pool
@@ -498,13 +542,22 @@ func peerCloseCode(code websocket.StatusCode) websocket.StatusCode {
 // coder/websocket closes a connection without a close frame when the
 // context of a pending Read or Write ends, and the session ends its context
 // before it closes upstream. So the adapter never hands coder/websocket a
-// cancelable context: when a Read or Write context ends, it closes upstream
-// with its close status instead.
+// cancelable context: when a Write context ends, it closes upstream with its
+// close status instead. Reads run on a reader goroutine, so a Read whose
+// context ends returns at once: the session records the end of its open
+// interceptions once Read returns, and the close handshake takes up to 5
+// seconds against an upstream that does not answer, longer than a socket's
+// share of a shutdown.
 type upstreamMessageConn struct {
 	conn *websocket.Conn
 	// lease decides the default close status: going away once it ended,
 	// else a normal closure.
 	lease context.Context
+	// reads carries each message or error the reader goroutine read.
+	reads chan upstreamRead
+	// closing is closed once Close was called. It stops the reader
+	// goroutine and pending Reads.
+	closing chan struct{}
 
 	mu     sync.Mutex
 	code   websocket.StatusCode
@@ -514,22 +567,51 @@ type upstreamMessageConn struct {
 	closeErr  error
 }
 
+type upstreamRead struct {
+	typ websocket.MessageType
+	msg []byte
+	err error
+}
+
 func newUpstreamMessageConn(lease context.Context, conn *websocket.Conn) *upstreamMessageConn {
-	return &upstreamMessageConn{conn: conn, lease: lease}
+	u := &upstreamMessageConn{conn: conn, lease: lease, reads: make(chan upstreamRead), closing: make(chan struct{})}
+	go u.readUpstream()
+	return u
+}
+
+// readUpstream reads upstream for Read until a read fails or Close was
+// called. It reads at most one message ahead of Read.
+func (u *upstreamMessageConn) readUpstream() {
+	for {
+		typ, msg, err := u.conn.Read(context.Background())
+		select {
+		case u.reads <- upstreamRead{typ: typ, msg: msg, err: err}:
+		case <-u.closing:
+			return
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 func (u *upstreamMessageConn) Read(ctx context.Context) ([]byte, error) {
-	stop := context.AfterFunc(ctx, func() { _ = u.Close() })
-	defer stop()
-	typ, msg, err := u.conn.Read(context.WithoutCancel(ctx))
-	if err != nil {
-		return nil, err
+	var r upstreamRead
+	select {
+	case r = <-u.reads:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-u.closing:
+		return nil, net.ErrClosed
 	}
-	if typ != websocket.MessageText {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.typ != websocket.MessageText {
 		u.setClose(websocket.StatusUnsupportedData, "binary messages are not supported")
 		return nil, errUpstreamBinary
 	}
-	return msg, nil
+	return r.msg, nil
 }
 
 func (u *upstreamMessageConn) Write(ctx context.Context, msg []byte) error {
@@ -557,6 +639,7 @@ func (u *upstreamMessageConn) setClose(code websocket.StatusCode, reason string)
 // and safe for concurrent use.
 func (u *upstreamMessageConn) Close() error {
 	u.closeOnce.Do(func() {
+		close(u.closing)
 		u.mu.Lock()
 		if u.code == 0 {
 			if u.lease.Err() != nil {

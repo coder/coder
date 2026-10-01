@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
@@ -89,9 +88,10 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		for _, path := range prov.BridgedRoutes() {
 			// OpenAI's Responses route also serves Responses API WebSocket
 			// mode. Other providers, including OpenAI-compatible ones such
-			// as Copilot, refuse upgrades.
+			// as Copilot or an OpenAI provider pointed at a compatible
+			// upstream, refuse upgrades.
 			var ws *responsesWebSocketHandler
-			if prov.Type() == config.ProviderOpenAI && path == provider.OpenAIResponsesRoute && rec != nil {
+			if servesResponsesWebSocket(prov) && path == provider.OpenAIResponsesRoute && rec != nil {
 				ws = newResponsesWebSocketHandler(prov, rec, logger)
 			}
 			handler := newInterceptionProcessor(prov, cbs, rec, ws, mcpProxy, logger, m, tracer)

@@ -1005,6 +1005,40 @@ func TestCreateRecordsCorrelatingToolCallID(t *testing.T) {
 	require.Nil(t, h.interceptionFor("plain").CorrelatingToolCallID)
 }
 
+// TestToolResultCreateAwaitsToolCallRecord requires that a create answering
+// a tool call is recorded only after the tool call, which the client
+// received in an earlier response: the interception's parent is found
+// through the tool call record, so a client answering at once must not
+// overtake the accountant.
+func TestToolResultCreateAwaitsToolCallRecord(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	require.NotNil(t, h.send(create("", "gpt-6", "hi")))
+	h.relay(created("", "resp_1", "gpt-6"))
+
+	// The accountant records the tool call after the token usage, which
+	// blocks.
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(terminal("", "response.completed", "resp_1", `,"status":"completed","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"f","arguments":"{}"}]`))
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+	sent := make(chan error, 1)
+	go func() {
+		sent <- h.sess.Send(ctx, []byte(`{"type":"response.create","model":"tool-result","input":[{"type":"function_call_output","call_id":"call_1","output":"42"}]}`))
+	}()
+	select {
+	case err := <-sent:
+		t.Fatalf("create recorded before the tool call it answers: %v", err)
+	case <-time.After(codertestutil.IntervalMedium):
+	}
+	close(gate)
+	require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+	require.Len(t, h.rec.RecordedToolUsages(), 1)
+	require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
+}
+
 // TestCloseBoundedWhenRecorderBlocks requires that shutdown shares one
 // cleanup deadline: with 16 open interceptions, queued accounting, and a
 // recorder whose usage and end records block until their ctx ends, Close

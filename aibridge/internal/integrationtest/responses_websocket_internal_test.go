@@ -411,7 +411,7 @@ func TestResponsesWebSocketKeyFailover(t *testing.T) {
 					return 0
 				},
 				provider: func(upstreamURL string) aibridge.Provider {
-					return provider.NewOpenAI(config.OpenAI{BaseURL: upstreamURL, KeyPool: pool})
+					return provider.NewOpenAI(config.OpenAI{BaseURL: upstreamURL, KeyPool: pool, ResponsesWebSocket: true})
 				},
 			})
 			client, upstream, lease := g.open(ctx, t, nil)
@@ -465,7 +465,7 @@ func TestResponsesWebSocketHandshakeFailure(t *testing.T) {
 				pool, err := keypool.New(config.ProviderOpenAI, tc.keys, quartz.NewReal(), nil)
 				require.NoError(t, err)
 				cfg.provider = func(upstreamURL string) aibridge.Provider {
-					return provider.NewOpenAI(config.OpenAI{BaseURL: upstreamURL, KeyPool: pool})
+					return provider.NewOpenAI(config.OpenAI{BaseURL: upstreamURL, KeyPool: pool, ResponsesWebSocket: true})
 				}
 			}
 			g := newWSGateway(ctx, t, cfg)
@@ -492,21 +492,13 @@ func TestResponsesWebSocketHandshakeFailure(t *testing.T) {
 	}
 }
 
-// TestResponsesWebSocketClientAcceptFailure requires that an upstream
-// connection opened for a client whose upgrade then failed is closed.
-func TestResponsesWebSocketClientAcceptFailure(t *testing.T) {
+// TestResponsesWebSocketInvalidClientHandshake requires that an upgrade the
+// gateway cannot accept is refused before it takes a lease or opens an
+// upstream connection, which would use up a key attempt.
+func TestResponsesWebSocketInvalidClientHandshake(t *testing.T) {
 	t.Parallel()
 	ctx := codertestutil.Context(t, codertestutil.WaitLong)
 	g := newWSGateway(ctx, t, wsGatewayConfig{})
-
-	// Upstream answers the gateway's close while the client is refused.
-	upstreamClosed := make(chan websocket.StatusCode, 1)
-	go func() {
-		conn := <-g.upstream.conns
-		defer conn.CloseNow()
-		_, _, err := conn.Read(ctx)
-		upstreamClosed <- websocket.CloseStatus(err)
-	}()
 
 	// A cross-origin browser page may not open the socket.
 	//nolint:bodyclose // Dial owns the response body.
@@ -514,9 +506,8 @@ func TestResponsesWebSocketClientAcceptFailure(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	assert.Equal(t, websocket.StatusGoingAway, codertestutil.TryReceive(ctx, t, upstreamClosed))
-	lease := codertestutil.TryReceive(ctx, t, g.leases.leases)
-	_ = codertestutil.TryReceive(ctx, t, lease.released)
+	assert.Empty(t, g.upstream.handshakeHeaders())
+	assert.Empty(t, g.leases.leases)
 }
 
 // TestResponsesWebSocketCloseMapping requires that each way a socket ends

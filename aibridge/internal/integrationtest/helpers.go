@@ -41,6 +41,9 @@ func openAICfg(url string, key string) config.OpenAI {
 	return config.OpenAI{
 		BaseURL: url,
 		KeyPool: testutil.SingleKeyPool(config.ProviderOpenAI, key),
+		// Served only to requests whose context enables it, so other
+		// tests are unaffected.
+		ResponsesWebSocket: true,
 	}
 }
 

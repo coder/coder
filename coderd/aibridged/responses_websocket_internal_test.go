@@ -145,7 +145,7 @@ func newWSTestGateway(t *testing.T, limits socketLimits, maxConcurrency int64) *
 	pool, err := keypool.New("openai", []string{"sk-test"}, quartz.NewReal(), nil)
 	require.NoError(t, err)
 	require.NoError(t, srv.ReplaceProviders(t.Context(), []aibridge.Provider{
-		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: upstream.URL, KeyPool: pool}),
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: upstream.URL, KeyPool: pool, ResponsesWebSocket: true}),
 	}))
 
 	front := httptest.NewServer(httpmw.ConcurrencyLimit(maxConcurrency, "AI Gateway")(srv))
@@ -202,7 +202,8 @@ func closeStatus(ctx context.Context, conn *websocket.Conn) <-chan websocket.Clo
 
 // TestResponsesWebSocketCapacity requires that an open socket holds a lease
 // but not a concurrency slot, and that a user at the socket cap is refused
-// with 429 before anything is dialed upstream.
+// before anything is dialed upstream with 426, on which clients such as
+// Codex fall back to HTTP.
 func TestResponsesWebSocketCapacity(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -223,7 +224,7 @@ func TestResponsesWebSocketCapacity(t *testing.T) {
 	_, resp, err = g.dial(ctx)
 	require.Error(t, err)
 	require.NotNil(t, resp)
-	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	assert.Equal(t, http.StatusUpgradeRequired, resp.StatusCode)
 	assert.Empty(t, g.handshakes, "a refused socket must not dial upstream")
 
 	// The first socket still relays.
@@ -305,7 +306,8 @@ func TestResponsesWebSocketShutdown(t *testing.T) {
 
 // TestResponsesWebSocketShutdownUnresponsivePeers requires that sockets
 // whose peers never answer the going-away close take only their share of
-// the shutdown deadline, so the rest of shutdown still completes in time.
+// the shutdown deadline, so the rest of shutdown still completes in time,
+// and still record the end of their interceptions before it.
 func TestResponsesWebSocketShutdownUnresponsivePeers(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -320,4 +322,8 @@ func TestResponsesWebSocketShutdownUnresponsivePeers(t *testing.T) {
 	shutdownCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*4)
 	defer cancel()
 	require.NoError(t, g.srv.Shutdown(shutdownCtx))
+
+	started, ended := g.client.interceptions()
+	require.Len(t, started, 1)
+	assert.Equal(t, started, ended)
 }

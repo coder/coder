@@ -275,13 +275,17 @@ func (s *Server) createAdmission(logger slog.Logger, userID uuid.UUID, consumeRa
 // refusal is an *intercept.ResponseError carrying the HTTP status the
 // upgrade is refused with, since the bridge cannot know this package's
 // errors.
+//
+// A socket cap refuses with 426 Upgrade Required: the request can still be
+// served over HTTP, and clients such as Codex fall back to HTTP on 426 but
+// retry other statuses until they give up.
 func (s *Server) acquireSocket(ctx context.Context, actorID, provider string) (aibridge.SocketLease, error) {
 	lease, err := s.Sockets().Acquire(ctx, actorID, provider)
 	switch {
 	case err == nil:
 		return lease, nil
 	case errors.Is(err, ErrSocketActorLimit), errors.Is(err, ErrSocketReplicaLimit):
-		return nil, intercept.NewResponseError(err.Error(), intercept.OpenAIErrTypeRateLimit, intercept.OpenAIErrCodeRateLimit, http.StatusTooManyRequests, 0)
+		return nil, intercept.NewResponseError(err.Error(), intercept.OpenAIErrTypeRateLimit, intercept.OpenAIErrCodeRateLimit, http.StatusUpgradeRequired, 0)
 	case errors.Is(err, ErrShutdown):
 		return nil, intercept.NewResponseError("AI Gateway is shutting down", intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, http.StatusServiceUnavailable, 0)
 	default:

@@ -189,6 +189,12 @@ func (p *OpenAI) ActorHeaderNames() map[string]string {
 	return p.cfg.ActorHeaderNames
 }
 
+// ServesResponsesWebSocket reports whether the provider serves Responses API
+// WebSocket mode on its Responses route.
+func (p *OpenAI) ServesResponsesWebSocket() bool {
+	return p.cfg.ResponsesWebSocket
+}
+
 func (p *OpenAI) KeyPool() *keypool.Pool {
 	return p.cfg.KeyPool
 }

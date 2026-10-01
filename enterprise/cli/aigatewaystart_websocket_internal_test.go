@@ -68,7 +68,7 @@ func TestStandaloneGatewayResponsesWebSocket(t *testing.T) {
 			pool, err := keypool.New("openai", []string{"sk-standalone"}, quartz.NewReal(), nil)
 			require.NoError(t, err)
 			require.NoError(t, gateway.daemon.ReplaceProviders(ctx, []aibridge.Provider{
-				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: upstream.URL, KeyPool: pool}),
+				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: upstream.URL, KeyPool: pool, ResponsesWebSocket: true}),
 			}))
 			front := httptest.NewServer(gateway.httpServer.Handler)
 			t.Cleanup(front.Close)

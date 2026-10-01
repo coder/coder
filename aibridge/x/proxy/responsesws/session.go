@@ -523,6 +523,11 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	var toolCallID *string
 	if facts.CorrelatingToolCallID != "" {
 		toolCallID = &facts.CorrelatingToolCallID
+		// The tool call this create answers arrived in an earlier
+		// response, and the record of it may still be queued. Recording
+		// the interception links it to its parent through that record, so
+		// it must exist first.
+		s.awaitAccounting(opCtx)
 	}
 	ic, err := s.startInterception(opCtx, lane, model, sentAt, toolCallID, func(ic *interception) {
 		ic.prompt = facts.Prompt
@@ -545,6 +550,18 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	}
 	s.publish(ic)
 	return nil
+}
+
+// awaitAccounting waits until the accountant processed every job queued
+// before the call, the accountant exited, or ctx ended.
+func (s *Session) awaitAccounting(ctx context.Context) {
+	done := make(chan struct{})
+	s.queue.pushBarrier(done)
+	select {
+	case <-done:
+	case <-s.accountDone:
+	case <-ctx.Done():
+	}
 }
 
 // publish makes a create whose write succeeded bindable. The transition
