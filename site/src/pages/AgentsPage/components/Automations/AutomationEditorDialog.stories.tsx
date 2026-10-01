@@ -68,22 +68,6 @@ const pinBrowserTimeZone = () => {
 	);
 };
 
-// formatDate renders in the browser's zone, which resolvedOptions does not
-// control. Pin it so dates like "Used on" render the same on every host.
-const pinDateDisplayZone = () => {
-	const toLocaleDateString = Date.prototype.toLocaleDateString;
-	spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
-		this: Date,
-		locales?: Intl.LocalesArgument,
-		options?: Intl.DateTimeFormatOptions,
-	) {
-		return toLocaleDateString.call(this, locales, {
-			...options,
-			timeZone: options?.timeZone ?? storyTimeZone,
-		});
-	});
-};
-
 const rejectChat = (status: number) => () => {
 	spyOn(API.experimental, "getChat").mockRejectedValue({
 		...mockApiError({ message: "Chat error." }),
@@ -356,7 +340,21 @@ export const EditUsedSingleUseWebhook: Story = {
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
 	},
-	beforeEach: pinDateDisplayZone,
+	// formatDate renders in the browser's zone, which resolvedOptions does not
+	// control. Pin it so "Used on" renders the same on every host.
+	beforeEach: () => {
+		const toLocaleDateString = Date.prototype.toLocaleDateString;
+		spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
+			this: Date,
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			return toLocaleDateString.call(this, locales, {
+				...options,
+				timeZone: options?.timeZone ?? storyTimeZone,
+			});
+		});
+	},
 };
 
 export const ConfirmRotateSecret: Story = {
@@ -398,7 +396,9 @@ export const RotateSecretForbidden: Story = {
 
 export const RotateSecretConflict: Story = {
 	args: {
-		automation: mockWebhookAutomation,
+		// The editor still shows the webhook as unused while the server has
+		// already consumed it.
+		automation: { ...mockWebhookAutomation, webhook_use: "single" },
 		rotateSecretError: mockApiError({
 			message: "This single-use webhook was already used.",
 			detail: "Its secret can no longer be rotated.",
