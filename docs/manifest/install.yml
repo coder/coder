@@ -1,0 +1,14 @@
+title: Install
+description: Plan, prepare, install, validate, and operate a Coder deployment in your own infrastructure.
+path: ./install/index.md
+icon_path: ./images/icons/download.svg
+children:
+  - title: Coder CLI
+    description: Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.
+    path: ./install/cli.md
+    icon_path: ./images/icons/terminal.svg
+  - include: install/plan.yml
+  - include: install/prepare.yml
+  - include: install/server.yml
+  - include: install/validate.yml
+  - include: install/operate.yml

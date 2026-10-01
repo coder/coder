@@ -21,6 +21,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -193,6 +195,7 @@ type Server struct {
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
+	stages               *chatloop.StageTracer
 	chatWorker           *chatWorker
 	messagePartBuffer    *messagepartbuffer.Buffer
 	streamSyncPoller     *streamSyncPoller
@@ -1532,7 +1535,10 @@ func (p *Server) SendMessage(
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
 
-	var result SendMessageResult
+	var (
+		result           SendMessageResult
+		promotedQueuedAt time.Time
+	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// Update may rerun this callback after a deadlock abort.
@@ -1620,6 +1626,7 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+		promotedQueuedAt = sendResult.PromotedQueuedAt
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -1664,6 +1671,7 @@ func (p *Server) SendMessage(
 	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
+	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
 	return result, nil
 }
 
@@ -2190,9 +2198,9 @@ func (p *Server) PromoteQueued(
 	}
 
 	var (
-		result      PromoteQueuedResult
-		refreshChat database.Chat
-		refreshedOK bool
+		result           PromoteQueuedResult
+		refreshChat      database.Chat
+		promotedQueuedAt time.Time
 	)
 	rejected := false
 	machine := p.newChatMachine(opts.ChatID)
@@ -2200,7 +2208,7 @@ func (p *Server) PromoteQueued(
 		// Update may rerun this callback after a deadlock abort.
 		result = PromoteQueuedResult{}
 		rejected = false
-		refreshedOK = false
+		promotedQueuedAt = time.Time{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2224,6 +2232,7 @@ func (p *Server) PromoteQueued(
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
 		}
+		promotedQueuedAt = promoteResult.PromotedQueuedAt
 		// Capture the chat inside the transaction so the watch event
 		// published below uses the snapshot bump and status change
 		// produced by the transition itself.
@@ -2232,7 +2241,6 @@ func (p *Server) PromoteQueued(
 			return xerrors.Errorf("reload chat after promote: %w", err)
 		}
 		refreshChat = refreshed
-		refreshedOK = true
 		return nil
 	})
 	if updateErr != nil {
@@ -2242,9 +2250,8 @@ func (p *Server) PromoteQueued(
 		return PromoteQueuedResult{}, chatstate.ErrQueuedMessageNotFound
 	}
 
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
+	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.recordQueueWait(ctx, refreshChat, promotedQueuedAt)
 	return result, nil
 }
 
@@ -2954,6 +2961,7 @@ type Config struct {
 	// owner. It is required.
 	ExperimentEvaluator *experiments.Evaluator
 	PrometheusRegistry  prometheus.Registerer
+	TracerProvider      trace.TracerProvider
 	// Authorizer checks the permissions of an automation owner when an
 	// automation publishes. Publishing fails closed when it is nil.
 	Authorizer rbac.Authorizer
@@ -3089,7 +3097,9 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
-		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		p.metrics = chatloop.NewMetricsWithOptions(cfg.PrometheusRegistry, chatloop.MetricsOptions{
+			StageMetrics: cfg.Experiments.Enabled(codersdk.ExperimentChatStageMetrics),
+		})
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "chat_auto_archive",
@@ -3100,6 +3110,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics, chatloop.WithClock(clk))
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
@@ -4508,7 +4519,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	finalizeCtx, stopFinalizeCtx := p.inflightContext(ctx)
+	finalizeCtx, stopFinalizeCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopFinalizeCtx()
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
@@ -4595,7 +4606,7 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
-	updateCtx, stopUpdateCtx := p.inflightContext(ctx)
+	updateCtx, stopUpdateCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopUpdateCtx()
 		p.updateLastTurnSummary(updateCtx, chat, chat.HistoryVersion, summary, logger)
@@ -4615,7 +4626,7 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	clearCtx, stopClearCtx := p.inflightContext(ctx)
+	clearCtx, stopClearCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopClearCtx()
 		p.updateLastTurnSummary(clearCtx, chat, chat.HistoryVersion, "", logger)
@@ -4710,7 +4721,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	ctx, cancel := p.inflightContext(ctx)
+	ctx, cancel := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer cancel()
 		p.generateAndStoreChatSummary(ctx, logger, chat)
@@ -4891,7 +4902,7 @@ func (p *Server) storeSubagentReportSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	summaryCtx, stopSummaryCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopSummaryCtx()
 		p.storeSubagentReportSummary(summaryCtx, chat, logger)
@@ -4987,12 +4998,47 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	// Inflight work outlives the caller, so its spans must not be
+	// children of the caller's span.
+	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
+	detached = chatloop.ContextWithScope(detached, chatloop.ScopeBackground)
+	ctx, cancel := context.WithCancel(detached)
 	stop := context.AfterFunc(p.ctx, cancel)
 	return ctx, func() {
 		stop()
 		cancel()
 	}
+}
+
+// recordQueueWait records queue_wait as a trace root. Call it after the
+// promoting transition commits; a zero queuedAt records nothing.
+func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt time.Time) {
+	if queuedAt.IsZero() {
+		return
+	}
+	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
+	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
+		queuedAt, p.stages.Now(), nil,
+		attribute.String(chatloop.AttrChatID, chat.ID.String()),
+	)
+}
+
+func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
+	ctx, stop := p.inflightContext(reqCtx)
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
+}
+
+func chatKind(chat database.Chat) chatloop.ChatKind {
+	if chat.ParentChatID.Valid {
+		return chatloop.ChatKindSubagent
+	}
+	return chatloop.ChatKindRoot
+}
+
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
+	ctx = chatloop.ContextWithScope(ctx, scope)
+	return chatloop.ContextWithChatKind(ctx, kind)
 }
 
 func (p *Server) goInflight(f func()) error {
