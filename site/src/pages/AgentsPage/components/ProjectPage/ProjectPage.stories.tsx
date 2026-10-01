@@ -57,9 +57,25 @@ type Story = StoryObj<typeof ProjectPage>;
 
 export const Desktop: Story = {};
 
+/** Enough chats to overflow a phone screen, so the page scrolls. */
 export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
+		queries: [
+			{
+				key: projectChatsKey(MockChatProject.id),
+				data: {
+					pages: [
+						Array.from({ length: 12 }, (_, index) => ({
+							...MockChat,
+							id: `chat-${index}`,
+							title: `Chat ${index + 1}`,
+						})),
+					],
+					pageParams: [0],
+				},
+			},
+		],
 	},
 };

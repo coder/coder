@@ -210,21 +210,6 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	const prependToList = (queryKey: QueryKey) => {
-		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
-			if (!prev?.pages) return prev;
-			// Check across ALL pages to avoid duplicates.
-			const exists = prev.pages.some((page) =>
-				page.some((c) => c.id === chat.id),
-			);
-			if (exists) return prev;
-			// Only prepend to the first page.
-			const nextPages = prev.pages.map((page, i) =>
-				i === 0 ? [chat, ...page] : page,
-			);
-			return { ...prev, pages: nextPages };
-		});
-	};
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
 	});
@@ -251,11 +236,26 @@ export const prependToInfiniteChatsCache = (
 		) {
 			continue;
 		}
-		prependToList(queryKey);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
+			if (!prev?.pages) return prev;
+			// Check across ALL pages to avoid duplicates.
+			const exists = prev.pages.some((page) =>
+				page.some((c) => c.id === chat.id),
+			);
+			if (exists) return prev;
+			// Only prepend to the first page.
+			const nextPages = prev.pages.map((page, i) =>
+				i === 0 ? [chat, ...page] : page,
+			);
+			return { ...prev, pages: nextPages };
+		});
 	}
-	// Project lists hold the project's unarchived root chats.
+	// Growing the first page of a project list would shift its offset
+	// pagination and duplicate a row on the next page, so refetch it instead.
 	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
-		prependToList(projectChatsKey(chat.project_id));
+		void queryClient.invalidateQueries({
+			queryKey: projectChatsKey(chat.project_id),
+		});
 	}
 };
 

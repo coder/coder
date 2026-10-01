@@ -2633,7 +2633,7 @@ describe("project chat list caches", () => {
 		).toEqual(["chat-2"]);
 	});
 
-	it("prepends a new chat only to its own project list", () => {
+	it("refetches only the new chat's project list instead of growing its first page", () => {
 		const queryClient = createTestQueryClient();
 		seedProjectChats(queryClient, "project-1", [makeChat("chat-1")]);
 		seedProjectChats(queryClient, "project-2", [makeChat("chat-2")]);
@@ -2645,10 +2645,13 @@ describe("project chat list caches", () => {
 
 		expect(
 			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
-		).toEqual(["chat-3", "chat-1"]);
+		).toEqual(["chat-1"]);
 		expect(
-			readProjectChats(queryClient, "project-2")?.map((c) => c.id),
-		).toEqual(["chat-2"]);
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-2"))?.isInvalidated,
+		).toBe(false);
 	});
 
 	it("finds a chat that is only cached in a project list", () => {
