@@ -73,7 +73,7 @@ When the experiment is off for a user:
   To keep an occurrence, turn the experiment back on within 30&nbsp;seconds of its due time.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
 - Messages that automations already queued in a chat stay queued and still run.
-  To remove them, turn off or delete the automation.
+  To remove them, turn off or delete the automation before you turn the experiment off, or select **Remove from queue** on each message in the chat.
 
 ## Who can manage automations
 
@@ -291,6 +291,7 @@ With the API, send a `POST` request to `/api/experimental/organizations/{organiz
 Run now works only for schedule automations that are turned on, and only the owner can use it.
 It returns `202` with `input_id` and `chat_id`, and doesn't change the schedule's next run.
 Unlike a scheduled run, Run now reports refusals: `409` when the automation is off or the chat is busy and **When busy** is set to **Skip the run**, and `429` when the queue share or the queue is full.
+Other refusals return the same status codes as [webhook deliveries](#webhook-responses), such as `409` when the target chat or the model is unavailable.
 
 ## Choose a target
 
@@ -348,12 +349,15 @@ The agent receives the tool only when all of these are true:
 The tool supports the `list`, `get`, `create`, `update`, `enable`, `disable`, `delete`, and `run_now` actions.
 The agent acts as you, so its automations count toward your limit and appear on your **Automations** page with a **Created by agent in** link to the chat.
 
-The tool keeps the agent close to its own chat:
+In a turn that you start, the agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
+Reading an automation shows its prompt in the chat.
 
-- An existing chat automation that the agent manages must target the calling chat.
+The agent can create, update, enable, or run only automations that stay close to its own chat:
+
+- An existing chat automation must target the calling chat.
 - A new chat automation must use the chat's model, or a model without provider tools such as web search.
 
-The agent can update, enable, or run only automations that follow these rules, and Coder checks them again when it applies the change.
+Coder checks these rules again when it applies the change.
 
 In a turn that an automation started, the agent can't create, update, enable, or run automations.
 It sees only automations that target the chat or that created it, and it can delete only the automation that started the turn.
@@ -391,7 +395,8 @@ The per-owner limit caps how many automations exist, not how many turns or chats
 Coder doesn't limit how often a schedule runs, so a schedule that runs every minute starts a turn every minute.
 A leaked multi-use secret for a new chat target lets anyone with the secret start chats as the owner until you act.
 
-To stop the spend, rotate the secret, turn the automation off, or turn the experiment off.
+To stop the spend, rotate the secret or turn the automation off.
+Turning the experiment off stops new runs, but prompts that are already queued still run, and the owner can no longer turn the automation off until the experiment is back on.
 To cap each user's AI spend, refer to [Spend management](./platform-controls/spend-management.md).
 
 ### Silent failures
