@@ -409,6 +409,12 @@ coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_truncated_total Total tool results truncated to fit the model context window.
 # TYPE coderd_chatd_tool_result_truncated_total counter
 coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
+# HELP coderd_chatd_transition_duration_seconds Wall time of one ChatMachine.Update from before BeginTx to after commit or rollback. The transition label lists the transitions the callback ran, joined by '+'.
+# TYPE coderd_chatd_transition_duration_seconds histogram
+coderd_chatd_transition_duration_seconds{transition="",outcome=""} 0
+# HELP coderd_chatd_transition_phase_seconds Wall time of each phase of one ChatMachine.Update: pre_lock (BeginTx, including waiting for a pooled connection), lock_wait (the row lock statement), callback (statements run while holding the row), commit (COMMIT or ROLLBACK).
+# TYPE coderd_chatd_transition_phase_seconds histogram
+coderd_chatd_transition_phase_seconds{transition="",outcome="",phase=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0
