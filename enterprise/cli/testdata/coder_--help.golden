@@ -24,6 +24,8 @@ SUBCOMMANDS:
     prebuilds              Manage Coder prebuilds
     provisioner            View and manage provisioner daemons and jobs
     server                 Start a Coder server
+    workspace-proxy        Workspace proxies provide low-latency experiences for
+                           geo-distributed teams.
 
 GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
@@ -56,6 +58,10 @@ variables or flags.
           server. If telemetry is also enabled on the server, it may be sent to
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
+
+      --flight-recorder-size int, $CODER_FLIGHT_RECORDER_SIZE (default: 10)
+          Number of log entries below the current log level to keep in memory
+          and emit on errors. Set to 0 to disable the flight recorder.
 
       --force-tty bool, $CODER_FORCE_TTY
           Force the use of a TTY.

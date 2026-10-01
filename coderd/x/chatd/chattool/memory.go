@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -28,11 +29,6 @@ const (
 	MemoryConsolidateThreshold = MaxMemories * 8 / 10
 	MemoryConsolidateTarget    = MaxMemories * 7 / 10
 
-	MaxMemoryIndexLines = 200
-	// MaxMemoryIndexBytes fits MaxMemories entries at the longest name and
-	// description, so a project at the cap always has every name listed;
-	// read_memory takes an exact name and there is no other way to find one.
-	MaxMemoryIndexBytes       = 48 * 1024
 	MaxMemoryBodyBytes        = 8192
 	MaxMemoryDescriptionChars = 150
 
@@ -273,44 +269,135 @@ const memoryGuidance = "Save facts that will matter in future chats: who the peo
 	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
 	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
 	"Never save that something is unknown or undecided. Convert relative dates to absolute dates. " +
+	"The memory index is in the conversation: a <project-memory-index> message lists every saved memory, and <project-memory-index-update> messages at the start of later turns list what changed. " +
+	"Changes made during a turn, including your own, appear in the next turn's update. " +
 	"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
 	"Memories may be stale or wrong; verify before relying on one. Memories cannot be edited: replace one that no longer holds with consolidate_memory, or delete it."
 
 // FormatMemoryGuidance renders the stable durable-memory prompt block. It
-// carries no per-turn state so the system prompt prefix stays identical
-// across turns and remains cacheable; the live index is in the read tool's
-// description instead.
+// carries no memory state: the index travels in conversation messages
+// instead, so tool definitions and the system prompt stay identical as
+// memories change and the provider's cached prefix survives every write.
 func FormatMemoryGuidance(projectName string) string {
 	return "<memory>\n" + memoryIntro(projectName) + "\n" + memoryGuidance + "\n</memory>"
 }
 
-// FormatMemoryIndexForTool renders the compact memory index for read_memory.
-func FormatMemoryIndexForTool(entries []MemoryIndexEntry) string {
-	if len(entries) == 0 {
-		return "No memories saved yet."
-	}
+const (
+	memoryIndexTag       = "<project-memory-index>"
+	memoryIndexUpdateTag = "<project-memory-index-update>"
+	memoryIndexAddedHdr  = "Added or changed:"
+	memoryIndexRemoveHdr = "Removed:"
+)
 
+// FormatMemoryIndexSnapshot renders the full memory index as a conversation
+// message. Every entry is listed; descriptions are single lines, so the index
+// at MaxMemories stays around 46KB.
+func FormatMemoryIndexSnapshot(entries []MemoryIndexEntry) string {
 	var b strings.Builder
-	_, _ = b.WriteString("Available memories:\n")
-	shown := 0
-	truncationReserve := len(fmt.Sprintf("%d more memories not shown.", len(entries)))
+	_, _ = b.WriteString(memoryIndexTag + "\n")
+	if len(entries) == 0 {
+		_, _ = b.WriteString("No memories saved yet.\n")
+	}
 	for _, entry := range entries {
-		if shown >= MaxMemoryIndexLines {
-			break
-		}
-		line := fmt.Sprintf("- %s: %s", entry.Name, entry.Description)
-		if b.Len()+len(line)+1+truncationReserve > MaxMemoryIndexBytes {
-			break
-		}
-		_, _ = b.WriteString(line)
-		_ = b.WriteByte('\n')
-		shown++
+		_, _ = fmt.Fprintf(&b, "- %s: %s\n", entry.Name, entry.Description)
 	}
-	if omitted := len(entries) - shown; omitted > 0 {
-		_, _ = b.WriteString(fmt.Sprintf("%d more memories not shown.", omitted))
-		return b.String()
+	_, _ = b.WriteString("</project-memory-index>")
+	return b.String()
+}
+
+// FormatMemoryIndexUpdate renders the change to the memory index since the
+// model last saw it.
+func FormatMemoryIndexUpdate(changed []MemoryIndexEntry, removed []string) string {
+	var b strings.Builder
+	_, _ = b.WriteString(memoryIndexUpdateTag + "\n")
+	if len(changed) > 0 {
+		_, _ = b.WriteString(memoryIndexAddedHdr + "\n")
+		for _, entry := range changed {
+			_, _ = fmt.Fprintf(&b, "- %s: %s\n", entry.Name, entry.Description)
+		}
 	}
-	return strings.TrimSuffix(b.String(), "\n")
+	if len(removed) > 0 {
+		_, _ = b.WriteString(memoryIndexRemoveHdr + "\n")
+		for _, name := range removed {
+			_, _ = fmt.Fprintf(&b, "- %s\n", name)
+		}
+	}
+	_, _ = b.WriteString("</project-memory-index-update>")
+	return b.String()
+}
+
+// ReplayMemoryIndex rebuilds the index the model has seen from memory index
+// messages in conversation order, as name to description. ok is false when
+// no snapshot is present, for example on a chat's first turn or after
+// compaction dropped the earlier snapshot. Text that is not an index message
+// is ignored.
+func ReplayMemoryIndex(texts []string) (seen map[string]string, ok bool) {
+	for _, text := range texts {
+		switch {
+		case strings.HasPrefix(text, memoryIndexTag):
+			seen = make(map[string]string)
+			ok = true
+			for _, line := range strings.Split(text, "\n")[1:] {
+				if name, description, found := parseMemoryIndexLine(line); found {
+					seen[name] = description
+				}
+			}
+		case strings.HasPrefix(text, memoryIndexUpdateTag) && ok:
+			removing := false
+			for _, line := range strings.Split(text, "\n")[1:] {
+				switch line {
+				case memoryIndexAddedHdr:
+					removing = false
+					continue
+				case memoryIndexRemoveHdr:
+					removing = true
+					continue
+				}
+				if removing {
+					if name, found := strings.CutPrefix(line, "- "); found {
+						delete(seen, name)
+					}
+					continue
+				}
+				if name, description, found := parseMemoryIndexLine(line); found {
+					seen[name] = description
+				}
+			}
+		}
+	}
+	return seen, ok
+}
+
+func parseMemoryIndexLine(line string) (name, description string, ok bool) {
+	rest, found := strings.CutPrefix(line, "- ")
+	if !found {
+		return "", "", false
+	}
+	name, description, found = strings.Cut(rest, ": ")
+	if !found || !memoryNameRE.MatchString(name) {
+		return "", "", false
+	}
+	return name, description, true
+}
+
+// DiffMemoryIndex returns the entries that are new or whose description
+// changed since seen, and the names no longer present, both sorted by name.
+func DiffMemoryIndex(seen map[string]string, current []MemoryIndexEntry) (changed []MemoryIndexEntry, removed []string) {
+	present := make(map[string]struct{}, len(current))
+	for _, entry := range current {
+		present[entry.Name] = struct{}{}
+		if description, ok := seen[entry.Name]; !ok || description != entry.Description {
+			changed = append(changed, entry)
+		}
+	}
+	for name := range seen {
+		if _, ok := present[name]; !ok {
+			removed = append(removed, name)
+		}
+	}
+	slices.SortFunc(changed, func(a, b MemoryIndexEntry) int { return strings.Compare(a.Name, b.Name) })
+	slices.Sort(removed)
+	return changed, removed
 }
 
 type readMemoryArgs struct {
@@ -347,8 +434,10 @@ func memoryWriteResult(result map[string]any, count int64) fantasy.ToolResponse 
 }
 
 // ReadMemory returns a tool that reads a full memory body.
-func ReadMemory(store MemoryStore, entries []MemoryIndexEntry) fantasy.AgentTool {
-	return fantasy.NewAgentTool(ReadMemoryToolName, "Read a memory by name. "+FormatMemoryIndexForTool(entries), func(ctx context.Context, args readMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+// Its description is fixed so memory writes never change tool definitions; the
+// index the model picks names from is in the conversation.
+func ReadMemory(store MemoryStore) fantasy.AgentTool {
+	return fantasy.NewAgentTool(ReadMemoryToolName, "Read a memory by name. The memory index in the conversation lists every saved memory.", func(ctx context.Context, args readMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}

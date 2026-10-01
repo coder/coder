@@ -3,8 +3,13 @@ package chatd
 import (
 	"context"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -26,4 +31,98 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		return nil, "", false
 	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID), project.Name, true
+}
+
+// memoryIndexMessage returns the model-only message that brings the chat's
+// view of the project memory index up to date, or ok=false when none is
+// due. The index lives in conversation history rather than in a tool
+// description or the system prompt, because providers cache the request as
+// one prefix of tools, system prompt, then messages: a changing index there
+// would rewrite the whole cache for every chat in the project on each memory
+// write. Appended messages leave the cached prefix intact.
+//
+// A full snapshot is sent when the prompt has none, which covers a chat's
+// first turn and compaction, which drops the earlier snapshot. Changes since
+// the model last saw the index go out only at turn start, so other chats'
+// writes reach the model on its next turn and never mid-turn. Nothing is sent
+// right after an assistant step, whose tool results must follow it directly.
+func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (chatstate.Message, bool, error) {
+	store, _, ok := p.resolveProjectMemory(ctx, chat)
+	if !ok {
+		return chatstate.Message{}, false, nil
+	}
+	// Prompt rows include the model-only rows this sends, and exclude rows
+	// compaction has replaced.
+	promptRows, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("load prompt messages: %w", err)
+	}
+	turnStart := currentTurnStepCount(promptRows) == 0
+	if !turnStart && lastActiveMessageRole(promptRows) == database.ChatMessageRoleAssistant {
+		return chatstate.Message{}, false, nil
+	}
+	messages := promptRows
+	snapshotOnly := !turnStart
+	current, err := store.List(ctx)
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("list project memories: %w", err)
+	}
+	seen, hasSnapshot := chattool.ReplayMemoryIndex(memoryIndexTexts(messages))
+	var text string
+	switch {
+	case !hasSnapshot && len(current) == 0:
+		return chatstate.Message{}, false, nil
+	case !hasSnapshot:
+		text = chattool.FormatMemoryIndexSnapshot(current)
+	case snapshotOnly:
+		return chatstate.Message{}, false, nil
+	default:
+		changed, removed := chattool.DiffMemoryIndex(seen, current)
+		if len(changed) == 0 && len(removed) == 0 {
+			return chatstate.Message{}, false, nil
+		}
+		text = chattool.FormatMemoryIndexUpdate(changed, removed)
+	}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal memory index: %w", err)
+	}
+	return chatstate.Message{
+		Role:           database.ChatMessageRoleUser,
+		Content:        content,
+		Visibility:     database.ChatMessageVisibilityModel,
+		ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}, true, nil
+}
+
+// memoryIndexTexts returns the text of active model-only user rows. Users
+// cannot author model-only rows, so index text cannot be forged from chat
+// input.
+func memoryIndexTexts(messages []database.ChatMessage) []string {
+	var texts []string
+	for _, msg := range messages {
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleUser || msg.Visibility != database.ChatMessageVisibilityModel {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				texts = append(texts, part.Text)
+			}
+		}
+	}
+	return texts
+}
+
+func lastActiveMessageRole(messages []database.ChatMessage) database.ChatMessageRole {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if !messages[i].Deleted && !messages[i].Compressed {
+			return messages[i].Role
+		}
+	}
+	return ""
 }

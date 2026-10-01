@@ -22,6 +22,15 @@ coder users show [flags] <username|user_id|'me'>
 
 ## Options
 
+### -c, --column
+
+|         |                                                                                    |
+|---------|------------------------------------------------------------------------------------|
+| Type    | <code>[id\|username\|name\|email\|status\|created at\|roles\|organizations]</code> |
+| Default | <code>id,username,name,email,status,created at,roles,organizations</code>          |
+
+Columns to display in table output.
+
 ### -o, --output
 
 |         |                          |
