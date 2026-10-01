@@ -4923,6 +4923,12 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
+	 * Secrets sets or removes workspace secrets for this build. Secrets not
+	 * listed here are carried forward from the previous build unless they
+	 * were ephemeral.
+	 */
+	readonly secrets?: readonly WorkspaceSecretInput[];
+	/**
 	 * Log level changes the default logging verbosity of a provider ("info" if empty).
 	 */
 	readonly log_level?: ProvisionerLogLevel;
@@ -4981,6 +4987,11 @@ export interface CreateWorkspaceRequest {
 	 * during the initial provision.
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
+	/**
+	 * Secrets sets workspace secrets that are delivered to the workspace
+	 * through the agent manifest instead of the provisioner.
+	 */
+	readonly secrets?: readonly WorkspaceSecretInput[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
 }
@@ -12874,6 +12885,54 @@ export interface WorkspaceResourceMetadata {
 export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretInjectionTargetRequiredDetail explains that a workspace
+ * secret has no disabled state, so every set request needs a delivery
+ * target.
+ */
+export const WorkspaceSecretInjectionTargetRequiredDetail =
+	"A workspace secret must have at least one of env_name or file_path set."; //nolint:gosec // G101: message text, not a hardcoded credential.
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretInput sets or removes a workspace secret as part of a
+ * workspace or workspace build request.
+ *
+ * Workspace secrets are delivered to the workspace only through the agent
+ * manifest (as an environment variable, a file, or both). They are never
+ * passed to the provisioner, so they do not appear in workspace build
+ * parameters or Terraform state, and they cannot be read back through the
+ * API. Each secret is linked to the build it was set on. Non-ephemeral
+ * secrets are copied forward to every later build until a request replaces
+ * them by Name or removes them with an empty Value; ephemeral secrets are
+ * delivered to that build only.
+ */
+export interface WorkspaceSecretInput {
+	readonly name: string;
+	/**
+	 * Value is the plaintext secret. An empty Value removes the secret.
+	 */
+	readonly value: string;
+	/**
+	 * EnvName is the environment variable to inject the secret as. Empty
+	 * means no env injection. Required when FilePath is empty and Value is
+	 * non-empty.
+	 */
+	readonly env_name?: string;
+	/**
+	 * FilePath is the path to write the secret to inside the workspace.
+	 * Empty means no file is written. Deployments may disable file path
+	 * delivery.
+	 */
+	readonly file_path?: string;
+	/**
+	 * Ephemeral secrets are delivered to this build only and are not
+	 * carried forward to the next build.
+	 */
+	readonly ephemeral?: boolean;
+}
 
 // From codersdk/workspacesharing.go
 /**

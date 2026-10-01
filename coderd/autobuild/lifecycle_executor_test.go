@@ -554,6 +554,53 @@ func TestExecutorAutostopOK(t *testing.T) {
 	assert.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
 }
 
+// TestExecutorAutostopCarriesSecrets verifies that a build initiated by the
+// autostart actor, which holds no workspace secret permissions, still copies
+// the workspace's secrets onto the new build.
+func TestExecutorAutostopCarriesSecrets(t *testing.T) {
+	t.Parallel()
+
+	var (
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: "secret-value", EnvName: "API_KEY"},
+			}
+		})
+	)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
+
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
+	go func() {
+		tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+		close(tickCh)
+	}()
+
+	stats := <-statsCh
+	require.Len(t, stats.Errors, 0)
+	require.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
+
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	require.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	//nolint:gocritic // Only the workspace secret manager reads values.
+	secrets, err := db.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.Equal(t, "secret-value", secrets[0].Value.String)
+}
+
 func TestExecutorAutostopExtend(t *testing.T) {
 	t.Parallel()
 

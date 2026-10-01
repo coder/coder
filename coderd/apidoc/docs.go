@@ -24770,6 +24770,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "secrets": {
+                    "description": "Secrets sets or removes workspace secrets for this build. Secrets not\nlisted here are carried forward from the previous build unless they\nwere ephemeral.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
+                    }
+                },
                 "state": {
                     "type": "array",
                     "items": {
@@ -24837,6 +24844,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "secrets": {
+                    "description": "Secrets sets workspace secrets that are delivered to the workspace\nthrough the agent manifest instead of the provisioner.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
                     }
                 },
                 "template_id": {
@@ -34989,6 +35003,30 @@ const docTemplate = `{
                 "WorkspaceRoleUse",
                 "WorkspaceRoleDeleted"
             ]
+        },
+        "codersdk.WorkspaceSecretInput": {
+            "type": "object",
+            "properties": {
+                "env_name": {
+                    "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nnon-empty.",
+                    "type": "string"
+                },
+                "ephemeral": {
+                    "description": "Ephemeral secrets are delivered to this build only and are not\ncarried forward to the next build.",
+                    "type": "boolean"
+                },
+                "file_path": {
+                    "description": "FilePath is the path to write the secret to inside the workspace.\nEmpty means no file is written. Deployments may disable file path\ndelivery.",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value is the plaintext secret. An empty Value removes the secret.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",
