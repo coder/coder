@@ -471,12 +471,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// cancelDeletedToolCalls reads the messages between the current turn's user
-// message and the message before it, selects the last assistant message that
-// EditMessage marked as deleted, and sends the chat's agent a cancel request
-// for each of its unresolved calls that chattool.CanCancelToolCall accepts.
-// Their results can no longer be committed. Failures are logged and do not
-// affect the turn.
+// cancelDeletedToolCalls selects the last assistant message among the deleted
+// messages directly before the current turn's user message, and sends the
+// chat's agent a cancel request for each of its unresolved calls that
+// chattool.CanCancelToolCall accepts. Their results can no longer be
+// committed. Failures are logged and do not affect the turn.
 func (s *taskStarter) cancelDeletedToolCalls(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -491,9 +490,8 @@ func (s *taskStarter) cancelDeletedToolCalls(
 	if userMessageIndex == -1 {
 		return
 	}
-	// EditMessage marks the edited message and every later message as
-	// deleted, so they lie between the user message and the message before
-	// it.
+	// messages holds no deleted messages, so the deleted messages directly
+	// before the user message have IDs between it and the message before it.
 	params := database.GetDeletedChatMessagesFromLastAssistantParams{
 		ChatID:        chat.ID,
 		UserMessageID: messages[userMessageIndex].ID,
