@@ -79,6 +79,7 @@ jobs:
             # check inputs.
             docs-gen:
               - "docs/manifest.json"
+              - "docs/manifest/**"
               - "docs/reference/api/**"
               - "docs/reference/cli/**"
               - "docs/admin/integrations/prometheus.md"
