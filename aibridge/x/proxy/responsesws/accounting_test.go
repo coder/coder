@@ -283,3 +283,112 @@ func TestFailedStartIsRetried(t *testing.T) {
 		require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 	})
 }
+
+// TestRecordsCarryArrivalTime requires that records and the end produced by
+// frames queued behind a blocked record call carry the time the frames
+// arrived, not the time the accountant processed them.
+func TestRecordsCarryArrivalTime(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	require.NotNil(t, h.send(create("a", "model-a", "hi")))
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+	// The accountant is blocked on resp_0's usage.
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+	before := time.Now()
+	h.forward(created("a", "resp_a", "model-a"), completed("a", "resp_a"))
+	after := time.Now()
+	close(gate)
+	require.NoError(t, responsesws.Drain(ctx, h.sess))
+
+	inArrival := func(what string, at time.Time) {
+		t.Helper()
+		require.False(t, at.Before(before) || at.After(after),
+			"%s at %s, frames arrived between %s and %s", what, at, before, after)
+	}
+	id := h.interceptionFor("model-a").ID
+	var prompts, usages int
+	for _, p := range h.rec.RecordedPromptUsages() {
+		if p.InterceptionID == id {
+			prompts++
+			inArrival("prompt", p.CreatedAt)
+		}
+	}
+	for _, u := range h.rec.RecordedTokenUsages() {
+		if u.InterceptionID == id {
+			usages++
+			inArrival("token usage", u.CreatedAt)
+		}
+	}
+	require.Equal(t, 1, prompts)
+	require.Equal(t, 1, usages)
+	end := h.rec.RecordedInterceptionEnd(id)
+	require.NotNil(t, end)
+	inArrival("end", end.EndedAt)
+}
+
+// TestDroppedTerminalEndsWithOverload requires that an interception whose
+// terminal event is dropped by a full accounting queue ends with the
+// overload error once accounting catches up, leaving no state behind,
+// rather than staying open until the connection ends.
+func TestDroppedTerminalEndsWithOverload(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	require.NotNil(t, h.send(create("a", "model-a", "hi")))
+	h.relay(created("a", "resp_a", "model-a"))
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+	// The accountant is blocked on resp_0's usage with an empty queue.
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+	responsesws.SetQueueBounds(h.sess, 1, extract.MaxEventBytes)
+	h.forward(`{"type":"response.in_progress","stream_id":"a","response":{"id":"resp_a"}}`, completed("a", "resp_a"))
+	require.Equal(t, 1, h.logs.count("accounting queue full: dropped event"))
+
+	close(gate)
+	require.NoError(t, responsesws.Drain(ctx, h.sess))
+	id := h.interceptionFor("model-a").ID
+	end := h.rec.RecordedInterceptionEnd(id)
+	require.NotNil(t, end)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Contains(t, end.ErrorMessage, "accounting queue overloaded")
+	require.Equal(t, 1, h.rec.endCount(id))
+	require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
+}
+
+// TestOversizedTerminalEvent requires that a terminal event the extractor
+// skips as oversized still ends its interception by the event's type: a
+// failure as an upstream error, an incomplete response without one.
+func TestOversizedTerminalEvent(t *testing.T) {
+	t.Parallel()
+	pad := `,"pad":"` + strings.Repeat("x", extract.MaxEventBytes) + `"`
+	for _, tc := range []struct {
+		eventType string
+		extra     string
+		errType   recorder.ErrorType
+	}{
+		{eventType: "response.failed", extra: `,"status":"failed","error":{"code":"server_error","message":"boom"}`, errType: recorder.ErrorTypeUnknown},
+		{eventType: "response.incomplete", extra: `,"status":"incomplete"`},
+	} {
+		t.Run(tc.eventType, func(t *testing.T) {
+			t.Parallel()
+			ctx := codertestutil.Context(t, codertestutil.WaitShort)
+			h := newHarness(ctx, t, nil)
+			require.NotNil(t, h.send(create("a", "model-a", "hi")))
+			h.relay(created("a", "resp_a", "model-a"), terminal("a", tc.eventType, "resp_a", tc.extra+pad))
+
+			end := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-a").ID)
+			require.NotNil(t, end)
+			require.Equal(t, tc.errType, end.ErrorType)
+			if tc.errType != "" {
+				require.Contains(t, end.ErrorMessage, tc.eventType)
+			}
+			require.Equal(t, 1, h.logs.count("extractor skipped a terminal event"))
+			require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
+		})
+	}
+}

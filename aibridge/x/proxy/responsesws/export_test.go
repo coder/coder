@@ -3,15 +3,16 @@ package responsesws
 import "context"
 
 // StateSizes returns the number of entries in each of the session's
-// bookkeeping maps that holds any, keyed by map name.
+// bookkeeping maps and lists that holds any, keyed by name.
 func StateSizes(s *Session) map[string]int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sizes := map[string]int{
-		"open":      len(s.open),
-		"pending":   len(s.pending),
-		"active":    len(s.active),
-		"responses": len(s.responses),
+		"open":       len(s.open),
+		"pending":    len(s.pending),
+		"active":     len(s.active),
+		"responses":  len(s.responses),
+		"overloaded": len(s.overloaded),
 	}
 	for name, n := range sizes {
 		if n == 0 {
