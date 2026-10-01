@@ -53,6 +53,10 @@ type RunResult struct {
 	Stderr          string
 	StdoutTruncated bool
 	StderrTruncated bool
+	// StdoutBytes and StderrBytes count every byte the guest wrote to the
+	// stream, including bytes discarded past the output limit.
+	StdoutBytes int64
+	StderrBytes int64
 	// TimedOut reports that the run timeout stopped the guest.
 	TimedOut bool
 	// Canceled reports that the caller's context or Close stopped the
@@ -221,6 +225,8 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		Stderr:          stderr.String(),
 		StdoutTruncated: stdout.truncated(),
 		StderrTruncated: stderr.truncated(),
+		StdoutBytes:     stdout.total(),
+		StderrBytes:     stderr.total(),
 		Duration:        duration,
 
 		DiskQuotaExceeded:    mounts.box.quotaHit.Load(),
@@ -534,4 +540,8 @@ func (w *boundedWriter) String() string {
 
 func (w *boundedWriter) truncated() bool {
 	return w.discarded > 0
+}
+
+func (w *boundedWriter) total() int64 {
+	return int64(w.buf.Len()) + w.discarded
 }

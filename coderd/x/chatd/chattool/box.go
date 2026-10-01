@@ -82,7 +82,7 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		"Limits: " + options.Limits.RunTimeout.String() + " per run, " +
 		byteCountString(int64(options.Limits.MemoryBytes)) + " memory, " +
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
-		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
+		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged, and stdout_bytes and stderr_bytes give each stream's full size. " +
 		"timed_out or canceled means the run was stopped and exit_code is -1; a program can also exit with -1 itself. " +
 		"limits_hit lists \"disk_quota\" or \"open_files\" when the program hit that limit; those calls fail with EIO inside the sandbox. " +
 		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
@@ -115,10 +115,12 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 			stdout, stdoutCut := truncateBoxOutput(result.Stdout)
 			stderr, stderrCut := truncateBoxOutput(result.Stderr)
 			fields := h.withIdentity(map[string]any{
-				"exit_code":   result.ExitCode,
-				"timed_out":   result.TimedOut,
-				"canceled":    result.Canceled,
-				"duration_ms": result.Duration.Milliseconds(),
+				"exit_code":    result.ExitCode,
+				"timed_out":    result.TimedOut,
+				"canceled":     result.Canceled,
+				"duration_ms":  result.Duration.Milliseconds(),
+				"stdout_bytes": result.StdoutBytes,
+				"stderr_bytes": result.StderrBytes,
 			})
 			if limits := runLimitsHit(result); len(limits) > 0 {
 				fields["limits_hit"] = limits

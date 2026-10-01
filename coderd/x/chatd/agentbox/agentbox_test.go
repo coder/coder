@@ -373,6 +373,8 @@ func TestLimits(t *testing.T) {
 		assert.True(t, result.StdoutTruncated)
 		assert.False(t, result.StderrTruncated)
 		assert.Len(t, result.Stdout, 1024)
+		assert.EqualValues(t, 11000, result.StdoutBytes)
+		assert.Zero(t, result.StderrBytes)
 	})
 
 	t.Run("DiskBytes", func(t *testing.T) {
