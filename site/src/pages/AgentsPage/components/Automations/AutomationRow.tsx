@@ -19,7 +19,7 @@ type AutomationRowProps = {
 	isUpdating: boolean;
 	isRunning: boolean;
 	/** One run request at a time, so a pending run disables every row. */
-	isRunPending: boolean;
+	isAnyRunPending: boolean;
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
@@ -144,7 +144,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		isOwner,
 		isUpdating,
 		isRunning,
-		isRunPending,
+		isAnyRunPending,
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
@@ -224,7 +224,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 								size="sm"
 								variant="outline"
 								disabled={
-									!automation.enabled || isTargetMissing || isRunPending
+									!automation.enabled || isTargetMissing || isAnyRunPending
 								}
 								aria-label={`Run now ${automation.name}`}
 								onClick={() => onRunNow(automation)}
