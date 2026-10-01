@@ -116,7 +116,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const portalContainer = useMobileMenuPosition(mobileAnchor, open);
+	const menuRef = useMobileMenuPosition(mobileAnchor, open);
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
@@ -193,11 +193,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				portalContainer={portalContainer}
+				ref={menuRef}
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
-					portalContainer && "mobile-composer-menu",
+					mobileAnchor && "mobile-composer-menu",
 					"w-72 overflow-hidden border-border-default p-0",
 					contentClassName,
 				)}
@@ -229,7 +229,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 						role="listbox"
 						className={cn(
 							"max-h-80 border-t-0",
-							portalContainer && "mobile-composer-menu-scroll-area",
+							mobileAnchor && "mobile-composer-menu-scroll-area",
 						)}
 					>
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">

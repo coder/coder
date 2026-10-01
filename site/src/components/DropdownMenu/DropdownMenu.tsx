@@ -21,23 +21,11 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-type DropdownMenuContentProps = React.ComponentProps<
-	typeof DropdownMenuPrimitive.Content
-> & {
-	/** An owned portal host, such as one carrying instance-local menu geometry. */
-	portalContainer?: React.ComponentProps<
-		typeof DropdownMenuPrimitive.Portal
-	>["container"];
-};
-
-export const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
-	className,
-	sideOffset = 4,
-	portalContainer,
-	...props
-}) => {
+export const DropdownMenuContent: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
+> = ({ className, sideOffset = 4, ...props }) => {
 	return (
-		<DropdownMenuPrimitive.Portal container={portalContainer}>
+		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				sideOffset={sideOffset}
 				className={cn(menuContentClass, className)}

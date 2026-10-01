@@ -106,7 +106,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
-	const portalContainer = useMobileMenuPosition(composer, open);
+	const menuRef = useMobileMenuPosition(composer, open);
 
 	const portsData = usePortsData(
 		workspace,
@@ -170,13 +170,13 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
-				portalContainer={portalContainer}
+				ref={menuRef}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
 				className={cn(
-					portalContainer && "mobile-composer-menu",
+					composer && "mobile-composer-menu",
 					"w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!",
 				)}
 			>

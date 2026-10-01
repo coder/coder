@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { useMediaQuery } from "./useMediaQuery";
 
@@ -42,28 +42,26 @@ export const getMobileMenuPosition = (
 	};
 };
 
-/** Keeps keyboard-sensitive mobile menus docked to their own anchor while open. */
+/** Returns a content ref that docks keyboard-sensitive mobile menus while open. */
 export const useMobileMenuPosition = (
 	anchor: HTMLElement | null | undefined,
 	open: boolean,
-): HTMLElement | undefined => {
+): React.RefCallback<HTMLDivElement> => {
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
-	const [container] = useState(() => document.createElement("div"));
-	const enabled = Boolean(anchor);
-	const active = enabled && isBelowMd && open;
+	const [content, setContent] = useState<HTMLDivElement | null>(null);
+	const active = isBelowMd && open;
 
-	useEffect(() => {
-		if (!enabled) {
+	useLayoutEffect(() => {
+		if (!anchor || !content || !active) {
 			return;
 		}
 
-		document.body.appendChild(container);
+		// The positioning CSS targets this same Radix wrapper.
+		const wrapper = content.closest<HTMLElement>(
+			"[data-radix-popper-content-wrapper]",
+		);
 
-		return () => container.remove();
-	}, [container, enabled]);
-
-	useLayoutEffect(() => {
-		if (!anchor || !active) {
+		if (!wrapper) {
 			return;
 		}
 
@@ -83,8 +81,8 @@ export const useMobileMenuPosition = (
 		const setProperty = (name: string, value: number) => {
 			const next = `${value}px`;
 
-			if (container.style.getPropertyValue(name) !== next) {
-				container.style.setProperty(name, next);
+			if (wrapper.style.getPropertyValue(name) !== next) {
+				wrapper.style.setProperty(name, next);
 			}
 		};
 
@@ -152,7 +150,7 @@ export const useMobileMenuPosition = (
 
 			fixedProbe.remove();
 		};
-	}, [active, anchor, container]);
+	}, [active, anchor, content]);
 
-	return enabled ? container : undefined;
+	return setContent;
 };

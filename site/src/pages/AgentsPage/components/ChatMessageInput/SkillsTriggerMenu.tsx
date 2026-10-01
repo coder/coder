@@ -185,7 +185,7 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const portalContainer = useMobileMenuPosition(anchor, shouldRender);
+	const menuRef = useMobileMenuPosition(anchor, shouldRender);
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -232,13 +232,13 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
-				portalContainer={portalContainer}
+				ref={menuRef}
 				align="start"
 				side="top"
 				sideOffset={8}
 				className={cn(
 					"w-(--radix-popper-anchor-width) overflow-hidden p-1",
-					portalContainer && "mobile-composer-menu",
+					anchor && "mobile-composer-menu",
 				)}
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}

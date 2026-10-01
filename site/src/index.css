@@ -317,7 +317,7 @@
 
 @utility mobile-composer-menu {
 	@media (max-width: 767px) {
-		/* Keyboard-sensitive menus inherit geometry from their own portal host. */
+		/* Keyboard-sensitive menus keep geometry on their own positioning wrapper. */
 		[data-radix-popper-content-wrapper]:has(> &) {
 			position: fixed !important;
 			left: var(--mobile-menu-left) !important;

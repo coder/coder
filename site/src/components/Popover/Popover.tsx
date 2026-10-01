@@ -10,10 +10,6 @@ export type PopoverContentProps = React.ComponentProps<
 	typeof PopoverPrimitive.Content
 > & {
 	disablePortal?: boolean;
-	/** An owned portal host, such as one carrying instance-local menu geometry. */
-	portalContainer?: React.ComponentProps<
-		typeof PopoverPrimitive.Portal
-	>["container"];
 };
 
 export const Popover = PopoverPrimitive.Root;
@@ -27,7 +23,6 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 	align = "center",
 	sideOffset = 4,
 	disablePortal,
-	portalContainer,
 	...props
 }) => {
 	const content = (
@@ -54,8 +49,6 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 	return disablePortal ? (
 		content
 	) : (
-		<PopoverPrimitive.Portal container={portalContainer}>
-			{content}
-		</PopoverPrimitive.Portal>
+		<PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal>
 	);
 };
