@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -69,17 +70,18 @@ func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.M
 }
 
 // prepareAndProxy validates r, prepares it with the resolved credential, and
-// serves it through the handler's reverse proxy without response observation.
-// It returns the prepared request and its replay buffer.
+// forwards it with response observation outside the circuit breaker. It
+// returns the prepared request and its replay buffer.
 func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) (*http.Request, *replaybody.TeeBuffer) {
 	t.Helper()
 	logger, record, cred := h.checkRequest(w, r)
 	require.NotNil(t, record, "request must pass validation")
-	rw, outbound, body := h.prepareForwarding(w, r, logger)
+	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
+	rw, outbound, body := h.prepareForwarding(w, r.WithContext(context.WithValue(r.Context(), observationContextKey{}, state)), logger)
 	if body != nil {
 		t.Cleanup(func() { _ = body.Close() })
 	}
-	h.newProxy(cred).ServeHTTP(rw, outbound)
+	_ = h.forwardPrepared(rw, outbound, cred, body, state, logger)
 	if body != nil {
 		require.NoError(t, body.Close())
 		_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
