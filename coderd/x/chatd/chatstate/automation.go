@@ -162,6 +162,7 @@ func (tx *Tx) dropUnpromotable(
 		if count != 1 {
 			return nil, xerrors.Errorf("delete unpromotable queued message %d: deleted %d rows, want 1", row.ID, count)
 		}
+		tx.queueChanged = true
 	}
 	return passing, nil
 }

@@ -123,11 +123,8 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	return err
 }
 
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
+func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, tx, seeded, from); err != nil {
-		return err
-	}
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
@@ -175,11 +172,8 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 	return err
 }
 
-func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, tx, seeded, from); err != nil {
-		return err
-	}
 	var err error
 	result.interrupt, err = tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 	return err
@@ -1106,6 +1100,7 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 		from:       from,
 		want:       want,
 		scenario:   scenarioInterrupt,
+		seed:       seedOwnedRunningState,
 		apply:      applySendMessageInterrupt,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
@@ -1599,6 +1594,7 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 		transition: chatstate.TransitionInterrupt,
 		from:       from,
 		want:       want,
+		seed:       seedOwnedRunningState,
 		apply:      applyInterrupt,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
@@ -2025,13 +2021,21 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 	return spec
 }
 
-// ownRunningChat owns a seeded running chat before an interrupt so the
-// matrix covers the interrupting states. The unowned variants finish
-// the interruption inline and have their own tests.
-func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+// seedOwnedRunningState seeds the state and, for running chats, owns the
+// chat in its own Update: ownership is a transition with its own commit
+// write, so it must not share the measured Update. Owned chats cover the
+// interrupting states; the unowned variants finish the interruption
+// inline and have their own tests.
+func seedOwnedRunningState(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
 	t.Helper()
+	seeded := seedState(t, f, from)
 	if from != chatstate.StateR0 && from != chatstate.StateR1 {
-		return nil
+		return seeded
 	}
-	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		return ownChat(ctx, tx, store, seeded.chatID)
+	}))
+	return seeded
 }
