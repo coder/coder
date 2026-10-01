@@ -477,3 +477,90 @@ func TestRunnerManager_FailedHeartbeatTickKeepsRunners(t *testing.T) {
 		})
 	}
 }
+
+// admitObservingLimiter records when admissions start and finish.
+type admitObservingLimiter struct {
+	*agentCapacityLimiter
+	started  atomic.Int64
+	finished atomic.Int64
+}
+
+func (l *admitObservingLimiter) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
+	l.started.Add(1)
+	defer l.finished.Add(1)
+	return l.agentCapacityLimiter.Admit(ctx, store, chat)
+}
+
+// A takeover reads the lease as stale before it takes the admission lock.
+// A heartbeat renewal that holds the lock at that moment can still renew
+// the lease, so the takeover must recheck the lease under the lock instead
+// of replacing a runner whose lease was just renewed.
+func TestAdmission_TakeoverRechecksLeaseUnderAdmissionLock(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chat := f.createRunningChat(t)
+	liveRunner := uuid.New()
+	acquireChat(t, f, chat.ID, uuid.New(), liveRunner)
+	// Old enough that the takeover's 30 second threshold sees it as stale.
+	setHeartbeatAge(t, f, chat.ID, liveRunner, 45*time.Second)
+
+	// The live runner's renewal saw the lease as fresh (a 60 second window
+	// stands in for a renewal statement that started just before expiry)
+	// and holds the admission lock while it commits.
+	renewed := make(chan struct{})
+	commit := make(chan struct{})
+	renewErr := make(chan error, 1)
+	go func() {
+		renewErr <- f.db.InTx(func(tx database.Store) error {
+			if err := tx.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+				return err
+			}
+			rows, err := tx.RenewChatHeartbeats(ctx, database.RenewChatHeartbeatsParams{
+				ChatIds:      []uuid.UUID{chat.ID},
+				RunnerIds:    []uuid.UUID{liveRunner},
+				StaleSeconds: 60,
+			})
+			if err != nil {
+				return err
+			}
+			if len(rows) != 1 {
+				return xerrors.Errorf("renewed %d leases, want 1", len(rows))
+			}
+			close(renewed)
+			<-commit
+			return nil
+		}, nil)
+	}()
+	select {
+	case <-renewed:
+	case err := <-renewErr:
+		t.Fatalf("renew: %v", err)
+	case <-ctx.Done():
+		t.Fatal("timed out renewing the lease")
+	}
+
+	limiter := &admitObservingLimiter{agentCapacityLimiter: newAgentCapacityLimiter(nil, 30)}
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentCapacityLimiter = limiter
+	startWorker(t, opts)
+	// The worker classified the lease as stale and now waits for the lock.
+	require.Eventually(t, func() bool {
+		return limiter.started.Load() > 0
+	}, testutil.WaitLong, testutil.IntervalFast, "the takeover must reach admission")
+
+	close(commit)
+	require.NoError(t, <-renewErr)
+	require.Eventually(t, func() bool {
+		return limiter.finished.Load() > 0
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Give the acquisition transaction time to commit if it proceeds.
+	require.Never(t, func() bool {
+		got, err := f.db.GetChatByID(ctx, chat.ID)
+		return err != nil || got.RunnerID.UUID != liveRunner
+	}, time.Second, testutil.IntervalFast, "a takeover must not replace a runner whose lease was renewed under the lock")
+	starter.assertNoCall(t)
+}
