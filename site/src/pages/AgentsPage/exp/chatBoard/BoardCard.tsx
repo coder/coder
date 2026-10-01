@@ -161,7 +161,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 					single ? "pb-2.5" : "pb-1.5",
 					cardTint({ color: card.color }),
 					// Without a tint, a group's header reads as one more chat row.
-					!single && !card.color && "bg-surface-secondary",
+					!single && !card.color && "bg-surface-tertiary",
 				)}
 				{...dragHandleListeners(listeners)}
 				{...attributes}
