@@ -112,11 +112,12 @@ func sdkError(status int, message string) error {
 func shutdownAndRequirePoolClosed(t *testing.T, srv *aibridged.Server) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	require.NotNil(t, srv.InterceptionPoolForTest())
+	pool := srv.InterceptionPoolForTest()
+	require.NotNil(t, pool)
 	require.NoError(t, srv.Shutdown(ctx))
 
-	// Use a live context so cancellation cannot mask a pool left open.
-	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{})
+	// Check the pool directly so the server's admission check cannot mask it.
+	handler, err := pool.Acquire(ctx, aibridged.Request{}, nil, nil)
 	require.ErrorContains(t, err, "pool shutting down")
 	require.Nil(t, handler)
 }

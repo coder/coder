@@ -245,6 +245,11 @@ func TestChatAutomationEvents(t *testing.T) {
 			UserID:         env.memberID,
 			OrganizationID: env.orgID,
 		}), "the created chat is audited as created by the automation owner")
+		for _, entry := range auditor.AuditLogs() {
+			if entry.ResourceType == database.ResourceTypeChat && entry.ResourceID == res.ChatID {
+				require.NotEqual(t, uuid.Nil, entry.RequestID, "the entry carries the webhook request id")
+			}
+		}
 
 		messages, err := env.member.GetChatMessages(ctx, res.ChatID, nil)
 		require.NoError(t, err)
