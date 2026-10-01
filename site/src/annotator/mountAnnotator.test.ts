@@ -27,16 +27,29 @@ function control<T extends HTMLElement>(selector: string): T {
 
 const dialog = () => shadow().querySelector('[role="dialog"]');
 const saveButton = () => screen.getByRole("button", { name: "Save" });
+const heldBadge = () => control('[aria-label="Discard held comments"]');
 
-async function comment(text: string) {
-	await userEvent.click(saveButton());
-	await userEvent.type(control('[aria-label="Annotation comment"]'), text);
-	await userEvent.click(control('[role="dialog"] .button:not(.outline)'));
+// One user session per comment so a held Shift carries into the click.
+async function comment(target: Element, text: string, hold = false) {
+	const user = userEvent.setup();
+	await user.click(target);
+	await user.type(control('[aria-label="Annotation comment"]'), text);
+	if (hold) {
+		await user.keyboard("{Shift>}");
+	}
+	await user.click(control('[role="dialog"] .button:not(.outline)'));
+	if (hold) {
+		await user.keyboard("{/Shift}");
+	}
 }
 
 describe("mountAnnotator", () => {
 	beforeEach(() => {
-		document.body.innerHTML = `<main><button id="save">Save</button></main>`;
+		document.body.innerHTML = `<main><h1 id="title">Hi</h1><button id="save">Save</button></main>`;
+		for (const node of document.querySelectorAll("main *")) {
+			(node as HTMLElement).getBoundingClientRect = () =>
+				new DOMRect(10, 10, 100, 30);
+		}
 		document.title = "App";
 		window.history.replaceState(null, "", "/");
 	});
@@ -130,7 +143,7 @@ describe("mountAnnotator", () => {
 		window.history.replaceState(null, "", `/${"p".repeat(maxFieldLength * 3)}`);
 		handle.setPicking(true);
 
-		await comment("Bigger");
+		await comment(saveButton(), "Bigger");
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		const [{ page, annotations }] = onSubmit.mock.calls[0];
 		expect(annotations).toHaveLength(1);
@@ -142,6 +155,46 @@ describe("mountAnnotator", () => {
 		expect(page.url).toHaveLength(maxFieldLength);
 		expect(page.url.startsWith(window.location.origin)).toBe(true);
 		expect(dialog()).toBeNull();
+		handle.destroy();
+	});
+
+	it("sends held comments together with the next Send", async () => {
+		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
+		const handle = mountAnnotator({ document, onSubmit });
+		handle.setPicking(true);
+
+		await comment(screen.getByRole("heading", { name: "Hi" }), "Bigger", true);
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(heldBadge().textContent).toBe("1");
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(1);
+		expect(handle.getState().picking).toBe(true);
+
+		await comment(saveButton(), "Primary");
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		const [submission] = onSubmit.mock.calls[0];
+		expect(submission.annotations.map((a) => a.comment)).toEqual([
+			"Bigger",
+			"Primary",
+		]);
+		expect(submission.annotations.map((a) => a.element.selector)).toEqual([
+			"#title",
+			"#save",
+		]);
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(0);
+		expect(heldBadge().style.display).toBe("none");
+		handle.destroy();
+	});
+
+	it("discards held comments from the toolbar badge", async () => {
+		const onSubmit = vi.fn();
+		const handle = mountAnnotator({ document, onSubmit });
+		handle.setPicking(true);
+		const title = screen.getByRole("heading", { name: "Hi" });
+		await comment(title, "Bigger", true);
+		await userEvent.click(heldBadge());
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(0);
+		expect(title.hasAttribute("data-coder-annotation-id")).toBe(false);
+		expect(onSubmit).not.toHaveBeenCalled();
 		handle.destroy();
 	});
 });

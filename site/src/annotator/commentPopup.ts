@@ -1,10 +1,13 @@
 import { el } from "./dom";
 import { elementLabel } from "./elementLabel";
-import { sendIcon } from "./icons";
+import { plusIcon, sendIcon } from "./icons";
 
 type CommentPopupOptions = {
 	target: Element;
-	onSubmit(comment: string): void;
+	// Comments already held back, which the next plain Send includes.
+	heldCount: number;
+	// `hold` is Shift+Send: keep the comment and pick more first.
+	onSubmit(comment: string, hold: boolean): void;
 	onCancel(): void;
 };
 
@@ -41,9 +44,9 @@ export function popupPosition(
 
 /**
  * The comment box for a picked element: a title naming the element, a
- * textarea, Cancel and Send. Enter sends, Shift+Enter makes a new line
- * and an empty comment cannot be sent. Positioned for the caller to
- * append into the overlay.
+ * textarea, Cancel and Send. Enter sends, Shift+Enter makes a new line,
+ * Shift+Send holds the comment for a later Send and an empty comment
+ * cannot be sent. Positioned for the caller to append into the overlay.
  */
 export function createCommentPopup(
 	win: Window,
@@ -71,28 +74,40 @@ export function createCommentPopup(
 	cancel.textContent = "Cancel";
 	cancel.addEventListener("click", options.onCancel);
 
-	const send = el(doc, "button", "button", { type: "button", disabled: "" });
-	send.innerHTML = sendIcon;
-	send.append("Send");
+	const send = el(doc, "button", "button", {
+		type: "button",
+		disabled: "",
+		"data-tip": "Shift+click to hold this comment and pick more",
+	});
+	const setSendLabel = (hold: boolean) => {
+		send.innerHTML = hold ? plusIcon : sendIcon;
+		const count = options.heldCount;
+		send.append(hold ? "Add" : count > 0 ? `Send ${count + 1}` : "Send");
+	};
+	setSendLabel(false);
 
-	const submit = () => {
+	const submit = (hold: boolean) => {
 		const comment = textarea.value.trim();
 		if (!comment) {
 			textarea.focus();
 			return;
 		}
-		options.onSubmit(comment);
+		options.onSubmit(comment, hold);
 	};
-	send.addEventListener("click", submit);
+	send.addEventListener("click", (event) => submit(event.shiftKey));
 	textarea.addEventListener("input", () => {
 		send.disabled = textarea.value.trim() === "";
 	});
 	textarea.addEventListener("keydown", (event) => {
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
-			submit();
+			submit(false);
 		}
 	});
+	// Holding Shift previews what the button will do.
+	const onShift = (event: KeyboardEvent) => setSendLabel(event.shiftKey);
+	element.addEventListener("keydown", onShift);
+	element.addEventListener("keyup", onShift);
 
 	const actions = el(doc, "div", "popup-actions");
 	actions.append(cancel, send);
