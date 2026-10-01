@@ -47,23 +47,6 @@ end
     )
   end
 
-# anthropic.claude-sonnet-5-5: bedrock-runtime serves this model only through
-# the global inference profile, which is all models.dev lists. bedrock-mantle
-# takes the bare ID, and models.dev prices bare Claude IDs like their global
-# profiles, so inject the bare ID as a copy of the global entry.
-# Ref: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
-| if (."amazon-bedrock".models | has("global.anthropic.claude-sonnet-5-5") | not) then
-    error("overrides.jq: global.anthropic.claude-sonnet-5-5 gone from upstream; the anthropic.claude-sonnet-5-5 copy has no source")
-  elif (."amazon-bedrock".models | has("anthropic.claude-sonnet-5-5")) then
-    error("overrides.jq: anthropic.claude-sonnet-5-5 now present upstream; drop the injection")
-  else
-    ."amazon-bedrock".models."anthropic.claude-sonnet-5-5" = (
-      ."amazon-bedrock".models."global.anthropic.claude-sonnet-5-5"
-      | .id = "anthropic.claude-sonnet-5-5"
-      | .name = "Claude Sonnet 5.5"
-    )
-  end
-
 # Copilot does not charge for background utility calls using GPT-4o mini,
 # GPT-4o, or GPT-4.1, so record zero prices for these models.
 # Ref: https://docs.github.com/en/copilot/concepts/models/utility-models#list-of-utility-models
