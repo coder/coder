@@ -110,6 +110,9 @@ const (
 	eventFailed     = "response.failed"
 	eventIncomplete = "response.incomplete"
 	eventError      = "error"
+
+	eventOutputItemAdded = "response.output_item.added"
+	eventOutputItemDone  = "response.output_item.done"
 )
 
 // ErrClosed is returned after the session has been closed.
@@ -207,6 +210,11 @@ type Session struct {
 	// signals the accountant after a hand-off.
 	overloaded   []overloadedEnd
 	overloadWake chan struct{}
+	// toolCalls maps the call ID of each tool call a response announced to
+	// the interception of that response, until the interception ends. Its
+	// tool call record exists by then, so only a create answering one of
+	// these calls waits before it is recorded.
+	toolCalls map[string]*interception
 }
 
 type interception struct {
@@ -250,6 +258,12 @@ type interception struct {
 	// ext records the response through rec. Only the accountant uses them.
 	ext *respextract.ResponseExtraction
 	rec *boundedRecorder
+	// toolCalls are the call IDs this interception's response announced,
+	// registered in Session.toolCalls. Guarded by Session.mu.
+	toolCalls []string
+	// settled, when a create waits for this interception, is closed once
+	// the interception ends. Guarded by Session.mu.
+	settled chan struct{}
 }
 
 // NewSession starts relaying upstream. ctx bounds the session and must carry
@@ -287,6 +301,7 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 		active:        make(map[string]*interception),
 		responses:     make(map[string]*interception),
 		overloadWake:  make(chan struct{}, 1),
+		toolCalls:     make(map[string]*interception),
 	}
 	go s.readLoop()
 	go s.accountLoop()
@@ -523,11 +538,11 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	var toolCallID *string
 	if facts.CorrelatingToolCallID != "" {
 		toolCallID = &facts.CorrelatingToolCallID
-		// The tool call this create answers arrived in an earlier
-		// response, and the record of it may still be queued. Recording
-		// the interception links it to its parent through that record, so
-		// it must exist first.
-		s.awaitAccounting(opCtx)
+		// The tool call this create answers may have arrived in an earlier
+		// response on this session whose records are still queued.
+		// Recording the interception links it to its parent through the
+		// tool call record, so it should exist first.
+		s.awaitToolCall(opCtx, log, facts.CorrelatingToolCallID)
 	}
 	ic, err := s.startInterception(opCtx, lane, model, sentAt, toolCallID, func(ic *interception) {
 		ic.prompt = facts.Prompt
@@ -552,15 +567,57 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt ti
 	return nil
 }
 
-// awaitAccounting waits until the accountant processed every job queued
-// before the call, the accountant exited, or ctx ended.
-func (s *Session) awaitAccounting(ctx context.Context) {
-	done := make(chan struct{})
-	s.queue.pushBarrier(done)
+// awaitToolCall waits until the interception whose response announced the
+// tool call callID ends, so the tool call is recorded first. A call ID this
+// session is not accounting for returns at once. The wait also ends when
+// the accountant exits, ctx ends, or after one record timeout, so a slow
+// recorder delays a create by at most that long. A create that proceeds
+// before the tool call is recorded only loses its link to its parent, which
+// the recorder logs.
+func (s *Session) awaitToolCall(ctx context.Context, log slog.Logger, callID string) {
+	s.mu.Lock()
+	ic := s.toolCalls[callID]
+	if ic == nil {
+		s.mu.Unlock()
+		return
+	}
+	if ic.settled == nil {
+		ic.settled = make(chan struct{})
+	}
+	settled := ic.settled
+	s.mu.Unlock()
+	timer := time.NewTimer(recorder.DefaultAsyncTimeout)
+	defer timer.Stop()
 	select {
-	case <-done:
+	case <-settled:
 	case <-s.accountDone:
 	case <-ctx.Done():
+	case <-timer.C:
+		log.Warn(ctx, "recording a tool result before the tool call it answers",
+			slog.F("call_id", callID), slog.F("interception_id", ic.id))
+	}
+}
+
+// registerToolCallsLocked registers the tool calls frame announces for ic,
+// whose response frame belongs to. It is called with s.mu held.
+func (s *Session) registerToolCallsLocked(ic *interception, eventType string, frame []byte) {
+	if ic == nil || ic.ended {
+		return
+	}
+	register := func(callID string) {
+		if callID == "" || s.toolCalls[callID] == ic {
+			return
+		}
+		s.toolCalls[callID] = ic
+		ic.toolCalls = append(ic.toolCalls, callID)
+	}
+	switch eventType {
+	case eventOutputItemAdded, eventOutputItemDone:
+		register(gjson.GetBytes(frame, "item.call_id").String())
+	case eventCompleted, eventFailed, eventIncomplete:
+		for _, callID := range gjson.GetBytes(frame, "response.output.#.call_id").Array() {
+			register(callID.String())
+		}
 	}
 }
 
@@ -686,12 +743,14 @@ func (s *Session) route(frame []byte, arrived time.Time) {
 		ev.terminal = true
 		if ic == nil {
 			// A response no interception owns still has its usage recorded.
-			s.openLocked(lane, response.Get("model").String(), response.Get("id").String(), ev)
+			ic = s.openLocked(lane, response.Get("model").String(), response.Get("id").String(), ev)
+			s.registerToolCallsLocked(ic, eventType, frame)
 			return
 		}
 		if s.active[ic.lane] == ic {
 			delete(s.active, ic.lane)
 		}
+		s.registerToolCallsLocked(ic, eventType, frame)
 		s.pushTerminalLocked(ic, ev)
 		return
 	case eventError:
@@ -720,6 +779,7 @@ func (s *Session) route(frame []byte, arrived time.Time) {
 		return
 	default:
 		ic = s.active[lane]
+		s.registerToolCallsLocked(ic, eventType, frame)
 	}
 	if ic != nil && respextract.Relevant(eventType) {
 		ev.ic = ic
@@ -797,17 +857,35 @@ func (ic *interception) markRaced(at time.Time) {
 // errAccountingOverloaded instead, whichever path ends it.
 func (s *Session) end(ic *interception, err error, endedAt time.Time) {
 	s.mu.Lock()
-	if ic.ended {
+	if !s.markEndedLocked(ic) {
 		s.mu.Unlock()
 		return
 	}
-	ic.ended = true
 	if ic.lossy {
 		err = errAccountingOverloaded
 	}
 	s.forgetLocked(ic)
 	s.mu.Unlock()
 	s.recordEnded(ic, err, endedAt)
+}
+
+// markEndedLocked marks ic ended, releases creates waiting for its tool
+// calls, and reports whether this call ended it. It is called with s.mu
+// held.
+func (s *Session) markEndedLocked(ic *interception) bool {
+	if ic.ended {
+		return false
+	}
+	ic.ended = true
+	for _, callID := range ic.toolCalls {
+		if s.toolCalls[callID] == ic {
+			delete(s.toolCalls, callID)
+		}
+	}
+	if ic.settled != nil {
+		close(ic.settled)
+	}
+	return true
 }
 
 func (s *Session) forgetLocked(ic *interception) {

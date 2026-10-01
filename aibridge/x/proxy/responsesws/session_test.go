@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extract"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -1037,6 +1038,172 @@ func TestToolResultCreateAwaitsToolCallRecord(t *testing.T) {
 	require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
 	require.Len(t, h.rec.RecordedToolUsages(), 1)
 	require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
+}
+
+// toolCallCompleted is a response.completed for response id that announces
+// the tool call callID.
+func toolCallCompleted(streamID, id, callID string) string {
+	return terminal(streamID, "response.completed", id, fmt.Sprintf(`,"status":"completed","output":[{"type":"function_call","id":"fc_%s","call_id":%q,"name":"f","arguments":"{}"}]`, callID, callID))
+}
+
+// toolResult is a create answering the tool call callID.
+func toolResult(model, callID string) string {
+	return fmt.Sprintf(`{"type":"response.create","model":%q,"input":[{"type":"function_call_output","call_id":%q,"output":"42"}]}`, model, callID)
+}
+
+const toolResultTimeoutLog = "recording a tool result before the tool call it answers"
+
+// TestToolResultCreateWaitIsBounded requires that a create waiting for the
+// record of the tool call it answers never waits longer than one record
+// timeout, and stops waiting as soon as its caller or the session ends.
+func TestToolResultCreateWaitIsBounded(t *testing.T) {
+	t.Parallel()
+	t.Run("RecordTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitMedium)
+		h := newHarness(ctx, t, nil)
+		require.NotNil(t, h.send(create("a", "model-a", "hi")))
+		require.NotNil(t, h.send(create("b", "model-b", "hi")))
+		h.relay(created("a", "resp_a", "model-a"), created("b", "resp_b", "model-b"))
+		gate := make(chan struct{})
+		t.Cleanup(func() { close(gate) })
+		h.rec.usageGate.Store(&gate)
+		// Each usage record blocks for a full record timeout, and the tool
+		// call is recorded after resp_b's usage, which is queued behind
+		// resp_a's: about two record timeouts from now.
+		h.forward(completed("a", "resp_a"), toolCallCompleted("b", "resp_b", "call_1"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+		require.NoError(t, h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))))
+		require.Empty(t, h.rec.RecordedToolUsages(), "create waited for the tool call record past the record timeout")
+		require.Equal(t, 1, h.logs.count(toolResultTimeoutLog))
+		require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
+	})
+	// blockedToolCall announces call_1 in a response whose accounting
+	// blocks until the returned gate is closed.
+	blockedToolCall := func(ctx context.Context, t *testing.T, h *harness) chan struct{} {
+		t.Helper()
+		require.NotNil(t, h.send(create("", "gpt-6", "hi")))
+		h.relay(created("", "resp_1", "gpt-6"))
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(toolCallCompleted("", "resp_1", "call_1"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		return gate
+	}
+	t.Run("CallerCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		gate := blockedToolCall(ctx, t, h)
+		defer close(gate)
+		sendCtx, cancel := context.WithCancel(ctx)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(sendCtx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the tool call record: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		cancel()
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), context.Canceled)
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+	t.Run("SessionClosed", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		gate := blockedToolCall(ctx, t, h)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the tool call record: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		start := time.Now()
+		closed := make(chan error, 1)
+		go func() { closed <- h.sess.Close(nil) }()
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), responsesws.ErrClosed)
+		require.Less(t, time.Since(start), recorder.DefaultAsyncTimeout)
+		close(gate)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, closed))
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+}
+
+// TestToolResultCreateWaitsOnlyForAccountedToolCalls requires that a create
+// waits only for a tool call this session is still accounting for. A call
+// ID the session never saw, or one whose interception ended, recorded or
+// not, never delays a create, and an interception that loses its terminal
+// job to overload still releases the creates waiting for it.
+func TestToolResultCreateWaitsOnlyForAccountedToolCalls(t *testing.T) {
+	t.Parallel()
+	t.Run("NotAccounted", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		// call_done was recorded and its interception ended.
+		require.NotNil(t, h.send(create("a", "model-a", "hi")))
+		h.relay(created("a", "resp_a", "model-a"), toolCallCompleted("a", "resp_a", "call_done"))
+		// call_lost belongs to a response whose interception could never
+		// be recorded, so its tool call never will be.
+		h.rec.failStart.Store(true)
+		h.relay(created("z", "resp_z", "model-z"), toolCallCompleted("z", "resp_z", "call_lost"))
+		h.rec.failStart.Store(false)
+		require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
+
+		// The accountant blocks on an unrelated response from here on.
+		require.NotNil(t, h.send(create("b", "model-b", "hi")))
+		h.relay(created("b", "resp_b", "model-b"))
+		gate := make(chan struct{})
+		defer close(gate)
+		h.rec.usageGate.Store(&gate)
+		h.forward(completed("b", "resp_b"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+		// The blocked usage record gives up after one record timeout, so a
+		// create that waited for the accountant would take about that long.
+		start := time.Now()
+		for _, callID := range []string{"call_unknown", "call_done", "call_lost"} {
+			require.NotNil(t, h.send(toolResult("tool-result-"+callID, callID)), callID)
+		}
+		require.Less(t, time.Since(start), recorder.DefaultAsyncTimeout/2)
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+	t.Run("Overloaded", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		responsesws.SetQueueBounds(h.sess, 4, extract.MaxEventBytes)
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+		// The accountant is blocked on resp_0's usage with an empty queue.
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		// The start and created jobs of two responses fill the queue, so
+		// resp_1's terminal job is dropped and its interception is handed
+		// off.
+		h.forward(created("y", "resp_1", "model-1"), created("x", "resp_2", "model-2"))
+		h.forward(toolCallCompleted("y", "resp_1", "call_1"))
+		require.Equal(t, 1, h.logs.count("accounting queue full: dropped event"))
+
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the handed-off interception: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		close(gate)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+		require.NoError(t, responsesws.Drain(ctx, h.sess))
+		require.NotContains(t, responsesws.StateSizes(h.sess), "toolCalls")
+		end := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-1").ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, "accounting queue overloaded")
+	})
 }
 
 // TestCloseBoundedWhenRecorderBlocks requires that shutdown shares one

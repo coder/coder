@@ -334,7 +334,7 @@ func (s *Session) ensureStarted(ic *interception) bool {
 func (s *Session) forget(ic *interception) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ic.ended = true
+	s.markEndedLocked(ic)
 	s.forgetLocked(ic)
 }
 
@@ -356,10 +356,9 @@ func (s *Session) sweep() {
 		open = append(open, o.ic)
 	}
 	for _, ic := range open {
-		if ic.ended {
+		if !s.markEndedLocked(ic) {
 			continue
 		}
-		ic.ended = true
 		err := cause
 		if ic.lossy {
 			err = errAccountingOverloaded
@@ -371,6 +370,7 @@ func (s *Session) sweep() {
 	clear(s.pending)
 	clear(s.active)
 	clear(s.responses)
+	clear(s.toolCalls)
 	s.mu.Unlock()
 	for _, e := range ended {
 		if !e.ic.started {
