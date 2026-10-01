@@ -250,10 +250,13 @@ func TestReportProxyDialFailure_PooledConn(t *testing.T) {
 	require.NotNil(t, ds)
 
 	// The dial started for this request is still waiting on the agent, but
-	// the transport gave the request a pooled connection and the error is
-	// from that connection.
-	ds.startDial()
-	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
+	// the transport gave the request a pooled connection and the request
+	// ended while it was on that connection. The dial goroutine can reach
+	// dialContext after GotConn.
+	trace := httptrace.ContextClientTrace(ctx)
+	trace.GetConn("127.0.0.1:80")
+	trace.GotConn(httptrace.GotConnInfo{Reused: true})
+	ds.set(dialPhaseAwaitReachable)
 	require.True(t, ds.hadConn())
 	cancel()
 	err := s.reportProxyDialFailure(ctx, uuid.New(), context.Canceled)
@@ -277,8 +280,11 @@ func TestReportProxyDialFailure_RetryDial(t *testing.T) {
 
 	// The pooled connection failed and the transport retried on a new dial,
 	// which is still waiting on the agent when the request ends.
-	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
-	ds.startDial()
+	trace := httptrace.ContextClientTrace(ctx)
+	trace.GetConn("127.0.0.1:80")
+	trace.GotConn(httptrace.GotConnInfo{Reused: true})
+	trace.GetConn("127.0.0.1:80")
+	ds.set(dialPhaseAwaitReachable)
 	require.False(t, ds.hadConn())
 	cancel()
 	err := s.reportProxyDialFailure(ctx, uuid.New(), context.Canceled)
@@ -331,30 +337,52 @@ func TestRecordAgentUnreachable_DiagnosticsSlot(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	readStarted := make(chan struct{}, 1)
 	release := make(chan struct{})
 	var reads atomic.Int32
 	s, registry := newTestServerTailnet(t, func(uuid.UUID) tailnet.PeerDiagnostics {
 		reads.Add(1)
+		readStarted <- struct{}{}
 		<-release
 		return tailnet.PeerDiagnostics{ReceivedNode: &tailcfg.Node{}}
 	})
+	clock := quartz.NewMock(t)
+	s.clock = clock
+	trap := clock.Trap().NewTimer("peerDiagnostics")
+	defer trap.Close()
 	var unreachable *workspaceapps.AgentUnreachableError
 
+	errCh := make(chan error, 1)
+	record := func() {
+		go func() {
+			errCh <- s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+		}()
+		trap.MustWait(ctx).MustRelease(ctx)
+	}
+
 	// The first read waits out the timeout while the read stays in flight.
-	err := s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	record()
+	testutil.RequireReceive(ctx, t, readStarted)
+	clock.Advance(peerDiagnosticsTimeout).MustWait(ctx)
+	err := testutil.RequireReceive(ctx, t, errCh)
 	require.ErrorAs(t, err, &unreachable)
 	require.Equal(t, "diagnostics_timeout", fieldMap(unreachable.Fields)["reason"])
 
 	// A second failure during that read waits for the slot, times out, and
 	// does not start another read.
-	err = s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	record()
+	clock.Advance(peerDiagnosticsTimeout).MustWait(ctx)
+	err = testutil.RequireReceive(ctx, t, errCh)
 	require.ErrorAs(t, err, &unreachable)
 	require.Equal(t, "diagnostics_timeout", fieldMap(unreachable.Fields)["reason"])
 	require.EqualValues(t, 1, reads.Load())
 
 	// Once the read returns, the slot frees and later failures read again.
+	// The mock clock does not advance, so this call cannot time out.
 	close(release)
-	err = s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	record()
+	testutil.RequireReceive(ctx, t, readStarted)
+	err = testutil.RequireReceive(ctx, t, errCh)
 	require.ErrorAs(t, err, &unreachable)
 	got := fieldMap(unreachable.Fields)
 	require.Equal(t, "no_handshake", got["reason"])

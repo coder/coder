@@ -219,7 +219,7 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 			Fields map[string]any `json:"fields"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(line), &entry), line)
-		if entry.Msg != "dial workspace agent" {
+		if entry.Msg != "agent is unreachable" {
 			continue
 		}
 		found = true
@@ -227,5 +227,5 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 		require.Equal(t, agentID.String(), entry.Fields["agent_id"])
 		require.Equal(t, "no_node", entry.Fields["reason"])
 	}
-	require.True(t, found, "no dial workspace agent log line")
+	require.True(t, found, "no agent is unreachable log line")
 }

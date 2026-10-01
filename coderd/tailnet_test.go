@@ -341,7 +341,7 @@ func TestServerTailnet_ReverseProxy_TCPDialFailure(t *testing.T) {
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
 	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
 
-	u, err := url.Parse("http://127.0.0.1:65000")
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", testutil.RandomPort(t)))
 	require.NoError(t, err)
 
 	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")

@@ -214,7 +214,7 @@ coder_pubsub_send_latency_seconds{backend=""} 0
 # HELP coder_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
 # TYPE coder_pubsub_subscribes_total counter
 coder_pubsub_subscribes_total{backend="",success=""} 0
-# HELP coder_servertailnet_agent_unreachable_total Number of connection attempts where the workspace agent did not answer in time, by reason: no_node, peer_lost, no_handshake, handshake_stale, handshake_ok, diagnostics_timeout, or client_canceled.
+# HELP coder_servertailnet_agent_unreachable_total Number of connection attempts where the workspace agent did not answer in time, by reason: no_node (this server has no node for the agent), peer_lost (the agent's or this server's coordinator connection ended), no_handshake (no WireGuard handshake yet), handshake_stale (last handshake over 180s ago), handshake_ok (last handshake under 180s ago), diagnostics_timeout (peer state not readable within 1s), client_canceled (client left within 5s).
 # TYPE coder_servertailnet_agent_unreachable_total counter
 coder_servertailnet_agent_unreachable_total{reason=""} 0
 # HELP coder_servertailnet_await_reachable_seconds Time until a workspace agent answered the first ping when a new connection was opened.
@@ -223,7 +223,7 @@ coder_servertailnet_await_reachable_seconds 0
 # HELP coder_servertailnet_connections_total Total number of TCP connections made to workspace agents.
 # TYPE coder_servertailnet_connections_total counter
 coder_servertailnet_connections_total{network=""} 0
-# HELP coder_servertailnet_derp_connects_total Number of times the server tailnet connected to the embedded DERP relay.
+# HELP coder_servertailnet_derp_connects_total Number of times the server tailnet connected to the embedded DERP relay. Stays 0 when the embedded relay is disabled.
 # TYPE coder_servertailnet_derp_connects_total counter
 coder_servertailnet_derp_connects_total 0
 # HELP coder_servertailnet_open_connections Total number of TCP connections currently open to workspace agents.

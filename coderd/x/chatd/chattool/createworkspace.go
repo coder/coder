@@ -635,9 +635,17 @@ func waitForAgentReady(
 		ticker := time.NewTicker(agentRetryInterval)
 		defer ticker.Stop()
 
+		// Dials time out while a new agent boots, so they are not counted as
+		// unreachable. An agent that connected before should answer, so its
+		// failures are counted.
+		var attemptCause error
+		if !agent.FirstConnectedAt.Valid {
+			attemptCause = workspacesdk.ErrReadinessProbeTimeout
+		}
+
 		var lastErr error
 		for {
-			attemptCtx, attemptCancel := context.WithTimeoutCause(agentCtx, agentAttemptTimeout, workspacesdk.ErrReadinessProbeTimeout)
+			attemptCtx, attemptCancel := context.WithTimeoutCause(agentCtx, agentAttemptTimeout, attemptCause)
 			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {

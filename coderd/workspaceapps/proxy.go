@@ -83,9 +83,11 @@ type AgentProvider interface {
 }
 
 // AgentUnreachableError is returned by AgentProvider.AgentConn when the agent
-// did not answer before the context ended, unless the client canceled within
-// 5s. Fields holds the peer diagnostics collected at that time. Callers that
-// log the failure should include them.
+// did not answer before the context ended. It is not returned when the client
+// canceled within 5s, or when the context was canceled with
+// workspacesdk.ErrDialAbandoned or workspacesdk.ErrReadinessProbeTimeout.
+// Fields holds the peer diagnostics collected at that time. Callers with a
+// request log line that log the failure should include them.
 type AgentUnreachableError struct {
 	Fields []slog.Field
 }
@@ -812,7 +814,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		// A 101 response logs the request at debug, so log unreachable agents
 		// at warn here. Use s.Logger: Fields already has agent_id.
 		if unreachable, ok := errors.AsType[*AgentUnreachableError](err); ok {
-			s.Logger.Warn(ctx, "dial workspace agent", append(unreachable.Fields, slog.Error(err))...)
+			s.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
 		} else {
 			log.Debug(ctx, "dial workspace agent", slog.Error(err))
 		}

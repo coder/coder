@@ -79,7 +79,7 @@ func NewServerTailnet(
 		Namespace: "coder",
 		Subsystem: "servertailnet",
 		Name:      "derp_connects_total",
-		Help:      "Number of times the server tailnet connected to the embedded DERP relay.",
+		Help:      "Number of times the server tailnet connected to the embedded DERP relay. Stays 0 when the embedded relay is disabled.",
 	})
 
 	// This is set to allow local DERP traffic to be proxied through memory
@@ -144,7 +144,7 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer in time, by reason: no_node, peer_lost, no_handshake, handshake_stale, handshake_ok, diagnostics_timeout, or client_canceled.",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time, by reason: no_node (this server has no node for the agent), peer_lost (the agent's or this server's coordinator connection ended), no_handshake (no WireGuard handshake yet), handshake_stale (last handshake over 180s ago), handshake_ok (last handshake under 180s ago), diagnostics_timeout (peer state not readable within 1s), client_canceled (client left within 5s).",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
@@ -306,9 +306,12 @@ func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) 
 		ctx := context.WithValue(req.Context(), agentIDKey{}, agentID)
 		ctx = context.WithValue(ctx, dialStateKey{}, ds)
 		// A pooled connection skips dialContext, so the dial phases cannot show
-		// that the request has a connection. GotConn fires either way.
+		// that the request has a connection. GotConn fires either way. GetConn
+		// runs on the request goroutine before each attempt, so a retry clears
+		// the connection the previous attempt used.
 		ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
-			GotConn: func(httptrace.GotConnInfo) { ds.markGotConn() },
+			GetConn: func(string) { ds.setGotConn(false) },
+			GotConn: func(httptrace.GotConnInfo) { ds.setGotConn(true) },
 		})
 		*req = *req.WithContext(ctx)
 		prev(req)
@@ -381,27 +384,13 @@ func (d *dialState) get() (dialPhase, time.Duration) {
 	return d.phase, time.Since(d.since)
 }
 
-// startDial marks the start of a dial. A dial that starts after GotConn is the
-// transport retrying on a new connection, so the earlier connection no longer
-// explains a failure.
-func (d *dialState) startDial() {
+func (d *dialState) setGotConn(gotConn bool) {
 	if d == nil {
 		return
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.phase = dialPhaseAwaitReachable
-	d.since = time.Now()
-	d.gotConn = false
-}
-
-func (d *dialState) markGotConn() {
-	if d == nil {
-		return
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.gotConn = true
+	d.gotConn = gotConn
 }
 
 // hadConn reports whether the transport gave the request a connection.
@@ -428,7 +417,7 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	// request goroutine when the request ends, which can be before this dial
 	// returns, so this path uses acquireAgent, which neither logs nor counts.
 	ds := dialStateFromContext(ctx)
-	ds.startDial()
+	ds.set(dialPhaseAwaitReachable)
 	conn, release, err := s.acquireAgent(ctx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
@@ -501,13 +490,13 @@ func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid
 var errAgentUnreachable = xerrors.New("agent is unreachable")
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	start := time.Now()
+	start := s.clock.Now()
 	conn, release, err := s.acquireAgent(ctx, agentID)
 	cause := context.Cause(ctx)
 	if errors.Is(err, errAgentUnreachable) &&
 		!errors.Is(cause, workspacesdk.ErrDialAbandoned) &&
 		!errors.Is(cause, workspacesdk.ErrReadinessProbeTimeout) {
-		return nil, nil, s.recordAgentUnreachable(ctx, agentID, time.Since(start))
+		return nil, nil, s.recordAgentUnreachable(ctx, agentID, s.clock.Since(start))
 	}
 	return conn, release, err
 }
@@ -537,13 +526,13 @@ func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (wo
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
-	start := time.Now()
+	start := s.clock.Now()
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
 		ret()
 		return nil, nil, errAgentUnreachable
 	}
-	s.awaitReachable.Observe(time.Since(start).Seconds())
+	s.awaitReachable.Observe(s.clock.Since(start).Seconds())
 
 	return conn, ret, nil
 }
@@ -559,9 +548,9 @@ const peerDiagnosticsTimeout = time.Second
 const clientCanceledWait = 5 * time.Second
 
 // recordAgentUnreachable counts a connection attempt that the agent did not
-// answer, adds the peer state to the request log line, and returns an error
-// carrying the same fields. A client that left quickly gets a plain error so
-// callers do not log it as an unreachable agent.
+// answer and returns an error carrying the peer state. The fields go on the
+// request log line, or on a warn line when the context has no request logger.
+// A client that left quickly gets a plain error and no warn line.
 func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid.UUID, after time.Duration, extra ...slog.Field) error {
 	fields := append([]slog.Field{
 		slog.F("agent_id", agentID),
@@ -577,7 +566,7 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 		reason = "client_canceled"
 	} else if d, ok := s.peerDiagnostics(agentID); ok {
 		fields = append(fields, unreachableFields(d)...)
-		reason = unreachableReason(d, time.Now())
+		reason = unreachableReason(d, s.clock.Now())
 	}
 	fields = append(fields, slog.F("reason", reason))
 	s.agentUnreachable.WithLabelValues(reason).Inc()

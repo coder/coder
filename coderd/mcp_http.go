@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -66,7 +68,13 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			if !api.Authorize(r, policy.ActionSSH, workspace) {
 				return nil, nil, xerrors.New("unauthorized: you do not have SSH access to this workspace")
 			}
-			return api.agentProvider.AgentConn(ctx, agentID)
+			conn, release, err := api.agentProvider.AgentConn(ctx, agentID)
+			if unreachable, ok := errors.AsType[*workspaceapps.AgentUnreachableError](err); ok {
+				// Tool errors are sent with HTTP 200, so the request log
+				// line is written at debug level.
+				api.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
+			}
+			return conn, release, err
 		})
 
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))
