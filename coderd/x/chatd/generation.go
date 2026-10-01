@@ -471,11 +471,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// cancelDeletedToolCalls selects the last assistant message among the deleted
-// messages directly before the latest user message shown in the chat, and
-// sends the chat's agent a cancel request for each of its unresolved calls
-// that chattool.CanCancelToolCall accepts. Their results can no longer be
-// committed. Failures are logged and do not affect the turn.
+// cancelDeletedToolCalls sends the chat's agent a cancel request for each
+// unresolved call in the last deleted assistant message between the turn's
+// user message and the previous user message, if chattool.CanCancelToolCall
+// accepts the call. Their results can no longer be committed. Failures are
+// logged and do not affect the turn.
 func (s *taskStarter) cancelDeletedToolCalls(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
