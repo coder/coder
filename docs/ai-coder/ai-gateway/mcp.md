@@ -72,6 +72,7 @@ The client only sees the result of the loop.
 Injected MCP works with both embedded and standalone gateways.
 Control connection provides each standalone replica with the required configuration and access tokens.
 Refer to [Deployment topologies](./reference.md#deployment-topologies) for more information.
+AI Gateway doesn't inject MCP tools into requests sent over [Responses WebSocket mode](./setup.md#enable-responses-websocket-mode).
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 

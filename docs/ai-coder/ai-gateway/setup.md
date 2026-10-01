@@ -124,6 +124,48 @@ To forward email, set `actor_header_email`, for example to `X-AI-Bridge-Actor-Me
 The setting applies to every configured provider, so enable it only if all of them, and any proxy in between, may receive user email addresses.
 For defaults, precedence, and privacy considerations, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
 
+## Enable Responses WebSocket mode
+
+In WebSocket mode for the OpenAI Responses API, a client keeps one connection open and sends each request as a `response.create` message.
+Clients such as Codex CLI try this mode first and fall back to HTTPS when the gateway refuses it.
+
+> [!NOTE]
+> Responses WebSocket mode is an [early access experiment](../../reference/feature-stages.md#early-access-features).
+> It can change or be removed without notice.
+
+AI Gateway serves WebSocket mode only on the Responses route of providers of type `openai`, for example `/api/v2/ai-gateway/openai/v1/responses`, and only for users with the `ai-gateway-responses-websocket` experiment enabled.
+Every other WebSocket upgrade gets `501 Not Implemented`, including upgrades to OpenAI-compatible, Azure, and Copilot providers.
+
+The experiment is user-scoped, so you can target it with a [runtime rule](../../reference/feature-stages.md#target-experiments-at-runtime) instead of a restart.
+`coderd` decides the experiment for the owner of each request's API key, so set rules and the startup `--experiments` list on `coderd`, including when you run [standalone gateways](./standalone.md).
+
+To enable the mode for one group, then for every user:
+
+```sh
+coder exp experiment-rules set ai-gateway-responses-websocket '"coder/beta-testers" in user.groups'
+coder exp experiment-rules on ai-gateway-responses-websocket
+```
+
+To turn it off for every user, run `coder exp experiment-rules off ai-gateway-responses-websocket`.
+A socket reads the experiment once, when it opens.
+After you turn the experiment off, new upgrades are refused, and open sockets continue until they close.
+
+Each `response.create` on a socket is recorded, rate limited, and checked against [budgets](./cost-controls.md) like a separate HTTP request.
+AI Gateway never injects [MCP tools](./mcp.md) into WebSocket requests.
+
+Each gateway replica enforces fixed socket limits:
+
+| Limit                    | Value           | When the limit is reached                         |
+|--------------------------|-----------------|---------------------------------------------------|
+| Open sockets per user    | 16              | New upgrades get `426 Upgrade Required`           |
+| Open sockets per replica | 512             | New upgrades get `426 Upgrade Required`           |
+| Socket lifetime          | 60&nbsp;minutes | The socket closes, and the client opens a new one |
+
+Codex falls back to HTTPS immediately on a `426` response.
+While a replica shuts down, it refuses new upgrades with `503 Service Unavailable` and closes its open sockets.
+
+To monitor sockets, use the `coder_ai_gateway_responses_websockets_open` and `coder_ai_gateway_responses_websockets_refusals_total` [Prometheus metrics](../../admin/integrations/prometheus.md).
+
 ## Data Retention
 
 AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
