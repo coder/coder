@@ -1,4 +1,5 @@
 const DEFAULT_THINKING_TITLE = "Thinking";
+const PREVIEW_TITLE_MAX_LENGTH = 100;
 
 type LineRange = {
 	line: string;
@@ -220,13 +221,24 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 	return body.replace(/^\s+/, "");
 };
 
+const getPreviewTitle = (text: string): string => {
+	const preview = cleanHeadingText(text);
+	if (!preview) {
+		return DEFAULT_THINKING_TITLE;
+	}
+	if (preview.length <= PREVIEW_TITLE_MAX_LENGTH) {
+		return preview;
+	}
+	return `${preview.slice(0, PREVIEW_TITLE_MAX_LENGTH).trimEnd()}...`;
+};
+
 export const getThinkingDisclosureDisplay = (
 	text: string,
 ): ThinkingDisclosureDisplay => {
 	const heading = getFirstHeading(text);
 	if (!heading) {
 		return {
-			title: DEFAULT_THINKING_TITLE,
+			title: getPreviewTitle(text),
 			body: text,
 		};
 	}

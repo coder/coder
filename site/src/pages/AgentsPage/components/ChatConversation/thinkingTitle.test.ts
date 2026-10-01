@@ -2,9 +2,24 @@ import { describe, expect, it } from "vitest";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 
 describe("getThinkingDisclosureDisplay", () => {
-	it("returns the default title and original body when there is no heading", () => {
-		expect(getThinkingDisclosureDisplay("Let me think this through.")).toEqual({
+	it("returns the default title for empty text", () => {
+		expect(getThinkingDisclosureDisplay("  ")).toEqual({
 			title: "Thinking",
+			body: "  ",
+		});
+	});
+
+	it("truncates long text without a heading into the title", () => {
+		const text = `${"a".repeat(120)} more`;
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title: `${"a".repeat(100)}...`,
+			body: text,
+		});
+	});
+
+	it("uses the text as the title when there is no heading", () => {
+		expect(getThinkingDisclosureDisplay("Let me think this through.")).toEqual({
+			title: "Let me think this through.",
 			body: "Let me think this through.",
 		});
 	});
@@ -83,7 +98,8 @@ describe("getThinkingDisclosureDisplay", () => {
 				].join("\n"),
 			),
 		).toEqual({
-			title: "Thinking",
+			title:
+				"I need to inspect the model configuration The model has several options.",
 			body: [
 				"I need to inspect the model configuration",
 				"",

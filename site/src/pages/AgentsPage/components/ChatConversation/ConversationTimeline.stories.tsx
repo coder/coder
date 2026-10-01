@@ -2094,8 +2094,11 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByText("Thinking"));
-		await canvas.findByText(/Let me think about this step by step/);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: /Let me think about this step by step/,
+			}),
+		);
 	},
 };
 
