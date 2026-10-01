@@ -1,8 +1,9 @@
 import { type CommentPopup, createCommentPopup } from "./commentPopup";
 import { describeElement } from "./describeElement";
-import { el } from "./dom";
+import { el, flagCutEdges, placeOver } from "./dom";
+import { outlineInset, viewportBox } from "./geometry";
 import { createHighlightLayer } from "./highlights";
-import { pointerIcon } from "./icons";
+import { checkIcon, pointerIcon } from "./icons";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
 import { isOwnEvent, pickTarget } from "./pickTarget";
@@ -51,6 +52,10 @@ const mounted = new WeakMap<Document, AnnotatorHandle>();
 // actions are left alone so text selection still works and browsers do
 // not suppress the click that follows a cancelled pointerdown.
 const swallowedEvents = ["mousedown", "mouseup", "pointerdown", "pointerup"];
+
+// Matches the `sent-flash` animation length in styles plus the chip's
+// linger.
+const sentFlashMs = 1600;
 
 /**
  * Mounts the annotation overlay into the given document. Everything lives
@@ -148,7 +153,34 @@ export function mountAnnotator(
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
 		target.setAttribute(annotationIdAttribute, annotation.id);
-		options.onSubmit({ page: pageInfo(), annotations: [annotation] });
+		const page = pageInfo();
+		options.onSubmit({ page, annotations: [annotation] });
+		flashSent(target);
+		// Hold a quiet ring on the element until the dashboard reports the
+		// agent working on it, so the send and the shimmer read as one
+		// continuous state rather than two events with a gap between.
+		highlights.markPending({
+			id: annotation.id,
+			selector: annotation.element.selector,
+			url: page.url,
+		});
+	};
+
+	// A one-shot pulse of the outline plus a "Sent" chip where the badge
+	// sits, so the user sees the comment went without looking away.
+	const flashSent = (target: Element) => {
+		const flash = el(doc, "div", "sent-flash", { "aria-hidden": "true" });
+		placeOver(
+			flash,
+			viewportBox(target.getBoundingClientRect(), win, outlineInset),
+		);
+		const chip = el(doc, "span", "sent-chip");
+		chip.innerHTML = checkIcon;
+		chip.append("Sent");
+		flash.append(chip);
+		shadow.append(flash);
+		flagCutEdges(flash, win);
+		win.setTimeout(() => flash.remove(), sentFlashMs);
 	};
 
 	// The outline stays on the element a comment is being written for and
