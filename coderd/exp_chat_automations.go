@@ -545,8 +545,11 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 // owner, whose authority created the chat, and carries the automation and
 // input ids.
 func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Request, automation database.ChatAutomation, result chatd.PublishAutomationResult) {
+	// The chat is already committed, so a webhook sender that disconnects
+	// must not cancel the lookup or lose the audit entry.
+	auditCtx := context.WithoutCancel(ctx)
 	//nolint:gocritic // The webhook caller has no Coder identity; the audit entry needs the chat the owner's automation created.
-	chat, err := api.Database.GetChatByID(dbauthz.AsChatd(ctx), result.ChatID)
+	chat, err := api.Database.GetChatByID(dbauthz.AsChatd(auditCtx), result.ChatID)
 	if err != nil {
 		api.Logger.Warn(ctx, "load chat created by automation for audit",
 			slog.F("automation_id", automation.ID),
@@ -555,14 +558,12 @@ func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Requ
 		)
 		return
 	}
-	fields, err := json.Marshal(map[string]string{
+	// Marshaling a map[string]string cannot fail.
+	fields, _ := json.Marshal(map[string]string{
 		"automation_id": automation.ID.String(),
 		"input_id":      result.InputID.String(),
 	})
-	if err != nil {
-		fields = nil
-	}
-	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+	audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
 		Audit:            *api.Auditor.Load(),
 		Log:              api.Logger,
 		UserID:           automation.OwnerID,
@@ -570,6 +571,7 @@ func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Requ
 		Action:           database.AuditActionCreate,
 		New:              chat,
 		Status:           http.StatusAccepted,
+		RequestID:        httpmw.RequestID(r),
 		IP:               r.RemoteAddr,
 		UserAgent:        r.UserAgent(),
 		AdditionalFields: fields,

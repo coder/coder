@@ -34,6 +34,10 @@ const (
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
+
+	// defaultAutomationScheduleBatchSize is how many due automations a
+	// schedule scan reads per page.
+	defaultAutomationScheduleBatchSize = int32(500)
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -244,16 +248,24 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval        time.Duration
-	CapacityMetricsInterval    time.Duration
-	AcquisitionBatchSize       int32
-	ArchiveInterval            time.Duration
-	ArchiveBatchSize           int32
-	AutomationScheduleInterval time.Duration
-	RunnerSyncInterval         time.Duration
-	HeartbeatInterval          time.Duration
-	HeartbeatCleanupInterval   time.Duration
-	HeartbeatStaleSeconds      int32
+	AcquisitionInterval         time.Duration
+	CapacityMetricsInterval     time.Duration
+	AcquisitionBatchSize        int32
+	ArchiveInterval             time.Duration
+	ArchiveBatchSize            int32
+	AutomationScheduleInterval  time.Duration
+	AutomationScheduleBatchSize int32
+	RunnerSyncInterval          time.Duration
+	HeartbeatInterval           time.Duration
+	HeartbeatCleanupInterval    time.Duration
+	HeartbeatStaleSeconds       int32
+	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
+	// stay well below the stale threshold so a slow tick fails and
+	// retries instead of letting every lease go stale.
+	HeartbeatRenewalTimeout time.Duration
+	// HeartbeatLockTimeout bounds the renewal's wait for the capacity
+	// admission lock.
+	HeartbeatLockTimeout       time.Duration
 	StateChannelSize           int
 	RunnerManagerChannelSize   int
 	AcquisitionWakeChannelSize int
@@ -295,6 +307,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.AutomationScheduleInterval <= 0 {
 		o.AutomationScheduleInterval = automationScheduleInterval
 	}
+	if o.AutomationScheduleBatchSize <= 0 {
+		o.AutomationScheduleBatchSize = defaultAutomationScheduleBatchSize
+	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
@@ -309,6 +324,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.HeartbeatStaleSeconds <= 0 {
 		o.HeartbeatStaleSeconds = int32(DefaultInFlightChatStaleAfter / time.Second)
+	}
+	if o.HeartbeatRenewalTimeout <= 0 {
+		o.HeartbeatRenewalTimeout = time.Duration(o.HeartbeatStaleSeconds) * time.Second / 3
+	}
+	if o.HeartbeatLockTimeout <= 0 {
+		o.HeartbeatLockTimeout = o.HeartbeatRenewalTimeout / 2
 	}
 	if o.AgentCapacityLimiter == nil {
 		o.AgentCapacityLimiter = newAgentCapacityLimiter(nil, o.HeartbeatStaleSeconds)

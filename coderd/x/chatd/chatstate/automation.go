@@ -46,7 +46,12 @@ func (p AutomationProvenance) validate() error {
 // The callback must use only the supplied transaction store, must not
 // make network calls, and must lock automations only through
 // [LockAutomations] so every automation lock follows one order: the chat
-// row first, then automations in ascending id order.
+// row first, then automations in ascending id order. That order holds
+// only within one call. A callback that locks automations must pass its
+// own automation and the automation of every queued row of the chat in a
+// single [LockAutomations] call. Otherwise it can take locks out of
+// order: from E1, SendMessage locks the queue's automations in a second
+// call after the callback returns.
 type AdmitFunc func(ctx context.Context, store database.Store, chatID uuid.UUID) (AutomationProvenance, error)
 
 // admit runs fn and validates the provenance it returns.
