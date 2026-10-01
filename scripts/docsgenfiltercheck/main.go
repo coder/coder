@@ -77,7 +77,10 @@ func run(workflowPath string, generated []string) error {
 	if err != nil {
 		return xerrors.Errorf("parse %s: %w", workflowPath, err)
 	}
-	out, err := exec.Command("git", "ls-files", "-z").Output()
+	lsFiles := exec.Command("git", "ls-files", "-z")
+	// Surface git's own message, such as the dubious-ownership hint.
+	lsFiles.Stderr = os.Stderr
+	out, err := lsFiles.Output()
 	if err != nil {
 		return xerrors.Errorf("git ls-files: %w", err)
 	}
