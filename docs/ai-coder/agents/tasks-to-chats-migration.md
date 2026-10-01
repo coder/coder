@@ -632,7 +632,7 @@ curl -s -X PATCH \
 
 ### Quick checklist
 
-Use this checklist to confirm each part of your integration:
+Use this list to confirm each part of your integration:
 
 - At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
 - `POST /chats` creates a chat and returns a valid `Chat` object
