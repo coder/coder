@@ -1,4 +1,7 @@
+import { useQuery } from "react-query";
+import { workspaceById } from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
 
 export type WorkspaceToolAction = "create" | "start" | "stop";
@@ -59,4 +62,30 @@ export const getWorkspaceToolStage = ({
 		return "Running startup scripts…";
 	}
 	return undefined;
+};
+
+/**
+ * Running stage label for the chat's workspace tool row, or undefined
+ * when the row should show its generic running label. The workspace
+ * query has no refetch interval because useWorkspaceWatch keeps this
+ * cache entry current for the chat.
+ */
+export const useWorkspaceToolStage = (
+	action: WorkspaceToolAction,
+	isRunning: boolean,
+): string | undefined => {
+	const { workspaceId, buildId, agentId } = useChatWorkspace();
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: isRunning && Boolean(workspaceId),
+	});
+	if (!isRunning) {
+		return undefined;
+	}
+	return getWorkspaceToolStage({
+		action,
+		workspace: workspaceQuery.data,
+		callBuildId: buildId,
+		chatAgentId: agentId,
+	});
 };
