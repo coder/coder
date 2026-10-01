@@ -22,8 +22,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
 import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
@@ -131,7 +131,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 		);
 	};
 
-	useAnchoredOverlayPosition(mobileAnchor, menuWrapper, isBelowMd && open);
+	usePositionOverlayAboveAnchor({
+		anchorElement: mobileAnchor,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && open,
+	});
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {

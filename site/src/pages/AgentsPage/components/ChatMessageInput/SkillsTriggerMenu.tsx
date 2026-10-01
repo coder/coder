@@ -12,8 +12,8 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 type SkillSource = "personal" | "workspace";
@@ -196,7 +196,11 @@ export const SkillsTriggerMenu = ({
 		);
 	};
 
-	useAnchoredOverlayPosition(anchor, menuWrapper, isBelowMd && shouldRender);
+	usePositionOverlayAboveAnchor({
+		anchorElement: anchor,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && shouldRender,
+	});
 
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";

@@ -32,9 +32,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
-import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -114,7 +114,11 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 		);
 	};
 
-	useAnchoredOverlayPosition(composer, menuWrapper, isBelowMd && open);
+	usePositionOverlayAboveAnchor({
+		anchorElement: composer,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && open,
+	});
 
 	const portsData = usePortsData(
 		workspace,

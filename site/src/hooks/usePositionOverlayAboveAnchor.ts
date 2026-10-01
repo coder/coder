@@ -1,7 +1,7 @@
 import { useLayoutEffect } from "react";
 
 /** @internal Computes viewport-fixed geometry above an anchor and viewport obstruction. */
-export const getAnchoredOverlayPosition = (
+export const getOverlayPositionAboveAnchor = (
 	anchor: Pick<DOMRect, "left" | "top" | "width">,
 	fixedViewportBottom: number,
 	viewport: Pick<VisualViewport, "offsetTop" | "height"> | null,
@@ -40,18 +40,23 @@ export const getAnchoredOverlayPosition = (
 	};
 };
 
+type UsePositionOverlayAboveAnchorProps = {
+	anchorElement: HTMLElement | null | undefined;
+	overlayElement: HTMLElement | null | undefined;
+	enabled: boolean;
+};
+
 /**
- * Publishes above-anchor, anchor-width geometry for a viewport-fixed overlay.
  * Owns --anchored-overlay-* while enabled and removes them on cleanup.
  * Callers control positioning CSS; the target must use the viewport as its containing block.
  */
-export const useAnchoredOverlayPosition = (
-	anchor: HTMLElement | null | undefined,
-	overlay: HTMLElement | null | undefined,
-	enabled: boolean,
-): void => {
+export const usePositionOverlayAboveAnchor = ({
+	anchorElement,
+	overlayElement,
+	enabled,
+}: UsePositionOverlayAboveAnchorProps): void => {
 	useLayoutEffect(() => {
-		if (!anchor || !overlay || !enabled) {
+		if (!anchorElement || !overlayElement || !enabled) {
 			return;
 		}
 
@@ -71,14 +76,14 @@ export const useAnchoredOverlayPosition = (
 		const setProperty = (name: string, value: number) => {
 			const next = `${value}px`;
 
-			if (overlay.style.getPropertyValue(name) !== next) {
-				overlay.style.setProperty(name, next);
+			if (overlayElement.style.getPropertyValue(name) !== next) {
+				overlayElement.style.setProperty(name, next);
 			}
 		};
 
 		const update = () => {
-			const position = getAnchoredOverlayPosition(
-				anchor.getBoundingClientRect(),
+			const position = getOverlayPositionAboveAnchor(
+				anchorElement.getBoundingClientRect(),
 				fixedProbe.getBoundingClientRect().bottom,
 				viewport,
 			);
@@ -106,7 +111,10 @@ export const useAnchoredOverlayPosition = (
 
 		const handleScroll = (event: Event) => {
 			// Scrolling inside the overlay does not move its anchor.
-			if (event.target instanceof Node && !event.target.contains(anchor)) {
+			if (
+				event.target instanceof Node &&
+				!event.target.contains(anchorElement)
+			) {
 				return;
 			}
 
@@ -114,7 +122,7 @@ export const useAnchoredOverlayPosition = (
 		};
 
 		const observer = new ResizeObserver(scheduleUpdate);
-		observer.observe(anchor);
+		observer.observe(anchorElement);
 
 		window.addEventListener("resize", scheduleUpdate);
 		window.addEventListener("scroll", handleScroll, {
@@ -140,10 +148,10 @@ export const useAnchoredOverlayPosition = (
 
 			fixedProbe.remove();
 
-			overlay.style.removeProperty("--anchored-overlay-left");
-			overlay.style.removeProperty("--anchored-overlay-width");
-			overlay.style.removeProperty("--anchored-overlay-bottom");
-			overlay.style.removeProperty("--anchored-overlay-max-height");
+			overlayElement.style.removeProperty("--anchored-overlay-left");
+			overlayElement.style.removeProperty("--anchored-overlay-width");
+			overlayElement.style.removeProperty("--anchored-overlay-bottom");
+			overlayElement.style.removeProperty("--anchored-overlay-max-height");
 		};
-	}, [anchor, overlay, enabled]);
+	}, [anchorElement, overlayElement, enabled]);
 };
