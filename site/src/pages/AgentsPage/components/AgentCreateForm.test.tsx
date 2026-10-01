@@ -505,7 +505,7 @@ describe("AgentCreateForm manage automations toggle", () => {
 		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
 	});
 
-	it("sends the toggle as off while the chat-automations experiment is off", async () => {
+	it("sends the toggle as off when the user never turned it on", async () => {
 		const { onCreateChat } = renderForm();
 
 		await submitMessage("check the nightly build every morning");

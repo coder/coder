@@ -595,8 +595,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
-			manageAutomationsEnabled:
-				automationsExperimentEnabled && manageAutomationsEnabled,
+			manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
