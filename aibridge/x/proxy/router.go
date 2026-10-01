@@ -41,8 +41,9 @@ var _ http.Handler = (*Router)(nil)
 // Provider names must be valid and unique.
 //
 // Disabled providers serve 503 on every path under their name. Enabled
-// providers proxy passthrough routes upstream, bridged routes return 404
-// after validation succeeds. Bedrock bridged routes return 404 without validation.
+// providers proxy passthrough routes upstream. Non-Bedrock bridged routes
+// return 404 after validation succeeds. Bedrock bridged routes return 404
+// without validation regardless of credentials.
 // All routes reuse the same inflight gate across a server's snapshots.
 // Shutdown drains all admitted requests.
 // rec is shared across requests and must read identity from the request context.
