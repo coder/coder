@@ -92,6 +92,9 @@ Working without leaving the board
   beside the card; clicking it, or dragging it, keeps the window. Windows
   move, resize, stack and survive a reload; a chat window has a button for
   its card's assistant.
+- I can minimize a window to a tab in a bar under the board, which never
+  covers cards. The chat keeps running and stays loaded; clicking the tab,
+  or opening the chat from its card, brings the window back where it was.
 - I can start a new chat in a column from its header, or in a card from its
   menu, with the regular create form in a floating window. The chat lands
   where it was started, and a card's chat can carry the card's title, notes

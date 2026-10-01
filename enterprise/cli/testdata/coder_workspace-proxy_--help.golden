@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder workspace-proxy
+
+  Workspace proxies provide low-latency experiences for geo-distributed teams.
+
+  Aliases: wsproxy
+
+  Workspace proxies provide low-latency experiences for geo-distributed teams.
+  It will act as a connection gateway to your workspace. Best used if Coder and
+  your workspace are deployed in different regions.
+
+SUBCOMMANDS:
+    create              Create a workspace proxy
+    delete              Delete a workspace proxy
+    edit                Edit a workspace proxy
+    ls                  List all workspace proxies
+    regenerate-token    Regenerate a workspace proxy authentication token. This
+                        will invalidate the existing authentication token.
+    server              Start a workspace proxy server
+
+———
+Run `coder --help` for a list of global options.
