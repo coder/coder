@@ -5,22 +5,27 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/tailnet"
 )
 
-// AgentDialer opens a TCP connection to port on one agent. It receives no
-// host, so a transport built on it reaches only that agent, whatever host a
-// request names.
+// AgentDialer opens a TCP connection to port on the agent a transport is
+// bound to.
 type AgentDialer func(ctx context.Context, port uint16) (net.Conn, error)
 
-// AgentAPITransport sends requests to one agent's HTTP API server.
+// AgentAPITransport sends requests to one agent's HTTP API server. It rejects
+// requests for any other host or port.
 type AgentAPITransport struct{ agentTransport }
 
-// AgentAppTransport sends requests to one agent's ports at or above
-// AgentMinimumListeningPort.
+// AgentAppTransport sends requests to one agent's apps, on ports at or above
+// AgentMinimumListeningPort. It rejects requests for any other host.
 type AgentAppTransport struct{ agentTransport }
 
 const (
@@ -33,21 +38,26 @@ const (
 	agentAPIIdleConnTimeout = 10 * time.Minute
 )
 
-// NewAgentAPITransport returns a transport that pools connections to one
-// agent's HTTP API server.
-func NewAgentAPITransport(dial AgentDialer) *AgentAPITransport {
-	return &AgentAPITransport{agentTransport{&http.Transport{
+// NewAgentAPITransport returns a transport that pools connections to the HTTP
+// API server of agentID. dial must connect to that agent.
+func NewAgentAPITransport(agentID uuid.UUID, dial AgentDialer, logger slog.Logger) *AgentAPITransport {
+	return buildAgentAPITransport(agentID, dial, logger, true)
+}
+
+func buildAgentAPITransport(agentID uuid.UUID, dial AgentDialer, logger slog.Logger, keepAlive bool) *AgentAPITransport {
+	return &AgentAPITransport{newAgentTransport(agentID, logger, &http.Transport{
 		DialContext: dialAgentPort(dial, func(port uint16) bool {
 			return port == AgentHTTPAPIServerPort
 		}),
+		DisableKeepAlives:   !keepAlive,
 		MaxIdleConnsPerHost: agentAPIMaxIdleConns,
 		IdleConnTimeout:     agentAPIIdleConnTimeout,
-	}}}
+	})}
 }
 
-// NewAgentAppTransport returns a transport that pools connections to one
-// agent's apps.
-func NewAgentAppTransport(dial AgentDialer) *AgentAppTransport {
+// NewAgentAppTransport returns a transport that pools connections to the apps
+// of agentID. dial must connect to that agent.
+func NewAgentAppTransport(agentID uuid.UUID, dial AgentDialer, logger slog.Logger) *AgentAppTransport {
 	base, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
 		panic("dev error: default transport is the wrong type")
@@ -77,16 +87,46 @@ func NewAgentAppTransport(dial AgentDialer) *AgentAppTransport {
 		//nolint:gosec
 		InsecureSkipVerify: true,
 	}
-	return &AgentAppTransport{agentTransport{t}}
+	return &AgentAppTransport{newAgentTransport(agentID, logger, t)}
 }
 
 type agentTransport struct {
+	agentID   uuid.UUID
+	addr      netip.Addr
+	logger    slog.Logger
 	transport *http.Transport
+}
+
+func newAgentTransport(agentID uuid.UUID, logger slog.Logger, t *http.Transport) agentTransport {
+	return agentTransport{
+		agentID:   agentID,
+		addr:      tailnet.TailscaleServicePrefix.AddrFromUUID(agentID),
+		logger:    logger,
+		transport: t,
+	}
+}
+
+// Addr returns the agent's address. Request URLs must use it as their host.
+func (t agentTransport) Addr() netip.Addr {
+	return t.addr
 }
 
 type dialRequestContextKey struct{}
 
 func (t agentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// The dialer only receives the port, so without this check a request for
+	// another host would silently reach this agent.
+	if addr, err := netip.ParseAddr(req.URL.Hostname()); err != nil || addr != t.addr {
+		if req.Body != nil {
+			_ = req.Body.Close() // Required by the http.RoundTripper contract.
+		}
+		t.logger.Warn(req.Context(), "blocked workspace agent request to unintended host",
+			slog.F("agent_id", t.agentID),
+			slog.F("request_host", req.URL.Host),
+			slog.F("agent_addr", t.addr),
+		)
+		return nil, xerrors.Errorf("request host %q does not match agent %s address %s", req.URL.Host, t.agentID, t.addr)
+	}
 	ctx := context.WithValue(req.Context(), dialRequestContextKey{}, req.Context())
 	return t.transport.RoundTrip(req.WithContext(ctx))
 }
@@ -95,8 +135,9 @@ func (t agentTransport) CloseIdleConnections() {
 	t.transport.CloseIdleConnections()
 }
 
-// dialAgentPort dials the port of addr on the agent if allowed. The host of
-// addr is ignored.
+// dialAgentPort dials the port of addr if allowed. http.Transport has already
+// replaced an empty port with the scheme's default. The host of addr is
+// checked in RoundTrip.
 func dialAgentPort(dial AgentDialer, allowed func(port uint16) bool) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if network != "tcp" {

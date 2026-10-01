@@ -1,12 +1,72 @@
 package workspaceapps
 
 import (
+	"context"
+	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+type appTransportProvider struct {
+	AgentProvider
+	transport *workspacesdk.AgentAppTransport
+}
+
+func (p appTransportProvider) AppTransport(uuid.UUID) *workspacesdk.AgentAppTransport {
+	return p.transport
+}
+
+// TestServer_reverseProxyTargetsAgentAddress checks that the proxy sends every
+// app URL form to the address its transport accepts.
+func TestServer_reverseProxyTargetsAgentAddress(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	transport := workspacesdk.NewAgentAppTransport(agentID, func(context.Context, uint16) (net.Conn, error) {
+		return nil, xerrors.New("unused")
+	}, testutil.Logger(t))
+	s := &Server{ServerOptions: ServerOptions{
+		AgentProvider: appTransportProvider{transport: transport},
+		DashboardURL:  &url.URL{Scheme: "https", Host: "coder.example.com"},
+	}}
+	addr := transport.Addr().String()
+
+	for _, tc := range []struct {
+		appURL string
+		want   string
+	}{
+		{appURL: "http://localhost:8080", want: "http://[" + addr + "]:8080"},
+		{appURL: "http://127.0.0.1:3000/path", want: "http://[" + addr + "]:3000"},
+		{appURL: "http://[::1]:3000", want: "http://[" + addr + "]:3000"},
+		{appURL: "https://example.com:8443", want: "https://[" + addr + "]:8443"},
+		// No port: the transport dials the scheme's default port.
+		{appURL: "http://localhost", want: "http://[" + addr + "]:"},
+	} {
+		t.Run(tc.appURL, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := url.Parse(tc.appURL)
+			require.NoError(t, err)
+			rp := s.reverseProxy(u, agentID, appurl.ApplicationURL{})
+			require.Same(t, transport, rp.Transport)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://app.example.com/", nil)
+			require.NoError(t, err)
+			rp.Director(req)
+			require.Equal(t, tc.want, req.URL.Scheme+"://"+req.URL.Host)
+		})
+	}
+}
 
 // Test_originLocalURL checks that originLocalURL produces a redirect target that
 // stays on the current origin.

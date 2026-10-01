@@ -361,6 +361,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
+		Logger: options.Logger,
 	})
 
 	// Agent HTTP API requests use a separate per-request HTTP client that does

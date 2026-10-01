@@ -40,20 +40,21 @@ func TestAgentTransports_Forget(t *testing.T) {
 	t.Parallel()
 
 	dial := func(context.Context, uint16) (net.Conn, error) { return nil, xerrors.New("unused") }
-	forgotten, kept := uuid.New(), uuid.New()
-	ts := &agentTransports{
-		api: map[uuid.UUID]*workspacesdk.AgentAPITransport{
-			forgotten: workspacesdk.NewAgentAPITransport(dial),
-			kept:      workspacesdk.NewAgentAPITransport(dial),
-		},
-		apps: map[uuid.UUID]*workspacesdk.AgentAppTransport{
-			forgotten: workspacesdk.NewAgentAppTransport(dial),
-		},
+	logger := testutil.Logger(t)
+	pair := func(agentID uuid.UUID) agentTransportPair {
+		return agentTransportPair{
+			api:  workspacesdk.NewAgentAPITransport(agentID, dial, logger),
+			apps: workspacesdk.NewAgentAppTransport(agentID, dial, logger),
+		}
 	}
+	forgotten, kept := uuid.New(), uuid.New()
+	ts := &agentTransports{agents: map[uuid.UUID]agentTransportPair{
+		forgotten: pair(forgotten),
+		kept:      pair(kept),
+	}}
 	ts.forget(forgotten)
-	require.NotContains(t, ts.api, forgotten)
-	require.NotContains(t, ts.apps, forgotten)
-	require.Contains(t, ts.api, kept)
+	require.NotContains(t, ts.agents, forgotten)
+	require.Contains(t, ts.agents, kept)
 }
 
 func TestPollingDERPClient_FirstRecvDoesNotWaitForTick(t *testing.T) {

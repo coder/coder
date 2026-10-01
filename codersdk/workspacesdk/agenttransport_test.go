@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"net/netip"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -49,20 +52,27 @@ func roundTrip(ctx context.Context, rt http.RoundTripper, url string) error {
 	return res.Body.Close()
 }
 
+func addrURL(addr netip.Addr, port string) string {
+	return "http://" + net.JoinHostPort(addr.String(), port) + "/"
+}
+
 func TestAgentAPITransport(t *testing.T) {
 	t.Parallel()
 
-	t.Run("IgnoresHost", func(t *testing.T) {
+	apiPort := strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)
+
+	t.Run("RejectsOtherHosts", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(serverDialer(okServer(t), &port))
+		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
 		t.Cleanup(tr.CloseIdleConnections)
 
-		// .invalid never resolves, so success means the host was not used.
-		require.NoError(t, roundTrip(ctx, tr, "http://other-agent.invalid:4/"))
-		require.EqualValues(t, workspacesdk.AgentHTTPAPIServerPort, port.Load())
+		otherAgent := tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New())
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(otherAgent, apiPort)), "does not match agent")
+		require.ErrorContains(t, roundTrip(ctx, tr, "http://localhost:"+apiPort+"/"), "does not match agent")
+		require.Zero(t, port.Load(), "rejected request must not be dialed")
 	})
 
 	t.Run("RejectsOtherPorts", func(t *testing.T) {
@@ -70,10 +80,10 @@ func TestAgentAPITransport(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(serverDialer(okServer(t), &port))
+		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
 		t.Cleanup(tr.CloseIdleConnections)
 
-		require.Error(t, roundTrip(ctx, tr, "http://agent.invalid:80/"))
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "80")), "port 80 is not allowed")
 		require.Zero(t, port.Load(), "rejected port must not be dialed")
 	})
 
@@ -82,15 +92,16 @@ func TestAgentAPITransport(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(serverDialer(okServer(t), &port))
+		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
 		t.Cleanup(tr.CloseIdleConnections)
 
-		require.NoError(t, roundTrip(ctx, tr, "http://agent.invalid:4/"))
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), apiPort)))
+		require.EqualValues(t, workspacesdk.AgentHTTPAPIServerPort, port.Load())
 		var reused bool
 		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
 			GotConn: func(info httptrace.GotConnInfo) { reused = info.Reused },
 		})
-		require.NoError(t, roundTrip(traceCtx, tr, "http://agent.invalid:4/"))
+		require.NoError(t, roundTrip(traceCtx, tr, addrURL(tr.Addr(), apiPort)))
 		require.True(t, reused)
 	})
 
@@ -100,12 +111,12 @@ func TestAgentAPITransport(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		dialStarted := make(chan struct{})
 		dialEnded := make(chan struct{})
-		tr := workspacesdk.NewAgentAPITransport(func(ctx context.Context, _ uint16) (net.Conn, error) {
+		tr := workspacesdk.NewAgentAPITransport(uuid.New(), func(ctx context.Context, _ uint16) (net.Conn, error) {
 			close(dialStarted)
 			<-ctx.Done() // An unreachable agent.
 			close(dialEnded)
 			return nil, ctx.Err()
-		})
+		}, testutil.Logger(t))
 		t.Cleanup(tr.CloseIdleConnections)
 
 		reqCtx, cancel := context.WithCancel(ctx)
@@ -113,23 +124,54 @@ func TestAgentAPITransport(t *testing.T) {
 			<-dialStarted
 			cancel()
 		}()
-		require.Error(t, roundTrip(reqCtx, tr, "http://agent.invalid:4/"))
+		require.Error(t, roundTrip(reqCtx, tr, addrURL(tr.Addr(), apiPort)))
 		testutil.TryReceive(ctx, t, dialEnded)
 	})
 }
 
-func TestAgentAppTransport_Ports(t *testing.T) {
+func TestAgentAppTransport(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	var port atomic.Int32
-	tr := workspacesdk.NewAgentAppTransport(serverDialer(okServer(t), &port))
-	t.Cleanup(tr.CloseIdleConnections)
+	t.Run("Ports", func(t *testing.T) {
+		t.Parallel()
 
-	require.Error(t, roundTrip(ctx, tr, "http://agent.invalid:8/"))
-	require.Zero(t, port.Load(), "reserved port must not be dialed")
-	require.NoError(t, roundTrip(ctx, tr, "http://agent.invalid:9/"))
-	require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, port.Load())
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var port atomic.Int32
+		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		t.Cleanup(tr.CloseIdleConnections)
+
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "8")), "port 8 is not allowed")
+		require.Zero(t, port.Load(), "reserved port must not be dialed")
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "9")))
+		require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, port.Load())
+	})
+
+	t.Run("NoPortUsesSchemeDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var port atomic.Int32
+		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		t.Cleanup(tr.CloseIdleConnections)
+
+		// The reverse proxy produces "[addr]:" for an app URL without a port.
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "")))
+		require.EqualValues(t, 80, port.Load())
+	})
+
+	t.Run("RejectsOtherHosts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var port atomic.Int32
+		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		t.Cleanup(tr.CloseIdleConnections)
+
+		otherAgent := tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New())
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(otherAgent, "8080")), "does not match agent")
+		require.ErrorContains(t, roundTrip(ctx, tr, "http://localhost:8080/"), "does not match agent")
+		require.Zero(t, port.Load(), "rejected request must not be dialed")
+	})
 }
 
 // dropIdleListener closes a connection when a request arrives on it after
@@ -164,15 +206,35 @@ func (c *dropIdleConn) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func TestAgentConn_ResendsToolCallOnDroppedConnection(t *testing.T) {
+func TestAgentConn_ResendsOnDroppedConnection(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name     string
-		toolCall bool
+		name   string
+		call   func(context.Context, workspacesdk.AgentConn) error
+		resent bool
 	}{
-		{name: "ToolCall", toolCall: true},
-		{name: "NoToolCall"},
+		{
+			name: "ToolCall",
+			call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+				return conn.WriteFile(workspacesdk.WithToolCallID(ctx, uuid.New()), "/tmp/f", strings.NewReader("x"))
+			},
+			resent: true,
+		},
+		{
+			name: "CancelToolCall",
+			call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+				_, err := conn.CancelToolCall(ctx, uuid.New())
+				return err
+			},
+			resent: true,
+		},
+		{
+			name: "NoToolCall",
+			call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+				return conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x"))
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -189,26 +251,20 @@ func TestAgentConn_ResendsToolCallOnDroppedConnection(t *testing.T) {
 			srv.Start()
 			t.Cleanup(srv.Close)
 
+			agentID := uuid.New()
 			var port atomic.Int32
-			tr := workspacesdk.NewAgentAPITransport(serverDialer(srv, &port))
+			tr := workspacesdk.NewAgentAPITransport(agentID, serverDialer(srv, &port), testutil.Logger(t))
 			t.Cleanup(tr.CloseIdleConnections)
 			conn := workspacesdk.NewAgentConn(nil, workspacesdk.AgentConnOptions{
-				AgentID:      uuid.New(),
+				AgentID:      agentID,
 				APITransport: tr,
 			})
-			write := func() error {
-				ctx := ctx
-				if tc.toolCall {
-					ctx = workspacesdk.WithToolCallID(ctx, uuid.New())
-				}
-				return conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x"))
-			}
 
-			require.NoError(t, write())
+			require.NoError(t, tc.call(ctx, conn))
 			// The second request goes out on the pooled connection, which
 			// the server drops.
-			err := write()
-			if tc.toolCall {
+			err := tc.call(ctx, conn)
+			if tc.resent {
 				require.NoError(t, err)
 				require.EqualValues(t, 2, handled.Load())
 			} else {

@@ -3,15 +3,9 @@ package coderd
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
-	"errors"
-	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/netip"
-	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,10 +20,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -86,10 +78,7 @@ func NewServerTailnet(
 	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
 	// there is an embedded relay, we use the local in-memory dialer.
 	controller.DERPCtrl = tailnet.NewBasicDERPController(logger, nil, conn)
-	transports := &agentTransports{
-		api:  make(map[uuid.UUID]*workspacesdk.AgentAPITransport),
-		apps: make(map[uuid.UUID]*workspacesdk.AgentAppTransport),
-	}
+	transports := &agentTransports{agents: make(map[uuid.UUID]agentTransportPair)}
 	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn, transports.forget)
 	controller.CoordCtrl = coordCtrl
 	// TODO: support controller.TelemetryCtrl
@@ -159,65 +148,9 @@ type ServerTailnet struct {
 	totalConns    *prometheus.CounterVec
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
-	// The transport dials agentID whatever the host. The host still sets the
-	// TLS server name for HTTPS apps, and an IP sends none.
-	tgt := *targetURL
-	_, port, _ := net.SplitHostPort(tgt.Host)
-	tgt.Host = net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(agentID).String(), port)
-
-	proxy := httputil.NewSingleHostReverseProxy(&tgt)
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
-		var (
-			desc           = "Failed to proxy request to application: " + theErr.Error()
-			additionalInfo = ""
-			actions        = []site.Action{}
-		)
-
-		var tlsError tls.RecordHeaderError
-		if (errors.As(theErr, &tlsError) && tlsError.Msg == "first record does not look like a TLS handshake") ||
-			errors.Is(theErr, http.ErrSchemeMismatch) {
-			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
-			// more helpful error message with redirect buttons.
-			switchURL := url.URL{
-				Scheme: dashboardURL.Scheme,
-			}
-			_, protocol, isPort := app.PortInfo()
-			if isPort {
-				targetProtocol := "https"
-				if protocol == "https" {
-					targetProtocol = "http"
-				}
-				app = app.ChangePortProtocol(targetProtocol)
-
-				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
-				actions = append(actions, site.Action{
-					URL:  switchURL.String(),
-					Text: fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol)),
-				})
-				additionalInfo += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(targetProtocol))
-			}
-		}
-
-		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:      http.StatusBadGateway,
-			Title:       "Bad Gateway",
-			Description: desc,
-			Actions: append(actions, []site.Action{
-				{
-					Text: "Retry",
-				},
-				{
-					URL:  dashboardURL.String(),
-					Text: "Back to site",
-				},
-			}...),
-			AdditionalInfo: additionalInfo,
-		})
-	}
-	proxy.Transport = s.appTransport(agentID)
-
-	return proxy
+// AppTransport returns the transport for HTTP requests to agentID's apps.
+func (s *ServerTailnet) AppTransport(agentID uuid.UUID) *workspacesdk.AgentAppTransport {
+	return s.transportsFor(agentID).apps
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -236,7 +169,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:      agentID,
 		CloseFunc:    func() error { return workspacesdk.ErrSkipClose },
-		APITransport: s.apiTransport(agentID),
+		APITransport: s.transportsFor(agentID).api,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error
@@ -254,57 +187,52 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 // agentTransports holds each agent's HTTP transports, so a pooled
 // connection only serves requests for the agent it was dialed to.
 type agentTransports struct {
-	mu   sync.Mutex
-	api  map[uuid.UUID]*workspacesdk.AgentAPITransport
-	apps map[uuid.UUID]*workspacesdk.AgentAppTransport
+	mu     sync.Mutex
+	agents map[uuid.UUID]agentTransportPair
+}
+
+type agentTransportPair struct {
+	api  *workspacesdk.AgentAPITransport
+	apps *workspacesdk.AgentAppTransport
+}
+
+func (p agentTransportPair) closeIdleConnections() {
+	p.api.CloseIdleConnections()
+	p.apps.CloseIdleConnections()
 }
 
 // forget removes agentID's transports and closes their idle connections.
 func (t *agentTransports) forget(agentID uuid.UUID) {
 	t.mu.Lock()
-	api, apps := t.api[agentID], t.apps[agentID]
-	delete(t.api, agentID)
-	delete(t.apps, agentID)
+	p, ok := t.agents[agentID]
+	delete(t.agents, agentID)
 	t.mu.Unlock()
-	if api != nil {
-		api.CloseIdleConnections()
-	}
-	if apps != nil {
-		apps.CloseIdleConnections()
+	if ok {
+		p.closeIdleConnections()
 	}
 }
 
 func (t *agentTransports) closeIdleConnections() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for _, api := range t.api {
-		api.CloseIdleConnections()
-	}
-	for _, apps := range t.apps {
-		apps.CloseIdleConnections()
+	for _, p := range t.agents {
+		p.closeIdleConnections()
 	}
 }
 
-func (s *ServerTailnet) apiTransport(agentID uuid.UUID) *workspacesdk.AgentAPITransport {
+func (s *ServerTailnet) transportsFor(agentID uuid.UUID) agentTransportPair {
 	s.transports.mu.Lock()
 	defer s.transports.mu.Unlock()
-	t, ok := s.transports.api[agentID]
+	p, ok := s.transports.agents[agentID]
 	if !ok {
-		t = workspacesdk.NewAgentAPITransport(s.agentDialer(agentID))
-		s.transports.api[agentID] = t
+		dial := s.agentDialer(agentID)
+		p = agentTransportPair{
+			api:  workspacesdk.NewAgentAPITransport(agentID, dial, s.logger),
+			apps: workspacesdk.NewAgentAppTransport(agentID, dial, s.logger),
+		}
+		s.transports.agents[agentID] = p
 	}
-	return t
-}
-
-func (s *ServerTailnet) appTransport(agentID uuid.UUID) *workspacesdk.AgentAppTransport {
-	s.transports.mu.Lock()
-	defer s.transports.mu.Unlock()
-	t, ok := s.transports.apps[agentID]
-	if !ok {
-		t = workspacesdk.NewAgentAppTransport(s.agentDialer(agentID))
-		s.transports.apps[agentID] = t
-	}
-	return t
+	return p
 }
 
 // agentDialer returns a dialer for agentID. Each connection holds a tunnel
@@ -355,8 +283,10 @@ func (s *ServerTailnet) Close() error {
 	s.logger.Info(s.ctx, "closing server tailnet")
 	defer s.logger.Debug(s.ctx, "server tailnet close complete")
 	s.cancel()
-	_ = s.conn.Close()
+	// Close idle connections while the tailnet can still deliver the close to
+	// agents, which otherwise hold them until their idle timeout.
 	s.transports.closeIdleConnections()
+	_ = s.conn.Close()
 	s.coordCtrl.Close()
 	<-s.controller.Closed()
 	return nil

@@ -44,16 +44,15 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 		apiTransport: opts.APITransport,
 	}
 	if c.apiTransport == nil {
-		c.apiTransport = NewAgentAPITransport(func(ctx context.Context, port uint16) (net.Conn, error) {
+		// No keep-alive: DialAgent callers make few API requests per
+		// connection, so idle connections would hold agent memory without
+		// saving round trips.
+		c.apiTransport = buildAgentAPITransport(opts.AgentID, func(ctx context.Context, port uint16) (net.Conn, error) {
 			if !c.AwaitReachable(ctx) {
 				return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 			}
 			return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
-		})
-		// No keep-alive: DialAgent callers make few API requests per
-		// connection, so idle connections would hold agent memory without
-		// saving round trips.
-		c.apiTransport.transport.DisableKeepAlives = true
+		}, opts.Logger, false)
 	}
 	return c
 }
@@ -175,7 +174,8 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 type AgentConnOptions struct {
 	AgentID      uuid.UUID
 	CloseFunc    func() error
-	APITransport *AgentAPITransport // Optional, for sharing idle connections. The caller closes it.
+	Logger       slog.Logger
+	APITransport *AgentAPITransport // Optional, for sharing idle connections. Must be bound to AgentID. The caller closes it.
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -1402,7 +1402,8 @@ func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) 
 func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil)
+	res, err := c.apiRequestWithHeader(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil,
+		http.Header{idempotencyKeyHeader: {id.String()}}) // Canceling twice returns the same result.
 	if err != nil {
 		return CancelToolCallResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -1553,9 +1554,7 @@ func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, bo
 	header := http.Header{}
 	if id, ok := ToolCallIDFromContext(ctx); ok {
 		header.Set(CoderToolCallIDHeader, id.String())
-		// Lets http.Transport resend the request when a pooled connection
-		// turns out to be closed. The agent deduplicates by tool call ID.
-		header.Set("Idempotency-Key", id.String())
+		header.Set(idempotencyKeyHeader, id.String())
 	}
 	return c.apiRequestWithHeader(ctx, method, path, body, header)
 }
