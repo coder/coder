@@ -55,8 +55,8 @@ const cleanHeadingText = (text: string): string => {
 				return code === undefined ? match : setAside(getCodeSpanText(code));
 			},
 		)
-		.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+		.replace(/!\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, "$1")
+		.replace(/\[([^\]]+)\]\((?:[^()]|\([^()]*\))*\)/g, "$1")
 		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
 		.replace(/\b__([^_]+)__\b/g, "$1")
 		.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1")

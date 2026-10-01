@@ -58,6 +58,17 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it.each([
+		"See [docs](https://example.com/a_(b)) next",
+		"See ![docs](https://example.com/a_(b).png) next",
+	])("keeps balanced parentheses in link destinations: %j", (text) => {
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title: "See docs next",
+			ariaLabel: "Thinking: See docs next",
+			body: text,
+		});
+	});
+
 	it("keeps text that Markdown renders literally in the preview title", () => {
 		const text =
 			"Check `Promise<User>`, `*args*`, 0 < n and n > 0 in user_id_field and APP__DB__URL";
