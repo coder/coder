@@ -89,10 +89,11 @@ export const AutomationWebhookFields: React.FC<
 			</p>
 			{automation.webhook_consumed_at && (
 				<p className="m-0 text-sm text-content-secondary">
-					{`Used on ${formatDate(new Date(automation.webhook_consumed_at), {
+					Used on{" "}
+					{formatDate(new Date(automation.webhook_consumed_at), {
 						locale: "en-US",
 						timeZoneName: "short",
-					})}`}
+					})}
 				</p>
 			)}
 			<div className="flex flex-col gap-2">

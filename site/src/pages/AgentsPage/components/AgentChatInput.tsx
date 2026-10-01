@@ -68,7 +68,6 @@ import {
 	isMobileViewport,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import type { ChatAutomationNames } from "../hooks/useChatAutomationNames";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
@@ -93,6 +92,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,

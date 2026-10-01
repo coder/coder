@@ -119,6 +119,27 @@ export const AutomationMessagesLoading: Story = {
 	},
 };
 
+// Opens the first label's tooltip to capture the named state.
+export const AutomationLabelTooltip: Story = {
+	...AutomationMessages,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [label] = await canvas.findAllByRole("button", {
+			name: /^Automation run/,
+		});
+		await userEvent.hover(label);
+	},
+};
+
+// Opens the first label's tooltip after the automations list failed.
+export const AutomationLabelTooltipError: Story = {
+	...AutomationLabelTooltip,
+	args: {
+		...AutomationMessages.args,
+		automationNames: { names: new Map(), status: "error" },
+	},
+};
+
 // Messages with different content shapes to exercise the parsing logic.
 export const MixedContentTypes: Story = {
 	args: {
