@@ -47,23 +47,24 @@ const (
 	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
 	// ResourceTypeTask is retained for audit logs recorded before the Tasks
 	// feature was removed.
-	ResourceTypeTask                    ResourceType = "task"
-	ResourceTypeAISeat                  ResourceType = "ai_seat"
-	ResourceTypeAIProvider              ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey           ResourceType = "ai_provider_key"
-	ResourceTypeAIGatewayKey            ResourceType = "ai_gateway_key"
-	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
-	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
-	ResourceTypeChat                    ResourceType = "chat"
-	ResourceTypeChatProject             ResourceType = "chat_project"
-	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
-	ResourceTypeChatAutomation          ResourceType = "chat_automation"
-	ResourceTypeUserSecret              ResourceType = "user_secret"
-	ResourceTypeUserSkill               ResourceType = "user_skill"
-	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
-	ResourceTypeChatOperationalSettings ResourceType = "chat_operational_settings"
-	ResourceTypeExperimentRule          ResourceType = "experiment_rule"
+	ResourceTypeTask                         ResourceType = "task"
+	ResourceTypeAISeat                       ResourceType = "ai_seat"
+	ResourceTypeAIProvider                   ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                         ResourceType = "chat"
+	ResourceTypeChatProject                  ResourceType = "chat_project"
+	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
+	ResourceTypeChatAutomation               ResourceType = "chat_automation"
+	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeUserSkill                    ResourceType = "user_skill"
+	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
+	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
+	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -154,6 +155,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat instruction settings"
 	case ResourceTypeChatOperationalSettings:
 		return "chat operational settings"
+	case ResourceTypeChatOrganizationSystemPrompt:
+		return "chat organization system prompt"
 	case ResourceTypeExperimentRule:
 		return "experiment rule"
 	default:

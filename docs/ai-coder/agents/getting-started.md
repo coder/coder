@@ -176,7 +176,12 @@ deployment. Use this to encode organizational conventions:
 
 Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/v2/chats/config/system-prompt`.
-See [Platform Controls](./platform-controls/index.md) for details.
+
+In a deployment with several organizations, organization administrators can
+also add organization instructions under **Admin settings** > **AI** >
+**Coder Agents** > **Organization settings**. Coder adds them after the
+deployment system prompt for new chats in that organization.
+See [Platform Controls](./platform-controls/index.md#system-prompt) for details.
 
 ### Understand the security model
 

@@ -186,6 +186,10 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})
 	})
+	r.Route("/chats/config/system-prompt", func(r chi.Router) {
+		r.Get("/", api.getOrganizationChatSystemPrompt)
+		r.Put("/", api.putOrganizationChatSystemPrompt)
+	})
 	r.Route("/chats/model-overrides", func(r chi.Router) {
 		r.Get("/", api.getOrganizationChatModelOverrides)
 		r.Put("/{context}", api.putOrganizationChatModelOverride)

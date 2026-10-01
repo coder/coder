@@ -1331,6 +1331,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	organizationPrompt := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1397,6 +1398,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, xerrors.Errorf("marshal deployment system prompt: %w", marshalErr)
 		}
 		initialMessages = append(initialMessages, systemMessage(deploymentContent, opts.ModelConfigID))
+	}
+	if organizationPrompt != "" {
+		organizationContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(organizationPrompt),
+		})
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal organization system prompt: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, systemMessage(organizationContent, opts.ModelConfigID))
 	}
 	if userPrompt != "" {
 		userPromptContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -4375,6 +4385,22 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
 	}
 	return result
+}
+
+// resolveOrganizationSystemPrompt returns the sanitized system prompt
+// configured for the organization, or an empty string when none is set.
+func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) string {
+	//nolint:gocritic // Chat creators cannot read organization config, so chatd reads it.
+	row, err := p.db.GetChatOrganizationSystemPrompt(dbauthz.AsChatd(ctx), organizationID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			// Fail open: the deployment prompt still applies.
+			p.logger.Warn(ctx, "failed to fetch organization chat system prompt, omitting it",
+				slog.F("organization_id", organizationID), slog.Error(err))
+		}
+		return ""
+	}
+	return codersdk.SanitizePromptText(row.SystemPrompt)
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the

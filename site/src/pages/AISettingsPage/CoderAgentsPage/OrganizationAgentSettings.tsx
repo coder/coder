@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
 	organizationChatModelOverrides,
+	organizationChatSystemPrompt,
 	updateChatModel,
 	updateOrganizationChatModelOverride,
+	updateOrganizationChatSystemPrompt,
 } from "#/api/queries/chats";
 import type {
 	ChatModelOverrideContext,
@@ -29,24 +31,33 @@ const contexts: readonly ChatModelOverrideContext[] = [
 type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
+	canViewInstructions: boolean;
 	showAdvisor: boolean;
 };
 
 export const OrganizationAgentSettings: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => (
+> = ({ organization, canEdit, canViewInstructions, showAdvisor }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
 		canEdit={canEdit}
+		canViewInstructions={canViewInstructions}
 		showAdvisor={showAdvisor}
 	/>
 );
 
 const OrganizationAgentSettingsContent: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => {
+> = ({ organization, canEdit, canViewInstructions, showAdvisor }) => {
 	const queryClient = useQueryClient();
+	const systemPromptQuery = useQuery({
+		...organizationChatSystemPrompt(organization.id),
+		enabled: canViewInstructions,
+	});
+	const systemPromptMutation = useMutation(
+		updateOrganizationChatSystemPrompt(queryClient, organization.id),
+	);
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
 		organizationChatModelOverrides(organization.id),
@@ -147,6 +158,14 @@ const OrganizationAgentSettingsContent: React.FC<
 			errorContexts={
 				new Set(contexts.filter((_, index) => mutations[index]?.isError))
 			}
+			canViewInstructions={canViewInstructions}
+			systemPrompt={systemPromptQuery.data?.system_prompt}
+			isSystemPromptLoading={systemPromptQuery.isLoading}
+			systemPromptError={systemPromptQuery.error}
+			onSaveSystemPrompt={systemPromptMutation.mutate}
+			isSavingSystemPrompt={systemPromptMutation.isPending}
+			saveSystemPromptError={systemPromptMutation.error}
+			onResetSaveSystemPrompt={systemPromptMutation.reset}
 		/>
 	);
 };

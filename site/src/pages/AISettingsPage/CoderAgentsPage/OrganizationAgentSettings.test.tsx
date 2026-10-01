@@ -42,11 +42,18 @@ const mockChatModelsResponse: OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const renderSettings = () =>
+const renderSettings = ({
+	canEdit = true,
+	canViewInstructions = false,
+}: {
+	canEdit?: boolean;
+	canViewInstructions?: boolean;
+} = {}) =>
 	render(
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
-			canEdit
+			canEdit={canEdit}
+			canViewInstructions={canViewInstructions}
 			showAdvisor
 		/>,
 	);
@@ -305,5 +312,63 @@ describe("OrganizationAgentSettings", () => {
 		await refetchCatalog(queryClient);
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
+	});
+
+	describe("organization instructions", () => {
+		const mockModelsAndInstructions = (systemPrompt: string) => {
+			vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
+				mockChatModelsResponse,
+			);
+			mockOverridesAndUpdate();
+			vi.spyOn(
+				API.experimental,
+				"getOrganizationChatSystemPrompt",
+			).mockResolvedValue({ system_prompt: systemPrompt });
+			return vi
+				.spyOn(API.experimental, "updateOrganizationChatSystemPrompt")
+				.mockResolvedValue();
+		};
+
+		it("saves the instructions for the selected organization", async () => {
+			const updateSystemPrompt = mockModelsAndInstructions("Old guidance.");
+			const user = userEvent.setup();
+			renderSettings({ canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Old guidance."));
+			await user.clear(textarea);
+			await user.type(textarea, "Use the team templates.");
+			await user.click(within(form).getByRole("button", { name: "Save" }));
+
+			await waitFor(() => {
+				expect(updateSystemPrompt).toHaveBeenCalledWith(
+					MockDefaultOrganization.id,
+					{ system_prompt: "Use the team templates." },
+				);
+			});
+		});
+
+		it("keeps the instructions read-only for viewers", async () => {
+			const updateSystemPrompt = mockModelsAndInstructions("Org guidance.");
+			const user = userEvent.setup();
+			renderSettings({ canEdit: false, canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
+			await user.type(textarea, " Edited.");
+
+			expect(textarea).toHaveValue("Org guidance.");
+			expect(updateSystemPrompt).not.toHaveBeenCalled();
+		});
 	});
 });

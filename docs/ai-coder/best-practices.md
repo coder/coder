@@ -22,7 +22,7 @@ Below are common scenarios where AI coding agents provide the most impact, along
 
 While LLMs are trained on general knowledge, it's important to provide additional context to help agents understand your codebase and organization.
 
-For [Coder Agents](./agents/index.md), context comes from a few complementary places. Platform admins configure a [system prompt](./agents/platform-controls/index.md) that applies to every chat and register [MCP servers](./agents/platform-controls/mcp-servers.md) per organization. Repos and workspace templates can ship reusable [skills](./agents/extending-agents.md) under `.agents/skills/`, which the agent discovers automatically when it attaches to the workspace. Developers don't need to manage memory files or wire up tools themselves.
+For [Coder Agents](./agents/index.md), context comes from a few complementary places. Platform admins configure a [system prompt](./agents/platform-controls/index.md#system-prompt) that applies to every chat, organization admins can add instructions for the chats in their organization, and admins register [MCP servers](./agents/platform-controls/mcp-servers.md) per organization. Repos and workspace templates can ship reusable [skills](./agents/extending-agents.md) under `.agents/skills/`, which the agent discovers automatically when it attaches to the workspace. Developers don't need to manage memory files or wire up tools themselves.
 
 The rest of this section covers patterns for agents you run yourself inside a workspace, such as Claude Code or Codex.
 

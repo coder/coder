@@ -3462,6 +3462,21 @@ func (mr *MockStoreMockRecorder) GetChatOrganizationModelOverridesByContext(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatOrganizationModelOverridesByContext", reflect.TypeOf((*MockStore)(nil).GetChatOrganizationModelOverridesByContext), ctx, argContext)
 }
 
+// GetChatOrganizationSystemPrompt mocks base method.
+func (m *MockStore) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatOrganizationSystemPrompt", ctx, organizationID)
+	ret0, _ := ret[0].(database.ChatOrganizationSystemPrompt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatOrganizationSystemPrompt indicates an expected call of GetChatOrganizationSystemPrompt.
+func (mr *MockStoreMockRecorder) GetChatOrganizationSystemPrompt(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatOrganizationSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatOrganizationSystemPrompt), ctx, organizationID)
+}
+
 // GetChatPersonalModelOverridesEnabled mocks base method.
 func (m *MockStore) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -12491,6 +12506,21 @@ func (m *MockStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) UpsertChatOrganizationModelOverride(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatOrganizationModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatOrganizationModelOverride), ctx, arg)
+}
+
+// UpsertChatOrganizationSystemPrompt mocks base method.
+func (m *MockStore) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg database.UpsertChatOrganizationSystemPromptParams) (database.ChatOrganizationSystemPrompt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatOrganizationSystemPrompt", ctx, arg)
+	ret0, _ := ret[0].(database.ChatOrganizationSystemPrompt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatOrganizationSystemPrompt indicates an expected call of UpsertChatOrganizationSystemPrompt.
+func (mr *MockStoreMockRecorder) UpsertChatOrganizationSystemPrompt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatOrganizationSystemPrompt", reflect.TypeOf((*MockStore)(nil).UpsertChatOrganizationSystemPrompt), ctx, arg)
 }
 
 // UpsertChatPersonalModelOverridesEnabled mocks base method.

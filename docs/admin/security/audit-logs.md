@@ -348,6 +348,20 @@ Actions: `write`
 </tbody>
 </table>
 
+### ChatOrganizationSystemPrompt
+
+Actions: `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>system_prompt</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### ChatProject
 
 Actions: `create`, `write`, `delete`
