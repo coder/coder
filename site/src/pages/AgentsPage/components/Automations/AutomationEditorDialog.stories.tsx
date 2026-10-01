@@ -145,14 +145,6 @@ export const Edit: Story = {
 	},
 };
 
-const editPreviewQuery = (scheduleTimeZone: string) => ({
-	key: chatAutomationSchedulePreviewKey(organizationId, {
-		schedule_cron: "0 9 * * *",
-		schedule_time_zone: scheduleTimeZone,
-	}),
-	data: { next_run_times: nextRunTimes },
-});
-
 export const TargetChatNotFound: Story = {
 	args: { automation: mockAutomation },
 	parameters: {
@@ -161,7 +153,13 @@ export const TargetChatNotFound: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			editPreviewQuery("UTC"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 	beforeEach: rejectChat(404),
@@ -175,7 +173,13 @@ export const TargetChatLoadError: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			editPreviewQuery("UTC"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 	beforeEach: rejectChat(500),
@@ -194,7 +198,13 @@ export const UnknownTimeZonePreview: Story = {
 				data: mockModelCatalog,
 			},
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
-			editPreviewQuery("Mars/Olympus"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "Mars/Olympus",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 };
