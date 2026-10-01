@@ -2,21 +2,72 @@ package aibridged
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestNewRecorder(t *testing.T) {
+	t.Parallel()
+	for _, options := range []PoolOptions{
+		{},
+		{StructuredLogging: true},
+		{DisableContentRecording: true},
+		{StructuredLogging: true, DisableContentRecording: true},
+	} {
+		t.Run(fmt.Sprintf("Structured=%t/DisableContent=%t", options.StructuredLogging, options.DisableContentRecording), func(t *testing.T) {
+			t.Parallel()
+			apiKeyID, id := uuid.NewString(), uuid.NewString()
+			now := time.Now().UTC()
+			clientErr := xerrors.New("client unavailable")
+			contentErr, contentCalls := clientErr, 1
+			if options.DisableContentRecording {
+				contentErr, contentCalls = nil, 0
+			}
+			type contextKey struct{}
+			sink := testutil.NewFakeSink(t)
+			clientCalls := 0
+			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, options, func(ctx context.Context) (DRPCClient, error) {
+				clientCalls++
+				require.Equal(t, "record context", ctx.Value(contextKey{}))
+				return nil, clientErr
+			})
+			require.Zero(t, clientCalls, "creating a recorder must not acquire a client")
+			ctx := context.WithValue(t.Context(), contextKey{}, "record context")
+			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: id, StartedAt: now}), clientErr)
+			require.ErrorIs(t, rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: id, EndedAt: now}), clientErr)
+			require.ErrorIs(t, rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{InterceptionID: id, CreatedAt: now, Input: 1}), clientErr)
+			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{InterceptionID: id, CreatedAt: now, Prompt: "prompt"}), contentErr)
+			require.ErrorIs(t, rec.RecordToolUsage(ctx, &recorder.ToolUsageRecord{InterceptionID: id, CreatedAt: now, Tool: "tool"}), contentErr)
+			require.ErrorIs(t, rec.RecordModelThought(ctx, &recorder.ModelThoughtRecord{InterceptionID: id, CreatedAt: now, Content: "thought"}), contentErr)
+			require.Equal(t, 3+3*contentCalls, clientCalls, "each forwarded record acquires its own client")
+			logs := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == recorder.InterceptionLogMarker })
+			if options.StructuredLogging {
+				require.Len(t, logs, 6, "logging must precede content filtering")
+			} else {
+				require.Empty(t, logs)
+			}
+			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{}), recorder.ErrInvalidRecord, "validation must precede content filtering")
+			require.Equal(t, 3+3*contentCalls, clientCalls)
+		})
+	}
+}
 
 // blockingHandler returns a handler that signals started, then blocks until
 // release is closed or the request context is canceled.

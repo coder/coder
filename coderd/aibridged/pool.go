@@ -87,6 +87,27 @@ func PoolOptionsFromConfig(ctx context.Context, logger slog.Logger, cfg codersdk
 	return options
 }
 
+// newRecorder applies the same record policy in interception and proxy modes.
+func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, options PoolOptions, clientFn ClientFunc) recorder.Recorder {
+	var middleware []recorder.Middleware
+	if options.DisableContentRecording {
+		middleware = append(middleware, recorder.WithoutRecords(recorder.DisabledRecords{
+			PromptUsage:  true,
+			ToolUsage:    true,
+			ModelThought: true,
+		}))
+	}
+	return aibridge.NewRecorder(
+		logger.Named("recorder"), tracer, apiKeyID, options.StructuredLogging,
+		recorder.NewDRPCRecorder(apiKeyID, func(ctx context.Context) (proto.DRPCRecorderClient, error) {
+			// Acquire the client against each record's context, not the context
+			// used to construct the handler, which the recorder can outlive.
+			return clientFn(ctx)
+		}),
+		middleware...,
+	)
+}
+
 var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
@@ -98,10 +119,6 @@ type CachedBridgePool struct {
 	providerVersion atomic.Int64
 	logger          slog.Logger
 	options         PoolOptions
-
-	// recorderMiddleware is the record policy derived from options, resolved
-	// once here rather than on every cache miss.
-	recorderMiddleware []recorder.Middleware
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
@@ -155,15 +172,6 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		clk = quartz.NewReal()
 	}
 
-	var recorderMiddleware []recorder.Middleware
-	if options.DisableContentRecording {
-		recorderMiddleware = append(recorderMiddleware, recorder.WithoutRecords(recorder.DisabledRecords{
-			PromptUsage:  true,
-			ToolUsage:    true,
-			ModelThought: true,
-		}))
-	}
-
 	pool := &CachedBridgePool{
 		cache:   cache,
 		clock:   clk,
@@ -171,8 +179,6 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		metrics: metrics,
 		tracer:  tracer,
 		logger:  logger,
-
-		recorderMiddleware: recorderMiddleware,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
@@ -274,18 +280,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	rec := aibridge.NewRecorder(
-		p.logger.Named("recorder"),
-		p.tracer,
-		req.APIKeyID,
-		p.options.StructuredLogging,
-		recorder.NewDRPCRecorder(req.APIKeyID, func(clientCtx context.Context) (proto.DRPCRecorderClient, error) {
-			// The recorder outlives this Acquire call, so the client is acquired
-			// against the context of the record call being served.
-			return clientFn(clientCtx)
-		}),
-		p.recorderMiddleware...,
-	)
+	rec := newRecorder(p.logger, p.tracer, req.APIKeyID, p.options, clientFn)
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
