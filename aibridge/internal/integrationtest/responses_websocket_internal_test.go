@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/aibridge/x/proxy/responsesws"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -321,6 +322,53 @@ func TestResponsesWebSocketRelaysAndRecords(t *testing.T) {
 	assert.Equal(t, ic.ID, tokens[0].InterceptionID)
 	assert.EqualValues(t, 7, tokens[0].Output)
 	require.NotNil(t, g.Recorder.RecordedInterceptionEnd(ic.ID))
+}
+
+// TestResponsesWebSocketAgentFirewallHeaders requires that a socket opened
+// through Agent Firewall records its correlation headers on its
+// interceptions, and that partial or malformed headers are refused before
+// a lease is taken or anything is dialed, as an HTTP request is.
+func TestResponsesWebSocketAgentFirewallHeaders(t *testing.T) {
+	t.Parallel()
+	const sessionID = "6f4c7c1a-1b4e-4f4a-9a43-2f6b8e6f7d10"
+
+	t.Run("Recorded", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitLong)
+		g := newWSGateway(ctx, t, wsGatewayConfig{})
+		client, upstream, lease := g.open(ctx, t, http.Header{
+			agplaibridge.HeaderAgentFirewallSessionID:      {sessionID},
+			agplaibridge.HeaderAgentFirewallSequenceNumber: {"42"},
+		})
+		writeText(ctx, t, client, wsCreate)
+		require.Equal(t, wsCreate, readText(ctx, t, upstream))
+		require.NoError(t, client.Close(websocket.StatusNormalClosure, ""))
+		requireClosed(ctx, t, upstream, websocket.StatusNormalClosure)
+		_ = codertestutil.TryReceive(ctx, t, lease.released)
+
+		interceptions := g.Recorder.RecordedInterceptions()
+		require.Len(t, interceptions, 1)
+		assert.Equal(t, ptr.Ref(sessionID), interceptions[0].AgentFirewallSessionID)
+		assert.Equal(t, ptr.Ref(int32(42)), interceptions[0].AgentFirewallSequenceNumber)
+		for _, h := range g.upstream.handshakeHeaders() {
+			assert.Empty(t, h.Get(agplaibridge.HeaderAgentFirewallSessionID))
+			assert.Empty(t, h.Get(agplaibridge.HeaderAgentFirewallSequenceNumber))
+		}
+	})
+	t.Run("Malformed", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitLong)
+		g := newWSGateway(ctx, t, wsGatewayConfig{})
+		//nolint:bodyclose // Dial owns the response body.
+		_, resp, err := g.dial(ctx, pathOpenAIResponses, http.Header{
+			agplaibridge.HeaderAgentFirewallSessionID: {sessionID},
+		})
+		require.Error(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Empty(t, g.leases.leases, "a refused socket must not take a lease")
+		assert.Empty(t, g.upstream.handshakeHeaders(), "a refused socket must not dial upstream")
+	})
 }
 
 // recordingTransport records the headers of every request it sends.

@@ -119,6 +119,15 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		http.Error(w, "no actor found", http.StatusBadRequest)
 		return
 	}
+	// Like an HTTP request, a socket opened through Agent Firewall carries
+	// its correlation headers, recorded on every interception of the socket.
+	// Fail closed on partial or malformed headers.
+	agentFirewallSessionID, agentFirewallSeqNumber, err := aibheaders.ExtractAgentFirewallHeaders(r)
+	if err != nil {
+		logger.Warn(ctx, "rejecting Responses WebSocket with invalid agent firewall headers", slog.Error(err))
+		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
+		return
+	}
 	// Refuse a handshake the client could never complete before it takes
 	// a lease or an upstream connection and key attempt.
 	if !validClientHandshake(r) {
@@ -143,11 +152,6 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 	}
 	// Released last, once the session finished recording.
 	defer lease.Release()
-	// The open socket is bounded by the socket caps, not the concurrency
-	// limit that bounded its admission.
-	if release := agplaibridge.ConcurrencySlotReleaseFromContext(ctx); release != nil {
-		release()
-	}
 	// The session and every record it makes run under the lease, which
 	// outlives the request and the bridge that served it.
 	socketCtx := aibcontext.AsActor(lease.Context(), actor.ID, actor.Email, actor.Metadata)
@@ -175,6 +179,11 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		_ = upstream.Close(websocket.StatusGoingAway, "client handshake failed")
 		return
 	}
+	// Both handshakes completed under the concurrency limit. The open
+	// socket is bounded by the socket caps instead.
+	if release := agplaibridge.ConcurrencySlotReleaseFromContext(ctx); release != nil {
+		release()
+	}
 	conn.SetReadLimit(responsesws.MaxClientFrameBytes)
 	upstream.SetReadLimit(responsesws.MaxUpstreamFrameBytes)
 
@@ -189,6 +198,9 @@ func (h *responsesWebSocketHandler) serve(w http.ResponseWriter, r *http.Request
 		UserAgent:       r.UserAgent(),
 		CredentialKind:  cred.Kind(),
 		CredentialHint:  cred.Hint(),
+
+		AgentFirewallSessionID:      agentFirewallSessionID,
+		AgentFirewallSequenceNumber: agentFirewallSeqNumber,
 	})
 }
 

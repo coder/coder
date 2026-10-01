@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -111,6 +112,9 @@ type wsTestGateway struct {
 	upstreams chan *websocket.Conn
 	// handshakes counts upstream WebSocket handshakes.
 	handshakes chan struct{}
+	// holdHandshake, when set, makes upstream handshakes wait until it is
+	// closed.
+	holdHandshake atomic.Pointer[chan struct{}]
 }
 
 func newWSTestGateway(t *testing.T, limits socketLimits, maxConcurrency int64) *wsTestGateway {
@@ -127,6 +131,13 @@ func newWSTestGateway(t *testing.T, limits socketLimits, maxConcurrency int64) *
 			return
 		}
 		g.handshakes <- struct{}{}
+		if hold := g.holdHandshake.Load(); hold != nil {
+			select {
+			case <-*hold:
+			case <-r.Context().Done():
+				return
+			}
+		}
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Errorf("upstream accept: %v", err)
@@ -229,6 +240,51 @@ func TestResponsesWebSocketCapacity(t *testing.T) {
 
 	// The first socket still relays.
 	relayCreate(ctx, t, client, upstream)
+}
+
+// TestResponsesWebSocketHandshakeHoldsConcurrencySlot requires that a
+// socket keeps its concurrency slot until both handshakes completed, so
+// stalled upstream handshakes stay bounded by the concurrency limit.
+func TestResponsesWebSocketHandshakeHoldsConcurrencySlot(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	g := newWSTestGateway(t, defaultSocketLimits, 1)
+	hold := make(chan struct{})
+	g.holdHandshake.Store(&hold)
+	statusOfOtherRequest := func() int {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.url+"/openai/v1/models", nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer coder-token")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	type dialResult struct {
+		conn *websocket.Conn
+		err  error
+	}
+	dialed := make(chan dialResult, 1)
+	go func() {
+		//nolint:bodyclose // Dial owns the response body.
+		conn, _, err := g.dial(ctx)
+		dialed <- dialResult{conn, err}
+	}()
+	_ = testutil.TryReceive(ctx, t, g.handshakes)
+	// The upstream handshake hangs while holding the only slot.
+	assert.Equal(t, http.StatusServiceUnavailable, statusOfOtherRequest())
+
+	close(hold)
+	res := testutil.TryReceive(ctx, t, dialed)
+	require.NoError(t, res.err)
+	t.Cleanup(func() { _ = res.conn.CloseNow() })
+	upstream := testutil.TryReceive(ctx, t, g.upstreams)
+	t.Cleanup(func() { _ = upstream.CloseNow() })
+	// The open socket no longer holds it.
+	assert.Equal(t, http.StatusTeapot, statusOfOtherRequest())
+	relayCreate(ctx, t, res.conn, upstream)
 }
 
 // TestResponsesWebSocketOutlivesBridge requires that a socket keeps relaying

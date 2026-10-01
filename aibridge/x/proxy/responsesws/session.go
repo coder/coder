@@ -154,6 +154,11 @@ type Options struct {
 	UserAgent       string
 	CredentialKind  credential.Kind
 	CredentialHint  string
+	// AgentFirewallSessionID and AgentFirewallSequenceNumber correlate the
+	// socket's handshake with Agent Firewall. Recorded on every
+	// interception; nil when the socket did not pass through it.
+	AgentFirewallSessionID      *string
+	AgentFirewallSequenceNumber *int32
 }
 
 // Session relays one Responses WebSocket connection and records one
@@ -714,6 +719,9 @@ func (s *Session) interceptionRecord(ic *interception, toolCallID *string) *reco
 		UserAgent:             s.opts.UserAgent,
 		CredentialKind:        s.opts.CredentialKind,
 		CredentialHint:        s.opts.CredentialHint,
+
+		AgentFirewallSessionID:      s.opts.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: s.opts.AgentFirewallSequenceNumber,
 	}
 }
 
