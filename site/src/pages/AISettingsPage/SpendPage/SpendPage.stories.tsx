@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
@@ -111,12 +118,9 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: /Filter by provider/ }),
+			await canvas.findByRole("button", { name: "Select provider" }),
 		);
-		await userEvent.click(
-			await screen.findByRole("option", { name: /^Provider/ }),
-		);
-		await screen.findByRole("button", { name: /OpenAI/ });
+		await screen.findByRole("option", { name: /OpenAI/ });
 	},
 };
 
@@ -147,7 +151,13 @@ export const FilteredByProvider: Story = {
 		});
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: "Select provider" }),
+			).toHaveTextContent("OpenAI"),
+		);
 	},
 };
 
