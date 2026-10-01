@@ -1,14 +1,18 @@
 package proxy
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	"github.com/coder/quartz"
 )
 
@@ -37,15 +42,16 @@ type forwardingHandler struct {
 	provider provider.Provider
 	baseURL  *url.URL
 	logger   slog.Logger
+	metrics  *metrics.Metrics
 	tracer   trace.Tracer
 	errorLog *log.Logger
 	// transport is shared by the per-request proxies so they reuse upstream
 	// connections.
 	transport http.RoundTripper
 	failover  keypool.KeyFailoverConfig
+	breaker   *circuitbreaker.ProviderCircuitBreakers
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
-	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
@@ -67,12 +73,13 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 		provider:  prov,
 		baseURL:   baseURL,
 		logger:    logger.With(slog.F("provider", prov.Name())),
+		metrics:   m,
 		tracer:    tracer,
 		transport: apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 		failover:  prov.KeyFailoverConfig(logger),
+		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 		inflight:  inflight,
 		recorder:  rec,
-		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 	}
 	h.errorLog = slog.Stdlib(context.Background(), h.logger, slog.LevelWarn)
 	return h, nil
@@ -86,14 +93,11 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 		},
 		Transport:     h,
 		FlushInterval: -1,
-		ErrorLog:      h.errorLog,
+		ErrorHandler: func(_ http.ResponseWriter, r *http.Request, err error) {
+			observationFromContext(r.Context()).err = err
+		},
+		ErrorLog: h.errorLog,
 	}
-}
-
-// RoundTrip forwards through the provider's key pool, or uses the selected BYOK
-// credential without retrying against pooled keys.
-func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
-	return keypool.NewKeyFailoverTransport(h.transport, h.failover).RoundTrip(r)
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
@@ -146,12 +150,12 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
 	}
 
-	var err error
-	defer func() { h.finishForwarding(ctx, record, logger, err) }()
+	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
+	defer func() { h.finishForwarding(ctx, record, logger, state.err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
-	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
+	state.err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
 		// Capture stays dormant until lifecycle recording activates forwarding.
-		return h.forward(rw, r, logger)
+		return h.forward(rw, r.WithContext(context.WithValue(ctx, observationContextKey{}, state)), nil, state, logger)
 	})
 }
 
@@ -243,8 +247,8 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	return logger, ir, cred
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {
-	// TODO: forward only when lifecycle recording is connected.
+func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ *replaybody.TeeBuffer, _ *responseObservation, _ slog.Logger) error {
+	// TODO: connect forwardPrepared only when lifecycle recording is connected.
 	// https://linear.app/codercom/issue/AIGOV-615
 	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
 	return nil
@@ -254,3 +258,120 @@ func (*forwardingHandler) finishForwarding(context.Context, *recorder.Intercepti
 	// TODO: finalize the outcome and lifecycle records, including breaker rejection.
 	// https://linear.app/codercom/issue/AIGOV-615
 }
+
+// forwardPrepared delivers the prepared request and observes its terminal response.
+func (h *forwardingHandler) forwardPrepared(w http.ResponseWriter, r *http.Request, cred credential.Credential, _ *replaybody.TeeBuffer, state *responseObservation, logger slog.Logger) error {
+	ctx := r.Context()
+	writer := &errorCapturingWriter{ResponseWriter: w, client: state.client}
+	defer func() {
+		if state.err == nil {
+			state.err = writer.Error()
+		}
+		if state.body != nil && !state.body.closed {
+			_ = state.body.Close()
+		}
+	}()
+	h.newProxy(cred).ServeHTTP(writer, r)
+	if state.body == nil && state.err != nil {
+		//nolint:errcheck // AsType returns the match; only its presence matters.
+		if _, ok := errors.AsType[*http.MaxBytesError](state.err); ok {
+			routing.WriteRequestBodyTooLarge(ctx, writer)
+		} else {
+			logger.Warn(ctx, "upstream proxy error", slog.Error(state.err))
+			http.Error(writer, "upstream proxy error", http.StatusBadGateway)
+		}
+	}
+	if writer.Error() != nil || (state.body != nil && !state.body.eof) {
+		if state.err == nil {
+			state.err = writer.Error()
+		}
+		panic(http.ErrAbortHandler)
+	}
+	return state.err
+}
+
+// RoundTrip observes only the final response returned by key failover. Its
+// callbacks and bookkeeping belong to this request, not the shared handler.
+func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
+	state := observationFromContext(r.Context())
+	cfg := h.failover
+	if cfg.Pool != nil {
+		inject, build := cfg.InjectAuthKey, cfg.BuildKeyPoolResponse
+		cfg.InjectAuthKey = func(header *http.Header, key string) {
+			state.credentialHint = utils.MaskSecret(key)
+			inject(header, key)
+		}
+		cfg.BuildKeyPoolResponse = func(err *keypool.Error) *http.Response {
+			state.err = err
+			return build(err)
+		}
+	}
+	resp, err := keypool.NewKeyFailoverTransport(h.transport, cfg).RoundTrip(r)
+	if err != nil {
+		return resp, err
+	}
+	if resp.StatusCode == http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		return nil, xerrors.New("upstream protocol upgrades are not supported")
+	}
+	state.status = resp.StatusCode
+	state.body = &observedBody{ReadCloser: resp.Body}
+	resp.Body = state.body
+	return resp, nil
+}
+
+type errorCapturingWriter struct {
+	http.ResponseWriter
+	client http.ResponseWriter
+	// ReverseProxy's initial flush can run on its timer goroutine.
+	err atomic.Pointer[error]
+}
+
+func (w *errorCapturingWriter) WriteHeader(status int) {
+	if status >= 100 && status < 200 {
+		// The existing breaker tracks the first status. Informational responses
+		// must reach the client without hiding the final status from the breaker.
+		w.client.WriteHeader(status)
+		return
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *errorCapturingWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err == nil && n < len(p) {
+		err = io.ErrShortWrite
+	}
+	w.recordError(err)
+	return n, err
+}
+
+func (w *errorCapturingWriter) recordError(err error) {
+	if err != nil {
+		w.err.CompareAndSwap(nil, &err)
+	}
+}
+
+func (w *errorCapturingWriter) Error() error {
+	if err := w.err.Load(); err != nil {
+		return *err
+	}
+	return nil
+}
+
+func (w *errorCapturingWriter) FlushError() error {
+	// The breaker wrapper only exposes Flush, which discards flush errors.
+	err := http.NewResponseController(w.client).Flush()
+	w.recordError(err)
+	return err
+}
+
+func (w *errorCapturingWriter) Flush() {
+	//nolint:errcheck // FlushError caches failures; Flusher cannot return them.
+	_ = w.FlushError()
+}
+
+func (w *errorCapturingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return http.NewResponseController(w.ResponseWriter).Hijack()
+}
+func (w *errorCapturingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

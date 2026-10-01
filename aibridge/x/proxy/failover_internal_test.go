@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -136,7 +137,9 @@ func TestForwardingFailoverStreamedRetry(t *testing.T) {
 	response := httptest.NewRecorder()
 	_, record, cred := h.checkRequest(response, req)
 	require.NotNil(t, record, "request must pass validation")
-	outbound, body := replaybody.NewRequest(req)
+	// The raw proxy reads the observation from the outbound request context.
+	state := &responseObservation{credentialHint: record.CredentialHint, client: response}
+	outbound, body := replaybody.NewRequest(req.WithContext(context.WithValue(req.Context(), observationContextKey{}, state)))
 	t.Cleanup(func() { _ = body.Close() })
 
 	served := make(chan struct{})
