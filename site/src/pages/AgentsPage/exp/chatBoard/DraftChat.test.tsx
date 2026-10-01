@@ -75,6 +75,7 @@ describe("DraftChat", () => {
 				labels: { "board/column": "Doing" },
 				content: [{ type: "text", text: "Hello\n\nCard: Launch" }],
 			}),
+			undefined,
 		);
 	});
 

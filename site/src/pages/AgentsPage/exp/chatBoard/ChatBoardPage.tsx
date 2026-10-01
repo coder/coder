@@ -321,7 +321,7 @@ const ChatBoardPage: React.FC = () => {
 		findOrCreateAssistant({
 			spec,
 			existingId: assistantByKey.get(key),
-			create: createMutation.mutateAsync,
+			create: (req) => createMutation.mutateAsync({ req }),
 			rename: titleMutation.mutateAsync,
 			queryClient,
 		}).then((chatId) => {

@@ -342,6 +342,7 @@ describe("ChatBoardPage", () => {
 					},
 				],
 			}),
+			undefined,
 		);
 	});
 
@@ -364,6 +365,7 @@ describe("ChatBoardPage", () => {
 				expect.objectContaining({
 					content: [{ type: "text", text: "Hello" }],
 				}),
+				undefined,
 			),
 		);
 	});

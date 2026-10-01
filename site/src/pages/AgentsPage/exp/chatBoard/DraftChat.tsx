@@ -59,16 +59,18 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 			content.push({ type: "file", file_id: fileID });
 		}
 		const createdChat = await createMutation.mutateAsync({
-			organization_id: organizationId,
-			content,
-			workspace_id: workspaceId,
-			mcp_server_ids:
-				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
-			plan_mode: planMode === "plan" ? "plan" : undefined,
-			client_type: "ui",
-			labels,
-			...(model ? { model_config_id: model } : {}),
-			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+			req: {
+				organization_id: organizationId,
+				content,
+				workspace_id: workspaceId,
+				mcp_server_ids:
+					mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+				plan_mode: planMode === "plan" ? "plan" : undefined,
+				client_type: "ui",
+				labels,
+				...(model ? { model_config_id: model } : {}),
+				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+			},
 		});
 		onCreated(createdChat.id);
 	};
