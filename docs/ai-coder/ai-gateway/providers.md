@@ -1,5 +1,5 @@
 ---
-title: Provider Configuration
+title: Provider configuration
 ---
 
 > [!NOTE]
