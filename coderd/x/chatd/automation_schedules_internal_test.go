@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Runs the unexported schedule scan directly.
+package chatd
 
 import (
 	"context"
