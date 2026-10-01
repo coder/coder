@@ -81,7 +81,6 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
-	BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
@@ -98,6 +97,9 @@ type sqlcQuerier interface {
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
+	// Every runnable status needs capacity admission before a worker can own
+	// the chat, so interrupting and requires_action chats without a fresh lease
+	// also wait for a slot.
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
@@ -570,8 +572,11 @@ type sqlcQuerier interface {
 	// scalar". Backed by idx_chat_messages_user_prompts.
 	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
 	// Returns a bounded, pool-interleaved set of chats that workers may acquire.
-	// Interrupting chats finish active work first. Requires-action chats follow so
-	// their runner can enforce the action deadline before new generations start.
+	// Within each pool, interrupting chats finish active work first, and
+	// requires-action chats follow so their runner can enforce the action deadline
+	// before new generations start. Pools are interleaved by that per-pool rank, so
+	// a saturated pool's refused high-priority rows cannot crowd the other pool's
+	// candidates out of the limit.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
@@ -1403,6 +1408,14 @@ type sqlcQuerier interface {
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	// Renews (chat_id, runner_id) leases that are still fresh and still own
+	// their chat, and returns the renewed pairs. A stale lease is never
+	// revived because capacity admission may already have given its slot to
+	// another chat; its runner must stop instead. Callers hold the capacity
+	// admission lock, and statement_timestamp() is read after that lock is
+	// granted, so a lease that a committed admission counted as stale cannot
+	// be renewed afterwards.
+	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
@@ -1420,6 +1433,10 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	// Bounds how long later lock waits in the current transaction may block.
+	// A wait longer than lock_timeout_ms fails with lock_not_available
+	// instead of blocking. The setting reverts when the transaction ends.
+	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error

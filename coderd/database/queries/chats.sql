@@ -2485,8 +2485,11 @@ WHERE chat_id = @chat_id::uuid
 
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
--- Interrupting chats finish active work first. Requires-action chats follow so
--- their runner can enforce the action deadline before new generations start.
+-- Within each pool, interrupting chats finish active work first, and
+-- requires-action chats follow so their runner can enforce the action deadline
+-- before new generations start. Pools are interleaved by that per-pool rank, so
+-- a saturated pool's refused high-priority rows cannot crowd the other pool's
+-- candidates out of the limit.
 WITH candidate_partitions AS (
     SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
     UNION ALL
@@ -2503,11 +2506,10 @@ WITH candidate_partitions AS (
 candidates AS (
     SELECT
         candidate.id,
-        candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
-            ORDER BY candidate.updated_at ASC, candidate.id ASC
+            PARTITION BY candidate_partitions.is_root
+            ORDER BY candidate_partitions.status_priority ASC, candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
@@ -2538,7 +2540,6 @@ SELECT
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
-    candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
     chats.id ASC
@@ -2550,13 +2551,26 @@ FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
--- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
+-- name: RenewChatHeartbeats :many
+-- Renews (chat_id, runner_id) leases that are still fresh and still own
+-- their chat, and returns the renewed pairs. A stale lease is never
+-- revived because capacity admission may already have given its slot to
+-- another chat; its runner must stop instead. Callers hold the capacity
+-- admission lock, and statement_timestamp() is read after that lock is
+-- granted, so a lease that a committed admission counted as stale cannot
+-- be renewed afterwards.
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
 FROM unnest(@chat_ids::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
 JOIN unnest(@runner_ids::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at;
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * @stale_seconds::int)
+RETURNING hb.chat_id, hb.runner_id;
 
 -- name: DeleteStaleChatHeartbeats :execrows
 DELETE FROM chat_heartbeats
@@ -3052,11 +3066,14 @@ WHERE c.worker_id IS NOT NULL
   AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 
 -- name: CountChatCapacityQueuedByPool :one
+-- Every runnable status needs capacity admission before a worker can own
+-- the chat, so interrupting and requires_action chats without a fresh lease
+-- also wait for a slot.
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL

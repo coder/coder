@@ -119,8 +119,11 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	return err
 }
 
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
@@ -168,8 +171,11 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 	return err
 }
 
-func applyInterrupt(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.interrupt, err = tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 	return err
@@ -1800,6 +1806,9 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 				nonDynamicAssistantToolCallMessage(t, f.Model.ID, nonDynCallID))
 
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+					return err
+				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 				return err
 			}))
@@ -1996,4 +2005,15 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 		}
 	}
 	return spec
+}
+
+// ownRunningChat owns a seeded running chat before an interrupt so the
+// matrix covers the interrupting states. The unowned variants finish
+// the interruption inline and have their own tests.
+func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+	t.Helper()
+	if from != chatstate.StateR0 && from != chatstate.StateR1 {
+		return nil
+	}
+	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
 }

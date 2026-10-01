@@ -8038,25 +8038,6 @@ func (q *sqlQuerier) BatchDeleteChatHeartbeats(ctx context.Context, arg BatchDel
 	return result.RowsAffected()
 }
 
-const batchUpsertChatHeartbeats = `-- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
-FROM unnest($1::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
-JOIN unnest($2::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at
-`
-
-type BatchUpsertChatHeartbeatsParams struct {
-	ChatIds   []uuid.UUID `db:"chat_ids" json:"chat_ids"`
-	RunnerIds []uuid.UUID `db:"runner_ids" json:"runner_ids"`
-}
-
-func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
-	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
-	return err
-}
-
 const clearChatDiffStatusPR = `-- name: ClearChatDiffStatusPR :exec
 UPDATE
     chat_diff_statuses
@@ -8137,7 +8118,7 @@ SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL
@@ -8157,6 +8138,9 @@ type CountChatCapacityQueuedByPoolRow struct {
 	QueuedSubagentCount int64 `db:"queued_subagent_count" json:"queued_subagent_count"`
 }
 
+// Every runnable status needs capacity admission before a worker can own
+// the chat, so interrupting and requires_action chats without a fresh lease
+// also wait for a slot.
 func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error) {
 	row := q.db.QueryRowContext(ctx, countChatCapacityQueuedByPool, staleSeconds)
 	var i CountChatCapacityQueuedByPoolRow
@@ -10128,11 +10112,10 @@ WITH candidate_partitions AS (
 candidates AS (
     SELECT
         candidate.id,
-        candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
-            ORDER BY candidate.updated_at ASC, candidate.id ASC
+            PARTITION BY candidate_partitions.is_root
+            ORDER BY candidate_partitions.status_priority ASC, candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
@@ -10163,7 +10146,6 @@ SELECT
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
-    candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
     chats.id ASC
@@ -10182,8 +10164,11 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 }
 
 // Returns a bounded, pool-interleaved set of chats that workers may acquire.
-// Interrupting chats finish active work first. Requires-action chats follow so
-// their runner can enforce the action deadline before new generations start.
+// Within each pool, interrupting chats finish active work first, and
+// requires-action chats follow so their runner can enforce the action deadline
+// before new generations start. Pools are interleaved by that per-pool rank, so
+// a saturated pool's refused high-priority rows cannot crowd the other pool's
+// candidates out of the limit.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.LimitCount, arg.StaleSeconds)
 	if err != nil {
@@ -12226,6 +12211,62 @@ func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batc
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const renewChatHeartbeats = `-- name: RenewChatHeartbeats :many
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
+FROM unnest($2::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
+JOIN unnest($3::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * $1::int)
+RETURNING hb.chat_id, hb.runner_id
+`
+
+type RenewChatHeartbeatsParams struct {
+	StaleSeconds int32       `db:"stale_seconds" json:"stale_seconds"`
+	ChatIds      []uuid.UUID `db:"chat_ids" json:"chat_ids"`
+	RunnerIds    []uuid.UUID `db:"runner_ids" json:"runner_ids"`
+}
+
+type RenewChatHeartbeatsRow struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	RunnerID uuid.UUID `db:"runner_id" json:"runner_id"`
+}
+
+// Renews (chat_id, runner_id) leases that are still fresh and still own
+// their chat, and returns the renewed pairs. A stale lease is never
+// revived because capacity admission may already have given its slot to
+// another chat; its runner must stop instead. Callers hold the capacity
+// admission lock, and statement_timestamp() is read after that lock is
+// granted, so a lease that a committed admission counted as stale cannot
+// be renewed afterwards.
+func (q *sqlQuerier) RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, renewChatHeartbeats, arg.StaleSeconds, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RenewChatHeartbeatsRow
+	for rows.Next() {
+		var i RenewChatHeartbeatsRow
+		if err := rows.Scan(&i.ChatID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows
@@ -18651,6 +18692,18 @@ SELECT pg_advisory_xact_lock($1)
 // released when the transaction ends.
 func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
+	return err
+}
+
+const setTransactionLockTimeout = `-- name: SetTransactionLockTimeout :exec
+SELECT set_config('lock_timeout', format('%sms', $1::bigint), true)
+`
+
+// Bounds how long later lock waits in the current transaction may block.
+// A wait longer than lock_timeout_ms fails with lock_not_available
+// instead of blocking. The setting reverts when the transaction ends.
+func (q *sqlQuerier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	_, err := q.db.ExecContext(ctx, setTransactionLockTimeout, lockTimeoutMs)
 	return err
 }
 
