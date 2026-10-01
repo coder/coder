@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/experimental"
 	"github.com/tetratelabs/wazero/experimental/sysfs"
 	"github.com/tetratelabs/wazero/sys"
 	"golang.org/x/xerrors"
@@ -188,7 +189,11 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		WithSysNanotime()
 
 	start := b.engine.clock.Now("agentbox", "run-start")
-	mod, err := b.engine.runtime.InstantiateModule(runCtx, compiled, config)
+	instantiateCtx := runCtx
+	if b.engine.memory != nil {
+		instantiateCtx = experimental.WithMemoryAllocator(runCtx, b.engine.memory)
+	}
+	mod, err := b.engine.runtime.InstantiateModule(instantiateCtx, compiled, config)
 	duration := b.engine.clock.Since(start, "agentbox", "run-end")
 	if mod != nil {
 		_ = mod.Close(context.WithoutCancel(ctx))

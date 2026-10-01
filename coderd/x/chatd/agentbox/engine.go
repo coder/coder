@@ -25,6 +25,7 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/experimental"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
@@ -121,6 +122,8 @@ type Engine struct {
 	runtime  wazero.Runtime
 	runs     *semaphore.Weighted
 	maxBoxes int
+	// memory backs guest linear memory; nil uses wazero's default.
+	memory experimental.MemoryAllocator
 
 	compiled map[string]func() (wazero.CompiledModule, error)
 
@@ -182,6 +185,7 @@ func NewEngine(ctx context.Context, opts Options) (*Engine, error) {
 		lock:     lock,
 		runs:     semaphore.NewWeighted(int64(maxConcurrent)),
 		maxBoxes: maxBoxes,
+		memory:   newMemoryAllocator(uint64(limits.MemoryBytes/wasmPageSize) * wasmPageSize),
 		compiled: make(map[string]func() (wazero.CompiledModule, error), len(runtimes)),
 	}
 	e.runtime = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
