@@ -21,18 +21,10 @@ import (
 // so this is not tuned for a slow network client.
 const mcpDelegatedReadHeaderTimeout = 10 * time.Second
 
-// newMCPDelegatedTransport returns an http.RoundTripper that delegates MCP tool
-// requests to the REST handler over private in-memory connections, plus a
-// cleanup func the caller must invoke to release the server, goroutine, and
-// hijacked connections. It is not the MCP Streamable HTTP protocol endpoint;
-// it is the internal REST delegation path used by tools.
-//
-// Using net/http on both ends preserves streaming and WebSocket support. No
-// listener is exposed to the network, and no caller-supplied context values
-// cross the connection, so only apiKeyID authenticates the delegated request:
-// httpmw revalidates it and checks the audience against the MCP endpoint. The
-// RoundTripper fails closed on any request that does not target accessURL, uses
-// a non-canonical path, or is not an internal REST endpoint (see RoundTrip).
+// newMCPDelegatedTransport delegates same-origin REST requests over net.Pipe,
+// preserving streaming and WebSockets without inheriting caller context values.
+// Middleware revalidates the original credential, binds it to apiKeyID, and
+// checks its MCP audience. Call cleanup to release the server and connections.
 func newMCPDelegatedTransport(logger slog.Logger, handler http.Handler, accessURL *url.URL, apiKeyID string) (http.RoundTripper, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	listener := &mcpListener{ctx: ctx, cancel: cancel, connections: make(chan net.Conn)}
@@ -77,19 +69,25 @@ func (t *mcpDelegatedTransport) RoundTrip(req *http.Request) (*http.Response, er
 	if req.URL.Scheme != t.origin.Scheme || req.URL.Host != t.origin.Host || req.Host != t.origin.Host || req.URL.User != nil {
 		return reject("MCP tool request must target the Coder deployment")
 	}
-	// Reject non-canonical paths before the router can collapse slashes or
-	// traverse segments into a different endpoint.
-	if path.Clean(req.URL.Path) != strings.TrimSuffix(req.URL.Path, "/") {
-		return reject("MCP tool request must use a canonical REST path")
-	}
-	if (!strings.HasPrefix(req.URL.Path, "/api/v2/") && !strings.HasPrefix(req.URL.Path, "/api/experimental/")) ||
-		strings.HasPrefix(req.URL.Path, "/api/experimental/mcp/") {
-		return reject("MCP tool request must target an internal REST endpoint")
+	if err := validateMCPDelegatedPath(req.URL.Path); err != nil {
+		return reject(err.Error())
 	}
 	clone := req.Clone(req.Context())
 	// Even for HTTPS deployments, these bytes only travel over net.Pipe.
 	clone.URL.Scheme = "http"
 	return t.transport.RoundTrip(clone)
+}
+
+func validateMCPDelegatedPath(requestPath string) error {
+	// Reject aliases before routing can normalize them into another endpoint.
+	if path.Clean(requestPath) != strings.TrimSuffix(requestPath, "/") {
+		return xerrors.New("MCP tool request must use a canonical REST path")
+	}
+	if (!strings.HasPrefix(requestPath, "/api/v2/") && !strings.HasPrefix(requestPath, "/api/experimental/")) ||
+		strings.HasPrefix(requestPath, "/api/experimental/mcp/") {
+		return xerrors.New("MCP tool request must target an internal REST endpoint")
+	}
+	return nil
 }
 
 type mcpListener struct {
