@@ -167,6 +167,17 @@ export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	});
 };
 
+// The selection is a pure function of the latest build's agents, so
+// keying on the build refetches it after a rebuild. Queries do not
+// retry, so a failed selection keeps polling instead of blocking
+// uploads until a remount.
+export const chatWorkspaceAgent = (workspaceId: string, buildId: string) =>
+	queryOptions({
+		queryKey: ["chats", "workspace-agent", workspaceId, buildId] as const,
+		queryFn: () => API.experimental.getChatWorkspaceAgent(workspaceId),
+		refetchInterval: ({ state }) => (state.status === "error" ? 5_000 : false),
+	});
+
 /**
  * Writes an updater across every cached chat list entry by targeting the
  * list family prefix. Each filter combination is a separate query whose

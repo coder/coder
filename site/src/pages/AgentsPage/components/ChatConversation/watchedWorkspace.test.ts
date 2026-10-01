@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Workspace, WorkspaceApp } from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -11,14 +11,14 @@ import {
 } from "./watchedWorkspace";
 
 describe("isWatchedWorkspaceViewUnchanged", () => {
-	const cloneWithApps = (apps: WorkspaceApp[]): Workspace => ({
+	const cloneWithAgent = (patch: Partial<WorkspaceAgent>): Workspace => ({
 		...MockWorkspace,
 		latest_build: {
 			...MockWorkspace.latest_build,
 			resources: MockWorkspace.latest_build.resources.map((resource) => ({
 				...resource,
 				agents: resource.agents?.map((agent) =>
-					agent.id === MockWorkspaceAgent.id ? { ...agent, apps } : agent,
+					agent.id === MockWorkspaceAgent.id ? { ...agent, ...patch } : agent,
 				),
 			})),
 		},
@@ -40,7 +40,9 @@ describe("isWatchedWorkspaceViewUnchanged", () => {
 	});
 
 	it("is false when a bound-agent app changes health", () => {
-		const next = cloneWithApps([{ ...MockWorkspaceApp, health: "healthy" }]);
+		const next = cloneWithAgent({
+			apps: [{ ...MockWorkspaceApp, health: "healthy" }],
+		});
 
 		expect(
 			isWatchedWorkspaceViewUnchanged(
@@ -52,10 +54,12 @@ describe("isWatchedWorkspaceViewUnchanged", () => {
 	});
 
 	it("is false when the bound agent gains an app", () => {
-		const next = cloneWithApps([
-			MockWorkspaceApp,
-			{ ...MockWorkspaceApp, id: "second-app", slug: "second-app" },
-		]);
+		const next = cloneWithAgent({
+			apps: [
+				MockWorkspaceApp,
+				{ ...MockWorkspaceApp, id: "second-app", slug: "second-app" },
+			],
+		});
 
 		expect(
 			isWatchedWorkspaceViewUnchanged(
@@ -63,6 +67,14 @@ describe("isWatchedWorkspaceViewUnchanged", () => {
 				next,
 				MockWorkspaceAgent.id,
 			),
+		).toBe(false);
+	});
+
+	it("is false when an agent outside the chat binding changes status", () => {
+		const next = cloneWithAgent({ status: "disconnected" });
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(MockWorkspace, next, undefined),
 		).toBe(false);
 	});
 

@@ -37,6 +37,7 @@ import {
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
@@ -289,6 +290,9 @@ const meta: Meta<typeof AgentCreateForm> = {
 		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 			MockUserPreferenceSettings,
 		);
+		spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({
+			agent_id: MockWorkspaceAgent.id,
+		});
 	},
 };
 

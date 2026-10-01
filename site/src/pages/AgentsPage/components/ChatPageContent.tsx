@@ -12,7 +12,6 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -21,6 +20,11 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import {
+	useWorkspaceUploadAgent,
+	workspaceUploadAgentLookupFailedMessage,
+	workspaceUploadNoEligibleAgentMessage,
+} from "../hooks/useWorkspaceUploadAgent";
 import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
@@ -673,20 +677,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
 	// The workspace upload affordance requires an existing chat bound
-	// to a workspace whose agent is connected; the agent writes the
-	// bytes into its home directory. A freshly attached or rebound
-	// workspace has no bound agent until the next generation, and the
-	// upload handler then selects one itself, so any connected root
-	// agent qualifies in that case (mirrors the new-chat page).
-	const uploadAgentConnected = workspaceAgent
-		? workspaceAgent.status === "connected"
-		: workspace !== undefined &&
-			getWorkspaceAgents(workspace).some(
-				(agent) => !agent.parent_id && agent.status === "connected",
-			);
-	const canUploadWorkspaceFiles = Boolean(
-		chatId && workspace && uploadAgentConnected,
+	// to a workspace whose upload agent is connected; the agent writes
+	// the bytes into its home directory.
+	const { canUpload, lookupFailed, noEligibleAgent } = useWorkspaceUploadAgent(
+		workspace,
+		chat.agent_id,
 	);
+	const canUploadWorkspaceFiles = Boolean(chatId) && canUpload;
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
@@ -797,6 +794,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: visibleWorkspaceUploads,
+				unavailableMessage: lookupFailed
+					? workspaceUploadAgentLookupFailedMessage
+					: noEligibleAgent
+						? workspaceUploadNoEligibleAgentMessage
+						: selectedWorkspaceId
+							? "This file type is uploaded into the chat's workspace, which needs a connected agent. Start the workspace or wait for its agent to connect, then try again."
+							: undefined,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
