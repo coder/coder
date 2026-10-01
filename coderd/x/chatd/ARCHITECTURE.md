@@ -1070,7 +1070,7 @@ The goroutine does the following in order:
 4. It cancels the chat's unresolved `execute`, `edit_files`, and `write_file` calls on the workspace agent, waiting up to 30 seconds for their results.
 5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
-TODO: steps 2 and 3, the model invocation instant, the tool completion times, and the interrupt instant are now captured once per interrupt task and reused by its retries. A retry no longer rereads the buffer, whose closed episodes are collected 15 seconds after `CloseEpisode`, and retry delay is not billed. Describe this here.
+If a step fails, the goroutine retries the steps from the start. Retries reuse the buffered parts, the `ModelInvokedAt` and `ToolCompletions` values, and the interrupt instant that the first attempt recorded instead of reading the message part buffer again, because the closed episode may already be garbage collected. Reusing the interrupt instant also keeps retry delay out of the billable runtime.
 
 #### Dynamic tools timeout goroutine
 
