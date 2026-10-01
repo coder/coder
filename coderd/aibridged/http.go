@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -170,6 +171,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// A Responses WebSocket the request opens checks each of its creates
 	// like a separate HTTP request.
 	ctx = aibridge.WithCreateAdmission(ctx, s.createAdmission(logger, id, agplaibridge.RateLimitConsumerFromContext(ctx)))
+	// A Responses WebSocket holds a lease of the server's socket capacity.
+	ctx = aibridge.WithSocketAcquirer(ctx, s.acquireSocket)
 
 	refusal, err := budgetRefusal(ctx, client, id)
 	if err != nil {
@@ -265,6 +268,24 @@ func (s *Server) createAdmission(logger slog.Logger, userID uuid.UUID, consumeRa
 			return intercept.NewResponseError(refusal, budgetExceededErrType, budgetExceededErrCode, http.StatusForbidden, 0)
 		}
 		return nil
+	}
+}
+
+// acquireSocket adapts the socket registry to [aibridge.SocketAcquirer]. A
+// refusal is an *intercept.ResponseError carrying the HTTP status the
+// upgrade is refused with, since the bridge cannot know this package's
+// errors.
+func (s *Server) acquireSocket(ctx context.Context, actorID, provider string) (aibridge.SocketLease, error) {
+	lease, err := s.Sockets().Acquire(ctx, actorID, provider)
+	switch {
+	case err == nil:
+		return lease, nil
+	case errors.Is(err, ErrSocketActorLimit), errors.Is(err, ErrSocketReplicaLimit):
+		return nil, intercept.NewResponseError(err.Error(), intercept.OpenAIErrTypeRateLimit, intercept.OpenAIErrCodeRateLimit, http.StatusTooManyRequests, 0)
+	case errors.Is(err, ErrShutdown):
+		return nil, intercept.NewResponseError("AI Gateway is shutting down", intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, http.StatusServiceUnavailable, 0)
+	default:
+		return nil, err
 	}
 }
 

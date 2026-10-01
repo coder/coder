@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
+	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/quartz"
 )
 
@@ -85,7 +87,14 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
-			handler := newInterceptionProcessor(prov, cbs, rec, mcpProxy, logger, m, tracer)
+			// OpenAI's Responses route also serves Responses API WebSocket
+			// mode. Other providers, including OpenAI-compatible ones such
+			// as Copilot, refuse upgrades.
+			var ws *responsesWebSocketHandler
+			if prov.Type() == config.ProviderOpenAI && path == provider.OpenAIResponsesRoute && rec != nil {
+				ws = newResponsesWebSocketHandler(prov, rec, logger)
+			}
+			handler := newInterceptionProcessor(prov, cbs, rec, ws, mcpProxy, logger, m, tracer)
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
 				logger.Error(ctx, "failed to join path",
@@ -140,7 +149,10 @@ func WithClock(clock quartz.Clock) RequestBridgeOption {
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
 // using [Provider] p, recording all usage events using [Recorder] rec.
 // If cbs is non-nil, circuit breaker protection is applied per endpoint/model tuple.
-func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+// If ws is non-nil, it serves WebSocket upgrades of requests whose owner has
+// Responses WebSocket mode enabled and whose context carries a socket
+// acquirer; other upgrades are refused.
+func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, ws *responsesWebSocketHandler, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "Intercept")
 		defer span.End()
@@ -151,6 +163,12 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		sessionID := aibclient.GuessSessionID(client, r)
 
 		if aibheaders.IsWebSocketUpgrade(r) {
+			if ws != nil && agplaibridge.ResponsesWebSocketEnabled(ctx) {
+				if acquire := aibcontext.SocketAcquirerFromContext(ctx); acquire != nil {
+					ws.serve(w, r.WithContext(ctx), acquire)
+					return
+				}
+			}
 			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),

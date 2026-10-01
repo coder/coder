@@ -35,6 +35,8 @@ type (
 	ModelThoughtRecord      = recorder.ModelThoughtRecord
 	Recorder                = recorder.Recorder
 	CreateAdmissionFunc     = aibcontext.CreateAdmissionFunc
+	SocketAcquirer          = aibcontext.SocketAcquirer
+	SocketLease             = aibcontext.SocketLease
 	Metadata                = recorder.Metadata
 	ErrorType               = recorder.ErrorType
 
@@ -51,6 +53,10 @@ func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metad
 
 func WithCreateAdmission(ctx context.Context, admit CreateAdmissionFunc) context.Context {
 	return aibcontext.WithCreateAdmission(ctx, admit)
+}
+
+func WithSocketAcquirer(ctx context.Context, acquire SocketAcquirer) context.Context {
+	return aibcontext.WithSocketAcquirer(ctx, acquire)
 }
 
 // NewAnthropicProvider constructs the Anthropic provider. At most one of

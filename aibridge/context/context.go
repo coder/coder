@@ -62,3 +62,35 @@ func CreateAdmissionFromContext(ctx context.Context) CreateAdmissionFunc {
 	admit, _ := ctx.Value(createAdmissionContextKey{}).(CreateAdmissionFunc)
 	return admit
 }
+
+type socketAcquirerContextKey struct{}
+
+// SocketLease is one Responses WebSocket's hold on the gateway's socket
+// capacity. Its context is detached from the upgrade request: it keeps the
+// request's values but ends only when the lease is released or the gateway
+// ends the socket, for example at its maximum lifetime or on shutdown.
+type SocketLease interface {
+	Context() context.Context
+	// Release frees the lease. It is idempotent.
+	Release()
+}
+
+// SocketAcquirer grants a SocketLease for a Responses WebSocket of actorID
+// to provider, or refuses it. A refusal that is an *intercept.ResponseError
+// carries the HTTP status and message the upgrade is refused with. ctx is
+// the upgrade request's context.
+type SocketAcquirer func(ctx context.Context, actorID, provider string) (SocketLease, error)
+
+// WithSocketAcquirer returns a copy of ctx carrying acquire. Only the
+// gateway sets it: a bridge serves Responses WebSockets only for requests
+// that carry one.
+func WithSocketAcquirer(ctx context.Context, acquire SocketAcquirer) context.Context {
+	return context.WithValue(ctx, socketAcquirerContextKey{}, acquire)
+}
+
+// SocketAcquirerFromContext returns the acquirer attached by
+// [WithSocketAcquirer], or nil when none was attached.
+func SocketAcquirerFromContext(ctx context.Context) SocketAcquirer {
+	acquire, _ := ctx.Value(socketAcquirerContextKey{}).(SocketAcquirer)
+	return acquire
+}

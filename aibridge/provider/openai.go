@@ -30,6 +30,11 @@ const (
 	routeResponses       = "/responses"        // https://platform.openai.com/docs/api-reference/responses
 )
 
+// OpenAIResponsesRoute is the bridged Responses API route of OpenAI
+// providers, relative to their route prefix. It also serves Responses API
+// WebSocket mode.
+const OpenAIResponsesRoute = routeResponses
+
 var openAIOpenErrorResponse = func() []byte {
 	return []byte(`{"error":{"message":"circuit breaker is open","type":"server_error","code":"service_unavailable"}}`)
 }
@@ -176,6 +181,12 @@ func (p *OpenAI) BaseURL() string {
 
 func (*OpenAI) AuthHeader() string {
 	return "Authorization"
+}
+
+// ActorHeaderNames returns the configured mapping of actor attributes to
+// upstream header names. Nil turns actor header forwarding off.
+func (p *OpenAI) ActorHeaderNames() map[string]string {
+	return p.cfg.ActorHeaderNames
 }
 
 func (p *OpenAI) KeyPool() *keypool.Pool {

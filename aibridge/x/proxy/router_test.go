@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,14 +10,17 @@ import (
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
 type keyPoolProvider struct {
@@ -162,4 +166,30 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	assert.Contains(t, rec.Body.String(), routing.ErrorCodeProviderDisabled)
+}
+
+// TestRouterOpensNoResponsesWebSocket asserts that proxy mode, which does
+// not serve Responses WebSocket mode, never takes a socket lease for an
+// upgrade, even for a user with the experiment on.
+func TestRouterOpensNoResponsesWebSocket(t *testing.T) {
+	t.Parallel()
+
+	router, err := proxy.NewRouter([]provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: "http://127.0.0.1:1"})}, slogtest.Make(t, nil))
+	require.NoError(t, err)
+
+	acquired := false
+	ctx := agplaibridge.WithResponsesWebSocketEnabled(context.Background(), true)
+	ctx = aibcontext.AsActor(ctx, "actor", "", nil)
+	ctx = aibcontext.WithSocketAcquirer(ctx, func(context.Context, string, string) (aibcontext.SocketLease, error) {
+		acquired = true
+		return nil, xerrors.New("must not acquire")
+	})
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/openai/v1/responses", nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusNotFound, resp.Code)
+	assert.False(t, acquired)
 }
