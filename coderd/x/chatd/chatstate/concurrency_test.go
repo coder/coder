@@ -218,3 +218,136 @@ func TestConcurrentUpdatesSerializeOnChatRow(t *testing.T) {
 	require.Equal(t, before.SnapshotVersion+int64(updates), after.SnapshotVersion,
 		"snapshot_version advanced by exactly one per update")
 }
+
+// TestReadSnapshotDoesNotBlockWriters verifies the guarantee that
+// replaced the FOR SHARE lock: an open ReadSnapshot neither blocks a
+// concurrent Update nor observes its commit. The Update completes while
+// the reader is still inside its callback, the reader keeps seeing the
+// state from before the commit for the rest of the snapshot, and the
+// commit is visible, and its chat:update published, for the next read.
+func TestReadSnapshotDoesNotBlockWriters(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	created := createTestChat(t, f)
+	reader := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	writer := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	readStarted := make(chan struct{})
+	writerDone := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-writerDone:
+		default:
+			close(writerDone)
+		}
+	})
+
+	// Goroutine A: open a snapshot, read the chat, then hold the
+	// snapshot open until the writer has committed and read again.
+	var first, second database.Chat
+	var readErr error
+	var readWG sync.WaitGroup
+	readWG.Go(func() {
+		readErr = reader.ReadSnapshot(func(store database.Store) error {
+			var err error
+			first, err = store.GetChatByID(ctx, created.Chat.ID)
+			if err != nil {
+				return err
+			}
+			close(readStarted)
+			if !waitForChan(ctx, writerDone) {
+				return ctx.Err()
+			}
+			second, err = store.GetChatByID(ctx, created.Chat.ID)
+			return err
+		})
+	})
+	require.True(t, waitForChan(ctx, readStarted), "ReadSnapshot callback never started")
+
+	// Goroutine B: a transition on the same chat. It must commit while
+	// A still holds its snapshot; with the former FOR SHARE lock it would
+	// have waited for A to finish.
+	publishedBefore := len(f.Pub.channels)
+	var updateErr error
+	var updateWG sync.WaitGroup
+	updateWG.Go(func() {
+		updateErr = writer.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+			return err
+		})
+	})
+	require.True(t, waitForWaitGroup(ctx, &updateWG), "Update did not finish while the snapshot was open")
+	require.NoError(t, updateErr)
+	require.Greater(t, len(f.Pub.channels), publishedBefore, "the committed transition published its hint")
+
+	close(writerDone)
+	require.True(t, waitForWaitGroup(ctx, &readWG), "ReadSnapshot did not finish")
+	require.NoError(t, readErr)
+
+	// The snapshot is one consistent state: the commit is invisible to it.
+	require.Equal(t, created.Chat.SnapshotVersion, first.SnapshotVersion)
+	require.Equal(t, first.SnapshotVersion, second.SnapshotVersion, "a commit during the snapshot must not be visible to it")
+	require.Equal(t, database.ChatStatusRunning, second.Status)
+
+	// The next read observes the commit, which is what the stream loop's
+	// hint-driven resync relies on.
+	after := f.readChat(ctx, t, created.Chat.ID)
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion)
+	require.Equal(t, database.ChatStatusWaiting, after.Status)
+}
+
+// TestReadSnapshotNotBlockedByRowLock verifies the other direction: a
+// ReadSnapshot completes while another transaction holds the chat row's
+// FOR UPDATE lock. The former FOR SHARE read would have queued behind it.
+func TestReadSnapshotNotBlockedByRowLock(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	created := createTestChat(t, f)
+	locker := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	reader := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	lockEntered := make(chan struct{})
+	releaseLock := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseLock:
+		default:
+			close(releaseLock)
+		}
+	})
+
+	// Goroutine A: hold the row lock and block.
+	var lockErr error
+	var lockWG sync.WaitGroup
+	lockWG.Go(func() {
+		lockErr = locker.Lock(ctx, func(_ database.Store) error {
+			close(lockEntered)
+			if !waitForChan(ctx, releaseLock) {
+				return ctx.Err()
+			}
+			return nil
+		})
+	})
+	require.True(t, waitForChan(ctx, lockEntered), "Lock callback never started")
+
+	// The read must complete without the lock being released.
+	var read database.Chat
+	var readErr error
+	var readWG sync.WaitGroup
+	readWG.Go(func() {
+		readErr = reader.ReadSnapshot(func(store database.Store) error {
+			var err error
+			read, err = store.GetChatByID(ctx, created.Chat.ID)
+			return err
+		})
+	})
+	require.True(t, waitForWaitGroup(ctx, &readWG), "ReadSnapshot blocked behind the row lock")
+	require.NoError(t, readErr)
+	require.Equal(t, created.Chat.ID, read.ID)
+
+	close(releaseLock)
+	require.True(t, waitForWaitGroup(ctx, &lockWG), "Lock did not finish")
+	require.NoError(t, lockErr)
+}

@@ -267,41 +267,34 @@ func (m *ChatMachine) Lock(
 	}, nil)
 }
 
-// ReadLock takes a shared lock on the chat row with FOR SHARE and runs
-// fn in a transaction without advancing snapshot_version. It uses the
-// store captured by [NewChatMachine]. Use it when the caller needs a
-// consistent chat snapshot plus related rows such as messages or queued
-// messages but is NOT applying a transition and does NOT need to block
-// concurrent readers.
+// ReadSnapshot runs fn in a read-only REPEATABLE READ transaction without
+// advancing snapshot_version. It uses the store captured by
+// [NewChatMachine]. Use it when the caller needs a consistent chat
+// snapshot plus related rows such as messages or queued messages but is
+// NOT applying a transition.
 //
-// Unlike [ChatMachine.Lock], the FOR SHARE lock permits other shared
-// lockers to proceed concurrently while still blocking writers that take
-// FOR UPDATE (such as [ChatMachine.Update] and [ChatMachine.Lock]) until
-// the transaction commits.
+// Snapshot isolation gives fn a consistent multi-statement view without
+// taking any row lock, so it never blocks (or is blocked by) the FOR
+// UPDATE writers in [ChatMachine.Update] and [ChatMachine.Lock]. A
+// transition committing mid-read is simply not visible to this snapshot;
+// callers reconcile ordering via snapshot_version, so an older snapshot
+// triggers a later refetch rather than an inconsistent read.
+//
+// ReadSnapshot does not check that the chat exists; fn's own reads report
+// a missing chat as sql.ErrNoRows.
 //
 // Callers must not pass a store here; it belongs on the machine.
 //
-// ReadLock publishes nothing. Callback errors roll back the transaction
-// and propagate to the caller.
-func (m *ChatMachine) ReadLock(
-	ctx context.Context,
-	fn func(database.Store) error,
-) error {
+// ReadSnapshot publishes nothing. Callback errors roll back the
+// transaction and propagate to the caller.
+func (m *ChatMachine) ReadSnapshot(fn func(database.Store) error) error {
 	if m.store == nil {
 		return xerrors.New("chatstate: ChatMachine has nil store")
 	}
-	return m.store.InTx(func(store database.Store) error {
-		// GetChatByIDForShare takes a shared lock on the row WITHOUT
-		// bumping snapshot.
-		_, err := store.GetChatByIDForShare(ctx, m.chatID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrChatNotFound
-			}
-			return xerrors.Errorf("read lock chat: %w", err)
-		}
-		return fn(store)
-	}, nil)
+	return m.store.InTx(fn, &database.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
 }
 
 // ownershipStaleOrMissing reports whether the chat's current
