@@ -32,7 +32,11 @@ export const ProjectMetadataBadges: React.FC<ProjectMetadataBadgesProps> = ({
 		</MetadataBadge>
 		<MetadataBadge label="Created">
 			<Tooltip>
-				<TooltipTrigger asChild>
+				{/* A button so keyboard users can focus it to read the full time. */}
+				<TooltipTrigger
+					type="button"
+					className="cursor-default rounded-sm border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+				>
 					<time dateTime={createdAt}>
 						{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
 					</time>

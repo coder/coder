@@ -2612,6 +2612,38 @@ describe("cancelChatListRefetches", () => {
 		expect(title).toBe("original");
 	});
 
+	it("cancels a project chat list refetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const projectKey = projectChatsKey("project-1");
+		queryClient.setQueryData(projectKey, {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: projectKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "stale" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]?.title,
+		).toBe("original");
+	});
+
 	it("does not cancel a fetchNextPage fetch", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

@@ -918,10 +918,11 @@ export const cancelChatListQueries = (queryClient: QueryClient) =>
  * refetch may overwrite them with stale data.
  */
 export const cancelChatListRefetches = (queryClient: QueryClient) =>
-	queryClient.cancelQueries({
-		queryKey: chatListFamilyKey,
-		predicate: isChatListRefetch,
-	});
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.cancelQueries({ queryKey, predicate: isChatListRefetch }),
+		),
+	);
 
 export const cancelChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.cancelQueries({
