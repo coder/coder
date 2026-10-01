@@ -116,6 +116,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
+- When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
@@ -459,6 +460,8 @@ No other input states are supported.
 ### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
+
+The family update locks the root chat row first, and creating a child chat takes a shared lock on the same row. A concurrent child creation therefore either commits first and is included in the family update, or waits for it and fails if the root is now archived.
 
 For `archived` updates, the supported input and output states are:
 
