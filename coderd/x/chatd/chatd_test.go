@@ -10011,18 +10011,22 @@ func setOpenAIProviderBaseURL(
 	require.Fail(t, "openai provider not found")
 }
 
-// An unowned chat has no runner, so InterruptChat finishes the
-// interruption inline. It must still clear the cached turn summary, as
-// the worker does after it finishes an interruption.
+// An unowned chat has no runner, so InterruptChat and an interrupting
+// SendMessage finish the interruption inline. They must still clear the
+// cached turn summary, as the worker does after it finishes an
+// interruption.
 func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		interrupting bool
+		send         bool
 	}{
-		{name: "Running"},
-		{name: "Interrupting", interrupting: true},
+		{name: "InterruptRunning"},
+		{name: "InterruptInterrupting", interrupting: true},
+		{name: "SendRunning", send: true},
+		{name: "SendInterrupting", interrupting: true, send: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -10066,9 +10070,21 @@ func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
 			require.False(t, chat.WorkerID.Valid)
 			seedLastTurnSummary(ctx, t, db, chat, "previous summary")
 
-			updated, err := server.InterruptChat(ctx, chat)
-			require.NoError(t, err)
-			require.Equal(t, database.ChatStatusWaiting, updated.Status)
+			if tc.send {
+				sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:       chat.ID,
+					CreatedBy:    user.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
+					BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+				})
+				require.NoError(t, err)
+				require.False(t, sent.Queued, "the message is promoted inline")
+				require.Equal(t, database.ChatStatusRunning, sent.Chat.Status)
+			} else {
+				updated, err := server.InterruptChat(ctx, chat)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusWaiting, updated.Status)
+			}
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				fromDB, err := db.GetChatByID(ctx, chat.ID)

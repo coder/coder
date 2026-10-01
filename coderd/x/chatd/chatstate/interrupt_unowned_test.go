@@ -54,12 +54,17 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 		require.NotNil(t, queued.QueuedMessage)
 		before := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
+		var result chatstate.InterruptResult
 		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
+			var err error
+			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
 		}))
 
 		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
+		require.True(t, result.FinishedInterruption)
+		require.True(t, result.PromotedQueuedAt.Equal(queued.QueuedMessage.CreatedAt),
+			"the result reports the promoted head's queue time")
 		chat := f.readChat(ctx, t, created.Chat.ID)
 		require.False(t, chat.WorkerID.Valid, "the promoted turn must still go through admission")
 		after := historyMessageIDs(ctx, t, f, created.Chat.ID)
@@ -193,6 +198,8 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 
 		require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
 		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
+		require.True(t, result.FinishedInterruption)
+		require.True(t, result.PromotedQueuedAt.IsZero())
 		require.Len(t, result.CancellationMessages, 1)
 		require.Equal(t, database.ChatMessageRoleTool, result.CancellationMessages[0].Role)
 	})
@@ -209,14 +216,19 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
 		before := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
+		var result chatstate.InterruptResult
 		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
+			var err error
+			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
 			return err
 		}))
 
 		require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid,
 			"the promoted turn must still go through admission")
+		require.True(t, result.FinishedInterruption)
+		require.True(t, result.PromotedQueuedAt.Equal(queued.QueuedMessage.CreatedAt),
+			"the result reports the promoted head's queue time")
 		require.Len(t, historyMessageIDs(ctx, t, f, created.Chat.ID), len(before)+1)
 		requireQueuedMessageDeleted(ctx, t, f, created.Chat.ID, queued.QueuedMessage.ID)
 	})
@@ -276,6 +288,7 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 
 		result := send(t, f, m, "next", chatstate.BusyBehaviorInterrupt)
 
+		require.True(t, result.FinishedInterruption)
 		require.Nil(t, result.QueuedMessage, "the message is promoted, not left queued")
 		require.NotEmpty(t, result.InsertedMessages)
 		promoted := result.InsertedMessages[len(result.InsertedMessages)-1]
@@ -318,6 +331,7 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 
 		result := send(t, f, m, "next", chatstate.BusyBehaviorQueue)
 
+		require.False(t, result.FinishedInterruption)
 		require.NotNil(t, result.QueuedMessage)
 		require.Empty(t, result.InsertedMessages)
 		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
@@ -339,6 +353,7 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 
 		result := send(t, f, m, "next", chatstate.BusyBehaviorInterrupt)
 
+		require.False(t, result.FinishedInterruption)
 		require.NotNil(t, result.QueuedMessage)
 		require.Empty(t, result.InsertedMessages)
 		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))

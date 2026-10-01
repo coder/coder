@@ -462,6 +462,9 @@ type SendMessageResult struct {
 	QueuedMessage    *database.ChatQueuedMessage
 	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
+	// FinishedInterruption reports that the call also applied
+	// FinishInterruption because no worker owns the chat.
+	FinishedInterruption bool
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -632,6 +635,7 @@ func (tx *Tx) sendMessageInterrupt(chat database.Chat, from ExecutionState, inpu
 	}
 	result.InsertedMessages = finished.InsertedMessages
 	result.PromotedQueuedAt = finished.PromotedQueuedAt
+	result.FinishedInterruption = true
 	if from == StateR0 || from == StateI0 {
 		// The queue held only this message, so it was promoted into
 		// history instead of staying queued.
@@ -1040,6 +1044,11 @@ type InterruptInput struct {
 // InterruptResult is returned by [Tx.Interrupt].
 type InterruptResult struct {
 	CancellationMessages []database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
+	// FinishedInterruption reports that the call also applied
+	// FinishInterruption because no worker owns the chat.
+	FinishedInterruption bool
 }
 
 // Interrupt requests interruption of an active or requires-action
@@ -1065,6 +1074,8 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		}
 		return InterruptResult{
 			CancellationMessages: finished.cancellations,
+			PromotedQueuedAt:     finished.PromotedQueuedAt,
+			FinishedInterruption: true,
 		}, nil
 	}
 	switch from {
@@ -1088,6 +1099,8 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		}
 		return InterruptResult{
 			CancellationMessages: finished.cancellations,
+			PromotedQueuedAt:     finished.PromotedQueuedAt,
+			FinishedInterruption: true,
 		}, nil
 	case StateA0, StateA1:
 		cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, true)
