@@ -1,5 +1,4 @@
-import { PencilIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
@@ -10,7 +9,7 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -37,10 +36,10 @@ import {
 	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
+import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
-import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
+import { ProjectPage } from "./components/ProjectPage/ProjectPage";
 import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
@@ -389,6 +388,30 @@ const AgentCreatePage: React.FC = () => {
 		}
 	};
 
+	const form = (
+		<AgentCreateForm
+			key={
+				debugPrefill
+					? debugBuildId
+					: linkPrompt
+						? `prompt:${linkPrompt}`
+						: "draft"
+			}
+			lockedOrganizationId={selectedProject?.organization_id}
+			onCreateChat={handleCreateChat}
+			isCreating={createMutation.isPending}
+			createError={createError}
+			canCreateChat={permissions.createChat}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			aiGatewayDisabled={aiGatewayDisabled}
+			workspaceCount={workspacesQuery.data?.count}
+			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspacesError={workspacesQuery.error}
+			isWorkspacesLoading={workspacesQuery.isLoading}
+			prefill={prefill}
+		/>
+	);
+
 	return (
 		<>
 			<AgentPageHeader
@@ -421,92 +444,12 @@ const AgentCreatePage: React.FC = () => {
 				<Loader label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
+			) : selectedProject ? (
+				<ProjectPage project={selectedProject}>{form}</ProjectPage>
 			) : (
-				<AgentCreateForm
-					key={
-						debugPrefill
-							? debugBuildId
-							: linkPrompt
-								? `prompt:${linkPrompt}`
-								: "draft"
-					}
-					lockedOrganizationId={selectedProject?.organization_id}
-					header={
-						selectedProject && (
-							<ProjectComposerHeader project={selectedProject} />
-						)
-					}
-					footer={
-						selectedProject && (
-							<ProjectComposerFooter
-								key={selectedProject.id}
-								project={selectedProject}
-							/>
-						)
-					}
-					onCreateChat={handleCreateChat}
-					isCreating={createMutation.isPending}
-					createError={createError}
-					canCreateChat={permissions.createChat}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					aiGatewayDisabled={aiGatewayDisabled}
-					workspaceCount={workspacesQuery.data?.count}
-					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-					workspacesError={workspacesQuery.error}
-					isWorkspacesLoading={workspacesQuery.isLoading}
-					prefill={prefill}
-				/>
+				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>
 			)}
 		</>
-	);
-};
-
-type ProjectComposerFooterProps = {
-	readonly project: TypesGen.ChatProject;
-};
-
-const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
-	project,
-}) => {
-	const queryClient = useQueryClient();
-	const [isEditing, setIsEditing] = useState(false);
-	const editButtonRef = useRef<HTMLButtonElement>(null);
-	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => {
-		setIsEditing(false);
-		requestAnimationFrame(() => editButtonRef.current?.focus());
-	};
-
-	return (
-		<div className="flex justify-center pt-2">
-			<Button
-				ref={editButtonRef}
-				variant="subtle"
-				size="sm"
-				onClick={() => {
-					updateProjectMutation.reset();
-					setIsEditing(true);
-				}}
-			>
-				<PencilIcon />
-				Edit project
-			</Button>
-			<ChatProjectDialog
-				project={project}
-				open={isEditing}
-				onOpenChange={(open) => {
-					if (!open) closeDialog();
-				}}
-				isSubmitting={updateProjectMutation.isPending}
-				error={updateProjectMutation.error}
-				onSubmit={(request) => {
-					updateProjectMutation.mutate(
-						{ project, request },
-						{ onSuccess: closeDialog },
-					);
-				}}
-			/>
-		</div>
 	);
 };
 

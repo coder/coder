@@ -246,8 +246,6 @@ type AgentCreateFormProps = {
 	 * attachments) resolves against it.
 	 */
 	lockedOrganizationId?: string;
-	header?: React.ReactNode;
-	footer?: React.ReactNode;
 	prefill?: AgentCreatePrefill;
 };
 
@@ -263,8 +261,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	workspacesError,
 	isWorkspacesLoading,
 	lockedOrganizationId,
-	header,
-	footer,
 	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
@@ -813,172 +809,166 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
-					{header}
-					{isForbidden ? (
-						<ChatAccessDeniedAlert
-							description={
-								isLockedOrgUnavailable
-									? "You don't have permission to create chats in this project's organization."
-									: undefined
-							}
-						/>
-					) : createError ? (
-						isApiError(createError) &&
-						createError.response.status === 502 &&
-						isChatHookDispatchFailedResponse(createError.response.data) ? (
-							<Alert severity="error">
-								<AlertTitle>
-									{getErrorTitle("hook_dispatch_failed", "error")}
-								</AlertTitle>
-								<AlertDescription>
-									<span>{createError.response.data.message}</span>
-									{createError.response.data.detail && (
-										<span className="mt-1 block text-content-secondary">
-											{createError.response.data.detail}
-										</span>
-									)}
-								</AlertDescription>
-							</Alert>
-						) : isApiError(createError) &&
-							createError.response.status === 403 &&
-							isChatHookDeniedResponse(createError.response.data) ? (
-							<Alert severity="info">
-								<AlertDescription>
-									{createError.response.data.message}
-								</AlertDescription>
-							</Alert>
-						) : (
-							<ErrorAlert error={createError} />
-						)
-					) : null}
-					{workspacesError != null && <ErrorAlert error={workspacesError} />}
-					{mcpServersQuery.data === undefined &&
-						mcpServersQuery.error != null && (
-							<ErrorAlert error={mcpServersQuery.error} />
-						)}
-					{permittedOrgsQuery.error != null && (
-						<ErrorAlert error={permittedOrgsQuery.error} />
-					)}
-					{modelsQuery.error != null && (
-						<ErrorAlert error={modelsQuery.error} />
-					)}
-					{personalModelOverridesQuery.error != null && (
-						<ErrorAlert error={personalModelOverridesQuery.error} />
-					)}
-					{showOrganizations &&
-						canPersistSelection &&
-						permittedOrgs.length > 1 && (
-							<CompactOrgSelector
-								value={effectiveOrg}
-								options={permittedOrgs}
-								disabled={isSubmitPending}
-								onChange={(newOrg) => {
-									const orgChanged = newOrg.id !== effectiveOrg?.id;
-									// Queued workspace files are dropped alongside DB
-									// attachments when the org changes (the workspace
-									// deselect effect clears them), so they get the
-									// same confirmation.
-									if (
-										orgChanged &&
-										(attachments.length > 0 || workspaceUploadCount > 0)
-									) {
-										setPendingOrgChange(newOrg);
-										return;
-									}
-									if (orgChanged) {
-										handleWorkspaceChange(null);
-										selectOrganization(newOrg);
-										return;
-									}
-									setSelectedOrg(newOrg);
-								}}
-							/>
-						)}
-					<AgentChatInput
-						onSend={handleSendWithAttachments}
-						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						isDisabled={
-							isSubmitPending ||
-							isForbidden ||
-							!orgSelectionSettled ||
-							// Sending before adoption would omit persisted files not yet restored.
-							!organizationAdopted ||
-							workspaceValidationPending ||
-							isPersonalModelOverridesUnresolved ||
-							isMCPSelectionUnresolved ||
-							!hasModelOptions ||
-							Boolean(aiGatewayDisabled)
-						}
-						isReadOnly={isForbidden}
-						isLoading={isSubmitPending}
-						initialValue={initialInputValue}
-						initialEditorState={initialEditorState}
-						onContentChange={(content, serializedEditorState, hasRefs) => {
-							if (content !== prefill?.message) {
-								setIsPrefillEdited(true);
-							}
-							handleContentChange(content, serializedEditorState, hasRefs);
-						}}
-						warning={isPrefillEdited ? undefined : prefill?.warning}
-						selectedModel={selectedModel}
-						onModelChange={handleModelChange}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						reasoningEffort={effectiveReasoningEffort}
-						onReasoningEffortChange={handleReasoningEffortChange}
-						isModelCatalogLoading={isModelDataPending}
-						hasModelOptions={hasModelOptions}
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={setPlanModeEnabled}
-						attachments={attachments}
-						// Files attached before org adoption cannot upload and would be discarded
-						// when restoration completes.
-						onAttach={organizationAdopted ? handleAttachWhenIdle : undefined}
-						onRemoveAttachment={handleRemoveAttachment}
-						uploadStates={uploadStates}
-						previewUrls={previewUrls}
-						textContents={textContents}
-						workspaceUploads={{
-							uploads: workspaceUploadEntries,
-							onAttach: canUploadWorkspaceFiles
-								? workspaceUploads.attach
-								: undefined,
-							onRemove: workspaceUploads.remove,
-							unavailableMessage: workspaceUploadUnavailableMessage,
-							deferred: true,
-						}}
-						mcpServers={mcpServers}
-						chatOrganizationId={organizationId}
-						selectedMCPServerIds={effectiveMCPServerIds}
-						onMCPSelectionChange={(ids) => {
-							setUserMCPServerIds(ids);
-							saveMCPSelection(organizationId, ids);
-						}}
-						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-						workspaceOptions={filteredWorkspaces}
-						selectedWorkspaceId={effectiveWorkspaceId}
-						// Do not persist a workspace until its organization is authorized.
-						onWorkspaceChange={
-							orgSelectionSettled && !isOrgAccessDenied && !isSubmitPending
-								? handleWorkspaceChange
+			<div className="flex w-full flex-col gap-2">
+				{isForbidden ? (
+					<ChatAccessDeniedAlert
+						description={
+							isLockedOrgUnavailable
+								? "You don't have permission to create chats in this project's organization."
 								: undefined
 						}
-						isWorkspaceLoading={isWorkspacesLoading}
-						canConfigureAgentSetup={canConfigureAgentSetup}
-						providerCount={providerCount}
-						modelCount={modelCount}
-						unsupportedProviderNames={unsupportedProviderNames}
-						aiGatewayDisabled={aiGatewayDisabled}
 					/>
-					{modelSelectorHelp ? (
-						<div className="px-3 pt-1 text-2xs text-content-secondary">
-							{modelSelectorHelp}
-						</div>
-					) : null}
-					{footer}
-				</div>
+				) : createError ? (
+					isApiError(createError) &&
+					createError.response.status === 502 &&
+					isChatHookDispatchFailedResponse(createError.response.data) ? (
+						<Alert severity="error">
+							<AlertTitle>
+								{getErrorTitle("hook_dispatch_failed", "error")}
+							</AlertTitle>
+							<AlertDescription>
+								<span>{createError.response.data.message}</span>
+								{createError.response.data.detail && (
+									<span className="mt-1 block text-content-secondary">
+										{createError.response.data.detail}
+									</span>
+								)}
+							</AlertDescription>
+						</Alert>
+					) : isApiError(createError) &&
+						createError.response.status === 403 &&
+						isChatHookDeniedResponse(createError.response.data) ? (
+						<Alert severity="info">
+							<AlertDescription>
+								{createError.response.data.message}
+							</AlertDescription>
+						</Alert>
+					) : (
+						<ErrorAlert error={createError} />
+					)
+				) : null}
+				{workspacesError != null && <ErrorAlert error={workspacesError} />}
+				{mcpServersQuery.data === undefined &&
+					mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
+				{permittedOrgsQuery.error != null && (
+					<ErrorAlert error={permittedOrgsQuery.error} />
+				)}
+				{modelsQuery.error != null && <ErrorAlert error={modelsQuery.error} />}
+				{personalModelOverridesQuery.error != null && (
+					<ErrorAlert error={personalModelOverridesQuery.error} />
+				)}
+				{showOrganizations &&
+					canPersistSelection &&
+					permittedOrgs.length > 1 && (
+						<CompactOrgSelector
+							value={effectiveOrg}
+							options={permittedOrgs}
+							disabled={isSubmitPending}
+							onChange={(newOrg) => {
+								const orgChanged = newOrg.id !== effectiveOrg?.id;
+								// Queued workspace files are dropped alongside DB
+								// attachments when the org changes (the workspace
+								// deselect effect clears them), so they get the
+								// same confirmation.
+								if (
+									orgChanged &&
+									(attachments.length > 0 || workspaceUploadCount > 0)
+								) {
+									setPendingOrgChange(newOrg);
+									return;
+								}
+								if (orgChanged) {
+									handleWorkspaceChange(null);
+									selectOrganization(newOrg);
+									return;
+								}
+								setSelectedOrg(newOrg);
+							}}
+						/>
+					)}
+				<AgentChatInput
+					onSend={handleSendWithAttachments}
+					placeholder="Ask Coder to build, fix bugs, or explore your project..."
+					isDisabled={
+						isSubmitPending ||
+						isForbidden ||
+						!orgSelectionSettled ||
+						// Sending before adoption would omit persisted files not yet restored.
+						!organizationAdopted ||
+						workspaceValidationPending ||
+						isPersonalModelOverridesUnresolved ||
+						isMCPSelectionUnresolved ||
+						!hasModelOptions ||
+						Boolean(aiGatewayDisabled)
+					}
+					isReadOnly={isForbidden}
+					isLoading={isSubmitPending}
+					initialValue={initialInputValue}
+					initialEditorState={initialEditorState}
+					onContentChange={(content, serializedEditorState, hasRefs) => {
+						if (content !== prefill?.message) {
+							setIsPrefillEdited(true);
+						}
+						handleContentChange(content, serializedEditorState, hasRefs);
+					}}
+					warning={isPrefillEdited ? undefined : prefill?.warning}
+					selectedModel={selectedModel}
+					onModelChange={handleModelChange}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder={modelSelectorPlaceholder}
+					reasoningEffort={effectiveReasoningEffort}
+					onReasoningEffortChange={handleReasoningEffortChange}
+					isModelCatalogLoading={isModelDataPending}
+					hasModelOptions={hasModelOptions}
+					planModeEnabled={planModeEnabled}
+					onPlanModeToggle={setPlanModeEnabled}
+					attachments={attachments}
+					// Files attached before org adoption cannot upload and would be discarded
+					// when restoration completes.
+					onAttach={organizationAdopted ? handleAttachWhenIdle : undefined}
+					onRemoveAttachment={handleRemoveAttachment}
+					uploadStates={uploadStates}
+					previewUrls={previewUrls}
+					textContents={textContents}
+					workspaceUploads={{
+						uploads: workspaceUploadEntries,
+						onAttach: canUploadWorkspaceFiles
+							? workspaceUploads.attach
+							: undefined,
+						onRemove: workspaceUploads.remove,
+						unavailableMessage: workspaceUploadUnavailableMessage,
+						deferred: true,
+					}}
+					mcpServers={mcpServers}
+					chatOrganizationId={organizationId}
+					selectedMCPServerIds={effectiveMCPServerIds}
+					onMCPSelectionChange={(ids) => {
+						setUserMCPServerIds(ids);
+						saveMCPSelection(organizationId, ids);
+					}}
+					onMCPAuthComplete={() => void mcpServersQuery.refetch()}
+					workspaceOptions={filteredWorkspaces}
+					selectedWorkspaceId={effectiveWorkspaceId}
+					// Do not persist a workspace until its organization is authorized.
+					onWorkspaceChange={
+						orgSelectionSettled && !isOrgAccessDenied && !isSubmitPending
+							? handleWorkspaceChange
+							: undefined
+					}
+					isWorkspaceLoading={isWorkspacesLoading}
+					canConfigureAgentSetup={canConfigureAgentSetup}
+					providerCount={providerCount}
+					modelCount={modelCount}
+					unsupportedProviderNames={unsupportedProviderNames}
+					aiGatewayDisabled={aiGatewayDisabled}
+				/>
+				{modelSelectorHelp ? (
+					<div className="px-3 pt-1 text-2xs text-content-secondary">
+						{modelSelectorHelp}
+					</div>
+				) : null}
 			</div>
 			<ConfirmDialog
 				open={pendingOrgChange !== null}

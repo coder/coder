@@ -97,6 +97,7 @@ import {
 	pinChat,
 	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
+	projectChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
@@ -551,6 +552,10 @@ describe("invalidateChatListQueries", () => {
 				pageParams: [0],
 			},
 		);
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
 		// Per-chat queries that should NOT be touched.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
@@ -567,6 +572,10 @@ describe("invalidateChatListQueries", () => {
 				chatListKey(toChatListParams({ archived: true })),
 			)?.isInvalidated,
 			"archived chat list should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+			"project chat list should be invalidated",
 		).toBe(true);
 
 		// Per-chat queries should NOT be invalidated.
@@ -2545,6 +2554,26 @@ describe("sidebar title race condition", () => {
 
 		await fetchDone;
 		expect(readTitle(queryClient, chatId)).toBe("generated title");
+	});
+});
+
+describe("updateInfiniteChatsCache", () => {
+	it("updates project chat lists alongside the sidebar lists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((c) => (c.id === chatId ? { ...c, title: "renamed" } : c)),
+		);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0]?.[0]?.title,
+		).toBe("renamed");
 	});
 });
 

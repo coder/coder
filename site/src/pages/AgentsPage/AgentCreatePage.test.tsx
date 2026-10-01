@@ -21,6 +21,7 @@ import {
 } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type * as embeddedMetadata from "#/hooks/useEmbeddedMetadata";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
@@ -41,6 +42,7 @@ import {
 	MockEntitlements,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 	mockApiError,
@@ -88,15 +90,12 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		onCreateChat,
 		isCreating,
 		lockedOrganizationId,
-		header,
-		footer,
 		prefill,
 	}: MockAgentCreateFormProps) => {
 		mountedLockedOrganizationIds.push(lockedOrganizationId);
 		return (
 			<div>
 				<span data-testid="prefill-message">{prefill?.message}</span>
-				{header}
 				<button
 					type="button"
 					disabled={isCreating}
@@ -110,7 +109,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 				>
 					Create chat
 				</button>
-				{footer}
 			</div>
 		);
 	};
@@ -196,18 +194,20 @@ const Wrapper: React.FC<WrapperProps> = ({
 					canViewOrganizationSettings: false,
 				}}
 			>
-				<MemoryRouter
-					initialEntries={initialEntries ?? [initialEntry]}
-					initialIndex={initialIndex}
-				>
-					<Routes>
-						<Route path="/agents" element={children} />
-						<Route path="/agents/projects/:projectId" element={children} />
-						<Route path="/agents/:agentId" element={<div />} />
-					</Routes>
-					<LocationDisplay />
-					<NavigationBack />
-				</MemoryRouter>
+				<TooltipProvider>
+					<MemoryRouter
+						initialEntries={initialEntries ?? [initialEntry]}
+						initialIndex={initialIndex}
+					>
+						<Routes>
+							<Route path="/agents" element={children} />
+							<Route path="/agents/projects/:projectId" element={children} />
+							<Route path="/agents/:agentId" element={<div />} />
+						</Routes>
+						<LocationDisplay />
+						<NavigationBack />
+					</MemoryRouter>
+				</TooltipProvider>
 			</DashboardContext.Provider>
 		</QueryClientProvider>
 	);
@@ -261,6 +261,16 @@ const renderPage = (route = deepLink) =>
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
 
+const openProjectAction = async (
+	user: ReturnType<typeof userEvent.setup>,
+	action: "Edit project" | "Delete project",
+) => {
+	await user.click(
+		await screen.findByRole("button", { name: "Project actions" }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: action }));
+};
+
 const findEnabledSendButton = async () => {
 	const sendButton = await screen.findByRole("button", { name: "Send" });
 	await waitFor(() => expect(sendButton).toBeEnabled());
@@ -273,6 +283,11 @@ beforeAll(() => {
 		configurable: true,
 		value: () => new DOMRect(0, 0, 1, 16),
 	});
+});
+
+// Project pages list the project's chats below the composer.
+beforeEach(() => {
+	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -527,13 +542,9 @@ describe("AgentCreatePage project frame", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		act(() => navigateBack?.());
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -546,7 +557,7 @@ describe("AgentCreatePage project frame", () => {
 		});
 	});
 
-	it("edits the project from the composer", async () => {
+	it("edits the project from the actions menu", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		server.use(
@@ -568,9 +579,7 @@ describe("AgentCreatePage project frame", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		const dialog = await screen.findByRole("dialog", {
 			name: "Edit project",
 		});
@@ -582,6 +591,87 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
+	});
+
+	it("deletes the project and returns to the new chat page", async () => {
+		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
+		let deletedProjectId: string | undefined;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId`,
+				({ params }) => {
+					deletedProjectId = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await openProjectAction(user, "Delete project");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete project",
+		});
+		await user.type(
+			within(dialog).getByRole("textbox", {
+				name: "Name of the project to delete",
+			}),
+			MockChatProject.name,
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toHaveTextContent(/^\/agents$/);
+		});
+		expect(deletedProjectId).toBe(MockChatProject.id);
+		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
+	});
+
+	it("looks up the owner of a project owned by someone else", async () => {
+		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([
+					{ ...MockChatProject, owner_id: MockUserMember.id },
+				]),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await waitFor(() => {
+			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
+		});
+	});
+
+	it("does not look up the owner of the user's own project", async () => {
+		const getUser = vi.spyOn(API, "getUser");
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await screen.findByRole("button", { name: "Project actions" });
+		expect(getUser).not.toHaveBeenCalled();
 	});
 });
 

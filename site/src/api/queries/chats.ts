@@ -26,6 +26,16 @@ export const chatListFamilyKey = [...chatCollectionsKey, "list"] as const;
 
 const chatSearchFamilyKey = [...chatCollectionsKey, "search"] as const;
 
+/**
+ * Chat lists scoped to one project. Kept outside chatListFamilyKey because
+ * the sidebar cache helpers assume every key in that family is a sidebar list
+ * built by chatListKey.
+ */
+export const chatProjectListFamilyKey = [
+	...chatCollectionsKey,
+	"project-list",
+] as const;
+
 const chatsByWorkspaceFamilyKey = [
 	...chatCollectionsKey,
 	"by-workspace",
@@ -177,16 +187,15 @@ export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
-	queryClient.setQueriesData<InfiniteChatsCacheData>(
-		{ queryKey: chatListFamilyKey },
-		(prev) => {
+	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
+		queryClient.setQueriesData<InfiniteChatsCacheData>({ queryKey }, (prev) => {
 			if (!prev?.pages) return prev;
 			const nextPages = prev.pages.map((page) => updater(page));
 			// Only return a new reference if something actually changed.
 			const changed = nextPages.some((page, i) => page !== prev.pages[i]);
 			return changed ? { ...prev, pages: nextPages } : prev;
-		},
-	);
+		});
+	}
 };
 
 /**
@@ -809,9 +818,10 @@ export const invalidateChatEntity = (
 	});
 
 export const invalidateChatListQueries = (queryClient: QueryClient) =>
-	queryClient.invalidateQueries({
-		queryKey: chatListFamilyKey,
-	});
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
+		queryClient.invalidateQueries({ queryKey: chatProjectListFamilyKey }),
+	]);
 
 // Event kinds that can change which chat is newest for a workspace.
 const BY_WORKSPACE_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>(
@@ -1229,6 +1239,36 @@ export const infiniteChats = (input?: ChatListInput) => {
 			),
 		refetchOnWindowFocus: true,
 		retry: 3,
+	});
+};
+
+export const projectChatsKey = (projectId: string) =>
+	[...chatProjectListFamilyKey, projectId] as const;
+
+/** Unarchived chats in one project, newest first. */
+export const projectChats = (projectId: string) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return infiniteQueryOptions({
+		queryKey: projectChatsKey(projectId),
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q: "archived:false",
+					project_id: projectId,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
 	});
 };
 
