@@ -32,6 +32,7 @@ CREATE VIEW chats_expanded AS
     c.last_read_message_id,
     c.dynamic_tools,
     c.organization_id,
+    c.project_id,
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
