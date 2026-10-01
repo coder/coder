@@ -291,7 +291,7 @@ Sub-agent chats can't be targets.
 Messages to an existing chat use that chat's own model and tools.
 
 A new chat target starts a chat for every run with the model you pick.
-You can also set a reasoning effort, which is available only for new chat targets.
+You can also set a reasoning effort.
 Each new chat is titled with the automation name and the run time.
 Schedules use the schedule's time zone, and webhooks use UTC.
 New chats get only the MCP servers with the `force_on` [availability policy](./platform-controls/mcp-servers.md#availability-policies) that the owner can access.
@@ -368,7 +368,6 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 | Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                        |
 | Webhook body                  | 256&nbsp;KiB of valid JSON.                                                                                                    |
 | Name                          | 1 to 128 characters.                                                                                                           |
-| Prompt                        | Required.                                                                                                                      |
 
 Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the server options.
 
