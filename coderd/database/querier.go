@@ -554,6 +554,11 @@ type sqlcQuerier interface {
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Returns the queue in promotion order (position ASC, id ASC), the same
+	// order chatstate uses to pick the head. Clients read the queue through
+	// this query, so it must not order by created_at: promoting a message
+	// changes only its position, and concurrent senders can commit with
+	// created_at and position in opposite orders.
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the queued messages an automation delivered before its queue
 	// generation reached cutoff, across all chats.
