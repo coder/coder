@@ -353,7 +353,7 @@ A page's H1 and its sidebar title serve different jobs and may diverge.
   Refer to [Declare audience and scope up front](./audience-and-scope.md#declare-audience-and-scope-up-front) for how the H1 names the outcome.
 - The **sidebar title** is a navigation label.
   It fits the limited horizontal space of the sidebar and reads fast when the reader is scanning a tree of dozens of pages.
-  The Coder docs site reads the sidebar title from the `title` field in [`docs/manifest.json`](../../manifest.json).
+  The Coder docs site reads the sidebar title from the `title` field of the page's route in the sidebar sources under [`docs/manifest/`](../../manifest/index.yml).
 
 The two must each stand alone, but they don't need to be identical.
 Breadcrumb depth already supplies one layer of context.
@@ -396,15 +396,13 @@ No Vale rule.*
 ## Page descriptions
 
 Each page declares a description that appears in search engine results, in social-media previews, and in screen-reader page summaries.
-The Coder docs site reads descriptions from [`docs/manifest.json`](../../manifest.json), not from YAML front matter inside the Markdown file.
-The manifest maps each page to a `title` and a `description`:
+The Coder docs site reads descriptions from `docs/manifest.json`, not from YAML front matter inside the Markdown file.
+That file is compiled from the sidebar sources under [`docs/manifest/`](../../manifest/index.yml), where each route maps a page to a `title` and a `description`:
 
-```json
-{
-  "title": "Configure your workspace",
-  "description": "Configure SSH access, environment variables, and autostart for a Coder workspace.",
-  "path": "./admin/workspaces/configure.md"
-}
+```yaml
+- title: Configure your workspace
+  description: Configure SSH access, environment variables, and autostart for a Coder workspace.
+  path: ./admin/workspaces/configure.md
 ```
 
 A good description:
@@ -416,24 +414,24 @@ A good description:
 
 **Do**:
 
-```json
-"description": "Configure SSH access, environment variables, and autostart for a Coder workspace."
+```yaml
+description: Configure SSH access, environment variables, and autostart for a Coder workspace.
 ```
 
 **Don't**:
 
-```json
-"description": "Workspace configuration"
+```yaml
+description: Workspace configuration
 ```
 
-```json
-"description": "The best, fastest, most reliable way to configure everything you need to know about Coder workspaces."
+```yaml
+description: The best, fastest, most reliable way to configure everything you need to know about Coder workspaces.
 ```
 
 The short description tells the reader nothing.
 The marketing description doesn't survive truncation and adds no information.
 
-If a page doesn't yet have a description in the manifest, add one in the same PR that touches the page.
+If a page doesn't yet have a description in the sidebar sources, add one in the same PR that touches the page.
 
 *Documentation-only.
 No Vale rule.*

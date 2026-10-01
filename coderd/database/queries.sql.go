@@ -2203,7 +2203,7 @@ WITH paginated_threads AS (
 	ORDER BY
 		aibridge_interceptions.started_at ASC,
 		aibridge_interceptions.id ASC
-	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
+	LIMIT NULLIF($4::integer, 0)
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
@@ -2238,7 +2238,8 @@ type ListAIBridgeSessionThreadsRow struct {
 }
 
 // Returns all interceptions belonging to paginated threads within a session.
-// Threads are paginated by (started_at, thread_id) cursor.
+// Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+// returns every thread in the session.
 func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreads,
 		arg.SessionID,
@@ -7528,15 +7529,13 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- NOTE: updated_at is intentionally NOT touched here so
-        -- the worker can read it as "when was this row last
-        -- externally changed" (by MarkStale or a successful
-        -- refresh).
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
-        chat_id IN (
+        (chat_id, git_remote_origin, git_branch) IN (
             SELECT
-                cds.chat_id
+                cds.chat_id,
+                cds.git_remote_origin,
+                cds.git_branch
             FROM
                 chat_diff_statuses cds
             INNER JOIN
@@ -7993,22 +7992,27 @@ const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
 UPDATE
     chat_diff_statuses
 SET
-    -- NOTE: updated_at is intentionally NOT touched here so
-    -- the worker can read it as "when was this row last
-    -- externally changed" (by MarkStale or a successful
-    -- refresh).
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
+    AND git_remote_origin = $3::text
+    AND git_branch = $4::text
 `
 
 type BackoffChatDiffStatusParams struct {
-	StaleAt time.Time `db:"stale_at" json:"stale_at"`
-	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
 func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error {
-	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus, arg.StaleAt, arg.ChatID)
+	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
 	return err
 }
 
@@ -8076,15 +8080,24 @@ SET
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
+    AND git_remote_origin = $3::text
+    AND git_branch = $4::text
 `
 
 type ClearChatDiffStatusPRParams struct {
-	StaleAt time.Time `db:"stale_at" json:"stale_at"`
-	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
 func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error {
-	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR, arg.StaleAt, arg.ChatID)
+	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
 	return err
 }
 
@@ -8855,46 +8868,6 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
-const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
-SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
-FROM
-    chat_diff_statuses
-WHERE
-    chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
-	row := q.db.QueryRowContext(ctx, getChatDiffStatusByChatID, chatID)
-	var i ChatDiffStatus
-	err := row.Scan(
-		&i.ChatID,
-		&i.Url,
-		&i.PullRequestState,
-		&i.ChangesRequested,
-		&i.Additions,
-		&i.Deletions,
-		&i.ChangedFiles,
-		&i.RefreshedAt,
-		&i.StaleAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.GitBranch,
-		&i.GitRemoteOrigin,
-		&i.PullRequestTitle,
-		&i.PullRequestDraft,
-		&i.AuthorLogin,
-		&i.AuthorAvatarUrl,
-		&i.BaseBranch,
-		&i.PrNumber,
-		&i.Commits,
-		&i.Approved,
-		&i.ReviewerCount,
-		&i.HeadBranch,
-	)
-	return i, err
-}
-
 const getChatDiffStatusSummary = `-- name: GetChatDiffStatusSummary :one
 WITH deduped AS (
     SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
@@ -8902,7 +8875,7 @@ WITH deduped AS (
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
     WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.refreshed_at DESC NULLS LAST, cds.updated_at DESC, c.id DESC
 )
 SELECT
     COUNT(*)::bigint AS total,
@@ -8937,6 +8910,66 @@ func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffS
 	return i, err
 }
 
+const getChatDiffStatusesByChatID = `-- name: GetChatDiffStatusesByChatID :many
+SELECT
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+FROM
+    chat_diff_statuses
+WHERE
+    chat_id = $1::uuid
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch
+`
+
+func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDiffStatus
+	for rows.Next() {
+		var i ChatDiffStatus
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Url,
+			&i.PullRequestState,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
+			&i.PullRequestTitle,
+			&i.PullRequestDraft,
+			&i.AuthorLogin,
+			&i.AuthorAvatarUrl,
+			&i.BaseBranch,
+			&i.PrNumber,
+			&i.Commits,
+			&i.Approved,
+			&i.ReviewerCount,
+			&i.HeadBranch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
@@ -8944,6 +8977,10 @@ FROM
     chat_diff_statuses
 WHERE
     chat_id = ANY($1::uuid[])
+ORDER BY
+    updated_at DESC,
+    git_remote_origin,
+    git_branch
 `
 
 func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
@@ -10621,7 +10658,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 }
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
-SELECT
+SELECT DISTINCT ON (c.id)
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
@@ -10630,6 +10667,7 @@ SELECT
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > $1
+ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -12748,6 +12786,37 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
+const updateChatDiffStatusReferenceURL = `-- name: UpdateChatDiffStatusReferenceURL :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = $1::text,
+    stale_at = $2::timestamptz
+WHERE
+    chat_id = $3::uuid
+    AND git_remote_origin = $4::text
+    AND git_branch = $5::text
+`
+
+type UpdateChatDiffStatusReferenceURLParams struct {
+	Url             string    `db:"url" json:"url"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
+}
+
+func (q *sqlQuerier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatDiffStatusReferenceURL,
+		arg.Url,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
+	return err
+}
+
 const updateChatExecutionState = `-- name: UpdateChatExecutionState :one
 WITH updated_chat AS (
     UPDATE chats
@@ -12761,7 +12830,10 @@ WITH updated_chat AS (
         compaction_requested_at = $7::timestamptz,
         history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
         generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
+        retry_state = CASE
+            WHEN $8::boolean OR $1::chat_status <> 'running'::chat_status THEN NULL
+            ELSE retry_state
+        END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = $9::uuid
@@ -12845,6 +12917,10 @@ type UpdateChatExecutionStateParams struct {
 // grant_history_epoch gives a turn that inserts no history the same
 // fresh retry budget and message part episode keys a history change
 // would grant, mirroring the chat_messages trigger postcondition.
+//
+// retry_state is a pending retry of a running turn, so it is cleared
+// whenever the chat leaves running. Otherwise an interrupted or failed
+// chat would keep announcing a retry that will never happen.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,
@@ -14182,6 +14258,8 @@ const upsertChatDiffStatus = `-- name: UpsertChatDiffStatus :one
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
+    git_branch,
+    git_remote_origin,
     pull_request_state,
     pull_request_title,
     pull_request_draft,
@@ -14204,23 +14282,25 @@ INSERT INTO chat_diff_statuses (
     $2::text,
     $3::text,
     $4::text,
-    $5::boolean,
-    $6::boolean,
-    $7::integer,
-    $8::integer,
+    $5::text,
+    $6::text,
+    $7::boolean,
+    $8::boolean,
     $9::integer,
-    $10::text,
-    $11::text,
+    $10::integer,
+    $11::integer,
     $12::text,
     $13::text,
-    $14::integer,
-    $15::integer,
-    $16::boolean,
+    $14::text,
+    $15::text,
+    $16::integer,
     $17::integer,
-    $18::timestamptz,
-    $19::timestamptz
+    $18::boolean,
+    $19::integer,
+    $20::timestamptz,
+    $21::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = EXCLUDED.url,
     pull_request_state = EXCLUDED.pull_request_state,
@@ -14239,8 +14319,7 @@ SET
     approved = EXCLUDED.approved,
     reviewer_count = EXCLUDED.reviewer_count,
     refreshed_at = EXCLUDED.refreshed_at,
-    stale_at = EXCLUDED.stale_at,
-    updated_at = NOW()
+    stale_at = EXCLUDED.stale_at
 RETURNING
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
@@ -14248,6 +14327,8 @@ RETURNING
 type UpsertChatDiffStatusParams struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
 	Url              sql.NullString `db:"url" json:"url"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
@@ -14271,6 +14352,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatus,
 		arg.ChatID,
 		arg.Url,
+		arg.GitBranch,
+		arg.GitRemoteOrigin,
 		arg.PullRequestState,
 		arg.PullRequestTitle,
 		arg.PullRequestDraft,
@@ -14332,19 +14415,11 @@ INSERT INTO chat_diff_statuses (
     $4::text,
     $5::timestamptz
 )
-ON CONFLICT (chat_id) DO UPDATE
+ON CONFLICT (chat_id, git_remote_origin, git_branch) DO UPDATE
 SET
     url = CASE
         WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url
         ELSE chat_diff_statuses.url
-    END,
-    git_branch = CASE
-        WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch
-        ELSE chat_diff_statuses.git_branch
-    END,
-    git_remote_origin = CASE
-        WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin
-        ELSE chat_diff_statuses.git_remote_origin
     END,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()

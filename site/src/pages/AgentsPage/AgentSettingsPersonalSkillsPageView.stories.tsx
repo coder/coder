@@ -1,37 +1,56 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { UserSkillMetadata } from "#/api/typesGenerated";
+import { MockSkill } from "#/testHelpers/skills";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type AgentSettingsPersonalSkillsPageViewProps,
 } from "./AgentSettingsPersonalSkillsPageView";
 
-const buildSkill = (
-	overrides: Partial<UserSkillMetadata> & Pick<UserSkillMetadata, "name">,
-): UserSkillMetadata => ({
-	id: overrides.id ?? `skill-${overrides.name}`,
-	name: overrides.name,
-	description: overrides.description ?? "Reusable guidance for agents.",
-	created_at: overrides.created_at ?? "2026-05-01T12:00:00.000Z",
-	updated_at: overrides.updated_at ?? "2026-05-03T15:30:00.000Z",
-});
+const MockReviewSQLSkill = {
+	...MockSkill,
+	id: "skill-review-sql",
+	name: "review-sql",
+	description: "Review SQL changes for query and index risks.",
+	created_at: "2026-05-01T12:00:00.000Z",
+	updated_at: "2026-05-03T15:30:00.000Z",
+};
 
-const skills = [
-	buildSkill({
-		name: "review-sql",
-		description: "Review SQL changes for query and index risks.",
-	}),
-	buildSkill({
-		name: "write-release-notes",
-		description: "Draft concise release notes from a change list.",
-		updated_at: "2026-05-04T09:15:00.000Z",
-	}),
-];
+const MockReleaseNotesSkill = {
+	...MockSkill,
+	id: "skill-write-release-notes",
+	name: "write-release-notes",
+	description: "Draft concise release notes from a change list.",
+	created_at: "2026-05-01T12:00:00.000Z",
+	updated_at: "2026-05-04T09:15:00.000Z",
+};
 
-const firstSkill = skills[0] ?? buildSkill({ name: "review-sql" });
+const MockTestAuditSkill = {
+	...MockSkill,
+	id: "skill-test-audit",
+	name: "test-audit",
+	description:
+		"Invoke whenever writing, changing, reviewing, or sweeping tests in coder/coder. Authoring gate for new tests plus audit workflow for low-value, implementation-coupled, duplicative, or test-only-production-seam-driven tests.",
+};
+
+const MockFrontendReviewSkill = {
+	...MockSkill,
+	id: "skill-frontend-accessibility-and-regression-review",
+	name: "frontend-accessibility-and-regression-review",
+	description:
+		"Review frontend changes for accessibility, loading and error states, reusable components, and regression coverage before opening a pull request.",
+};
+
+const MockDebugHTTPSkill = {
+	...MockSkill,
+	id: "skill-debug-http",
+	name: "debug-http",
+	description: "",
+};
+
+const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
-	skills,
+	skills: MockPersonalSkills,
 	error: undefined,
 	isLoading: false,
 	isRetrying: false,
@@ -53,6 +72,22 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsPersonalSkillsPageView>;
 
 export const Populated: Story = {};
+
+export const LongDescription: Story = {
+	args: {
+		skills: [
+			MockTestAuditSkill,
+			...MockPersonalSkills,
+			MockFrontendReviewSkill,
+			MockDebugHTTPSkill,
+		],
+	},
+};
+
+export const LongDescriptionNarrow: Story = {
+	...LongDescription,
+	globals: { viewport: { value: "ipad" } },
+};
 
 export const DownloadingSkill: Story = {
 	args: {
@@ -142,6 +177,11 @@ export const Loading: Story = {
 	},
 };
 
+export const LoadingNarrow: Story = {
+	...Loading,
+	globals: { viewport: { value: "ipad" } },
+};
+
 export const Empty: Story = {
 	args: {
 		skills: [],
@@ -166,7 +206,7 @@ export const CreateDialogOpen: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),
@@ -217,7 +257,7 @@ export const EditDialogOpen: Story = {
 				description: "Review SQL changes for query and index risks.",
 				body: "Check query plans, missing indexes, and transaction boundaries.",
 			},
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isLoading: false,
 			isRetrying: false,
 			isSubmitting: false,
@@ -232,7 +272,7 @@ export const EditDialogLoading: Story = {
 	args: {
 		editorState: {
 			mode: "edit",
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isLoading: true,
 			isRetrying: false,
 			isSubmitting: false,
@@ -247,7 +287,7 @@ export const EditDialogLoadError: Story = {
 	args: {
 		editorState: {
 			mode: "edit",
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			loadError: new Error("Failed to load personal skill."),
 			isLoading: false,
 			isRetrying: true,
@@ -264,7 +304,7 @@ export const ImportSkillMarkdownPopulatesCreateFields: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),
@@ -292,7 +332,7 @@ export const ImportSkillMarkdownShowsParseError: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),
@@ -321,7 +361,7 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 				description: "Review SQL changes for query and index risks.",
 				body: "Check query plans, missing indexes, and transaction boundaries.",
 			},
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isLoading: false,
 			isRetrying: false,
 			isSubmitting: false,
@@ -352,7 +392,7 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 export const DeleteConfirmationOpen: Story = {
 	args: {
 		deleteState: {
-			skill: firstSkill,
+			skill: MockReviewSQLSkill,
 			isDeleting: false,
 			onConfirm: fn(),
 			onClose: fn(),
@@ -378,7 +418,7 @@ export const CreateDialogSubmitError: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			submitError: {
 				message: "Failed to create personal skill.",
 				detail: "Skill content is invalid.",
@@ -399,7 +439,7 @@ export const EditDialogSubmitError: Story = {
 				description: "Review SQL changes for query and index risks.",
 				body: "Check query plans, missing indexes, and transaction boundaries.",
 			},
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isLoading: false,
 			isRetrying: false,
 			submitError: {
@@ -417,7 +457,7 @@ export const EditDialogSubmitError: Story = {
 export const DeleteConfirmationError: Story = {
 	args: {
 		deleteState: {
-			skill: firstSkill,
+			skill: MockReviewSQLSkill,
 			error: {
 				message: "Failed to delete personal skill.",
 				detail: "That personal skill was not found.",
@@ -434,7 +474,7 @@ export const InvalidNameIsRejected: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),
@@ -461,7 +501,7 @@ export const DuplicateNameIsRejected: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),
@@ -488,7 +528,7 @@ export const SubmitsCreateDialog: Story = {
 		editorState: {
 			mode: "create",
 			initialValues: { name: "", description: "", body: "" },
-			existingNames: skills.map((skill) => skill.name),
+			existingNames: MockPersonalSkills.map((skill) => skill.name),
 			isSubmitting: false,
 			onSubmit: fn(),
 			onClose: fn(),

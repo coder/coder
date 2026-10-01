@@ -65,6 +65,9 @@ type CreateChatResult struct {
 // Validation:
 //   - InitialMessages must be non-empty.
 //   - InitialStatus must be `waiting`, `running`, or empty (`running`).
+//   - When RootChatID is set, the root chat must exist and must not be
+//     archived; otherwise CreateChat returns [ErrChatNotFound] or
+//     [ErrChatFamilyArchived].
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -125,6 +128,25 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.RootChatID.Valid {
+			// Lock the family root before inserting the child so this
+			// transaction serializes with SetFamilyArchived, which also
+			// locks the root first and then writes the members. FOR
+			// SHARE conflicts with that FOR UPDATE lock and with the
+			// row lock of any plain UPDATE on the root, so the archived
+			// flag read here holds until commit. Concurrent child
+			// creations under the same root still run in parallel.
+			root, err := store.GetChatByIDForShare(ctx, input.RootChatID.UUID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatNotFound
+				}
+				return xerrors.Errorf("lock root chat: %w", err)
+			}
+			if root.Archived {
+				return ErrChatFamilyArchived
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
@@ -436,6 +458,8 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -567,6 +591,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	return SendMessageResult{
 		InsertedMessages: inserted,
 		QueuedMessage:    &queued,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -898,6 +923,8 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
+	// PromotedQueuedAt is zero when the row only moved to the queue head.
+	PromotedQueuedAt time.Time
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
@@ -986,6 +1013,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
 
@@ -1397,6 +1425,8 @@ type FinishInterruptionInput struct {
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
 	PromotedMessage  *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
@@ -1472,6 +1502,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
 		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -1482,6 +1513,8 @@ type FinishTurnInput struct{}
 type FinishTurnResult struct {
 	Chat            database.Chat
 	PromotedMessage *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishTurn completes a running turn.
@@ -1540,8 +1573,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		promoted = &inserted[len(inserted)-1]
 	}
 	return FinishTurnResult{
-		Chat:            updated,
-		PromotedMessage: promoted,
+		Chat:             updated,
+		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 

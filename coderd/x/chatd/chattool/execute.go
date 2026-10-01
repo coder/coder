@@ -80,7 +80,7 @@ type ExecuteResult struct {
 	Success             bool                            `json:"success"`
 	Output              string                          `json:"output,omitempty"`
 	ExitCode            int                             `json:"exit_code"`
-	WallDurationMs      int64                           `json:"wall_duration_ms"`
+	WallDurationMs      int64                           `json:"wall_duration_ms,omitempty"`
 	Error               string                          `json:"error,omitempty"`
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
@@ -88,6 +88,7 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
+	Canceled            bool                            `json:"canceled,omitempty"` // an interrupt canceled the command while it ran
 }
 
 // ExecuteOptions configures the execute tool.
@@ -246,6 +247,7 @@ func executeForeground(
 		WorkDir:    workDir,
 		Env:        env,
 		Background: false,
+		TimeoutMs:  timeout.Milliseconds(),
 	})
 	if err != nil {
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
@@ -292,7 +294,8 @@ func waitForProcess(
 	// Block until the process exits or the context is
 	// canceled.
 	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait: true,
+		Wait:                    true,
+		TimeoutFromStartProcess: true,
 	})
 	if err != nil {
 		origErr := err
@@ -325,17 +328,7 @@ func waitForProcess(
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			return exitedResult(resp)
 		}
 
 		// Process still running, return partial output.
@@ -357,9 +350,10 @@ func waitForProcess(
 	// The server-side wait may return before the
 	// process exits if maxWaitDuration is shorter than
 	// the client's timeout. Retry if our context still
-	// has time left.
+	// has time left and the execute timeout, counted from
+	// the first start, has not passed.
 	if resp.Running {
-		if ctx.Err() == nil {
+		if ctx.Err() == nil && !resp.TimedOut {
 			// Still within the caller's timeout, retry.
 			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
 		}
@@ -374,14 +368,17 @@ func waitForProcess(
 		}
 	}
 
+	return exitedResult(resp)
+}
+
+func exitedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
 	exitCode := 0
 	if resp.ExitCode != nil {
 		exitCode = *resp.ExitCode
 	}
-	output := truncateOutput(resp.Output)
 	return ExecuteResult{
 		Success:   exitCode == 0,
-		Output:    output,
+		Output:    truncateOutput(resp.Output),
 		ExitCode:  exitCode,
 		Truncated: resp.Truncated,
 	}

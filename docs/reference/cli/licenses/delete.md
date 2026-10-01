@@ -16,5 +16,16 @@ Aliases:
 ## Usage
 
 ```console
-coder licenses delete <id>
+coder licenses delete [flags] <id>
 ```
+
+## Options
+
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.

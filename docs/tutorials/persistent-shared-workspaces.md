@@ -159,6 +159,8 @@ Verify current sharing status at any time:
 coder sharing status oncall-sre/oncall-workspace
 ```
 
+For every subcommand and flag, see the [`coder sharing` reference](../reference/cli/sharing/index.md).
+
 ## 6. Automate access changes (optional)
 
 For use cases with frequent rotation (such as on-call shifts), you can integrate
