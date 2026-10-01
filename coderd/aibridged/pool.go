@@ -20,9 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -57,7 +55,8 @@ type PoolOptions struct {
 	Clock    quartz.Clock
 
 	// StructuredLogging makes each bridge emit AI Gateway interception
-	// records in the format described by [recorder.InterceptionLogMarker].
+	// records in the format described by
+	// [github.com/coder/coder/v2/aibridge/recorder.InterceptionLogMarker].
 	StructuredLogging bool
 	// DisableContentRecording stops prompts, tool call arguments and model
 	// thoughts from being recorded. Interceptions and token usage are still
@@ -85,27 +84,6 @@ func PoolOptionsFromConfig(ctx context.Context, logger slog.Logger, cfg codersdk
 	}
 
 	return options
-}
-
-// newRecorder applies the same record policy in interception and proxy modes.
-func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, options PoolOptions, clientFn ClientFunc) recorder.Recorder {
-	var middleware []recorder.Middleware
-	if options.DisableContentRecording {
-		middleware = append(middleware, recorder.WithoutRecords(recorder.DisabledRecords{
-			PromptUsage:  true,
-			ToolUsage:    true,
-			ModelThought: true,
-		}))
-	}
-	return aibridge.NewRecorder(
-		logger.Named("recorder"), tracer, apiKeyID, options.StructuredLogging,
-		recorder.NewDRPCRecorder(apiKeyID, func(ctx context.Context) (proto.DRPCRecorderClient, error) {
-			// Acquire the client against each record's context, not the context
-			// used to construct the handler, which the recorder can outlive.
-			return clientFn(ctx)
-		}),
-		middleware...,
-	)
 }
 
 var _ Pooler = &CachedBridgePool{}
@@ -280,7 +258,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	rec := newRecorder(p.logger, p.tracer, req.APIKeyID, p.options, clientFn)
+	rec := newRecorder(p.logger, p.tracer, req.APIKeyID, p.options.StructuredLogging, p.options.DisableContentRecording, clientFn)
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.

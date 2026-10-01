@@ -19,54 +19,93 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestNewRecorder(t *testing.T) {
 	t.Parallel()
-	for _, options := range []PoolOptions{
-		{},
-		{StructuredLogging: true},
-		{DisableContentRecording: true},
-		{StructuredLogging: true, DisableContentRecording: true},
+	drpcErr := xerrors.New("DRPC recording was attempted")
+	for _, tc := range []struct {
+		structuredLogging       bool
+		disableContentRecording bool
+		wantClientCalls         int
+		wantLogs                int
+		wantContentErr          error // nil means no content recording is expected
+	}{
+		{
+			wantClientCalls: 6,
+			wantContentErr:  drpcErr,
+		},
+		{
+			structuredLogging: true,
+			wantClientCalls:   6,
+			wantLogs:          6,
+			wantContentErr:    drpcErr,
+		},
+		{
+			disableContentRecording: true,
+			wantClientCalls:         3,
+		},
+		{
+			structuredLogging:       true,
+			disableContentRecording: true,
+			wantClientCalls:         3,
+			wantLogs:                6,
+		},
 	} {
-		t.Run(fmt.Sprintf("Structured=%t/DisableContent=%t", options.StructuredLogging, options.DisableContentRecording), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Structured=%t/DisableContent=%t", tc.structuredLogging, tc.disableContentRecording), func(t *testing.T) {
 			t.Parallel()
-			apiKeyID, id := uuid.NewString(), uuid.NewString()
+			apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
 			now := time.Now().UTC()
-			clientErr := xerrors.New("client unavailable")
-			contentErr, contentCalls := clientErr, 1
-			if options.DisableContentRecording {
-				contentErr, contentCalls = nil, 0
-			}
 			type contextKey struct{}
 			sink := testutil.NewFakeSink(t)
 			clientCalls := 0
-			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, options, func(ctx context.Context) (DRPCClient, error) {
+			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, tc.structuredLogging, tc.disableContentRecording, func(ctx context.Context) (DRPCClient, error) {
 				clientCalls++
 				require.Equal(t, "record context", ctx.Value(contextKey{}))
-				return nil, clientErr
+				return nil, drpcErr
 			})
 			require.Zero(t, clientCalls, "creating a recorder must not acquire a client")
 			ctx := context.WithValue(t.Context(), contextKey{}, "record context")
-			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: id, StartedAt: now}), clientErr)
-			require.ErrorIs(t, rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: id, EndedAt: now}), clientErr)
-			require.ErrorIs(t, rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{InterceptionID: id, CreatedAt: now, Input: 1}), clientErr)
-			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{InterceptionID: id, CreatedAt: now, Prompt: "prompt"}), contentErr)
-			require.ErrorIs(t, rec.RecordToolUsage(ctx, &recorder.ToolUsageRecord{InterceptionID: id, CreatedAt: now, Tool: "tool"}), contentErr)
-			require.ErrorIs(t, rec.RecordModelThought(ctx, &recorder.ModelThoughtRecord{InterceptionID: id, CreatedAt: now, Content: "thought"}), contentErr)
-			require.Equal(t, 3+3*contentCalls, clientCalls, "each forwarded record acquires its own client")
+			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: interceptionID, StartedAt: now}), drpcErr)
+			require.ErrorIs(t, rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: interceptionID, EndedAt: now}), drpcErr)
+			require.ErrorIs(t, rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Input: 1}), drpcErr)
+			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Prompt: "prompt"}), tc.wantContentErr)
+			require.ErrorIs(t, rec.RecordToolUsage(ctx, &recorder.ToolUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Tool: "tool"}), tc.wantContentErr)
+			require.ErrorIs(t, rec.RecordModelThought(ctx, &recorder.ModelThoughtRecord{InterceptionID: interceptionID, CreatedAt: now, Content: "thought"}), tc.wantContentErr)
+			require.Equal(t, tc.wantClientCalls, clientCalls, "each forwarded record acquires its own client")
 			logs := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == recorder.InterceptionLogMarker })
-			if options.StructuredLogging {
-				require.Len(t, logs, 6, "logging must precede content filtering")
-			} else {
-				require.Empty(t, logs)
-			}
+			require.Len(t, logs, tc.wantLogs, "logging must precede content filtering")
 			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{}), recorder.ErrInvalidRecord, "validation must precede content filtering")
-			require.Equal(t, 3+3*contentCalls, clientCalls)
+			require.Equal(t, tc.wantClientCalls, clientCalls)
 		})
 	}
+	t.Run("APIKeyID", func(t *testing.T) {
+		t.Parallel()
+		apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
+		client := &interceptionRecordingClient{}
+		rec := newRecorder(testutil.NewFakeSink(t).Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, false, false, func(context.Context) (DRPCClient, error) {
+			return client, nil
+		})
+		require.NoError(t, rec.RecordInterception(t.Context(), &recorder.InterceptionRecord{ID: interceptionID, StartedAt: time.Now().UTC()}))
+		require.Len(t, client.requests, 1)
+		require.Equal(t, apiKeyID, client.requests[0].GetApiKeyId())
+		require.Equal(t, interceptionID, client.requests[0].GetId())
+	})
+}
+
+// interceptionRecordingClient captures interception records. Its nil embedded
+// client makes any other call fail loudly.
+type interceptionRecordingClient struct {
+	DRPCClient
+	requests []*proto.RecordInterceptionRequest
+}
+
+func (c *interceptionRecordingClient) RecordInterception(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+	c.requests = append(c.requests, in)
+	return &proto.RecordInterceptionResponse{}, nil
 }
 
 // blockingHandler returns a handler that signals started, then blocks until
