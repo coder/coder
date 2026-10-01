@@ -364,8 +364,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		Logger: options.Logger,
 	})
 
-	// Agent HTTP API requests use a separate per-request HTTP client that does
-	// not go through the CLI's baggage transport, so attach the session ID to the
+	// Agent HTTP API requests use the conn's own transport, which does not go
+	// through the CLI's baggage transport, so attach the session ID to the
 	// conn's extra headers to propagate it to the agent's tracing middleware.
 	if value, ok := clientSessionIDBaggage(options.ClientSessionID); ok {
 		header := http.Header{}
