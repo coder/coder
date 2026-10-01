@@ -16,6 +16,7 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
+	MockBuildInfo,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
@@ -70,8 +71,8 @@ const setup = ({
 			HttpResponse.json(automations),
 		),
 	);
-	const { queryClient } = renderWithAuth(<AgentAutomationsPage />);
-	return { requests, queryClient };
+	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />);
+	return { requests, queryClient, router };
 };
 
 const requestPaths = (requests: readonly Request[]) =>
@@ -268,7 +269,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	const previewBodies: unknown[] = [];
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
-	const { requests, queryClient } = setup(options);
+	const { requests, queryClient, router } = setup(options);
 	// Every published mutation state, as a cache subscriber like devtools sees it.
 	const mutationStates: string[] = [];
 	queryClient.getMutationCache().subscribe(({ mutation }) => {
@@ -315,6 +316,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	return {
 		requests,
 		queryClient,
+		router,
 		mutationStates,
 		previewBodies,
 		createBodies,
@@ -616,35 +618,46 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("keeps the editor open while a save is pending", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		let releaseSave = () => {};
-		server.use(
-			http.post(automationsPath(":organizationId"), async () => {
-				await new Promise<void>((resolve) => {
-					releaseSave = resolve;
-				});
-				return HttpResponse.json(
-					{ automation: mockAutomation },
-					{ status: 201 },
-				);
-			}),
-		);
-		const dialog = await openCreateDialog(user);
-		await pickChat(user, dialog, mockTargetChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+	it.each([
+		{ trigger: "Schedule", warnsOnLeave: false },
+		{ trigger: "Webhook", warnsOnLeave: true },
+	])(
+		"keeps the editor open while a $trigger save is pending",
+		async ({ trigger, warnsOnLeave }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let releaseSave = () => {};
+			server.use(
+				http.post(automationsPath(":organizationId"), async () => {
+					await new Promise<void>((resolve) => {
+						releaseSave = resolve;
+					});
+					return HttpResponse.json(
+						{ automation: mockAutomation },
+						{ status: 201 },
+					);
+				}),
+			);
+			const dialog = await openCreateDialog(user);
+			await user.click(within(dialog).getByRole("radio", { name: trigger }));
+			await pickChat(user, dialog, mockTargetChat.title);
+			await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-		await waitFor(() => {
-			expect(
-				within(dialog).getByRole("button", { name: "Cancel" }),
-			).toBeDisabled();
-		});
-		expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
-		await user.keyboard("{Escape}");
-		expect(screen.getByRole("dialog")).toBe(dialog);
-		releaseSave();
-	});
+			await waitFor(() => {
+				expect(
+					within(dialog).getByRole("button", { name: "Cancel" }),
+				).toBeDisabled();
+			});
+			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+			await user.keyboard("{Escape}");
+			expect(screen.getByRole("dialog")).toBe(dialog);
+			// Only a webhook create carries a one-time secret worth guarding.
+			const unload = new Event("beforeunload", { cancelable: true });
+			window.dispatchEvent(unload);
+			expect(unload.defaultPrevented).toBe(warnsOnLeave);
+			releaseSave();
+		},
+	);
 
 	it("keeps the reasoning effort when the same model is picked again", async () => {
 		const user = userEvent.setup();
@@ -895,6 +908,13 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		).toHaveFocus();
+		// The endpoint and the curl example use the configured dashboard URL.
+		expect(
+			within(secretDialog).getAllByText(
+				`${new URL(MockBuildInfo.dashboard_url).origin}/api/experimental/chat-automations/`,
+				{ exact: false },
+			),
+		).toHaveLength(2);
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
@@ -963,7 +983,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 	it("rotates the secret only after confirmation and shows it once", async () => {
 		const user = userEvent.setup();
-		const { queryClient, mutationStates } = setupEditor();
+		const { queryClient, router, mutationStates } = setupEditor();
 		const rotateRequests: Request[] = [];
 		let releaseRotate = () => {};
 		server.use(
@@ -1000,6 +1020,18 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		).toBeNull();
 		// The editor stays open mid-rotation so focus can return to the button.
 		await user.keyboard("{Escape}");
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(true);
+		void router.navigate("/agents");
+		const leaveDialog = await screen.findByRole("dialog", {
+			name: "Leave before the secret arrives?",
+		});
+		await user.click(within(leaveDialog).getByRole("button", { name: "Stay" }));
+		await waitFor(() => {
+			expect(rotatingButton).toHaveFocus();
+		});
+		expect(router.state.location.pathname).toBe("/");
 		releaseRotate();
 
 		const secretDialog = await screen.findByRole("dialog", {
@@ -1013,29 +1045,43 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("shows the server message when rotating the secret is forbidden", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		let rotatePosts = 0;
-		server.use(
-			http.get(automationsPath(":organizationId"), () =>
-				HttpResponse.json([mockWebhookAutomation]),
-			),
-			http.post(rotatePath, () => {
-				rotatePosts++;
-				return HttpResponse.json(
-					{ message: "Only the owner of a chat automation can change it." },
-					{ status: 403 },
-				);
-			}),
-		);
-		const dialog = await openWebhookEditor(user);
+	it.each([
+		{
+			status: 403,
+			message: "Only the owner of a chat automation can change it.",
+			detail: "",
+		},
+		{
+			status: 409,
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
+		},
+	])(
+		"shows the server message when rotating the secret fails with $status",
+		async ({ status, message, detail }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let rotatePosts = 0;
+			server.use(
+				http.get(automationsPath(":organizationId"), () =>
+					HttpResponse.json([mockWebhookAutomation]),
+				),
+				http.post(rotatePath, () => {
+					rotatePosts++;
+					return HttpResponse.json({ message, detail }, { status });
+				}),
+			);
+			const dialog = await openWebhookEditor(user);
 
-		await confirmRotate(user, dialog, "Rotate secret");
+			await confirmRotate(user, dialog, "Rotate secret");
 
-		expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-			"Only the owner of a chat automation can change it.",
-		);
-		expect(rotatePosts).toBe(1);
-	});
+			expect((await within(dialog).findByRole("alert")).textContent).toBe(
+				message + detail,
+			);
+			expect(rotatePosts).toBe(1);
+			expect(
+				screen.queryByRole("dialog", { name: "Copy the webhook secret" }),
+			).toBeNull();
+		},
+	);
 });

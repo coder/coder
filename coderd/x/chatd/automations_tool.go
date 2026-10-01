@@ -297,7 +297,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		return p.manageAutomationsRun(ctx, ownerCtx, chat, row)
 	case "disable":
 		disabled := false
-		updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled})
+		updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled}, nil)
 		if err != nil {
 			return nil, p.manageAutomationsError(ctx, action, err)
 		}
@@ -358,7 +358,7 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	}
 	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}.
 		with(req.TargetChatID, req.NewChatModelConfigID)
-	if err := p.manageAutomationsContained(ownerCtx, chat, target); err != nil {
+	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, target); err != nil {
 		return nil, err
 	}
 
@@ -425,17 +425,18 @@ func (a manageAutomationsArgs) updateRequest() (codersdk.UpdateChatAutomationReq
 // manageAutomationsUpdate applies req to row. The stored row and the row
 // as it would be after the update must both be contained, so the tool can
 // neither change an automation that already reaches beyond this chat nor
-// widen one.
+// widen one. The service checks both again on the locked row, so a
+// concurrent change by the owner cannot slip past the checks here.
 func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat database.Chat, trigger automationTurnTrigger, action string, row database.ChatAutomation, req codersdk.UpdateChatAutomationRequest) (map[string]any, error) {
 	before := automationTargetOf(row)
-	if err := p.manageAutomationsContained(ownerCtx, chat, before); err != nil {
+	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, before); err != nil {
 		return nil, err
 	}
 	after := before.with(req.TargetChatID, req.NewChatModelConfigID)
-	if err := p.manageAutomationsContained(ownerCtx, chat, after); err != nil {
+	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, after); err != nil {
 		return nil, err
 	}
-	updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req)
+	updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
 	if err != nil {
 		return nil, p.manageAutomationsError(ctx, action, err)
 	}
@@ -444,13 +445,14 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 }
 
 // manageAutomationsRun publishes the prompt of a contained schedule
-// automation now. Like the run endpoint, it audits only a chat it
+// automation now. Admission checks containment again on the locked row
+// whose input it accepts. Like the run endpoint, it audits only a chat it
 // creates, and that entry also names the calling chat.
 func (p *Server) manageAutomationsRun(ctx, ownerCtx context.Context, chat database.Chat, row database.ChatAutomation) (map[string]any, error) {
-	if err := p.manageAutomationsContained(ownerCtx, chat, automationTargetOf(row)); err != nil {
+	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, automationTargetOf(row)); err != nil {
 		return nil, err
 	}
-	result, err := p.RunAutomation(ownerCtx, chat.OwnerID, row.ID)
+	result, err := p.RunAutomation(ownerCtx, chat.OwnerID, row.ID, p.manageAutomationsGuard(ownerCtx, chat))
 	if err != nil {
 		return nil, p.manageAutomationsError(ctx, "run", err)
 	}
@@ -483,12 +485,33 @@ func (t automationTarget) with(chatID, modelConfigID *uuid.UUID) automationTarge
 	return t
 }
 
+// manageAutomationsContainmentError marks a containment refusal that a
+// service guard returned, so the tool reports it unchanged.
+type manageAutomationsContainmentError struct {
+	err error
+}
+
+func (e *manageAutomationsContainmentError) Error() string { return e.err.Error() }
+
+func (e *manageAutomationsContainmentError) Unwrap() error { return e.err }
+
+// manageAutomationsGuard returns the service guard that requires the
+// locked automation row to be contained.
+func (p *Server) manageAutomationsGuard(ownerCtx context.Context, chat database.Chat) AutomationGuard {
+	return func(store database.Store, row database.ChatAutomation) error {
+		if err := p.manageAutomationsContained(ownerCtx, store, chat, automationTargetOf(row)); err != nil {
+			return &manageAutomationsContainmentError{err: err}
+		}
+		return nil
+	}
+}
+
 // manageAutomationsContained reports whether the tool may send runs to
 // target: an existing_chat target must be the calling chat, and a new_chat
 // target must not get more tools than the calling chat has. Only the model
 // config's provider tools can differ, so the config must be the calling
-// chat's or have no provider tools.
-func (p *Server) manageAutomationsContained(ownerCtx context.Context, chat database.Chat, target automationTarget) error {
+// chat's or have no provider tools. The model config is read through store.
+func (*Server) manageAutomationsContained(ownerCtx context.Context, store database.Store, chat database.Chat, target automationTarget) error {
 	switch target.mode {
 	case database.ChatAutomationTargetModeExistingChat:
 		if !target.chatID.Valid || target.chatID.UUID != chat.ID {
@@ -502,7 +525,7 @@ func (p *Server) manageAutomationsContained(ownerCtx context.Context, chat datab
 		if target.modelConfigID.UUID == chat.LastModelConfigID {
 			return nil
 		}
-		config, err := p.db.GetChatModelConfigByID(ownerCtx, target.modelConfigID.UUID)
+		config, err := store.GetChatModelConfigByID(ownerCtx, target.modelConfigID.UUID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
 				return automationFieldError("new_chat_model_config_id", "model config not found")
@@ -556,9 +579,12 @@ func (p *Server) manageAutomationsView(row database.ChatAutomation) codersdk.Cha
 // manageAutomationsError maps service errors to tool errors that reveal
 // no more than the management API does. verb names the failed operation.
 func (p *Server) manageAutomationsError(ctx context.Context, verb string, err error) error {
+	var containmentErr *manageAutomationsContainmentError
 	var validationErr *AutomationValidationError
 	var denied *chathooks.UserPromptDeniedError
 	switch {
+	case errors.As(err, &containmentErr):
+		return containmentErr.err
 	case errors.Is(err, ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
 		return errManageAutomationsNotFound
 	case errors.Is(err, ErrAutomationOwnerOnly):

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
 import type {
 	ChatAutomation,
@@ -75,7 +75,10 @@ export const AutomationWebhookFields: React.FC<
 	const isSingleUse = automation.webhook_use === "single";
 	// A used single-use webhook rejects every event, so a new secret is useless.
 	const isUsedUp = isSingleUse && Boolean(automation.webhook_consumed_at);
-	const rotateErrorDetail = getErrorDetail(rotateSecretError);
+	// getErrorDetail would add a developer-console hint the server never sent.
+	const rotateErrorDetail = isApiError(rotateSecretError)
+		? rotateSecretError.response.data.detail
+		: undefined;
 	return (
 		<>
 			<p className="m-0 text-sm font-medium text-content-primary">
