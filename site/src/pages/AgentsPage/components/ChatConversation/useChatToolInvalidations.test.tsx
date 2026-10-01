@@ -16,6 +16,7 @@ import {
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { createChatStore } from "./chatStore";
 import type { StreamState } from "./types";
 import { useChatToolInvalidations } from "./useChatToolInvalidations";
@@ -396,9 +397,7 @@ describe("useChatToolInvalidations", () => {
 
 		await act(async () => {
 			store.upsertDurableMessage({
-				id: 1,
-				chat_id: "chat-1",
-				created_at: "2026-10-01T00:00:00Z",
+				...MockChatMessage,
 				role: "assistant",
 				content: [
 					{
