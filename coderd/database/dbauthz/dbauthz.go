@@ -3146,6 +3146,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetAutoArchiveInactiveChatCandidateByID(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidateByIDParams) (database.GetAutoArchiveInactiveChatCandidateByIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.GetAutoArchiveInactiveChatCandidateByIDRow{}, err
+	}
+	return q.db.GetAutoArchiveInactiveChatCandidateByID(ctx, arg)
+}
+
 func (q *querier) GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidatesParams) ([]database.GetAutoArchiveInactiveChatCandidatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err

@@ -429,6 +429,13 @@ type sqlcQuerier interface {
 	// (implied member roles, org default roles, groups);
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	// Rechecks one root chat against the GetAutoArchiveInactiveChatCandidates
+	// filters. Auto-archive calls it inside the archive transaction after the
+	// family rows are locked, so activity that landed after the unlocked
+	// candidate read is observed. Returns no rows when the chat no longer
+	// qualifies. Keep the filters in sync with
+	// GetAutoArchiveInactiveChatCandidates.
+	GetAutoArchiveInactiveChatCandidateByID(ctx context.Context, arg GetAutoArchiveInactiveChatCandidateByIDParams) (GetAutoArchiveInactiveChatCandidateByIDRow, error)
 	// Returns read-only root chat candidates for state-machine-backed
 	// auto-archive. Activity is computed across the root family. The query
 	// limits roots, not total family members.

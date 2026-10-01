@@ -1424,6 +1424,14 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAutoArchiveInactiveChatCandidateByID(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidateByIDParams) (database.GetAutoArchiveInactiveChatCandidateByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutoArchiveInactiveChatCandidateByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAutoArchiveInactiveChatCandidateByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutoArchiveInactiveChatCandidateByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidatesParams) ([]database.GetAutoArchiveInactiveChatCandidatesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAutoArchiveInactiveChatCandidates(ctx, arg)

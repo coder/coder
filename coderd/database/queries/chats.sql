@@ -2591,6 +2591,37 @@ WHERE
 ORDER BY chats_expanded.created_at ASC
 LIMIT @limit_count::int;
 
+-- name: GetAutoArchiveInactiveChatCandidateByID :one
+-- Rechecks one root chat against the GetAutoArchiveInactiveChatCandidates
+-- filters. Auto-archive calls it inside the archive transaction after the
+-- family rows are locked, so activity that landed after the unlocked
+-- candidate read is observed. Returns no rows when the chat no longer
+-- qualifies. Keep the filters in sync with
+-- GetAutoArchiveInactiveChatCandidates.
+SELECT
+    chats_expanded.*,
+    COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
+FROM chats_expanded
+LEFT JOIN LATERAL (
+    SELECT MAX(chat_messages.created_at) AS last_activity_at
+    FROM chat_messages
+    JOIN chats family_chat ON family_chat.id = chat_messages.chat_id
+    WHERE (family_chat.id = chats_expanded.id OR family_chat.root_chat_id = chats_expanded.id)
+      AND chat_messages.deleted = false
+) activity ON TRUE
+WHERE
+    chats_expanded.id = @id::uuid
+    AND chats_expanded.archived = false
+    AND chats_expanded.pin_order = 0
+    AND chats_expanded.parent_chat_id IS NULL
+    AND chats_expanded.created_at < @archive_cutoff::timestamptz
+    AND chats_expanded.status NOT IN (
+        'running'::chat_status,
+        'interrupting'::chat_status,
+        'requires_action'::chat_status
+    )
+    AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
+
 
 -- name: LockChatAndBumpSnapshotVersion :one
 -- Locks the chat row with FOR UPDATE and atomically increments its
