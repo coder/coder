@@ -733,7 +733,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		for _, injectedUser := range []string{
 			"me/keys/tokens?", "me/keys/tokens#", "me/keys/tokens/../tokens?",
-			"me%2fkeys%2ftokens%3f", "../users/me/keys/tokens?",
+			"me%2fkeys%2ftokens%3f", "../users/me/keys/tokens?", ".", "..",
 		} {
 			result, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
 				Name: toolsdk.ToolNameCreateWorkspace,
