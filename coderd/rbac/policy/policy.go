@@ -30,6 +30,8 @@ const (
 	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
+
+	ActionReadSecret Action = "read_secret"
 )
 
 type PermissionDefinition struct {
@@ -405,6 +407,16 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update user secret metadata and value",
 			ActionDelete: "delete a user secret",
 		},
+	},
+	"workspace_secret": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate:     "set a workspace secret on a workspace build",
+			ActionRead:       "read workspace secret metadata, never the value",
+			ActionUpdate:     "clear or re-encrypt workspace secret values",
+			ActionReadSecret: "read decrypted workspace secret values, granted only to system actors",
+		},
+		Comment: `
+	// Workspace secrets are write-only for users. No built-in user role is granted read_secret.`,
 	},
 	"user_skill": {
 		Actions: map[Action]ActionDefinition{
