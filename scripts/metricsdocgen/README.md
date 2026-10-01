@@ -39,8 +39,8 @@ make scripts/metricsdocgen/generated_metrics
 Configure these options in `scanner/scanner.go`:
 
 - **Scan scope (`scanDirs`):** Directories searched recursively for metric definitions. Add a directory when definitions live outside the existing scan scope. Test files are excluded.
-- **Prefixes (`metricPrefixes`):** Directory mappings for prefixes added by registerer wrappers, which the scanner does not trace. Add a mapping when a directory's metrics share such a prefix, without duplicating names already declared in `Name`, `Namespace`, or `Subsystem`. Mappings include subdirectories, with the most specific path taking priority. Update them when prefixes change or definitions move, and use canonical prefixes rather than deprecated aliases.
-- **Exceptions (`skipPaths`):** Files excluded from scanning. Maintain their metrics in the static file when the scanner cannot extract them correctly, including cases that cannot use a directory-wide prefix mapping.
+- **Prefix scope (`prefixScanDirs`):** Directories searched for registerer wrapping. The scanner resolves name prefixes from `prometheus.WrapRegistererWithPrefix` and `prometheusmetrics.NewMetricAliasRegisterer`, so prefixes do not need to be listed by hand. Add a directory when a registerer is wrapped outside the existing scope.
+- **Exclusions (`excludeDirs`):** Subtrees excluded from scanning, for metrics a deployment never exposes. Document a metric in the static file instead when the scanner cannot extract it correctly.
 
 ## Updating Metrics Documentation
 

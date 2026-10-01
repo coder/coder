@@ -36,10 +36,15 @@ var scanDirs = []string{
 }
 
 // excludeDirs are subtrees whose metrics are not part of a deployment's
-// published surface. The scaletest harness registers metrics from a fake agent
-// it runs during load tests, so documenting them would tell operators to look
-// for series their deployment never exposes.
+// published surface, or whose published names the prefix resolver cannot
+// derive. The scaletest harness registers metrics from a fake agent it runs
+// during load tests, so documenting them would tell operators to look for
+// series their deployment never exposes. The key pool collector is built by
+// coderd/aibridged and registered by the CLI through a prefixed registerer, a
+// chain the resolver does not follow, so scanning it would publish a name
+// without its coder_ai_gateway_ prefix. Its metric is documented statically.
 var excludeDirs = []string{
+	"aibridge/keypool",
 	"enterprise/scaletest/agentfake",
 }
 
@@ -434,10 +439,10 @@ func extractLabels(expr ast.Expr, decls declarations) []string {
 	return nil
 }
 
-// extractAppendedLabels resolves append(base, "extra", ...) label arguments.
-// Packages that share a label set across several metrics extend it this way,
-// and reading only the literal arguments would publish an incomplete label
-// list for those metrics.
+// extractAppendedLabels resolves append(base, "extra") and append(base, more...)
+// label arguments. Packages that share a label set across several metrics
+// extend it this way, and reading only the literal arguments would publish an
+// incomplete label list for those metrics.
 func extractAppendedLabels(call *ast.CallExpr, decls declarations) []string {
 	ident, ok := call.Fun.(*ast.Ident)
 	if !ok || ident.Name != "append" || len(call.Args) == 0 {
@@ -454,6 +459,18 @@ func extractAppendedLabels(call *ast.CallExpr, decls declarations) []string {
 	labels = append(labels, base...)
 
 	for _, arg := range call.Args[1:] {
+		if call.Ellipsis.IsValid() {
+			// append(base, more...) spreads a second label slice.
+			spread := extractLabels(arg, decls)
+			if spread == nil {
+				// An unresolvable element would silently shorten the list, so
+				// report no labels rather than a partial set.
+				return nil
+			}
+			labels = append(labels, spread...)
+			continue
+		}
+
 		value := resolveStringExpr(arg, decls)
 		if value == "" {
 			// An unresolvable element would silently shorten the list, so

@@ -239,6 +239,7 @@ func TestExcluded(t *testing.T) {
 
 	cases := map[string]bool{
 		"enterprise/scaletest/agentfake/metrics.go": true,
+		"aibridge/keypool/state_collector.go":       true,
 		"enterprise/scaletest":                      false,
 		"enterprise/scaletestextra/metrics.go":      false,
 		"coderd/prometheusmetrics/metrics.go":       false,
