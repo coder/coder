@@ -440,6 +440,34 @@ func TestResponsesWebSocketKeyFailover(t *testing.T) {
 	}
 }
 
+// TestResponsesWebSocketClientLeavesDuringHandshake requires that a client
+// leaving before its upgrade ends the upstream handshake and releases the
+// socket at once, instead of holding the lease for the handshake timeout.
+func TestResponsesWebSocketClientLeavesDuringHandshake(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	entered := make(chan struct{}, 1)
+	g := newWSGateway(ctx, t, wsGatewayConfig{reject: func(r *http.Request) int {
+		// The upstream handshake hangs until the gateway abandons it.
+		entered <- struct{}{}
+		<-r.Context().Done()
+		return http.StatusServiceUnavailable
+	}})
+
+	dialCtx, cancel := context.WithCancel(ctx)
+	dialed := make(chan error, 1)
+	go func() {
+		//nolint:bodyclose // Dial owns the response body.
+		_, _, err := g.dial(dialCtx, pathOpenAIResponses, nil)
+		dialed <- err
+	}()
+	lease := codertestutil.TryReceive(ctx, t, g.leases.leases)
+	_ = codertestutil.TryReceive(ctx, t, entered)
+	cancel()
+	require.Error(t, codertestutil.TryReceive(ctx, t, dialed))
+	_ = codertestutil.TryReceive(ctx, t, lease.released)
+}
+
 // TestResponsesWebSocketHandshakeFailure requires that a failed upstream
 // handshake refuses the client with a plain HTTP error, as the HTTP route
 // would, so the client can fall back to HTTP, and that the lease is freed.

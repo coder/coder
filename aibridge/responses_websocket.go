@@ -5,9 +5,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/utils"
@@ -219,6 +222,10 @@ func validClientHandshake(r *http.Request) bool {
 func (h *responsesWebSocketHandler) dialUpstream(ctx context.Context, logger slog.Logger, r *http.Request, actor *aibcontext.Actor, cred credential.Credential) (*websocket.Conn, *http.Response) {
 	ctx, cancel := context.WithTimeout(ctx, responsesWebSocketHandshakeTimeout)
 	defer cancel()
+	// The handshake runs under the lease, which outlives the request, but a
+	// client that left before its upgrade no longer needs the socket.
+	stop := context.AfterFunc(r.Context(), cancel)
+	defer stop()
 
 	target, err := responsesWebSocketURL(h.provider.BaseURL())
 	if err != nil {
@@ -279,11 +286,14 @@ func (h *responsesWebSocketHandler) upstreamHeaders(r *http.Request, actor *aibc
 	if namer, ok := h.provider.(actorHeaderNamer); ok {
 		actorHeaderNames = namer.ActorHeaderNames()
 	}
-	header := aibheaders.BuildUpstreamHeaders(sdkHeader, r.Header, authHeader, actorHeaderNames, actor)
+	// Strip the client's values before actor headers are applied, so an
+	// actor header configured at one of these names still reaches upstream,
+	// as it does over HTTP.
+	clientHeader := r.Header.Clone()
 	for _, name := range responsesWebSocketStrippedHeaders {
-		header.Del(name)
+		clientHeader.Del(name)
 	}
-	return header
+	return aibheaders.BuildUpstreamHeaders(sdkHeader, clientHeader, authHeader, actorHeaderNames, actor)
 }
 
 // responsesWebSocketURL returns the upstream Responses WebSocket URL of a
@@ -315,11 +325,17 @@ func upstreamHandshakeFailure(resp *http.Response) *http.Response {
 }
 
 // writeHTTPResponse writes resp's status, content type, retry hint, and a
-// bounded body to w.
+// bounded body to w. Like the HTTP path, a retry hint upstream gave only in
+// OpenAI's retry-after-ms header becomes a Retry-After in whole seconds.
 func writeHTTPResponse(w http.ResponseWriter, resp *http.Response) {
 	for _, name := range []string{"Content-Type", "Retry-After"} {
 		if v := resp.Header.Get(name); v != "" {
 			w.Header().Set(name, v)
+		}
+	}
+	if w.Header().Get("Retry-After") == "" {
+		if retryAfter := keypool.ParseRetryAfter(resp); retryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
