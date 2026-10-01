@@ -572,7 +572,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Running, with or without a queue.
 	case StateR0, StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRunning(chat, from, input)
+			return tx.sendMessageInterruptRunning(chat, input)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
@@ -697,7 +697,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
+func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 	if err != nil || chat.WorkerID.Valid {
 		return result, err
@@ -708,9 +708,11 @@ func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionStat
 	}
 	result.InsertedMessages = finished.InsertedMessages
 	result.PromotedQueuedAt = finished.PromotedQueuedAt
-	if from == StateR0 {
-		// The queue held only this message, so it was promoted into
-		// history instead of staying queued.
+	if promoted := finished.PromotedMessage; promoted != nil &&
+		promoted.QueuedMessageID == (sql.NullInt64{Int64: result.QueuedMessage.ID, Valid: true}) {
+		// This message was promoted into history instead of staying
+		// queued: the queue held only this message, or the guard
+		// dropped every older row.
 		result.QueuedMessage = nil
 	}
 	return result, nil
