@@ -75,11 +75,11 @@ describe("heatCurve", () => {
 	});
 
 	it("passes about halfway at the midpoint", () => {
-		expect(heatCurve(HEAT_CURVE_MIDPOINT)).toBeCloseTo(0.49, 2);
+		expect(heatCurve(HEAT_CURVE_MIDPOINT)).toBeCloseTo(0.455, 2);
 	});
 
 	it("saturates before the compaction threshold", () => {
-		expect(heatCurve(0.7)).toBeGreaterThan(0.99);
+		expect(heatCurve(0.7)).toBeGreaterThan(0.95);
 		expect(heatCurve(10)).toBeLessThanOrEqual(1);
 	});
 

@@ -35,7 +35,7 @@ const HEAT_WINDOW_DECAY = 0.25;
 // Tuning constants: x is the weighted missed share of the reference size.
 export const HEAT_REFERENCE_TOKENS = 70_000;
 export const HEAT_CURVE_MIDPOINT = 0.3;
-const HEAT_CURVE_STEEPNESS = 12;
+const HEAT_CURVE_STEEPNESS = 8;
 // A single idle threshold for all providers. Anthropic's default ephemeral
 // cache lives 5 minutes; automatic caches elsewhere are similar or longer.
 export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
