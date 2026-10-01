@@ -135,11 +135,11 @@ The request takes these fields:
 |----------------------------|---------------------------------------------------------------|----------------------------------------------------------------------------------|
 | `name`                     | 1 to 128 characters                                           | Required.                                                                        |
 | `prompt`                   | Text                                                          | Required.                                                                        |
-| `kind`                     | `webhook` or `schedule`                                       | Can't change after creation.                                                     |
+| `kind`                     | `webhook` or `schedule`                                       | Required. Can't change after creation.                                           |
 | `webhook_use`              | `single` or `multi`                                           | Webhooks only. Defaults to `multi`. Can't change after creation.                 |
 | `schedule_cron`            | Five-field cron expression                                    | Schedules only. Required for schedules.                                          |
 | `schedule_time_zone`       | IANA time zone name                                           | Schedules only. Required for schedules.                                          |
-| `target_mode`              | `existing_chat` or `new_chat`                                 | Can't change after creation.                                                     |
+| `target_mode`              | `existing_chat` or `new_chat`                                 | Required. Can't change after creation.                                           |
 | `target_chat_id`           | Chat ID                                                       | Required for `existing_chat`.                                                    |
 | `when_busy`                | `queue` or `skip`                                             | `existing_chat` only. Defaults to `queue` for webhooks and `skip` for schedules. |
 | `new_chat_model_config_id` | Model configuration ID                                        | Required for `new_chat`.                                                         |
@@ -392,7 +392,7 @@ Review these risks before you turn the experiment on for many users.
 ### Spend
 
 The per-owner limit caps how many automations exist, not how many turns or chats they start.
-Coder doesn't limit how often a schedule runs, so a schedule that runs every minute starts a turn every minute.
+Coder doesn't limit how often a schedule runs, so a schedule that runs every minute can start a turn every minute.
 A leaked multi-use secret for a new chat target lets anyone with the secret start chats as the owner until you act.
 
 To stop the spend, rotate the secret or turn the automation off.
@@ -402,7 +402,8 @@ To cap each user's AI spend, refer to [Spend management](./platform-controls/spe
 ### Silent failures
 
 Skipped and missed schedule runs appear only in the server logs, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
-A refused webhook delivery appears only in the HTTP response the sender receives.
+A refused webhook delivery appears in the HTTP response the sender receives.
+Refusals that depend on the target chat, such as a busy chat, a full queue, or a hook denial, also appear in the server logs as `chat automation input refused` messages.
 Coder keeps no run history for automations.
 
 ### Prompt injection
