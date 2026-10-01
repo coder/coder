@@ -1,7 +1,9 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 
-export const Sidebar: FC<ComponentProps<"nav">> = ({ children, ...attrs }) => {
+export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
+	children,
+	...attrs
+}) => {
 	return (
 		<nav
 			className={cn(
@@ -15,11 +17,11 @@ export const Sidebar: FC<ComponentProps<"nav">> = ({ children, ...attrs }) => {
 	);
 };
 
-type SidebarItemProps = ComponentProps<"button"> & {
+type SidebarItemProps = React.ComponentProps<"button"> & {
 	active?: boolean;
 };
 
-export const SidebarItem: FC<SidebarItemProps> = ({
+export const SidebarItem: React.FC<SidebarItemProps> = ({
 	children,
 	active,
 	...attrs
@@ -40,7 +42,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<ComponentProps<"div">> = ({
+export const SidebarCaption: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs

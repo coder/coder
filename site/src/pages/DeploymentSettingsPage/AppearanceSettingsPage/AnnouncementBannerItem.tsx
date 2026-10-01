@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -20,7 +19,7 @@ type AnnouncementBannerItemProps = {
 	onDelete: () => void;
 };
 
-export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
+export const AnnouncementBannerItem: React.FC<AnnouncementBannerItemProps> = ({
 	enabled,
 	backgroundColor = "#004852",
 	message,

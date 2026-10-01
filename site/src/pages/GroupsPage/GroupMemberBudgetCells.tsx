@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { groupById } from "#/api/queries/groups";
 import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
@@ -20,7 +19,7 @@ const OTHER_ORG_MESSAGE =
  * The AI spend and Budget group cells for a group member. Spend is scoped to
  * the viewed group; the limit comes from the member's effective group.
  */
-export const GroupMemberBudgetCells: FC<{
+export const GroupMemberBudgetCells: React.FC<{
 	group: Group;
 	userID: string;
 	spend: GroupMemberAISpend | undefined;
@@ -46,7 +45,7 @@ export const GroupMemberBudgetCells: FC<{
 			? `${name} (individual)`
 			: name;
 
-	let budgetGroup: ReactNode;
+	let budgetGroup: React.ReactNode;
 	switch (effective.kind) {
 		case "none":
 			budgetGroup = EM_DASH;
@@ -84,7 +83,7 @@ export const GroupMemberBudgetCells: FC<{
 			break;
 	}
 
-	let budget: ReactNode = EM_DASH;
+	let budget: React.ReactNode = EM_DASH;
 	if (spend && effective.kind === "otherOrg") {
 		budget = <LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />;
 	} else if (spend && effective.kind === "otherGroup") {
@@ -207,10 +206,10 @@ export function effectiveBudgetGroup(
 	return { kind: "otherGroup" };
 }
 
-const LabelWithInfo: FC<{ label: ReactNode; message: ReactNode }> = ({
-	label,
-	message,
-}) => (
+const LabelWithInfo: React.FC<{
+	label: React.ReactNode;
+	message: React.ReactNode;
+}> = ({ label, message }) => (
 	<span className="inline-flex items-center gap-1">
 		{label}
 		<StatusIconTooltip message={message} />

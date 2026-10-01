@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -23,7 +22,7 @@ import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
-const CoderAgentsPage: FC = () => {
+const CoderAgentsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();

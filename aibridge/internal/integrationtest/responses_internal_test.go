@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
-	"github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -46,7 +46,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 		expectToolRecorded   *recorder.ToolUsageRecord
 		expectTokenUsage     *recorder.TokenUsageRecord
 		userAgent            string
-		expectedClient       aibridge.Client
+		expectedClient       aibclient.Type
 	}{
 		{
 			name:                 "blocking_simple",
@@ -54,9 +54,10 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "tell me a joke",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0388c79043df3e3400695f9f83cd6481959062cec6830d8d51",
-				Input:  11,
-				Output: 18,
+				MsgID:         "resp_0388c79043df3e3400695f9f83cd6481959062cec6830d8d51",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         11,
+				Output:        18,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     29,
@@ -64,7 +65,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "claude-cli/2.0.67 (external, cli)",
-			expectedClient: aibridge.ClientClaudeCode,
+			expectedClient: aibclient.ClaudeCode,
 		},
 		{
 			name:                 "blocking_builtin_tool",
@@ -80,16 +81,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0da6045a8b68fa5200695fa23dcc2c81a19c849f627abf8a31",
-				Input:  58,
-				Output: 18,
+				MsgID:         "resp_0da6045a8b68fa5200695fa23dcc2c81a19c849f627abf8a31",
+				ProviderModel: "gpt-4.1-2025-04-14",
+				Input:         58,
+				Output:        18,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     76,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_cached_input_tokens",
@@ -98,6 +100,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectPromptRecorded: "This was a large input...",
 			expectTokenUsage: &recorder.TokenUsageRecord{
 				MsgID:                 "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
+				ProviderModel:         "gpt-4.1-2025-04-14",
 				Input:                 114, // 12033 input - 11904 cached - 15 cache write
 				Output:                44,
 				CacheReadInputTokens:  11904,
@@ -108,7 +111,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_custom_tool",
@@ -124,16 +127,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_09c614364030cdf000696942589da081a0af07f5859acb7308",
-				Input:  64,
-				Output: 148,
+				MsgID:         "resp_09c614364030cdf000696942589da081a0af07f5859acb7308",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         64,
+				Output:        148,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 128,
 					"total_tokens":     212,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -152,16 +156,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
-				Input:  50,
-				Output: 30,
+				MsgID:         "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				ProviderModel: "gpt-5.4",
+				Input:         50,
+				Output:        30,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     80,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_conversation",
@@ -169,16 +174,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0c9f1f0524a858fa00695fa15fc5a081958f4304aafd3bdec2",
-				Input:  48,
-				Output: 116,
+				MsgID:         "resp_0c9f1f0524a858fa00695fa15fc5a081958f4304aafd3bdec2",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         48,
+				Output:        116,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     164,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_prev_response_id",
@@ -186,16 +192,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0388c79043df3e3400695f9f86cfa08195af1f015c60117a83",
-				Input:  43,
-				Output: 129,
+				MsgID:         "resp_0388c79043df3e3400695f9f86cfa08195af1f015c60117a83",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         43,
+				Output:        129,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     172,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_simple",
@@ -204,9 +211,10 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "tell me a joke",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0f9c4b2f224d858000695fa062bf048197a680f357bbb09000",
-				Input:  11,
-				Output: 18,
+				MsgID:         "resp_0f9c4b2f224d858000695fa062bf048197a680f357bbb09000",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         11,
+				Output:        18,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     29,
@@ -214,7 +222,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
-			expectedClient: aibridge.ClientZed,
+			expectedClient: aibclient.Zed,
 		},
 		{
 			name:                 "streaming_codex",
@@ -223,9 +231,10 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-5-codex",
 			expectPromptRecorded: "hello",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0e172b76542a9100016964f7e63d888191a2a28cb2ba0ab6d3",
-				Input:  4006,
-				Output: 13,
+				MsgID:         "resp_0e172b76542a9100016964f7e63d888191a2a28cb2ba0ab6d3",
+				ProviderModel: "gpt-5-codex",
+				Input:         4006,
+				Output:        13,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     4019,
@@ -233,7 +242,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
-			expectedClient: aibridge.ClientCodex,
+			expectedClient: aibclient.Codex,
 		},
 		{
 			name:                 "streaming_builtin_tool",
@@ -250,16 +259,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0c3fb28cfcf463a500695fa2f0239481a095ec6ce3dfe4d458",
-				Input:  58,
-				Output: 18,
+				MsgID:         "resp_0c3fb28cfcf463a500695fa2f0239481a095ec6ce3dfe4d458",
+				ProviderModel: "gpt-4.1-2025-04-14",
+				Input:         58,
+				Output:        18,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     76,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_cached_tokens",
@@ -269,6 +279,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectPromptRecorded: "Test cached input tokens.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
 				MsgID:                 "resp_05080461b406f3f501696a1409d34c8195a40ff4b092145c35",
+				ProviderModel:         "gpt-5.2-codex",
 				Input:                 1135, // 16909 input - 15744 cached - 30 cache write
 				Output:                54,
 				CacheReadInputTokens:  15744,
@@ -279,7 +290,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_custom_tool",
@@ -296,16 +307,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0c26996bc41c2a0500696942e83634819fb71b2b8ff8a4a76c",
-				Input:  64,
-				Output: 340,
+				MsgID:         "resp_0c26996bc41c2a0500696942e83634819fb71b2b8ff8a4a76c",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         64,
+				Output:        340,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 320,
 					"total_tokens":     404,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -325,16 +337,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Injected:   false,
 			},
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
-				Input:  50,
-				Output: 30,
+				MsgID:         "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				ProviderModel: "gpt-5.4",
+				Input:         50,
+				Output:        30,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     80,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_conversation",
@@ -342,7 +355,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_prev_response_id",
@@ -351,16 +364,17 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_0f9c4b2f224d858000695fa0649b8c8197b38914b15a7add0e",
-				Input:  43,
-				Output: 182,
+				MsgID:         "resp_0f9c4b2f224d858000695fa0649b8c8197b38914b15a7add0e",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         43,
+				Output:        182,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     225,
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "stream_error",
@@ -368,7 +382,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_error",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 		{
 			name:                 "stream_failure",
@@ -376,7 +390,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_failure",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 
 		// Original status code and body is kept even with wrong json format
@@ -384,7 +398,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			name:           "blocking_wrong_format",
 			fixture:        fixtures.OaiResponsesBlockingWrongResponseFormat,
 			expectModel:    "gpt-6.7",
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_wrong_format",
@@ -392,11 +406,12 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_wrong_format",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:  "resp_123",
-				Input:  11,
-				Output: 18,
+				MsgID:         "resp_123",
+				ProviderModel: "gpt-4o-mini-2024-07-18",
+				Input:         11,
+				Output:        18,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     29,
@@ -983,6 +998,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 "resp_012db006225b0ec700696b5de8a01481a28182ea6885448f93",
+					ProviderModel:         "gpt-5.2-2025-12-11",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 220, // 6371 input - 6144 cached - 7 cache write
 					Output:                75,
@@ -995,6 +1011,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 				},
 				{
 					MsgID:                 "resp_012db006225b0ec700696b5dec1d4c81a2a6a416e31af39b90",
+					ProviderModel:         "gpt-5.2-2025-12-11",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 					Input:                 601, // 6756 input - 6144 cached - 11 cache write
 					Output:                231,
@@ -1031,6 +1048,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 "resp_06e2afba24b6b2ad00696b774d1df0819eaf1ec802bc8a2ca9",
+					ProviderModel:         "gpt-5.2-2025-12-11",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 228, // 6377 input - 6144 cached - 5 cache write
 					Output:                119,
@@ -1043,6 +1061,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 				},
 				{
 					MsgID:                 "resp_06e2afba24b6b2ad00696b775044e8819ea14840698ef966e2",
+					ProviderModel:         "gpt-5.2-2025-12-11",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 386, // 6539 input - 6144 cached - 9 cache write
 					Output:                144,
@@ -1077,6 +1096,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 "resp_016595fe42aa62ca0069724419c52081a0b7eb479c6bc8109f",
+					ProviderModel:         "gpt-4.1-mini-2025-04-14",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 6162, // 6269 input - 100 cached - 7 cache write
 					Output:                18,
@@ -1089,6 +1109,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 				},
 				{
 					MsgID:                 "resp_0bc5f54fce6df69a006972442175908194bb81d31f576e6ca6",
+					ProviderModel:         "gpt-4.1-mini-2025-04-14",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 					Input:                 308, // 6463 input - 6144 cached - 11 cache write
 					Output:                182,
@@ -1115,6 +1136,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 "resp_0dfed48e1052ad7f0069725ca129f88193b97d6deff1760524",
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 6175, // 6280 input - 100 cached - 5 cache write
 					Output:                30,
@@ -1127,6 +1149,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 				},
 				{
 					MsgID:                 "resp_0dfed48e1052ad7f0069725ca39880819390fcc5b2eb8cf8c6",
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					Input:                 6237, // 6346 input - 100 cached - 9 cache write
 					Output:                56,

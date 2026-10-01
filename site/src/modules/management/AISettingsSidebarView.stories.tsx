@@ -97,7 +97,7 @@ export const SpendVisible: Story = {
 	},
 };
 
-export const UserSpendActive: Story = {
+export const SpendActive: Story = {
 	args: {
 		canViewAISpend: true,
 	},

@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -17,7 +16,7 @@ type TerminalCommandConsentDialogProps = {
 	onDeny: () => void;
 };
 
-export const TerminalCommandConsentDialog: FC<
+export const TerminalCommandConsentDialog: React.FC<
 	TerminalCommandConsentDialogProps
 > = ({ open, command, onConfirm, onDeny }) => {
 	return (

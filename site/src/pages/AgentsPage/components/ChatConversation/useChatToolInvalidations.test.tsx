@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,7 +53,9 @@ const createTestStore = (initial: StreamState | null = null) => {
 	};
 };
 
-const createWrapper = (queryClient: QueryClient): FC<PropsWithChildren> => {
+const createWrapper = (
+	queryClient: QueryClient,
+): React.FC<React.PropsWithChildren> => {
 	return ({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);

@@ -247,6 +247,47 @@ func TestResolveQuickgenModel_TitleGenerationOverrideSetUsable(t *testing.T) {
 	require.Equal(t, overrideConfig, resolved.dbConfig)
 }
 
+func TestResolveQuickgenModel_TitleGenerationOverrideAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("claude-haiku-4-5", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	// Claude Platform on AWS authenticates with ambient AWS credentials and
+	// stores no API keys.
+	settings, err := json.Marshal(codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-2",
+			WorkspaceID: "wrkspc_test",
+		},
+	})
+	require.NoError(t, err)
+	provider := aibridgeTestAIProvider(providerID, "claude-platform-aws", database.AIProviderTypeAnthropic)
+	provider.BaseUrl = "https://aws-external-anthropic.us-east-2.api.aws"
+	provider.Settings = sql.NullString{String: string(settings), Valid: true}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).MinTimes(1)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).MinTimes(1)
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.True(t, resolved.model.Valid())
+	require.Equal(t, overrideConfig, resolved.dbConfig)
+}
+
 func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	t.Parallel()
 
@@ -355,6 +396,7 @@ func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
 		logger:                   logger,
 		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		chatLimits:               Limits{}.withDefaults(),
 	}
 }
 

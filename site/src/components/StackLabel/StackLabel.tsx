@@ -1,12 +1,11 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 
 /**
  * Use these components as the label in FormControlLabel when implementing radio
  * buttons, checkboxes, or switches to ensure proper styling.
  */
 
-export const StackLabel: FC<ComponentProps<"div">> = ({
+export const StackLabel: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -18,7 +17,7 @@ export const StackLabel: FC<ComponentProps<"div">> = ({
 	);
 };
 
-export const StackLabelHelperText: FC<ComponentProps<"p">> = ({
+export const StackLabelHelperText: React.FC<React.ComponentProps<"p">> = ({
 	className,
 	...props
 }) => {

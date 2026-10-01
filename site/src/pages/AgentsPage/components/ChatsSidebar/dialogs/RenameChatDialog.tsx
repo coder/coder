@@ -1,12 +1,5 @@
 import { SparklesIcon } from "lucide-react";
-import {
-	type FC,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -43,7 +36,7 @@ const splitGeneratedTitleGraphemes = (title: string): string[] => {
 	return Array.from(title);
 };
 
-export const RenameChatDialog: FC<RenameChatDialogProps> = ({
+export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 	chat,
 	onRename,
 	onPropose,

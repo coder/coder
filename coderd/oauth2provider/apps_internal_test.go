@@ -1,9 +1,12 @@
 package oauth2provider
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestResolveRedirectURIs(t *testing.T) {
@@ -130,6 +133,44 @@ func TestValidateRedirectURIFieldsAgree(t *testing.T) {
 			}
 			require.Len(t, errs, 1)
 			require.Equal(t, "callback_url", errs[0].Field)
+		})
+	}
+}
+
+func TestRegisteredScopeAllowlist(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		want    string
+		wantErr string
+	}{
+		{name: "EmptyIsNoAllowlist", raw: "", want: ""},
+		{name: "WhitespaceRejected", raw: "  ", wantErr: "scope is blank"},
+		{name: "CatalogNamesKept", raw: "workspace:read template:read", want: "workspace:read template:read"},
+		{name: "AliasesCanonicalized", raw: "all application_connect", want: "coder:all coder:application_connect"},
+		{name: "DuplicatesDropped", raw: "workspace:read all coder:all", want: "workspace:read coder:all"},
+		{name: "UnknownNamesDropped", raw: "openid workspace:read offline_access", want: "workspace:read"},
+		{name: "OnlyUnknownRejected", raw: "openid profile", wantErr: "'openid profile': unknown or unsupported scope"},
+		{name: "InternalOnlyRejected", raw: "debug_info:read", wantErr: "'debug_info:read': unknown or unsupported scope"},
+		{name: "NonASCIIReplaced", raw: "wörkspace:read", wantErr: "'w rkspace:read': unknown or unsupported scope"},
+		{name: "LongUnknownListTruncated", raw: strings.TrimSpace(strings.Repeat(strings.Repeat("x", 300)+" ", 10)), wantErr: "(truncated)"},
+		{name: "TooManyNames", raw: strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1), wantErr: "must list at most"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := registeredScopeAllowlist(tc.raw)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, got.Valid)
+			require.Equal(t, tc.want, got.String)
 		})
 	}
 }

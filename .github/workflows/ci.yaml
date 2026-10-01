@@ -535,8 +535,9 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test` to ensure we receive a trace of running goroutines.
-    # Setting this to the timeout +5m should work quite well even if
-    # some of the preceding steps are slow.
+    # Leave at least 5 minutes after the Go timeout fires, counting the
+    # slowest setup steps, for the dump and the artifact uploads. The
+    # macOS lane shortens its Go timeout below because its setup is slow.
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -685,6 +686,13 @@ jobs:
           # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          # Setup and compile take 3 to 10 minutes on macOS, which leaves
+          # too little of the 30 minute job for a goroutine dump when the
+          # default 25 minute Go timeout fires. 15 minutes keeps at least a
+          # 5 minute margin for the dump and artifact uploads even after a
+          # 10 minute setup. A healthy run of these packages takes about 4
+          # minutes.
+          test-timeout: "15m"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}

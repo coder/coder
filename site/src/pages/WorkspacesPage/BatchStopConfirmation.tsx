@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 
@@ -10,7 +9,7 @@ type BatchStopConfirmationProps = {
 	onConfirm: () => void;
 };
 
-export const BatchStopConfirmation: FC<BatchStopConfirmationProps> = ({
+export const BatchStopConfirmation: React.FC<BatchStopConfirmationProps> = ({
 	workspacesToStop,
 	open,
 	onClose,

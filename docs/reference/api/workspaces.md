@@ -421,11 +421,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                                                 |
-|-------------------|-------|---------|----------|-------------------------------------------------------------|
-| `user`            | path  | string  | true     | User ID, name, or me                                        |
-| `workspacename`   | path  | string  | true     | Workspace name                                              |
-| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| Name              | In    | Type    | Required | Description                                                                                                                    |
+|-------------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------|
+| `user`            | path  | string  | true     | User ID, name, or me                                                                                                           |
+| `workspacename`   | path  | string  | true     | Workspace name                                                                                                                 |
+| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
+| `include_related` | query | string  | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
 
 ### Example responses
 

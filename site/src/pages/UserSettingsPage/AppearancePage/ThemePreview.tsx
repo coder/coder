@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { CSSProperties, FC } from "react";
 import { baseModeFor, type ConcreteThemeName } from "#/theme";
 
 type ThemePreviewProps = {
@@ -7,7 +6,7 @@ type ThemePreviewProps = {
 	size?: "sm" | "lg";
 	label?: string;
 	className?: string;
-	style?: CSSProperties;
+	style?: React.CSSProperties;
 };
 
 /**
@@ -15,7 +14,7 @@ type ThemePreviewProps = {
  * The header bar's two accent swatches visibly change between
  * colorblind variants because they use `bg-git-added` / `bg-git-deleted`.
  */
-export const ThemePreview: FC<ThemePreviewProps> = ({
+export const ThemePreview: React.FC<ThemePreviewProps> = ({
 	theme,
 	size = "sm",
 	label,

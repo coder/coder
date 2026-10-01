@@ -1,15 +1,18 @@
 import { cn } from "cn";
-import { Children, type ComponentProps, type FC } from "react";
+import { Children } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { SensitiveValue } from "#/modules/resources/SensitiveValue";
 
-type ResourceMetadataProps = Omit<ComponentProps<"header">, "resource"> & {
+type ResourceMetadataProps = Omit<
+	React.ComponentProps<"header">,
+	"resource"
+> & {
 	resource: WorkspaceResource;
 };
 
-export const ResourceMetadata: FC<ResourceMetadataProps> = ({
+export const ResourceMetadata: React.FC<ResourceMetadataProps> = ({
 	resource,
 	className,
 	...headerProps

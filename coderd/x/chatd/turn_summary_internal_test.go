@@ -67,6 +67,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		LastModelConfigID: modelCfg.ID,
 		Title:             "summary-chat",
 		ClientType:        database.ChatClientTypeUi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,

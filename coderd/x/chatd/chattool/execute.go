@@ -80,7 +80,7 @@ type ExecuteResult struct {
 	Success             bool                            `json:"success"`
 	Output              string                          `json:"output,omitempty"`
 	ExitCode            int                             `json:"exit_code"`
-	WallDurationMs      int64                           `json:"wall_duration_ms"`
+	WallDurationMs      int64                           `json:"wall_duration_ms,omitempty"`
 	Error               string                          `json:"error,omitempty"`
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
@@ -88,6 +88,7 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
+	Canceled            bool                            `json:"canceled,omitempty"` // an interrupt canceled the command while it ran
 }
 
 // ExecuteOptions configures the execute tool.
@@ -113,7 +114,7 @@ type ExecuteArgs struct {
 	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command, with backgrounded commands framed as \"<intent> in the background using <command>\", so do not include the word \"background\" or restate the command or a duration. Use plain English with no underscores or technical jargon. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
 	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
-	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
+	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Use this parameter instead of shell '&', which leaves an untracked process that process_output cannot read."`
 }
 
 // ExecuteToolName is the registered name of the execute tool.
@@ -246,6 +247,7 @@ func executeForeground(
 		WorkDir:    workDir,
 		Env:        env,
 		Background: false,
+		TimeoutMs:  timeout.Milliseconds(),
 	})
 	if err != nil {
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
@@ -292,7 +294,8 @@ func waitForProcess(
 	// Block until the process exits or the context is
 	// canceled.
 	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait: true,
+		Wait:                    true,
+		TimeoutFromStartProcess: true,
 	})
 	if err != nil {
 		origErr := err
@@ -325,17 +328,7 @@ func waitForProcess(
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			return exitedResult(resp)
 		}
 
 		// Process still running, return partial output.
@@ -357,9 +350,10 @@ func waitForProcess(
 	// The server-side wait may return before the
 	// process exits if maxWaitDuration is shorter than
 	// the client's timeout. Retry if our context still
-	// has time left.
+	// has time left and the execute timeout, counted from
+	// the first start, has not passed.
 	if resp.Running {
-		if ctx.Err() == nil {
+		if ctx.Err() == nil && !resp.TimedOut {
 			// Still within the caller's timeout, retry.
 			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
 		}
@@ -374,14 +368,17 @@ func waitForProcess(
 		}
 	}
 
+	return exitedResult(resp)
+}
+
+func exitedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
 	exitCode := 0
 	if resp.ExitCode != nil {
 		exitCode = *resp.ExitCode
 	}
-	output := truncateOutput(resp.Output)
 	return ExecuteResult{
 		Success:   exitCode == 0,
-		Output:    output,
+		Output:    truncateOutput(resp.Output),
 		ExitCode:  exitCode,
 		Truncated: resp.Truncated,
 	}

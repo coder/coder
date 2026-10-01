@@ -390,6 +390,9 @@ title: Schemas
 
 ```json
 {
+  "actor_header_email": "string",
+  "actor_header_id": "string",
+  "actor_header_username": "string",
   "allow_byok": true,
   "api_dump_dir": "string",
   "budget_period": "string",
@@ -399,36 +402,43 @@ title: Schemas
   "circuit_breaker_interval": 0,
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
+  "disable_content_recording": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "structured_logging_source": "string"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
-|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
-| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
-| `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
-| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                     |
-| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                        |
-| `enabled`                           | boolean | false    |              |                                                                                                                                                                        |
-| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                           |
-| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                        |
-| `rate_limit`                        | integer | false    |              |                                                                                                                                                                        |
-| `retention`                         | integer | false    |              |                                                                                                                                                                        |
-| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
-| `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actor_header_email`                | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `actor_header_id`                   | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `actor_header_username`             | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.                                                                                                 |
+| `budget_period`                     | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                                                                                                                     |
+| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
+| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `rate_limit`                        | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `retention`                         | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1031,6 +1041,9 @@ title: Schemas
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "actor_header_email": "string",
+    "actor_header_id": "string",
+    "actor_header_username": "string",
     "allow_byok": true,
     "api_dump_dir": "string",
     "budget_period": "string",
@@ -1040,13 +1053,15 @@ title: Schemas
     "circuit_breaker_interval": 0,
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
+    "disable_content_recording": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "structured_logging_source": "string"
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -1068,6 +1083,12 @@ title: Schemas
       "scheme": "string",
       "user": {}
     },
+    "max_attachments_per_chat": 0,
+    "max_concurrent_recording_uploads": 0,
+    "max_generation_retries": 0,
+    "max_prompt_bytes": 0,
+    "max_queued_messages_per_chat": 0,
+    "max_steps_per_turn": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2279,6 +2300,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2375,6 +2414,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2427,8 +2484,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect and via UpdateChatRequest.Read.                                                                                                            |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2572,22 +2630,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "scheme": "string",
     "user": {}
   },
+  "max_attachments_per_chat": 0,
+  "max_concurrent_recording_uploads": 0,
+  "max_generation_retries": 0,
+  "max_prompt_bytes": 0,
+  "max_queued_messages_per_chat": 0,
+  "max_steps_per_turn": 0,
   "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description |
-|--------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`     | integer                    | false    |              |             |
-| `debug_logging_enabled`  | boolean                    | false    |              |             |
-| `hook_allow_insecure`    | boolean                    | false    |              |             |
-| `hook_enabled`           | boolean                    | false    |              |             |
-| `hook_secret`            | string                     | false    |              |             |
-| `hook_timeout`           | integer                    | false    |              |             |
-| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
-| `stream_silence_timeout` | integer                    | false    |              |             |
+| Name                               | Type                       | Required | Restrictions | Description                                                                                                                               |
+|------------------------------------|----------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                           |
+| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                           |
+| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                           |
+| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                           |
+| `hook_secret`                      | string                     | false    |              |                                                                                                                                           |
+| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
+| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
+| `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
+| `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
+| `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
+| `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
+| `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
+| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
 
 ## codersdk.ChatContext
 
@@ -2981,21 +3051,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "file_name": "string",
   "start_line": 0,
   "text": "string",
-  "type": "text"
+  "type": "text",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0,
+  "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
-|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
-| `end_line`   | integer                                                  | false    |              |                                                                                |
-| `file_id`    | string                                                   | false    |              |                                                                                |
-| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
-| `start_line` | integer                                                  | false    |              |                                                                                |
-| `text`       | string                                                   | false    |              |                                                                                |
-| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+| Name                          | Type                                                     | Required | Restrictions | Description                                                                                                                                                    |
+|-------------------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`                     | string                                                   | false    |              | The code content from the diff that was commented on.                                                                                                          |
+| `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
+| `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
+| `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
+| `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
+| `text`                        | string                                                   | false    |              |                                                                                                                                                                |
+| `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
+| `workspace_file_media_type`   | string                                                   | false    |              |                                                                                                                                                                |
+| `workspace_file_name`         | string                                                   | false    |              |                                                                                                                                                                |
+| `workspace_file_path`         | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeWorkspaceFileReference.                                                                        |
+| `workspace_file_size`         | integer                                                  | false    |              |                                                                                                                                                                |
+| `workspace_file_workspace_id` | string                                                   | false    |              | Workspace file workspace ID is the workspace the file was uploaded to, as returned by the upload endpoint. It must match the chat's currently bound workspace. |
 
 ## codersdk.ChatInputPartType
 
@@ -3007,9 +3087,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                         |
-|----------------------------------|
-| `file`, `file-reference`, `text` |
+| Value(s)                                                     |
+|--------------------------------------------------------------|
+| `file`, `file-reference`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3053,6 +3133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -3068,13 +3149,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "queued_message_id": 0,
   "role": "system",
   "usage": {
     "cache_creation_tokens": 0,
@@ -3090,16 +3177,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `created_by`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
-| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
-| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+| Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
+|---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
+| `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `usage`             | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePart
 
@@ -3140,6 +3228,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "reasoning_delta": "string",
   "result": [
     0
   ],
@@ -3155,7 +3244,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "tool_call_id": "string",
   "tool_name": "string",
   "type": "text",
-  "url": "string"
+  "url": "string",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0,
+  "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
 }
 ```
 
@@ -3188,6 +3282,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3202,6 +3297,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `workspace_file_media_type`    | string                                                       | false    |              | Workspace file media type is the best-effort declared MIME type.                                                                                                                                                                                                                                                                                                                                           |
+| `workspace_file_name`          | string                                                       | false    |              | Workspace file name is the sanitized basename of a workspace upload.                                                                                                                                                                                                                                                                                                                                       |
+| `workspace_file_path`          | string                                                       | false    |              | Workspace file path is the absolute path of a workspace upload. The bytes live on the workspace filesystem; only metadata is persisted on the message.                                                                                                                                                                                                                                                     |
+| `workspace_file_size`          | integer                                                      | false    |              | Workspace file size is the byte size of a workspace upload.                                                                                                                                                                                                                                                                                                                                                |
+| `workspace_file_workspace_id`  | string                                                       | false    |              | Workspace file workspace ID identifies the workspace whose filesystem holds the uploaded bytes. References are only readable while the chat stays bound to that workspace.                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePartType
 
@@ -3213,9 +3313,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3302,6 +3402,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3317,13 +3418,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -3376,6 +3483,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3391,7 +3499,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -4691,6 +4804,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4706,7 +4820,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
@@ -4848,6 +4967,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -4863,13 +4983,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -4920,6 +5046,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4935,7 +5062,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     },
     "role": "system",
     "seq": 0
@@ -4980,6 +5112,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -4995,7 +5128,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -5089,6 +5227,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "reasoning_delta": "string",
     "result": [
       0
     ],
@@ -5104,7 +5243,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "tool_call_id": "string",
     "tool_name": "string",
     "type": "text",
-    "url": "string"
+    "url": "string",
+    "workspace_file_media_type": "string",
+    "workspace_file_name": "string",
+    "workspace_file_path": "string",
+    "workspace_file_size": 0,
+    "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
   },
   "role": "system",
   "seq": 0
@@ -5310,6 +5454,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -5744,7 +5906,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "mcp_server_ids": [
@@ -5758,14 +5943,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
 
 #### Enumerated Values
 
@@ -5816,6 +6002,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5831,13 +6018,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -5889,6 +6082,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5904,13 +6098,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -5963,6 +6163,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5978,7 +6179,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -6196,7 +6402,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "labels": {
@@ -6227,21 +6456,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                               |
-| `labels`               | object                                                    | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                    | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages. |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                             |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                         |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                            |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -7343,6 +7573,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "actor_header_email": "string",
+        "actor_header_id": "string",
+        "actor_header_username": "string",
         "allow_byok": true,
         "api_dump_dir": "string",
         "budget_period": "string",
@@ -7352,13 +7585,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_interval": 0,
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
+        "disable_content_recording": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "structured_logging_source": "string"
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -7380,6 +7615,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         },
+        "max_attachments_per_chat": 0,
+        "max_concurrent_recording_uploads": 0,
+        "max_generation_retries": 0,
+        "max_prompt_bytes": 0,
+        "max_queued_messages_per_chat": 0,
+        "max_steps_per_turn": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -7433,6 +7674,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_caller_supplied_tools": true,
     "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
@@ -7969,6 +8211,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "actor_header_email": "string",
+      "actor_header_id": "string",
+      "actor_header_username": "string",
       "allow_byok": true,
       "api_dump_dir": "string",
       "budget_period": "string",
@@ -7978,13 +8223,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_interval": 0,
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
+      "disable_content_recording": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "structured_logging_source": "string"
     },
     "chat": {
       "acquire_batch_size": 0,
@@ -8006,6 +8253,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       },
+      "max_attachments_per_chat": 0,
+      "max_concurrent_recording_uploads": 0,
+      "max_generation_retries": 0,
+      "max_prompt_bytes": 0,
+      "max_queued_messages_per_chat": 0,
+      "max_steps_per_turn": 0,
       "stream_silence_timeout": 0
     }
   },
@@ -8059,6 +8312,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_caller_supplied_tools": true,
   "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
@@ -8463,6 +8717,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                           |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                           |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                           |
+| `disable_chat_caller_supplied_tools`           | boolean                                                                                              | false    |              |                                                                           |
 | `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
@@ -8706,7 +8961,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "mcp_server_ids": [
@@ -8772,6 +9032,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -8787,13 +9048,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -8845,6 +9112,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -8860,13 +9128,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -8978,9 +9252,71 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-board`, `chat-inline-mcp-servers`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+
+## codersdk.ExperimentRule
+
+```json
+{
+  "condition": "string",
+  "mode": "string",
+  "revision": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`  | string  | false    |              | Condition is the CEL expression of a condition rule.                                                                                                                                                                 |
+| `mode`       | string  | false    |              | Mode is one of the ExperimentRuleMode values, or empty when the stored rule is malformed. A malformed rule decides off until it is replaced. It is a plain string so that clients can represent the malformed state. |
+| `revision`   | integer | false    |              | Revision increases on every change and starts at 1. Zero means the stored rule has no readable positive revision, so it is malformed.                                                                                |
+| `updated_at` | string  | false    |              |                                                                                                                                                                                                                      |
+| `updated_by` | string  | false    |              |                                                                                                                                                                                                                      |
+
+## codersdk.ExperimentRuleEntry
+
+```json
+{
+  "experiment": "string",
+  "ignored": true,
+  "rule": {
+    "condition": "string",
+    "mode": "string",
+    "revision": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+  },
+  "static_default": true
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                                  |
+|------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `experiment`     | string                                             | false    |              | Experiment is the experiment name. Ignored entries can name experiments this version does not know, so it is a plain string. |
+| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect.            |
+| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                                   |
+| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.             |
+
+## codersdk.ExperimentRuleMode
+
+```json
+"inherit"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `condition`, `inherit`, `off`, `on` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9777,6 +10113,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------|--------|----------|--------------|-------------|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
+
+## codersdk.InlineMCPServer
+
+```json
+{
+  "allow_in_subagents": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "forward_coder_headers": true,
+  "has_custom_headers": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                           |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------|
+| `allow_in_subagents`    | boolean         | false    |              |                                                       |
+| `created_at`            | string          | false    |              |                                                       |
+| `forward_coder_headers` | boolean         | false    |              |                                                       |
+| `has_custom_headers`    | boolean         | false    |              |                                                       |
+| `id`                    | string          | false    |              |                                                       |
+| `slug`                  | string          | false    |              |                                                       |
+| `tool_allow_list`       | array of string | false    |              |                                                       |
+| `tool_deny_list`        | array of string | false    |              |                                                       |
+| `updated_at`            | string          | false    |              |                                                       |
+| `url`                   | string          | false    |              | URL is empty unless the chat owner makes the request. |
+
+## codersdk.InlineMCPServerRequest
+
+```json
+{
+  "allow_in_subagents": true,
+  "forward_coder_headers": true,
+  "headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allow_in_subagents`    | boolean         | false    |              |             |
+| `forward_coder_headers` | boolean         | false    |              |             |
+| `headers`               | object          | false    |              |             |
+| » `[any property]`      | string          | false    |              |             |
+| `slug`                  | string          | false    |              |             |
+| `tool_allow_list`       | array of string | false    |              |             |
+| `tool_deny_list`        | array of string | false    |              |             |
+| `url`                   | string          | false    |              |             |
 
 ## codersdk.InsightsReportInterval
 
@@ -13111,6 +13517,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |--------------------------------------------------|
 | `ok`, `unhealthy`, `unreachable`, `unregistered` |
 
+## codersdk.PutExperimentRuleRequest
+
+```json
+{
+  "condition": "string",
+  "expected_revision": 0,
+  "mode": "inherit"
+}
+```
+
+### Properties
+
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                              |
+|---------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                                                                                |
+| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
+| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
+
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -13391,9 +13821,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -15799,6 +16229,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -15813,8 +16244,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
-| `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
+The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
+|`title`|string|false|||
+|`workspace_id`|string|false|||
 
 ## codersdk.UpdateChatRetentionDaysRequest
 
@@ -16247,6 +16680,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -16258,6 +16692,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -16476,6 +16911,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name | Type   | Required | Restrictions | Description |
 |------|--------|----------|--------------|-------------|
 | `id` | string | false    |              |             |
+
+## codersdk.UploadChatWorkspaceFileResponse
+
+```json
+{
+  "media_type": "string",
+  "name": "string",
+  "path": "string",
+  "size": 0,
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                             |
+|----------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `media_type`   | string  | false    |              | Media type is the client-declared content type for display.                                                             |
+| `name`         | string  | false    |              | Name is the final basename of the uploaded file.                                                                        |
+| `path`         | string  | false    |              | Path is the absolute path of the file on the workspace.                                                                 |
+| `size`         | integer | false    |              | Size is the number of bytes written to the workspace.                                                                   |
+| `workspace_id` | string  | false    |              | Workspace ID is the workspace whose filesystem received the bytes. Message parts referencing this upload must carry it. |
 
 ## codersdk.UploadResponse
 
@@ -17095,6 +17552,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -17106,6 +17564,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -18984,6 +19443,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
+
+## codersdk.WorkspaceBuildDebugEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description                                                                     |
+|------|--------|----------|--------------|---------------------------------------------------------------------------------|
+| `id` | string | true     |              | ID identifies this click so a later step of the funnel can be attributed to it. |
 
 ## codersdk.WorkspaceBuildParameter
 

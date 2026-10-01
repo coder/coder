@@ -131,6 +131,8 @@ func TestChatSharingPermissions(t *testing.T) {
 
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
+		agentsAccessRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+		require.NoError(t, err)
 		perms := rbac.OrgMemberPermissions(rbac.OrgSettings{})
 		orgMemberRole := rbac.Role{
 			Identifier: rbac.ScopedRoleOrgMember(orgID),
@@ -145,7 +147,7 @@ func TestChatSharingPermissions(t *testing.T) {
 		auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
 		return auth.Authorize(context.Background(), rbac.Subject{
 			ID:    userID,
-			Roles: rbac.Roles{memberRole, orgMemberRole},
+			Roles: rbac.Roles{memberRole, orgMemberRole, agentsAccessRole},
 			Scope: rbac.ScopeAll,
 		}, policy.ActionShare, resource)
 	}
@@ -234,7 +236,7 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	member := rbac.OrgMemberPermissions(orgSettings).Member
 	require.False(t, hasResource(member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
 	require.True(t, hasResource(member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
-	require.True(t, hasResource(member, rbac.ResourceChat.Type), "organization-member should grant chat access")
+	require.False(t, hasResource(member, rbac.ResourceChat.Type), "organization-member must not grant chat access")
 
 	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
 	require.False(t, hasResource(sa, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
@@ -248,6 +250,37 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceWorkspace.Type),
 		"organization-workspace-access should grant workspace permissions")
+}
+
+func TestAgentsAccessRole(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	require.True(t, rbac.ReservedRoleName(rbac.RoleAgentsAccess()), "custom roles must not shadow agents-access")
+	require.Equal(t, []string{rbac.RoleOrgWorkspaceAccess(), rbac.RoleAgentsAccess()}, rbac.DefaultOrgMemberRoles())
+
+	role, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+	require.NoError(t, err)
+	require.Empty(t, role.Site)
+	require.Empty(t, role.User)
+	require.Empty(t, role.ByOrgID[orgID.String()].Org)
+	require.ElementsMatch(t, rbac.Permissions(map[string][]policy.Action{
+		rbac.ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+	}), role.ByOrgID[orgID.String()].Member)
+
+	// The role is organization scoped only.
+	_, err = rbac.RoleByName(rbac.RoleIdentifier{Name: rbac.RoleAgentsAccess()})
+	require.Error(t, err)
+
+	for _, assigner := range []rbac.RoleIdentifier{
+		rbac.RoleOwner(),
+		rbac.RoleUserAdmin(),
+		rbac.ScopedRoleOrgAdmin(orgID),
+		rbac.ScopedRoleOrgUserAdmin(orgID),
+	} {
+		require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{assigner}, rbac.ScopedRoleAgentsAccess(orgID)), assigner.String())
+	}
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgTemplateAdmin(orgID)}, rbac.ScopedRoleAgentsAccess(orgID)))
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid
@@ -308,6 +341,21 @@ func TestRolePermissions(t *testing.T) {
 			Actor: rbac.Subject{
 				ID:    currentUser.String(),
 				Roles: rbac.Roles{memberRole, orgWorkspaceAccessRole},
+				Scope: rbac.ScopeAll,
+			}.WithCachedASTValue(),
+		}
+	}()
+
+	orgAgentsAccessUser := func() authSubject {
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		agentsAccessRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+		require.NoError(t, err)
+		return authSubject{
+			Name: "org_agents_access",
+			Actor: rbac.Subject{
+				ID:    currentUser.String(),
+				Roles: rbac.Roles{memberRole, agentsAccessRole},
 				Scope: rbac.ScopeAll,
 			}.WithCachedASTValue(),
 		}
@@ -1411,8 +1459,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
@@ -1420,8 +1468,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionShare},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
@@ -1430,7 +1478,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
@@ -1617,6 +1665,7 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-access:%s", orgID.String()),
+		fmt.Sprintf("agents-access:%s", orgID.String()),
 	},
 		orgRoleNames)
 }
@@ -1794,32 +1843,4 @@ func TestDBPurgeBoundaryLogDelete(t *testing.T) {
 	err = auth.Authorize(context.Background(), dbPurge, policy.ActionRead,
 		rbac.ResourceBoundaryLog)
 	require.Error(t, err, "DBPurge must not read boundary logs")
-}
-
-// TestRetiredRoleNames verifies retired built-in role names stay reserved and
-// that stale stored grants of them expand to nothing instead of failing.
-func TestRetiredRoleNames(t *testing.T) {
-	t.Parallel()
-
-	const retiredName = "agents-access"
-	orgID := uuid.New()
-
-	require.True(t, rbac.IsRetiredRoleName(retiredName))
-	// Retired names stay reserved so custom roles cannot shadow them.
-	require.True(t, rbac.ReservedRoleName(retiredName))
-
-	// Retired names do not resolve to a role...
-	_, err := rbac.RoleByName(rbac.RoleIdentifier{Name: retiredName})
-	require.Error(t, err)
-
-	// ...but stored role arrays may still contain them, so expansion drops
-	// them instead of failing.
-	roles, err := rbac.RoleIdentifiers{
-		{Name: retiredName},
-		{Name: retiredName, OrganizationID: orgID},
-		rbac.ScopedRoleOrgAuditor(orgID),
-	}.Expand()
-	require.NoError(t, err)
-	require.Len(t, roles, 1)
-	require.Equal(t, rbac.ScopedRoleOrgAuditor(orgID), roles[0].Identifier)
 }

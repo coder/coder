@@ -86,6 +86,14 @@ export const SuccessfulAdvice: Story = {
 	},
 };
 
+export const CompletedWithTransientReasoning: Story = {
+	...SuccessfulAdvice,
+	args: {
+		...SuccessfulAdvice.args,
+		reasoning: "This transient reasoning must not appear after completion.",
+	},
+};
+
 export const Running: Story = {
 	args: {
 		status: "running",
@@ -120,11 +128,28 @@ export const WithModelIntent: Story = {
 	},
 };
 
+export const RunningWithReasoning: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I am comparing the risky paths before recommending one.",
+	},
+};
+
 export const RunningWithStreamedAdvice: Story = {
 	args: {
 		status: "running",
 		args: { question: sampleQuestion },
 		result: "Use the smaller diff while the advisor is still responding.",
+	},
+};
+
+export const RunningWithReasoningAndStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I found one low-risk path and one risky shortcut.",
+		result: "Use the low-risk path while the advisor is still responding.",
 	},
 };
 

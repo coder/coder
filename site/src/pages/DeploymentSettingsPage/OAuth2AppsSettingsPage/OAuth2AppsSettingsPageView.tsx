@@ -1,5 +1,4 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -78,7 +77,7 @@ type OAuth2AppsSettingsProps = {
  * there is a value to act on, never on which error happens to be set, and the
  * update error wins the alert because it reports the action the admin just took.
  */
-const SettingsTabBody: FC<{ settings: SettingsTab }> = ({ settings }) => {
+const SettingsTabBody: React.FC<{ settings: SettingsTab }> = ({ settings }) => {
 	if (settings.isLoading) {
 		return <Loader label="Loading settings" />;
 	}
@@ -116,7 +115,7 @@ const SettingsTabBody: FC<{ settings: SettingsTab }> = ({ settings }) => {
 	);
 };
 
-const AddApplicationButton: FC = () => (
+const AddApplicationButton: React.FC = () => (
 	<Button variant="outline" asChild>
 		<Link to="/deployment/oauth2-provider/apps/add">
 			<PlusIcon />
@@ -125,7 +124,7 @@ const AddApplicationButton: FC = () => (
 	</Button>
 );
 
-const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
+const OAuth2AppsSettingsPageView: React.FC<OAuth2AppsSettingsProps> = ({
 	apps,
 	isLoadingApps,
 	appsError,
@@ -222,7 +221,7 @@ type OAuth2AppRowProps = {
 	app: TypesGen.OAuth2ProviderApp;
 };
 
-const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
+const OAuth2AppRow: React.FC<OAuth2AppRowProps> = ({ app }) => {
 	const navigate = useNavigate();
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,10 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -28,16 +32,18 @@ func TestRecordTokenUsage(t *testing.T) {
 	id := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
-		name        string
-		msgID       string
-		usage       openai.CompletionUsage
-		serviceTier string
-		expected    *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel string
+		usage         openai.CompletionUsage
+		serviceTier   string
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:        "with_all_token_details",
-			msgID:       "cmpl_full",
-			serviceTier: "default",
+			name:          "with_all_token_details",
+			msgID:         "cmpl_full",
+			providerModel: "provider-model",
+			serviceTier:   "default",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
@@ -57,6 +63,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "cmpl_full",
+				ProviderModel:         "provider-model",
 				Input:                 35, // 100 prompt - 40 cache read - 25 cache write
 				Output:                50,
 				CacheReadInputTokens:  40,
@@ -72,8 +79,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "all_tokens_cached",
-			msgID: "cmpl_cached",
+			name:          "all_tokens_cached",
+			msgID:         "cmpl_cached",
+			providerModel: "provider-model",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 20,
@@ -84,6 +92,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:       id.String(),
 				MsgID:                "cmpl_cached",
+				ProviderModel:        "provider-model",
 				Input:                0, // 100 prompt - 100 cached
 				Output:               20,
 				CacheReadInputTokens: 100,
@@ -141,7 +150,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				logger:   slog.Make(),
 			}
 
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage, tc.serviceTier)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage, tc.serviceTier)
 
 			tokens := rec.RecordedTokenUsages()
 			require.Len(t, tokens, 1)
@@ -328,7 +337,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &credential.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)
@@ -407,6 +416,74 @@ func TestWriteUpstreamError(t *testing.T) {
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
 			}
+		})
+	}
+}
+
+// TestNewCompletionsServiceBedrockAuth verifies the Bedrock mantle service uses
+// the user's key as a bearer token when present and SigV4 otherwise.
+func TestNewCompletionsServiceBedrockAuth(t *testing.T) {
+	t.Parallel()
+
+	const userKey = "user-bedrock-api-key" //nolint:gosec // G101: test-only fake credential.
+
+	tests := []struct {
+		name string
+		cred credential.Credential
+		// check asserts on the Authorization header the upstream received.
+		check func(t *testing.T, header http.Header)
+	}{
+		{
+			name: "byok uses bearer token",
+			cred: credential.BYOK{Secret: userKey, Header: aibheaders.AuthHeaderAuthorization},
+			check: func(t *testing.T, header http.Header) {
+				require.Equal(t, "Bearer "+userKey, header.Get("Authorization"))
+				require.Empty(t, header.Get("X-Amz-Date"))
+			},
+		},
+		{
+			name: "centralized uses sigv4",
+			cred: credential.AWSSigV4{AccessKey: "AKID"},
+			check: func(t *testing.T, header http.Header) {
+				require.Contains(t, header.Get("Authorization"), "AWS4-HMAC-SHA256")
+				require.Contains(t, header.Get("Authorization"), "/bedrock-mantle/aws4_request")
+				require.NotEmpty(t, header.Get("X-Amz-Date"))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var received http.Header
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received = r.Header.Clone()
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"cmpl_1","object":"chat.completion","choices":[]}`))
+			}))
+			t.Cleanup(upstream.Close)
+
+			base := &interceptionBase{
+				req: &ChatCompletionNewParamsWrapper{
+					ChatCompletionNewParams: openai.ChatCompletionNewParams{Model: "openai.gpt-x"},
+				},
+				cred: tc.cred,
+				bedrockMantle: &awssig.MantleConfig{
+					BaseURL: upstream.URL,
+					Region:  "us-east-1",
+					Creds:   credentials.NewStaticCredentialsProvider("AKID", "secret", ""),
+				},
+				logger: slog.Make(),
+			}
+
+			svc := base.newCompletionsService(context.Background())
+			_, err := svc.New(context.Background(), base.req.ChatCompletionNewParams)
+			require.NoError(t, err)
+			require.NotNil(t, received)
+
+			tc.check(t, received)
+			require.Contains(t, received.Get("User-Agent"), awssig.PRMUserAgent)
 		})
 	}
 }

@@ -62,7 +62,7 @@ use organizations for several use cases.
 Since templates and workspaces cannot be moved nor can they belong to multiple
 organizations, we recommend that you deprecate your template
 [through the API](../../reference/api/templates.md#update-template-settings-by-id)
-or [through the Coder CLI](../../reference/cli/templates_edit.md#--deprecated).
+or [through the Coder CLI](../../reference/cli/templates/edit.md#--deprecated).
 When a template is deprecated, the admin prevents new workspaces from being
 created and developers are notified with a deprecation message which can link to
 an external wiki page on migration instructions.
@@ -122,7 +122,9 @@ We’re interested in identifying new use cases for custom roles. Please
 [create a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+request+here)
 with your suggestion or request.
 
-## Managing Organizations at Scale
+<a id="managing-organizations-at-scale"></a>
+
+## Manage organizations at scale
 
 Using ClickOps to onboard new organizations, set quotas, and SSO sync can be
 cumbersome, especially if you want to "seed" organizations with provisioners and

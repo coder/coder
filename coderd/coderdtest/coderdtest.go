@@ -1610,10 +1610,11 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Google Cloud.
 // nolint:revive
-func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
+func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool, audience string) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
 	claims := jwt.MapClaims{
+		"aud": audience,
 		"google": map[string]interface{}{
 			"compute_engine": map[string]string{
 				"instance_id": instanceID,

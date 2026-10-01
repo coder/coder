@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import type { ComponentProps, FC, ReactNode } from "react";
 
-export const Stats: FC<ComponentProps<"div">> = ({
+export const Stats: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -19,12 +18,12 @@ export const Stats: FC<ComponentProps<"div">> = ({
 	);
 };
 
-type StatsItemProps = ComponentProps<"div"> & {
+type StatsItemProps = React.ComponentProps<"div"> & {
 	label: string;
-	value: ReactNode;
+	value: React.ReactNode;
 };
 
-export const StatsItem: FC<StatsItemProps> = ({
+export const StatsItem: React.FC<StatsItemProps> = ({
 	label,
 	value,
 	className,
