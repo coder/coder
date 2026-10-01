@@ -61,6 +61,7 @@ type provenanceLimits struct {
 	sourceExpressions int
 	referenceCount    int
 	referenceBytes    int
+	referenceDepth    int
 	expressionDepth   int
 }
 
@@ -73,6 +74,7 @@ func defaultProvenanceLimits() provenanceLimits {
 		sourceExpressions: maxRuntimeSourceExpressions,
 		referenceCount:    maxRuntimeReferenceCount,
 		referenceBytes:    maxRuntimeReferenceBytes,
+		referenceDepth:    maxRuntimeProvenanceDepth,
 		expressionDepth:   maxRuntimeProvenanceDepth,
 	}
 }
@@ -127,6 +129,16 @@ func (b *provenanceBudget) checkDepth(depth int) error {
 	return xerrors.Errorf(
 		"agent runtime provenance exceeds the limit of %d nested Terraform expressions",
 		b.limits.expressionDepth,
+	)
+}
+
+func (b *provenanceBudget) checkReferenceDepth(depth int) error {
+	if depth < b.limits.referenceDepth {
+		return nil
+	}
+	return xerrors.Errorf(
+		"agent runtime provenance exceeds the limit of %d indirect Terraform references",
+		b.limits.referenceDepth,
 	)
 }
 

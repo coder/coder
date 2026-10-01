@@ -40,15 +40,18 @@ type runtimeReferenceQuery struct {
 // devcontainer-subagent runtimes. It is request-local and must not be used
 // concurrently.
 type Resolver struct {
-	graph       *tfgraph.Index
-	query       *tfgraph.Query
-	configIndex *configIndex
-	runtimes    *runtimeCatalog
+	graph            *tfgraph.Index
+	query            *tfgraph.Query
+	configIndex      *configIndex
+	runtimes         *runtimeCatalog
+	provenanceBudget *provenanceBudget
 
-	limits                 resolverLimits
-	budget                 resolutionBudget
-	referenceNodes         map[runtimeReferenceQuery][]tfgraph.NodeID
-	referenceCacheKeyBytes int
+	limits                  resolverLimits
+	budget                  resolutionBudget
+	referenceNodes          map[runtimeReferenceQuery][]tfgraph.NodeID
+	referenceTargets        map[runtimeReferenceQuery]runtimeTargetKinds
+	referenceCacheKeyBytes  int
+	referenceTargetKeyBytes int
 }
 
 // NewResolver creates a request-local agent-runtime resolver.
@@ -76,12 +79,16 @@ func NewResolver(
 		return nil, err
 	}
 	return &Resolver{
-		graph:          graph,
-		query:          query,
-		configIndex:    program.configIndex,
-		runtimes:       runtimes,
-		limits:         defaultResolverLimits(),
-		referenceNodes: map[runtimeReferenceQuery][]tfgraph.NodeID{},
+		graph:       graph,
+		query:       query,
+		configIndex: program.configIndex,
+		runtimes:    runtimes,
+		provenanceBudget: newProvenanceBudget(
+			defaultProvenanceLimits(),
+		),
+		limits:           defaultResolverLimits(),
+		referenceNodes:   map[runtimeReferenceQuery][]tfgraph.NodeID{},
+		referenceTargets: map[runtimeReferenceQuery]runtimeTargetKinds{},
 	}, nil
 }
 
@@ -175,21 +182,40 @@ func (r *Resolver) runtimeCandidates(
 	if err != nil {
 		return runtimeCandidates{}, err
 	}
+	resolvedReferences, err := r.resolveConfiguredRuntimeReferences(
+		ctx,
+		resourceAddress.ModulePath(),
+		references,
+		r.provenanceBudget,
+	)
+	if err != nil {
+		return runtimeCandidates{}, err
+	}
 
 	candidates := map[runtimeID]struct{}{}
-	for _, reference := range references {
+	for _, resolvedReference := range resolvedReferences {
 		if err := ctx.Err(); err != nil {
 			return runtimeCandidates{}, err
 		}
-		target := runtimeReferenceTargetForReference(reference)
+		reference := resolvedReference.reference
+		target, err := r.runtimeReferenceTarget(
+			ctx, resolvedReference.modulePath, reference,
+		)
+		if err != nil {
+			return runtimeCandidates{}, xerrors.Errorf(
+				"resolve reference %q agent runtime target: %s",
+				truncateDiagnosticValue(reference),
+				truncateDiagnosticValue(err.Error()),
+			)
+		}
 		terminalNodes, err := r.runtimeNodesForReference(
-			ctx, resourceAddress.ModulePath(), reference, target,
+			ctx, resolvedReference.modulePath, reference, target,
 		)
 		if err != nil {
 			return runtimeCandidates{}, err
 		}
 		constraint := runtimeInstanceConstraintForReference(
-			resourceAddress.ModulePath(), reference,
+			resolvedReference.modulePath, reference,
 		)
 		if target == runtimeReferenceTargetDevcontainerParent {
 			// An index on coder_devcontainer constrains the intermediate
@@ -435,7 +461,7 @@ func (r *Resolver) runtimeNodesForReference(
 func (r *Resolver) resourceAgentIDReferences(
 	ctx context.Context,
 	resource *tfjson.StateResource,
-) (tfaddr.ManagedResourceAddress, []string, error) {
+) (tfaddr.ManagedResourceAddress, []runtimeConfiguredReference, error) {
 	if err := ctx.Err(); err != nil {
 		return tfaddr.ManagedResourceAddress{}, nil, err
 	}
@@ -472,31 +498,68 @@ func (r *Resolver) resourceAgentIDReferences(
 			stateResourceDiagnosticAddress(resource),
 		)
 	}
+	agentIDKey := runtimeExpressionKey{
+		moduleAddress: parsed.ModulePath().ConfigurationAddress(),
+		kind:          runtimeExpressionResource,
+		resourceType:  resource.Type,
+		name:          resource.Name,
+		attribute:     "agent_id",
+	}
+	if !r.configIndex.runtimeExpressionPreservesIdentity(agentIDKey) {
+		return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+			"resource %q agent_id expression does not preserve agent runtime identity",
+			stateResourceDiagnosticAddress(resource),
+		)
+	}
 	if len(configuredResource.agentIDReferences) == 0 {
 		return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
 			"resource %q agent_id expression has no Terraform references",
 			stateResourceDiagnosticAddress(resource),
 		)
 	}
-	additionalReferences := []string(nil)
-	usesEachValueAsValue := false
-	for _, reference := range configuredResource.agentIDReferences {
-		suffix, eachValue := strings.CutPrefix(reference, "each.value")
-		if eachValue && (suffix == "" || strings.HasPrefix(suffix, ".") ||
-			strings.HasPrefix(suffix, "[")) {
-			usesEachValueAsValue = true
-			continue
-		}
-		if reference != "each" && !strings.HasPrefix(reference, "each.") {
-			usesEachValueAsValue = false
-			break
-		}
+
+	references, err := mostSpecificTerraformReferences(
+		ctx,
+		r.configIndex.runtimeExpressionValueReferences(
+			agentIDKey, configuredResource.agentIDReferences,
+		),
+	)
+	if err != nil {
+		return tfaddr.ManagedResourceAddress{}, nil, err
 	}
-	if usesEachValueAsValue {
-		additionalReferences = configuredResource.forEachReferences
+	expressionResultSuffix := r.configIndex.runtimeExpressionResultSuffix(
+		agentIDKey,
+	)
+	additionalReferences := []string(nil)
+	usesEachValueAsValue := r.configIndex.runtimeExpressionUsesEachValueAsValue(
+		agentIDKey, configuredResource.agentIDReferences,
+	)
+	if usesEachValueAsValue && len(configuredResource.forEachReferences) > 0 {
+		forEachKey := runtimeExpressionKey{
+			moduleAddress: parsed.ModulePath().ConfigurationAddress(),
+			kind:          runtimeExpressionResource,
+			resourceType:  resource.Type,
+			name:          resource.Name,
+			attribute:     "for_each",
+		}
+		if !r.configIndex.runtimeExpressionPreservesIdentity(forEachKey) {
+			return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+				"resource %q for_each expression does not preserve agent runtime identity",
+				stateResourceDiagnosticAddress(resource),
+			)
+		}
+		additionalReferences, err = mostSpecificTerraformReferences(
+			ctx,
+			r.configIndex.runtimeExpressionValueReferences(
+				forEachKey, configuredResource.forEachReferences,
+			),
+		)
+		if err != nil {
+			return tfaddr.ManagedResourceAddress{}, nil, err
+		}
 	}
 	if exceedsLimit(
-		len(configuredResource.agentIDReferences),
+		len(references),
 		len(additionalReferences),
 		r.limits.referenceCount,
 	) {
@@ -506,39 +569,43 @@ func (r *Resolver) resourceAgentIDReferences(
 		)
 	}
 	referenceBytes := len(parsed.ModulePath().String())
-	for _, source := range [][]string{
-		configuredResource.agentIDReferences,
-		additionalReferences,
-	} {
-		for _, reference := range source {
-			if err := ctx.Err(); err != nil {
-				return tfaddr.ManagedResourceAddress{}, nil, err
-			}
-			if exceedsLimit(
-				referenceBytes,
-				len(reference),
-				r.limits.referenceBytes,
-			) {
-				return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
-					"agent runtime resolution exceeds the limit of %d Terraform reference bytes",
-					r.limits.referenceBytes,
-				)
-			}
-			referenceBytes += len(reference)
-		}
-	}
-	references := make(
-		[]string,
+	result := make(
+		[]runtimeConfiguredReference,
 		0,
-		len(configuredResource.agentIDReferences)+len(additionalReferences),
+		len(references)+len(additionalReferences),
 	)
-	references = append(references, configuredResource.agentIDReferences...)
-	references = append(references, additionalReferences...)
-	references, err = mostSpecificTerraformReferences(ctx, references)
-	if err != nil {
-		return tfaddr.ManagedResourceAddress{}, nil, err
+	for _, reference := range references {
+		result = append(result, runtimeConfiguredReference{
+			reference: reference,
+			resultSuffix: runtimeConfiguredResultSuffix(
+				reference, expressionResultSuffix,
+			),
+		})
 	}
-	return parsed, references, nil
+	for _, reference := range additionalReferences {
+		result = append(result, runtimeConfiguredReference{
+			reference: reference,
+			resultSuffix: runtimeConfiguredResultSuffix(
+				reference, expressionResultSuffix,
+			),
+		})
+	}
+	for _, reference := range result {
+		if err := ctx.Err(); err != nil {
+			return tfaddr.ManagedResourceAddress{}, nil, err
+		}
+		bytes := len(reference.reference) + len(reference.resultSuffix)
+		if exceedsLimit(
+			referenceBytes, bytes, r.limits.referenceBytes,
+		) {
+			return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+				"agent runtime resolution exceeds the limit of %d Terraform reference bytes",
+				r.limits.referenceBytes,
+			)
+		}
+		referenceBytes += bytes
+	}
+	return parsed, result, nil
 }
 
 // mostSpecificTerraformReferences removes the traversal prefixes that

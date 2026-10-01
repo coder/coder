@@ -23,7 +23,12 @@ type moduleCallKey struct {
 }
 
 type configModuleCall struct {
-	source string
+	source          string
+	inputReferences map[string][]string
+}
+
+type configModule struct {
+	outputReferences map[string][]string
 }
 
 type configResource struct {
@@ -34,7 +39,7 @@ type configResource struct {
 // configIndex maps evaluated module instances to shared configuration
 // declarations. Instance keys are omitted from its keys.
 type configIndex struct {
-	modules                     map[string]struct{}
+	modules                     map[string]configModule
 	moduleCalls                 map[moduleCallKey]configModuleCall
 	resources                   map[configResourceKey]configResource
 	runtimeSourceExpressions    map[runtimeExpressionKey]hcl.Expression
@@ -54,7 +59,7 @@ func newConfigIndex(
 		return nil, nil
 	}
 	index := &configIndex{
-		modules:                     map[string]struct{}{},
+		modules:                     map[string]configModule{},
 		moduleCalls:                 map[moduleCallKey]configModuleCall{},
 		resources:                   map[configResourceKey]configResource{},
 		runtimeSourceExpressions:    map[runtimeExpressionKey]hcl.Expression{},
@@ -81,7 +86,19 @@ func (i *configIndex) indexModule(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	i.modules[moduleAddress] = struct{}{}
+	outputReferences := make(map[string][]string, len(module.Outputs))
+	for name, output := range module.Outputs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if output == nil || output.Expression == nil {
+			continue
+		}
+		outputReferences[name] = configExpressionReferences(output.Expression)
+	}
+	i.modules[moduleAddress] = configModule{
+		outputReferences: outputReferences,
+	}
 	for _, resource := range module.Resources {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -122,10 +139,25 @@ func (i *configIndex) indexModule(
 		if call == nil {
 			continue
 		}
+		inputReferences := make(
+			map[string][]string, len(call.Expressions),
+		)
+		for inputName, expression := range call.Expressions {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if expression == nil {
+				continue
+			}
+			inputReferences[inputName] = configExpressionReferences(expression)
+		}
 		i.moduleCalls[moduleCallKey{
 			moduleAddress: moduleAddress,
 			moduleName:    name,
-		}] = configModuleCall{source: call.Source}
+		}] = configModuleCall{
+			source:          call.Source,
+			inputReferences: inputReferences,
+		}
 		if call.Module == nil {
 			continue
 		}
@@ -138,6 +170,13 @@ func (i *configIndex) indexModule(
 		}
 	}
 	return nil
+}
+
+func configExpressionReferences(expression *tfjson.Expression) []string {
+	if expression == nil || expression.ExpressionData == nil {
+		return nil
+	}
+	return slices.Clone(expression.References)
 }
 
 func configurationModuleAddress(evaluatedAddress string) (string, error) {
