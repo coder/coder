@@ -1090,7 +1090,9 @@ By default, chatd runs up to five top-level chats and ten subagent chats at once
 
 The worker periodically archives old, unused chats.
 
-TODO: the candidate list is still read without locks, but each candidate is now rechecked against the same filters (unarchived, unpinned root, idle status, family last message before the cutoff) inside the `SetFamilyArchived` transaction after the root and every family member row are locked (root first). A chat that stopped qualifying, for example because a message landed after the candidate read, is skipped for that tick. Unarchiving without a message is still not activity, so such a chat is archived again. Describe this here.
+Each tick reads a batch of candidate root chats without holding locks. A candidate is unarchived, unpinned, not `running`, `interrupting` or `requires_action`, created before the cutoff, and the newest non-deleted message in its family is older than the cutoff. The cutoff is 00:00 UTC of the current day minus the configured number of auto-archive days.
+
+Each candidate is archived the same way as an archive through `PATCH /api/v2/chats/{chat}`: `SetArchived(true)` applies to the root and all descendants in one transaction. Before any chat changes, that transaction locks the root and then every descendant, and rechecks the candidate conditions. A chat that no longer qualifies, for example because a message arrived after the candidate read, is skipped. Only messages count as activity, so a chat that is unarchived without a new message is archived again on the next tick.
 
 ## Manual compaction
 
