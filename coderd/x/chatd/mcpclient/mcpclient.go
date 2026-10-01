@@ -911,6 +911,27 @@ type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
+// RawResult is an MCP tools/call result as the server returned it, with
+// each content block as its JSON object. Strings are redacted the same
+// way as the model-facing response.
+type RawResult struct {
+	Content           []map[string]any `json:"content"`
+	StructuredContent any              `json:"structuredContent,omitempty"`
+	IsError           bool             `json:"isError"`
+}
+
+// RawCaller is an MCP tool that can be called outside the model loop and
+// return its result unflattened. callID, when non-empty, is sent in the
+// request _meta for server-side correlation.
+type RawCaller interface {
+	fantasy.AgentTool
+	CallRaw(ctx context.Context, args map[string]any, callID string) (RawResult, error)
+}
+
+// ErrResultTooLarge is returned by CallRaw when a server's result cap
+// applies and the redacted result exceeds it.
+var ErrResultTooLarge = xerrors.New("tool result too large")
+
 // AppendInline appends inline tools to an existing tool
 // list. When an inline tool has the same name as an existing
 // tool, the existing tool wins and the inline one is dropped
@@ -1236,26 +1257,11 @@ func (t *mcpToolWrapper) Run(
 		}
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
-	defer cancel()
-
-	callParams := &mcp.CallToolParams{
-		Name:      t.originalName,
-		Arguments: args,
-	}
-	if params.ID != "" {
-		callParams.Meta = mcp.Meta{toolCallIDMetaKey: params.ID}
-	}
-	result, err := t.session.CallTool(callCtx, callParams)
+	result, err := t.callTool(ctx, args, params.ID)
 	var resp fantasy.ToolResponse
 	if err != nil {
-		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
+		resp = fantasy.NewTextErrorResponse(err.Error())
 	} else {
-		// Structured content is redacted before convertCallResult encodes it
-		// as JSON, where escaping would hide a secret from the string match.
-		if result != nil {
-			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
-		}
 		resp = t.redactor.redactResponse(convertCallResult(result))
 	}
 	// Measure the result as the model receives it: Data is sent base64-encoded.
@@ -1266,6 +1272,93 @@ func (t *mcpToolWrapper) Run(
 	}
 	return resp, nil
 }
+
+// callTool sends tools/call with the per-call timeout and redacts the
+// result's structured content and binary payloads. A returned error
+// message is already redacted; its cause is reachable with errors.Is.
+func (t *mcpToolWrapper) callTool(ctx context.Context, args map[string]any, callID string) (*mcp.CallToolResult, error) {
+	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
+	defer cancel()
+
+	callParams := &mcp.CallToolParams{
+		Name:      t.originalName,
+		Arguments: args,
+	}
+	if callID != "" {
+		callParams.Meta = mcp.Meta{toolCallIDMetaKey: callID}
+	}
+	result, err := t.session.CallTool(callCtx, callParams)
+	if err != nil {
+		return nil, &redactedError{msg: t.redactor.redactString(err.Error()), cause: err}
+	}
+	if result == nil {
+		result = &mcp.CallToolResult{}
+	}
+	// Structured content is redacted before it is encoded as JSON, where
+	// escaping would hide a secret from the string match. Binary payloads
+	// are redacted as raw bytes for the same reason.
+	result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
+	if len(t.redactor.values) > 0 {
+		for _, item := range result.Content {
+			switch c := item.(type) {
+			case *mcp.ImageContent:
+				c.Data = t.redactor.redactBytes(c.Data)
+			case *mcp.AudioContent:
+				c.Data = t.redactor.redactBytes(c.Data)
+			case *mcp.EmbeddedResource:
+				if c.Resource != nil {
+					c.Resource.Blob = t.redactor.redactBytes(c.Resource.Blob)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+// CallRaw implements RawCaller. Every string in every block is redacted
+// and the inline result cap is measured on the redacted JSON.
+func (t *mcpToolWrapper) CallRaw(ctx context.Context, args map[string]any, callID string) (RawResult, error) {
+	result, err := t.callTool(ctx, args, callID)
+	if err != nil {
+		return RawResult{}, err
+	}
+	raw := RawResult{
+		Content:           make([]map[string]any, 0, len(result.Content)),
+		StructuredContent: result.StructuredContent,
+		IsError:           result.IsError,
+	}
+	for _, item := range result.Content {
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			return RawResult{}, xerrors.Errorf("encode content block: %w", err)
+		}
+		var block map[string]any
+		if err := json.Unmarshal(encoded, &block); err != nil {
+			return RawResult{}, xerrors.Errorf("decode content block: %w", err)
+		}
+		raw.Content = append(raw.Content, t.redactor.redactMap(block))
+	}
+	if t.maxResultBytes > 0 {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return RawResult{}, xerrors.Errorf("encode result: %w", err)
+		}
+		if len(encoded) > t.maxResultBytes {
+			return RawResult{}, xerrors.Errorf("tool result exceeded maximum size of %d bytes: %w", t.maxResultBytes, ErrResultTooLarge)
+		}
+	}
+	return raw, nil
+}
+
+// redactedError carries a redacted message over an unredacted cause so
+// errors.Is still works on the cause.
+type redactedError struct {
+	msg   string
+	cause error
+}
+
+func (e *redactedError) Error() string { return e.msg }
+func (e *redactedError) Unwrap() error { return e.cause }
 
 func (t *mcpToolWrapper) ProviderOptions() fantasy.ProviderOptions {
 	return t.providerOptions

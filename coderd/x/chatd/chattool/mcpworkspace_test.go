@@ -10,8 +10,10 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -304,4 +306,50 @@ func TestNewWorkspaceMCPTools_DisambiguatesCollidingNames(t *testing.T) {
 	}
 	assert.ElementsMatch(t,
 		[]string{"foo.bar__echo", "foo_bar__echo"}, routed)
+}
+
+func TestWorkspaceMCPTool_CallRaw(t *testing.T) {
+	t.Parallel()
+
+	var gotReq workspacesdk.CallMCPToolRequest
+	tool := chattool.NewWorkspaceMCPTools(
+		[]workspacesdk.MCPToolInfo{{Name: "srv.a__list", Description: "lists"}},
+		func(context.Context) (workspacesdk.AgentConn, error) {
+			return &fakeAgentConn{
+				callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+					gotReq = req
+					return workspacesdk.CallMCPToolResponse{
+						Content: []workspacesdk.MCPToolContent{
+							{Type: "text", Text: "one"},
+							{Type: "image", Data: "AQID", MediaType: "image/png"},
+						},
+						IsError: true,
+					}, nil
+				},
+			}, nil
+		},
+	)[0]
+	caller, ok := tool.(mcpclient.RawCaller)
+	require.True(t, ok)
+
+	raw, err := caller.CallRaw(context.Background(), map[string]any{"page": 1}, "box:1")
+	require.NoError(t, err)
+	// The unsanitized routing name reaches the agent.
+	assert.Equal(t, "srv.a__list", gotReq.ToolName)
+	assert.Equal(t, map[string]any{"page": 1}, gotReq.Arguments)
+	assert.True(t, raw.IsError)
+	assert.Nil(t, raw.StructuredContent)
+	assert.Equal(t, []map[string]any{
+		{"type": "text", "text": "one"},
+		{"type": "image", "data": "AQID", "mimeType": "image/png"},
+	}, raw.Content)
+
+	failing := chattool.NewWorkspaceMCPTools(
+		[]workspacesdk.MCPToolInfo{{Name: "srv__x"}},
+		func(context.Context) (workspacesdk.AgentConn, error) {
+			return nil, xerrors.New("agent unreachable")
+		},
+	)[0].(mcpclient.RawCaller)
+	_, err = failing.CallRaw(context.Background(), nil, "")
+	require.ErrorContains(t, err, "workspace connection failed: agent unreachable")
 }

@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -142,6 +144,40 @@ func uniqueModelToolName(name string, seen map[string]struct{}) string {
 
 func (t *WorkspaceMCPTool) Info() fantasy.ToolInfo {
 	return t.info
+}
+
+// CallRaw implements mcpclient.RawCaller. The workspace agent proxy
+// carries no structured content or _meta, so callID is unused.
+func (t *WorkspaceMCPTool) CallRaw(ctx context.Context, args map[string]any, _ string) (mcpclient.RawResult, error) {
+	conn, err := t.getConn(ctx)
+	if err != nil {
+		return mcpclient.RawResult{}, xerrors.Errorf("workspace connection failed: %w", err)
+	}
+	resp, err := conn.CallMCPTool(ctx, workspacesdk.CallMCPToolRequest{
+		ToolName:  t.routingName,
+		Arguments: args,
+	})
+	if err != nil {
+		return mcpclient.RawResult{}, err
+	}
+	raw := mcpclient.RawResult{
+		Content: make([]map[string]any, 0, len(resp.Content)),
+		IsError: resp.IsError,
+	}
+	for _, c := range resp.Content {
+		block := map[string]any{"type": c.Type}
+		if c.Text != "" {
+			block["text"] = strings.ToValidUTF8(c.Text, "\uFFFD")
+		}
+		if c.Data != "" {
+			block["data"] = c.Data
+		}
+		if c.MediaType != "" {
+			block["mimeType"] = c.MediaType
+		}
+		raw.Content = append(raw.Content, block)
+	}
+	return raw, nil
 }
 
 func (t *WorkspaceMCPTool) Run(
