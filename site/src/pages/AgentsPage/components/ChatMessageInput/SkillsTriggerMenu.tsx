@@ -187,13 +187,12 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 
 	const handleMenuRef = (content: HTMLDivElement | null) => {
 		setMenuWrapper(
-			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-				null,
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
 		);
 	};
 
