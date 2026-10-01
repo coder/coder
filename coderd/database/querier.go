@@ -1529,6 +1529,10 @@ type sqlcQuerier interface {
 	// grant_history_epoch gives a turn that inserts no history the same
 	// fresh retry budget and message part episode keys a history change
 	// would grant, mirroring the chat_messages trigger postcondition.
+	//
+	// retry_state is a pending retry of a running turn, so it is cleared
+	// whenever the chat leaves running. Otherwise an interrupted or failed
+	// chat would keep announcing a retry that will never happen.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified

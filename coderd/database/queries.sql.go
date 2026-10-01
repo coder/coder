@@ -12974,7 +12974,10 @@ WITH updated_chat AS (
         compaction_requested_at = $7::timestamptz,
         history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
         generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
+        retry_state = CASE
+            WHEN $8::boolean OR $1::chat_status <> 'running'::chat_status THEN NULL
+            ELSE retry_state
+        END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = $9::uuid
@@ -13058,6 +13061,10 @@ type UpdateChatExecutionStateParams struct {
 // grant_history_epoch gives a turn that inserts no history the same
 // fresh retry budget and message part episode keys a history change
 // would grant, mirroring the chat_messages trigger postcondition.
+//
+// retry_state is a pending retry of a running turn, so it is cleared
+// whenever the chat leaves running. Otherwise an interrupted or failed
+// chat would keep announcing a retry that will never happen.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,

@@ -116,6 +116,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
+- When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
@@ -397,6 +398,8 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 Retry state is scoped to the current generation attempt. Whenever `generation_attempt` changes, `retry_state` is cleared automatically. If that clear changes the value of `retry_state`, `retry_state_version` is set to the current `snapshot_version`.
 
+Retry state is also scoped to the running turn. `UpdateChatExecutionState` clears `retry_state` whenever it writes a status other than `running`, so transitions that leave `running` (for example `Interrupt`, `EnterRequiresAction`, and `FinishError`) drop a pending retry. The same trigger then sets `retry_state_version` to the current `snapshot_version`.
+
 A single `BEFORE UPDATE` trigger handles both clearing `retry_state` on generation-attempt changes and bumping `retry_state_version` on retry-state changes. The trigger mutates `NEW` directly and does not run an `UPDATE chats ...` statement, so it does not recursively trigger itself:
 
 ```sql
@@ -457,6 +460,8 @@ No other input states are supported.
 ### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
+
+The family update locks the root chat row first, and creating a child chat takes a shared lock on the same row. A concurrent child creation therefore either commits first and is included in the family update, or waits for it and fails if the root is now archived.
 
 For `archived` updates, the supported input and output states are:
 
@@ -1174,6 +1179,7 @@ The stream loop stores:
 - latest `worker_id`;
 - latest `generation_attempt`;
 - last accepted preview part `seq`;
+- whether the current generation attempt is retired (`attempt_retired`);
 
 Initial null state:
 
@@ -1185,6 +1191,7 @@ Initial null state:
 - last sent error history version is `0`;
 - action-required cursor is `0`;
 - preview part sequence is `0`;
+- `attempt_retired` is false;
 
 ## Stream loop operations
 
@@ -1193,7 +1200,7 @@ The loop has two operations:
 | Operation | Description |
 | --- | --- |
 | `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq) and the attempt is not retired. Triggered by the relay forwarder. |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 
@@ -1234,9 +1241,10 @@ Applying the database result means, in deterministic order:
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
 5. If `db.status = requires_action` and `db.history_version > local.action_required_history_version`, run action-required synchronization.
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
-7. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
-8. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
-9. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled.
+8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
+9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
+10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1327,8 +1335,8 @@ Retry-state sync happens inside `Sync`.
 Flow:
 
 1. `Sync` observes `db.retry_state_version > local.retry_state_version`.
-2. If `db.retry_state` is null, emit nothing.
-3. If `db.retry_state` is non-null, emit one `retry` event with `db.retry_state` as the payload.
+2. If `db.retry_state` is null or `db.status != running`, emit nothing.
+3. Otherwise emit one `retry` event with `db.retry_state` as the payload.
 
 Required invariant:
 
@@ -1468,6 +1476,7 @@ The operation succeeds only if:
 ```
 history_version == local.history_version
 generation_attempt == local.generation_attempt
+local.attempt_retired == false
 seq == local.last_part_seq + 1
 ```
 
@@ -1478,7 +1487,7 @@ emit message_part
 local.last_part_seq = seq
 ```
 
-If any check fails, the operation is rejected.
+If any check fails, the operation is rejected. Parts of a retired attempt are rejected before the sequence check, so they never count as a gap.
 
 A sequence gap is an invariant violation because the parts endpoint must enforce contiguous delivery for each requested episode.
 

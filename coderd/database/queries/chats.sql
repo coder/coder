@@ -2704,6 +2704,10 @@ FROM chats_expanded;
 -- grant_history_epoch gives a turn that inserts no history the same
 -- fresh retry budget and message part episode keys a history change
 -- would grant, mirroring the chat_messages trigger postcondition.
+--
+-- retry_state is a pending retry of a running turn, so it is cleared
+-- whenever the chat leaves running. Otherwise an interrupted or failed
+-- chat would keep announcing a retry that will never happen.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2716,7 +2720,10 @@ WITH updated_chat AS (
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
         history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
         generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN @grant_history_epoch::boolean THEN NULL ELSE retry_state END,
+        retry_state = CASE
+            WHEN @grant_history_epoch::boolean OR @status::chat_status <> 'running'::chat_status THEN NULL
+            ELSE retry_state
+        END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid

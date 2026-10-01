@@ -65,6 +65,9 @@ type CreateChatResult struct {
 // Validation:
 //   - InitialMessages must be non-empty.
 //   - InitialStatus must be `waiting`, `running`, or empty (`running`).
+//   - When RootChatID is set, the root chat must exist and must not be
+//     archived; otherwise CreateChat returns [ErrChatNotFound] or
+//     [ErrChatFamilyArchived].
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
@@ -125,6 +128,25 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.RootChatID.Valid {
+			// Lock the family root before inserting the child so this
+			// transaction serializes with SetFamilyArchived, which also
+			// locks the root first and then writes the members. FOR
+			// SHARE conflicts with that FOR UPDATE lock and with the
+			// row lock of any plain UPDATE on the root, so the archived
+			// flag read here holds until commit. Concurrent child
+			// creations under the same root still run in parallel.
+			root, err := store.GetChatByIDForShare(ctx, input.RootChatID.UUID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatNotFound
+				}
+				return xerrors.Errorf("lock root chat: %w", err)
+			}
+			if root.Archived {
+				return ErrChatFamilyArchived
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
