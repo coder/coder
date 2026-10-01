@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -444,6 +445,51 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		var hookErr *dispatch.Error
 		require.ErrorAs(t, runErr, &hookErr,
 			"dispatch failures must fail closed, not degrade to a tool error the model can ignore")
+
+		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{parent.ID},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
+	})
+
+	t.Run("ArchivedRootSkipsHook", func(t *testing.T) {
+		t.Parallel()
+
+		var hookCalls atomic.Int32
+		ctx, db, parent, server := newFixture(t, func(rw http.ResponseWriter, _ *http.Request) {
+			hookCalls.Add(1)
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"permission": {"decision": "allow"}}`))
+		})
+		// The turn snapshot predates the archive, as for a spawn call
+		// still in flight when the family was archived.
+		turnSnapshot := parent
+		_, err := chatstate.SetFamilyArchived(ctx, db, server.pubsub, chatstate.SetFamilyArchivedInput{
+			RootID:   parent.ID,
+			Archived: true,
+		})
+		require.NoError(t, err)
+
+		tools := server.subagentTools(ctx, func() database.Chat { return turnSnapshot }, parent.LastModelConfigID)
+		tool := findToolByName(tools, spawnAgentToolName)
+		require.NotNil(t, tool)
+		input, err := json.Marshal(spawnAgentArgs{
+			Type:   subagentTypeExplore,
+			Prompt: "inspect the workspace",
+			Title:  "sub",
+		})
+		require.NoError(t, err)
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    uuid.NewString(),
+			Name:  spawnAgentToolName,
+			Input: string(input),
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "cannot create a child agent because the parent chat is archived")
+		require.Zero(t, hookCalls.Load(), "an archived family must not dispatch a prompt hook")
 
 		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{parent.ID},
