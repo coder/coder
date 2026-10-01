@@ -1932,6 +1932,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<LiveChatHeatIndicator
 										heat={chatHeat}
 										isStreaming={isStreaming}
+										selectedModelConfigId={selectedModel}
+										selectableModelConfigIds={modelOptions.map(
+											(option) => option.id,
+										)}
 									/>
 								)}
 							</div>

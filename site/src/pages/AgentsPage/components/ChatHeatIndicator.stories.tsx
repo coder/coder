@@ -11,8 +11,10 @@ const baseHeat: ChatHeat = {
 	lastTurnMissedTokens: 3_400,
 	lastTurnReusableTokens: 84_000,
 	lastTurnHasSegmentStart: false,
+	lastTurnIsPartial: false,
 	lastPromptTokens: 85_200,
 	lastRequestAt: "2026-01-01T00:00:00Z",
+	lastModelConfigId: undefined,
 };
 
 const meta: Meta<typeof ChatHeatIndicator> = {
@@ -21,6 +23,8 @@ const meta: Meta<typeof ChatHeatIndicator> = {
 	args: {
 		heat: baseHeat,
 		isCacheExpired: false,
+		isModelChanged: false,
+		canSwitchModelBack: true,
 	},
 };
 
@@ -116,4 +120,28 @@ export const IconOnlyLowExpired: Story = {
 	args: {
 		isCacheExpired: true,
 	},
+};
+
+export const ModelChanged: Story = {
+	args: {
+		isModelChanged: true,
+	},
+	play: hoverTrigger,
+};
+
+export const IconOnlyModelChanged: Story = {
+	args: {
+		isModelChanged: true,
+	},
+};
+
+export const PartialTurn: Story = {
+	args: {
+		heat: {
+			...baseHeat,
+			lastTurnRequestCount: 12,
+			lastTurnIsPartial: true,
+		},
+	},
+	play: hoverTrigger,
 };

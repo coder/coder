@@ -1,4 +1,4 @@
-import { ClockIcon } from "lucide-react";
+import { ArrowRightLeftIcon, ClockIcon } from "lucide-react";
 import { useState } from "react";
 import {
 	Popover,
@@ -84,23 +84,50 @@ const gaugeBandPath = (position: number): string =>
 		"Z",
 	].join(" ");
 
+// The share is the Q9r miss rate for the turn: missed tokens over the
+// largest cacheable prompt. Missed tokens sum over every request in the
+// turn, so they can exceed that prompt.
+const formatLastTurn = (heat: ChatHeat, requests: string): string => {
+	const missed = formatTokenCountCompact(heat.lastTurnMissedTokens);
+	const reusable = formatTokenCountCompact(heat.lastTurnReusableTokens);
+	if (heat.lastTurnMissedTokens > heat.lastTurnReusableTokens) {
+		return `Last turn: ${requests} re-sent ${missed} tokens against a ${reusable} cacheable prompt.`;
+	}
+	const share = formatPercent(
+		heat.lastTurnMissedTokens / heat.lastTurnReusableTokens,
+	);
+	return `Last turn: ${requests} re-sent ${missed} tokens (${share} of ${reusable} cacheable).`;
+};
+
 type CacheMissGaugeProps = {
-	level: number;
+	// Undefined when there is no reading, which draws an empty dashed grey
+	// gauge without a needle.
+	level: number | undefined;
+};
+
+const gaugeReading = (level: number) => {
+	const position = Math.min(Math.max(level, 0), 1);
+	const fillColor = heatColor(position);
+	return {
+		position,
+		fillColor,
+		outlineColor: heatOutlineColor(fillColor),
+		tip: gaugePoint(
+			Math.min(
+				Math.max(position, GAUGE_NEEDLE_MIN_POSITION),
+				1 - GAUGE_NEEDLE_MIN_POSITION,
+			),
+			GAUGE_NEEDLE_LENGTH,
+		),
+	};
 };
 
 // The track carries a faint tint of the level colour so the hue shows even
 // when little of the band is filled.
 const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
-	const position = Math.min(Math.max(level, 0), 1);
-	const fillColor = heatColor(position);
-	const outlineColor = heatOutlineColor(fillColor);
-	const tip = gaugePoint(
-		Math.min(
-			Math.max(position, GAUGE_NEEDLE_MIN_POSITION),
-			1 - GAUGE_NEEDLE_MIN_POSITION,
-		),
-		GAUGE_NEEDLE_LENGTH,
-	);
+	const reading = level === undefined ? undefined : gaugeReading(level);
+	const outlineColor =
+		reading?.outlineColor ?? "var(--color-content-secondary)";
 	const fullBand = gaugeBandPath(1);
 	return (
 		<svg
@@ -111,17 +138,32 @@ const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
 			strokeLinejoin="round"
 			aria-hidden="true"
 		>
-			<path d={fullBand} fill={fillColor} fillOpacity={GAUGE_TRACK_OPACITY} />
-			{position > 0 && <path d={gaugeBandPath(position)} fill={fillColor} />}
-			<path d={fullBand} stroke={outlineColor} strokeWidth={1.5} />
-			<line
-				x1={GAUGE_CENTER_X}
-				y1={GAUGE_CENTER_Y}
-				x2={tip.x}
-				y2={tip.y}
+			{reading && (
+				<path
+					d={fullBand}
+					fill={reading.fillColor}
+					fillOpacity={GAUGE_TRACK_OPACITY}
+				/>
+			)}
+			{reading && reading.position > 0 && (
+				<path d={gaugeBandPath(reading.position)} fill={reading.fillColor} />
+			)}
+			<path
+				d={fullBand}
 				stroke={outlineColor}
-				strokeWidth={2}
+				strokeWidth={1.5}
+				strokeDasharray={reading ? undefined : "2.5 2.5"}
 			/>
+			{reading && (
+				<line
+					x1={GAUGE_CENTER_X}
+					y1={GAUGE_CENTER_Y}
+					x2={reading.tip.x}
+					y2={reading.tip.y}
+					stroke={outlineColor}
+					strokeWidth={2}
+				/>
+			)}
 			<circle
 				cx={GAUGE_CENTER_X}
 				cy={GAUGE_CENTER_Y}
@@ -135,47 +177,85 @@ const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
 type ChatHeatIndicatorProps = {
 	heat: ChatHeat;
 	isCacheExpired: boolean;
+	// True when the next request's model differs from the last request's, so
+	// it cannot read that cache. An expired cache takes precedence.
+	isModelChanged: boolean;
+	// False when the last request's model is no longer offered, so the user
+	// cannot switch back to it.
+	canSwitchModelBack: boolean;
 };
 
 export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	heat,
 	isCacheExpired,
+	isModelChanged,
+	canSwitchModelBack,
 }) => {
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
-	const label = LEVEL_LABELS[heat.label];
-	const summary = `Cache misses: ${label} (${formatPercent(heat.heat)})`;
-	const ariaLabel = `${summary}.${isCacheExpired ? " Cache likely expired." : ""}`;
-	const actionHint = isCacheExpired
-		? `Reply within ${CACHE_IDLE_TTL_MINUTES} minutes to reuse the cache, or compact before stepping away.`
-		: heat.label === "high"
-			? `Replies after ${CACHE_IDLE_TTL_MINUTES} minutes re-send the context.`
+	const hasReading = !heat.lastTurnIsPartial;
+	const showModelChanged = isModelChanged && !isCacheExpired;
+	const summary = hasReading
+		? `Cache misses: ${LEVEL_LABELS[heat.label]} (${formatPercent(heat.heat)})`
+		: "Cache misses: unknown";
+	const resendTokens = formatTokenCountCompact(heat.lastPromptTokens);
+	const coldCacheNote = isCacheExpired
+		? `Cache likely expired. Your next message will re-send about ${resendTokens} tokens without the cache.`
+		: showModelChanged
+			? `The selected model differs from the last request's, so your next message will re-send about ${resendTokens} tokens without the cache.`
 			: undefined;
+	const ariaNotes = [`${summary}.`];
+	if (!hasReading) {
+		ariaNotes.push("Older messages are not loaded.");
+	}
+	if (isCacheExpired) {
+		ariaNotes.push("Cache likely expired.");
+	} else if (showModelChanged) {
+		ariaNotes.push("Model changed; the next message will not use the cache.");
+	}
+	const actionHint = isCacheExpired
+		? `Your next message rebuilds the cache. Reply within ${CACHE_IDLE_TTL_MINUTES} minutes after each response to keep it, or compact before stepping away.`
+		: showModelChanged
+			? canSwitchModelBack
+				? "Switch back to the previous model to reuse its cache."
+				: undefined
+			: hasReading && heat.label === "high"
+				? `To cut misses, reply within ${CACHE_IDLE_TTL_MINUTES} minutes after each response, or compact before stepping away.`
+				: undefined;
+	const lastTurnRequests = `${heat.lastTurnRequestCount} ${heat.lastTurnRequestCount === 1 ? "request" : "requests"}`;
 
 	const panelContent = (
 		<div className="flex max-w-64 flex-col gap-1 text-xs text-content-primary">
 			<span className="font-medium">{summary}</span>
-			<span className="text-content-secondary">
-				{`Cacheable context re-sent recently: ${formatPercent(heat.missRate)}`}
-			</span>
-			<span className="text-content-secondary">
-				{`Last turn: ${heat.lastTurnRequestCount} ${heat.lastTurnRequestCount === 1 ? "request" : "requests"}, re-sent ${formatTokenCountCompact(heat.lastTurnMissedTokens)} of ${formatTokenCountCompact(heat.lastTurnReusableTokens)} cacheable tokens`}
-			</span>
-			{heat.lastTurnHasSegmentStart ? (
-				<span className="text-content-secondary">
-					The first request after the chat starts or is compacted has no cache
-					to reuse, so it does not count as a miss.
-				</span>
+			{hasReading ? (
+				<>
+					<span className="text-content-secondary">
+						{`Cacheable context re-sent recently: ${formatPercent(heat.missRate)}`}
+					</span>
+					{heat.lastTurnReusableTokens > 0 && (
+						<span className="text-content-secondary">
+							{formatLastTurn(heat, lastTurnRequests)}
+						</span>
+					)}
+					{heat.lastTurnHasSegmentStart ? (
+						<span className="text-content-secondary">
+							The first request after the chat starts or is compacted has no
+							cache to reuse, so it does not count as a miss.
+						</span>
+					) : (
+						<span className="text-content-secondary">
+							The needle moves right as recent turns re-send more of the context
+							instead of reading it from the prompt cache. The latest turn
+							counts most.
+						</span>
+					)}
+				</>
 			) : (
 				<span className="text-content-secondary">
-					The needle moves right as recent turns re-send more of the context
-					instead of reading it from the prompt cache. The latest turn counts
-					most.
+					{`Older messages are not loaded, so the latest turn (${lastTurnRequests} loaded) cannot be scored yet. Scroll up to load them.`}
 				</span>
 			)}
-			{isCacheExpired && (
-				<span className="text-content-warning">
-					{`Cache likely expired. Your next message will re-send about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}
-				</span>
+			{coldCacheNote && (
+				<span className="text-content-warning">{coldCacheNote}</span>
 			)}
 			{actionHint && (
 				<span className="text-content-secondary">{actionHint}</span>
@@ -186,16 +266,20 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	const triggerButton = (
 		<button
 			type="button"
-			aria-label={ariaLabel}
+			aria-label={ariaNotes.join(" ")}
 			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
-			<CacheMissGauge level={heat.heat} />
-			{isCacheExpired && (
+			<CacheMissGauge level={hasReading ? heat.heat : undefined} />
+			{coldCacheNote && (
 				<span
 					aria-hidden="true"
 					className="absolute -bottom-0.5 right-0 flex size-3.5 items-center justify-center rounded-full border border-solid border-surface-primary bg-content-primary text-surface-primary"
 				>
-					<ClockIcon className="size-2.5" strokeWidth={3} />
+					{showModelChanged ? (
+						<ArrowRightLeftIcon className="size-2.5" strokeWidth={3} />
+					) : (
+						<ClockIcon className="size-2.5" strokeWidth={3} />
+					)}
 				</span>
 			)}
 		</button>
@@ -229,12 +313,16 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 type LiveChatHeatIndicatorProps = {
 	heat: ChatHeat;
 	isStreaming: boolean;
+	selectedModelConfigId: string;
+	selectableModelConfigIds: readonly string[];
 };
 
 /** Rechecks cache expiry on a timer while the chat is idle. */
 export const LiveChatHeatIndicator: React.FC<LiveChatHeatIndicatorProps> = ({
 	heat,
 	isStreaming,
+	selectedModelConfigId,
+	selectableModelConfigIds,
 }) => {
 	const nowMs = useTime(() => Date.now(), {
 		interval: EXPIRY_CHECK_INTERVAL_MS,
@@ -257,6 +345,16 @@ export const LiveChatHeatIndicator: React.FC<LiveChatHeatIndicatorProps> = ({
 				nowMs,
 				isStreaming,
 			)}
+			isModelChanged={Boolean(
+				!isStreaming &&
+					selectedModelConfigId &&
+					heat.lastModelConfigId &&
+					selectedModelConfigId !== heat.lastModelConfigId,
+			)}
+			canSwitchModelBack={
+				heat.lastModelConfigId !== undefined &&
+				selectableModelConfigIds.includes(heat.lastModelConfigId)
+			}
 		/>
 	);
 };

@@ -24,8 +24,13 @@ export type ChatHeat = {
 	readonly lastTurnMissedTokens: number;
 	readonly lastTurnReusableTokens: number;
 	readonly lastTurnHasSegmentStart: boolean;
+	// True when the latest turn is the only loaded turn and older messages
+	// are not loaded, so its first loaded request has no known previous
+	// prompt and the heat understates any misses before it.
+	readonly lastTurnIsPartial: boolean;
 	readonly lastPromptTokens: number;
 	readonly lastRequestAt: string;
+	readonly lastModelConfigId: string | undefined;
 };
 
 type ChatHeatLabel = "low" | "moderate" | "high";
@@ -46,6 +51,7 @@ type HeatRequest = {
 	readonly usesCache: boolean;
 	readonly contextLimit: number;
 	readonly createdAt: string;
+	readonly modelConfigId: string | undefined;
 };
 
 const toTokenCount = (value: number | undefined): number =>
@@ -80,6 +86,7 @@ const toHeatRequest = (
 		usesCache: cacheReadTokens > 0 || cacheCreationTokens > 0,
 		contextLimit,
 		createdAt: message.created_at,
+		modelConfigId: message.model_config_id,
 	};
 };
 
@@ -111,12 +118,17 @@ type ScoredRequest = HeatRequest & {
 	readonly isSegmentStart: boolean;
 };
 
-// Returns turns newest first; requests within a turn are oldest first.
+type ScoredTurns = {
+	// Newest first; requests within a turn are oldest first.
+	readonly turns: readonly (readonly ScoredRequest[])[];
+	readonly latestIsPartial: boolean;
+};
+
 const scoreTurns = (
 	messages: readonly TypesGen.ChatMessage[],
 	activeContextLimit: number | undefined,
 	historyComplete: boolean,
-): ScoredRequest[][] => {
+): ScoredTurns => {
 	const boundaryIndex = messages.findLastIndex((message) =>
 		findContextBoundaryPart(message),
 	);
@@ -149,11 +161,13 @@ const scoreTurns = (
 		turns.push(current);
 	}
 	// Without the segment start, the oldest loaded turn may be the tail of a
-	// longer turn whose earlier requests are not loaded.
+	// longer turn whose earlier requests are not loaded, and its first loaded
+	// request cannot be scored because its previous prompt is unknown.
+	const latestIsPartial = !reachedSegmentStart && turns.length === 1;
 	if (!reachedSegmentStart && turns.length > 1) {
 		turns.shift();
 	}
-	return turns.reverse();
+	return { turns: turns.reverse(), latestIsPartial };
 };
 
 const sumMissedTokens = (requests: readonly ScoredRequest[]): number =>
@@ -171,10 +185,8 @@ export const getChatHeat = (
 	// may not be the first of its segment.
 	historyComplete = true,
 ): ChatHeat | null => {
-	const turns = scoreTurns(messages, activeContextLimit, historyComplete).slice(
-		0,
-		HEAT_WINDOW_SIZE,
-	);
+	const scored = scoreTurns(messages, activeContextLimit, historyComplete);
+	const turns = scored.turns.slice(0, HEAT_WINDOW_SIZE);
 	const latestTurn = turns[0];
 	const latest = latestTurn?.at(-1);
 	// A window with no cache reads or writes means the route does not use
@@ -227,8 +239,10 @@ export const getChatHeat = (
 		lastTurnHasSegmentStart: latestTurn.some(
 			(request) => request.isSegmentStart,
 		),
+		lastTurnIsPartial: scored.latestIsPartial,
 		lastPromptTokens: latest.promptTokens,
 		lastRequestAt: latest.createdAt,
+		lastModelConfigId: latest.modelConfigId,
 	};
 };
 

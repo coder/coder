@@ -213,16 +213,33 @@ describe("getChatHeat", () => {
 
 	it("drops the oldest loaded turn when older history is unloaded", () => {
 		const messages = turnsMissing(0.8);
-		expect(partial(messages)?.heat).toBeCloseTo(heatCurve(0.8));
+		const heat = partial(messages);
+		expect(heat?.heat).toBeCloseTo(heatCurve(0.8));
+		expect(heat?.lastTurnIsPartial).toBe(false);
 		// With the full history, the seed turn is the segment's first.
 		expect(getChatHeat(messages, 100)?.heat).toBeCloseTo(heatCurve(0.8 * 0.8));
 	});
 
-	it("scores only known misses when a single partial turn is loaded", () => {
+	it("marks the latest turn partial when it is the only loaded turn", () => {
 		const next = requestChain(40_000);
 		const heat = partial(turn(next(Number.POSITIVE_INFINITY), next(5_000)));
 		expect(heat?.heat).toBeCloseTo(heatCurve(5_000 / CONTEXT_LIMIT));
 		expect(heat?.lastTurnHasSegmentStart).toBe(false);
+		expect(heat?.lastTurnIsPartial).toBe(true);
+		// The tail of a long turn with no user message loaded is partial too,
+		// but a complete history makes the same turn the segment's first.
+		const tail = [next(0), next(0)];
+		expect(partial(tail)?.lastTurnIsPartial).toBe(true);
+		expect(getChatHeat(tail, 100)?.lastTurnIsPartial).toBe(false);
+	});
+
+	it("reports the model of the latest request", () => {
+		const next = requestChain(40_000);
+		const messages = turn(
+			{ ...next(), model_config_id: "model-a" },
+			{ ...next(), model_config_id: "model-b" },
+		);
+		expect(getChatHeat(messages, 100)?.lastModelConfigId).toBe("model-b");
 	});
 
 	it("restarts the window at a compaction or clear boundary", () => {

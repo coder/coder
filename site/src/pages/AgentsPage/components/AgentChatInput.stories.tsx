@@ -1504,9 +1504,11 @@ const highChatHeat: ChatHeat = {
 	lastTurnMissedTokens: 40_000,
 	lastTurnReusableTokens: 42_000,
 	lastTurnHasSegmentStart: false,
+	lastTurnIsPartial: false,
 	lastPromptTokens: 44_000,
 	// Far in the past, so the live indicator always renders its expired marker.
 	lastRequestAt: "2026-01-01T00:00:00Z",
+	lastModelConfigId: undefined,
 };
 
 /** The cache misses button beside the context ring on a crowded phone toolbar. */
