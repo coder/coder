@@ -84,7 +84,7 @@ const ManageAutomationsLabel: React.FC<ToolLabelProps> = ({
 	isError,
 }) => {
 	const parsed = parseArgs(args);
-	const labels = manageAutomationsLabels[asString(parsed?.action)];
+	const labels = manageAutomationsLabels[asString(parsed?.action).trim()];
 	const parsedResult = asRecord(result);
 	const automationName =
 		asString(asRecord(parsedResult?.automation)?.name) ||

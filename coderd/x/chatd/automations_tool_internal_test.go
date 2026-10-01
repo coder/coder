@@ -2,17 +2,18 @@ package chatd //nolint:testpackage // Exercises the unexported manage_automation
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -631,7 +632,7 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		// enable follows the same rules.
 		for _, row := range []database.ChatAutomation{heartbeat, elsewhere} {
-			_, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+			_, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 			require.NoError(t, err)
 		}
 		content, isError = f.call(ctx, t, f.chat.ID, "enable", elsewhere.ID)
@@ -752,21 +753,34 @@ func TestManageAutomationsTool(t *testing.T) {
 				TargetMode: ptr.Ref(mode), WebhookUse: use, Prompt: ptr.Ref("A deploy finished."),
 			}
 		}
-		type createResult struct {
-			WebhookSecret *string `json:"webhook_secret"`
-			Note          string  `json:"webhook_secret_note"`
+		// Every secret starts with the prefix, so a result without it
+		// carries no plaintext secret.
+		requireNoPlaintextSecret := func(t *testing.T, content string) {
+			t.Helper()
+			require.NotContains(t, content, automationWebhookSecretPrefix)
 		}
 
-		// A single-use webhook on this chat in a human turn: create returns
-		// the secret once.
-		single, content := f.mustCreate(ctx, t, f.chat.ID, webhookArgs(ptr.Ref("single"), "existing_chat"))
-		var result createResult
-		require.NoError(t, json.Unmarshal([]byte(content), &result))
-		require.NotNil(t, result.WebhookSecret)
-		secret := *result.WebhookSecret
-		hash := sha256.Sum256([]byte(secret))
-		require.Equal(t, hash[:], single.WebhookSecretHash)
-		requireNoWebhookSecret(t, content, single, "")
+		// No create returns a secret, not even a single-use webhook on this
+		// chat in a human turn: the result stays in the chat, where shared
+		// readers can see it.
+		var rows []database.ChatAutomation
+		for _, args := range []manageAutomationsArgs{
+			webhookArgs(ptr.Ref("single"), "existing_chat"),
+			webhookArgs(ptr.Ref("multi"), "existing_chat"),
+			webhookArgs(nil, "existing_chat"),
+			webhookArgs(ptr.Ref("single"), "new_chat"),
+		} {
+			row, content := f.mustCreate(ctx, t, f.chat.ID, args)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(content), &result))
+			require.NotContains(t, result, "webhook_secret")
+			require.Equal(t, manageAutomationsSecretNotShown, result["webhook_secret_note"])
+			requireNoPlaintextSecret(t, content)
+			requireNoWebhookSecret(t, content, row, "")
+			rows = append(rows, row)
+		}
+
+		single := rows[0]
 		for _, args := range []manageAutomationsArgs{
 			{Action: "get", AutomationID: single.ID.String()},
 			{Action: "update", AutomationID: single.ID.String(), Prompt: ptr.Ref("Changed.")},
@@ -775,29 +789,203 @@ func TestManageAutomationsTool(t *testing.T) {
 		} {
 			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
 			require.False(t, isError, content)
-			requireNoWebhookSecret(t, content, single, secret)
-		}
-
-		// Multi-use secrets and secrets of webhooks that start new chats are
-		// never returned.
-		rows := []database.ChatAutomation{single}
-		for _, args := range []manageAutomationsArgs{
-			webhookArgs(ptr.Ref("multi"), "existing_chat"),
-			webhookArgs(nil, "existing_chat"),
-			webhookArgs(ptr.Ref("single"), "new_chat"),
-		} {
-			row, content := f.mustCreate(ctx, t, f.chat.ID, args)
-			result = createResult{}
-			require.NoError(t, json.Unmarshal([]byte(content), &result))
-			require.Nil(t, result.WebhookSecret)
-			require.Equal(t, manageAutomationsSecretNotShown, result.Note)
-			requireNoWebhookSecret(t, content, row, "")
-			rows = append(rows, row)
+			requireNoPlaintextSecret(t, content)
+			requireNoWebhookSecret(t, content, single, "")
 		}
 		content, isError := f.call(ctx, t, f.chat.ID, "list", uuid.Nil)
 		require.False(t, isError, content)
+		requireNoPlaintextSecret(t, content)
 		for _, row := range rows {
-			requireNoWebhookSecret(t, content, row, secret)
+			requireNoWebhookSecret(t, content, row, "")
 		}
+	})
+}
+
+// automationReadHook runs a hook once, right after the first read of the
+// armed automation through GetChatAutomationByID, so a test can change the
+// automation between a caller's read and the service's locked reread.
+type automationReadHook struct {
+	database.Store
+	mu    sync.Mutex
+	id    uuid.UUID
+	hook  func()
+	fired bool
+}
+
+func (s *automationReadHook) arm(id uuid.UUID, hook func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.id, s.hook, s.fired = id, hook, false
+}
+
+func (s *automationReadHook) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	row, err := s.Store.GetChatAutomationByID(ctx, id)
+	s.mu.Lock()
+	var hook func()
+	if id == s.id && !s.fired {
+		hook, s.fired = s.hook, true
+	}
+	s.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return row, err
+}
+
+func (s *automationReadHook) requireFired(t *testing.T) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	require.True(t, s.fired, "the automation was never read")
+}
+
+// TestManageAutomationsToolConcurrentRetarget retargets the automation, as
+// the owner through the service, after the tool has read and checked it
+// and before the service locks it. The tool must refuse with its
+// containment error and write, send, create, and audit nothing.
+func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		action       string
+		existingChat bool
+		disabled     bool
+		// targetHere makes the update set the target to the calling chat,
+		// which the stored row must still refuse.
+		targetHere bool
+	}{
+		{name: "UpdateExistingChat", action: "update", existingChat: true},
+		{name: "UpdateTargetBackHere", action: "update", existingChat: true, targetHere: true},
+		{name: "EnableNewChat", action: "enable", disabled: true},
+		{name: "RunNowExistingChat", action: "run_now", existingChat: true},
+		{name: "RunNowNewChat", action: "run_now"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sf := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+			sf.setSwitch(t, sf.chat.ID, true)
+			reads := &automationReadHook{}
+			f := manageAutomationsFixture{scheduleFixture: sf, server: sf.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+				reads.Store = store
+				return reads
+			})}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			ownerCtx := f.asOwner(ctx, t)
+
+			var (
+				row      database.ChatAutomation
+				retarget codersdk.UpdateChatAutomationRequest
+			)
+			if tc.existingChat {
+				row = f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+				other := f.otherChat(t, f.model.ID)
+				retarget.TargetChatID = &other.ID
+			} else {
+				row = f.newChat(ctx, t, f.server, "0 9 * * *", "UTC")
+				search := f.modelConfig(t, true)
+				retarget.NewChatModelConfigID = &search.ID
+			}
+			if tc.disabled {
+				var err error
+				row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				require.NoError(t, err)
+			}
+
+			var (
+				retargeted  database.ChatAutomation
+				retargetErr error
+			)
+			reads.arm(row.ID, func() {
+				retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
+			})
+			chats := len(f.createdChats(ctx, t))
+			inputs := f.ownerInputs(ctx, t)
+			f.auditor.ResetLogs()
+
+			args := manageAutomationsArgs{Action: tc.action, AutomationID: row.ID.String()}
+			switch {
+			case tc.targetHere:
+				args.TargetChatID = ptr.Ref(f.chat.ID.String())
+			case tc.action == "update":
+				args.Prompt = ptr.Ref("Changed.")
+			}
+			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+			reads.requireFired(t)
+			require.NoError(t, retargetErr)
+			require.True(t, isError, content)
+			require.Contains(t, content, errNotContained)
+			f.requireUnchanged(ctx, t, retargeted)
+			require.Len(t, f.createdChats(ctx, t), chats)
+			require.Equal(t, inputs, f.ownerInputs(ctx, t))
+			require.Empty(t, f.auditor.AuditLogs())
+		})
+	}
+}
+
+// ownerInputs counts the messages and queued messages in all chats of the
+// fixture owner.
+func (f manageAutomationsFixture) ownerInputs(ctx context.Context, t *testing.T) int {
+	t.Helper()
+	var count int
+	err := f.sqlDB.QueryRowContext(ctx, `SELECT
+		(SELECT COUNT(*) FROM chat_messages m JOIN chats c ON c.id = m.chat_id WHERE c.owner_id = $1) +
+		(SELECT COUNT(*) FROM chat_queued_messages q JOIN chats c ON c.id = q.chat_id WHERE c.owner_id = $1)`, f.owner.ID).Scan(&count)
+	require.NoError(t, err)
+	return count
+}
+
+// TestAutomationGuard covers where the services run a caller's guard:
+// UpdateAutomation on the row as the update would leave it, and
+// RunAutomation at admission on the locked row, after the automation
+// changed since the read before the send.
+func TestAutomationGuard(t *testing.T) {
+	t.Parallel()
+	errRefused := xerrors.New("refused by guard")
+
+	t.Run("UpdateChecksResult", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerCtx := f.asOwner(ctx, t)
+		other := f.otherChat(t, f.model.ID)
+		row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+
+		var seen []uuid.NullUUID
+		_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
+			func(_ database.Store, automation database.ChatAutomation) error {
+				seen = append(seen, automation.TargetChatID)
+				if automation.TargetChatID.UUID == other.ID {
+					return errRefused
+				}
+				return nil
+			})
+		require.ErrorIs(t, err, errRefused)
+		require.Equal(t, []uuid.NullUUID{row.TargetChatID, {UUID: other.ID, Valid: true}}, seen)
+		f.requireUnchanged(ctx, t, row)
+	})
+
+	t.Run("RunChecksLockedRowAtAdmission", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerCtx := f.asOwner(ctx, t)
+		other := f.otherChat(t, f.model.ID)
+		row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		inputs := f.ownerInputs(ctx, t)
+
+		var seen []uuid.NullUUID
+		_, err := f.server.RunAutomation(ownerCtx, f.owner.ID, row.ID, func(_ database.Store, automation database.ChatAutomation) error {
+			seen = append(seen, automation.TargetChatID)
+			if len(seen) == 1 {
+				// Retarget after the read before the send.
+				_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
+				return err
+			}
+			return errRefused
+		})
+		require.ErrorIs(t, err, errRefused)
+		require.Equal(t, []uuid.NullUUID{row.TargetChatID, {UUID: other.ID, Valid: true}}, seen)
+		require.Equal(t, inputs, f.ownerInputs(ctx, t))
 	})
 }

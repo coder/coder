@@ -505,9 +505,19 @@ describe("AgentCreateForm manage automations toggle", () => {
 		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
 	});
 
-	it("sends the toggle as off while the chat-automations experiment is off", async () => {
-		const { onCreateChat } = renderForm();
+	it("sends the toggle as off once the chat-automations experiment turns off", async () => {
+		dashboard.experiments = ["chat-automations"];
+		const { onCreateChat, rerender } = renderForm();
+		await user().click(screen.getByRole("button", { name: "More options" }));
+		await user().click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: "Manage automations",
+			}),
+		);
+		await user().keyboard("{Escape}");
 
+		dashboard.experiments = [];
+		rerender({});
 		await submitMessage("check the nightly build every morning");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));

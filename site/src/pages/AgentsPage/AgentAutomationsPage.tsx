@@ -21,7 +21,9 @@ import type {
 	Organization,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
@@ -62,6 +64,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
+	const { buildInfo } = useDashboard();
+	// Senders must reach the configured URL, not the address this tab uses.
+	const webhookOrigin = new URL(buildInfo.dashboard_url).origin;
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
 		localStorage.getItem(selectedOrganizationIdStorageKey),
 	);
@@ -122,6 +127,13 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 			organizationId,
 			(automationId, secret) => setWebhookSecret({ automationId, secret }),
 		),
+	);
+
+	// Leaving mid-request would drop the one-time secret in the response.
+	const leavePrompt = useUnsavedChangesPrompt(
+		rotateMutation.isPending ||
+			(createMutation.isPending &&
+				createMutation.variables?.kind === "webhook"),
 	);
 
 	const openEditor = (next: EditorState) => {
@@ -240,7 +252,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 						organizationId={organizationId}
 						automation={editor.mode === "edit" ? editor.automation : undefined}
 						currentUserId={user.id}
-						origin={window.location.origin}
+						origin={webhookOrigin}
 						error={
 							editor.mode === "edit" ? editMutation.error : createMutation.error
 						}
@@ -267,17 +279,25 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 				)
 			}
 			webhookSecretDialog={
-				webhookSecret && (
-					<AutomationWebhookSecretDialog
-						endpoint={webhookPublishEndpoint(
-							window.location.origin,
-							webhookSecret.automationId,
-						)}
-						secret={webhookSecret.secret}
-						returnFocusRef={secretReturnFocusRef}
-						onClose={() => setWebhookSecret(undefined)}
-					/>
-				)
+				<>
+					{webhookSecret && (
+						<AutomationWebhookSecretDialog
+							endpoint={webhookPublishEndpoint(
+								webhookOrigin,
+								webhookSecret.automationId,
+							)}
+							secret={webhookSecret.secret}
+							returnFocusRef={secretReturnFocusRef}
+							onClose={() => setWebhookSecret(undefined)}
+						/>
+					)}
+					{leavePrompt.isOpen && (
+						<LeaveBeforeSecretPrompt
+							onStay={leavePrompt.onCancel}
+							onLeave={leavePrompt.onConfirm}
+						/>
+					)}
+				</>
 			}
 			chatsDialog={
 				chatsAutomation && {
@@ -291,6 +311,42 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 					onClose: () => setChatsAutomation(undefined),
 				}
 			}
+		/>
+	);
+};
+
+type LeaveBeforeSecretPromptProps = {
+	onStay: () => void;
+	onLeave: () => void;
+};
+
+const LeaveBeforeSecretPrompt: React.FC<LeaveBeforeSecretPromptProps> = ({
+	onStay,
+	onLeave,
+}) => {
+	// The prompt opens without a trigger, so Radix has nowhere to return focus.
+	const [opener] = useState(() =>
+		document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null,
+	);
+	return (
+		<ConfirmDialog
+			open
+			type="info"
+			hideCancel={false}
+			cancelText="Stay"
+			title="Leave before the secret arrives?"
+			description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
+			confirmText="Leave"
+			onClose={onStay}
+			onConfirm={onLeave}
+			onCloseAutoFocus={(event) => {
+				if (opener?.isConnected) {
+					event.preventDefault();
+					opener.focus();
+				}
+			}}
 		/>
 	);
 };

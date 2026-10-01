@@ -595,6 +595,8 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
+			// The experiments query refetches while the form stays mounted, so the
+			// experiment can turn off after the user enabled the toggle.
 			manageAutomationsEnabled:
 				automationsExperimentEnabled && manageAutomationsEnabled,
 			uploadWorkspaceFiles,

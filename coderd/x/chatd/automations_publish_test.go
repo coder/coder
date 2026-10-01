@@ -3,8 +3,10 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,15 +15,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -718,4 +724,215 @@ func setOwnerStatus(ctx context.Context, t *testing.T, f publishFixture, status 
 		UpdatedAt: dbtestutil.NowInDefaultTimezone(),
 	})
 	require.NoError(t, err)
+}
+
+func TestRotateAutomationSecret(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Rotates", func(t *testing.T) {
+		t.Parallel()
+		for _, use := range []codersdk.ChatAutomationWebhookUse{
+			codersdk.ChatAutomationWebhookUseSingle,
+			codersdk.ChatAutomationWebhookUseMulti,
+		} {
+			t.Run(string(use), func(t *testing.T) {
+				t.Parallel()
+				f := newPublishFixture(t, database.ChatStatusWaiting)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.webhook(ctx, t, use, codersdk.ChatAutomationWhenBusyQueue)
+
+				rotated, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, secret)
+				require.Equal(t, automation.WebhookSecretVersion+1, rotated.WebhookSecretVersion)
+			})
+		}
+	})
+
+	t.Run("UsedSingleUse", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.singleUseWebhook(ctx, t, codersdk.ChatAutomationTargetModeExistingChat)
+		count, err := f.db.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+			ID:  automation.ID,
+			Now: time.Now(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		consumed, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+
+		_, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+		require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
+		require.Empty(t, secret)
+		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, consumed.WebhookSecretHash, stored.WebhookSecretHash)
+		require.Equal(t, consumed.WebhookSecretVersion, stored.WebhookSecretVersion)
+	})
+
+	t.Run("UsedWhileWaitingForLock", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.singleUseWebhook(ctx, t, codersdk.ChatAutomationTargetModeExistingChat)
+
+		// Consume the webhook in a transaction that stays open until the
+		// rotation waits for the row lock.
+		consumed := make(chan struct{})
+		release := make(chan struct{})
+		consumeErr := make(chan error, 1)
+		go func() {
+			consumeErr <- f.db.InTx(func(tx database.Store) error {
+				count, err := tx.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+					ID:  automation.ID,
+					Now: time.Now(),
+				})
+				if err != nil {
+					return err
+				}
+				if count != 1 {
+					return xerrors.New("webhook was not consumed")
+				}
+				close(consumed)
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.TryReceive(ctx, t, consumed)
+
+		rotateErr := make(chan error, 1)
+		go func() {
+			_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+			rotateErr <- err
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var waits int
+			err := f.sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+			return err == nil && waits >= 1
+		}, testutil.IntervalFast, "wait for the rotation to wait for the row lock")
+		close(release)
+
+		require.NoError(t, testutil.TryReceive(ctx, t, consumeErr))
+		require.ErrorIs(t, testutil.TryReceive(ctx, t, rotateErr), chatd.ErrAutomationWebhookConsumed)
+	})
+}
+
+// TestAutomationQueuedInputRunsAfterExperimentOff checks that an input
+// queued while the chat was busy still runs after the owner's
+// chat-automations experiment is turned off: the experiment gates new
+// inputs, not inputs it already accepted.
+func TestAutomationQueuedInputRunsAfterExperimentOff(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	firstRunStarted := make(chan struct{})
+	allowFirstRunFinish := make(chan struct{})
+	var requestCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if requestCount.Add(1) == 1 {
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("first run partial")[0]
+				close(firstRunStarted)
+				<-allowFirstRunFinish
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("automation run done")...)
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Rules are read from the database on every check, as in coderd, so a
+	// written rule applies without a restart.
+	evaluator, err := experimentrules.New(logger, experimentrules.NewDBStore(db), codersdk.ExperimentsKnown)
+	require.NoError(t, err)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.ExperimentEvaluator = evaluator
+	})
+	owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	_, err = db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+		GrantedRoles: []string{rbac.RoleAgentsAccess()},
+		UserID:       owner.ID,
+		OrgID:        org.ID,
+	})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            owner.ID,
+		Title:              "automation target",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	testutil.TryReceive(ctx, t, firstRunStarted)
+
+	queue := codersdk.ChatAutomationWhenBusyQueue
+	multi := codersdk.ChatAutomationWebhookUseMulti
+	automation, _, err := server.CreateAutomation(ctx, chatd.CreateAutomationParams{
+		OrganizationID: org.ID,
+		OwnerID:        owner.ID,
+		Request: codersdk.CreateChatAutomationRequest{
+			Name:         "Deploy hook",
+			Kind:         codersdk.ChatAutomationKindWebhook,
+			TargetMode:   codersdk.ChatAutomationTargetModeExistingChat,
+			TargetChatID: &chat.ID,
+			Prompt:       "A deploy finished.",
+			WebhookUse:   &multi,
+			WhenBusy:     &queue,
+		},
+	})
+	require.NoError(t, err)
+	publish := func() (chatd.PublishAutomationResult, error) {
+		return server.PublishAutomationWebhook(ctx, chatd.PublishAutomationWebhookParams{
+			AutomationID:  automation.ID,
+			SecretVersion: automation.WebhookSecretVersion,
+			Body:          []byte(`{"service":"api"}`),
+		})
+	}
+	published, err := publish()
+	require.NoError(t, err)
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1, "the chat is busy, so the input is queued")
+	require.Equal(t, published.InputID, queued[0].InputID.UUID)
+
+	_, _, changed, err := experimentrules.WriteRule(ctx, db, owner.ID, codersdk.ExperimentChatAutomations, experimentrules.Rule{
+		Mode:      experimentrules.ModeCondition,
+		Condition: fmt.Sprintf("user.username != %q", owner.Username),
+	}, 0)
+	require.NoError(t, err)
+	require.True(t, changed)
+	_, err = publish()
+	require.ErrorIs(t, err, chatd.ErrAutomationsExperimentDisabled, "the rule applies to new inputs")
+
+	close(allowFirstRunFinish)
+	require.Eventually(t, func() bool {
+		return requestCount.Load() >= 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+	chatd.WaitUntilIdleForTest(server)
+
+	queued, err = db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
+	messages := chatMessages(ctx, t, db, chat.ID)
+	automationMessage := slices.IndexFunc(messages, func(m database.ChatMessage) bool {
+		return m.Role == database.ChatMessageRoleUser && m.InputID.UUID == published.InputID
+	})
+	require.GreaterOrEqual(t, automationMessage, 0, "the queued input was promoted")
+	require.Equal(t, automation.ID, messages[automationMessage].AutomationID.UUID)
+	require.True(t, slices.ContainsFunc(messages[automationMessage+1:], func(m database.ChatMessage) bool {
+		return m.Role == database.ChatMessageRoleAssistant
+	}), "a turn ran for the promoted input")
 }

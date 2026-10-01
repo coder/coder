@@ -108,6 +108,7 @@ describe("useChatToolInvalidations", () => {
 
 		return {
 			...result,
+			store,
 			invalidateSpy,
 			setStreamState,
 		};
@@ -334,7 +335,7 @@ describe("useChatToolInvalidations", () => {
 		});
 	});
 
-	it.each(["create", "update", "enable", "disable", "delete"])(
+	it.each(["create", "update", "enable", "disable", "delete", " update "])(
 		"invalidates automations after a successful manage_automations %s",
 		async (action) => {
 			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
@@ -384,6 +385,42 @@ describe("useChatToolInvalidations", () => {
 			expect(
 				queryClient.getQueryState(automationChatsQueryKey)?.isInvalidated,
 			).toBe(true);
+		});
+	});
+
+	it("reads the manage_automations action from the durable tool call", async () => {
+		queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+		queryClient.setQueryData(infiniteChatsKey, { pages: [], pageParams: [] });
+		const { store, setStreamState } = renderInvalidations();
+		// The server persists the assistant tool-call message before the tool
+		// runs, so the streamed result arrives without a live call.
+		const { toolResults } = createStreamState("manage_automations");
+
+		await act(async () => {
+			store.upsertDurableMessage({
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-10-01T00:00:00Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "manage_automations",
+						args: { action: "run_now" },
+					},
+				],
+			});
+			setStreamState({ blocks: [], toolCalls: {}, toolResults, sources: [] });
+		});
+
+		await waitFor(() => {
+			expect(
+				queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
+			).toBe(true);
+			expect(queryClient.getQueryState(infiniteChatsKey)?.isInvalidated).toBe(
+				true,
+			);
 		});
 	});
 

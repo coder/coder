@@ -105,6 +105,9 @@ type automationPublish struct {
 	// have the observed schedule revision and cursor, and accepting the
 	// input moves the cursor past the occurrence.
 	occurrence *automationOccurrence
+	// guard, when set, must accept the automation before the send and
+	// the locked row at admission.
+	guard AutomationGuard
 }
 
 // PublishAutomationWebhook delivers a webhook event to the automation's
@@ -166,6 +169,12 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	// Everything from here runs as the owner, so the owner's chat, model
 	// config, and MCP server permissions apply to the send.
 	ownerCtx := dbauthz.As(ctx, owner)
+	// Before any hook sees the input; admission repeats it on the locked row.
+	if in.guard != nil {
+		if err := in.guard(p.db, automation); err != nil {
+			return PublishAutomationResult{}, err
+		}
+	}
 
 	switch automation.TargetMode {
 	case database.ChatAutomationTargetModeExistingChat:
@@ -324,6 +333,16 @@ func (p *Server) admitAutomation(
 	if !ok {
 		return chatstate.AutomationProvenance{}, ErrAutomationNotFound
 	}
+	if in.guard != nil {
+		if err := in.guard(store, automation); err != nil {
+			return chatstate.AutomationProvenance{}, err
+		}
+		// The input goes to the target read before the send, so the row
+		// the guard accepted must still name it.
+		if automation.TargetChatID != (uuid.NullUUID{UUID: chatID, Valid: true}) {
+			return chatstate.AutomationProvenance{}, ErrAutomationTargetUnavailable
+		}
+	}
 	// Re-enabling an automation does not revalidate its owner or target,
 	// so both are checked for every input.
 	owner, err := automationOwnerSubject(ctx, store, automation.OwnerID)
@@ -369,6 +388,11 @@ func (p *Server) admitAutomationNewChat(
 	}
 	if automation.TargetMode != database.ChatAutomationTargetModeNewChat {
 		return chatstate.AutomationProvenance{}, ErrAutomationTargetUnavailable
+	}
+	if in.guard != nil {
+		if err := in.guard(store, automation); err != nil {
+			return chatstate.AutomationProvenance{}, err
+		}
 	}
 	// The chat was created with the model config checked before the
 	// create, so a changed model config refuses the input.
