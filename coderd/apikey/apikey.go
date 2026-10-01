@@ -155,3 +155,26 @@ func HashSecret(secret string) []byte {
 	hash := sha256.Sum256([]byte(secret))
 	return hash[:]
 }
+
+// CapToCaller keeps a new key within the caller's scopes and allow list.
+// Omitted values inherit the caller's.
+func CapToCaller(caller database.APIKey, scopes database.APIKeyScopes, allowList database.AllowList) (database.APIKeyScopes, database.AllowList, error) {
+	if len(scopes) == 0 {
+		scopes = caller.Scopes
+	}
+	if len(allowList) == 0 {
+		allowList = caller.AllowList
+	}
+	canonical := func(s database.APIKeyScope) rbac.ScopeName { return rbac.CanonicalScopeName(rbac.ScopeName(s)) }
+	outside, err := rbac.FirstScopeNotCovered(slice.List(caller.Scopes, canonical), slice.List(scopes, canonical))
+	if err != nil {
+		return nil, nil, xerrors.Errorf("compare scope %q: %w", outside, err)
+	}
+	if outside != "" {
+		return nil, nil, xerrors.Errorf("scope %q exceeds the current API key's scopes", outside)
+	}
+	if entry, ok := rbac.FirstAllowListEntryNotCovered(caller.AllowList, allowList); ok {
+		return nil, nil, xerrors.Errorf("allow list entry %q exceeds the current API key's allow list", entry)
+	}
+	return scopes, allowList, nil
+}

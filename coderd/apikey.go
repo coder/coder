@@ -43,6 +43,13 @@ func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name r
 	})
 }
 
+func writeExceedsCaller(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "An API key cannot grant more than the API key creating it.",
+		Detail:  err.Error(),
+	})
+}
+
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
@@ -86,7 +93,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	// This handler decides only which names may be requested. Rewriting an
 	// accepted alias to the spelling the enum stores belongs to apikey.Generate,
 	// which every caller goes through. The plural field wins when both are set.
-	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	var scopes database.APIKeyScopes
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
 		for _, s := range createToken.Scopes {
@@ -149,6 +156,13 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		params.AllowList = dbAllowList
+	}
+
+	var err error
+	params.Scopes, params.AllowList, err = apikey.CapToCaller(httpmw.APIKey(r), params.Scopes, params.AllowList)
+	if err != nil {
+		writeExceedsCaller(ctx, rw, err)
+		return
 	}
 
 	if createToken.Lifetime != 0 {
@@ -219,11 +233,19 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scopes, allowList, err := apikey.CapToCaller(httpmw.APIKey(r), nil, nil)
+	if err != nil {
+		writeExceedsCaller(ctx, rw, err)
+		return
+	}
+
 	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
+		Scopes:          scopes,
+		AllowList:       allowList,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

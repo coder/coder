@@ -963,6 +963,44 @@ func cancelLinkFromConsentPage(t *testing.T, body string) *url.URL {
 	return cancel
 }
 
+func TestOAuth2AuthorizeSessionCeiling(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name:        testutil.GetRandomName(t),
+		CallbackURL: appCallbackURL,
+	})
+
+	sessions := map[string]codersdk.CreateTokenRequest{
+		"ScopedSessionRefused": {Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess}},
+		"RestrictedAllowListRefused": {AllowList: []codersdk.APIAllowListTarget{
+			codersdk.AllowTypeTarget(codersdk.ResourceOauth2AppCodeToken),
+			codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
+		}},
+	}
+	for name, req := range sessions {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			token, err := client.CreateToken(ctx, codersdk.Me, req)
+			require.NoError(t, err)
+			session := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				resp := authorizeRequest(ctx, t, session, method, app.ID.String(), "")
+				requireInvalidScope(t, resp, reasonBeyondSession)
+				resp.Body.Close()
+			}
+		})
+	}
+}
+
 // authorizeQuery builds a well-formed /oauth2/authorize query. Callers varying
 // another parameter mutate the result before sending it.
 func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
@@ -1047,6 +1085,7 @@ var (
 	reasonUnknownScope     = oauth2provider.ReasonUnknownScope
 	reasonNoGrantableScope = oauth2provider.ReasonNoGrantableScope
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
+	reasonBeyondSession    = oauth2provider.ReasonBeyondSession
 )
 
 func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode codersdk.OAuth2ErrorCode, wantDescription string) {

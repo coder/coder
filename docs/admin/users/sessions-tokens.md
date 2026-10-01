@@ -125,6 +125,8 @@ Deleting the user that owns a token revokes every token that user holds at the s
 
 API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `coder:all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
 
+A token never grants more than the credential that creates it. A token created with a scoped token inherits that token's scopes and allow list unless you name narrower ones, and requesting more is rejected with a `403` response.
+
 Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
 
 <a id="creating-tokens-with-scopes"></a>

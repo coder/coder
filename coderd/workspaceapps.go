@@ -58,6 +58,11 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	scopes, allowList, err := apikey.CapToCaller(apiKey, database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}, nil)
+	if err != nil {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	// Get the redirect URI from the query parameters and parse it.
 	redirectURI := r.URL.Query().Get(workspaceapps.RedirectURIQueryParam)
@@ -113,7 +118,8 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,
 		LifetimeSeconds: lifetimeSeconds,
-		Scope:           database.ApiKeyScopeCoderApplicationConnect,
+		Scopes:          scopes,
+		AllowList:       allowList,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

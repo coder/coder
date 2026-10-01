@@ -263,6 +263,7 @@ var (
 	ReasonNoGrantableScope    = errNoGrantableScope.Error()
 	ReasonScopeNotAllowed     = errScopeNotAllowed.Error()
 	ReasonCoverageUndecidable = errCoverageUndecidable.Error()
+	ReasonBeyondSession       = errBeyondSession.Error()
 )
 
 // MaxErrorDescription is the description bound, for the same tests.

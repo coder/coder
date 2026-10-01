@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -268,6 +269,96 @@ func TestCreateTokenScopes(t *testing.T) {
 			require.Len(t, keys, 1)
 			require.ElementsMatch(t, tc.wantScopes, keys[0].Scopes)
 			require.Equal(t, tc.wantLegacyScope, keys[0].Scope)
+		})
+	}
+}
+
+func TestTokenScopeCeiling(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	keyCreate, userRead := codersdk.APIKeyScopeApiKeyCreate, codersdk.APIKeyScopeUserRead
+	narrow := []codersdk.APIKeyScope{keyCreate, userRead}
+	narrowAllow := []codersdk.APIAllowListTarget{
+		codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
+		codersdk.AllowTypeTarget(codersdk.ResourceApiKey),
+		codersdk.AllowTypeTarget(codersdk.ResourceUser),
+	}
+	all := []codersdk.APIAllowListTarget{codersdk.AllowAllTarget()}
+
+	cases := []struct {
+		name         string
+		callerScopes []codersdk.APIKeyScope // nil uses the unscoped session
+		callerAllow  []codersdk.APIAllowListTarget
+		sessionKey   bool // POST /users/me/keys instead of /keys/tokens
+		req          codersdk.CreateTokenRequest
+		wantScopes   []codersdk.APIKeyScope
+		wantAllow    []codersdk.APIAllowListTarget
+		wantErr      string
+	}{
+		{name: "unscoped caller keeps coder:all", wantScopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll}, wantAllow: all},
+		{name: "omitted values inherit", callerScopes: narrow, callerAllow: narrowAllow, wantScopes: narrow, wantAllow: narrowAllow},
+		{name: "session key inherits", callerScopes: narrow, callerAllow: narrowAllow, sessionKey: true, wantScopes: narrow, wantAllow: narrowAllow},
+		{name: "narrower scope", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{userRead}}, wantScopes: []codersdk.APIKeyScope{userRead}, wantAllow: all},
+		{name: "coder:all refused", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll}}, wantErr: "coder:all"},
+		{name: "unheld scope refused", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeUserSecretAll}}, wantErr: "user_secret:*"},
+		{
+			name:         "composite covers low-level",
+			callerScopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess, keyCreate, userRead},
+			req:          codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceSsh}},
+			wantScopes:   []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceSsh},
+			wantAllow:    all,
+		},
+		{
+			name:         "narrower allow list",
+			callerScopes: narrow,
+			callerAllow:  narrowAllow,
+			req:          codersdk.CreateTokenRequest{AllowList: narrowAllow[:1]},
+			wantScopes:   narrow,
+			wantAllow:    narrowAllow[:1],
+		},
+		{name: "wider allow list refused", callerScopes: narrow, callerAllow: narrowAllow, req: codersdk.CreateTokenRequest{AllowList: all}, wantErr: "*:*"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			caller := client
+			if tc.callerScopes != nil {
+				token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+					Scopes:    tc.callerScopes,
+					AllowList: tc.callerAllow,
+				})
+				require.NoError(t, err)
+				caller = codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+			}
+
+			var (
+				resp codersdk.GenerateAPIKeyResponse
+				err  error
+			)
+			if tc.sessionKey {
+				resp, err = caller.CreateAPIKey(ctx, codersdk.Me)
+			} else {
+				resp, err = caller.CreateToken(ctx, codersdk.Me, tc.req)
+			}
+			if tc.wantErr != "" {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(resp.Key, "-")[0])
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.wantScopes, key.Scopes)
+			require.ElementsMatch(t, tc.wantAllow, key.AllowList)
 		})
 	}
 }
