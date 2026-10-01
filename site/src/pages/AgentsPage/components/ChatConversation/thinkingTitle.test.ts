@@ -27,10 +27,18 @@ describe("getThinkingDisclosureDisplay", () => {
 
 	it("keeps text that Markdown renders literally in the preview title", () => {
 		const text =
-			"Check `Promise<User>`, `*args*`, 0 < n and n > 0, 2 * n * m, 2 ** 10 and 3 ** 5 in user_id_field";
+			"Check `Promise<User>`, `*args*`, 0 < n and n > 0 in user_id_field and APP__DB__URL";
 		expect(getThinkingDisclosureDisplay(text)).toEqual({
 			title:
-				"Check Promise<User>, *args*, 0 < n and n > 0, 2 * n * m, 2 ** 10 and 3 ** 5 in user_id_field",
+				"Check Promise<User>, *args*, 0 < n and n > 0 in user_id_field and APP__DB__URL",
+			body: text,
+		});
+	});
+
+	it("keeps asterisks next to whitespace in the preview title", () => {
+		const text = "Compute 2 * n * m, then compare 2 ** 10 and 3 ** 5";
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title: text,
 			body: text,
 		});
 	});
