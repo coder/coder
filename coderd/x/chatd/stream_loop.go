@@ -39,6 +39,13 @@ type streamLocalState struct {
 	workerID          uuid.NullUUID
 	generationAttempt int64
 	lastPartSeq       int64
+	// attemptRetired is set once the stream observes a retry payload for
+	// the current generation attempt. That attempt has failed, so its
+	// remaining in-flight parts are dropped until a new history version
+	// or generation attempt starts a fresh preview episode. It stays set
+	// when the pending retry is later canceled (interrupt, error), since
+	// the failed attempt does not come back.
+	attemptRetired bool
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
@@ -274,10 +281,29 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		l.state.actionRequiredHistoryVersion = chat.HistoryVersion
 	}
 
-	if chat.RetryStateVersion > l.state.retryVersion {
+	// retry_state describes a pending retry of a running chat. Never
+	// announce it for a chat that stopped running, even if a stale payload
+	// is still stored.
+	if chat.RetryStateVersion > l.state.retryVersion && chat.Status == database.ChatStatusRunning {
 		if retry := l.retryEvent(chat); retry != nil {
 			events = append(events, *retry)
 		}
+	}
+
+	if historyChanged || generationChanged {
+		l.state.attemptRetired = false
+	}
+	// A retry payload is only recorded after the current generation
+	// attempt failed, and the chats trigger clears it when the attempt
+	// changes. Clients drop their preview on the retry event, so parts of
+	// the failed attempt that are still in flight must not reach them.
+	// Within one episode retry_state only changes when a retry is recorded
+	// for the current attempt or that pending retry is cleared, so an
+	// advanced retry_state_version also retires the attempt when the
+	// payload was cleared again before this sync.
+	retryChangedInEpisode := chat.RetryStateVersion > l.state.retryVersion && !historyChanged && !generationChanged
+	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) {
+		l.state.attemptRetired = true
 	}
 
 	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
@@ -385,6 +411,9 @@ func (l *streamLoop) retryEvent(chat database.Chat) *codersdk.ChatStreamEvent {
 
 func (l *streamLoop) part(part streamPart) (event codersdk.ChatStreamEvent, accepted bool, err error) {
 	if part.HistoryVersion != l.state.historyVersion || part.GenerationAttempt != l.state.generationAttempt {
+		return codersdk.ChatStreamEvent{}, false, nil
+	}
+	if l.state.attemptRetired {
 		return codersdk.ChatStreamEvent{}, false, nil
 	}
 	if part.Seq <= l.state.lastPartSeq {

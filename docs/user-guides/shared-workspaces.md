@@ -63,6 +63,8 @@ directly or through a group:
 
 - `coder list --search user:me`
 
+For full command details, see [`coder sharing`](../reference/cli/sharing/index.md).
+
 ### UI
 
 <a id="sharing-your-workspace"></a>

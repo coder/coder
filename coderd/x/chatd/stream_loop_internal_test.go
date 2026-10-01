@@ -308,15 +308,35 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 		queue: []database.ChatQueuedMessage{},
 	})
 
+	// retry_state describes a pending retry of a running chat. A stale
+	// payload on a chat that stopped in error must not be announced after
+	// the error, or the client shows a retry banner instead of the error.
 	requireEventTypes(t, events,
 		codersdk.ChatStreamEventTypeQueueUpdate,
 		codersdk.ChatStreamEventTypeStatus,
 		codersdk.ChatStreamEventTypeError,
-		codersdk.ChatStreamEventTypeRetry,
 		codersdk.ChatStreamEventTypePreviewReset,
 	)
 	require.Equal(t, chatError.Message, events[2].Error.Message)
-	require.Equal(t, retry.Attempt, events[3].Retry.Attempt)
+
+	retryLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	retryEvents := retryLoop.applyDBSnapshot(streamDBSnapshot{
+		chat: database.Chat{
+			ID:                chatID,
+			Status:            database.ChatStatusRunning,
+			SnapshotVersion:   2,
+			HistoryVersion:    1,
+			RetryStateVersion: 2,
+			GenerationAttempt: 2,
+			RetryState:        pqtype.NullRawMessage{RawMessage: retryRaw, Valid: true},
+		},
+	})
+	requireEventTypes(t, retryEvents,
+		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypeRetry,
+		codersdk.ChatStreamEventTypePreviewReset,
+	)
+	require.Equal(t, retry.Attempt, retryEvents[1].Retry.Attempt)
 
 	actionLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
 	actionEvents := actionLoop.applyDBSnapshot(streamDBSnapshot{

@@ -39,6 +39,12 @@ var (
 	// supplied chat is not a root chat (its parent_chat_id is set).
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")
 
+	// ErrChatFamilyArchived is returned by [CreateChat] and
+	// [CreateChatWithID] when the new chat names an archived root
+	// chat. Every member of an archived family must be archived, so
+	// no new chat may join one.
+	ErrChatFamilyArchived = xerrors.New("chat family is archived")
+
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
