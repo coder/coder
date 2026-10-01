@@ -300,11 +300,11 @@ describe("getChatHeat scenarios", () => {
 			);
 		}
 		expect(heatOf(messages)).toBe("high");
-		// The miss rate agrees with the flame despite the cached tool steps.
+		// The miss rate agrees with the meter despite the cached tool steps.
 		expect(getChatHeat(messages, 70)?.missRate).toBeGreaterThan(0.95);
 	});
 
-	it("reads low for a warm 30-step tool loop", () => {
+	it("reads low for a cache-warm 30-step tool loop", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 20_000))];
 		messages.push(...turn(...Array.from({ length: 30 }, () => next(0, 3_000))));
@@ -341,7 +341,9 @@ describe("getChatHeat scenarios", () => {
 	});
 
 	it("reads moderate when slow turns miss 20K", () => {
-		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe("moderate");
+		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe(
+			"moderate",
+		);
 	});
 
 	it("reads low when slow turns miss 10K", () => {

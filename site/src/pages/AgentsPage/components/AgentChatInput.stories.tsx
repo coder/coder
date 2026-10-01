@@ -1496,7 +1496,7 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-const hotChatHeat: ChatHeat = {
+const highChatHeat: ChatHeat = {
 	heat: 0.9,
 	label: "high",
 	missRate: 0.95,
@@ -1510,10 +1510,10 @@ const hotChatHeat: ChatHeat = {
 };
 
 /** The cache misses button beside the context ring on a crowded phone toolbar. */
-export const WithChatHeatMobile: Story = {
+export const WithCacheMissesMobile: Story = {
 	args: {
 		contextUsage: baseContextUsage,
-		chatHeat: hotChatHeat,
+		chatHeat: highChatHeat,
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
 	},

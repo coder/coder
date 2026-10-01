@@ -89,7 +89,7 @@ export const FirstTurn: Story = {
 	play: hoverTrigger,
 };
 
-export const IconOnly: Story = {
+export const IconOnlyHighExpired: Story = {
 	args: {
 		heat: { ...baseHeat, heat: 0.7, label: "high" },
 		isCacheExpired: true,

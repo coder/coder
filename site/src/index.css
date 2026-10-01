@@ -478,7 +478,7 @@
 		--highlight-red: 0 74% 42%;
 		--highlight-magenta: 295, 68%, 40%;
 		/* Cache miss meter stops. Green, yellow and red differ strongly in
-		   lightness so the scale still reads under red/green colour blindness. */
+		   luminance so the scale still reads under red/green colour blindness. */
 		--heat-low: 142 76% 36%;
 		--heat-moderate: 50 98% 64%;
 		--heat-high: 0 70% 35%;

@@ -30,14 +30,14 @@ const EXPIRY_CHECK_INTERVAL_MS = 15_000;
 const CACHE_IDLE_TTL_MINUTES = CACHE_IDLE_TTL_MS / 60_000;
 
 // Blends the low stop to the moderate stop over the first half of the range
-// and the moderate stop to the high stop over the second half.
-const heatColor = (heat: number): string => {
-	const clamped = Math.min(Math.max(heat, 0), 1);
-	if (clamped <= 0.5) {
-		const stop = Math.round((clamped / 0.5) * 100);
+// and the moderate stop to the high stop over the second half. Expects a
+// level in [0, 1].
+const heatColor = (level: number): string => {
+	if (level <= 0.5) {
+		const stop = Math.round((level / 0.5) * 100);
 		return `color-mix(in oklab, var(--color-heat-low), var(--color-heat-moderate) ${stop}%)`;
 	}
-	const stop = Math.round(((clamped - 0.5) / 0.5) * 100);
+	const stop = Math.round(((level - 0.5) / 0.5) * 100);
 	return `color-mix(in oklab, var(--color-heat-moderate), var(--color-heat-high) ${stop}%)`;
 };
 
@@ -56,6 +56,9 @@ const GAUGE_CENTER_Y = 14;
 const GAUGE_OUTER_RADIUS = 10.5;
 const GAUGE_INNER_RADIUS = 5;
 const GAUGE_NEEDLE_LENGTH = 9;
+// Keeps the needle off the flat ends of the band outline at 0 and 1.
+const GAUGE_NEEDLE_MIN_POSITION = 1 / 30;
+const GAUGE_TRACK_OPACITY = 0.2;
 
 // Position 0 is the left end of the arc, 0.5 the top and 1 the right end.
 const gaugePoint = (position: number, radius: number) => {
@@ -81,19 +84,24 @@ const gaugeBandPath = (position: number): string =>
 		"Z",
 	].join(" ");
 
-type GaugeIconProps = {
+type CacheMissGaugeProps = {
 	level: number;
-	fillColor: string;
-	outlineColor: string;
 };
 
-const GaugeIcon: React.FC<GaugeIconProps> = ({
-	level,
-	fillColor,
-	outlineColor,
-}) => {
+// The track carries a faint tint of the level colour so the hue shows even
+// when little of the band is filled.
+const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
 	const position = Math.min(Math.max(level, 0), 1);
-	const tip = gaugePoint(position, GAUGE_NEEDLE_LENGTH);
+	const fillColor = heatColor(position);
+	const outlineColor = heatOutlineColor(fillColor);
+	const tip = gaugePoint(
+		Math.min(
+			Math.max(position, GAUGE_NEEDLE_MIN_POSITION),
+			1 - GAUGE_NEEDLE_MIN_POSITION,
+		),
+		GAUGE_NEEDLE_LENGTH,
+	);
+	const fullBand = gaugeBandPath(1);
 	return (
 		<svg
 			viewBox="0 0 24 24"
@@ -103,8 +111,9 @@ const GaugeIcon: React.FC<GaugeIconProps> = ({
 			strokeLinejoin="round"
 			aria-hidden="true"
 		>
+			<path d={fullBand} fill={fillColor} fillOpacity={GAUGE_TRACK_OPACITY} />
 			{position > 0 && <path d={gaugeBandPath(position)} fill={fillColor} />}
-			<path d={gaugeBandPath(1)} stroke={outlineColor} strokeWidth={1.5} />
+			<path d={fullBand} stroke={outlineColor} strokeWidth={1.5} />
 			<line
 				x1={GAUGE_CENTER_X}
 				y1={GAUGE_CENTER_Y}
@@ -133,11 +142,9 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	isCacheExpired,
 }) => {
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
-	const fillColor = heatColor(heat.heat);
 	const label = LEVEL_LABELS[heat.label];
-	const ariaLabel = `Cache misses: ${label}, ${formatPercent(heat.heat)}.${
-		isCacheExpired ? " Cache likely expired." : ""
-	}`;
+	const summary = `Cache misses: ${label} (${formatPercent(heat.heat)})`;
+	const ariaLabel = `${summary}.${isCacheExpired ? " Cache likely expired." : ""}`;
 	const actionHint = isCacheExpired
 		? `Reply within ${CACHE_IDLE_TTL_MINUTES} minutes to reuse the cache, or compact before stepping away.`
 		: heat.label === "high"
@@ -146,9 +153,9 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 
 	const panelContent = (
 		<div className="flex max-w-64 flex-col gap-1 text-xs text-content-primary">
-			<span className="font-medium">{`Cache misses: ${label} (${formatPercent(heat.heat)})`}</span>
+			<span className="font-medium">{summary}</span>
 			<span className="text-content-secondary">
-				{`Recent cache miss rate: ${formatPercent(heat.missRate)}`}
+				{`Cacheable context re-sent recently: ${formatPercent(heat.missRate)}`}
 			</span>
 			<span className="text-content-secondary">
 				{`Last turn: ${heat.lastTurnRequestCount} ${heat.lastTurnRequestCount === 1 ? "request" : "requests"}, re-sent ${formatTokenCountCompact(heat.lastTurnMissedTokens)} of ${formatTokenCountCompact(heat.lastTurnReusableTokens)} cacheable tokens`}
@@ -160,13 +167,14 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 				</span>
 			) : (
 				<span className="text-content-secondary">
-					The meter rises when recent turns re-send much of the context window
-					instead of reading it from the prompt cache.
+					The needle moves right as recent turns re-send more of the context
+					instead of reading it from the prompt cache. The latest turn counts
+					most.
 				</span>
 			)}
 			{isCacheExpired && (
 				<span className="text-content-warning">
-					{`Cache likely expired. Your next message will likely resend about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}
+					{`Cache likely expired. Your next message will re-send about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}
 				</span>
 			)}
 			{actionHint && (
@@ -181,11 +189,7 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 			aria-label={ariaLabel}
 			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
-			<GaugeIcon
-				level={heat.heat}
-				fillColor={fillColor}
-				outlineColor={heatOutlineColor(fillColor)}
-			/>
+			<CacheMissGauge level={heat.heat} />
 			{isCacheExpired && (
 				<span
 					aria-hidden="true"

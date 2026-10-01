@@ -95,7 +95,9 @@ describe("ChatHeatIndicator", () => {
 		renderComponent(
 			<ChatHeatIndicator heat={heat} isCacheExpired={isCacheExpired} />,
 		);
-		await userEvent.hover(screen.getByRole("button", { name: /cache misses/i }));
+		await userEvent.hover(
+			screen.getByRole("button", { name: /cache misses/i }),
+		);
 		return screen.findByRole("tooltip");
 	};
 
@@ -107,8 +109,8 @@ describe("ChatHeatIndicator", () => {
 			/>,
 		);
 		expect(
-			screen.getByRole("button", { name: "Cache misses: High, 82%." }),
-		).toBeInTheDocument();
+			screen.getByRole("button", { name: /cache misses/i }),
+		).toHaveAccessibleName("Cache misses: High (82%).");
 	});
 
 	it("suggests replying sooner when high", async () => {

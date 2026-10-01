@@ -24018,7 +24018,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
-                "ExperimentChatHeatMeter": "Shows a prompt-cache heat meter under the Coder Agents chat input.",
+                "ExperimentChatHeatMeter": "Shows a prompt-cache miss meter under the Coder Agents chat input.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
@@ -24049,7 +24049,7 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Offers the Coder Agents chat board as a per-browser opt-in.",
-                "Shows a prompt-cache heat meter under the Coder Agents chat input."
+                "Shows a prompt-cache miss meter under the Coder Agents chat input."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
