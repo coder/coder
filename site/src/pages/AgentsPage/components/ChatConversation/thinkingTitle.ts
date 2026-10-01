@@ -18,20 +18,33 @@ type ThinkingDisclosureDisplay = {
 	body: string;
 };
 
-const cleanHeadingText = (text: string): string =>
-	text
+const cleanHeadingText = (text: string): string => {
+	// Code spans are set aside so the emphasis and HTML rules below cannot
+	// strip characters inside them, such as `Map<string, User>`. As in
+	// Markdown, asterisks next to inner whitespace stay literal, so
+	// `2 * n * m` is not emphasis.
+	const codeSpans: string[] = [];
+	return text
 		.replace(/\\([\\`*_[\]{}()#+.!-])/g, "$1")
+		.replace(/`([^`]*)`/g, (_match, code: string) => {
+			codeSpans.push(code);
+			return `\uE000${codeSpans.length - 1}\uE001`;
+		})
 		.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
 		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-		.replace(/`([^`]*)`/g, "$1")
-		.replace(/\*\*([^*]+)\*\*/g, "$1")
-		.replace(/__([^_]+)__/g, "$1")
-		.replace(/\*([^*]+)\*/g, "$1")
-		.replace(/_([^_]+)_/g, "$1")
+		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
+		.replace(/\b__([^_]+)__\b/g, "$1")
+		.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1")
+		.replace(/\b_([^_]+)_\b/g, "$1")
 		.replace(/~~([^~]+)~~/g, "$1")
-		.replace(/<\/?[^>]+>/g, "")
+		.replace(/<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>/g, "")
+		.replace(
+			/\uE000(\d+)\uE001/g,
+			(match, index: string) => codeSpans[Number(index)] ?? match,
+		)
 		.replace(/\s+/g, " ")
 		.trim();
+};
 
 const getLines = (text: string): LineRange[] => {
 	const lines: LineRange[] = [];

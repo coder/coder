@@ -25,6 +25,16 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it("keeps text that Markdown renders literally in the preview title", () => {
+		const text =
+			"Check `Promise<User>`, `*args*`, 0 < n and n > 0, 2 * n * m, 2 ** 10 and 3 ** 5 in user_id_field";
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title:
+				"Check Promise<User>, *args*, 0 < n and n > 0, 2 * n * m, 2 ** 10 and 3 ** 5 in user_id_field",
+			body: text,
+		});
+	});
+
 	it("uses the text as the title when there is no heading", () => {
 		expect(getThinkingDisclosureDisplay("Let me think this through.")).toEqual({
 			title: "Let me think this through.",

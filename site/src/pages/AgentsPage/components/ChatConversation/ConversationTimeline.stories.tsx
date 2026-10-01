@@ -9,8 +9,10 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -2106,12 +2108,10 @@ export const ThinkingBlockLongPreview: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["me", "preferences"],
+				key: preferenceSettingsKey,
 				data: {
-					thinking_display_mode: "always_collapsed" as const,
-					shell_tool_display_mode: "auto" as const,
-					code_diff_display_mode: "auto" as const,
-					agent_chat_send_shortcut: "enter" as const,
+					...MockUserPreferenceSettings,
+					thinking_display_mode: "always_collapsed",
 				},
 			},
 		],
