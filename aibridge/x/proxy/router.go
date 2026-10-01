@@ -42,8 +42,9 @@ var _ http.Handler = (*Router)(nil)
 //
 // Disabled providers serve 503 on every path under their name. Enabled
 // providers proxy passthrough routes upstream, bridged routes return 404
-// after validation succeeds. All routes reuse the same inflight gate
-// across a server's snapshots. Shutdown drains all admitted requests.
+// after validation succeeds. Bedrock bridged routes return 404 without validation.
+// All routes reuse the same inflight gate across a server's snapshots.
+// Shutdown drains all admitted requests.
 // rec is shared across requests and must read identity from the request context.
 func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
 	if err := provider.ValidateProviders(providers); err != nil {
@@ -60,6 +61,8 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 		}
 
 		bridged := inflight.Middleware(http.NotFoundHandler())
+		// Bedrock is excluded before validation because proxy mode does not
+		// forward it. Providers without bridged routes need no handler.
 		if prov.Type() != config.ProviderBedrock && len(prov.BridgedRoutes()) > 0 {
 			bridged = newForwardingHandler(prov, logger, m, tracer, inflight, rec)
 		}

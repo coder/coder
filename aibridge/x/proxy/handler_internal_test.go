@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
@@ -27,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -110,48 +113,122 @@ func recordedRequest(t *testing.T, body io.Reader) *http.Request {
 
 func TestForwardingHandlerRejectsRequest(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"MissingActor", "MissingRecorder", "WebSocket", "Firewall", "DeclaredOversize", "MissingCredential", "UnsupportedSigning"} {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		prepare    func(*testing.T, *http.Request) *http.Request
+		provider   func(*testing.T) provider.Provider
+		noRecorder bool
+		status     int
+		message    string
+		logLevel   slog.Level
+		logMessage string
+		bodyClosed bool
+	}{
+		{
+			name: "WebSocket",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Method = http.MethodGet
+				r.Header.Set("Connection", "Upgrade")
+				r.Header.Set("Upgrade", "websocket")
+				return r
+			},
+			status: http.StatusNotImplemented, message: "WebSocket transport is not supported, use HTTP\n",
+			logLevel: slog.LevelDebug, logMessage: "rejecting unsupported WebSocket upgrade",
+		},
+		{
+			name: "MalformedFirewallSessionID",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Set("X-Coder-Agent-Firewall-Session-Id", "not-a-uuid")
+				r.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "1")
+				return r
+			},
+			status: http.StatusBadRequest, message: "invalid agent firewall headers\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting request with invalid agent firewall headers",
+		},
+		{
+			name: "FirewallMissingSequence",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Set("X-Coder-Agent-Firewall-Session-Id", "e5f6a7b8-1234-5678-9abc-def012345678")
+				return r
+			},
+			status: http.StatusBadRequest, message: "invalid agent firewall headers\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting request with invalid agent firewall headers",
+		},
+		{
+			name: "DeclaredOversize",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.ContentLength = routing.MaxRequestBodyBytes + 1
+				return r
+			},
+			status: http.StatusRequestEntityTooLarge, message: fmt.Sprintf("Request body too large. The maximum allowed request body size is %dMiB.\n", routing.MaxRequestBodyBytes>>20),
+			logLevel: slog.LevelWarn, logMessage: "rejecting oversized request body", bodyClosed: true,
+		},
+		{
+			name:    "MissingActor",
+			prepare: func(t *testing.T, r *http.Request) *http.Request { return r.WithContext(t.Context()) },
+			status:  http.StatusBadRequest, message: "no actor found\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting request without an actor",
+		},
+		{
+			name: "MissingRecorder", noRecorder: true,
+			status: http.StatusInternalServerError, message: "recorder unavailable\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting request without a recorder",
+		},
+		{
+			name: "MissingCredential",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Del("Authorization")
+				return r
+			},
+			status: http.StatusBadGateway, message: "upstream authentication unavailable\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting request without an upstream credential",
+		},
+		{
+			name: "UnsupportedSigning",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Del("Authorization")
+				return r
+			},
+			provider: func(t *testing.T) provider.Provider {
+				prov, err := provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: "https://upstream.example.test"}, nil, &config.AWSClaudePlatform{Region: "us-west-2", WorkspaceID: "wrkspc_test"})
+				require.NoError(t, err)
+				return prov
+			},
+			status: http.StatusNotImplemented, message: "upstream authentication is not supported in proxy mode\n",
+			logLevel: slog.LevelWarn, logMessage: "rejecting unsupported upstream credential",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var rec recorder.Recorder = &struct{ recorder.Recorder }{}
+			if tc.noRecorder {
+				rec = nil
+			}
 			body := &unreadBody{}
 			req := recordedRequest(t, body)
-			var prov provider.Provider = provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"})
-			status := http.StatusBadRequest
-			switch name {
-			case "MissingActor":
-				req = req.WithContext(t.Context())
-			case "MissingRecorder":
-				rec = nil
-				status = http.StatusInternalServerError
-			case "WebSocket":
-				req.Method = http.MethodGet
-				req.Header.Set("Connection", "Upgrade")
-				req.Header.Set("Upgrade", "websocket")
-				status = http.StatusNotImplemented
-			case "Firewall":
-				req.Header.Set("X-Coder-Agent-Firewall-Session-Id", "invalid")
-			case "DeclaredOversize":
-				req.ContentLength = routing.MaxRequestBodyBytes + 1
-				status = http.StatusRequestEntityTooLarge
-			case "MissingCredential":
-				req.Header.Del("Authorization")
-				status = http.StatusBadGateway
-			case "UnsupportedSigning":
-				var err error
-				prov, err = provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: "https://upstream.example.test"}, nil, &config.AWSClaudePlatform{Region: "us-west-2", WorkspaceID: "wrkspc_test"})
-				require.NoError(t, err)
-				req.Header.Del("Authorization")
-				status = http.StatusNotImplemented
+			if tc.prepare != nil {
+				req = tc.prepare(t, req)
 			}
-			h := &forwardingHandler{provider: prov, logger: slogtest.Make(t, nil), recorder: rec}
+			var prov provider.Provider = provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"})
+			if tc.provider != nil {
+				prov = tc.provider(t)
+			}
+			sink := codertestutil.NewFakeSink(t)
+			h := &forwardingHandler{provider: prov, logger: sink.Logger(), recorder: rec}
 			response := httptest.NewRecorder()
 			record, cred := h.checkRequest(response, req)
 			require.Nil(t, record)
 			require.Nil(t, cred)
-			require.Equal(t, status, response.Code)
+			require.Equal(t, tc.status, response.Code)
+			require.Equal(t, tc.message, response.Body.String())
 			require.False(t, body.read, "preflight must not read the request body")
-			require.Equal(t, name == "DeclaredOversize", body.closed)
+			require.Equal(t, tc.bodyClosed, body.closed)
+			entries := sink.Entries()
+			require.Len(t, entries, 1)
+			require.Equal(t, tc.logLevel, entries[0].Level)
+			require.Equal(t, tc.logMessage, entries[0].Message)
+			require.Contains(t, entries[0].Fields, slog.F("provider", prov.Name()))
+			require.NotContains(t, fmt.Sprint(entries), "user-secret-key", "rejection logs must not include credentials")
 		})
 	}
 }
@@ -193,6 +270,7 @@ func TestForwardingHandlerRequestMetadata(t *testing.T) {
 			require.Equal(t, aibcontext.ActorIDFromContext(req.Context()), record.InitiatorID)
 			require.Equal(t, recorder.Metadata{"Username": t.Name()}, record.Metadata)
 			require.Equal(t, "openai", record.ProviderName)
+			require.Equal(t, config.ProviderOpenAI, record.Provider)
 			require.Equal(t, string(client.ClaudeCode), record.Client)
 			require.Equal(t, req.UserAgent(), record.UserAgent)
 			require.Equal(t, new("e5f6a7b8-1234-5678-9abc-def012345678"), record.AgentFirewallSessionID)
