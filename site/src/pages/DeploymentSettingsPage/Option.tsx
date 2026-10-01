@@ -116,7 +116,7 @@ export const OptionConfig: React.FC<OptionConfigProps> = ({
 				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&
-					"border-border-pending [&_[data-slot=option-config-flag]]:bg-surface-sky [&_[data-slot=option-config-flag]]:text-highlight-sky",
+					"border-highlight-sky [&_[data-slot=option-config-flag]]:bg-surface-sky [&_[data-slot=option-config-flag]]:text-highlight-sky",
 				className,
 			)}
 		/>
