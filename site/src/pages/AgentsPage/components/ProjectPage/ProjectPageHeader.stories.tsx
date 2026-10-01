@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { EllipsisVerticalIcon } from "lucide-react";
+import { within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import { MockChatProject } from "#/testHelpers/entities";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
 import { ProjectPageHeader } from "./ProjectPageHeader";
 
@@ -96,5 +98,19 @@ export const WithOrganization: Story = {
 				organizationLabel="Coder"
 			/>
 		),
+	},
+};
+
+/** Keyboard focus on the creation date shows the full timestamp. */
+export const CreatedDateFocused: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", {
+				name: formatDateTime(
+					MockChatProject.created_at,
+					DATE_FORMAT.MEDIUM_DATE,
+				),
+			})
+			.focus();
 	},
 };

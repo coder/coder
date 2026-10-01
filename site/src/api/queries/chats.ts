@@ -1417,6 +1417,12 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
+		// Project pages hide archived rows, so a failed archive restores
+		// these lists instead of waiting on a refetch that may also fail.
+		const previousProjectLists =
+			queryClient.getQueriesData<InfiniteChatsCacheData>({
+				queryKey: chatProjectListFamilyKey,
+			});
 		// Flip archived flag in the flat root list; strip the
 		// chat from any parent's embedded children (individual
 		// child archive). Reuse patchChatArchiveState so the
@@ -1434,7 +1440,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 				patchChatArchiveState(previousChat, true),
 			);
 		}
-		return { previousChat };
+		return { previousChat, previousProjectLists };
 	},
 	onError: (
 		_error: unknown,
@@ -1442,11 +1448,17 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
+					previousProjectLists?: ReadonlyArray<
+						readonly [QueryKey, InfiniteChatsCacheData | undefined]
+					>;
 			  }
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
 		void invalidateChatListQueries(queryClient);
+		for (const [queryKey, data] of context?.previousProjectLists ?? []) {
+			queryClient.setQueryData(queryKey, data);
+		}
 		if (context?.previousChat) {
 			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
