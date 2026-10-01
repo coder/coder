@@ -55,10 +55,17 @@ const GAUGE_CENTER_X = 12;
 const GAUGE_CENTER_Y = 14;
 const GAUGE_OUTER_RADIUS = 10.5;
 const GAUGE_INNER_RADIUS = 5;
-const GAUGE_NEEDLE_LENGTH = 9;
+const GAUGE_NEEDLE_LENGTH = 8;
 // Keeps the needle off the flat ends of the band outline at 0 and 1.
 const GAUGE_NEEDLE_MIN_POSITION = 1 / 30;
 const GAUGE_TRACK_OPACITY = 0.2;
+// The needle has its own colour and a halo in the page colour so it stays
+// crisp over the High fill, whose hue it shares. It is drawn over the band
+// outline, so the halo notches the inner arc where the needle crosses it.
+const GAUGE_NEEDLE_COLOR = "var(--color-heat-needle)";
+const GAUGE_NEEDLE_HALO_COLOR = "var(--color-surface-primary)";
+const GAUGE_NEEDLE_WIDTH = 2;
+const GAUGE_NEEDLE_HALO_WIDTH = 4.5;
 
 // Position 0 is the left end of the arc, 0.5 the top and 1 the right end.
 const gaugePoint = (position: number, radius: number) => {
@@ -84,9 +91,9 @@ const gaugeBandPath = (position: number): string =>
 		"Z",
 	].join(" ");
 
-// The share is the Q9r miss rate for the turn: missed tokens over the
-// largest cacheable prompt. Missed tokens sum over every request in the
-// turn, so they can exceed that prompt.
+// The share is the turn's miss rate: missed tokens over the largest
+// cacheable prompt. Missed tokens sum over every request in the turn, so
+// they can exceed that prompt.
 const formatLastTurn = (heat: ChatHeat, requests: string): string => {
 	const missed = formatTokenCountCompact(heat.lastTurnMissedTokens);
 	const reusable = formatTokenCountCompact(heat.lastTurnReusableTokens);
@@ -155,20 +162,30 @@ const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
 				strokeDasharray={reading ? undefined : "2.5 2.5"}
 			/>
 			{reading && (
-				<line
-					x1={GAUGE_CENTER_X}
-					y1={GAUGE_CENTER_Y}
-					x2={reading.tip.x}
-					y2={reading.tip.y}
-					stroke={outlineColor}
-					strokeWidth={2}
-				/>
+				<>
+					<line
+						x1={GAUGE_CENTER_X}
+						y1={GAUGE_CENTER_Y}
+						x2={reading.tip.x}
+						y2={reading.tip.y}
+						stroke={GAUGE_NEEDLE_HALO_COLOR}
+						strokeWidth={GAUGE_NEEDLE_HALO_WIDTH}
+					/>
+					<line
+						x1={GAUGE_CENTER_X}
+						y1={GAUGE_CENTER_Y}
+						x2={reading.tip.x}
+						y2={reading.tip.y}
+						stroke={GAUGE_NEEDLE_COLOR}
+						strokeWidth={GAUGE_NEEDLE_WIDTH}
+					/>
+				</>
 			)}
 			<circle
 				cx={GAUGE_CENTER_X}
 				cy={GAUGE_CENTER_Y}
 				r={1.75}
-				fill={outlineColor}
+				fill={reading ? GAUGE_NEEDLE_COLOR : outlineColor}
 			/>
 		</svg>
 	);
