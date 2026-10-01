@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -999,5 +1000,116 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 
 		_, err = secondClient.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
+func TestChatWorkspaceAgent(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+	t.Run("SelectsSuffixedRootAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// No agent ever connects: selection ignores connection status.
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+			agents[0].Name = "main"
+			agents[0].Order = 0
+			return append(agents, &sdkproto.Agent{
+				Id:    uuid.NewString(),
+				Name:  "dev-coderd-chat",
+				Order: 1,
+				Auth:  &sdkproto.Agent_Token{Token: uuid.NewString()},
+				Env:   map[string]string{},
+			})
+		}).Do()
+		require.Len(t, workspaceBuild.Agents, 2)
+		var chatAgent database.WorkspaceAgent
+		for _, agent := range workspaceBuild.Agents {
+			if agent.Name == "dev-coderd-chat" {
+				chatAgent = agent
+			}
+		}
+		require.NotEqual(t, uuid.Nil, chatAgent.ID)
+		// A suffixed child agent must not count as a second candidate.
+		_ = dbgen.WorkspaceSubAgent(t, db, chatAgent, database.WorkspaceAgent{
+			Name: "child-coderd-chat",
+		})
+
+		resp, err := client.GetChatWorkspaceAgent(ctx, workspaceBuild.Workspace.ID)
+		require.NoError(t, err)
+		require.NotNil(t, resp.AgentID)
+		require.Equal(t, chatAgent.ID, *resp.AgentID)
+	})
+
+	t.Run("StoppedWorkspaceHasNoAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+
+		resp, err := client.GetChatWorkspaceAgent(ctx, workspaceBuild.Workspace.ID)
+		require.NoError(t, err)
+		require.Nil(t, resp.AgentID)
+	})
+
+	t.Run("AmbiguousSuffixedAgentsHaveNoAgent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+			agents[0].Name = "one-coderd-chat"
+			return append(agents, &sdkproto.Agent{
+				Id:   uuid.NewString(),
+				Name: "two-coderd-chat",
+				Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+				Env:  map[string]string{},
+			})
+		}).Do()
+
+		resp, err := client.GetChatWorkspaceAgent(ctx, workspaceBuild.Workspace.ID)
+		require.NoError(t, err)
+		require.Nil(t, resp.AgentID)
+	})
+
+	t.Run("UnreadableWorkspaceNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		_, err := memberClient.GetChatWorkspaceAgent(ctx, workspaceBuild.Workspace.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("InvalidWorkspaceID", func(t *testing.T) {
+		t.Parallel()
+
+		for _, query := range []string{"", "?workspace_id=", "?workspace_id=not-a-uuid"} {
+			ctx := testutil.Context(t, testutil.WaitLong)
+			res, err := client.Request(ctx, http.MethodGet, "/api/v2/chats/workspace-agent"+query, nil)
+			require.NoError(t, err)
+			err = codersdk.ReadBodyAsError(res)
+			_ = res.Body.Close()
+			requireSDKError(t, err, http.StatusBadRequest)
+		}
 	})
 }
