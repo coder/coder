@@ -178,6 +178,16 @@ describe("ModelSelector", () => {
 			act(dispatchGeometryEvents);
 
 			expect(requestFrame).not.toHaveBeenCalled();
+
+			styleWrite.mockClear();
+			await openPicker(user);
+			expect(geometryCallCount(styleWrite.mock.calls)).toBeGreaterThan(0);
+
+			act(dispatchGeometryEvents);
+			expect(requestFrame).toHaveBeenCalledTimes(1);
+
+			await user.keyboard("{Escape}");
+			expect(vi.getTimerCount()).toBe(0);
 			expect(rootWrite).not.toHaveBeenCalled();
 		},
 	);
