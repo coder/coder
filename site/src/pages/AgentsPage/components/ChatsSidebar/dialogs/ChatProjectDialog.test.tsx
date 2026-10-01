@@ -1,5 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
@@ -26,6 +28,52 @@ const defaultProps = {
 } satisfies React.ComponentProps<typeof ChatProjectDialog>;
 
 describe("ChatProjectDialog", () => {
+	it("renders the create button disabled before async validation resolves", () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		flushSync(() => {
+			root.render(
+				<Wrapper>
+					<ChatProjectDialog {...defaultProps} onSubmit={vi.fn()} />
+				</Wrapper>,
+			);
+		});
+
+		expect(
+			screen.getByRole("button", { name: "Create project" }),
+		).toBeDisabled();
+
+		flushSync(() => {
+			root.unmount();
+		});
+		container.remove();
+	});
+
+	it("renders the save button enabled before async validation resolves", () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		flushSync(() => {
+			root.render(
+				<Wrapper>
+					<ChatProjectDialog
+						{...defaultProps}
+						project={MockChatProject}
+						onSubmit={vi.fn()}
+					/>
+				</Wrapper>,
+			);
+		});
+
+		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+
+		flushSync(() => {
+			root.unmount();
+		});
+		container.remove();
+	});
+
 	it("submits trimmed values and the organization selected with the keyboard after a failed attempt", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();

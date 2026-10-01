@@ -237,8 +237,9 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					<Button
 						type="submit"
 						disabled={
-							!form.isValid ||
 							isSubmitting ||
+							!form.isValid ||
+							(!project && !form.dirty) ||
 							(!project && !selectedOrganization)
 						}
 					>
