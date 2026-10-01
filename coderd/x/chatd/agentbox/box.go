@@ -38,16 +38,26 @@ type RunRequest struct {
 	Args     []string
 }
 
+// ExitCodeInterrupted is the RunResult.ExitCode of a run stopped by its
+// timeout or by cancellation before the guest exited.
+const ExitCodeInterrupted = -1
+
 // RunResult is the outcome of a guest execution that started. Host-side
 // failures are returned as errors instead.
 type RunResult struct {
+	// ExitCode is the guest's exit status read as a signed 32-bit value,
+	// or ExitCodeInterrupted when TimedOut or Canceled is set.
 	ExitCode        int
 	Stdout          string
 	Stderr          string
 	StdoutTruncated bool
 	StderrTruncated bool
-	TimedOut        bool
-	Duration        time.Duration
+	// TimedOut reports that the run timeout stopped the guest.
+	TimedOut bool
+	// Canceled reports that the caller's context or Close stopped the
+	// guest.
+	Canceled bool
+	Duration time.Duration
 }
 
 // ReadLinesResult mirrors the read_file tool result shape.
@@ -185,27 +195,28 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		StderrTruncated: stderr.truncated(),
 		Duration:        duration,
 	}
-	if err == nil {
+	exitErr, isExit := errors.AsType[*sys.ExitError](err)
+	switch {
+	case err == nil:
 		return result, nil
-	}
-	if exitErr, ok := errors.AsType[*sys.ExitError](err); ok {
-		result.ExitCode = int(exitErr.ExitCode())
-		// The timer can fire after the guest exited on its own; only an
-		// interrupted run timed out.
-		switch exitErr.ExitCode() {
-		case sys.ExitCodeContextCanceled, sys.ExitCodeDeadlineExceeded:
-			result.TimedOut = timedOut.Load()
-		}
+	case isExit && (runCtx.Err() == nil || !isInterruptExitCode(exitErr.ExitCode())):
+		// WASI exit statuses are uint32; a guest exit(-1) arrives as
+		// 0xffffffff.
+		result.ExitCode = int(int32(exitErr.ExitCode())) //nolint:gosec // Intentional two's complement reinterpretation.
 		return result, nil
-	}
-	if runCtx.Err() != nil {
-		// Cancellation surfaces as an ExitError with
-		// ExitCodeContextCanceled in most paths; this covers the rest.
-		result.ExitCode = int(sys.ExitCodeContextCanceled)
+	case isExit || runCtx.Err() != nil:
+		result.ExitCode = ExitCodeInterrupted
 		result.TimedOut = timedOut.Load()
+		result.Canceled = !result.TimedOut
 		return result, nil
 	}
 	return RunResult{}, xerrors.Errorf("run guest: %w", err)
+}
+
+// isInterruptExitCode reports whether code is one wazero uses when it
+// closes a module because its context ended.
+func isInterruptExitCode(code uint32) bool {
+	return code == sys.ExitCodeContextCanceled || code == sys.ExitCodeDeadlineExceeded
 }
 
 // fsConfig mounts the box directory at /box through the quota adapter and

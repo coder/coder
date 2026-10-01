@@ -80,6 +80,7 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		byteCountString(int64(options.Limits.MemoryBytes)) + " memory, " +
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
 		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
+		"exit_code is -1 when timed_out or canceled is true. " +
 		"Use box_write_file to stage inputs, box_read_file to inspect outputs, and box_attach_file to hand a result file to the user."
 	return boxTool{fantasy.NewAgentTool(
 		BoxRunToolName,
@@ -109,6 +110,7 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 			fields := h.withIdentity(map[string]any{
 				"exit_code":   result.ExitCode,
 				"timed_out":   result.TimedOut,
+				"canceled":    result.Canceled,
 				"duration_ms": result.Duration.Milliseconds(),
 			})
 			stdout, stderr, fitCut := fitStreams(fields, stdout, stderr, options.ResultBudgetBytes)

@@ -109,6 +109,7 @@ func TestBoxTools(t *testing.T) {
 		assert.Equal(t, "warn", result["stderr"])
 		assert.Equal(t, false, result["stdout_truncated"])
 		assert.Equal(t, false, result["timed_out"])
+		assert.Equal(t, false, result["canceled"])
 		assert.Contains(t, result, "duration_ms")
 		assert.Equal(t, h.box.ID(), result["box_id"])
 

@@ -57,7 +57,41 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, "hello\n", result.Stdout)
 		assert.Equal(t, "oops\n", result.Stderr)
 		assert.False(t, result.TimedOut)
+		assert.False(t, result.Canceled)
 		assert.False(t, result.StdoutTruncated)
+	})
+
+	t.Run("NegativeExit", func(t *testing.T) {
+		t.Parallel()
+		box := newBox(t, engine)
+		result := runJS(t, box, `std.exit(-2);`)
+		assert.Equal(t, -2, result.ExitCode)
+		assert.False(t, result.TimedOut)
+		assert.False(t, result.Canceled)
+	})
+
+	t.Run("CallerCancel", func(t *testing.T) {
+		t.Parallel()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().AfterFunc("agentbox", "run-timeout")
+		defer trap.Close()
+		engine := newEngine(t, agentbox.Options{Clock: mClock})
+		box := newBox(t, engine)
+		runCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan agentbox.RunResult, 1)
+		go func() {
+			result, err := box.Run(runCtx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `for (;;) {}`})
+			assert.NoError(t, err)
+			done <- result
+		}()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		trap.MustWait(ctx).MustRelease(ctx)
+		cancel()
+		result := testutil.RequireReceive(ctx, t, done)
+		assert.Equal(t, agentbox.ExitCodeInterrupted, result.ExitCode)
+		assert.True(t, result.Canceled)
+		assert.False(t, result.TimedOut)
 	})
 
 	t.Run("StdinAndArgs", func(t *testing.T) {
@@ -283,7 +317,8 @@ func TestLimits(t *testing.T) {
 		mClock.Advance(time.Minute).MustWait(ctx)
 		result := testutil.RequireReceive(ctx, t, done)
 		assert.True(t, result.TimedOut)
-		assert.NotEqual(t, 0, result.ExitCode)
+		assert.False(t, result.Canceled)
+		assert.Equal(t, agentbox.ExitCodeInterrupted, result.ExitCode)
 	})
 
 	t.Run("Memory", func(t *testing.T) {
@@ -495,7 +530,8 @@ func TestLifecycle(t *testing.T) {
 		require.NoError(t, box.Close())
 		result := testutil.RequireReceive(ctx, t, done)
 		assert.False(t, result.TimedOut)
-		assert.NotEqual(t, 0, result.ExitCode)
+		assert.True(t, result.Canceled)
+		assert.Equal(t, agentbox.ExitCodeInterrupted, result.ExitCode)
 		require.NoDirExists(t, dir)
 
 		require.NoError(t, box.Close())
