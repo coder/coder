@@ -5,7 +5,7 @@ import { ChatHeatIndicator } from "./ChatHeatIndicator";
 
 const baseHeat: ChatHeat = {
 	heat: 0.05,
-	label: "cool",
+	label: "low",
 	missRate: 0.04,
 	lastTurnRequestCount: 3,
 	lastTurnMissedTokens: 3_400,
@@ -30,18 +30,18 @@ type Story = StoryObj<typeof ChatHeatIndicator>;
 // Opens the tooltip so the screenshot captures the breakdown.
 const hoverTrigger: Story["play"] = async ({ canvasElement }) => {
 	await userEvent.hover(
-		within(canvasElement).getByRole("button", { name: /chat heat/i }),
+		within(canvasElement).getByRole("button", { name: /cache misses/i }),
 	);
 };
 
-export const Cool: Story = { play: hoverTrigger };
+export const Low: Story = { play: hoverTrigger };
 
-export const Warm: Story = {
+export const Moderate: Story = {
 	args: {
 		heat: {
 			...baseHeat,
 			heat: 0.49,
-			label: "warm",
+			label: "moderate",
 			missRate: 0.35,
 			lastTurnMissedTokens: 42_000,
 			lastTurnReusableTokens: 120_000,
@@ -51,12 +51,12 @@ export const Warm: Story = {
 	play: hoverTrigger,
 };
 
-export const Hot: Story = {
+export const High: Story = {
 	args: {
 		heat: {
 			...baseHeat,
 			heat: 0.95,
-			label: "hot",
+			label: "high",
 			missRate: 0.97,
 			lastTurnMissedTokens: 116_000,
 			lastTurnReusableTokens: 120_000,
@@ -91,7 +91,7 @@ export const FirstTurn: Story = {
 
 export const IconOnly: Story = {
 	args: {
-		heat: { ...baseHeat, heat: 0.7, label: "hot" },
+		heat: { ...baseHeat, heat: 0.7, label: "high" },
 		isCacheExpired: true,
 	},
 };
@@ -107,12 +107,12 @@ export const Mobile: Story = {
 	// Opens the popover so the screenshot captures the mobile layout.
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: /chat heat/i }),
+			within(canvasElement).getByRole("button", { name: /cache misses/i }),
 		);
 	},
 };
 
-export const IconOnlyCoolExpired: Story = {
+export const IconOnlyLowExpired: Story = {
 	args: {
 		isCacheExpired: true,
 	},

@@ -83,16 +83,16 @@ describe("heatCurve", () => {
 		expect(heatCurve(10)).toBeLessThanOrEqual(1);
 	});
 
-	it("stays cool for small fresh shares", () => {
+	it("stays low for small fresh shares", () => {
 		expect(heatCurve(0.05)).toBeLessThan(0.05);
 	});
 });
 
 describe("getChatHeatLabel", () => {
 	it("derives labels from displayed heat", () => {
-		expect(getChatHeatLabel(0)).toBe("cool");
-		expect(getChatHeatLabel(0.5)).toBe("warm");
-		expect(getChatHeatLabel(0.9)).toBe("hot");
+		expect(getChatHeatLabel(0)).toBe("low");
+		expect(getChatHeatLabel(0.5)).toBe("moderate");
+		expect(getChatHeatLabel(0.9)).toBe("high");
 	});
 });
 
@@ -175,7 +175,7 @@ describe("getChatHeat", () => {
 		expect(heat?.missRate).toBe(0);
 	});
 
-	it("keeps a cold first request hot despite cached tool steps", () => {
+	it("keeps a cold first request high despite cached tool steps", () => {
 		const next = requestChain(40_000);
 		const seed = turn(next());
 		const coldTurn = turn(
@@ -184,7 +184,7 @@ describe("getChatHeat", () => {
 			next(),
 			next(),
 		);
-		expect(partial([...seed, ...coldTurn], 70)?.label).toBe("hot");
+		expect(partial([...seed, ...coldTurn], 70)?.label).toBe("high");
 	});
 
 	it("weights the newest turn most", () => {
@@ -291,7 +291,7 @@ describe("getChatHeat scenarios", () => {
 	const toolSteps = (next: ReturnType<typeof requestChain>, count: number) =>
 		Array.from({ length: count }, () => next(0, 1_000));
 
-	it("reads hot when each slow turn re-writes an 83K context", () => {
+	it("reads high when each slow turn re-writes an 83K context", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 80_000), ...toolSteps(next, 3))];
 		for (let i = 0; i < 5; i++) {
@@ -299,30 +299,30 @@ describe("getChatHeat scenarios", () => {
 				...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
 			);
 		}
-		expect(heatOf(messages)).toBe("hot");
+		expect(heatOf(messages)).toBe("high");
 		// The miss rate agrees with the flame despite the cached tool steps.
 		expect(getChatHeat(messages, 70)?.missRate).toBeGreaterThan(0.95);
 	});
 
-	it("reads cool for a warm 30-step tool loop", () => {
+	it("reads low for a warm 30-step tool loop", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 20_000))];
 		messages.push(...turn(...Array.from({ length: 30 }, () => next(0, 3_000))));
-		expect(heatOf(messages)).toBe("cool");
+		expect(heatOf(messages)).toBe("low");
 	});
 
-	it("reads cool on the first turn of a chat", () => {
+	it("reads low on the first turn of a chat", () => {
 		const next = requestChain(0, 200_000);
-		expect(heatOf(turn(next(0, 83_000), ...toolSteps(next, 3)))).toBe("cool");
+		expect(heatOf(turn(next(0, 83_000), ...toolSteps(next, 3)))).toBe("low");
 	});
 
-	it("reads hot when slow turns miss most of a 46K context", () => {
+	it("reads high when slow turns miss most of a 46K context", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 46_000), ...toolSteps(next, 2))];
 		for (let i = 0; i < 5; i++) {
 			messages.push(...turn(next(39_000, 500), ...toolSteps(next, 2)));
 		}
-		expect(heatOf(messages)).toBe("hot");
+		expect(heatOf(messages)).toBe("high");
 	});
 
 	// A first turn at the given context, then five slow turns that each miss
@@ -336,38 +336,38 @@ describe("getChatHeat scenarios", () => {
 		return messages;
 	};
 
-	it("reads hot when slow turns miss 36K", () => {
-		expect(heatOf(slowTurns(46_000, 36_000))).toBe("hot");
+	it("reads high when slow turns miss 36K", () => {
+		expect(heatOf(slowTurns(46_000, 36_000))).toBe("high");
 	});
 
-	it("reads warm when slow turns miss 20K", () => {
-		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe("warm");
+	it("reads moderate when slow turns miss 20K", () => {
+		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe("moderate");
 	});
 
-	it("reads cool when slow turns miss 10K", () => {
-		expect(heatOf(slowTurns(10_000, Number.POSITIVE_INFINITY))).toBe("cool");
+	it("reads low when slow turns miss 10K", () => {
+		expect(heatOf(slowTurns(10_000, Number.POSITIVE_INFINITY))).toBe("low");
 	});
 
-	it("cools down within two fast turns after a break", () => {
+	it("drops to low within two fast turns after a break", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 120_000), ...toolSteps(next, 3))];
 		messages.push(
 			...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
 		);
-		expect(heatOf(messages)).toBe("hot");
+		expect(heatOf(messages)).toBe("high");
 		for (let i = 0; i < 2; i++) {
 			messages.push(...turn(next(0, 500), ...toolSteps(next, 3)));
 		}
-		expect(heatOf(messages)).toBe("cool");
+		expect(heatOf(messages)).toBe("low");
 	});
 
-	it("reads cool for a rapid back-and-forth", () => {
+	it("reads low for a rapid back-and-forth", () => {
 		const next = requestChain(0, 200_000);
 		const messages = [...turn(next(0, 20_000))];
 		for (let i = 0; i < 10; i++) {
 			messages.push(...turn(next(0, 2_000)));
 		}
-		expect(heatOf(messages)).toBe("cool");
+		expect(heatOf(messages)).toBe("low");
 	});
 });
 

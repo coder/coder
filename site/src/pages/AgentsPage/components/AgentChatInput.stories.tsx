@@ -1498,7 +1498,7 @@ export const ContextNearLimit: Story = {
 
 const hotChatHeat: ChatHeat = {
 	heat: 0.9,
-	label: "hot",
+	label: "high",
 	missRate: 0.95,
 	lastTurnRequestCount: 3,
 	lastTurnMissedTokens: 40_000,
@@ -1509,7 +1509,7 @@ const hotChatHeat: ChatHeat = {
 	lastRequestAt: "2026-01-01T00:00:00Z",
 };
 
-/** The chat heat button beside the context ring on a crowded phone toolbar. */
+/** The cache misses button beside the context ring on a crowded phone toolbar. */
 export const WithChatHeatMobile: Story = {
 	args: {
 		contextUsage: baseContextUsage,

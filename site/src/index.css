@@ -96,9 +96,9 @@
 	--color-highlight-sky: hsl(var(--highlight-sky));
 	--color-highlight-red: hsl(var(--highlight-red));
 	--color-highlight-magenta: hsl(var(--highlight-magenta));
-	--color-heat-cool: hsl(var(--heat-cool));
-	--color-heat-warm: hsl(var(--heat-warm));
-	--color-heat-hot: hsl(var(--heat-hot));
+	--color-heat-low: hsl(var(--heat-low));
+	--color-heat-moderate: hsl(var(--heat-moderate));
+	--color-heat-high: hsl(var(--heat-high));
 
 	--color-syntax-key: hsl(var(--syntax-key));
 	--color-syntax-string: hsl(var(--syntax-string));
@@ -477,11 +477,11 @@
 		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
 		--highlight-magenta: 295, 68%, 40%;
-		/* Chat heat meter stops. Green, yellow and red differ strongly in
+		/* Cache miss meter stops. Green, yellow and red differ strongly in
 		   lightness so the scale still reads under red/green colour blindness. */
-		--heat-cool: 142 76% 36%;
-		--heat-warm: 50 98% 64%;
-		--heat-hot: 0 70% 35%;
+		--heat-low: 142 76% 36%;
+		--heat-moderate: 50 98% 64%;
+		--heat-high: 0 70% 35%;
 		--syntax-key: 211 95% 33%;
 		--syntax-string: 0 77% 36%;
 		--syntax-number: 158 88% 28%;
@@ -555,9 +555,9 @@
 		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
 		--highlight-magenta: 292, 100%, 78%;
-		--heat-cool: 143 64% 24%;
-		--heat-warm: 50 98% 64%;
-		--heat-hot: 0 91% 71%;
+		--heat-low: 143 64% 24%;
+		--heat-moderate: 50 98% 64%;
+		--heat-high: 0 91% 71%;
 		--syntax-key: 201 98% 80%;
 		--syntax-string: 18 47% 64%;
 		--syntax-number: 100 28% 73%;

@@ -12,7 +12,7 @@ import { findContextBoundaryPart } from "./chatHelpers";
  * sample is its summed missed prefix divided by a reference size: the usable
  * context (context limit times the compaction threshold), capped at
  * HEAT_REFERENCE_TOKENS so that re-sending a mid-size context in a large
- * window still reads hot. Samples are weighted toward the newest turn and
+ * window still reads high. Samples are weighted toward the newest turn and
  * shaped by a logistic curve into a displayed heat in [0, 1]. No prices are
  * involved.
  */
@@ -28,7 +28,7 @@ export type ChatHeat = {
 	readonly lastRequestAt: string;
 };
 
-type ChatHeatLabel = "cool" | "warm" | "hot";
+type ChatHeatLabel = "low" | "moderate" | "high";
 
 const HEAT_WINDOW_SIZE = 6;
 const HEAT_WINDOW_DECAY = 0.25;
@@ -97,12 +97,12 @@ export const heatCurve = (x: number): number => {
 
 export const getChatHeatLabel = (heat: number): ChatHeatLabel => {
 	if (heat < 1 / 3) {
-		return "cool";
+		return "low";
 	}
 	if (heat < 2 / 3) {
-		return "warm";
+		return "moderate";
 	}
-	return "hot";
+	return "high";
 };
 
 type ScoredRequest = HeatRequest & {
@@ -178,7 +178,7 @@ export const getChatHeat = (
 	const latestTurn = turns[0];
 	const latest = latestTurn?.at(-1);
 	// A window with no cache reads or writes means the route does not use
-	// prompt caching, so the meter would read hot with nothing to act on.
+	// prompt caching, so the meter would read high with nothing to act on.
 	if (
 		!latestTurn ||
 		!latest ||

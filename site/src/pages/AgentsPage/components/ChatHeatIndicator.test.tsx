@@ -46,7 +46,7 @@ describe("LiveChatHeatIndicator", () => {
 		renderComponent(
 			<LiveChatHeatIndicator heat={getHeat()} isStreaming={false} />,
 		);
-		const button = screen.getByRole("button", { name: /chat heat/i });
+		const button = screen.getByRole("button", { name: /cache misses/i });
 		expect(button).not.toHaveAccessibleName(/cache likely expired/i);
 
 		act(() => {
@@ -63,7 +63,7 @@ describe("LiveChatHeatIndicator", () => {
 		act(() => {
 			vi.advanceTimersByTime(CACHE_IDLE_TTL_MS);
 		});
-		const button = screen.getByRole("button", { name: /chat heat/i });
+		const button = screen.getByRole("button", { name: /cache misses/i });
 		expect(button).toHaveAccessibleName(/cache likely expired/i);
 
 		rerender(<LiveChatHeatIndicator heat={heat} isStreaming />);
@@ -78,7 +78,7 @@ describe("LiveChatHeatIndicator", () => {
 		act(() => {
 			vi.advanceTimersByTime(CACHE_IDLE_TTL_MS);
 		});
-		const button = screen.getByRole("button", { name: /chat heat/i });
+		const button = screen.getByRole("button", { name: /cache misses/i });
 		expect(button).toHaveAccessibleName(/cache likely expired/i);
 
 		rerender(<LiveChatHeatIndicator heat={heat} isStreaming />);
@@ -95,12 +95,24 @@ describe("ChatHeatIndicator", () => {
 		renderComponent(
 			<ChatHeatIndicator heat={heat} isCacheExpired={isCacheExpired} />,
 		);
-		await userEvent.hover(screen.getByRole("button", { name: /chat heat/i }));
+		await userEvent.hover(screen.getByRole("button", { name: /cache misses/i }));
 		return screen.findByRole("tooltip");
 	};
 
-	it("suggests replying sooner when hot", async () => {
-		const tooltip = await openTooltip({ ...getHeat(), label: "hot" }, false);
+	it("names the level and score", () => {
+		renderComponent(
+			<ChatHeatIndicator
+				heat={{ ...getHeat(), heat: 0.82, label: "high" }}
+				isCacheExpired={false}
+			/>,
+		);
+		expect(
+			screen.getByRole("button", { name: "Cache misses: High, 82%." }),
+		).toBeInTheDocument();
+	});
+
+	it("suggests replying sooner when high", async () => {
+		const tooltip = await openTooltip({ ...getHeat(), label: "high" }, false);
 		expect(tooltip).toHaveTextContent(/replies after 5 minutes re-send/i);
 	});
 
@@ -109,7 +121,7 @@ describe("ChatHeatIndicator", () => {
 		expect(tooltip).toHaveTextContent(/reply within 5 minutes.*or compact/i);
 	});
 
-	it("shows no action when not hot", async () => {
+	it("shows no action when not high", async () => {
 		const tooltip = await openTooltip(getHeat(), false);
 		expect(tooltip).not.toHaveTextContent(/reply within|replies after/i);
 	});
