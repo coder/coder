@@ -1,4 +1,8 @@
-import { infiniteQueryOptions, type QueryClient } from "react-query";
+import {
+	infiniteQueryOptions,
+	type QueryClient,
+	type UseQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
@@ -18,6 +22,28 @@ export const chatAutomations = (organizationId: string) => ({
 	queryFn: (): Promise<ChatAutomation[]> =>
 		API.experimental.getChatAutomations(organizationId),
 });
+
+/** Automation IDs mapped to names. Deleted or unreadable automations are absent. */
+export type ChatAutomationNameMap = ReadonlyMap<string, string>;
+
+const selectChatAutomationNames = (
+	automations: ChatAutomation[],
+): ChatAutomationNameMap =>
+	new Map(automations.map((automation) => [automation.id, automation.name]));
+
+export const chatAutomationNameMap = (
+	organizationId: string | undefined,
+	{ enabled }: { enabled: boolean },
+) =>
+	({
+		...chatAutomations(organizationId ?? ""),
+		select: selectChatAutomationNames,
+		enabled: Boolean(organizationId) && enabled,
+	}) satisfies UseQueryOptions<
+		ChatAutomation[],
+		unknown,
+		ChatAutomationNameMap
+	>;
 
 /** Refetches automation names, for example after new automation input. */
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
