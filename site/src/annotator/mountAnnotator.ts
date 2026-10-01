@@ -3,9 +3,9 @@ import { describeElement } from "./describeElement";
 import { el, flagCutEdges, placeOver } from "./dom";
 import { outlineInset, viewportBox } from "./geometry";
 import { createHeldComments } from "./heldComments";
-import { createHighlightLayer } from "./highlights";
+import { createHighlightLayer, statusChip } from "./highlights";
 import { createHintPill } from "./hintPill";
-import { checkIcon, pointerIcon } from "./icons";
+import { pointerIcon } from "./icons";
 import { carryMarkerAcrossNavigation } from "./navigation";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
@@ -28,6 +28,9 @@ type AnnotatorHandle = {
 	// `hint` shows the first-run hint alongside picking mode.
 	setPicking(picking: boolean, hint?: boolean): void;
 	setHighlights(items: HighlightItem[]): void;
+	// Acknowledges the listed annotations as changed by the agent and clears
+	// the rest.
+	resolveHighlights(ids: string[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
 };
@@ -223,10 +226,7 @@ export function mountAnnotator(
 			flash,
 			viewportBox(target.getBoundingClientRect(), win, outlineInset),
 		);
-		const chip = el(doc, "span", "sent-chip");
-		chip.innerHTML = checkIcon;
-		chip.append("Sent");
-		flash.append(chip);
+		flash.append(statusChip(doc, "Sent"));
 		shadow.append(flash);
 		flagCutEdges(flash, win);
 		win.setTimeout(() => flash.remove(), sentFlashMs);
@@ -372,6 +372,7 @@ export function mountAnnotator(
 	const handle: AnnotatorHandle = {
 		setPicking,
 		setHighlights: highlights.set,
+		resolveHighlights: highlights.resolve,
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);

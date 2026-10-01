@@ -80,6 +80,9 @@ type AnnotatorBridge = BridgeState & {
 	frameLoaded: () => void;
 	highlight: (items: HighlightItem[]) => void;
 	clearHighlights: () => void;
+	// Ends the working state: the listed annotations are acknowledged as
+	// changed, the rest are cleared.
+	resolveHighlights: (ids: string[]) => void;
 };
 
 // Only a document at the frame's origin can host the overlay, so a
@@ -294,6 +297,15 @@ export function useAnnotatorBridge({
 		post({ type: "coder-annotator:highlight", items });
 	const clearHighlights = () =>
 		post({ type: "coder-annotator:clear-highlights" });
+	const resolveHighlights = (ids: string[]) =>
+		post({ type: "coder-annotator:resolved", ids });
 
-	return { ...state, setPicking, frameLoaded, highlight, clearHighlights };
+	return {
+		...state,
+		setPicking,
+		frameLoaded,
+		highlight,
+		clearHighlights,
+		resolveHighlights,
+	};
 }

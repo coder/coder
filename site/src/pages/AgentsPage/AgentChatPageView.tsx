@@ -57,6 +57,7 @@ import {
 } from "./context/ComposerContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { selectEditedFilesThisTurn } from "./utils/editedFiles";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -201,6 +202,9 @@ type UserTabContentProps = {
 	wildcardHostname: string;
 	canAnnotate: boolean;
 	isAgentWorking: boolean;
+	// Files the agent edited this turn, newline-joined, so the preview can
+	// acknowledge the annotations those edits reached.
+	editedFiles: string;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
@@ -215,6 +219,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 	wildcardHostname,
 	canAnnotate,
 	isAgentWorking,
+	editedFiles,
 	sidebarVisible,
 	isActive,
 	isPending,
@@ -269,6 +274,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 					tab={tab}
 					canAnnotate={canAnnotate}
 					isAgentWorking={isAgentWorking}
+					editedFiles={editedFiles}
 				/>
 			);
 		}
@@ -343,6 +349,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const editedFilesThisTurn = useChatSelector(store, selectEditedFilesThisTurn);
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -756,6 +763,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						isAgentWorking={
 							liveChatStatus === "running" || liveChatStatus === "interrupting"
 						}
+						editedFiles={editedFilesThisTurn}
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
