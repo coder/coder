@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -60,7 +61,10 @@ func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.L
 			continue
 		}
 
-		bridged := newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+		bridged := inflight.Middleware(http.NotFoundHandler())
+		if prov.Type() != config.ProviderBedrock && len(prov.BridgedRoutes()) > 0 {
+			bridged = newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+		}
 		for _, path := range prov.BridgedRoutes() {
 			pattern, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {

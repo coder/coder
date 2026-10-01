@@ -187,7 +187,7 @@ func TestBackendMode_Interception(t *testing.T) {
 	}
 }
 
-// Proxy mode returns 503 until providers load, then 404 for bridged placeholders.
+// Proxy mode returns 503 until providers load, then rejects requests without an actor.
 func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	t.Parallel()
 
@@ -211,8 +211,8 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
 	rec = serveHandler(t, h, "/openai/v1/chat/completions")
-	require.Equal(t, http.StatusNotImplemented, rec.Code)
-	require.Equal(t, "bridged routes are not yet implemented in proxy mode\n", rec.Body.String(), "bridged routes must use the placeholder handler")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no actor found\n", rec.Body.String(), "bridged routes require an authenticated actor")
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 }
 
@@ -289,7 +289,7 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, srv.InterceptionPoolForTest())
 			requireKeyPoolState(t, srv, 1, "openai", "valid")
-			require.Equal(t, http.StatusNotImplemented, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusBadRequest, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -334,7 +334,7 @@ func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 			}))
 			h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 			require.NoError(t, err)
-			require.Equal(t, http.StatusNotImplemented, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusBadRequest, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -405,7 +405,7 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	require.Same(t, handler, retained, "invalid providers must retain the existing router")
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, handler, "/disabled/v1/models").Code)
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, retained, "/disabled/v1/models").Code)
-	require.Equal(t, http.StatusNotImplemented, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
+	require.Equal(t, http.StatusBadRequest, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
 }
 
 // Cancellation and shutdown prevent publication; shutdown also stops serving.

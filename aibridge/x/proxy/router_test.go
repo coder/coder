@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -19,10 +20,12 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
@@ -114,7 +117,7 @@ func TestRouterRoutes(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	const bridgedBody = "bridged routes are not yet implemented in proxy mode\n"
+	const bridgedBody = "no actor found\n"
 	const disabledBody = routing.ErrorCodeProviderDisabled + ": AI provider \"disabled-openai\" is disabled\n"
 	var passthroughPaths []string
 	for _, tc := range []struct {
@@ -156,19 +159,19 @@ func TestRouterRoutes(t *testing.T) {
 		{
 			name:       "EnabledProvider_Bridged_ExactPath",
 			path:       "/openai/bridged/exact/path",
-			wantStatus: http.StatusNotImplemented,
+			wantStatus: http.StatusBadRequest,
 			wantBody:   bridgedBody,
 		},
 		{
 			name:       "EnabledProvider_Bridged_SubtreePath",
 			path:       "/openai/bridged/whole/subtree/nested",
-			wantStatus: http.StatusNotImplemented,
+			wantStatus: http.StatusBadRequest,
 			wantBody:   bridgedBody,
 		},
 		{
 			name:       "EnabledProvider_Bridged_ExactPathOverridesPassthroughSubtree",
 			path:       "/openai/passthrough/whole/subtree/bridged",
-			wantStatus: http.StatusNotImplemented,
+			wantStatus: http.StatusBadRequest,
 			wantBody:   bridgedBody,
 		},
 		{
@@ -281,6 +284,43 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 			assert.Equal(t, "AI Gateway is shutting down\n", resp.Body.String())
 		})
+	}
+}
+
+func TestRouterBridgedRemainsStubbed(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("bridged forwarding must remain disabled until lifecycle recording is connected")
+	}))
+	t.Cleanup(upstream.Close)
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL})}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &struct{ recorder.Recorder }{})
+	require.NoError(t, err)
+	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer user-key")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	require.Equal(t, http.StatusNotImplemented, response.Code)
+}
+
+func TestRouterBedrockBridgedRemainsDisabled(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("Bedrock forwarding is not supported")
+	}))
+	t.Cleanup(upstream.Close)
+	prov, err := provider.NewBedrock(t.Context(), config.Anthropic{BaseURL: upstream.URL}, config.AWSBedrock{
+		Region: "us-east-1", AccessKey: "test-key", AccessKeySecret: "test-secret",
+		Model: "test-model", SmallFastModel: "test-small-model",
+	})
+	require.NoError(t, err)
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{prov}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	require.NoError(t, err)
+	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
+	for _, route := range prov.BridgedRoutes() {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+route, nil).WithContext(ctx))
+		require.Equal(t, http.StatusNotFound, response.Code)
 	}
 }
 
