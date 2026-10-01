@@ -116,12 +116,13 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
+- When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -397,6 +398,8 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 Retry state is scoped to the current generation attempt. Whenever `generation_attempt` changes, `retry_state` is cleared automatically. If that clear changes the value of `retry_state`, `retry_state_version` is set to the current `snapshot_version`.
 
+Retry state is also scoped to the running turn. `UpdateChatExecutionState` clears `retry_state` whenever it writes a status other than `running`, so transitions that leave `running` (for example `Interrupt`, `EnterRequiresAction`, and `FinishError`) drop a pending retry. The same trigger then sets `retry_state_version` to the current `snapshot_version`.
+
 A single `BEFORE UPDATE` trigger handles both clearing `retry_state` on generation-attempt changes and bumping `retry_state_version` on retry-state changes. The trigger mutates `NEW` directly and does not run an `UPDATE chats ...` statement, so it does not recursively trigger itself:
 
 ```sql
@@ -458,6 +461,8 @@ No other input states are supported.
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 
+The family update locks the root chat row first, and creating a child chat takes a shared lock on the same row. A concurrent child creation therefore either commits first and is included in the family update, or waits for it and fails if the root is now archived.
+
 For `archived` updates, the supported input and output states are:
 
 - `W -> SetArchived(true) -> XW`
@@ -500,7 +505,7 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A0 -> SendMessage(m, interrupt) -> R1`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the queue head is promoted immediately and the chat lands in `R0` or `R1` without an owner. From `R0` the promoted head is `m` itself, so the response returns it as `message` with `queued` set to false.
 
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
@@ -566,6 +571,8 @@ This endpoint uses `Interrupt(user_cancel)`:
 - `A1 -> Interrupt(user_cancel) -> R1`
 
 When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
+
+When no worker owns the chat (`worker_id` is null), for example because it is waiting for capacity, nothing is generating and no runner would finish the interruption without first taking a capacity slot. The endpoint therefore applies `FinishInterruption` in the same transaction: `R0` lands in `W`, and `R1` promotes its queue head and lands in `R0` or `R1` without an owner, so the promoted turn still goes through capacity admission.
 
 No other input states are supported.
 
@@ -645,7 +652,7 @@ The chat worker is responsible for:
 
 - acquiring chats when the chat is in a runnable state and no worker owns it, by listening to `chat:ownership` notifications and doing periodical checks via database queries;
 - spawning a chat runner for each acquired chat: the chat runner is scoped to a single chat and is responsible for driving a chat forward by calling the LLM API and executing tools;
-- upserting heartbeat rows in `chat_heartbeats` for runners owned by the worker;
+- renewing heartbeat rows in `chat_heartbeats` for runners owned by the worker;
 - maintaining in-memory buffers of in-flight message parts for each chat;
 - cleaning up runners when a chat is no longer owned by the runner, which it detects by inspecting `chat:update:{chat_id}` notifications and database sync results.
 
@@ -734,17 +741,27 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx
     ON chat_heartbeats (heartbeat_at);
 ```
 
-For every runner registered with the runner manager, the heartbeat loop upserts the corresponding row in `chat_heartbeats` every 9 seconds. Rows are keyed by `(chat_id, runner_id)`. 9 seconds is chosen so that a worker must miss 3 heartbeats before its lease on the chat expires, and the acquisition loop on another replica can acquire its chat.
+For every runner registered with the runner manager, the heartbeat loop renews the corresponding row in `chat_heartbeats` every 9 seconds. Rows are keyed by `(chat_id, runner_id)`. 9 seconds is chosen so that a worker must miss 3 heartbeats before its lease on the chat expires, and the acquisition loop on another replica can acquire its chat. The initial row is inserted by `Acquire`.
 
-The loop uses this query:
+The loop runs this query in a transaction that holds the capacity admission lock (see [Concurrent agent limiter](#concurrent-agent-limiter)):
 
 ```sql
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_id, runner_id, now()
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
 FROM unnest($1::uuid[], $2::uuid[]) AS runners(chat_id, runner_id)
-ON CONFLICT (chat_id, runner_id)
-DO UPDATE SET heartbeat_at = EXCLUDED.heartbeat_at;
+JOIN chats c
+  ON c.id = runners.chat_id
+ AND c.runner_id = runners.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = runners.chat_id
+  AND hb.runner_id = runners.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - interval '30 seconds'
+RETURNING hb.chat_id, hb.runner_id;
 ```
+
+It renews only leases that are still fresh and whose chat is still owned by that runner. A stale lease is never revived: capacity admission may already have given its slot to another chat. `statement_timestamp()` is read after the lock is granted, so a lease that an admission counted as stale cannot be renewed afterwards. The runner manager cleans up every runner whose lease was not renewed, which stops its generation. The chat stays owned by the stale lease until an admitted worker takes it over.
+
+Each tick times out after a third of the stale threshold, and its wait for the lock is bounded by `lock_timeout`. A tick that fails or times out renews nothing and cleans up no runners; the next tick retries.
 
 Updating heartbeat rows does not advance `snapshot_version` and does not emit pubsub notifications.
 
@@ -1086,9 +1103,17 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
 
+When the limits apply, admission runs inside the acquisition transaction, before `Acquire`, under a Postgres advisory lock held until the transaction commits. A chat holds a slot in its pool while a worker owns it with a fresh heartbeat, whatever its execution state. Admission therefore applies to every runnable state, and an owned chat keeps its slot until it releases ownership, so later transitions back to `running`, such as finishing an interruption or resolving a pending action, stay within the limit. A refused chat stays unowned until a later acquisition pass admits it. A takeover of a chat whose lease expired rechecks the lease under the lock, because a heartbeat renewal may have extended it since. Admission waits at most 5 seconds for the lock.
+
+Interrupting a running chat that no worker owns finishes the interruption without a slot (see `POST /api/v2/chats/{chat}/interrupt`). A chat that is `interrupting` or `requires_action` without a fresh lease, for example after its replica died, waits for a slot before a runner resumes it, which also delays its action deadline.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.
+
+Each tick reads a batch of candidate root chats without holding locks. A candidate is unarchived, unpinned, not `running`, `interrupting` or `requires_action`, created before the cutoff, and the newest non-deleted message in its family is older than the cutoff. The cutoff is 00:00 UTC of the current day minus the configured number of auto-archive days.
+
+Each candidate is archived the same way as an archive through `PATCH /api/v2/chats/{chat}`: `SetArchived(true)` applies to the root and all descendants in one transaction. Before any chat changes, that transaction locks the root and then every descendant, and rechecks the candidate conditions. A chat that no longer qualifies, for example because a message arrived after the candidate read, is skipped. Only messages count as activity, so a chat that is unarchived without a new message is archived again on the next tick.
 
 ## Manual compaction
 
@@ -1170,6 +1195,7 @@ The stream loop stores:
 - latest `worker_id`;
 - latest `generation_attempt`;
 - last accepted preview part `seq`;
+- whether the current generation attempt is retired (`attempt_retired`);
 
 Initial null state:
 
@@ -1181,6 +1207,7 @@ Initial null state:
 - last sent error history version is `0`;
 - action-required cursor is `0`;
 - preview part sequence is `0`;
+- `attempt_retired` is false;
 
 ## Stream loop operations
 
@@ -1189,7 +1216,7 @@ The loop has two operations:
 | Operation | Description |
 | --- | --- |
 | `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq) and the attempt is not retired. Triggered by the relay forwarder. |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 
@@ -1230,9 +1257,10 @@ Applying the database result means, in deterministic order:
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
 5. If `db.status = requires_action` and `db.history_version > local.action_required_history_version`, run action-required synchronization.
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
-7. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
-8. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
-9. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled.
+8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
+9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
+10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1323,8 +1351,8 @@ Retry-state sync happens inside `Sync`.
 Flow:
 
 1. `Sync` observes `db.retry_state_version > local.retry_state_version`.
-2. If `db.retry_state` is null, emit nothing.
-3. If `db.retry_state` is non-null, emit one `retry` event with `db.retry_state` as the payload.
+2. If `db.retry_state` is null or `db.status != running`, emit nothing.
+3. Otherwise emit one `retry` event with `db.retry_state` as the payload.
 
 Required invariant:
 
@@ -1464,6 +1492,7 @@ The operation succeeds only if:
 ```
 history_version == local.history_version
 generation_attempt == local.generation_attempt
+local.attempt_retired == false
 seq == local.last_part_seq + 1
 ```
 
@@ -1474,7 +1503,7 @@ emit message_part
 local.last_part_seq = seq
 ```
 
-If any check fails, the operation is rejected.
+If any check fails, the operation is rejected. Parts of a retired attempt are rejected before the sequence check, so they never count as a gap.
 
 A sequence gap is an invariant violation because the parts endpoint must enforce contiguous delivery for each requested episode.
 
