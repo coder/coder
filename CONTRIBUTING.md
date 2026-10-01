@@ -260,8 +260,9 @@ main:  --*--*--*--*--*--*--*--*--*--
    `release/X.Y` and tags the next RC atomically.
 3. **Release:** Select the release branch (e.g. `release/2.34`) from the
    dropdown and choose `release`. No other inputs needed.
-4. **Patch:** Cherry-pick fixes onto `release/X.Y`, select that branch from
-   the dropdown, and choose `release`.
+4. **Patch:** Cherry-pick fixes onto `release/X.Y` (see
+   [Backporting fixes to release branches](#backporting-fixes-to-release-branches)),
+   select that branch from the dropdown, and choose `release`.
 
 The workflow validates that commits are on the expected branch for each release
 type.
@@ -310,20 +311,58 @@ to use the original commit title instead of the PR title.
 
 ### Backporting fixes to release branches
 
-When a merged PR on `main` should also ship in older releases, add the
-`backport` label to the PR. The
-[backport workflow](./.github/workflows/backport.yaml)
-will automatically detect the latest three `release/*` branches,
-cherry-pick the merge commit onto each one, and open PRs for
-review.
+Changes land on `main` first. To ship a change in an existing release, add
+one of these labels to its PR against `main`:
 
-The label can be added before or after the PR is merged. Each backport
-PR reuses the original title (e.g.
-`fix(site): correct button alignment (#12345)`) so the change is
-meaningful in release notes.
+| Label         | Targets                                                                                                                                                         | Use when                                                  |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `cherry-pick` | The latest `release/2.X` branch (mainline) only                                                                                                                 | The fix only needs to ship in the next mainline patch     |
+| `backport`    | The latest three `release/2.X` branches (mainline, stable, security) plus the ESR branches in [`esr_versions.txt`](./scripts/release_channels/esr_versions.txt) | The fix must reach every supported release, including ESR |
 
-If the cherry-pick encounters conflicts, the backport PR is still created
-with instructions for manual resolution; no conflict markers are committed.
+The label can be added before or after the PR merges. Nothing happens until
+the PR is merged. After that, the
+[cherry-pick](./.github/workflows/cherry-pick.yaml) or
+[backport](./.github/workflows/backport.yaml) workflow:
+
+1. Creates a `backport/<pr>-to-<version>` branch from each target release
+   branch and runs `git cherry-pick -x -m1 <merge commit>`.
+2. Opens a PR against each release branch. The PR reuses the original title
+   with the PR number appended, e.g.
+   `fix(site): correct button alignment (#12345)`, so release notes stay
+   meaningful.
+3. Labels each PR `cherry-pick/v2.X` or `backport/v2.X` so all PRs for a
+   release can be filtered together.
+4. Assigns you and requests your review, since you added the label.
+5. Comments on the original PR with a link to each new PR.
+
+You are then responsible for getting each generated PR reviewed, green, and
+merged. Close any PR that should not ship to a given branch.
+
+If the cherry-pick conflicts, the PR is still opened, but it contains only an
+empty placeholder commit. No conflict markers are committed. The title is
+prefixed with `[CONFLICT]` (cherry-pick) or suffixed with `(conflicts)`
+(backport). To resolve it, check out the branch, start from the release
+branch, and cherry-pick by hand:
+
+```sh
+git fetch origin backport/<pr>-to-<version>
+git checkout backport/<pr>-to-<version>
+git reset --hard origin/release/<version>
+git cherry-pick -x -m1 <merge commit>
+# resolve conflicts, then
+git push --force-with-lease origin backport/<pr>-to-<version>
+```
+
+Things to know:
+
+- Only bug fixes belong on release branches. A PR against `release/*` whose
+  title does not start with `fix:` or `fix(scope):` gets a warning comment
+  from the [cherry-pick check](./.github/workflows/pr-cherry-pick-check.yaml).
+- Dependabot security updates are labeled `backport` automatically.
+- Re-running a workflow is safe. Branches and PRs that already exist are
+  skipped.
+- To backport by hand instead, open a PR against `release/2.X` with the same
+  title and a `git cherry-pick -x` of the merge commit.
 
 ### Breaking changes
 

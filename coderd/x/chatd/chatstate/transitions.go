@@ -497,6 +497,8 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -639,12 +641,14 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	}
 	if head.ID == queued.ID {
 		// The guard dropped every older row, so the new message went
-		// straight into history and is no longer queued.
+		// straight into history and is no longer queued. It never
+		// waited in the queue, so no queue wait is reported.
 		return SendMessageResult{InsertedMessages: inserted}, nil
 	}
 	return SendMessageResult{
 		InsertedMessages: inserted,
 		QueuedMessage:    &queued,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -982,6 +986,9 @@ type PromoteQueuedMessageResult struct {
 	// returns a nil error so the delete commits; callers report the
 	// target as not found.
 	Rejected bool
+	// PromotedQueuedAt is zero when the row only moved to the queue head
+	// or was rejected.
+	PromotedQueuedAt time.Time
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
@@ -1079,6 +1086,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
 
@@ -1490,6 +1498,8 @@ type FinishInterruptionInput struct {
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
 	PromotedMessage  *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
@@ -1571,6 +1581,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
 		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -1581,6 +1592,8 @@ type FinishTurnInput struct{}
 type FinishTurnResult struct {
 	Chat            database.Chat
 	PromotedMessage *database.ChatMessage
+	// PromotedQueuedAt is zero when no queue head was promoted.
+	PromotedQueuedAt time.Time
 }
 
 // FinishTurn completes a running turn. From R1 it promotes the next
@@ -1646,8 +1659,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		promoted = &inserted[len(inserted)-1]
 	}
 	return FinishTurnResult{
-		Chat:            updated,
-		PromotedMessage: promoted,
+		Chat:             updated,
+		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 

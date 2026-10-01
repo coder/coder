@@ -1,4 +1,6 @@
-# Prepare prerequisites
+---
+title: Prepare prerequisites
+---
 
 Preparation gathers the external pieces a deployment depends on.
 Most of them are owned by another team, so their lead time, not the installation itself, usually sets your timeline.

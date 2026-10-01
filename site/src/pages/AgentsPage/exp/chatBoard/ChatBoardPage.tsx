@@ -78,6 +78,7 @@ import {
 	dismissTop,
 	draftWindow,
 	dropPreview,
+	minimizeWindow,
 	raise,
 	replaceDraftWithChat,
 	toFront,
@@ -430,7 +431,9 @@ const ChatBoardPage: React.FC = () => {
 				// Leaving lands on the chat in front, or the agents home.
 				onExit={() => {
 					const reading = windows
-						.flatMap((w) => (w.kind === "chat" && w.pinned ? [w.chatId] : []))
+						.flatMap((w) =>
+							w.kind === "chat" && w.pinned && !w.minimized ? [w.chatId] : [],
+						)
 						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
@@ -460,6 +463,11 @@ const ChatBoardPage: React.FC = () => {
 				board={boardState}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
 				onClose={(key) => setWindows((prev) => closeWindow(prev, key))}
+				onMinimize={(key) => setWindows((prev) => minimizeWindow(prev, key))}
+				onRestore={(key) => {
+					setPendingPreview(null);
+					setWindows((prev) => raise(dropPreview(prev), key));
+				}}
 				onRaise={(key) => {
 					setPendingPreview(null);
 					setWindows((prev) => raise(prev, key));
