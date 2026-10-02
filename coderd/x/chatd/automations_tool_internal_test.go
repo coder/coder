@@ -105,6 +105,17 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			want: reached,
 		},
 		{
+			// Compaction ran before the automation message got a response,
+			// then a human sent a message. Compressed rows do not end the
+			// turn.
+			name: "CompactionBeforeResponse",
+			messages: []database.ChatMessage{
+				assistant, fromAutomation(automationID, inputID),
+				compressed(assistant), compressed(tool), replayed, human(),
+			},
+			want: reached,
+		},
+		{
 			// Editing an automation message deletes it and inserts a human
 			// message in its place.
 			name:     "EditedAutomationMessage",
