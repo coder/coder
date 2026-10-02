@@ -236,7 +236,7 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
-	it("lists an automation's chats with the automation filter", async () => {
+	it("requests an automation's archived and active chats", async () => {
 		const user = userEvent.setup();
 		const { requests } = setup();
 
@@ -248,7 +248,7 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=0`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&offset=0`,
 			);
 		});
 	});
@@ -280,7 +280,7 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=25`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&offset=25`,
 			);
 		});
 	});
