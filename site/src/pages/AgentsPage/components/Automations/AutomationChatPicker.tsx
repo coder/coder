@@ -39,8 +39,7 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		300,
 	);
 	// The picker shows titles only, so match a title substring. The full-text
-	// `search:` term matches whole words and message content instead. A
-	// target must share the automation's organization.
+	// `search:` term matches whole words and message content instead.
 	const searchTerms = [
 		"archived:false",
 		"source:created_by_me",
