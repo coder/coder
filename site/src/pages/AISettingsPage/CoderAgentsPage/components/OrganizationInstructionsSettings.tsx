@@ -6,6 +6,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import type { MutationCallbacks } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
@@ -45,6 +46,10 @@ export const OrganizationInstructionsSettings: React.FC<
 	const isDirty = draft !== undefined && draft !== savedPrompt;
 	const invisibleCharCount = countInvisibleCharacters(value);
 	const isDisabled = isLoading || isSaving;
+	// Treat an error as a load failure only when we have no cached data.
+	// A background refetch failure with valid cached data should not hide
+	// the form (FE5: keep showing valid data on refetch errors).
+	const isLoadError = loadError != null && systemPrompt === undefined;
 
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -76,8 +81,10 @@ export const OrganizationInstructionsSettings: React.FC<
 				Added after the deployment instructions when a new chat is created in
 				this organization. Existing chats are not affected.
 			</p>
-			{loadError != null ? (
+			{isLoadError ? (
 				<ErrorAlert error={loadError} className="mt-4" />
+			) : isLoading ? (
+				<Loader label="Loading organization instructions" />
 			) : (
 				<>
 					<TextareaAutosize
