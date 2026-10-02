@@ -185,6 +185,7 @@ type AgentChatInputProps = {
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
+	// Composers without a queue have no automation inputs to label.
 	automationNames?: ChatAutomationNames;
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -248,16 +249,14 @@ export type AttachedWorkspaceInfo = {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 };
-// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
-// it), grow expands into free row space, and max-w-max caps at the
-// label's natural width. Below the floor the +N overflow takes over.
-// Composers without queued messages (the create form and the loading
-// skeleton) have no automation inputs to label.
 const NO_AUTOMATION_NAMES: ChatAutomationNames = {
 	names: new Map(),
 	status: "settled",
 };
 
+// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
+// it), grow expands into free row space, and max-w-max caps at the
+// label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 

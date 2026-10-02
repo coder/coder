@@ -91,10 +91,6 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
-// Rows without an automation get a fixed status, so memoized rows skip
-// re-rendering when the automations list status changes.
-const NO_AUTOMATION_NAME_STATUS: ChatAutomationNames["status"] = "settled";
-
 const ChatMessageItem = memo<{
 	organizationId: string | undefined;
 	renderKey: string;
@@ -590,7 +586,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								<ChatMessageItem
 									organizationId={organizationId}
 									renderKey={row.key}
-									automationNameStatus={NO_AUTOMATION_NAME_STATUS}
+									automationNameStatus="settled"
 									liveStatus={liveStatus}
 									liveBlocks={liveBlocks}
 									liveTools={liveTools}
@@ -630,9 +626,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										: undefined
 								}
 								automationNameStatus={
-									message.automation_id
-										? automationNames.status
-										: NO_AUTOMATION_NAME_STATUS
+									// A fixed status keeps rows without an automation from
+									// re-rendering when the automations list status changes.
+									message.automation_id ? automationNames.status : "settled"
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}
