@@ -165,6 +165,33 @@ func TestMigration000612MigratorConcurrentTraffic(t *testing.T) {
 	require.False(t, dirty)
 }
 
+// TestMigration000612MigratorFrom610 runs 000611 and 000612 in the real
+// migrator's single transaction while a management update holds an
+// automation row and then retargets it. The update's foreign key check reads
+// chats, so the migrator must not keep chats locked from 000611 while 000612
+// waits for the automation row.
+func TestMigration000612MigratorFrom610(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	stepTo(t, sqlDB, 610)
+	f := seedMigration000612(t, sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	update, updatePID := beginLocked(ctx, t, sqlDB, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, f.x)
+
+	migrated := async(func() error { return migrations.Up(sqlDB) })
+	require.Eventually(t, func() bool {
+		var pid int
+		return sqlDB.QueryRowContext(ctx, `SELECT pid FROM pg_stat_activity
+			WHERE datname = current_database() AND $1::int = ANY(pg_blocking_pids(pid))`, updatePID).Scan(&pid) == nil
+	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the update transaction")
+
+	requireNoDeadlockVictim(ctx, t, "update", async(execAndCommit(ctx, update,
+		`UPDATE chat_automations SET target_chat_id = $1 WHERE id = $2`, f.chatA, f.x)))
+	requireNoDeadlockVictim(ctx, t, "migrator", migrated)
+}
+
 // TestMigration000612KindShape checks that 000612 rejects each kind's
 // columns on the other kind and that the down migration restores the 000609
 // constraint exactly.
