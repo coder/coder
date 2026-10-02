@@ -3687,7 +3687,7 @@ func (q *querier) GetChatOrganizationModelOverridesByContext(ctx context.Context
 
 func (q *querier) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
 	// Unlike model overrides, regular members cannot read the organization
-	// prompt, matching the admin-only deployment prompt.
+	// prompt, matching the deployment prompt.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(organizationID)); err != nil {
 		return database.ChatOrganizationSystemPrompt{}, err
 	}
