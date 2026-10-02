@@ -25,88 +25,105 @@ import (
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, tc := range []struct {
+		name             string
+		destinationStore bool
+		summary          string
+	}{
+		{name: "stateless", summary: "checked provider-side search state"},
+		{name: "switch to stored", destinationStore: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	const (
-		reasoningID = "rs_no_stale_reasoning"
-		webSearchID = "ws_no_stale_search"
-	)
-	var recorder responsesRequestRecorder
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-		requestNumber := recorder.record(req)
-		switch requestNumber {
-		case 1:
-			resp := chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("search result summary")...,
+			const (
+				reasoningID = "rs_no_stale_reasoning"
+				webSearchID = "ws_no_stale_search"
 			)
-			resp.ResponseID = "resp_no_stale_first"
-			resp.Reasoning = &chattest.OpenAIReasoningItem{
-				ID:               reasoningID,
-				Summary:          "checked provider-side search state",
-				EncryptedContent: "encrypted-no-stale",
+			var recorder responsesRequestRecorder
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+
+				requestNumber := recorder.record(req)
+				switch requestNumber {
+				case 1:
+					resp := chattest.OpenAIStreamingResponse(
+						chattest.OpenAITextChunks("search result summary")...,
+					)
+					resp.ResponseID = "resp_no_stale_first"
+					resp.Reasoning = &chattest.OpenAIReasoningItem{
+						ID:               reasoningID,
+						Summary:          tc.summary,
+						EncryptedContent: "encrypted-no-stale",
+					}
+					resp.WebSearch = &chattest.OpenAIWebSearchCall{
+						ID:    webSearchID,
+						Query: "coder changelog",
+					}
+					return resp
+				default:
+					resp := chattest.OpenAIStreamingResponse(
+						chattest.OpenAITextChunks("follow-up answer")...,
+					)
+					resp.ResponseID = "resp_no_stale_second"
+					return resp
+				}
+			})
+
+			user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+			model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
+			followupModel := model
+			if tc.destinationStore {
+				followupModel = insertOpenAIResponsesModelConfig(t, db, user.ID, true, false)
 			}
-			resp.WebSearch = &chattest.OpenAIWebSearchCall{
-				ID:    webSearchID,
-				Query: "coder changelog",
-			}
-			return resp
-		default:
-			resp := chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("follow-up answer")...,
-			)
-			resp.ResponseID = "resp_no_stale_second"
-			return resp
-		}
-	})
+			factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+			server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+			})
 
-	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          uniqueResponsesTitle(t, "no-stale"),
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("search for the latest Coder docs"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			requireResponsesChatWaiting(ctx, t, db, chat.ID)
+			require.Len(t, recorder.all(), 1)
 
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          uniqueResponsesTitle(t, "no-stale"),
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("search for the latest Coder docs"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
-	require.Len(t, recorder.all(), 1)
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: followupModel.ID,
+				Content: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("summarize the result without searching again"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			requireResponsesChatWaiting(ctx, t, db, chat.ID)
 
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:        chat.ID,
-		CreatedBy:     user.ID,
-		ModelConfigID: model.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("summarize the result without searching again"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
-
-	requests := recorder.all()
-	require.Len(t, requests, 2)
-	followup := requests[1]
-	require.NotNil(t, followup.Store)
-	require.False(t, *followup.Store)
-	require.NotEmpty(t, followup.Prompt)
-	requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
-	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
-	requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
-		"checked provider-side search state")
+			requests := recorder.all()
+			require.Len(t, requests, 2)
+			followup := requests[1]
+			require.NotNil(t, followup.Store)
+			require.Equal(t, tc.destinationStore, *followup.Store)
+			require.NotEmpty(t, followup.Prompt)
+			requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
+			require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
+			requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
+				tc.summary)
+		})
+	}
 }
 
 func TestOpenAIResponsesStatelessReasoningReplay(t *testing.T) {
