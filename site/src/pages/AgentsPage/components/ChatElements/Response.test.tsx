@@ -4,10 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render } from "#/testHelpers/renderHelpers";
 import { Response } from "./Response";
 
-// The real FileViewer renders a shadow-DOM custom element that jsdom
-// cannot construct (no CSSOM support), which is unrelated to what
-// these tests cover: the copy button sitting alongside it in the
-// code block, wired to the same raw text.
+// jsdom's stylesheet parser throws on the real FileViewer's shadow-DOM styles.
 vi.mock("@pierre/diffs/react", () => ({
 	File: ({ file }: { file: { contents: string } }) => (
 		<pre>{file.contents}</pre>
