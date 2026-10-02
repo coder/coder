@@ -138,6 +138,7 @@ func (server *Server) prepareGeneration(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
+	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -900,6 +901,7 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		ProviderIdentity:     providerIdentity,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),

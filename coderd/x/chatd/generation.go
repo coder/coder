@@ -72,6 +72,7 @@ type generationPrepared struct {
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
+	ProviderIdentity string
 
 	StageModel chatloop.StageModel
 
@@ -966,6 +967,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
+		providerIdentity:       prepared.ProviderIdentity,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1200,6 +1202,7 @@ func (s *taskStarter) executeLocalTools(
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
+		providerIdentity:   prepared.ProviderIdentity,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))

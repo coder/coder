@@ -257,6 +257,49 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
 	})
 
+	stampedReasoning := func(identity string) codersdk.ChatMessagePart {
+		p := openAIReasoning
+		p.ProviderIdentity = identity
+		return p
+	}
+
+	t.Run("stamped foreign reasoning dropped from native row", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(otherOpenAIProviderID.String()), peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIProviderID.String(), resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{peCall("ws"), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	t.Run("stamped native reasoning kept after config moved", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(otherOpenAIProviderID.String()), peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, otherOpenAIProviderID.String(), resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{stampedReasoning(otherOpenAIProviderID.String()), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1}, stats)
+	})
+
+	t.Run("unstamped reasoning follows row origin", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(openAIProviderID.String()), openAIReasoning, text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIProviderID.String(), resolver)
+		require.Equal(t, rows, got)
+		require.Zero(t, stats)
+
+		got, stats = stripForeignProviderStateRows(rows, otherOpenAIProviderID.String(), resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
+	})
+
 	t.Run("same instance keeps provider blocks", func(t *testing.T) {
 		t.Parallel()
 		rows := []database.ChatMessage{
