@@ -6,7 +6,23 @@ title: Monitoring
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
 > included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+By default, AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each request to an [intercepted route](./reference.md#supported-apis).
+Each capture maps back to the authenticated Coder identity for spend and usage attribution.
+
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment switches an AI Gateway process to reverse proxy mode when no MCP servers are configured.
+> [AI Governance cost control](./cost-controls.md) explains when the experiment takes effect, how to confirm the mode, and how to turn it off.
+> In reverse proxy mode, AI Gateway records each request's start before forwarding it to an intercepted route.
+> If start recording fails, the request returns `500 Internal Server Error` without reaching the provider.
+> End recording is asynchronous and best effort, so a request can have a start record without an end record.
+> It doesn't record token usage, model, prompt, tool, or model reasoning data for these requests, and Coder doesn't backfill that data later.
+> For these requests, the monitoring UI can show a blank model and zero usage, but those values aren't evidence of zero provider spend or complete audit coverage.
+> Reverse proxy mode also changes how intercepted routes behave:
+>
+> - Requests to Amazon Bedrock providers return `404 page not found`.
+> - Requests to Anthropic providers that would authenticate with AWS credentials, such as Claude Platform for AWS or the `CODER_AI_GATEWAY_BEDROCK_*` settings, return `501 Not Implemented`.
+> - AI Gateway doesn't add [actor headers](../../admin/setup/configuration-reference.md#send-actor-headers), and it forwards client-supplied values at custom actor header names unchanged.
+>   Upstream proxies and providers must not trust those headers as user identity.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
