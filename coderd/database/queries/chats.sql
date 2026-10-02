@@ -3096,9 +3096,7 @@ FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id). The head
--- may be held; chatstate.LoadQueueState decides whether it is
--- promotable.
+-- Returns the queue head (lowest position, then lowest id).
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC
