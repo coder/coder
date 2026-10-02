@@ -2,10 +2,13 @@ package workspaceapps
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -69,9 +72,9 @@ var nonCanonicalHeaders = map[string]string{
 }
 
 type AgentProvider interface {
-	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
-	// to the specified agent.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHost string) *httputil.ReverseProxy
+	// AppTransport returns the transport for HTTP requests to the specified
+	// agent's apps. The caller must call release when its request ends.
+	AppTransport(agentID uuid.UUID) (_ *AgentAppTransport, release func(), _ error)
 
 	// AgentConn returns a new connection to the specified agent.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ workspacesdk.AgentConn, release func(), _ error)
@@ -79,6 +82,54 @@ type AgentProvider interface {
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
 	Close() error
+}
+
+// AgentAppTransport sends requests to one agent's apps, on ports at or above
+// workspacesdk.AgentMinimumListeningPort.
+type AgentAppTransport struct{ t *workspacesdk.AgentTransport }
+
+// NewAgentAppTransport returns a transport for the apps of agentID. dial must
+// connect to that agent.
+func NewAgentAppTransport(agentID uuid.UUID, dial workspacesdk.AgentDialer, logger slog.Logger) *AgentAppTransport {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		panic("dev error: default transport is the wrong type")
+	}
+	t := base.Clone()
+	// These options are mostly just picked at random, and they can likely be
+	// fine-tuned further. Generally, users are running applications in dev mode
+	// which can generate hundreds of requests per page load, so we increased
+	// MaxIdleConnsPerHost from 2 to 6 and removed the limit of total idle
+	// conns.
+	t.MaxIdleConnsPerHost = 6
+	t.MaxIdleConns = 0
+	t.IdleConnTimeout = 10 * time.Minute
+	// We intentionally don't verify the certificate chain here.
+	// The connection to the workspace is already established and most
+	// apps are already going to be accessed over plain HTTP, this config
+	// simply allows apps being run over HTTPS to be accessed without error --
+	// many of which may be using self-signed certs.
+	t.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		//nolint:gosec
+		InsecureSkipVerify: true,
+	}
+	return &AgentAppTransport{workspacesdk.NewAgentTransport(agentID, dial, logger, func(port uint16) bool {
+		return port >= workspacesdk.AgentMinimumListeningPort
+	}, t)}
+}
+
+// Addr returns the agent's address. Request URLs must use it as their host.
+func (t *AgentAppTransport) Addr() netip.Addr {
+	return t.t.Addr()
+}
+
+func (t *AgentAppTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.t.RoundTrip(req)
+}
+
+func (t *AgentAppTransport) CloseIdleConnections() {
+	t.t.CloseIdleConnections()
 }
 
 type ServerOptions struct {
@@ -659,7 +710,26 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		appURL.Scheme = protocol
 	}
 
-	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
+	transport, release, err := s.AgentProvider.AppTransport(appToken.AgentID)
+	if err != nil {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusBadGateway,
+			Title:       "Bad Gateway",
+			Description: "Failed to proxy request to application: " + err.Error(),
+			Actions: []site.Action{
+				{
+					Text: "Retry",
+				},
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			},
+		})
+		return
+	}
+	defer release()
+	proxy := s.reverseProxy(appURL, transport, app)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		// If passthru behavior is set, disable our CORS header stripping.
@@ -713,6 +783,68 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}()
 
 	proxy.ServeHTTP(rw, r)
+}
+
+// reverseProxy returns a proxy to targetURL through transport.
+func (s *Server) reverseProxy(targetURL *url.URL, transport *AgentAppTransport, app appurl.ApplicationURL) *httputil.ReverseProxy {
+	// The template's app URL host can be anything, such as localhost. The
+	// agent forwards the port to its own localhost, and the transport only
+	// accepts its agent's address.
+	tgt := *targetURL
+	_, port, _ := net.SplitHostPort(tgt.Host)
+	tgt.Host = net.JoinHostPort(transport.Addr().String(), port)
+
+	proxy := httputil.NewSingleHostReverseProxy(&tgt)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
+		var (
+			desc           = "Failed to proxy request to application: " + theErr.Error()
+			additionalInfo = ""
+			actions        = []site.Action{}
+		)
+
+		var tlsError tls.RecordHeaderError
+		if (errors.As(theErr, &tlsError) && tlsError.Msg == "first record does not look like a TLS handshake") ||
+			errors.Is(theErr, http.ErrSchemeMismatch) {
+			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
+			// more helpful error message with redirect buttons.
+			switchURL := url.URL{
+				Scheme: s.DashboardURL.Scheme,
+			}
+			_, protocol, isPort := app.PortInfo()
+			if isPort {
+				targetProtocol := "https"
+				if protocol == "https" {
+					targetProtocol = "http"
+				}
+				app = app.ChangePortProtocol(targetProtocol)
+
+				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(s.Hostname, "*"))
+				actions = append(actions, site.Action{
+					URL:  switchURL.String(),
+					Text: fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol)),
+				})
+				additionalInfo += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(targetProtocol))
+			}
+		}
+
+		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
+			Status:      http.StatusBadGateway,
+			Title:       "Bad Gateway",
+			Description: desc,
+			Actions: append(actions, []site.Action{
+				{
+					Text: "Retry",
+				},
+				{
+					URL:  s.DashboardURL.String(),
+					Text: "Back to site",
+				},
+			}...),
+			AdditionalInfo: additionalInfo,
+		})
+	}
+	proxy.Transport = transport
+	return proxy
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.

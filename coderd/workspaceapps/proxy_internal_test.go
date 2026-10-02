@@ -1,12 +1,96 @@
 package workspaceapps
 
 import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestAgentAppTransport_Ports(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	var dialed atomic.Int32
+	tr := NewAgentAppTransport(uuid.New(), func(ctx context.Context, port uint16) (net.Conn, error) {
+		dialed.Store(int32(port))
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", srv.Listener.Addr().String())
+	}, testutil.Logger(t))
+	t.Cleanup(tr.CloseIdleConnections)
+
+	get := func(port int) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(tr.Addr().String(), strconv.Itoa(port))+"/", nil)
+		require.NoError(t, err)
+		res, err := tr.RoundTrip(req)
+		if err != nil {
+			return err
+		}
+		return res.Body.Close()
+	}
+	require.ErrorContains(t, get(workspacesdk.AgentMinimumListeningPort-1), "is not allowed")
+	require.Zero(t, dialed.Load(), "reserved port must not be dialed")
+	require.NoError(t, get(workspacesdk.AgentMinimumListeningPort))
+	require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, dialed.Load())
+}
+
+// TestServer_reverseProxyTargetsAgentAddress checks that the proxy sends every
+// app URL form to the address its transport accepts.
+func TestServer_reverseProxyTargetsAgentAddress(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	transport := NewAgentAppTransport(agentID, func(context.Context, uint16) (net.Conn, error) {
+		return nil, xerrors.New("unused")
+	}, testutil.Logger(t))
+	s := &Server{ServerOptions: ServerOptions{
+		DashboardURL: &url.URL{Scheme: "https", Host: "coder.example.com"},
+	}}
+	addr := transport.Addr().String()
+
+	for _, tc := range []struct {
+		appURL string
+		want   string
+	}{
+		{appURL: "http://localhost:8080", want: "http://[" + addr + "]:8080"},
+		{appURL: "http://127.0.0.1:3000/path", want: "http://[" + addr + "]:3000"},
+		{appURL: "http://[::1]:3000", want: "http://[" + addr + "]:3000"},
+		{appURL: "https://example.com:8443", want: "https://[" + addr + "]:8443"},
+		// No port: the transport dials the scheme's default port.
+		{appURL: "http://localhost", want: "http://[" + addr + "]:"},
+	} {
+		t.Run(tc.appURL, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := url.Parse(tc.appURL)
+			require.NoError(t, err)
+			rp := s.reverseProxy(u, transport, appurl.ApplicationURL{})
+			require.Same(t, transport, rp.Transport)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://app.example.com/", nil)
+			require.NoError(t, err)
+			rp.Director(req)
+			require.Equal(t, tc.want, req.URL.Scheme+"://"+req.URL.Host)
+		})
+	}
+}
 
 // Test_originLocalURL checks that originLocalURL produces a redirect target that
 // stays on the current origin.

@@ -214,7 +214,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Age
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	client := conn.AppHTTPClient()
+	client := agentHTTPClient(conn)
 	for i := 0; i < verifyConnectionAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tVerify connection attempt %d/%d...\n", i+1, verifyConnectionAttempts)
 		verifyCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
@@ -258,7 +258,7 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn workspa
 	defer span.End()
 
 	_, _ = fmt.Fprintln(logs, "Performing initial service connections...")
-	client := conn.AppHTTPClient()
+	client := agentHTTPClient(conn)
 	for i, connSpec := range specs {
 		_, _ = fmt.Fprintf(logs, "\t%d. %s\n", i, connSpec.URL)
 
@@ -292,7 +292,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Agent
 	defer span.End()
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	client := conn.AppHTTPClient()
+	client := agentHTTPClient(conn)
 	if len(specs) > 0 {
 		_, _ = fmt.Fprintln(logs, "\nStarting connection loops...")
 	}
@@ -361,4 +361,18 @@ func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Agent
 	}
 
 	return nil
+}
+
+// agentHTTPClient returns a client for any port on the agent. Redirects are
+// blocked to prevent misuse.
+func agentHTTPClient(conn workspacesdk.AgentConn) *http.Client {
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+			DialContext:       conn.DialContext, // Dials the agent on the URL's port.
+		},
+	}
 }

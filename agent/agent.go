@@ -2017,6 +2017,7 @@ func (a *agent) createTailnet(
 			ReadTimeout:       20 * time.Second,
 			ReadHeaderTimeout: 20 * time.Second,
 			WriteTimeout:      20 * time.Second,
+			IdleTimeout:       workspacesdk.AgentHTTPAPIServerIdleTimeout, // Falls back to ReadTimeout when unset.
 			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server"), slog.LevelInfo),
 		}
 		go func() {

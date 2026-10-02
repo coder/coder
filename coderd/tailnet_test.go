@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -22,11 +24,11 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -52,6 +54,120 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
+func TestServerTailnet_AgentConn_ReusesHTTPConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	agentID := agents[0].id
+
+	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	_, err = conn.ListeningPorts(ctx)
+	require.NoError(t, err)
+	release()
+
+	// A request may dial before the previous connection returns to the idle
+	// pool; retry until one reuses.
+	conn, release, err = serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	defer release()
+	require.Eventually(t, func() bool {
+		var reused atomic.Bool
+		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) { reused.Store(info.Reused) },
+		})
+		_, err := conn.ListeningPorts(traceCtx)
+		return assert.NoError(t, err) && reused.Load()
+	}, testutil.WaitShort, testutil.IntervalFast, "a request should reuse a pooled connection")
+}
+
+func TestServerTailnet_AgentConn_CanceledDialReleasesTicket(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	agentID := agents[0].id
+
+	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, agents[0].Close())
+
+	reqCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+	defer cancel()
+	_, err = conn.ListeningPorts(reqCtx)
+	require.Error(t, err)
+
+	// Only the AgentConn ticket remains.
+	require.Eventually(t, func() bool {
+		return serverTailnet.AgentTicketCount(agentID) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestServerTailnet_AgentAPITransport_RejectsOtherAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 2)
+	a, b := agents[0], agents[1]
+
+	bHost := net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(b.id).String(), strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+bHost+"/debug/manifest", nil)
+	require.NoError(t, err)
+	transport, release, err := serverTailnet.AgentAPITransport(a.id)
+	require.NoError(t, err)
+	defer release()
+	_, err = transport.RoundTrip(req) //nolint:bodyclose // Rejected requests return no response.
+	require.ErrorContains(t, err, "does not match agent")
+}
+
+// dialDuringClose holds a coordinator dial until the server tailnet starts
+// closing, then until its tailnet closes or IntervalMedium passes. The first
+// coordination then runs while the server tailnet shuts down, as when a dial
+// is still in flight at shutdown.
+type dialDuringClose struct {
+	tailnet.ControlProtocolDialer
+	serverTailnet *atomic.Pointer[coderd.ServerTailnet]
+}
+
+func (d dialDuringClose) Dial(ctx context.Context, r tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
+	<-ctx.Done()
+	select {
+	case <-d.serverTailnet.Load().Conn().Closed():
+	case <-time.After(testutil.IntervalMedium):
+	}
+	return d.ControlProtocolDialer.Dial(ctx, r)
+}
+
+// TestServerTailnet_CloseDuringFirstDial checks that Close keeps the tailnet
+// open while a coordination started after Close began applies peer updates.
+// A failed update makes the controller log an error at random, depending on
+// which of its ready channels it selects.
+func TestServerTailnet_CloseDuringFirstDial(t *testing.T) {
+	t.Parallel()
+
+	var st atomic.Pointer[coderd.ServerTailnet]
+	sink := testutil.NewFakeSink(t)
+	agents, serverTailnet := setupServerTailnetAgentWith(t, 1, serverTailnetTestOptions{
+		wrapDialer: func(d tailnet.ControlProtocolDialer) tailnet.ControlProtocolDialer {
+			return dialDuringClose{ControlProtocolDialer: d, serverTailnet: &st}
+		},
+		sink: sink,
+	})
+	st.Store(serverTailnet)
+	// The first coordination resubscribes this agent, and the coordinator
+	// answers with the agent's node.
+	_, release, err := serverTailnet.AppTransport(agents[0].id)
+	require.NoError(t, err)
+	release()
+
+	require.NoError(t, serverTailnet.Close())
+	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "failed to update peers"
+	}))
+}
+
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +187,7 @@ func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
 }
 
 //nolint:paralleltest // t.Setenv
-func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
+func TestServerTailnet_AppTransport_ProxyEnv(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://169.254.169.254:12345")
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -80,10 +196,9 @@ func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
 	agents, serverTailnet := setupServerTailnetAgent(t, 1)
 	a := agents[0]
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
-	require.NoError(t, err)
+	u := newAppServer(t)
 
-	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+	rp := appProxy(serverTailnet, a.id, u)
 
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest(
@@ -99,7 +214,7 @@ func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 }
 
-func TestServerTailnet_ReverseProxy(t *testing.T) {
+func TestServerTailnet_AppTransport(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -111,10 +226,9 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		agents, serverTailnet := setupServerTailnetAgent(t, 1)
 		a := agents[0]
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
-		require.NoError(t, err)
+		u := newAppServer(t)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+		rp := appProxy(serverTailnet, a.id, u)
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -142,10 +256,9 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		registry := prometheus.NewRegistry()
 		require.NoError(t, registry.Register(serverTailnet))
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
-		require.NoError(t, err)
+		u := newAppServer(t)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+		rp := appProxy(serverTailnet, a.id, u)
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -165,33 +278,6 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_connections_total", "tcp") &&
 				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_connections", "tcp")
 		}, testutil.WaitShort, testutil.IntervalFast)
-	})
-
-	t.Run("HostRewrite", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		agents, serverTailnet := setupServerTailnetAgent(t, 1)
-		a := agents[0]
-
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
-		require.NoError(t, err)
-
-		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		require.NoError(t, err)
-
-		// Ensure the reverse proxy director rewrites the url host to the agent's IP.
-		rp.Director(req)
-		assert.Equal(t,
-			fmt.Sprintf("[%s]:%d",
-				tailnet.TailscaleServicePrefix.AddrFromUUID(a.id).String(),
-				workspacesdk.AgentHTTPAPIServerPort),
-			req.URL.Host,
-		)
 	})
 
 	t.Run("CachesConnection", func(t *testing.T) {
@@ -226,7 +312,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse("http://127.0.0.1" + port)
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+		rp := appProxy(serverTailnet, a.id, u)
 
 		for i := 0; i < 5; i++ {
 			rw := httptest.NewRecorder()
@@ -282,7 +368,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		require.NoError(t, err)
 
 		for i, ag := range agents {
-			rp := serverTailnet.ReverseProxy(u, u, ag.id, appurl.ApplicationURL{}, "")
+			rp := appProxy(serverTailnet, ag.id, u)
 
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(
@@ -320,7 +406,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		uri, err := url.Parse(s.URL)
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(uri, uri, a.id, appurl.ApplicationURL{}, "")
+		rp := appProxy(serverTailnet, a.id, uri)
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -336,6 +422,60 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		assert.Equal(t, expectedResponseCode, res.StatusCode)
 	})
 
+	t.Run("RejectsReservedPorts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
+		require.NoError(t, err)
+		rp := appProxy(serverTailnet, agents[0].id, u)
+
+		rw := httptest.NewRecorder()
+		rp.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, u.String(), nil).WithContext(ctx))
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusBadGateway, res.StatusCode)
+	})
+
+	t.Run("HoldsTicketUntilRelease", func(t *testing.T) {
+		t.Parallel()
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+		agentID := agents[0].id
+
+		_, release, err := serverTailnet.AppTransport(agentID)
+		require.NoError(t, err)
+		require.Equal(t, 1, serverTailnet.AgentTicketCount(agentID))
+		release()
+		require.Zero(t, serverTailnet.AgentTicketCount(agentID))
+	})
+
+	t.Run("CanceledDialReleasesTicket", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+		agentID := agents[0].id
+		u := newAppServer(t)
+		require.NoError(t, agents[0].Close())
+
+		reqCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+		defer cancel()
+		rp := appProxy(serverTailnet, agentID, u)
+		rw := httptest.NewRecorder()
+		rp.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, u.String(), nil).WithContext(reqCtx))
+		res := rw.Result()
+		defer res.Body.Close()
+		assert.Equal(t, http.StatusBadGateway, res.StatusCode)
+
+		require.Eventually(t, func() bool {
+			return serverTailnet.AgentTicketCount(agentID) == 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
 	t.Run("BlockEndpoints", func(t *testing.T) {
 		t.Parallel()
 
@@ -347,10 +487,9 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		require.True(t, serverTailnet.Conn().GetBlockEndpoints(), "expected BlockEndpoints to be set")
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
-		require.NoError(t, err)
+		u := newAppServer(t)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+		rp := appProxy(serverTailnet, a.id, u)
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -430,6 +569,17 @@ type agentWithID struct {
 }
 
 func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
+	return setupServerTailnetAgentWith(t, agentNum, serverTailnetTestOptions{}, opts...)
+}
+
+// serverTailnetTestOptions changes the server tailnet that
+// setupServerTailnetAgentWith builds.
+type serverTailnetTestOptions struct {
+	wrapDialer func(tailnet.ControlProtocolDialer) tailnet.ControlProtocolDialer // Optional.
+	sink       slog.Sink                                                         // Optional, receives the server tailnet's logs too.
+}
+
+func setupServerTailnetAgentWith(t *testing.T, agentNum int, o serverTailnetTestOptions, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := testutil.Logger(t)
 	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, opts...)
 
@@ -470,15 +620,22 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		agents = append(agents, agentWithID{id: manifest.AgentID, Agent: ag})
 	}
 
-	dialer := &coderd.InmemTailnetDialer{
+	var dialer tailnet.ControlProtocolDialer = &coderd.InmemTailnetDialer{
 		CoordPtr: &coordPtr,
 		DERPFn:   func() *tailcfg.DERPMap { return derpMap },
 		Logger:   logger,
 		ClientID: uuid.UUID{5},
 	}
+	if o.wrapDialer != nil {
+		dialer = o.wrapDialer(dialer)
+	}
+	serverLogger := logger
+	if o.sink != nil {
+		serverLogger = logger.AppendSinks(o.sink)
+	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
-		logger,
+		serverLogger,
 		derpServer,
 		dialer,
 		false,
@@ -492,4 +649,36 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 	})
 
 	return agents, serverTailnet
+}
+
+// newAppServer serves an app on this host. In-process agents forward their
+// ports here.
+func newAppServer(t *testing.T) *url.URL {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	return u
+}
+
+// appProxy proxies to u on agentID the way workspaceapps does, holding the
+// app transport for each request.
+func appProxy(st *coderd.ServerTailnet, agentID uuid.UUID, u *url.URL) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		transport, release, err := st.AppTransport(agentID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer release()
+		tgt := *u
+		_, port, _ := net.SplitHostPort(tgt.Host)
+		tgt.Host = net.JoinHostPort(transport.Addr().String(), port)
+		rp := httputil.NewSingleHostReverseProxy(&tgt)
+		rp.Transport = transport
+		rp.ServeHTTP(w, r)
+	})
 }

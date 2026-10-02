@@ -1,5 +1,11 @@
 package coderd
 
+import (
+	"net/http"
+
+	"github.com/google/uuid"
+)
+
 // ChatStartWorkspace exposes chatStartWorkspace for external tests.
 //
 // chatStartWorkspace is intentionally unexported to keep symmetry with
@@ -14,3 +20,18 @@ var ChatStopWorkspace = (*API).chatStopWorkspace
 
 // NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
 var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
+
+func (s *ServerTailnet) AgentTicketCount(agentID uuid.UUID) int {
+	s.coordCtrl.mu.Lock()
+	defer s.coordCtrl.mu.Unlock()
+	if a, ok := s.coordCtrl.agents[agentID]; ok {
+		return len(a.tickets)
+	}
+	return 0
+}
+
+// AgentAPITransport returns agentID's API transport. The caller must call
+// release when done with it.
+func (s *ServerTailnet) AgentAPITransport(agentID uuid.UUID) (_ http.RoundTripper, release func(), _ error) {
+	return s.acquireAPITransport(agentID)
+}

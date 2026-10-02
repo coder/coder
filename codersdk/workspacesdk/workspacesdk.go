@@ -36,6 +36,11 @@ const (
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
 	AgentHTTPAPIServerPort = 4
+	// AgentHTTPAPIServerIdleTimeout is how long the agent's HTTP API server
+	// keeps an idle connection. NewAgentAPITransport requires clients to close
+	// idle connections sooner, so the agent never closes one a client is about
+	// to reuse.
+	AgentHTTPAPIServerIdleTimeout = 15 * time.Minute
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
@@ -363,8 +368,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		Logger: options.Logger,
 	})
 
-	// Agent HTTP API requests use a separate per-request HTTP client that does
-	// not go through the CLI's baggage transport, so attach the session ID to the
+	// Agent HTTP API requests use the conn's own transport, which does not go
+	// through the CLI's baggage transport, so attach the session ID to the
 	// conn's extra headers to propagate it to the agent's tracing middleware.
 	if value, ok := clientSessionIDBaggage(options.ClientSessionID); ok {
 		header := http.Header{}
