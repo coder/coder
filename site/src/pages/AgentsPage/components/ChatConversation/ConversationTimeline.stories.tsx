@@ -14,6 +14,7 @@ import {
 	MockChatAutomation,
 	MockChatFileMetadata,
 } from "#/testHelpers/chatEntities";
+import { copiedText } from "#/testHelpers/selection";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -801,9 +802,43 @@ export const AutomationUserMessages: Story = {
 			},
 		),
 		automationNames: {
-			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+			names: new Map([
+				[
+					MockChatAutomation.id,
+					{ name: MockChatAutomation.name, kind: MockChatAutomation.kind },
+				],
+			]),
 			status: "settled",
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const namedLabel = `Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`;
+		const [named, missing] = await canvas.findAllByRole("note", {
+			name: /^Automation run/,
+		});
+		expect(named).toHaveAccessibleName(namedLabel);
+		// A deleted automation falls back to its ID.
+		expect(missing).toHaveAccessibleName(
+			"Automation run · 3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
+		);
+		// Copying the card yields the visible text as one line.
+		expect(copiedText(named)).toBe(namedLabel);
+	},
+};
+
+export const AutomationUserMessagesLoading: Story = {
+	args: {
+		...AutomationUserMessages.args,
+		automationNames: { names: new Map(), status: "loading" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const labels = await canvas.findAllByRole("note", {
+			name: /^Automation run/,
+		});
+		// No UUID flashes while the names load.
+		expect(labels[0]).toHaveAccessibleName("Automation run");
 	},
 };
 

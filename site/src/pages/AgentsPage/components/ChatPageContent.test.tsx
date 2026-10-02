@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as ChatAutomationQueries from "#/api/queries/chatAutomations";
-import { chatAutomationNameMap } from "#/api/queries/chatAutomations";
+import { chatAutomationReferences } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -19,13 +19,12 @@ import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // Wraps the real query options so tests without a rendered outcome can wait
-// until the component has rendered. The dashboard renders children only after
-// it loads the experiments, so by then any automations request has started.
+// until the component has rendered.
 vi.mock("#/api/queries/chatAutomations", async (importOriginal) => {
 	const actual = await importOriginal<typeof ChatAutomationQueries>();
 	return {
 		...actual,
-		chatAutomationNameMap: vi.fn(actual.chatAutomationNameMap),
+		chatAutomationReferences: vi.fn(actual.chatAutomationReferences),
 	};
 });
 
@@ -87,15 +86,24 @@ const mockExperiments = (experiments: TypesGen.Experiment[]) =>
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
 	);
 
-const mockChatAutomationsResponse = () => {
-	mockExperiments(["chat-automations"]);
+// A viewer without the chat-automations experiment, who cannot read the
+// automation itself, can still read the chat's automation references.
+const mockChatAutomationReferencesResponse = () => {
+	mockExperiments([]);
 	server.use(
-		http.get(
-			"/api/experimental/organizations/:organizationId/chat-automations",
-			() => HttpResponse.json([MockChatAutomation]),
+		http.get("/api/experimental/chats/:chatId/automations", () =>
+			HttpResponse.json([
+				{
+					id: MockChatAutomation.id,
+					name: MockChatAutomation.name,
+					kind: MockChatAutomation.kind,
+				},
+			] satisfies TypesGen.ChatAutomationReference[]),
 		),
 	);
 };
+
+const automationLabelName = `Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`;
 
 describe("ChatPageInput", () => {
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
@@ -145,57 +153,35 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	it("requests the automations list for the chat's organization when the queue has automation input", async () => {
-		mockChatAutomationsResponse();
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
+	it("labels queued automation input with the automation name and kind", async () => {
+		mockChatAutomationReferencesResponse();
 		const store = createChatStore();
 		store.setQueuedMessages([mockQueuedAutomationInput]);
 
 		renderChatPageInput(store, {
-			chat: { ...MockChat, id: "", organization_id: "test-org-id" },
+			chat: { ...MockChat, id: "test-chat-id", organization_id: "test-org-id" },
 		});
 
-		await waitFor(() =>
-			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
-		);
+		expect(
+			await screen.findByRole("note", { name: automationLabelName }),
+		).toBeInTheDocument();
 	});
 
-	it.each<{
-		name: string;
-		experiments: TypesGen.Experiment[];
-		automated: boolean;
-	}>([
-		{
-			name: "the chat has no automation input",
-			experiments: ["chat-automations"],
-			automated: false,
-		},
-		{
-			name: "the chat-automations experiment is off",
-			experiments: [],
-			automated: true,
-		},
-	])(
-		"does not request automations when $name",
-		async ({ experiments, automated }) => {
-			mockExperiments(experiments);
-			const getChatAutomations = vi.spyOn(
-				API.experimental,
-				"getChatAutomations",
-			);
-			const store = createChatStore();
-			store.setQueuedMessages([
-				automated ? mockQueuedAutomationInput : MockChatQueuedMessage,
-			]);
+	it("does not request automation references when the queue has no automation input", async () => {
+		const getChatAutomationReferences = vi.spyOn(
+			API.experimental,
+			"getChatAutomationReferences",
+		);
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
 
-			renderChatPageInput(store, {
-				chat: { ...MockChat, id: "", organization_id: "test-org-id" },
-			});
+		renderChatPageInput(store, {
+			chat: { ...MockChat, id: "test-chat-id", organization_id: "test-org-id" },
+		});
 
-			await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
-			expect(getChatAutomations).not.toHaveBeenCalled();
-		},
-	);
+		await waitFor(() => expect(chatAutomationReferences).toHaveBeenCalled());
+		expect(getChatAutomationReferences).not.toHaveBeenCalled();
+	});
 });
 
 const automationInputID = "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e";
@@ -216,6 +202,7 @@ const renderChatPageTimelineWithAutomationInput = () => {
 		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 			<ChatPageTimeline
 				organizationId="test-org-id"
+				chatId="test-chat-id"
 				store={store}
 				persistedError={undefined}
 				hasMoreMessages={false}
@@ -229,24 +216,13 @@ const renderChatPageTimelineWithAutomationInput = () => {
 };
 
 describe("ChatPageTimeline", () => {
-	it("requests the automations list for the chat's organization when history has automation input", async () => {
-		mockChatAutomationsResponse();
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
+	it("labels automation input in the history with the automation name and kind", async () => {
+		mockChatAutomationReferencesResponse();
 
 		renderChatPageTimelineWithAutomationInput();
 
-		await waitFor(() =>
-			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
-		);
-	});
-
-	it("does not request the automations list when the chat-automations experiment is off", async () => {
-		mockExperiments([]);
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
-
-		renderChatPageTimelineWithAutomationInput();
-
-		await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
-		expect(getChatAutomations).not.toHaveBeenCalled();
+		expect(
+			await screen.findByRole("note", { name: automationLabelName }),
+		).toBeInTheDocument();
 	});
 });

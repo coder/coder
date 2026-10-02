@@ -1,6 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
-import { chatAutomationsKey } from "#/api/queries/chatAutomations";
+import { chatAutomationReferencesKey } from "#/api/queries/chatAutomations";
 import {
 	chatListKey,
 	chatMessagesKey,
@@ -1919,7 +1919,7 @@ describe("useChatStore", () => {
 			const queryClient = new QueryClient({
 				defaultOptions: { queries: { gcTime: Number.POSITIVE_INFINITY } },
 			});
-			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+			queryClient.setQueryData(chatAutomationReferencesKey(chatID), []);
 			const wrapper = createWrapper(queryClient);
 
 			const { result } = renderHook(
@@ -1959,7 +1959,8 @@ describe("useChatStore", () => {
 				);
 			});
 			expect(
-				queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
+				queryClient.getQueryState(chatAutomationReferencesKey(chatID))
+					?.isInvalidated,
 			).toBe(refreshesNames);
 		},
 	);

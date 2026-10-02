@@ -2220,6 +2220,18 @@ export const ChatAutomationKinds: ChatAutomationKind[] = [
 
 // From codersdk/chatautomations.go
 /**
+ * ChatAutomationReference names an automation that delivered into a chat.
+ * Anyone who can read the chat can read its references, so it carries no
+ * other automation fields.
+ */
+export interface ChatAutomationReference {
+	readonly id: string;
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+}
+
+// From codersdk/chatautomations.go
+/**
  * ChatAutomationRunResponse is returned when a schedule automation runs
  * now. InputID identifies the accepted input on the message it created in
  * ChatID.

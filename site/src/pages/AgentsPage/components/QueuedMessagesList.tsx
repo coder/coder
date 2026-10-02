@@ -188,9 +188,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 						{item.automationId && (
 							<div className="mb-1 flex">
 								<AutomationLabel
+									variant="badge"
 									automationId={item.automationId}
 									inputId={item.inputId}
-									automationName={automationNames.names.get(item.automationId)}
+									reference={automationNames.names.get(item.automationId)}
 									nameStatus={automationNames.status}
 								/>
 							</div>

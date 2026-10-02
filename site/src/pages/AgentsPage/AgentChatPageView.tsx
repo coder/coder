@@ -905,6 +905,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							<ChatPageTimeline
 								key={agentId}
 								organizationId={organizationId}
+								chatId={chat.id}
 								store={store}
 								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}

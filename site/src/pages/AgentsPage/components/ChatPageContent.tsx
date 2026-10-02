@@ -9,8 +9,8 @@ import {
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
-	type ChatAutomationNameMap,
-	chatAutomationNameMap,
+	type ChatAutomationReferenceMap,
+	chatAutomationReferences,
 } from "#/api/queries/chatAutomations";
 import {
 	chatPromptsQuery,
@@ -21,7 +21,6 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -120,7 +119,7 @@ export const workspaceSkillsFromChat = (
 };
 
 const toChatAutomationNames = (
-	query: UseQueryResult<ChatAutomationNameMap>,
+	query: UseQueryResult<ChatAutomationReferenceMap>,
 ): ChatAutomationNames => ({
 	names: query.data ?? new Map(),
 	status: query.isFetching ? "loading" : query.isError ? "error" : "settled",
@@ -128,6 +127,7 @@ const toChatAutomationNames = (
 
 type ChatPageTimelineProps = {
 	organizationId: string | undefined;
+	chatId: string;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
@@ -152,6 +152,7 @@ type ChatPageTimelineProps = {
 
 export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	organizationId,
+	chatId,
 	store,
 	chatFiles,
 	persistedError,
@@ -224,12 +225,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	const { experiments } = useDashboard();
 	const automationNamesQuery = useQuery(
-		chatAutomationNameMap(organizationId, {
-			enabled:
-				messages.some((message) => message.automation_id !== undefined) &&
-				experiments.includes("chat-automations"),
+		chatAutomationReferences(chatId, {
+			enabled: messages.some((message) => message.automation_id !== undefined),
 		}),
 	);
 	const automationNames = toChatAutomationNames(automationNamesQuery);
@@ -439,12 +437,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
-	const { experiments } = useDashboard();
 	const automationNamesQuery = useQuery(
-		chatAutomationNameMap(organizationId, {
-			enabled:
-				queuedMessages.some((message) => message.automation_id !== undefined) &&
-				experiments.includes("chat-automations"),
+		chatAutomationReferences(chatId, {
+			enabled: queuedMessages.some(
+				(message) => message.automation_id !== undefined,
+			),
 		}),
 	);
 	const automationNames = toChatAutomationNames(automationNamesQuery);

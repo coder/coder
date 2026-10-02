@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { memo, useState } from "react";
 import type { UrlTransform } from "streamdown";
+import type { ChatAutomationReferenceInfo } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -96,7 +97,7 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
-	automationName?: string;
+	automationReference?: ChatAutomationReferenceInfo;
 	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
@@ -140,7 +141,7 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
-		automationName,
+		automationReference,
 		automationNameStatus,
 		parsed,
 		liveStatus,
@@ -236,11 +237,12 @@ const ChatMessageItem = memo<{
 				inert={isAfterEditingMessage ? true : undefined}
 			>
 				{message?.automation_id && (
-					<div className={cn("mb-1 flex", isUser && "justify-end")}>
+					<div className="mb-1">
 						<AutomationLabel
+							variant="card"
 							automationId={message.automation_id}
 							inputId={message.input_id}
-							automationName={automationName}
+							reference={automationReference}
 							nameStatus={automationNameStatus}
 						/>
 					</div>
@@ -620,7 +622,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								organizationId={organizationId}
 								renderKey={row.key}
 								message={message}
-								automationName={
+								automationReference={
 									message.automation_id
 										? automationNames.names.get(message.automation_id)
 										: undefined
