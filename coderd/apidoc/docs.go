@@ -2428,6 +2428,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Chat"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "413": {
                         "description": "Request body exceeds 256 KiB",
                         "schema": {
@@ -3443,6 +3449,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -20779,6 +20791,19 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
+                "title_source": {
+                    "description": "TitleSource is where Title came from. A title write applies only when\nthe current source ranks the same as or lower than the incoming one,\nin the order fallback, generated, user.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatTitleSource"
+                        }
+                    ]
+                },
+                "title_updated_at": {
+                    "description": "TitleUpdatedAt orders title changes. Title writes do not change\nUpdatedAt.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -22858,6 +22883,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatTitleSource": {
+            "type": "string",
+            "enum": [
+                "fallback",
+                "generated",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "ChatTitleSourceFallback",
+                "ChatTitleSourceGenerated",
+                "ChatTitleSourceUser"
+            ]
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -23464,6 +23502,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "system_prompt": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed and must then be non-empty\nand at most 200 Unicode code points (MaxChatTitleRunes), else the\nrequest fails with 400. When omitted, the title is derived from the\nfirst prompt and may later be replaced by a generated title.",
                     "type": "string"
                 },
                 "unsafe_dynamic_tools": {
@@ -31565,6 +31607,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "title": {
+                    "description": "Title, when set, is stored as the user title even when its text is\nunchanged, so a generated title never replaces it afterwards. It is\nvalidated like CreateChatRequest.Title.",
                     "type": "string"
                 },
                 "workspace_id": {
