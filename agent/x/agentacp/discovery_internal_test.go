@@ -7,17 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
 func TestDiscoveryCatalog(t *testing.T) {
 	t.Parallel()
-	m, _, configDir := newTestManager(t, fakeHarnessModeBoth)
+	m, dir, configDir := newTestManager(t, fakeHarnessModeBoth)
 	catalog := m.Catalog()
 	require.Equal(t, "fake", catalog[0].DisplayName)
 	require.True(t, catalog[0].Steering)
@@ -45,9 +47,11 @@ func TestDiscoveryCatalog(t *testing.T) {
 			require.NotEmpty(t, h.Error)
 		}
 	}
+	info := createTestSession(t, m, dir)
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": "false", "display_name": "Changed"})
 	require.NoError(t, m.Reload(context.Background()))
 	require.NotEqual(t, hash, m.ContextResources()[1].ContentHash)
+	require.Equal(t, "fake", info.HarnessDisplayName)
 	require.NoError(t, os.Remove(filepath.Join(configDir, "fake.json")))
 	require.NoError(t, m.Reload(context.Background()))
 	require.Len(t, m.Catalog(), 3)
@@ -89,11 +93,12 @@ func TestDiscoveryDirectoryCreation(t *testing.T) {
 	testutil.RequireReceive(ctx, t, changed)
 	require.Len(t, m.Catalog(), 1)
 	require.Empty(t, m.Catalog()[0].Error)
-	// Disabled harnesses are removed from the catalog.
+	// Enabled configuration is still required for a new runtime.
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": fakeCommand(t, fakeHarnessModeBoth), "enabled": false})
 	advanceTestDiscovery(ctx, t, clock)
 	testutil.RequireReceive(ctx, t, changed)
-	require.Empty(t, m.Catalog())
+	_, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{RequestID: uuid.New(), HarnessSlug: "fake", WorkingDirectory: dir})
+	require.ErrorIs(t, err, ErrUnavailable)
 }
 
 func TestProbeDeadline(t *testing.T) {

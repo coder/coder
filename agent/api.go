@@ -2,6 +2,7 @@ package agent
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -27,7 +28,19 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 		tracing.Middleware(nil, []string{"/", "/api", "/api/**", "/debug/**"}, "agent"),
 		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
-		a.toolCalls.Middleware,
+		func(next http.Handler) http.Handler {
+			recorded := a.toolCalls.Middleware(next)
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// ACP deduplicates creation and messages itself. Bypass response
+				// recording even if a tool-call ID is supplied; the recorder cannot
+				// support the WebSocket upgrade used to watch sessions.
+				if strings.HasPrefix(r.URL.Path, "/api/v0/acp/") {
+					next.ServeHTTP(w, r)
+					return
+				}
+				recorded.ServeHTTP(w, r)
+			})
+		},
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

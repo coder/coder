@@ -3,6 +3,7 @@ package agentacp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os/exec"
 	"strings"
@@ -29,15 +30,17 @@ func (b *diagnosticBuffer) Write(p []byte) (int, error) {
 }
 
 type process struct {
-	conn   *acp.ClientSideConnection
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	cancel context.CancelFunc
-	done   chan struct{}
-	err    error // Read only after done closes.
-	once   sync.Once
-	stderr diagnosticBuffer
+	writeMu       sync.Mutex
+	promptWritten chan struct{}
+	conn          *acp.ClientSideConnection
+	cmd           *exec.Cmd
+	stdin         io.WriteCloser
+	stdout        io.ReadCloser
+	cancel        context.CancelFunc
+	done          chan struct{}
+	err           error // Read only after done closes.
+	once          sync.Once
+	stderr        diagnosticBuffer
 }
 
 func (m *Manager) launch(ctx context.Context, directory string, cfg harnessConfig, handler acp.Client) (*process, error) {
@@ -77,13 +80,38 @@ func (m *Manager) launch(ctx context.Context, directory string, cfg harnessConfi
 		cancel()
 		return nil, xerrors.Errorf("start harness: %w", err)
 	}
-	p.conn = acp.NewClientSideConnection(handler, p.stdin, p.stdout)
+	p.conn = acp.NewClientSideConnection(handler, p, p.stdout)
 	go func() { p.err = cmd.Wait(); close(p.done) }()
 	return p, nil
 }
 
 func (p *process) close() {
 	p.once.Do(func() { p.cancel(); _ = p.stdin.Close(); _ = p.stdout.Close(); <-p.done })
+}
+
+// Write observes prompt admission at the ACP transport boundary. The session's
+// admission lock ensures cancel and steering cannot overtake the first prompt.
+func (p *process) Write(raw []byte) (int, error) {
+	n, err := p.stdin.Write(raw)
+	var message struct {
+		Method string `json:"method"`
+	}
+	if err == nil && json.Unmarshal(raw, &message) == nil && message.Method == "session/prompt" {
+		p.writeMu.Lock()
+		if p.promptWritten != nil {
+			close(p.promptWritten)
+			p.promptWritten = nil
+		}
+		p.writeMu.Unlock()
+	}
+	return n, err
+}
+
+func (p *process) expectPrompt() <-chan struct{} {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
+	p.promptWritten = make(chan struct{})
+	return p.promptWritten
 }
 
 func (p *process) failure(err error, cfg harnessConfig) error {
