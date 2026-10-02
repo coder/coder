@@ -16,22 +16,21 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-type reportConnectionFunc func(id uuid.UUID, ip string) (disconnected func(code int, reason string))
-
 type Server struct {
-	logger           slog.Logger
-	connectionsTotal prometheus.Counter
-	errorsTotal      *prometheus.CounterVec
-	commandCreator   *agentssh.Server
-	reportConnection reportConnectionFunc
-	connCount        atomic.Int64
-	reconnectingPTYs sync.Map
-	timeout          time.Duration
+	logger             slog.Logger
+	connectionsTotal   prometheus.Counter
+	errorsTotal        *prometheus.CounterVec
+	commandCreator     *agentssh.Server
+	connectionReporter proto.ConnectionReporter
+	connCount          atomic.Int64
+	reconnectingPTYs   sync.Map
+	timeout            time.Duration
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -39,22 +38,21 @@ type Server struct {
 }
 
 // NewServer returns a new ReconnectingPTY server
-func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnection reportConnectionFunc,
+func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
+	connectionReporter proto.ConnectionReporter,
 	connectionsTotal prometheus.Counter, errorsTotal *prometheus.CounterVec,
 	timeout time.Duration, opts ...func(*Server),
 ) *Server {
-	if reportConnection == nil {
-		reportConnection = func(uuid.UUID, string) func(int, string) {
-			return func(int, string) {}
-		}
+	if connectionReporter == nil {
+		connectionReporter = &proto.NoopConnectionReporter{}
 	}
 	s := &Server{
-		logger:           logger,
-		commandCreator:   commandCreator,
-		reportConnection: reportConnection,
-		connectionsTotal: connectionsTotal,
-		errorsTotal:      errorsTotal,
-		timeout:          timeout,
+		logger:             logger,
+		commandCreator:     commandCreator,
+		connectionReporter: connectionReporter,
+		connectionsTotal:   connectionsTotal,
+		errorsTotal:        errorsTotal,
+		timeout:            timeout,
 	}
 	for _, o := range opts {
 		o(s)
@@ -86,7 +84,11 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 		}
 
 		wg.Add(1)
-		disconnected := s.reportConnection(uuid.New(), remoteAddrString)
+		connReporter := s.connectionReporter.Connect(proto.ConnectEvent{
+			ID:   uuid.New(),
+			Type: proto.Connection_RECONNECTING_PTY,
+			IP:   remoteAddrString,
+		})
 		closed := make(chan struct{})
 		go func() {
 			defer wg.Done()
@@ -98,7 +100,10 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 					codersdk.DisconnectReasonServerShutdown.SlogField(),
 					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
 				)
-				disconnected(1, "server shut down")
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:   1,
+					Reason: "server shut down",
+				})
 				_ = conn.Close()
 			}
 		}()
@@ -128,7 +133,10 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 				codersdk.SlogDisconnectDetail(detail),
 				slog.F("exit_code", code),
 			)
-			disconnected(code, string(reason))
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:   code,
+				Reason: string(reason),
+			})
 		}()
 	}
 	wg.Wait()
