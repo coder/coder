@@ -986,6 +986,39 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		},
 	);
 
+	it.each([mockAutomation, mockWebhookAutomation])(
+		"shows a $kind owned by someone else read-only",
+		async (automation) => {
+			const user = userEvent.setup();
+			const { updateBodies } = setupEditor({
+				automations: [{ ...automation, owner_id: "another-user" }],
+			});
+
+			const view = await screen.findByRole("button", {
+				name: `View ${automation.name}`,
+			});
+			expect(
+				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
+			).toBeNull();
+			await user.click(view);
+			const dialog = await screen.findByRole("dialog", {
+				name: "View automation",
+			});
+			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+			expect(within(dialog).getByLabelText(/^Prompt/)).toBeDisabled();
+			expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
+			expect(
+				within(dialog).queryByRole("button", { name: "Rotate secret" }),
+			).toBeNull();
+			await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+			await waitFor(() => {
+				expect(screen.queryByRole("dialog")).toBeNull();
+			});
+			expect(updateBodies).toEqual([]);
+		},
+	);
+
 	it("returns focus to the button that opened the editor", async () => {
 		const user = userEvent.setup();
 		setupEditor();

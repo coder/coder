@@ -319,7 +319,6 @@ export const PreviewError: Story = {
 export const SaveForbidden: Story = {
 	args: {
 		automation: mockAutomation,
-		currentUserId: "another-user",
 		error: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
 		}),
@@ -367,6 +366,19 @@ export const CreateWebhook: Story = {
 
 export const EditWebhook: Story = {
 	args: { automation: mockWebhookAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const ViewWebhookAsNonOwner: Story = {
+	args: { automation: mockWebhookAutomation, currentUserId: "another-user" },
 	parameters: {
 		queries: [
 			{
@@ -446,7 +458,6 @@ export const ConfirmRotateSecret: Story = {
 export const RotateSecretForbidden: Story = {
 	args: {
 		automation: mockWebhookAutomation,
-		currentUserId: "another-user",
 		rotateSecretError: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
 		}),
