@@ -103,6 +103,13 @@ func TimeRange(raw string) (*Schedule, error) {
 // @daily or @every are not supported. timeZone must be a non-empty IANA
 // time zone name other than Local.
 //
+// The schedule follows the wall clock of timeZone across daylight saving
+// changes. When clocks go back, a local time that occurs twice runs only
+// at its first occurrence. When clocks go forward, a local time that does
+// not exist runs at the first valid time after the change, and all such
+// times in one change, together with a time scheduled exactly at the end
+// of the change, run once.
+//
 // Example Usage:
 //
 //	sched, _ := cron.Standard("0 9 1 * *", "Europe/Berlin")
@@ -121,7 +128,12 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 	if err := ValidateTimeZone(timeZone); err != nil {
 		return nil, err
 	}
-	return parse("CRON_TZ=" + timeZone + " " + strings.Join(fields, " "))
+	sched, err := parse("CRON_TZ=" + timeZone + " " + strings.Join(fields, " "))
+	if err != nil {
+		return nil, err
+	}
+	sched.wallClock = true
+	return sched, nil
 }
 
 // ValidateTimeZone reports whether timeZone is a non-empty IANA time zone
@@ -181,6 +193,9 @@ type Schedule struct {
 	sched *rbcron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
 	cronStr string
+	// wallClock selects the daylight saving rules that Standard
+	// documents. Other schedules keep the robfig/cron behavior.
+	wallClock bool
 }
 
 // String serializes the schedule to its original format.
@@ -218,9 +233,156 @@ func (s Schedule) Cron() string {
 	return s.cronStr
 }
 
-// Next returns the next time in the schedule relative to t.
+// Next returns the next time in the schedule after t, or the zero time
+// when there is none. For schedules parsed by Standard, Next applies the
+// daylight saving rules that Standard documents: a repeated local time
+// runs at its first occurrence only, and nonexistent local times run once
+// at the first valid time after the clock change.
 func (s Schedule) Next(t time.Time) time.Time {
+	if s.wallClock {
+		return s.nextWallClock(t)
+	}
 	return s.sched.Next(t)
+}
+
+// maxWallClockSteps bounds the wall times nextWallClock tries before it
+// gives up. Each skipped wall time belongs to a repeated or nonexistent
+// local period of at most a few hours, so real schedules need far fewer.
+const maxWallClockSteps = 100000
+
+// naiveWallClock returns the schedule evaluated in UTC, so that it matches
+// wall-clock fields without any daylight saving changes.
+func (s Schedule) naiveWallClock() rbcron.SpecSchedule {
+	naive := *s.sched
+	naive.Location = time.UTC
+	return naive
+}
+
+// wallTime returns the local wall-clock fields of t in loc expressed as a
+// UTC time.
+func wallTime(t time.Time, loc *time.Location) time.Time {
+	local := t.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), local.Minute(), local.Second(), local.Nanosecond(), time.UTC)
+}
+
+// resolveWallTime returns the instant at which the wall time w (expressed
+// as a UTC time) occurs in loc. A wall time that occurs twice resolves to
+// its first occurrence. A wall time that does not exist resolves to the
+// start of the zone period after the gap, the first valid time after it.
+// resolveWallTime never decreases as w increases.
+func resolveWallTime(w time.Time, loc *time.Location) time.Time {
+	// UTC offsets are within [-14h, +14h], so the instant for w lies
+	// within 14 hours of w read as UTC, and the offsets in that window
+	// cover every candidate.
+	const window = 14 * time.Hour
+	var (
+		earliest time.Time
+		seen     = make(map[int]bool, 3)
+	)
+	for _, probe := range []time.Time{w.Add(-window), w, w.Add(window)} {
+		_, offset := probe.In(loc).Zone()
+		if seen[offset] {
+			continue
+		}
+		seen[offset] = true
+		u := w.Add(-time.Duration(offset) * time.Second)
+		if !wallTime(u, loc).Equal(w) {
+			continue
+		}
+		if earliest.IsZero() || u.Before(earliest) {
+			earliest = u
+		}
+	}
+	if !earliest.IsZero() {
+		return earliest
+	}
+	// w falls in a gap. Reading it with the offset before the gap gives
+	// an instant after the clock change, whose zone period starts at the
+	// change.
+	_, before := w.Add(-window).In(loc).Zone()
+	u := w.Add(-time.Duration(before) * time.Second)
+	start, _ := u.In(loc).ZoneBounds()
+	if start.IsZero() || !wallTime(start, loc).After(w) {
+		// Not reachable with real zone data: the period after a gap
+		// starts at a wall time after the gap.
+		return u
+	}
+	return start
+}
+
+// nextWallClock implements Next for schedules parsed by Standard. It
+// walks the matching wall times in order and returns the first one whose
+// instant is after t. Because resolveWallTime never decreases, the first
+// such wall time gives the next run, which skips the second occurrence of
+// repeated times and merges nonexistent times into one run.
+func (s Schedule) nextWallClock(t time.Time) time.Time {
+	loc := s.sched.Location
+	naive := s.naiveWallClock()
+	w := naive.Next(wallTime(t, loc))
+	for range maxWallClockSteps {
+		if w.IsZero() {
+			return time.Time{}
+		}
+		if u := resolveWallTime(w, loc); u.After(t) {
+			return u.In(t.Location())
+		}
+		w = naive.Next(w)
+	}
+	return time.Time{}
+}
+
+// ShortestInterval returns the shortest time between two consecutive runs
+// of the schedule on its wall clock, considering the runs within two years
+// after from. It ignores daylight saving changes, so one clock change can
+// make a single gap shorter than the result. It reports false when the
+// schedule runs fewer than two times in that horizon.
+func (s Schedule) ShortestInterval(from time.Time) (time.Duration, bool) {
+	const starBit = 1 << 63
+	var minutes []int
+	for hour := range 24 {
+		if s.sched.Hour&^starBit&(uint64(1)<<hour) == 0 {
+			continue
+		}
+		for minute := range 60 {
+			if s.sched.Minute&^starBit&(uint64(1)<<minute) != 0 {
+				minutes = append(minutes, hour*60+minute)
+			}
+		}
+	}
+	naive := s.naiveWallClock()
+	start := wallTime(from, s.sched.Location)
+	run := naive.Next(start)
+	if len(minutes) == 0 || run.IsZero() {
+		return 0, false
+	}
+
+	var (
+		shortest time.Duration
+		found    bool
+	)
+	// Every day that runs at all runs at the same times of day.
+	for i := 1; i < len(minutes); i++ {
+		gap := time.Duration(minutes[i]-minutes[i-1]) * time.Minute
+		if !found || gap < shortest {
+			shortest, found = gap, true
+		}
+	}
+
+	// Gaps between days: from the last run of a day to the next run.
+	horizon := start.AddDate(2, 0, 0)
+	lastOfDay := time.Duration(minutes[len(minutes)-1]) * time.Minute
+	for !run.IsZero() && !run.After(horizon) {
+		last := time.Date(run.Year(), run.Month(), run.Day(), 0, 0, 0, 0, time.UTC).Add(lastOfDay)
+		next := naive.Next(last)
+		if next.IsZero() || next.After(horizon) {
+			break
+		}
+		if gap := next.Sub(last); !found || gap < shortest {
+			shortest, found = gap, true
+		}
+		run = next
+	}
+	return shortest, found
 }
 
 // IsWithinRange interprets a cron spec as a continuous time range,
