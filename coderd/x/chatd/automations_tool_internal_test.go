@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -632,7 +633,7 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		// enable follows the same rules.
 		for _, row := range []database.ChatAutomation{heartbeat, elsewhere} {
-			_, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+			_, _, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 			require.NoError(t, err)
 		}
 		content, isError = f.call(ctx, t, f.chat.ID, "enable", elsewhere.ID)
@@ -888,7 +889,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			}
 			if tc.disabled {
 				var err error
-				row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 				require.NoError(t, err)
 			}
 
@@ -897,7 +898,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 				retargetErr error
 			)
 			reads.arm(row.ID, func() {
-				retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
+				_, retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
 			})
 			chats := len(f.createdChats(ctx, t))
 			inputs := f.ownerInputs(ctx, t)
@@ -919,6 +920,87 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			require.Len(t, f.createdChats(ctx, t), chats)
 			require.Equal(t, inputs, f.ownerInputs(ctx, t))
 			require.Empty(t, f.auditor.AuditLogs())
+		})
+	}
+}
+
+// TestManageAutomationsToolAuditsLockedRow renames the automation, as the
+// owner through the service, after the tool has read it and before the
+// service locks it. The tool's change still succeeds, and its audit entry
+// must diff against the row the service locked, so the rename, which
+// belongs to the owner's own change, is not attributed to the tool.
+func TestManageAutomationsToolAuditsLockedRow(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		action   string
+		disabled bool
+		// changed is the field the tool's change must show in the diff.
+		changed string
+	}{
+		{action: "update", changed: "prompt"},
+		{action: "enable", disabled: true, changed: "enabled"},
+		{action: "disable", changed: "enabled"},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
+			t.Parallel()
+			sf := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+			sf.setSwitch(t, sf.chat.ID, true)
+			// The default mock records an empty diff, so record the fields
+			// this test compares.
+			sf.auditor = audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+				oldRow, oldOK := old.(database.ChatAutomation)
+				newRow, newOK := newVal.(database.ChatAutomation)
+				if !oldOK || !newOK {
+					return audit.Map{}
+				}
+				diff := audit.Map{}
+				if oldRow.Name != newRow.Name {
+					diff["name"] = audit.OldNew{Old: oldRow.Name, New: newRow.Name}
+				}
+				if oldRow.Prompt != newRow.Prompt {
+					diff["prompt"] = audit.OldNew{Old: "", New: "", Secret: true}
+				}
+				if oldRow.Enabled != newRow.Enabled {
+					diff["enabled"] = audit.OldNew{Old: oldRow.Enabled, New: newRow.Enabled}
+				}
+				return diff
+			})
+			reads := &automationReadHook{}
+			f := manageAutomationsFixture{scheduleFixture: sf, server: sf.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+				reads.Store = store
+				return reads
+			})}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			ownerCtx := f.asOwner(ctx, t)
+
+			row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+			if tc.disabled {
+				var err error
+				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				require.NoError(t, err)
+			}
+			var renameErr error
+			reads.arm(row.ID, func() {
+				_, _, renameErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}, nil)
+			})
+			f.auditor.ResetLogs()
+
+			args := manageAutomationsArgs{Action: tc.action, AutomationID: row.ID.String()}
+			if tc.action == "update" {
+				args.Prompt = ptr.Ref("Changed.")
+			}
+			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+			reads.requireFired(t)
+			require.NoError(t, renameErr)
+			require.False(t, isError, content)
+
+			logs := f.auditor.AuditLogs()
+			require.Len(t, logs, 1)
+			var diff audit.Map
+			require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+			require.Contains(t, diff, tc.changed)
+			require.NotContains(t, diff, "name", "the rename happened before the lock")
 		})
 	}
 }
@@ -952,7 +1034,7 @@ func TestAutomationGuard(t *testing.T) {
 		row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 
 		var seen []uuid.NullUUID
-		_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
+		_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
 			func(_ database.Store, automation database.ChatAutomation) error {
 				seen = append(seen, automation.TargetChatID)
 				if automation.TargetChatID.UUID == other.ID {
@@ -979,7 +1061,7 @@ func TestAutomationGuard(t *testing.T) {
 			seen = append(seen, automation.TargetChatID)
 			if len(seen) == 1 {
 				// Retarget after the read before the send.
-				_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
+				_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
 				return err
 			}
 			return errRefused

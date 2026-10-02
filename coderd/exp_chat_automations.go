@@ -151,7 +151,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
+// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -202,11 +202,14 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
+	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
+	// The row read under the update's lock is the accurate before-image;
+	// the row read above stays Old only for failed requests.
+	aReq.Old = old
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))

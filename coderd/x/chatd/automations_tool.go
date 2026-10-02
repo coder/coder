@@ -312,11 +312,11 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		return p.manageAutomationsRun(ctx, ownerCtx, chat, row)
 	case "disable":
 		disabled := false
-		updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled}, nil)
+		old, updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled}, nil)
 		if err != nil {
 			return nil, p.manageAutomationsError(ctx, logger, action, err)
 		}
-		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
+		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, old, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
 	default: // delete
 		// Input from one automation must not remove another one for good;
@@ -437,12 +437,12 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, after); err != nil {
 		return nil, err
 	}
-	updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
+	old, updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req, p.manageAutomationsGuard(ownerCtx, chat))
 	if err != nil {
 		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("action", action), slog.F("automation_id", row.ID))
 		return nil, p.manageAutomationsError(ctx, logger, action, err)
 	}
-	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
+	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, old, updated)
 	return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
 }
 
