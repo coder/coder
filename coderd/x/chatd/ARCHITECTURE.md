@@ -48,6 +48,8 @@ There is other data that is held in the database and is associated with a chat, 
 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.
 
+Each title has a source: `fallback` for a title derived from the first prompt or the default title of a chat created without one, `generated` for a title written by automatic title generation, and `user` for a title the caller supplied. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order `fallback`, `generated`, `user`. Title writes set `title_updated_at` and do not change `updated_at`; clients order title events by `title_updated_at`.
+
 File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds, set by the `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT` deployment option (50 by default). The core state machine does not read deployment configuration: every caller that writes links passes the cap in, and a cap below 1 fails the write instead of selecting a default. When a message's files would push the chat over the cap, the chat's earliest-uploaded files are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa. Desktop recordings and their thumbnails are linked to the parent chat the same way, one file per transaction; with a cap of 1 the thumbnail is skipped so it cannot evict its own recording.
 
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
@@ -122,8 +124,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
-- `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls.
+- `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state. If `qid` fails the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), it deletes `qid` instead and changes nothing else.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` or `interrupting` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls, and it promotes the queue head through the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) like any other `FinishInterruption`.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -134,15 +136,34 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
-- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
+- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`. The head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard); if the guard deletes every queued message, the transition lands in `waiting` as it does from `I0`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
-- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
+- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), inserts it into history as a user turn, and lands in `running`. If the guard deletes every queued message, it lands in `waiting` as it does from `R0`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
 
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
+
+### Automation admission and the queue promotion guard
+
+Automations (rows in `chat_automations`) deliver messages to chats through the same `Create` and `SendMessage` transitions that users go through. Two mechanisms make that safe: an admission callback that runs inside the transition's transaction, and a guard that drops stale automation messages instead of promoting them.
+
+**Admission.** `Create` and `SendMessage` accept an optional `AdmitInTx` callback. The HTTP endpoints never set it, so ordinary requests behave as described elsewhere in this document. `Create` runs the callback after inserting the chat row and before writing the initial history. `SendMessage` runs it after validating the transition against the locked chat row and before writing anything. The callback receives the transaction's store and the chat ID. It may only do database work through that store and must not make network calls. It returns the message's automation provenance: the automation ID, the input ID (one webhook delivery or schedule occurrence), and the automation's current `queue_generation`. The transition requires both IDs to be set and the generation to be at least 1, then stamps the provenance on the admitted message. With a callback, `Create` requires the initial history to contain exactly one user message, and that message receives the provenance. If the callback returns an error, the whole transaction rolls back: no chat, history row, or queued row is written, and the status doesn't change.
+
+**Provenance.** Provenance is stored on the row that carries the message. A queued message stores `automation_id`, `input_id`, and `queue_generation`; an ordinary queued message leaves all three NULL. A history message stores `automation_id` and `input_id`. Every transition that promotes a queued message into history copies `automation_id` and `input_id` from the queue row to the history row, next to `queued_message_id`.
+
+**Guard.** Before a queued message with an `automation_id` is promoted into history, the queue promotion guard locks its automation and checks that the automation exists, is enabled, and has the same `queue_generation` as the queued message. A queued message that fails the check is stale and is deleted instead of promoted. Queued messages without an `automation_id` always pass, without extra queries. Transitions apply the guard in one of two ways:
+
+- Head promotion. `FinishTurn` from `R1`, `FinishInterruption` from `I1`, and `SendMessage` from `E1` promote the queue head. `Interrupt` and `SendMessage(m, interrupt)` on a `running` or `interrupting` chat that no worker owns apply `FinishInterruption` in the same transaction, so their promotion goes through the same guard. They delete stale heads one at a time until a head passes, then promote that head. Queued messages behind it are left in place even if they are stale; a later promotion checks them. If every queued message is stale, `FinishTurn` and `FinishInterruption` land in `waiting`, as they do from `R0` and `I0`. `SendMessage` from `E1` appends the new message before it picks the head, so it always has a message to promote. If the guard deletes every older queued message, the new message itself goes into history and the chat lands in `R0`.
+- Explicit promotion. `PromoteQueuedMessage(qid)` checks only `qid`. If `qid` is stale, the transition deletes it and changes nothing else: it doesn't reorder the queue, promote another message, interrupt active work, or change the status. It reports the rejection without an error so that the delete commits, and the endpoint then answers as if `qid` didn't exist.
+
+Deleting a stale queued message is an ordinary queue change: it advances `queue_version`, and the queue sub-state (`0` or `1`) follows the messages that remain. Any transition that promotes queued messages must run the guard on every message it promotes, including a transition that promotes several queued messages at once.
+
+**Lock order.** Every transition locks the chat row first. A transaction that also locks automations takes those locks after the chat row, in ascending automation ID order. All automation locks go through `chatstate.LockAutomations`, which sorts and deduplicates the IDs and locks the rows in one query. The order holds only within one call. An admission callback that locks automations must pass its own automation and the automation of every queued message of the chat in a single `LockAutomations` call. When head promotion finds a head with an `automation_id`, it locks the automations of every queued message up front, so deleting several stale heads never takes automation locks out of order. `LockAutomations` runs with chatd's own authorization, so the guard sees every automation no matter who triggered the transition.
+
+A transaction that takes automation locks out of this order can deadlock. For example, a callback might lock only its own automation X on a chat whose queue head belongs to automation A, where A has the lower ID. On the `E1` path, `SendMessage` runs the callback before it locks the queue's automations in a second `LockAutomations` call, so the transaction takes X and then A. PostgreSQL aborts one of the deadlocked transactions. `ChatMachine.Update` treats that abort as retryable: if the aborted attempt locked automations, it reruns the whole transaction, including the callback, for at most three attempts in total. Each attempt has its own publish buffer, so an aborted attempt publishes nothing. An attempt that locked no automations is never retried, and neither is an `Update` nested inside another `Update`, because the outer transaction owns the retry. Callbacks passed to `Update` must therefore be safe to rerun.
 
 ### Execution state transition diagram
 
@@ -172,12 +193,15 @@ stateDiagram-v2
     E0 --> XE0: SetArchived(true)
 
     E1 --> R1: SendMessage
+    E1 --> R0: SendMessage / guard deleted every older queued
     E1 --> R0: EditMessage
     E1 --> R1: RequestCompaction
     E1 --> E0: DeleteQueuedMessage / removed last queued
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
     E1 --> R0: PromoteQueuedMessage / promoted last queued
     E1 --> R1: PromoteQueuedMessage / queue still non-empty
+    E1 --> E0: PromoteQueuedMessage / stale target was last queued
+    E1 --> E1: PromoteQueuedMessage / stale target, queue still non-empty
     E1 --> XE1: SetArchived(true)
 
     R0 --> R0: RecordGenerationAttempt
@@ -203,8 +227,11 @@ stateDiagram-v2
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
+    R1 --> R0: PromoteQueuedMessage / stale target was last queued
+    R1 --> R1: PromoteQueuedMessage / stale target, queue still non-empty
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting head
+    R1 --> W: FinishTurn / guard deleted every queued
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
@@ -215,8 +242,10 @@ stateDiagram-v2
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: PromoteQueuedMessage
+    I1 --> I0: PromoteQueuedMessage / stale target was last queued
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting head
+    I1 --> W: FinishInterruption / guard deleted every queued
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
@@ -235,6 +264,8 @@ stateDiagram-v2
     A1 --> A1: DeleteQueuedMessage / queue still non-empty
     A1 --> R0: PromoteQueuedMessage / promoted last queued
     A1 --> R1: PromoteQueuedMessage / queue still non-empty
+    A1 --> A0: PromoteQueuedMessage / stale target was last queued
+    A1 --> A1: PromoteQueuedMessage / stale target, queue still non-empty
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
@@ -456,7 +487,13 @@ This endpoint uses `Create(initialMessages)`:
 
 TODO (#27111): a request with an empty `content` array now takes `N -> Create(initialMessages) -> W`: the chat is created idle with system messages only and no worker picks it up, so clients can use the chat ID (for example for workspace file uploads) before the first `POST /api/v2/chats/{chat}/messages` starts generation. Describe this here.
 
+This endpoint never sets an admission callback. Automations create chats with the same `Create` transition and a callback, as described in [Automation admission and the queue promotion guard](#automation-admission-and-the-queue-promotion-guard).
+
 No other input states are supported.
+
+If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation starts; the response does not wait for the title model call. With an empty `content` array the `fallback` title is `New Chat`, and both steps happen at the first `POST /api/v2/chats/{chat}/messages` instead.
+
+The request can turn on `manage_automations_enabled`, the interim per-chat switch that offers the [`manage_automations` tool](#the-manage_automations-tool). The switch defaults to off. Turning it on returns 400 unless the `chat-automations` experiment is on for the chat owner, which is the resolved `owner_id` rather than the caller, so a creator acting through `owner_id` may set it for an owner who has the experiment.
 
 ### `PATCH /api/v2/chats/{chat}`
 
@@ -476,6 +513,10 @@ For `archived` updates, the supported input and output states are:
 If the request does not change `archived`, this endpoint doesn't emit any state transitions.
 
 Other execution-state classes are not supported for archive/unarchive.
+
+Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
+
+`manage_automations_enabled` updates write the switch directly and emit no state transition. Only the chat owner may change the switch: any other caller who may update the chat, such as an administrator, gets 403. The endpoint checks this, and the rules for turning the switch on, before it writes any field of the request. Turning the switch on returns 400 for a sub-agent chat or when the `chat-automations` experiment is off for the chat owner. Turning it off is always accepted, even with the experiment off. The audit entry of the update tracks the switch.
 
 ### `POST /api/v2/chats/{chat}/messages`
 
@@ -506,11 +547,27 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A0 -> SendMessage(m, interrupt) -> R1`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the queue head is promoted immediately and the chat lands in `R0` or `R1` without an owner. From `R0` the promoted head is `m` itself, so the response returns it as `message` with `queued` set to false.
+When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the queue head is promoted immediately and the chat lands in `R0` or `R1` without an owner. From `R0` or `I0` the promoted head is `m` itself, so the response returns it as `message` with `queued` set to false. The same holds from `R1` or `I1` when the guard deletes every older queued message and promotes `m`.
 
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
+From `E1`, the promoted head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), with either busy behavior. If the guard deletes every older queued message, the new message is promoted itself and the chat lands in `R0` instead of `R1`. The new message then goes straight into history, and the result reports no queued message.
+
+This endpoint never sets an admission callback. Automations send messages with the same `SendMessage` transition and a callback.
+
 Other input states are not supported.
+
+### `POST /api/experimental/chat-automations/{automation}/events`
+
+A webhook automation with an `existing_chat` target delivers an event to its chat. The caller has no Coder session: the handler compares the SHA-256 of the bearer secret with the stored hash in constant time, and only then checks the `chat-automations` experiment for the automation owner and reads the body (at most 256 KiB of JSON). An unknown automation, a schedule automation, and a wrong secret get the same 401. The route sits outside the `/api/experimental` group, and its rate limiter keys every caller by one endpoint key, so varying the automation id in the path does not reset the caller's budget.
+
+The delivery runs as the automation owner and uses `SendMessage(m, queue)`, always with `busy_behavior=queue`, so an automation never interrupts a running turn. `m` has two text parts: the automation's prompt, and the event body inside `<automation_event_data>` tags with a header that labels it as untrusted data. The body is HTML-escaped JSON, so it keeps its value and cannot close the tags. Lifecycle hooks see `m` before the transaction, as for any other send. Before the send, the delivery makes the checks listed below on unlocked reads, so a refused event never reaches the hooks.
+
+The `AdmitInTx` callback runs with the chat row locked and, in one `chatstate.LockAutomations` call, locks the automation together with the automations of the chat's queued rows. `LockAutomations` locks in ascending id order, the order promotion uses later in the same transaction, so the lock order is the chat row first, then the automations. Under the locks it rechecks that the automation is enabled, that the secret version still matches the one the request was verified against, that a single-use webhook is unused, that the target is unchanged and is a non-archived root chat of the owner in the automation's organization, and that the owner is active and may update the chat. It then applies When busy. Only queued rows that promotion would deliver count; promotion drops rows of a deleted or disabled automation and rows of an older `queue_generation`. A chat is busy in every state except `W` and `E0`, classified with the counted rows only. `skip` refuses a busy chat. `queue` refuses when the chat already holds `max(1, max_queued_messages_per_chat / 2)` counted automation messages, which leaves the other half of the queue to people. Only after these checks does the callback consume a single-use webhook, so a refused delivery leaves it usable. It returns the automation's current `queue_generation` and an input id fixed for the request, which the send stamps on the history or queued row.
+
+A webhook automation with a `new_chat` target creates a chat for every event instead, through `N -> Create(initialMessages) -> R0` as the owner. Before the transaction, the delivery checks that the automation is enabled, that the secret version matches, and that a single-use webhook is unused, and requires that the owner may create a chat in the automation's organization and read the automation's model config, which must be enabled and in the same organization. The chat uses that model config and the automation's reasoning effort, has client type `api`, and selects no MCP servers, so only the organization's Force On servers apply. Its title is the automation name followed by the acceptance time in UTC (`2006-01-02 15:04 UTC`), and no title is generated, so the event data never becomes the title. `m` is the chat's only user message, and lifecycle hooks see it before the transaction, so a denied event creates no chat.
+
+The `AdmitInTx` callback of `Create` runs after the chat row is inserted, inside the creation transaction, and locks the automation through `chatstate.LockAutomations`. Under the lock it rechecks that the automation is enabled, that the secret version still matches, that a single-use webhook is unused, that the target mode is still `new_chat` with the same model config, that the owner is active and may create the chat, and that the owner can still read the enabled model config. A chat that does not exist yet is never busy, so When busy does not apply. The callback then sets `chats.automation_id` on the new chat, consumes a single-use webhook, and returns the provenance the transition stamps on `m`. A refusal rolls back the whole creation, so no chat is left behind. Concurrent deliveries to a single-use webhook serialize on the automation lock, and only the first creates a chat. After the send, the endpoint records the new chat in the audit log as created by the automation owner, with the automation and input ids.
 
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
@@ -545,6 +602,8 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 No other input states are supported.
 
+Disabling or deleting an automation also removes its queued messages through `DeleteQueuedMessage`, one row per chat transaction, as chatd. Chatd runs this cleanup because an organization admin can disable or delete a member's automation without being allowed to write that member's chats. Disabling first commits an automation-only update that increments the automation's `queue_generation` and touches no chat row, then deletes each of the automation's queued rows whose `queue_generation` is below the new value. Disabling an already disabled automation increments the generation again, so a retry also removes rows that an earlier attempt missed. Deleting removes the automation row first, which needs only delete permission on the automation, and then deletes every queued row that carries its `automation_id`. Each row goes through the transition above, so queue versions and clients update as for a manual delete, and running turns are not interrupted. A row that was already promoted or deleted is skipped. The cleanup runs after the automation change commits and only logs its failures: the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) discards any row left behind, because its automation is disabled with a newer generation or no longer exists.
+
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
 This endpoint uses `PromoteQueuedMessage(qid)`:
@@ -559,6 +618,13 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
 
 Either way, the resulting history message has `queued_message_id = qid`.
+
+Before reordering, `PromoteQueuedMessage` runs the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) on `qid` only. If `qid` is stale, the transition deletes it, the transaction commits, and the endpoint answers `404 Not Found`, as it does for a queued message that doesn't exist. Nothing else changes: the queue isn't reordered, no other message is promoted, the status stays the same, and a running turn isn't interrupted. The queue sub-state follows the messages that remain:
+
+- `E1 -> PromoteQueuedMessage(qid) -> E0` if the stale `qid` was the last queued message, or `E1` otherwise
+- `R1 -> PromoteQueuedMessage(qid) -> R0` if the stale `qid` was the last queued message, or `R1` otherwise
+- `I1 -> PromoteQueuedMessage(qid) -> I0` if the stale `qid` was the last queued message, or `I1` otherwise
+- `A1 -> PromoteQueuedMessage(qid) -> A0` if the stale `qid` was the last queued message, or `A1` otherwise
 
 No other input states are supported.
 
@@ -975,6 +1041,8 @@ Since the runner doesn't wait for goroutines to finish when it cancels them, and
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Exception: the workspace agent runs `execute`, `edit_files`, and `write_file` calls once, unless it restarts. Future work may include adding a mechanism to ensure at most once semantics.
 
+If a turn starts with a user message and there are deleted assistant messages between it and the previous user message, the goroutine sends the workspace agent a cancel request for each unresolved `execute`, `edit_files`, and `write_file` call in the last deleted assistant message. A failed request does not fail the turn.
+
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
 The generation goroutine supports:
@@ -1087,7 +1155,7 @@ The goroutine does the following in order:
 1. It fetches the generation attempt number from the database.
 2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
-4. It cancels the chat's unresolved `execute`, `edit_files`, and `write_file` calls on the workspace agent, waiting up to 30 seconds for their results.
+4. It sends a cancel request to the workspace agent for each unresolved `execute`, `edit_files`, and `write_file` call, and waits up to 30 seconds for the responses.
 5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 #### Dynamic tools timeout goroutine
@@ -1117,6 +1185,51 @@ The worker periodically archives old, unused chats.
 Each tick reads a batch of candidate root chats without holding locks. A candidate is unarchived, unpinned, not `running`, `interrupting` or `requires_action`, created before the cutoff, and the newest non-deleted message in its family is older than the cutoff. The cutoff is 00:00 UTC of the current day minus the configured number of auto-archive days.
 
 Each candidate is archived the same way as an archive through `PATCH /api/v2/chats/{chat}`: `SetArchived(true)` applies to the root and all descendants in one transaction. Before any chat changes, that transaction locks the root and then every descendant, and rechecks the candidate conditions. A chat that no longer qualifies, for example because a message arrived after the candidate read, is skipped. Only messages count as activity, so a chat that is unarchived without a new message is archived again on the next tick.
+
+## Automation schedule loop
+
+Every coderd instance runs the schedule loop of its chat worker: one scan at start, then one scan every 30 seconds. A schedule automation stores its cron expression, its time zone, a `schedule_revision`, and a cursor, `schedule_next_run_at`, which is the next occurrence to run. The cursor is computed in the schedule's time zone, so a daily run keeps its wall-clock time across daylight-saving changes.
+
+A scan reads the enabled schedule automations whose cursor is at or before now, oldest cursor first, without taking locks, in pages of 500 until a page comes back short, so rows that stay due never hide the rows behind them. The read leaves out automations of deleted or inactive owners and `existing_chat` automations whose target chat is gone or archived; their cursors stay where they are. The scan decides the `chat-automations` experiment once per owner, outside any transaction, and drops the automations of owners who have it off without writing their cursors. The scan then handles each remaining automation, publishing up to eight at a time so an occurrence that waits for a lock or a slow hook does not hold back the others past the grace window:
+
+- A cursor more than 60 seconds (the grace window) older than the scan time is missed. The scan moves the cursor to the first cron time after a fresh clock read and publishes nothing. Missed runs are never replayed.
+- Otherwise the scan publishes the saved prompt as the automation owner, through the same `SendMessage(m, queue)` or `Create` paths and `AdmitInTx` callbacks as a webhook with the same target mode, together with the revision and cursor it observed. Before the transaction, the publish checks the experiment for the owner again and refuses an occurrence that is already stale or expired, so such an occurrence never reaches the prompt hooks.
+
+Under the locks (the chat row first, then the automation), the callback requires the automation to still have the observed revision and cursor. It then reads the injected clock, after both locks are held rather than at transaction start, and requires the occurrence to be due and at most 60 seconds old at that time. Every other check is the same as for a webhook delivery. On acceptance, the callback moves the cursor to the first cron time after that clock read, in the same transaction as the message or the new chat. Every cursor write is conditional on the observed revision and cursor, so concurrent scans on several instances accept each occurrence exactly once, and an edit that changes the schedule (which increments the revision) rolls back an in-flight publish. The clock is the local clock of the instance that holds the locks, so clock skew between instances only shifts when an occurrence can be accepted: because every cursor write is conditional and moves the cursor strictly forward, skew can neither accept an occurrence twice nor replay one behind the cursor. A failed publish rolls back its message, its chat, and its cursor move together.
+
+When the publish is refused because the chat is busy and When busy is `skip`, because the queue or the automations' share of it is full, because a lifecycle hook denied the prompt, because the owner may no longer write the chat or create chats, or because the occurrence expired while the publish waited for a lock, the scan skips the occurrence: it moves the cursor to the first cron time after a fresh clock read, with the same conditional write. A stale, disabled, or deleted automation is left alone. Any other error leaves the cursor in place, including a refusal because the experiment is off for the owner (the evaluator reports a failed read as off, and the next scan drops an owner whose experiment really is off), so the next scan retries while the occurrence is within the grace window and treats it as missed after that. No occurrence is published before its cursor.
+
+A chat that a `new_chat` schedule automation creates is titled with the automation name followed by the occurrence's scheduled time in the schedule's time zone (`2006-01-02 15:04 MST`). The scan records an audit entry for each such chat, as created by the automation owner, with the automation and input ids in the additional fields, as the webhook endpoint does for the chats it creates.
+
+### Run now
+
+`POST /api/experimental/organizations/{organization}/chat-automations/{automation}/runs` publishes the saved prompt of a schedule automation immediately. The route sits behind the same experiment check for the caller as the other management routes and loads the automation as the caller, so an automation the caller cannot read, or one in another organization, is not found. Only the owner may run an automation: an organization admin or site owner who can update it gets 403, checked before anything else about the automation is revealed. A webhook automation gets 400, and a disabled automation gets 409.
+
+The run goes through the same publish path as a scheduled occurrence, as the owner, but with no occurrence: nothing checks or moves the cursor, and the automation row is not written, so `schedule_next_run_at` and `schedule_revision` stay as they were and the next scheduled run happens as planned. Every other admission check is the same as for an occurrence, including the owner's experiment, the enabled check under the automation lock, When busy, and the queue shares. Refusals map to the webhook endpoint's responses: a busy chat with When busy `skip`, an unavailable target, or an unavailable `new_chat` model gets 409; a target chat whose model is unavailable when no default model is configured gets 400, as a person's message does; a full queue or a full automation share gets 429; an inactive owner or an owner who may not write the chat gets 403; a hook denial gets the hook's response. An accepted run returns 202 with the input and chat ids.
+
+A chat that a `new_chat` automation creates this way is titled with the automation name followed by the time of the run in the schedule's time zone, and the endpoint records the same audit entry for it as the webhook endpoint.
+
+## The `manage_automations` tool
+
+The `manage_automations` tool lets the agent of a chat manage the chat owner's automations. It supports `list`, `get`, `create`, `update`, `enable`, `disable`, `delete`, and `run_now`. The create and update fields are rejected on the other actions, and `automation_id` on `create`, so no field is silently dropped.
+
+Generation preparation offers the tool only when every rule holds: the chat is a root chat, it is not in plan mode, it is not an explore sub-agent, it is not archived, `manage_automations_enabled` is on, and the `chat-automations` experiment is on for the chat owner. The experiment is decided once per turn, keyed by the turn's prompt row like the `mcp-tool-search` decision. The plan-mode and explore allowlists do not include the tool, and sub-agent chats are created with the switch off, so they never inherit it.
+
+Every call reloads the chat as chatd and checks all of these rules again, evaluating the experiment fresh. If any rule fails, the call returns a tool error and changes nothing, so turning the switch or the experiment off takes effect at the next call of a running turn.
+
+The owner and organization always come from the chat row; the tool has no owner or organization arguments. Reads and writes run as the chat owner. `list` reads the owner's automations in the chat's organization. `get`, `disable`, and `delete` load the automation by id and report it as not found unless its owner and organization match the chat's, even when the owner could act on it as an organization administrator, so the tool never reveals whether another member's automation exists. `disable` uses the same update path as the management API, and `delete` uses the same delete path. Results use the API shape of an automation, which carries no webhook secret or secret hash. `list` leaves out each automation's prompt, because tool results stay in the chat, which may be shared; `get` returns the prompt of the one automation it names.
+
+A turn that an automation reached sees fewer automations. The tool loads the full chat history, because compaction replays unanswered user rows without their `automation_id`. The turn is the latest user prompt, the contiguous user rows before it back to the previous assistant or tool row, and any user rows after it. The latest of these rows that carries an `automation_id` is the trigger, so a human message sent right after an automation message, with no response in between, also counts as reached; this errs on the restrictive side. In a reached turn, only automations that target this chat (`existing_chat` with this chat as the target) and the automation that created this chat (`chats.automation_id`) are visible. `list` leaves the others out, and `get`, `disable`, and `delete` report them as not found. `delete` is further limited to the triggering automation, so input from one automation cannot permanently remove another automation of the chat; it can still disable one, which the owner can undo.
+
+`create`, `update`, `enable`, and `run_now` are refused in a reached turn before any other work, so an automation's input can never add, widen, or trigger automations. The trigger is decided at call time, not when the tool was offered.
+
+`create`, `update`, `enable`, and `run_now` use the management methods behind the API (`CreateAutomation`, `UpdateAutomation`, and `RunAutomation`) with the chat owner as the actor, so the owner-only checks stay in the service. `create` records the calling chat as `created_by_chat_id`. `enable` is an update that only sets `enabled`. `update` changes only the fields it receives and rejects `kind`, `target_mode`, and `webhook_use`, which are fixed at create time, like the API.
+
+The tool keeps automations contained to the calling chat. An `existing_chat` automation must target the calling chat: `create` defaults `target_chat_id` to it and refuses any other chat, even another root chat of the same owner; a heartbeat is a schedule automation of this kind. A `new_chat` automation must not give new chats more tools than the calling chat has. A chat that a `new_chat` automation starts has no workspace, no plan mode, no dynamic tools, no selected MCP servers, and the switch off; Force On MCP servers apply to it and, because the tool is offered only in root chats outside explore mode, to the calling chat every turn. Only the model config's provider tools, such as web search, can differ. Until tool sets exist, the model config must therefore be the calling chat's `last_model_config_id`, which `create` uses by default, or a config whose provider tools are empty. The tool loads the config as the owner and derives the provider tools from its options the same way generation does. `update` and `enable` check containment on the stored row and on the row as it would be after the change, so the tool can neither change an automation that already reaches beyond the calling chat, for example one created in the UI, nor widen one. `run_now` checks the stored row. These checks run again inside the service on the locked automation row: `UpdateAutomation` takes an optional guard that it runs on the locked stored row and on the row as the update would leave it, before the write, and `RunAutomation` passes its guard to admission, which runs it on the locked row whose input it accepts. A concurrent change by the owner between the tool's read and the service's lock therefore cannot make the tool change, enable, or run an automation that reaches beyond the calling chat. A refused call changes nothing.
+
+The tool never returns a webhook secret, single-use or multi-use. Tool results stay in the chat, where read-shared users, the model provider, and compaction can see them, so a returned secret would let any of them deliver an event. `create` of a webhook instead says that the secret is not shown and that the owner rotates the secret in the automations UI to get one. No result carries a secret or secret hash.
+
+`create`, `update`, `enable`, `disable`, and `delete` record an audit entry for the automation with the old and new rows. The entry is attributed to the chat owner, whose permissions the change ran with. Its additional fields carry `chat_id` of the calling chat and, in a reached turn, `automation_id` and `input_id` of the trigger; only `disable` and `delete` can run in a reached turn. `run_now` records what the run endpoint records: no automation entry, because a run changes no configuration, and for a `new_chat` automation the same chat-create entry as the endpoint, with `automation_id`, `input_id`, and `created_by_chat_id` of the calling chat. A run to an existing chat records no entry. `run_now` returns the input and chat ids. It refuses a disabled automation and a webhook automation, and a heartbeat whose When busy is `skip` is refused while its chat runs the calling turn, as the run endpoint refuses a busy chat.
 
 ## Manual compaction
 
@@ -1163,7 +1276,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `queue_update`: the full current queued-message list.
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
-- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the worker's LLM call fails mid-way for whatever reason.
+- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
 
 ## Endpoint lifecycle
@@ -1260,7 +1373,7 @@ Applying the database result means, in deterministic order:
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
 5. If `db.status = requires_action` and `db.history_version > local.action_required_history_version`, run action-required synchronization.
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
-7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled.
+7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, `db.status = error`, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled. An errored chat records a new generation attempt before it streams again.
 8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.

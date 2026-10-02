@@ -3025,6 +3025,95 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, archivedWithPR.ID, chats[0].ID)
 		})
 	})
+
+	t.Run("AutomationFilter", func(t *testing.T) {
+		t.Parallel()
+
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automationID := uuid.New()
+		markCreatedBy := func(chat database.Chat) {
+			t.Helper()
+			rows, err := env.db.UpdateChatAutomationIDByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatAutomationIDByIDParams{
+				ID:           chat.ID,
+				AutomationID: automationID,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, rows)
+		}
+		newMemberChat := func() database.Chat {
+			return dbgen.Chat(t, env.db, database.Chat{
+				OrganizationID:    env.orgID,
+				OwnerID:           env.memberID,
+				LastModelConfigID: env.modelConfig.ID,
+			})
+		}
+
+		created := newMemberChat()
+		markCreatedBy(created)
+		// Archived chats stay in the automation's history when the
+		// caller asks for archived:any.
+		archivedCreated := newMemberChat()
+		markCreatedBy(archivedCreated)
+		require.NoError(t, env.member.UpdateChat(ctx, archivedCreated.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+		// The automation only sent a message to this existing chat.
+		writtenTo := env.memberChat
+		dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       writtenTo.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		unrelated := newMemberChat()
+		// A deleted automation message no longer counts as writing to
+		// the chat.
+		deletedMessageChat := newMemberChat()
+		deletedMessage := dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       deletedMessageChat.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		require.NoError(t, env.db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedMessage.ID))
+		// Another user's chat that the member may not read.
+		owner, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		markCreatedBy(dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: env.modelConfig.ID,
+		}))
+
+		chatIDs := func(opts *codersdk.ListChatsOptions) []uuid.UUID {
+			t.Helper()
+			chats, err := env.member.ListChats(ctx, opts)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(chats))
+			for _, chat := range chats {
+				ids = append(ids, chat.ID)
+			}
+			return ids
+		}
+
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		require.ElementsMatch(t, []uuid.UUID{created.ID, archivedCreated.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:any"}))
+		require.Equal(t, []uuid.UUID{archivedCreated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:true"}))
+		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
+
+		for _, value := range []string{"not-a-uuid", uuid.Nil.String()} {
+			status, body := rawGet(t, env.member, "/api/v2/chats?automation_id="+value)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			require.Contains(t, body, "automation_id")
+		}
+
+		// With the experiment off for the member, the filter is ignored.
+		member, err := env.member.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:      codersdk.ExperimentRuleModeCondition,
+			Condition: fmt.Sprintf("user.username != %q", member.Username),
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID, deletedMessageChat.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		status, body := rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
+		require.Equal(t, http.StatusOK, status, body)
+	})
 }
 
 func TestListChatModels(t *testing.T) {
@@ -6601,24 +6690,39 @@ func TestPatchChat(t *testing.T) {
 			require.Equal(t, chat.Title, updated.Title)
 		})
 
-		t.Run("RejectsTooLong", func(t *testing.T) {
+		t.Run("RejectedRequestLeavesTitleUnchanged", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModel(t, client)
+			modelConfig := createChatModel(t, client)
+			chat := createStoredChat(ctx, t, db, firstUser.UserID, firstUser.OrganizationID, modelConfig.ID, "stored title")
+			require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original length")
+			invalid := []struct {
+				field string
+				req   codersdk.UpdateChatRequest
+			}{
+				{"labels", codersdk.UpdateChatRequest{Labels: &map[string]string{"": "bad"}}},
+				{"archived", codersdk.UpdateChatRequest{Archived: new(false)}},
+				{"pin_order", codersdk.UpdateChatRequest{PinOrder: new(int32(-1))}},
+				{"workspace_id", codersdk.UpdateChatRequest{WorkspaceID: new(uuid.New())}},
+				{"plan_mode", codersdk.UpdateChatRequest{PlanMode: new(codersdk.ChatPlanMode("invalid"))}},
+			}
+			for _, tc := range invalid {
+				for _, title := range []string{chat.Title, "new title"} {
+					req := tc.req
+					req.Title = &title
+					err := client.UpdateChat(ctx, chat.ID, req)
+					requireSDKError(t, err, http.StatusBadRequest)
 
-			tooLong := strings.Repeat("a", 201)
-			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref(tooLong),
-			})
-			requireSDKError(t, err, http.StatusBadRequest)
-
-			updated := getChat(ctx, t, client, chat.ID)
-			require.Equal(t, chat.Title, updated.Title)
+					stored := getChat(ctx, t, client, chat.ID)
+					require.Equal(t, chat.Title, stored.Title, "invalid %s, title %q", tc.field, title)
+					require.Equal(t, chat.TitleSource, stored.TitleSource, "invalid %s, title %q", tc.field, title)
+					require.True(t, chat.TitleUpdatedAt.Equal(stored.TitleUpdatedAt), "invalid %s, title %q", tc.field, title)
+				}
+			}
 		})
 
 		t.Run("LengthBoundaries", func(t *testing.T) {
@@ -6686,45 +6790,7 @@ func TestPatchChat(t *testing.T) {
 			}
 		})
 
-		t.Run("PreservesUpdatedAt", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-				DeploymentValues:    coderdtest.DeploymentValues(t),
-				Database:            db,
-				Pubsub:              ps,
-				ChatProviderAPIKeys: &providerKeys,
-			})
-			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-			client := codersdk.NewExperimentalClient(clientRaw)
-			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModel(t, client)
-
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
-			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
-			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET updated_at = $1 WHERE id = $2",
-				past, chat.ID,
-			)
-			require.NoError(t, err)
-
-			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("renamed in place"),
-			})
-			require.NoError(t, err)
-
-			updated := getChat(ctx, t, client, chat.ID)
-			require.Equal(t, "renamed in place", updated.Title)
-			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"rename bumped updated_at; it should be preserved to keep list ordering stable")
-		})
-
-		t.Run("NoOpWhenTitleUnchanged", func(t *testing.T) {
+		t.Run("RecordsUserSourceWithoutChangingUpdatedAt", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -6746,20 +6812,31 @@ func TestPatchChat(t *testing.T) {
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
+				"UPDATE chats SET title = $1, title_source = 'fallback', updated_at = $2 WHERE id = $3",
 				"steady title", past, chat.ID,
 			)
 			require.NoError(t, err)
 
 			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("steady title"),
+				Title: new("steady title"),
 			})
 			require.NoError(t, err)
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, "steady title", updated.Title)
-			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"no-op rename bumped updated_at; it should have been short-circuited before the write")
+			require.Equal(t, codersdk.ChatTitleSourceUser, updated.TitleSource)
+			require.WithinDuration(t, past, updated.UpdatedAt, time.Second)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: new("renamed in place"),
+			})
+			require.NoError(t, err)
+
+			renamed := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "renamed in place", renamed.Title)
+			require.Equal(t, codersdk.ChatTitleSourceUser, renamed.TitleSource)
+			require.True(t, renamed.TitleUpdatedAt.After(updated.TitleUpdatedAt))
+			require.WithinDuration(t, past, renamed.UpdatedAt, time.Second)
 		})
 
 		t.Run("PublishesWatchEvent", func(t *testing.T) {
@@ -10971,6 +11048,7 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// The create response carries the synchronous fallback title derived from
 	// the message, not the asynchronously generated one.
 	require.Equal(t, "automatic title generation please", chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
 	// The create endpoint kicks off detached title generation; the provider
 	// should receive the title request without any further client action.
@@ -10983,6 +11061,52 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// Drain background work so the detached goroutine finishes before the test
 	// (and its fake provider) tears down.
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+}
+
+func TestPostChats_UserTitle(t *testing.T) {
+	t.Parallel()
+
+	const prompt = "automatic title generation please"
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		if bytes.Contains(req.RawBody, []byte("propose_title")) {
+			t.Error("automatic title generation ran for a chat created with a title")
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+	})
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	// Title text is validated by the same rules as PATCH; see TestPatchChat/Title.
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("   "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Same text as the fallback, so only the source distinguishes them.
+	userTitle := chatprompt.FallbackTitle(prompt)
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("  " + userTitle + "  "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, userTitle, chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
+
+	settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	require.Equal(t, userTitle, settled.Title)
+	require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 }
 
 func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
