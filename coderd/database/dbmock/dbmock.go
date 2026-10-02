@@ -3597,21 +3597,6 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessagesByAutomationBelowGeneratio
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessagesByAutomationBelowGeneration", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessagesByAutomationBelowGeneration), ctx, arg)
 }
 
-// GetChatQueuedMessagesByPosition mocks base method.
-func (m *MockStore) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatQueuedMessagesByPosition", ctx, chatID)
-	ret0, _ := ret[0].([]database.ChatQueuedMessage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatQueuedMessagesByPosition indicates an expected call of GetChatQueuedMessagesByPosition.
-func (mr *MockStoreMockRecorder) GetChatQueuedMessagesByPosition(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessagesByPosition", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessagesByPosition), ctx, chatID)
-}
-
 // GetChatRetentionDays mocks base method.
 func (m *MockStore) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	m.ctrl.T.Helper()

@@ -5676,6 +5676,8 @@ type ChatQueuedMessage struct {
 	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
 	// chat_automations.queue_generation at queue time. A lower value than the automation's current generation marks the message stale.
 	QueueGeneration sql.NullInt64 `db:"queue_generation" json:"queue_generation"`
+	// Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.
+	EditingSince sql.NullTime `db:"editing_since" json:"editing_since"`
 }
 
 type ChatTable struct {
