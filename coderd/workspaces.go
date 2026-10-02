@@ -632,6 +632,9 @@ func createWorkspace(
 	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
 		return codersdk.Workspace{}, err
 	}
+	if err := api.validateWorkspaceSecretInputs(req.Secrets); err != nil {
+		return codersdk.Workspace{}, err
+	}
 
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
@@ -832,6 +835,7 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
+			Secrets(req.Secrets).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
