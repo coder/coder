@@ -1,6 +1,7 @@
 package docgenenv_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -119,6 +120,9 @@ func TestBuildManifestErrors(t *testing.T) {
 		name    string
 		edit    func(files map[string]string)
 		wantErr string
+		// wantErrIs, when set, must be in the error chain. Use it for OS
+		// errors, whose text differs between platforms.
+		wantErrIs error
 	}{
 		{
 			name:    "UnknownKey",
@@ -238,9 +242,10 @@ children:
 			wantErr: `include "generated/api.json": must be a .yml file`,
 		},
 		{
-			name:    "IncludeMissingFile",
-			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/nope.yml\n" },
-			wantErr: "no such file or directory",
+			name:      "IncludeMissingFile",
+			edit:      func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/nope.yml\n" },
+			wantErr:   "nope.yml",
+			wantErrIs: fs.ErrNotExist,
 		},
 		{
 			name:    "IncludeOnFileRoute",
@@ -293,6 +298,9 @@ children:
 			docsDir, sourcesDir := writeTree(t, files)
 			_, err := docgenenv.BuildManifest(sourcesDir, docsDir)
 			require.ErrorContains(t, err, tc.wantErr)
+			if tc.wantErrIs != nil {
+				require.ErrorIs(t, err, tc.wantErrIs)
+			}
 		})
 	}
 }
