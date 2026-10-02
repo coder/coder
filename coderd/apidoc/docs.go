@@ -20913,7 +20913,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "next_run_times": {
-                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks and disabled schedules.",
+                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks, disabled schedules, and schedules with any\npaused reason.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -20928,6 +20928,19 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "paused_reasons": {
+                    "description": "PausedReasons lists conditions that stop the automation from running\neven while it is enabled: schedule occurrences, Run now, and webhook\ndeliveries are refused. It is set by the chat automations API and\nabsent when none was found. It is computed independently of Enabled.\nIt is an advisory snapshot: admission stays authoritative, and an\nempty list does not guarantee that a run is accepted, because lost\nchat permissions, busy chats, and full queues are not reported.",
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "owner_inactive",
+                            "experiment_disabled",
+                            "target_unavailable",
+                            "model_unavailable"
+                        ],
+                        "$ref": "#/definitions/codersdk.ChatAutomationPausedReason"
+                    }
+                },
                 "prompt": {
                     "type": "string"
                 },
@@ -20938,6 +20951,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "schedule_next_run_at": {
+                    "description": "ScheduleNextRunAt is the scheduler cursor, not a promise that a run\nhappens then. It does not change while the automation is paused.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -21016,6 +21030,21 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatAutomationKindWebhook",
                 "ChatAutomationKindSchedule"
+            ]
+        },
+        "codersdk.ChatAutomationPausedReason": {
+            "type": "string",
+            "enum": [
+                "owner_inactive",
+                "experiment_disabled",
+                "target_unavailable",
+                "model_unavailable"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationPausedReasonOwnerInactive",
+                "ChatAutomationPausedReasonExperimentDisabled",
+                "ChatAutomationPausedReasonTargetUnavailable",
+                "ChatAutomationPausedReasonModelUnavailable"
             ]
         },
         "codersdk.ChatAutomationRunResponse": {

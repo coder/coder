@@ -2114,6 +2114,66 @@ func TestGetAuthorizedChats(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatAutomationsByOrganizationID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	siteOwner := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().String()}})
+	member := dbgen.User(t, db, database.User{})
+	secondMember := dbgen.User(t, db, database.User{})
+	orgAdmin := dbgen.User(t, db, database.User{})
+	otherOrgAdmin := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: otherOrg.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: orgAdmin.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: otherOrgAdmin.ID, OrganizationID: otherOrg.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+
+	memberAutomations := []uuid.UUID{
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID}).ID,
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID}).ID,
+	}
+	secondMemberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: secondMember.ID}).ID
+	// The member can read this one, but it is in another organization.
+	dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: member.ID})
+	allInOrg := append([]uuid.UUID{secondMemberAutomation}, memberAutomations...)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	for _, tc := range []struct {
+		name string
+		user database.User
+		want []uuid.UUID
+	}{
+		{name: "Member", user: member, want: memberAutomations},
+		{name: "SecondMember", user: secondMember, want: []uuid.UUID{secondMemberAutomation}},
+		{name: "OrgAdmin", user: orgAdmin, want: allInOrg},
+		{name: "SiteOwner", user: siteOwner, want: allInOrg},
+		{name: "OtherOrgAdmin", user: otherOrgAdmin, want: nil},
+	} {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err, tc.name)
+		prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChatAutomation.Type)
+		require.NoError(t, err, tc.name)
+		rows, err := db.GetAuthorizedChatAutomationsByOrganizationID(ctx, org.ID, prepared)
+		require.NoError(t, err, tc.name)
+		got := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.ID)
+		}
+		require.ElementsMatch(t, tc.want, got, tc.name)
+	}
+}
+
 func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()

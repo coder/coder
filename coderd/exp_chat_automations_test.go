@@ -692,6 +692,147 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, "Its secret can no longer be rotated.", sdkErr.Detail)
 	})
 
+	t.Run("PausedReasons", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // The test changes chats directly.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		adminCtx := dbauthz.As(ctx, rbac.Subject{
+			ID:     uuid.NewString(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{},
+			Scope:  rbac.ScopeAll,
+		})
+
+		existingReq := env.webhookRequest()
+		existingReq.Kind = codersdk.ChatAutomationKindSchedule
+		existingReq.ScheduleCron = ptr.Ref("*/5 * * * *")
+		existingReq.ScheduleTimeZone = ptr.Ref("UTC")
+		existingCreated, err := env.member.CreateChatAutomation(ctx, env.orgID, existingReq)
+		require.NoError(t, err)
+		existing := existingCreated.Automation
+		require.Empty(t, existing.PausedReasons)
+		require.Len(t, existing.NextRunTimes, 5)
+		newChatCreated, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
+		require.NoError(t, err)
+		newChat := newChatCreated.Automation
+		require.Empty(t, newChat.PausedReasons)
+		require.Len(t, newChat.NextRunTimes, 5)
+		// Its target chat was deleted, which sets target_chat_id to NULL.
+		deletedTarget := dbgen.ChatAutomation(t, env.db, database.ChatAutomation{
+			OrganizationID: env.orgID,
+			OwnerID:        env.memberID,
+			Kind:           database.ChatAutomationKindSchedule,
+			Enabled:        true,
+		})
+
+		// requireStatus checks that list, get, and patch agree on the
+		// paused reasons of id as seen by client, and that a paused
+		// schedule lists no upcoming runs.
+		requireStatus := func(t *testing.T, client *codersdk.ExperimentalClient, id uuid.UUID, want ...codersdk.ChatAutomationPausedReason) {
+			t.Helper()
+			list, err := client.ChatAutomations(ctx, env.orgID)
+			require.NoError(t, err)
+			var fromList *codersdk.ChatAutomation
+			for i := range list {
+				if list[i].ID == id {
+					fromList = &list[i]
+				}
+			}
+			require.NotNil(t, fromList, "automation %s not listed", id)
+			got, err := client.ChatAutomation(ctx, env.orgID, id)
+			require.NoError(t, err)
+			for _, automation := range []codersdk.ChatAutomation{*fromList, got} {
+				if len(want) == 0 {
+					require.Empty(t, automation.PausedReasons)
+					require.Len(t, automation.NextRunTimes, 5)
+				} else {
+					require.Equal(t, want, automation.PausedReasons)
+					require.Empty(t, automation.NextRunTimes)
+				}
+			}
+		}
+		setModelEnabled := func(t *testing.T, enabled bool) {
+			t.Helper()
+			cfg := env.modelConfig
+			_, err := env.db.UpdateChatModelConfig(adminCtx, database.UpdateChatModelConfigParams{
+				ID:                   cfg.ID,
+				Model:                cfg.Model,
+				DisplayName:          cfg.DisplayName,
+				Enabled:              enabled,
+				IsDefault:            cfg.IsDefault,
+				ContextLimit:         cfg.ContextLimit,
+				CompressionThreshold: cfg.CompressionThreshold,
+				Options:              cfg.Options,
+				AIProviderID:         cfg.AIProviderID,
+			})
+			require.NoError(t, err)
+		}
+
+		// An archived target pauses the automation without moving its
+		// schedule cursor.
+		_, err = env.db.ArchiveChatByID(sysCtx, env.memberChat.ID)
+		require.NoError(t, err)
+		requireStatus(t, env.member, existing.ID, codersdk.ChatAutomationPausedReasonTargetUnavailable)
+		patched, err := env.member.UpdateChatAutomation(ctx, env.orgID, existing.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatAutomationPausedReason{codersdk.ChatAutomationPausedReasonTargetUnavailable}, patched.PausedReasons)
+		require.Empty(t, patched.NextRunTimes)
+		require.NotNil(t, patched.ScheduleNextRunAt)
+		require.True(t, patched.ScheduleNextRunAt.Equal(*existing.ScheduleNextRunAt))
+		requireStatus(t, env.member, newChat.ID)
+		_, err = env.db.UnarchiveChatByID(sysCtx, env.memberChat.ID)
+		require.NoError(t, err)
+		requireStatus(t, env.member, existing.ID)
+		stored, err := env.db.GetChatAutomationByID(sysCtx, existing.ID)
+		require.NoError(t, err)
+		require.True(t, stored.ScheduleNextRunAt.Time.Equal(*existing.ScheduleNextRunAt), "reads must not move the cursor")
+
+		requireStatus(t, env.member, deletedTarget.ID, codersdk.ChatAutomationPausedReasonTargetUnavailable)
+
+		// A disabled model config, or one the owner can no longer read,
+		// pauses a new_chat automation.
+		setModelEnabled(t, false)
+		requireStatus(t, env.member, newChat.ID, codersdk.ChatAutomationPausedReasonModelUnavailable)
+		setModelEnabled(t, true)
+		requireStatus(t, env.member, newChat.ID)
+		_, err = env.db.UpdateChatModelConfigACLByID(adminCtx, database.UpdateChatModelConfigACLByIDParams{
+			ID:       env.modelConfig.ID,
+			GroupACL: database.ChatACL{},
+			UserACL:  database.ChatACL{},
+		})
+		require.NoError(t, err)
+		requireStatus(t, env.member, newChat.ID, codersdk.ChatAutomationPausedReasonModelUnavailable)
+		_, err = env.db.UpdateChatModelConfigACLByID(adminCtx, database.UpdateChatModelConfigACLByIDParams{
+			ID:       env.modelConfig.ID,
+			GroupACL: env.modelConfig.GroupACL,
+			UserACL:  env.modelConfig.UserACL,
+		})
+		require.NoError(t, err)
+		requireStatus(t, env.member, newChat.ID)
+
+		// An admin sees a suspended owner's automations as paused.
+		_, err = env.owner.UpdateUserStatus(ctx, env.memberID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+		requireStatus(t, env.owner, existing.ID, codersdk.ChatAutomationPausedReasonOwnerInactive)
+		requireStatus(t, env.owner, newChat.ID, codersdk.ChatAutomationPausedReasonOwnerInactive)
+		_, err = env.owner.UpdateUserStatus(ctx, env.memberID.String(), codersdk.UserStatusActive)
+		require.NoError(t, err)
+		requireStatus(t, env.owner, existing.ID)
+
+		// So are the automations of an owner whose experiment is off.
+		member, err := env.member.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:      codersdk.ExperimentRuleModeCondition,
+			Condition: fmt.Sprintf("user.username != %q", member.Username),
+		})
+		require.NoError(t, err)
+		requireStatus(t, env.owner, existing.ID, codersdk.ChatAutomationPausedReasonExperimentDisabled)
+		requireStatus(t, env.owner, deletedTarget.ID, codersdk.ChatAutomationPausedReasonExperimentDisabled, codersdk.ChatAutomationPausedReasonTargetUnavailable)
+	})
+
 	t.Run("SchedulePreview", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)

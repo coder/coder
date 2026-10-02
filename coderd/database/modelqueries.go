@@ -54,7 +54,79 @@ type customQuerier interface {
 	aibridgeQuerier
 	chatQuerier
 	chatModelConfigQuerier
+	chatAutomationQuerier
 	mcpServerConfigQuerier
+}
+
+type chatAutomationQuerier interface {
+	GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error)
+}
+
+// GetAuthorizedChatAutomationsByOrganizationID returns the automations in
+// the organization that prepared allows, filtering in SQL so a caller who
+// can read only their own automations does not read the whole organization.
+func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error) {
+	// Chat automations have no ACL columns, and the query reads only
+	// chat_automations, so id, organization_id, and owner_id are unambiguous.
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.NoACLConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChatAutomationsByOrganizationID, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedChatAutomationsByOrganizationID :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.WhenBusy,
+			&i.WebhookUse,
+			&i.WebhookSecretHash,
+			&i.WebhookSecretVersion,
+			&i.WebhookConsumedAt,
+			&i.Prompt,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleRevision,
+			&i.ScheduleNextRunAt,
+			&i.QueueGeneration,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type chatModelConfigQuerier interface {

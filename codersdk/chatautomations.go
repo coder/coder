@@ -43,6 +43,28 @@ const (
 	ChatAutomationWhenBusySkip  ChatAutomationWhenBusy = "skip"
 )
 
+// ChatAutomationPausedReason is a condition that stops an automation from
+// running even while it is enabled.
+type ChatAutomationPausedReason string
+
+const (
+	// ChatAutomationPausedReasonOwnerInactive means the owner is suspended,
+	// dormant, or deleted.
+	ChatAutomationPausedReasonOwnerInactive ChatAutomationPausedReason = "owner_inactive"
+	// ChatAutomationPausedReasonExperimentDisabled means the owner's
+	// chat-automations experiment is off.
+	ChatAutomationPausedReasonExperimentDisabled ChatAutomationPausedReason = "experiment_disabled"
+	// ChatAutomationPausedReasonTargetUnavailable means the target chat of an
+	// existing_chat automation is deleted, archived, or is no longer a root
+	// chat of the owner in the automation's organization.
+	ChatAutomationPausedReasonTargetUnavailable ChatAutomationPausedReason = "target_unavailable"
+	// ChatAutomationPausedReasonModelUnavailable means the model config of a
+	// new_chat automation is unset, deleted, disabled, in another
+	// organization, or not readable by the owner, or its provider is
+	// disabled or deleted.
+	ChatAutomationPausedReasonModelUnavailable ChatAutomationPausedReason = "model_unavailable"
+)
+
 // ChatAutomation is a webhook or scheduled automation that delivers a
 // prompt to an agent chat. It never carries the webhook secret or its
 // hash.
@@ -65,12 +87,23 @@ type ChatAutomation struct {
 	Prompt               string                    `json:"prompt"`
 	ScheduleCron         *string                   `json:"schedule_cron,omitempty"`
 	ScheduleTimeZone     *string                   `json:"schedule_time_zone,omitempty"`
-	ScheduleNextRunAt    *time.Time                `json:"schedule_next_run_at,omitempty" format:"date-time"`
+	// ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	// happens then. It does not change while the automation is paused.
+	ScheduleNextRunAt *time.Time `json:"schedule_next_run_at,omitempty" format:"date-time"`
 	// NextRunTimes lists up to five upcoming runs of an enabled schedule.
-	// It is empty for webhooks and disabled schedules.
+	// It is empty for webhooks, disabled schedules, and schedules with any
+	// paused reason.
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
-	CreatedAt    time.Time   `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time   `json:"updated_at" format:"date-time"`
+	// PausedReasons lists conditions that stop the automation from running
+	// even while it is enabled: schedule occurrences, Run now, and webhook
+	// deliveries are refused. It is set by the chat automations API and
+	// absent when none was found. It is computed independently of Enabled.
+	// It is an advisory snapshot: admission stays authoritative, and an
+	// empty list does not guarantee that a run is accepted, because lost
+	// chat permissions, busy chats, and full queues are not reported.
+	PausedReasons []ChatAutomationPausedReason `json:"paused_reasons,omitempty" enums:"owner_inactive,experiment_disabled,target_unavailable,model_unavailable"`
+	CreatedAt     time.Time                    `json:"created_at" format:"date-time"`
+	UpdatedAt     time.Time                    `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatAutomationRequest creates a chat automation owned by the

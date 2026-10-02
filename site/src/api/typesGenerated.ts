@@ -2189,12 +2189,27 @@ export interface ChatAutomation {
 	readonly prompt: string;
 	readonly schedule_cron?: string;
 	readonly schedule_time_zone?: string;
+	/**
+	 * ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	 * happens then. It does not change while the automation is paused.
+	 */
 	readonly schedule_next_run_at?: string;
 	/**
 	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
-	 * It is empty for webhooks and disabled schedules.
+	 * It is empty for webhooks, disabled schedules, and schedules with any
+	 * paused reason.
 	 */
 	readonly next_run_times: readonly string[];
+	/**
+	 * PausedReasons lists conditions that stop the automation from running
+	 * even while it is enabled: schedule occurrences, Run now, and webhook
+	 * deliveries are refused. It is set by the chat automations API and
+	 * absent when none was found. It is computed independently of Enabled.
+	 * It is an advisory snapshot: admission stays authoritative, and an
+	 * empty list does not guarantee that a run is accepted, because lost
+	 * chat permissions, busy chats, and full queues are not reported.
+	 */
+	readonly paused_reasons?: readonly ChatAutomationPausedReason[];
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -2216,6 +2231,20 @@ export type ChatAutomationKind = "schedule" | "webhook";
 export const ChatAutomationKinds: ChatAutomationKind[] = [
 	"schedule",
 	"webhook",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationPausedReason =
+	| "experiment_disabled"
+	| "model_unavailable"
+	| "owner_inactive"
+	| "target_unavailable";
+
+export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
+	"experiment_disabled",
+	"model_unavailable",
+	"owner_inactive",
+	"target_unavailable",
 ];
 
 // From codersdk/chatautomations.go

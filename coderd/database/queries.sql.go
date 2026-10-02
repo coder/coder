@@ -5619,6 +5619,71 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 	return i, err
 }
 
+const getChatAutomationRunStatusesByIDs = `-- name: GetChatAutomationRunStatusesByIDs :many
+SELECT
+    chat_automations.id,
+    chat_automations.organization_id,
+    chat_automations.owner_id,
+    (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    (
+        chat_automations.target_mode <> 'existing_chat'
+        OR (
+            chats.id IS NOT NULL
+            AND NOT chats.archived
+            AND chats.organization_id = chat_automations.organization_id
+            AND chats.owner_id = chat_automations.owner_id
+            AND chats.parent_chat_id IS NULL
+        )
+    )::boolean AS target_available
+FROM
+    chat_automations
+    LEFT JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.id = ANY($1::uuid[])
+`
+
+type GetChatAutomationRunStatusesByIDsRow struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID `db:"owner_id" json:"owner_id"`
+	OwnerActive     bool      `db:"owner_active" json:"owner_active"`
+	TargetAvailable bool      `db:"target_available" json:"target_available"`
+}
+
+// Returns, for each given automation, whether its owner is active and
+// whether its existing_chat target chat is usable, with the same rules
+// that GetDueChatAutomationSchedules and publishing apply. Missing ids
+// are not returned.
+func (q *sqlQuerier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatAutomationRunStatusesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationRunStatusesByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatAutomationRunStatusesByIDsRow
+	for rows.Next() {
+		var i GetChatAutomationRunStatusesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.OwnerActive,
+			&i.TargetAvailable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
 SELECT
     id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
@@ -5689,6 +5754,9 @@ FROM
     chat_automations
 WHERE
     organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in
+    -- GetAuthorizedChatAutomationsByOrganizationID.
+    -- @authorize_filter
 ORDER BY
     created_at DESC,
     id DESC

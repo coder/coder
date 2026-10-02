@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -29,10 +31,35 @@ import (
 // returned with each automation.
 const chatAutomationNextRunCount = 5
 
-// chatAutomationResponse converts row to its SDK form with its upcoming
-// schedule runs after now.
-func chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
-	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+// chatAutomationResponses converts rows to their SDK form with their
+// paused reasons and upcoming schedule runs. A paused automation lists no
+// upcoming runs. ctx must carry the caller's authorization.
+func (api *API) chatAutomationResponses(ctx context.Context, rows []database.ChatAutomation) ([]codersdk.ChatAutomation, error) {
+	reasons, err := api.chatDaemon.AutomationPausedReasons(ctx, rows)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation paused reasons: %w", err)
+	}
+	now := api.Clock.Now()
+	automations := make([]codersdk.ChatAutomation, 0, len(rows))
+	for _, row := range rows {
+		var nextRuns []time.Time
+		if len(reasons[row.ID]) == 0 {
+			nextRuns = chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount)
+		}
+		automation := db2sdk.ChatAutomation(row, nextRuns)
+		automation.PausedReasons = reasons[row.ID]
+		automations = append(automations, automation)
+	}
+	return automations, nil
+}
+
+// chatAutomationResponse is chatAutomationResponses for one row.
+func (api *API) chatAutomationResponse(ctx context.Context, row database.ChatAutomation) (codersdk.ChatAutomation, error) {
+	automations, err := api.chatAutomationResponses(ctx, []database.ChatAutomation{row})
+	if err != nil {
+		return codersdk.ChatAutomation{}, err
+	}
+	return automations[0], nil
 }
 
 // requireChatAutomations returns 404 unless the chat-automations
@@ -69,10 +96,10 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	now := api.Clock.Now()
-	automations := make([]codersdk.ChatAutomation, 0, len(rows))
-	for _, row := range rows {
-		automations = append(automations, chatAutomationResponse(row, now))
+	automations, err := api.chatAutomationResponses(ctx, rows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
 }
@@ -121,8 +148,13 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = automation
 
+	response, err := api.chatAutomationResponse(ctx, automation)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
-		Automation:    chatAutomationResponse(automation, api.Clock.Now()),
+		Automation:    response,
 		WebhookSecret: secret,
 	})
 }
@@ -145,7 +177,12 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(automation, api.Clock.Now()))
+	response, err := api.chatAutomationResponse(ctx, automation)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -209,7 +246,12 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
+	response, err := api.chatAutomationResponse(ctx, updated)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
