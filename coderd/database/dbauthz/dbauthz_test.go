@@ -902,8 +902,8 @@ func (s *MethodTestSuite) TestChats() {
 		arg := database.DeleteChatProjectMemoryByNameParams{ProjectID: memory.ChatProjectMemory.ProjectID, Name: memory.ChatProjectMemory.Name}
 		dbm.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams(arg)).Return(memory, nil).AnyTimes()
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
-		check.Args(arg).Asserts(memory.ChatProjectMemory.RBACObject(project), policy.ActionDelete)
+		dbm.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), arg).Return(memory.ChatProjectMemory, nil).AnyTimes()
+		check.Args(arg).Asserts(memory.ChatProjectMemory.RBACObject(project), policy.ActionDelete).Returns(memory.ChatProjectMemory)
 	}))
 	s.Run("DeleteChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

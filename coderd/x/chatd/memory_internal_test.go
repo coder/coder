@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -68,6 +69,30 @@ func TestResolveProjectMemory(t *testing.T) {
 		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.False(t, ok)
 	})
+}
+
+func TestMemoryAuditor(t *testing.T) {
+	t.Parallel()
+	auditor := audit.NewMock()
+	server := &Server{logger: slogtest.Make(t, nil), chatWorker: &chatWorker{opts: chatWorkerOptions{Auditor: mockAuditorPtr(auditor)}}}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New()}
+	memory := database.ChatProjectMemory{ID: uuid.New(), OrganizationID: chat.OrganizationID, Name: "deploy-day"}
+	record := server.memoryAuditor(chat)
+
+	record(t.Context(), database.AuditActionCreate, database.ChatProjectMemory{}, memory)
+	record(t.Context(), database.AuditActionDelete, memory, database.ChatProjectMemory{})
+
+	logs := auditor.AuditLogs()
+	require.Len(t, logs, 2)
+	for i, action := range []database.AuditAction{database.AuditActionCreate, database.AuditActionDelete} {
+		require.Equal(t, action, logs[i].Action)
+		require.Equal(t, database.ResourceTypeChatProjectMemory, logs[i].ResourceType)
+		require.Equal(t, memory.ID, logs[i].ResourceID)
+		require.Equal(t, "deploy-day", logs[i].ResourceTarget)
+		require.Equal(t, chat.OwnerID, logs[i].UserID, "agent changes are attributed to the chat owner")
+		require.Equal(t, chat.OrganizationID, logs[i].OrganizationID)
+		require.Contains(t, string(logs[i].AdditionalFields), chat.ID.String())
+	}
 }
 
 func TestPlanModeKeepsMemoryTools(t *testing.T) {

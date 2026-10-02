@@ -616,7 +616,7 @@ func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id u
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (int64, error) {
+func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatProjectMemoryByName").Observe(time.Since(start).Seconds())

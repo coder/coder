@@ -1024,10 +1024,10 @@ func (mr *MockStoreMockRecorder) DeleteChatProjectMemoryByID(ctx, id any) *gomoc
 }
 
 // DeleteChatProjectMemoryByName mocks base method.
-func (m *MockStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (int64, error) {
+func (m *MockStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteChatProjectMemoryByName", ctx, arg)
-	ret0, _ := ret[0].(int64)
+	ret0, _ := ret[0].(database.ChatProjectMemory)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

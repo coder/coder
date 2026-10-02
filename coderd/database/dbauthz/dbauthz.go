@@ -2356,13 +2356,13 @@ func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteChatProjectMemoryByID(ctx, id)
 }
 
-func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (int64, error) {
+func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 	row, err := q.db.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams(arg))
 	if err != nil {
-		return 0, err
+		return database.ChatProjectMemory{}, err
 	}
 	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
-		return 0, err
+		return database.ChatProjectMemory{}, err
 	}
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
 }

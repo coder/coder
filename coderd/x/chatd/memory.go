@@ -2,11 +2,14 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -30,7 +33,39 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, "", false
 	}
-	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID), project.Name, true
+	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
+}
+
+// memoryAuditor records memory changes made by a chat's tools. There is no
+// HTTP request, so entries are attributed to the chat owner, whose
+// permissions the change ran with, and name the chat that made it.
+func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
+	return func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
+		if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
+			return
+		}
+		auditor := p.chatWorker.opts.Auditor.Load()
+		if auditor == nil {
+			return
+		}
+		// Marshaling a map of strings cannot fail.
+		raw, _ := json.Marshal(map[string]string{"chat_id": chat.ID.String()})
+		status := http.StatusCreated
+		if action == database.AuditActionDelete {
+			status = http.StatusNoContent
+		}
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.ChatProjectMemory]{
+			Audit:            *auditor,
+			Log:              p.logger.With(slog.F("chat_id", chat.ID)),
+			UserID:           chat.OwnerID,
+			OrganizationID:   chat.OrganizationID,
+			Action:           action,
+			Old:              oldMemory,
+			New:              newMemory,
+			Status:           status,
+			AdditionalFields: raw,
+		})
+	}
 }
 
 // memoryIndexMessage returns the model-only message that brings the chat's

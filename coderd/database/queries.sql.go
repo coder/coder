@@ -8234,10 +8234,11 @@ func (q *sqlQuerier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :execrows
+const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :one
 DELETE FROM chat_project_memories
 WHERE project_id = $1::uuid
     AND lower(name) = lower($2::text)
+RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
 `
 
 type DeleteChatProjectMemoryByNameParams struct {
@@ -8245,12 +8246,20 @@ type DeleteChatProjectMemoryByNameParams struct {
 	Name      string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
+	var i ChatProjectMemory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
