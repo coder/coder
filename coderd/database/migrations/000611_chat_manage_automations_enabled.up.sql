@@ -2,6 +2,11 @@
 -- short waits so that concurrent chatd traffic cannot deadlock with it. See
 -- 000609_chat_automations.up.sql for the reasoning. When this runs in the
 -- same transaction as 000609, the locks are already held.
+--
+-- chat_automations is locked in the same attempt because 000612 alters it
+-- and may run in this transaction. Holding chats while 000612 waits for an
+-- automation row lock would block the holder's next step: an automation
+-- update reads chats through its target_chat_id foreign key.
 DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');
@@ -11,11 +16,11 @@ BEGIN
 		BEGIN
 			PERFORM set_config('lock_timeout', '100ms', true);
 			DROP VIEW IF EXISTS chats_expanded;
-			LOCK TABLE chats IN ACCESS EXCLUSIVE MODE;
+			LOCK TABLE chats, chat_automations IN ACCESS EXCLUSIVE MODE;
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
-				RAISE EXCEPTION 'migration 000611 could not lock chats within 2 minutes';
+				RAISE EXCEPTION 'migration 000611 could not lock chats and chat_automations within 2 minutes';
 			END IF;
 		END;
 		PERFORM pg_sleep(0.1);
