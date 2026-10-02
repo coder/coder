@@ -1,4 +1,4 @@
-// Package agentacp manages workspace-local ACP harnesses.
+// Package agentacp manages workspace-local ACP harnesses and sessions.
 package agentacp
 
 import (
@@ -6,9 +6,11 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -16,6 +18,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -41,7 +44,8 @@ type Options struct {
 	WorkingDir func() string
 }
 
-// Manager owns discovery subprocesses and catalog snapshots.
+// Manager owns harness discovery, the session registry, and adapter lifetimes.
+// Each SessionFSM owns its operations, status, and transcript.
 type Manager struct {
 	configHashes  map[string][32]byte
 	reloadTrigger chan struct{}
@@ -57,6 +61,9 @@ type Manager struct {
 	workingDir    func() string
 	mu            sync.Mutex
 	closed        bool
+	sessions      map[workspacesdk.ACPSessionID]*SessionFSM
+	initializing  map[workspacesdk.ACPSessionID]*initialization
+	instances     []*SessionFSM
 	configs       map[string]harnessConfig
 	retryAfter    map[string]time.Time
 	configDir     string
@@ -72,7 +79,7 @@ type Manager struct {
 // UpdateEnv is optional.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, updateEnv: opts.UpdateEnv, workingDir: opts.WorkingDir, closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
+	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, updateEnv: opts.UpdateEnv, workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), initializing: make(map[workspacesdk.ACPSessionID]*initialization), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
 }
 
 // SetOnChange installs the callback invoked after discovery changes.
@@ -110,7 +117,311 @@ func (m *Manager) validate(directory string) error {
 	return nil
 }
 
-// Close stops discovery subprocesses and all manager-owned goroutines.
+// Create initializes a dedicated idle adapter.
+func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
+	s, err := m.createSession(ctx, req)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	return r.Session, err
+}
+
+func (m *Manager) validateSessionRequest(slug, directory string) error {
+	if slug == "" {
+		return xerrors.Errorf("%w: harness slug is required", ErrInvalid)
+	}
+	if directory == "" || !filepath.IsAbs(directory) {
+		return xerrors.Errorf("%w: working_directory must be an explicit absolute path", ErrInvalid)
+	}
+	info, err := m.fs.Stat(directory)
+	if err != nil || !info.IsDir() {
+		return xerrors.Errorf("%w: working_directory must be an existing directory", ErrInvalid)
+	}
+	return nil
+}
+
+// initializeSession runs in a manager-owned goroutine. Only initialized FSMs
+// enter the registry; callers share the attempt, including its failure.
+func (m *Manager) initializeSession(attempt *initialization, id workspacesdk.ACPSessionID) {
+	s, err := m.initialize(attempt.request, id.SessionID)
+	m.mu.Lock()
+	if err == nil {
+		switch {
+		case m.closed:
+			err = ErrUnavailable
+		case id.SessionID == "" && m.sessions[s.id] != nil:
+			err = ErrConflict
+		default:
+			m.sessions[s.id] = s
+			m.instances = append(m.instances, s)
+		}
+	}
+	m.mu.Unlock()
+	if err == nil {
+		if !m.run(func() { m.watchProcess(s) }) {
+			err = ErrUnavailable
+		}
+	}
+	if err != nil && s != nil {
+		s.cancel()
+		s.proc.close()
+		s.shutdown()
+	}
+	attempt.fsm, attempt.err = s, err
+	if err != nil {
+		attempt.fsm = nil
+	}
+	close(attempt.done)
+}
+
+// initialize restores the referenced conversation, never a replacement.
+// History replay is consumed before the idle FSM is published.
+func (m *Manager) initialize(req workspacesdk.ACPCreateSessionRequest, nativeID string) (*SessionFSM, error) {
+	if err := m.validateSessionRequest(req.HarnessSlug, req.WorkingDirectory); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	cfg, found := m.configs[req.HarnessSlug]
+	m.mu.Unlock()
+	if !found {
+		return nil, xerrors.Errorf("%w: harness is missing or disabled", ErrUnavailable)
+	}
+	cfg.directory = req.WorkingDirectory
+	handler := &client{}
+	p, err := m.launch(m.ctx, cfg, handler)
+	if err != nil {
+		return nil, xerrors.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			p.close()
+		}
+	}()
+	ctx, cancel := m.timeout(m.ctx, setupTimeout)
+	defer cancel()
+	init, err := p.conn.Initialize(ctx, acp.InitializeRequest{ProtocolVersion: acp.ProtocolVersionNumber, ClientInfo: &acp.Implementation{Name: "coder-agent", Version: buildinfo.Version()}})
+	if err != nil {
+		return nil, xerrors.Errorf("%w: initialize harness: %v", ErrUnavailable, m.harnessFailure(p, err, cfg))
+	}
+	if init.ProtocolVersion != acp.ProtocolVersionNumber {
+		return nil, xerrors.Errorf("%w: unsupported ACP protocol version", ErrUnavailable)
+	}
+	creating := nativeID == ""
+	harness := harnessInfo(cfg, init)
+	var options []acp.SessionConfigOption
+	switch {
+	case nativeID == "":
+		created, err := p.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: create ACP session: %v", ErrUnavailable, err)
+		}
+		if created.SessionId == "" {
+			return nil, xerrors.Errorf("%w: harness returned an empty session id", ErrUnavailable)
+		}
+		nativeID, options = string(created.SessionId), created.ConfigOptions
+	case harness.LoadSession:
+		handler.beginReplay(nativeID)
+		loaded, err := p.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: load ACP session: %v", ErrUnavailable, err)
+		}
+		options = loaded.ConfigOptions
+	case harness.ResumeSession:
+		resumed, err := p.conn.ResumeSession(ctx, acp.ResumeSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.WorkingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: resume ACP session: %v", ErrUnavailable, err)
+		}
+		options = resumed.ConfigOptions
+	default:
+		return nil, xerrors.Errorf("%w: harness does not support restoration", ErrUnavailable)
+	}
+	for _, id := range slices.Sorted(maps.Keys(req.Config)) {
+		value := req.Config[id]
+		if !validConfig(options, id, value) {
+			return nil, xerrors.Errorf("%w: unsupported configuration %q=%q", ErrInvalid, id, value)
+		}
+		updated, err := p.conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{ValueId: &acp.SetSessionConfigOptionValueId{SessionId: acp.SessionId(nativeID), ConfigId: acp.SessionConfigId(id), Value: acp.SessionConfigValueId(value)}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: configure ACP session: %v", ErrInvalid, err)
+		}
+		options = updated.ConfigOptions
+	}
+	id := workspacesdk.ACPSessionID{HarnessSlug: req.HarnessSlug, WorkingDirectory: req.WorkingDirectory, SessionID: nativeID}
+	info := workspacesdk.ACPSession{ID: id, Config: maps.Clone(req.Config), Status: workspacesdk.ACPSessionStatusIdle, Cursor: workspacesdk.ACPCursor{Epoch: uuid.New()}, HistoryComplete: creating || handler.replaying()}
+	info.Harness, info.HarnessDisplayName = harness, cfg.displayName
+	info.Harness.ConfigOptions = configOptions(options)
+	s := newSessionFSM(m.ctx, req, info, p, m.run)
+	if err := handler.bind(s); err != nil {
+		p.close()
+		s.shutdown()
+		return nil, err
+	}
+	ok = true
+	return s, nil
+}
+
+func validConfig(options []acp.SessionConfigOption, id, value string) bool {
+	for _, opt := range configOptions(options) {
+		if opt.ID == id {
+			for _, v := range opt.Values {
+				if v.ID == value {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+func (m *Manager) watchProcess(s *SessionFSM) {
+	p := s.proc
+	select {
+	case <-p.done:
+	case <-p.conn.Done():
+	case <-m.ctx.Done():
+	}
+	p.close()
+	// TODO: The ACP SDK closes Done before queued notifications finish and
+	// exposes no signal for their completion. Disconnect can put the FSM in
+	// error before final updates arrive, causing those updates to be rejected.
+	err := p.err
+	if err == nil {
+		err = xerrors.New("harness disconnected")
+	}
+	_ = s.adapterError(m.ctx, m.harnessFailure(p, err, harnessConfig{slug: s.id.HarnessSlug}))
+}
+
+func (m *Manager) harnessFailure(p *process, err error, cfg harnessConfig) error {
+	m.logger.Warn(m.ctx, "acp harness failed", slog.F("harness", cfg.slug), slog.Error(err), slog.F("stderr", p.stderr.String()))
+	return xerrors.New("harness failed; see workspace agent logs for details")
+}
+
+// Message recovers failed sessions before submitting an FSM operation.
+func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
+	if req.ID == uuid.Nil || strings.TrimSpace(req.Text) == "" {
+		return workspacesdk.ACPMessageResponse{}, ErrInvalid
+	}
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
+	}
+	if r.Session.Status == workspacesdk.ACPSessionStatusError {
+		s, err = m.recover(ctx, id)
+		if err != nil {
+			return workspacesdk.ACPMessageResponse{}, err
+		}
+	}
+	return s.Message(ctx, req)
+}
+
+// Interrupt obtains a session without recovering failures, then writes cancel.
+func (m *Manager) Interrupt(ctx context.Context, id workspacesdk.ACPSessionID) (workspacesdk.ACPSession, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	return s.Interrupt(ctx)
+}
+
+// Read preserves failed instances and their partial output.
+func (m *Manager) Read(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSessionResponse{}, err
+	}
+	return s.Read(ctx, after)
+}
+
+// List returns atomic snapshots of initialized runtime sessions.
+func (m *Manager) List() []workspacesdk.ACPSession {
+	m.mu.Lock()
+	instances := slices.Collect(maps.Values(m.sessions))
+	m.mu.Unlock()
+	out := []workspacesdk.ACPSession{}
+	for _, s := range instances {
+		r, err := s.Read(m.ctx, nil)
+		if err == nil {
+			out = append(out, r.Session)
+		}
+	}
+	slices.SortFunc(out, func(a, b workspacesdk.ACPSession) int {
+		if a.ID.HarnessSlug != b.ID.HarnessSlug {
+			return strings.Compare(a.ID.HarnessSlug, b.ID.HarnessSlug)
+		}
+		if a.ID.WorkingDirectory != b.ID.WorkingDirectory {
+			return strings.Compare(a.ID.WorkingDirectory, b.ID.WorkingDirectory)
+		}
+		return strings.Compare(a.ID.SessionID, b.ID.SessionID)
+	})
+	return out
+}
+
+// Subscribe replays an atomic baseline and streams through the first idle or
+// error status. An already idle or failed baseline completes immediately.
+// Slow subscribers reconnect using their last cursor. The caller must invoke
+// the returned cancellation function when finished.
+func (m *Manager) Subscribe(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) ([]workspacesdk.ACPEvent, <-chan workspacesdk.ACPEvent, func(), error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	watchCtx, cancel := context.WithCancel(ctx)
+	r, events, err := s.Watch(watchCtx, after)
+	if err != nil {
+		cancel()
+		return nil, nil, nil, err
+	}
+	info := r.Session
+	r.Events = append(r.Events, workspacesdk.ACPEvent{Kind: workspacesdk.ACPEventKindSnapshot, Cursor: info.Cursor, Session: &info})
+	ch := make(chan workspacesdk.ACPEvent)
+	if sessionFinished(info) {
+		cancel()
+		close(ch)
+		return r.Events, ch, cancel, nil
+	}
+	if !m.run(func() {
+		defer close(ch)
+		defer cancel()
+		for {
+			select {
+			case <-watchCtx.Done():
+				return
+			case <-m.ctx.Done():
+				return
+			case event, ok := <-events:
+				if !ok {
+					return
+				}
+				finished := event.Kind == workspacesdk.ACPEventKindStatus && event.Session != nil && sessionFinished(*event.Session)
+				select {
+				case ch <- event:
+				case <-watchCtx.Done():
+					return
+				case <-m.ctx.Done():
+					return
+				}
+				if finished {
+					return
+				}
+			}
+		}
+	}) {
+		cancel()
+		return nil, nil, nil, ErrUnavailable
+	}
+	return r.Events, ch, cancel, nil
+}
+
+func sessionFinished(info workspacesdk.ACPSession) bool {
+	return info.Status == workspacesdk.ACPSessionStatusIdle || info.Status == workspacesdk.ACPSessionStatusError
+}
+
+// Close prevents initialization and stops all current and retired runtimes.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -120,16 +431,19 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.cancel()
+	instances := slices.Clone(m.instances)
 	m.mu.Unlock()
+	for _, s := range instances {
+		s.proc.close()
+		s.shutdown()
+	}
 	m.wg.Wait()
 	close(m.closedDone)
 	return nil
 }
 
 func harnessInfo(cfg harnessConfig, init acp.InitializeResponse) workspacesdk.ACPHarness {
-	steering, _ := init.Meta["steering"].(map[string]any)
-	supported, _ := steering["supported"].(bool)
-	return workspacesdk.ACPHarness{Slug: cfg.slug, DisplayName: cfg.displayName, LoadSession: init.AgentCapabilities.LoadSession, ResumeSession: init.AgentCapabilities.SessionCapabilities.Resume != nil, Steering: supported, ConfigOptions: []workspacesdk.ACPConfigOption{}}
+	return workspacesdk.ACPHarness{Slug: cfg.slug, DisplayName: cfg.displayName, LoadSession: init.AgentCapabilities.LoadSession, ResumeSession: init.AgentCapabilities.SessionCapabilities.Resume != nil, ConfigOptions: []workspacesdk.ACPConfigOption{}}
 }
 
 func configOptions(options []acp.SessionConfigOption) []workspacesdk.ACPConfigOption {

@@ -173,6 +173,21 @@ func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextConfig", reflect.TypeOf((*MockAgentConn)(nil).ContextConfig), ctx)
 }
 
+// CreateACPSession mocks base method.
+func (m *MockAgentConn) CreateACPSession(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateACPSession", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.ACPSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateACPSession indicates an expected call of CreateACPSession.
+func (mr *MockAgentConnMockRecorder) CreateACPSession(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateACPSession", reflect.TypeOf((*MockAgentConn)(nil).CreateACPSession), ctx, req)
+}
+
 // DebugLogs mocks base method.
 func (m *MockAgentConn) DebugLogs(ctx context.Context, opts ...workspacesdk.DebugLogsOption) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -296,6 +311,21 @@ func (mr *MockAgentConnMockRecorder) GetPeerDiagnostics() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPeerDiagnostics", reflect.TypeOf((*MockAgentConn)(nil).GetPeerDiagnostics))
 }
 
+// InterruptACPSession mocks base method.
+func (m *MockAgentConn) InterruptACPSession(ctx context.Context, id workspacesdk.ACPSessionID) (workspacesdk.ACPSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InterruptACPSession", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.ACPSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InterruptACPSession indicates an expected call of InterruptACPSession.
+func (mr *MockAgentConnMockRecorder) InterruptACPSession(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InterruptACPSession", reflect.TypeOf((*MockAgentConn)(nil).InterruptACPSession), ctx, id)
+}
+
 // LS mocks base method.
 func (m *MockAgentConn) LS(ctx context.Context, path string, req workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
 	m.ctrl.T.Helper()
@@ -324,6 +354,21 @@ func (m *MockAgentConn) ListACPHarnesses(ctx context.Context) ([]workspacesdk.AC
 func (mr *MockAgentConnMockRecorder) ListACPHarnesses(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListACPHarnesses", reflect.TypeOf((*MockAgentConn)(nil).ListACPHarnesses), ctx)
+}
+
+// ListACPSessions mocks base method.
+func (m *MockAgentConn) ListACPSessions(ctx context.Context) ([]workspacesdk.ACPSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListACPSessions", ctx)
+	ret0, _ := ret[0].([]workspacesdk.ACPSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListACPSessions indicates an expected call of ListACPSessions.
+func (mr *MockAgentConnMockRecorder) ListACPSessions(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListACPSessions", reflect.TypeOf((*MockAgentConn)(nil).ListACPSessions), ctx)
 }
 
 // ListContainers mocks base method.
@@ -431,6 +476,21 @@ func (m *MockAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 func (mr *MockAgentConnMockRecorder) PrometheusMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrometheusMetrics", reflect.TypeOf((*MockAgentConn)(nil).PrometheusMetrics), ctx)
+}
+
+// ReadACPSession mocks base method.
+func (m *MockAgentConn) ReadACPSession(ctx context.Context, id workspacesdk.ACPSessionID, opts workspacesdk.ACPReadOptions) (workspacesdk.ACPSessionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadACPSession", ctx, id, opts)
+	ret0, _ := ret[0].(workspacesdk.ACPSessionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadACPSession indicates an expected call of ReadACPSession.
+func (mr *MockAgentConnMockRecorder) ReadACPSession(ctx, id, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadACPSession", reflect.TypeOf((*MockAgentConn)(nil).ReadACPSession), ctx, id, opts)
 }
 
 // ReadFile mocks base method.
@@ -589,6 +649,21 @@ func (mr *MockAgentConnMockRecorder) SSHTCPConn(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHTCPConn", reflect.TypeOf((*MockAgentConn)(nil).SSHTCPConn), ctx)
 }
 
+// SendACPMessage mocks base method.
+func (m *MockAgentConn) SendACPMessage(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendACPMessage", ctx, id, req)
+	ret0, _ := ret[0].(workspacesdk.ACPMessageResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendACPMessage indicates an expected call of SendACPMessage.
+func (mr *MockAgentConnMockRecorder) SendACPMessage(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendACPMessage", reflect.TypeOf((*MockAgentConn)(nil).SendACPMessage), ctx, id, req)
+}
+
 // SetExtraHeaders mocks base method.
 func (m *MockAgentConn) SetExtraHeaders(h http.Header) {
 	m.ctrl.T.Helper()
@@ -701,6 +776,22 @@ func (m *MockAgentConn) UploadChatFile(ctx context.Context, req workspacesdk.Upl
 func (mr *MockAgentConnMockRecorder) UploadChatFile(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadChatFile", reflect.TypeOf((*MockAgentConn)(nil).UploadChatFile), ctx, req)
+}
+
+// WatchACPSession mocks base method.
+func (m *MockAgentConn) WatchACPSession(ctx context.Context, logger slog.Logger, id workspacesdk.ACPSessionID, opts workspacesdk.ACPReadOptions) (<-chan workspacesdk.ACPEvent, io.Closer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchACPSession", ctx, logger, id, opts)
+	ret0, _ := ret[0].(<-chan workspacesdk.ACPEvent)
+	ret1, _ := ret[1].(io.Closer)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// WatchACPSession indicates an expected call of WatchACPSession.
+func (mr *MockAgentConnMockRecorder) WatchACPSession(ctx, logger, id, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchACPSession", reflect.TypeOf((*MockAgentConn)(nil).WatchACPSession), ctx, logger, id, opts)
 }
 
 // WatchContainers mocks base method.

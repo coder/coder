@@ -3,12 +3,19 @@ package workspacesdk
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 // ACPConfigValue is a selectable value advertised by a harness.
@@ -36,7 +43,6 @@ type ACPHarness struct {
 	DisplayName   string            `json:"display_name"`
 	LoadSession   bool              `json:"load_session"`
 	ResumeSession bool              `json:"resume_session"`
-	Steering      bool              `json:"steering"`
 	ConfigOptions []ACPConfigOption `json:"config_options"`
 	Error         string            `json:"error,omitempty"`
 }
@@ -139,6 +145,36 @@ type ACPReadOptions struct {
 	After *ACPCursor
 }
 
+func acpQuery(id ACPSessionID, after *ACPCursor) url.Values {
+	v := url.Values{
+		"harness_slug":      {id.HarnessSlug},
+		"working_directory": {id.WorkingDirectory},
+		"session_id":        {id.SessionID},
+	}
+	if after != nil {
+		v.Set("epoch", after.Epoch.String())
+		v.Set("after", strconv.FormatUint(after.Seq, 10))
+	}
+	return v
+}
+
+func acpRequest[T any](ctx context.Context, c *agentConn, method, path string, body any) (T, error) {
+	var result T
+	request := c.apiRequest
+	if method == http.MethodPost {
+		request = c.toolCallRequest
+	}
+	res, err := request(ctx, method, "/api/v0/acp"+path, body)
+	if err != nil {
+		return result, xerrors.Errorf("request ACP: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
+		return result, codersdk.ReadBodyAsError(res)
+	}
+	return result, decodeAgentJSON(res, &result)
+}
+
 // ListACPHarnesses returns the cached agent-local harness catalog.
 func (c *agentConn) ListACPHarnesses(ctx context.Context) ([]ACPHarness, error) {
 	var result []ACPHarness
@@ -151,4 +187,54 @@ func (c *agentConn) ListACPHarnesses(ctx context.Context) ([]ACPHarness, error) 
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 	return result, decodeAgentJSON(res, &result)
+}
+
+// CreateACPSession creates an idle ACP session before its first prompt.
+func (c *agentConn) CreateACPSession(ctx context.Context, req ACPCreateSessionRequest) (ACPSession, error) {
+	return acpRequest[ACPSession](ctx, c, http.MethodPost, "/sessions", req)
+}
+
+// ListACPSessions lists all registered agent-local runtime sessions.
+func (c *agentConn) ListACPSessions(ctx context.Context) ([]ACPSession, error) {
+	return acpRequest[[]ACPSession](ctx, c, http.MethodGet, "/sessions", nil)
+}
+
+// ReadACPSession returns the available transcript and runtime status.
+func (c *agentConn) ReadACPSession(ctx context.Context, id ACPSessionID, opts ACPReadOptions) (ACPSessionResponse, error) {
+	return acpRequest[ACPSessionResponse](ctx, c, http.MethodGet, "/sessions/session?"+acpQuery(id, opts.After).Encode(), nil)
+}
+
+// SendACPMessage writes a prompt to an idle session's adapter.
+func (c *agentConn) SendACPMessage(ctx context.Context, id ACPSessionID, req ACPMessageRequest) (ACPMessageResponse, error) {
+	return acpRequest[ACPMessageResponse](ctx, c, http.MethodPost, "/sessions/session/messages?"+acpQuery(id, nil).Encode(), req)
+}
+
+// InterruptACPSession requests cancellation while retaining the subprocess.
+func (c *agentConn) InterruptACPSession(ctx context.Context, id ACPSessionID) (ACPSession, error) {
+	return acpRequest[ACPSession](ctx, c, http.MethodPost, "/sessions/session/interrupt?"+acpQuery(id, nil).Encode(), nil)
+}
+
+// WatchACPSession replays history and streams subsequent ordered events through
+// the first idle or error status. An already idle or failed baseline completes
+// immediately after its snapshot. A stream ending without a terminal snapshot
+// or status can be resumed using the last received cursor.
+func (c *agentConn) WatchACPSession(ctx context.Context, logger slog.Logger, id ACPSessionID, opts ACPReadOptions) (<-chan ACPEvent, io.Closer, error) {
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	c.headersMu.RLock()
+	headers := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+	u := "http://" + host + "/api/v0/acp/sessions/session/stream?" + acpQuery(id, opts.After).Encode()
+	conn, res, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: c.apiClient(ctx), HTTPHeader: headers})
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	if err != nil {
+		if res != nil {
+			return nil, nil, codersdk.ReadBodyAsError(res)
+		}
+		return nil, nil, err
+	}
+	conn.SetReadLimit(16 << 20)
+	d := wsjson.NewDecoder[ACPEvent](conn, websocket.MessageText, logger)
+	return d.Chan(), d, nil
 }
