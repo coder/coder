@@ -69,6 +69,7 @@ const AgentChatPageLayout: React.FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
+							navigateAfterArchive: () => {},
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},

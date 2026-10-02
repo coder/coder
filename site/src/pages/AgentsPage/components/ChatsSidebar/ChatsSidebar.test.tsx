@@ -117,6 +117,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chatErrorReasons: {},
 	modelConfigs: [],
 	onArchiveAgent: vi.fn(),
+	navigateAfterArchive: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),

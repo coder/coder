@@ -11,21 +11,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	Link,
-	useLocation,
-	useNavigate,
-	useOutletContext,
-	useParams,
-} from "react-router";
+import { Link, useLocation, useNavigate, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import {
-	archiveAndDeleteChat,
-	chat as chatById,
-	chatEntityKey,
-} from "#/api/queries/chats";
+import { archiveAndDeleteChat, chat as chatById } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -44,7 +34,6 @@ import {
 	fetchArchiveAndDeleteAction,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
-	shouldNavigateAfterArchive,
 } from "../utils/agentWorkspaceUtils";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
@@ -124,7 +113,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const location = useLocation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const { agentId } = useParams();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
 		...chatById(parentChatID ?? ""),
@@ -153,6 +141,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		requestArchiveAgent,
+		navigateAfterArchive,
 		requestUnarchiveAgent,
 		requestPinAgent,
 		requestUnpinAgent,
@@ -171,30 +160,23 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			archiveAndDeleteOptions.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
 			clearPersistedRightPanelState(variables.chatId);
-			notifyDeleteQueueState(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(variables.workspaceId),
-				),
-				result.deleteBuild,
-			);
-			const activeChat = agentId
-				? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(agentId))
-				: undefined;
-			if (
-				shouldNavigateAfterArchive(
-					agentId,
-					variables.chatId,
-					activeChat?.root_chat_id,
-				)
-			) {
-				navigate({ pathname: "/agents", search: location.search });
+			if (variables.workspaceId) {
+				notifyDeleteQueueState(
+					queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(variables.workspaceId),
+					),
+					result.deleteBuild,
+				);
 			}
+			navigateAfterArchive?.(variables.chatId);
 		},
 		onError: (error, variables) => {
 			notifyArchiveAndDeleteFailed(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(variables.workspaceId),
-				),
+				variables.workspaceId
+					? queryClient.getQueryData<TypesGen.Workspace>(
+							workspaceByIdKey(variables.workspaceId),
+						)
+					: undefined,
 				error,
 				navigate,
 			);
@@ -224,8 +206,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				),
 			);
 		} else if (action === "archive-only") {
-			// The workspace is already gone, so there is nothing to delete.
-			requestArchiveAgent?.(chat.id);
+			archiveAndDeleteMutation.mutate({ chatId: chat.id });
 		} else {
 			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
 		}

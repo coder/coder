@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { archiveAndDeleteChat, chatEntityKey } from "#/api/queries/chats";
+import { archiveAndDeleteChat } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type { Chat, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -35,7 +35,6 @@ import {
 	fetchArchiveAndDeleteAction,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
-	shouldNavigateAfterArchive,
 } from "../../../utils/agentWorkspaceUtils";
 import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
@@ -81,6 +80,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		navigateAfterArchive,
 		onUnarchiveAgent,
 		onPinAgent,
 		onUnpinAgent,
@@ -176,30 +176,23 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			archiveAndDeleteOptions.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
 			clearPersistedRightPanelState(variables.chatId);
-			notifyDeleteQueueState(
-				queryClient.getQueryData<Workspace>(
-					workspaceByIdKey(variables.workspaceId),
-				),
-				result.deleteBuild,
-			);
-			const activeChat = activeChatId
-				? queryClient.getQueryData<Chat>(chatEntityKey(activeChatId))
-				: undefined;
-			if (
-				shouldNavigateAfterArchive(
-					activeChatId,
-					variables.chatId,
-					activeChat?.root_chat_id,
-				)
-			) {
-				navigate({ pathname: "/agents", search: location.search });
+			if (variables.workspaceId) {
+				notifyDeleteQueueState(
+					queryClient.getQueryData<Workspace>(
+						workspaceByIdKey(variables.workspaceId),
+					),
+					result.deleteBuild,
+				);
 			}
+			navigateAfterArchive(variables.chatId);
 		},
 		onError: (error, variables) => {
 			notifyArchiveAndDeleteFailed(
-				queryClient.getQueryData<Workspace>(
-					workspaceByIdKey(variables.workspaceId),
-				),
+				variables.workspaceId
+					? queryClient.getQueryData<Workspace>(
+							workspaceByIdKey(variables.workspaceId),
+						)
+					: undefined,
 				error,
 				navigate,
 			);
@@ -227,8 +220,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 				queryClient.getQueryData<Workspace>(workspaceByIdKey(workspaceId)),
 			);
 		} else if (action === "archive-only") {
-			// The workspace is already gone, so there is nothing to delete.
-			onArchiveAgent(chat.id);
+			archiveAndDeleteMutation.mutate({ chatId: chat.id });
 		} else {
 			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
 		}

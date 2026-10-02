@@ -216,6 +216,7 @@ const AgentEmbedPage: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		requestArchiveAgent,
+		navigateAfterArchive: () => {},
 		requestUnarchiveAgent,
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},

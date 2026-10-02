@@ -45,6 +45,7 @@ const chatTopBarOutletContext = {
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
 	requestArchiveAgent,
+	navigateAfterArchive: fn(),
 	requestUnarchiveAgent,
 	requestPinAgent,
 	requestUnpinAgent,
