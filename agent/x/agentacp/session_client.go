@@ -4,24 +4,35 @@ import (
 	"context"
 	"sync"
 
+	"golang.org/x/xerrors"
+
 	acp "github.com/coder/acp-go-sdk"
 )
 
-// sessionClient delivers updates after initialization attaches its session.
-// mu makes attachment atomic with callbacks.
+// sessionClient collects history during load, then delivers live updates to
+// its attached session. mu makes the history handoff atomic with callbacks.
 type sessionClient struct {
 	client
-	mu      sync.Mutex
-	session *SessionFSM
+	mu               sync.Mutex
+	session          *SessionFSM
+	historySessionID string
+	pendingHistory   []acp.SessionNotification
+}
+
+func (c *sessionClient) beginHistoryReplay(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.historySessionID = id
 }
 
 func (c *sessionClient) attachSession(s *SessionFSM) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := s.lock(s.ctx); err != nil {
+	if err := s.importHistory(c.pendingHistory); err != nil {
 		return err
 	}
-	s.mu.Unlock()
+	c.pendingHistory = nil
+	c.historySessionID = ""
 	c.session = s
 	return nil
 }
@@ -32,8 +43,15 @@ func (c *sessionClient) SessionUpdate(ctx context.Context, req acp.SessionNotifi
 		c.mu.Unlock()
 		return s.ProcessACPUpdate(ctx, ACPUpdate{Notification: &req})
 	}
-	c.mu.Unlock()
-	// Setup notifications arrive before a session is available to receive them.
+	defer c.mu.Unlock()
+	// Before attachment, only session/load history belongs in the transcript.
+	if c.historySessionID == "" {
+		return nil
+	}
+	if string(req.SessionId) != c.historySessionID {
+		return xerrors.Errorf("%w: notification session ID mismatch", ErrInvalid)
+	}
+	c.pendingHistory = append(c.pendingHistory, req)
 	return nil
 }
 

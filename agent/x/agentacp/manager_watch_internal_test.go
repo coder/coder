@@ -17,7 +17,7 @@ func newTransportSession(t *testing.T, status workspacesdk.ACPSessionStatus) (*M
 	t.Helper()
 	s, _, _ := newRuntimeSession(t, status)
 	m := NewManager(context.Background(), Options{Clock: s.proc.clock, Logger: slogtest.Make(t, nil)})
-	m.sessions[s.id] = s
+	m.sessions[s.id], m.instances = s, []*SessionFSM{s}
 	t.Cleanup(func() { require.NoError(t, m.Close()) })
 	return m, s
 }

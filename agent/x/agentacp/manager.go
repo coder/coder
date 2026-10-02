@@ -61,6 +61,8 @@ type Manager struct {
 	mu            sync.Mutex
 	closed        bool
 	sessions      map[workspacesdk.ACPSessionID]*SessionFSM
+	initializing  map[workspacesdk.ACPSessionID]*initialization
+	instances     []*SessionFSM
 	configs       map[string]harnessConfig
 	retryAfter    map[string]time.Time
 	configDir     string
@@ -77,7 +79,7 @@ type Manager struct {
 // EnvOverrides is optional and is copied before use.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
+	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), initializing: make(map[workspacesdk.ACPSessionID]*initialization), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
 }
 
 // SetEnvOverrides replaces the environment overrides for future harnesses.
@@ -133,7 +135,7 @@ func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionR
 	return r.Session, err
 }
 
-// Message submits a prompt to an existing idle session.
+// Message recovers failed sessions before submitting an FSM operation.
 func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
 	if req.ID == uuid.Nil || strings.TrimSpace(req.Text) == "" {
 		return workspacesdk.ACPMessageResponse{}, ErrInvalid
@@ -141,6 +143,16 @@ func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req
 	s, err := m.get(ctx, id)
 	if err != nil {
 		return workspacesdk.ACPMessageResponse{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
+	}
+	if r.Session.Status == workspacesdk.ACPSessionStatusError {
+		s, err = m.recover(ctx, id)
+		if err != nil {
+			return workspacesdk.ACPMessageResponse{}, err
+		}
 	}
 	return s.Message(ctx, req)
 }
@@ -163,7 +175,7 @@ func (m *Manager) Read(ctx context.Context, id workspacesdk.ACPSessionID, after 
 	return s.Read(ctx, after)
 }
 
-// Close prevents initialization and stops all session runtimes.
+// Close prevents initialization and stops all current and retired runtimes.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -173,9 +185,9 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.cancel()
-	sessions := slices.Collect(maps.Values(m.sessions))
+	instances := slices.Clone(m.instances)
 	m.mu.Unlock()
-	for _, s := range sessions {
+	for _, s := range instances {
 		s.Close()
 	}
 	m.wg.Wait()

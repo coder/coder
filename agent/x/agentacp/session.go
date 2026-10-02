@@ -101,6 +101,24 @@ func newSessionFSM(ctx context.Context, req workspacesdk.ACPCreateSessionRequest
 	return s
 }
 
+// importHistory seeds the transcript before publication, while the session is
+// idle. The client holds subsequent notifications until attachment completes.
+func (s *SessionFSM) importHistory(history []acp.SessionNotification) error {
+	if err := s.lock(s.ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	for _, req := range history {
+		if string(req.SessionId) != s.id.SessionID {
+			return xerrors.Errorf("%w: notification session ID mismatch", ErrInvalid)
+		}
+		if err := s.appendNotificationLocked(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // lock acquires mu on success. Callers must unlock it after their operation.
 // Cancellation is checked again after waiting for an earlier operation.
 func (s *SessionFSM) lock(ctx context.Context) error {
@@ -269,9 +287,11 @@ func (s *SessionFSM) Message(ctx context.Context, req workspacesdk.ACPMessageReq
 		_ = s.setErrorLocked(err)
 		return workspacesdk.ACPMessageResponse{}, err
 	}
+	historyComplete := s.info.HistoryComplete && len(s.events) == 0
 	s.events, s.assistant = nil, nil
 	s.info.Cursor = workspacesdk.ACPCursor{Epoch: uuid.New()}
 	s.info.Error, s.info.StopReason = "", ""
+	s.info.HistoryComplete = historyComplete
 	s.appendEventLocked(workspacesdk.ACPEventKindUserMessage, req.Text, nil, req.ID)
 	s.appendEventLocked(workspacesdk.ACPEventKindStatus, "", nil)
 	return workspacesdk.ACPMessageResponse{Outcome: workspacesdk.ACPMessageOutcomePrompt}, nil
