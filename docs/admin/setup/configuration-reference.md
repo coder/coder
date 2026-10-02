@@ -5,22 +5,21 @@ toc_depth: 2
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
-Coder server is configured primarily through environment variables. This page
-lists every option so you can search by environment variable name, CLI flag, or
-YAML key. For first-time setup guidance and worked examples, see
-[Configure Control Plane Access](./index.md).
+Coder server is configured primarily through environment variables.
+This page lists every option so you can search by environment variable name, CLI flag, or YAML key.
+For first-time setup guidance and worked examples, see [Configure Control Plane Access](./index.md).
 
-Each option can be set through one or more of the methods below. An option lists
-only the methods that apply to it.
+Each option can be set through one or more of the methods below.
+An option lists only the methods that apply to it.
 
-- An environment variable (recommended for production deployments running as a
-  system service, container, or Helm chart).
-- A CLI flag passed to `coder server` (useful for one-off invocations
-  and local development).
+- An environment variable (recommended for production deployments running as a system service, container, or Helm chart).
+- A CLI flag passed to `coder server` (useful for one-off invocations and local development).
 - A key in a YAML configuration file passed with `--config`.
 
-For a full description of each option's accepted values and behavior, follow the
-flag link into the [`coder server` CLI reference](../../reference/cli/server/index.md).
+For a full description of each option's accepted values and behavior, follow the flag link into the [`coder server` CLI reference](../../reference/cli/server/index.md).
+
+An option that holds a secret is marked as such.
+Coder never writes those options to a YAML configuration file.
 
 Deprecated options are listed at the end of each section.
 
@@ -28,8 +27,11 @@ Deprecated options are listed at the end of each section.
 
 ### Cache directory
 
-The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
+The directory to cache temporary files.
+If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
+This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
 
+- Type: `string`
 - Environment variable: `CODER_CACHE_DIRECTORY`
 - CLI flag: [`--cache-dir`](../../reference/cli/server/index.md#--cache-dir)
 - YAML key: `cacheDir`
@@ -37,8 +39,10 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 
 ### Default OAuth refresh lifetime
 
-The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.
+The default lifetime duration for OAuth2 refresh tokens.
+This controls how long refresh tokens remain valid after issuance or rotation.
 
+- Type: `duration`
 - Environment variable: `CODER_DEFAULT_OAUTH_REFRESH_LIFETIME`
 - CLI flag: [`--default-oauth-refresh-lifetime`](../../reference/cli/server/index.md#--default-oauth-refresh-lifetime)
 - YAML key: `defaultOAuthRefreshLifetime`
@@ -46,8 +50,10 @@ The default lifetime duration for OAuth2 refresh tokens. This controls how long 
 
 ### Default token lifetime
 
-The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.
+The default lifetime duration for API tokens.
+This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.
 
+- Type: `duration`
 - Environment variable: `CODER_DEFAULT_TOKEN_LIFETIME`
 - CLI flag: [`--default-token-lifetime`](../../reference/cli/server/index.md#--default-token-lifetime)
 - YAML key: `defaultTokenLifetime`
@@ -55,56 +61,74 @@ The default lifetime duration for API tokens. This value is used when creating a
 
 ### Disable chat caller-supplied tools
 
-Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
+Disable caller-supplied tools in chats.
+Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`
 - CLI flag: [`--disable-chat-caller-supplied-tools`](../../reference/cli/server/index.md#--disable-chat-caller-supplied-tools)
 - YAML key: `disableChatCallerSuppliedTools`
 
 ### Disable chat sharing
 
-Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
+Disable chat sharing.
+Chat ACL checking is disabled and only owners can access their chats.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_SHARING`
 - CLI flag: [`--disable-chat-sharing`](../../reference/cli/server/index.md#--disable-chat-sharing)
 - YAML key: `disableChatSharing`
 
 ### Disable owner workspace access
 
-Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
+Remove the permission for the 'owner' role to have workspace execution on all workspaces.
+This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role.
+They still have their user permissions to access their own workspaces.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_OWNER_WORKSPACE_ACCESS`
 - CLI flag: [`--disable-owner-workspace-access`](../../reference/cli/server/index.md#--disable-owner-workspace-access)
 - YAML key: `disableOwnerWorkspaceAccess`
 
 ### Disable path apps
 
-Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
+Disable workspace apps that are not served from subdomains.
+Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript.
+This is recommended for security purposes if a --wildcard-access-url is configured.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_PATH_APPS`
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server/index.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
 ### Disable user secret file path
 
-Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
+Disable Coder-managed file path delivery for user secrets.
+Stored paths remain until users clear them and resume if this setting is turned off.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_USER_SECRET_FILE_PATH`
 - CLI flag: [`--disable-user-secret-file-path`](../../reference/cli/server/index.md#--disable-user-secret-file-path)
 - YAML key: `disableUserSecretFilePath`
 
 ### Disable workspace agent context sync
 
-Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context).
+When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context.
+Use this to shed the database write load of context sync on large deployments.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC`
 - CLI flag: [`--disable-workspace-agent-context-sync`](../../reference/cli/server/index.md#--disable-workspace-agent-context-sync)
 - YAML key: `disableWorkspaceAgentContextSync`
 
 ### Disable workspace sharing
 
-Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+Disable workspace sharing.
+Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces.
+Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_WORKSPACE_SHARING`
 - CLI flag: [`--disable-workspace-sharing`](../../reference/cli/server/index.md#--disable-workspace-sharing)
 - YAML key: `disableWorkspaceSharing`
@@ -113,14 +137,18 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Expose the swagger endpoint via /swagger.
 
+- Type: `bool`
 - Environment variable: `CODER_SWAGGER_ENABLE`
 - CLI flag: [`--swagger-enable`](../../reference/cli/server/index.md#--swagger-enable)
 - YAML key: `enableSwagger`
 
 ### Experiments
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Enable one or more experiments.
+These are not ready for production.
+Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
 
+- Type: `string-array`
 - Environment variable: `CODER_EXPERIMENTS`
 - CLI flag: [`--experiments`](../../reference/cli/server/index.md#--experiments)
 - YAML key: `experiments`
@@ -129,6 +157,7 @@ Enable one or more experiments. These are not ready for production. Separate mul
 
 Enable the default GitHub external auth provider managed by Coder.
 
+- Type: `bool`
 - Environment variable: `CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE`
 - CLI flag: [`--external-auth-github-default-provider-enable`](../../reference/cli/server/index.md#--external-auth-github-default-provider-enable)
 - YAML key: `externalAuthGithubDefaultProviderEnable`
@@ -136,15 +165,25 @@ Enable the default GitHub external auth provider managed by Coder.
 
 ### External token encryption keys
 
-Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
+Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database.
+The value must be a comma-separated list of base64-encoded keys.
+Each key, when base64-decoded, must be exactly 32 bytes in length.
+The first key will be used to encrypt new values.
+Subsequent keys will be used as a fallback when decrypting.
+During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
 
+- Type: `string-array`
 - Environment variable: `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`
 - CLI flag: [`--external-token-encryption-keys`](../../reference/cli/server/index.md#--external-token-encryption-keys)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### Postgres auth
 
-Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
+Type of auth to use when connecting to postgres.
+For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
+- Type: `enum`, one of `password`, `awsiamrds`
 - Environment variable: `CODER_PG_AUTH`
 - CLI flag: [`--postgres-auth`](../../reference/cli/server/index.md#--postgres-auth)
 - YAML key: `pgAuth`
@@ -152,8 +191,11 @@ Type of auth to use when connecting to postgres. For AWS RDS, using IAM authenti
 
 ### Postgres connection max idle
 
-Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no idle connections.
+Maximum number of idle connections to the database.
+Set to "auto" (the default) to use max open / 3.
+Value must be greater or equal to 0; 0 means explicitly no idle connections.
 
+- Type: `string`
 - Environment variable: `CODER_PG_CONN_MAX_IDLE`
 - CLI flag: [`--postgres-conn-max-idle`](../../reference/cli/server/index.md#--postgres-conn-max-idle)
 - YAML key: `pgConnMaxIdle`
@@ -161,8 +203,10 @@ Maximum number of idle connections to the database. Set to "auto" (the default) 
 
 ### Postgres connection max open
 
-Maximum number of open connections to the database. Defaults to 10.
+Maximum number of open connections to the database.
+Defaults to 10.
 
+- Type: `int`
 - Environment variable: `CODER_PG_CONN_MAX_OPEN`
 - CLI flag: [`--postgres-conn-max-open`](../../reference/cli/server/index.md#--postgres-conn-max-open)
 - YAML key: `pgConnMaxOpen`
@@ -170,22 +214,34 @@ Maximum number of open connections to the database. Defaults to 10.
 
 ### Postgres connection URL
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
+URL of a PostgreSQL database.
+If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root.
+Access the built-in database with "coder server postgres-builtin-url".
+Note that any special characters in the URL must be URL-encoded.
 
+- Type: `string`
 - Environment variable: `CODER_PG_CONNECTION_URL`
 - CLI flag: [`--postgres-url`](../../reference/cli/server/index.md#--postgres-url)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### SCIM API key
 
-Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
+Enables SCIM and sets the authentication header for the built-in SCIM server.
+New users are automatically created with OIDC authentication.
 
+- Type: `string`
 - Environment variable: `CODER_SCIM_AUTH_HEADER`
 - CLI flag: [`--scim-auth-header`](../../reference/cli/server/index.md#--scim-auth-header)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### SCIM use legacy
 
-Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
+Use the legacy SCIM implementation instead of the SCIM 2.0 handler.
+This is provided for backward compatibility for existing users.
 
+- Type: `bool`
 - Environment variable: `CODER_SCIM_USE_LEGACY`
 - CLI flag: [`--scim-use-legacy`](../../reference/cli/server/index.md#--scim-use-legacy)
 - YAML key: `scimUseLegacy`
@@ -193,8 +249,10 @@ Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is prov
 
 ### SSH keygen algorithm
 
-The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
+The algorithm to use for generating ssh keys.
+Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+- Type: `string`
 - Environment variable: `CODER_SSH_KEYGEN_ALGORITHM`
 - CLI flag: [`--ssh-keygen-algorithm`](../../reference/cli/server/index.md#--ssh-keygen-algorithm)
 - YAML key: `sshKeygenAlgorithm`
@@ -204,6 +262,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Support links to display in the top right drop down menu.
 
+- Type: `YAML sequence`
 - Environment variable: `CODER_SUPPORT_LINKS`
 - CLI flag: [`--support-links`](../../reference/cli/server/index.md#--support-links)
 - YAML key: `supportLinks`
@@ -212,14 +271,17 @@ Support links to display in the top right drop down menu.
 
 A URL to an external Terms of Service that must be accepted by users when logging in.
 
+- Type: `string`
 - Environment variable: `CODER_TERMS_OF_SERVICE_URL`
 - CLI flag: [`--terms-of-service-url`](../../reference/cli/server/index.md#--terms-of-service-url)
 - YAML key: `termsOfServiceURL`
 
 ### Update check
 
-Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
+Periodically check for new releases of Coder and inform the owner.
+The check is performed once per day.
 
+- Type: `bool`
 - Environment variable: `CODER_UPDATE_CHECK`
 - CLI flag: [`--update-check`](../../reference/cli/server/index.md#--update-check)
 - YAML key: `updateCheck`
@@ -229,8 +291,10 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 ### AI budget period
 
-Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only "month" is currently supported.
+Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries.
+Only "month" is currently supported.
 
+- Type: `enum`, must be `month`
 - Environment variable: `CODER_AI_BUDGET_PERIOD`
 - CLI flag: [`--ai-budget-period`](../../reference/cli/server/index.md#--ai-budget-period)
 - YAML key: `ai_gateway.budget_period`
@@ -240,6 +304,7 @@ Determines when accumulated AI spend resets to zero, aligned to UTC calendar bou
 
 Determines the effective group when a user belongs to multiple groups with AI budgets. "highest" selects the group with the largest spend limit, and is currently the only supported value.
 
+- Type: `enum`, must be `highest`
 - Environment variable: `CODER_AI_BUDGET_POLICY`
 - CLI flag: [`--ai-budget-policy`](../../reference/cli/server/index.md#--ai-budget-policy)
 - YAML key: `ai_gateway.budget_policy`
@@ -247,24 +312,35 @@ Determines the effective group when a user belongs to multiple groups with AI bu
 
 ### API dump directory
 
-Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+Base directory for dumping AI Gateway request/response pairs to disk for debugging.
+When set, each provider writes under a subdirectory named after the provider.
+Sensitive headers are redacted.
+Leave empty to disable.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_DUMP_DIR`
 - CLI flag: [`--ai-gateway-dump-dir`](../../reference/cli/server/index.md#--ai-gateway-dump-dir)
 - YAML key: `ai_gateway.api_dump_dir`
 
 ### Actor header email
 
-Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
+Header name for the authenticated user's email address.
+Empty disables this header.
+Requires AI Gateway actor headers to be enabled.
+Applies to every configured provider; email is personal information.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`
 - CLI flag: [`--ai-gateway-actor-header-email`](../../reference/cli/server/index.md#--ai-gateway-actor-header-email)
 - YAML key: `ai_gateway.actor_header_email`
 
 ### Actor header ID
 
-Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+Header name for the authenticated user's ID.
+Empty disables this header.
+Requires AI Gateway actor headers to be enabled.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_ID`
 - CLI flag: [`--ai-gateway-actor-header-id`](../../reference/cli/server/index.md#--ai-gateway-actor-header-id)
 - YAML key: `ai_gateway.actor_header_id`
@@ -272,8 +348,11 @@ Header name for the authenticated user's ID. Empty disables this header. Require
 
 ### Actor header username
 
-Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+Header name for the authenticated user's username.
+Empty disables this header.
+Requires AI Gateway actor headers to be enabled.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`
 - CLI flag: [`--ai-gateway-actor-header-username`](../../reference/cli/server/index.md#--ai-gateway-actor-header-username)
 - YAML key: `ai_gateway.actor_header_username`
@@ -281,8 +360,10 @@ Header name for the authenticated user's username. Empty disables this header. R
 
 ### Allow BYOK
 
-Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
+Allow users to provide their own LLM API keys or subscriptions.
+When disabled, only centralized key authentication is permitted.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ALLOW_BYOK`
 - CLI flag: [`--ai-gateway-allow-byok`](../../reference/cli/server/index.md#--ai-gateway-allow-byok)
 - YAML key: `ai_gateway.allow_byok`
@@ -292,6 +373,7 @@ Allow users to provide their own LLM API keys or subscriptions. When disabled, o
 
 Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED`
 - CLI flag: [`--ai-gateway-circuit-breaker-enabled`](../../reference/cli/server/index.md#--ai-gateway-circuit-breaker-enabled)
 - YAML key: `ai_gateway.circuit_breaker_enabled`
@@ -301,6 +383,7 @@ Enable the circuit breaker to protect against cascading failures from upstream A
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
 
+- Type: `duration`
 - Environment variable: `CODER_AI_GATEWAY_RETENTION`
 - CLI flag: [`--ai-gateway-retention`](../../reference/cli/server/index.md#--ai-gateway-retention)
 - YAML key: `ai_gateway.retention`
@@ -308,8 +391,13 @@ Length of time to retain data such as interceptions and all related records (tok
 
 ### Disable content recording
 
-Stop recording the content of intercepted conversations. No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.
+Stop recording the content of intercepted conversations.
+No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with.
+Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected.
+Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID.
+Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING`
 - CLI flag: [`--ai-gateway-disable-content-recording`](../../reference/cli/server/index.md#--ai-gateway-disable-content-recording)
 - YAML key: `ai_gateway.disable_content_recording`
@@ -319,6 +407,7 @@ Stop recording the content of intercepted conversations. No user prompt, tool ca
 
 Whether to start an in-memory AI Gateway instance.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
 - CLI flag: [`--ai-gateway-enabled`](../../reference/cli/server/index.md#--ai-gateway-enabled)
 - YAML key: `ai_gateway.enabled`
@@ -326,8 +415,10 @@ Whether to start an in-memory AI Gateway instance.
 
 ### Max concurrency
 
-Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disable (unlimited).
+Maximum number of concurrent AI Gateway requests per replica.
+Set to 0 to disable (unlimited).
 
+- Type: `int`
 - Environment variable: `CODER_AI_GATEWAY_MAX_CONCURRENCY`
 - CLI flag: [`--ai-gateway-max-concurrency`](../../reference/cli/server/index.md#--ai-gateway-max-concurrency)
 - YAML key: `ai_gateway.max_concurrency`
@@ -335,8 +426,10 @@ Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disabl
 
 ### Rate limit
 
-Maximum number of AI Gateway requests per second per replica. Set to 0 to disable (unlimited).
+Maximum number of AI Gateway requests per second per replica.
+Set to 0 to disable (unlimited).
 
+- Type: `int`
 - Environment variable: `CODER_AI_GATEWAY_RATE_LIMIT`
 - CLI flag: [`--ai-gateway-rate-limit`](../../reference/cli/server/index.md#--ai-gateway-rate-limit)
 - YAML key: `ai_gateway.rate_limit`
@@ -344,8 +437,12 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. Client headers starting with X-AI-Bridge-Actor are always removed.
+Add configured headers identifying the authenticated user to intercepted upstream requests.
+Use this when a proxy between AI Gateway and an upstream AI provider needs user identity.
+When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values.
+Client headers starting with X-AI-Bridge-Actor are always removed.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server/index.md#--ai-gateway-send-actor-headers)
 - YAML key: `ai_gateway.send_actor_headers`
@@ -353,8 +450,10 @@ Add configured headers identifying the authenticated user to intercepted upstrea
 
 ### Structured logging
 
-Emit structured logs for AI Gateway interception records. Use this for exporting these records to external SIEM or observability systems.
+Emit structured logs for AI Gateway interception records.
+Use this for exporting these records to external SIEM or observability systems.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_STRUCTURED_LOGGING`
 - CLI flag: [`--ai-gateway-structured-logging`](../../reference/cli/server/index.md#--ai-gateway-structured-logging)
 - YAML key: `ai_gateway.structured_logging`
@@ -362,8 +461,12 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 
 ### Structured logging source
 
-Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as those dropped by --ai-gateway-disable-content-recording, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.
+Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both.
+The gateway emits records that are never persisted, such as those dropped by --ai-gateway-disable-content-recording, but cannot report thread_parent_id or thread_root_id.
+Use both to verify a move from one to the other; records reaching coderd are then reported twice.
+A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.
 
+- Type: `enum`, one of `coderd`, `gateway`, `both`
 - Environment variable: `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE`
 - CLI flag: [`--ai-gateway-structured-logging-source`](../../reference/cli/server/index.md#--ai-gateway-structured-logging-source)
 - YAML key: `ai_gateway.structured_logging_source`
@@ -373,16 +476,23 @@ Which process emits AI Gateway interception records when structured logging is e
 
 ### API dump directory
 
-Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.
+Directory for dumping MITM request/response pairs to disk for debugging.
+When set, each proxied request produces .req.txt and .resp.txt files organized by provider.
+Sensitive headers are redacted.
+Leave empty to disable.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_DUMP_DIR`
 - CLI flag: [`--ai-gateway-proxy-dump-dir`](../../reference/cli/server/index.md#--ai-gateway-proxy-dump-dir)
 - YAML key: `ai_gateway_proxy.api_dump_dir`
 
 ### Allowed private CIDRs
 
-Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
+Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges.
+By default all private ranges are blocked to prevent SSRF attacks.
+Use this to allow access to specific internal networks.
 
+- Type: `string-array`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`
 - CLI flag: [`--ai-gateway-proxy-allowed-private-cidrs`](../../reference/cli/server/index.md#--ai-gateway-proxy-allowed-private-cidrs)
 - YAML key: `ai_gateway_proxy.allowed_private_cidrs`
@@ -391,6 +501,7 @@ Comma-separated list of CIDR ranges that are permitted even though they fall wit
 
 Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider requests.
 
+- Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_ENABLED`
 - CLI flag: [`--ai-gateway-proxy-enabled`](../../reference/cli/server/index.md#--ai-gateway-proxy-enabled)
 - YAML key: `ai_gateway_proxy.enabled`
@@ -400,6 +511,7 @@ Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider req
 
 The address the AI Gateway Proxy will listen on.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_LISTEN_ADDR`
 - CLI flag: [`--ai-gateway-proxy-listen-addr`](../../reference/cli/server/index.md#--ai-gateway-proxy-listen-addr)
 - YAML key: `ai_gateway_proxy.listen_addr`
@@ -407,8 +519,10 @@ The address the AI Gateway Proxy will listen on.
 
 ### MITM CA certificate file
 
-Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients.
+This CA must be trusted by AI clients for the proxy to decrypt their requests.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_CERT_FILE`
 - CLI flag: [`--ai-gateway-proxy-cert-file`](../../reference/cli/server/index.md#--ai-gateway-proxy-cert-file)
 - YAML key: `ai_gateway_proxy.cert_file`
@@ -417,46 +531,58 @@ Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI c
 
 Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_KEY_FILE`
 - CLI flag: [`--ai-gateway-proxy-key-file`](../../reference/cli/server/index.md#--ai-gateway-proxy-key-file)
 - YAML key: `ai_gateway_proxy.key_file`
 
 ### TLS certificate file
 
-Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.
+Path to the TLS certificate file for the AI Gateway Proxy listener.
+Must be set together with AI Gateway Proxy TLS Key File.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE`
 - CLI flag: [`--ai-gateway-proxy-tls-cert-file`](../../reference/cli/server/index.md#--ai-gateway-proxy-tls-cert-file)
 - YAML key: `ai_gateway_proxy.tls_cert_file`
 
 ### TLS key file
 
-Path to the TLS private key file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Certificate File.
+Path to the TLS private key file for the AI Gateway Proxy listener.
+Must be set together with AI Gateway Proxy TLS Certificate File.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE`
 - CLI flag: [`--ai-gateway-proxy-tls-key-file`](../../reference/cli/server/index.md#--ai-gateway-proxy-tls-key-file)
 - YAML key: `ai_gateway_proxy.tls_key_file`
 
 ### Target
 
-Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
+Base URL of the AI Gateway to forward intercepted requests to.
+Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_TARGET`
 - CLI flag: [`--ai-gateway-proxy-target`](../../reference/cli/server/index.md#--ai-gateway-proxy-target)
 - YAML key: `ai_gateway_proxy.target`
 
 ### Upstream proxy
 
-URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through.
+Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_UPSTREAM`
 - CLI flag: [`--ai-gateway-proxy-upstream`](../../reference/cli/server/index.md#--ai-gateway-proxy-upstream)
 - YAML key: `ai_gateway_proxy.upstream_proxy`
 
 ### Upstream proxy CA
 
-Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
+Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection.
+Only needed for HTTPS upstream proxies with certificates not trusted by the system.
+If not provided, the system certificate pool is used.
 
+- Type: `string`
 - Environment variable: `CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`
 - CLI flag: [`--ai-gateway-proxy-upstream-ca`](../../reference/cli/server/index.md#--ai-gateway-proxy-upstream-ca)
 - YAML key: `ai_gateway_proxy.upstream_proxy_ca`
@@ -469,6 +595,7 @@ Configure the background chat processing daemon.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+- Type: `bool`
 - Environment variable: `CODER_CHAT_DEBUG_LOGGING_ENABLED`
 - CLI flag: [`--chat-debug-logging-enabled`](../../reference/cli/server/index.md#--chat-debug-logging-enabled)
 - YAML key: `chat.debugLoggingEnabled`
@@ -476,17 +603,37 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 
 ### Max attachments per chat
 
-Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.
+Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails.
+Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired.
+A message that includes more files than the limit is rejected with HTTP 400.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
 - CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server/index.md#--chat-max-attachments-per-chat)
 - YAML key: `chat.maxAttachmentsPerChat`
 - Default value: `50`
 
+### Max automations per owner
+
+Maximum number of chat automations one user can own across all organizations.
+Creating one more fails with HTTP 409.
+Must be at least 1.
+
+- Type: `int`
+- Environment variable: `CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER`
+- CLI flag: [`--chat-max-automations-per-owner`](../../reference/cli/server/index.md#--chat-max-automations-per-owner)
+- YAML key: `chat.maxAutomationsPerOwner`
+- Default value: `50`
+
 ### Max concurrent recording uploads
 
-Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
+Maximum number of virtual desktop recordings that each Coder server stores at the same time.
+Each upload holds the recording and its thumbnail in memory, up to 110 MB.
+Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
 - CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server/index.md#--chat-max-concurrent-recording-uploads)
 - YAML key: `chat.maxConcurrentRecordingUploads`
@@ -494,8 +641,13 @@ Maximum number of virtual desktop recordings that each Coder server stores at th
 
 ### Max generation retries
 
-Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.
+Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data.
+The count resets after each successful step.
+When the retries run out, the chat moves to the error state and shows the provider error.
+Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_GENERATION_RETRIES`
 - CLI flag: [`--chat-max-generation-retries`](../../reference/cli/server/index.md#--chat-max-generation-retries)
 - YAML key: `chat.maxGenerationRetries`
@@ -503,8 +655,12 @@ Maximum number of consecutive retries after a model generation fails with a tran
 
 ### Max prompt bytes
 
-Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.
+Saving a longer prompt fails with HTTP 400.
+Lowering the limit does not affect prompts that are already saved.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_PROMPT_BYTES`
 - CLI flag: [`--chat-max-prompt-bytes`](../../reference/cli/server/index.md#--chat-max-prompt-bytes)
 - YAML key: `chat.maxPromptBytes`
@@ -512,8 +668,11 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 
 ### Max queued messages per chat
 
-Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+Maximum number of messages that can be queued in a chat.
+Sending a message to a chat whose queue is full fails with HTTP 429.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`
 - CLI flag: [`--chat-max-queued-messages-per-chat`](../../reference/cli/server/index.md#--chat-max-queued-messages-per-chat)
 - YAML key: `chat.maxQueuedMessagesPerChat`
@@ -521,8 +680,12 @@ Maximum number of messages that can be queued in a chat. Sending a message to a 
 
 ### Max steps per turn
 
-Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.
+Maximum number of steps in a chat turn.
+Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count.
+A turn that reaches the limit runs the tools from the last response, then ends without an error.
+Must be at least 1.
 
+- Type: `int`
 - Environment variable: `CODER_CHAT_MAX_STEPS_PER_TURN`
 - CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server/index.md#--chat-max-steps-per-turn)
 - YAML key: `chat.maxStepsPerTurn`
@@ -530,8 +693,12 @@ Maximum number of steps in a chat turn. Each model response is one step; compact
 
 ### Stream silence timeout
 
-Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried.
+This also bounds the time to first token.
+Set to 0 to disable.
+Must be no more than 24h.
 
+- Type: `duration`
 - Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
 - CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server/index.md#--chat-stream-silence-timeout)
 - YAML key: `chat.streamSilenceTimeout`
@@ -539,28 +706,38 @@ Maximum time to wait for the next streamed part from the chat model before the a
 
 ## Client
 
-These options change the behavior of how clients interact with the Coder. Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
+These options change the behavior of how clients interact with the Coder.
+Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
 ### CLI upgrade message
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected.
+By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
+- Type: `string`
 - Environment variable: `CODER_CLI_UPGRADE_MESSAGE`
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server/index.md#--cli-upgrade-message)
 - YAML key: `client.cliUpgradeMessage`
 
 ### SSH config options
 
-These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas. Using this incorrectly can break SSH to your deployment, use cautiously. The following options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option values must not contain newline, carriage return, or NUL characters.
+These SSH config options will override the default SSH config options.
+Provide options in "key=value" or "key value" format separated by commas.
+Using this incorrectly can break SSH to your deployment, use cautiously.
+The following options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation.
+Option values must not contain newline, carriage return, or NUL characters.
 
+- Type: `string-array`
 - Environment variable: `CODER_SSH_CONFIG_OPTIONS`
 - CLI flag: [`--ssh-config-options`](../../reference/cli/server/index.md#--ssh-config-options)
 - YAML key: `client.sshConfigOptions`
 
 ### Web terminal renderer
 
-The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+The renderer to use when opening a web terminal.
+Valid values are 'canvas', 'webgl', or 'dom'.
 
+- Type: `string`
 - Environment variable: `CODER_WEB_TERMINAL_RENDERER`
 - CLI flag: [`--web-terminal-renderer`](../../reference/cli/server/index.md#--web-terminal-renderer)
 - YAML key: `client.webTerminalRenderer`
@@ -568,8 +745,11 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 
 ### Workspace hostname suffix
 
-Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).
+Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop.
+By default it is coder, resulting in names like myworkspace.coder.
+The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).
 
+- Type: `string`
 - Environment variable: `CODER_WORKSPACE_HOSTNAME_SUFFIX`
 - CLI flag: [`--workspace-hostname-suffix`](../../reference/cli/server/index.md#--workspace-hostname-suffix)
 - YAML key: `client.workspaceHostnameSuffix`
@@ -583,6 +763,7 @@ Use a YAML configuration file when your server launch become unwieldy.
 
 Specify a YAML file to load configuration from.
 
+- Type: `yaml-config-path`
 - Environment variable: `CODER_CONFIG_PATH`
 - CLI flag: [`--config`](../../reference/cli/server/index.md#-c---config)
 
@@ -590,6 +771,7 @@ Specify a YAML file to load configuration from.
 
 Write out the current server config as YAML to stdout.
 
+- Type: `bool`
 - CLI flag: [`--write-config`](../../reference/cli/server/index.md#--write-config)
 
 ## Email
@@ -600,6 +782,7 @@ Configure how emails are sent.
 
 Force a TLS connection to the configured SMTP smarthost.
 
+- Type: `bool`
 - Environment variable: `CODER_EMAIL_FORCE_TLS`
 - CLI flag: [`--email-force-tls`](../../reference/cli/server/index.md#--email-force-tls)
 - YAML key: `email.forceTLS`
@@ -609,6 +792,7 @@ Force a TLS connection to the configured SMTP smarthost.
 
 The sender's address to use.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_FROM`
 - CLI flag: [`--email-from`](../../reference/cli/server/index.md#--email-from)
 - YAML key: `email.from`
@@ -617,6 +801,7 @@ The sender's address to use.
 
 The hostname identifying the SMTP server.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_HELLO`
 - CLI flag: [`--email-hello`](../../reference/cli/server/index.md#--email-hello)
 - YAML key: `email.hello`
@@ -626,6 +811,7 @@ The hostname identifying the SMTP server.
 
 The intermediary SMTP host through which emails are sent.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_SMARTHOST`
 - CLI flag: [`--email-smarthost`](../../reference/cli/server/index.md#--email-smarthost)
 - YAML key: `email.smarthost`
@@ -638,6 +824,7 @@ Configure SMTP authentication options.
 
 Identity to use with PLAIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_AUTH_IDENTITY`
 - CLI flag: [`--email-auth-identity`](../../reference/cli/server/index.md#--email-auth-identity)
 - YAML key: `email.emailAuth.identity`
@@ -646,13 +833,17 @@ Identity to use with PLAIN authentication.
 
 Password to use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_AUTH_PASSWORD`
 - CLI flag: [`--email-auth-password`](../../reference/cli/server/index.md#--email-auth-password)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 #### Password file
 
 File from which to load password for use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_AUTH_PASSWORD_FILE`
 - CLI flag: [`--email-auth-password-file`](../../reference/cli/server/index.md#--email-auth-password-file)
 - YAML key: `email.emailAuth.passwordFile`
@@ -661,6 +852,7 @@ File from which to load password for use with PLAIN/LOGIN authentication.
 
 Username to use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_AUTH_USERNAME`
 - CLI flag: [`--email-auth-username`](../../reference/cli/server/index.md#--email-auth-username)
 - YAML key: `email.emailAuth.username`
@@ -673,6 +865,7 @@ Configure TLS for your SMTP server target.
 
 CA certificate file to use.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_TLS_CACERTFILE`
 - CLI flag: [`--email-tls-ca-cert-file`](../../reference/cli/server/index.md#--email-tls-ca-cert-file)
 - YAML key: `email.emailTLS.caCertFile`
@@ -681,6 +874,7 @@ CA certificate file to use.
 
 Certificate file to use.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_TLS_CERTFILE`
 - CLI flag: [`--email-tls-cert-file`](../../reference/cli/server/index.md#--email-tls-cert-file)
 - YAML key: `email.emailTLS.certFile`
@@ -689,6 +883,7 @@ Certificate file to use.
 
 Certificate key file to use.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_TLS_CERTKEYFILE`
 - CLI flag: [`--email-tls-cert-key-file`](../../reference/cli/server/index.md#--email-tls-cert-key-file)
 - YAML key: `email.emailTLS.certKeyFile`
@@ -697,6 +892,7 @@ Certificate key file to use.
 
 Server name to verify against the target certificate.
 
+- Type: `string`
 - Environment variable: `CODER_EMAIL_TLS_SERVERNAME`
 - CLI flag: [`--email-tls-server-name`](../../reference/cli/server/index.md#--email-tls-server-name)
 - YAML key: `email.emailTLS.serverName`
@@ -705,6 +901,7 @@ Server name to verify against the target certificate.
 
 Skip verification of the target server's certificate (insecure).
 
+- Type: `bool`
 - Environment variable: `CODER_EMAIL_TLS_SKIPVERIFY`
 - CLI flag: [`--email-tls-skip-verify`](../../reference/cli/server/index.md#--email-tls-skip-verify)
 - YAML key: `email.emailTLS.insecureSkipVerify`
@@ -713,6 +910,7 @@ Skip verification of the target server's certificate (insecure).
 
 Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
+- Type: `bool`
 - Environment variable: `CODER_EMAIL_TLS_STARTTLS`
 - CLI flag: [`--email-tls-starttls`](../../reference/cli/server/index.md#--email-tls-starttls)
 - YAML key: `email.emailTLS.startTLS`
@@ -727,6 +925,7 @@ Configure logging, tracing, stat collection, and metrics exporting.
 
 Refresh interval for healthchecks.
 
+- Type: `duration`
 - Environment variable: `CODER_HEALTH_CHECK_REFRESH`
 - CLI flag: [`--health-check-refresh`](../../reference/cli/server/index.md#--health-check-refresh)
 - YAML key: `introspection.healthcheck.refresh`
@@ -734,8 +933,11 @@ Refresh interval for healthchecks.
 
 #### Threshold: database
 
-The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+The threshold for the database health check.
+If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy.
+The default value is 15ms.
 
+- Type: `duration`
 - Environment variable: `CODER_HEALTH_CHECK_THRESHOLD_DATABASE`
 - CLI flag: [`--health-check-threshold-database`](../../reference/cli/server/index.md#--health-check-threshold-database)
 - YAML key: `introspection.healthcheck.thresholdDatabase`
@@ -747,6 +949,7 @@ The threshold for the database health check. If the median latency of the databa
 
 Allow administrators to enable Terraform debug output.
 
+- Type: `bool`
 - Environment variable: `CODER_ENABLE_TERRAFORM_DEBUG_MODE`
 - CLI flag: [`--enable-terraform-debug-mode`](../../reference/cli/server/index.md#--enable-terraform-debug-mode)
 - YAML key: `introspection.logging.enableTerraformDebugMode`
@@ -756,6 +959,7 @@ Allow administrators to enable Terraform debug output.
 
 Output human-readable logs to a given file.
 
+- Type: `string`
 - Environment variable: `CODER_LOGGING_HUMAN`
 - CLI flag: [`--log-human`](../../reference/cli/server/index.md#--log-human)
 - YAML key: `introspection.logging.humanPath`
@@ -765,14 +969,17 @@ Output human-readable logs to a given file.
 
 Output JSON logs to a given file.
 
+- Type: `string`
 - Environment variable: `CODER_LOGGING_JSON`
 - CLI flag: [`--log-json`](../../reference/cli/server/index.md#--log-json)
 - YAML key: `introspection.logging.jsonPath`
 
 #### Log filter
 
-Filter debug logs by matching against a given regex. Use .* to match all debug logs.
+Filter debug logs by matching against a given regex.
+Use .* to match all debug logs.
 
+- Type: `string-array`
 - Environment variable: `CODER_LOG_FILTER`
 - CLI flag: [`--log-filter`](../../reference/cli/server/index.md#-l---log-filter)
 - YAML key: `introspection.logging.filter`
@@ -781,6 +988,7 @@ Filter debug logs by matching against a given regex. Use .* to match all debug l
 
 Output Stackdriver compatible logs to a given file.
 
+- Type: `string`
 - Environment variable: `CODER_LOGGING_STACKDRIVER`
 - CLI flag: [`--log-stackdriver`](../../reference/cli/server/index.md#--log-stackdriver)
 - YAML key: `introspection.logging.stackdriverPath`
@@ -791,6 +999,7 @@ Output Stackdriver compatible logs to a given file.
 
 The bind address to serve prometheus metrics.
 
+- Type: `host:port`
 - Environment variable: `CODER_PROMETHEUS_ADDRESS`
 - CLI flag: [`--prometheus-address`](../../reference/cli/server/index.md#--prometheus-address)
 - YAML key: `introspection.prometheus.address`
@@ -798,8 +1007,10 @@ The bind address to serve prometheus metrics.
 
 #### Aggregate agent stats by
 
-When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are agent_name, template_name, username, workspace_name.
+When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality.
+Accepted values are agent_name, template_name, username, workspace_name.
 
+- Type: `string-array`
 - Environment variable: `CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY`
 - CLI flag: [`--prometheus-aggregate-agent-stats-by`](../../reference/cli/server/index.md#--prometheus-aggregate-agent-stats-by)
 - YAML key: `introspection.prometheus.aggregate_agent_stats_by`
@@ -809,14 +1020,17 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 
 Collect agent stats (may increase charges for metrics storage).
 
+- Type: `bool`
 - Environment variable: `CODER_PROMETHEUS_COLLECT_AGENT_STATS`
 - CLI flag: [`--prometheus-collect-agent-stats`](../../reference/cli/server/index.md#--prometheus-collect-agent-stats)
 - YAML key: `introspection.prometheus.collect_agent_stats`
 
 #### Collect database metrics
 
-Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
+Collect database query metrics (may increase charges for metrics storage).
+If set to false, a reduced set of database metrics are still collected.
 
+- Type: `bool`
 - Environment variable: `CODER_PROMETHEUS_COLLECT_DB_METRICS`
 - CLI flag: [`--prometheus-collect-db-metrics`](../../reference/cli/server/index.md#--prometheus-collect-db-metrics)
 - YAML key: `introspection.prometheus.collect_db_metrics`
@@ -826,6 +1040,7 @@ Collect database query metrics (may increase charges for metrics storage). If se
 
 Serve prometheus metrics on the address defined by prometheus address.
 
+- Type: `bool`
 - Environment variable: `CODER_PROMETHEUS_ENABLE`
 - CLI flag: [`--prometheus-enable`](../../reference/cli/server/index.md#--prometheus-enable)
 - YAML key: `introspection.prometheus.enable`
@@ -836,8 +1051,10 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 ##### Enable
 
-Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.
+Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page.
+Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.
 
+- Type: `bool`
 - Environment variable: `CODER_STATS_COLLECTION_USAGE_STATS_ENABLE`
 - CLI flag: [`--stats-collection-usage-stats-enable`](../../reference/cli/server/index.md#--stats-collection-usage-stats-enable)
 - YAML key: `introspection.statsCollection.usageStats.enable`
@@ -847,16 +1064,21 @@ Enable the collection of application and workspace usage along with the associat
 
 #### Capture logs in traces
 
-Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.
+Enables capturing of logs as events in traces.
+This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.
 
+- Type: `bool`
 - Environment variable: `CODER_TRACE_LOGS`
 - CLI flag: [`--trace-logs`](../../reference/cli/server/index.md#--trace-logs)
 - YAML key: `introspection.tracing.captureLogs`
 
 #### Trace enable
 
-Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+Whether application tracing data is collected.
+It exports to a backend configured by environment variables.
+See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
+- Type: `bool`
 - Environment variable: `CODER_TRACE_ENABLE`
 - CLI flag: [`--trace`](../../reference/cli/server/index.md#--trace)
 - YAML key: `introspection.tracing.enable`
@@ -865,8 +1087,11 @@ Whether application tracing data is collected. It exports to a backend configure
 
 Enables trace exporting to Honeycomb.io using the provided API Key.
 
+- Type: `string`
 - Environment variable: `CODER_TRACE_HONEYCOMB_API_KEY`
 - CLI flag: [`--trace-honeycomb-api-key`](../../reference/cli/server/index.md#--trace-honeycomb-api-key)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### pprof
 
@@ -874,6 +1099,7 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 
 The bind address to serve pprof.
 
+- Type: `host:port`
 - Environment variable: `CODER_PPROF_ADDRESS`
 - CLI flag: [`--pprof-address`](../../reference/cli/server/index.md#--pprof-address)
 - YAML key: `introspection.pprof.address`
@@ -883,6 +1109,7 @@ The bind address to serve pprof.
 
 Serve pprof metrics on the address defined by pprof address.
 
+- Type: `bool`
 - Environment variable: `CODER_PPROF_ENABLE`
 - CLI flag: [`--pprof-enable`](../../reference/cli/server/index.md#--pprof-enable)
 - YAML key: `introspection.pprof.enable`
@@ -891,8 +1118,11 @@ Serve pprof metrics on the address defined by pprof address.
 
 ### Allowed private CIDRs
 
-MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
+MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection.
+This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd.
+This option exempts specific CIDRs.
 
+- Type: `string-array`
 - Environment variable: `CODER_MCP_ALLOWED_PRIVATE_CIDRS`
 - CLI flag: [`--mcp-allowed-private-cidrs`](../../reference/cli/server/index.md#--mcp-allowed-private-cidrs)
 - YAML key: `mcp.allowed_private_cidrs`
@@ -903,6 +1133,7 @@ MCP server destinations in private or reserved IP ranges are blocked by default 
 
 The URL that users will use to access the Coder deployment.
 
+- Type: `url`
 - Environment variable: `CODER_ACCESS_URL`
 - CLI flag: [`--access-url`](../../reference/cli/server/index.md#--access-url)
 - YAML key: `networking.accessURL`
@@ -911,6 +1142,7 @@ The URL that users will use to access the Coder deployment.
 
 Whether Coder only allows connections to workspaces via the browser.
 
+- Type: `bool`
 - Environment variable: `CODER_BROWSER_ONLY`
 - CLI flag: [`--browser-only`](../../reference/cli/server/index.md#--browser-only)
 - YAML key: `networking.browserOnly`
@@ -919,6 +1151,7 @@ Whether Coder only allows connections to workspaces via the browser.
 
 Specifies the custom docs URL.
 
+- Type: `url`
 - Environment variable: `CODER_DOCS_URL`
 - CLI flag: [`--docs-url`](../../reference/cli/server/index.md#--docs-url)
 - YAML key: `networking.docsURL`
@@ -928,6 +1161,7 @@ Specifies the custom docs URL.
 
 Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
 
+- Type: `string-array`
 - Environment variable: `CODER_PROXY_TRUSTED_HEADERS`
 - CLI flag: [`--proxy-trusted-headers`](../../reference/cli/server/index.md#--proxy-trusted-headers)
 - YAML key: `networking.proxyTrustedHeaders`
@@ -936,6 +1170,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 
 Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
+- Type: `string-array`
 - Environment variable: `CODER_PROXY_TRUSTED_ORIGINS`
 - CLI flag: [`--proxy-trusted-origins`](../../reference/cli/server/index.md#--proxy-trusted-origins)
 - YAML key: `networking.proxyTrustedOrigins`
@@ -944,6 +1179,7 @@ Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for sub
 
 Specifies whether to redirect requests that do not match the access URL host.
 
+- Type: `bool`
 - Environment variable: `CODER_REDIRECT_TO_ACCESS_URL`
 - CLI flag: [`--redirect-to-access-url`](../../reference/cli/server/index.md#--redirect-to-access-url)
 - YAML key: `networking.redirectToAccessURL`
@@ -952,6 +1188,7 @@ Specifies whether to redirect requests that do not match the access URL host.
 
 Controls the 'SameSite' property is set on browser session cookies.
 
+- Type: `enum`, one of `lax`, `none`
 - Environment variable: `CODER_SAMESITE_AUTH_COOKIE`
 - CLI flag: [`--samesite-auth-cookie`](../../reference/cli/server/index.md#--samesite-auth-cookie)
 - YAML key: `networking.sameSiteAuthCookie`
@@ -961,6 +1198,7 @@ Controls the 'SameSite' property is set on browser session cookies.
 
 Controls if the 'Secure' property is set on browser session cookies.
 
+- Type: `bool`
 - Environment variable: `CODER_SECURE_AUTH_COOKIE`
 - CLI flag: [`--secure-auth-cookie`](../../reference/cli/server/index.md#--secure-auth-cookie)
 - YAML key: `networking.secureAuthCookie`
@@ -970,14 +1208,18 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".
 
+- Type: `string`
 - Environment variable: `CODER_WILDCARD_ACCESS_URL`
 - CLI flag: [`--wildcard-access-url`](../../reference/cli/server/index.md#--wildcard-access-url)
 - YAML key: `networking.wildcardAccessURL`
 
 ### __Host prefix cookies
 
-Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
+Recommended to be enabled.
+Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.
+This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
 
+- Type: `bool`
 - Environment variable: `CODER_HOST_PREFIX_COOKIE`
 - CLI flag: [`--host-prefix-cookie`](../../reference/cli/server/index.md#--host-prefix-cookie)
 - YAML key: `networking.hostPrefixCookie`
@@ -985,48 +1227,61 @@ Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee the
 
 ### Cluster
 
-Configure network clustering. Coder Servers in the primary region form a cluster by communicating directly.
+Configure network clustering.
+Coder Servers in the primary region form a cluster by communicating directly.
 
 #### Host
 
 Hostname or (more commonly) IP to reach this replica for clustering.
 
+- Type: `string`
 - Environment variable: `CODER_CLUSTER_HOST`
 - CLI flag: [`--cluster-host`](../../reference/cli/server/index.md#--cluster-host)
 - YAML key: `networking.cluster.clusterHost`
 
 ### DERP
 
-Most Coder deployments never have to think about DERP because all connections between workspaces and users are peer-to-peer. However, when Coder cannot establish a peer to peer connection, Coder uses a distributed relay network backed by Tailscale and WireGuard.
+Most Coder deployments never have to think about DERP because all connections between workspaces and users are peer-to-peer.
+However, when Coder cannot establish a peer to peer connection, Coder uses a distributed relay network backed by Tailscale and WireGuard.
 
 #### Block direct connections
 
-Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.
+Block peer-to-peer (aka. direct) workspace connections.
+All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled.
+Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.
 
+- Type: `bool`
 - Environment variable: `CODER_BLOCK_DIRECT`
 - CLI flag: [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections)
 - YAML key: `networking.derp.blockDirect`
 
 #### Config path
 
-Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+Path to read a DERP mapping from.
+See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+- Type: `string`
 - Environment variable: `CODER_DERP_CONFIG_PATH`
 - CLI flag: [`--derp-config-path`](../../reference/cli/server/index.md#--derp-config-path)
 - YAML key: `networking.derp.configPath`
 
 #### Config URL
 
-URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+URL to fetch a DERP mapping on startup.
+See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+- Type: `string`
 - Environment variable: `CODER_DERP_CONFIG_URL`
 - CLI flag: [`--derp-config-url`](../../reference/cli/server/index.md#--derp-config-url)
 - YAML key: `networking.derp.url`
 
 #### Force WebSockets
 
-Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
+Force clients and agents to always use WebSocket to connect to DERP relay servers.
+By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies.
+Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
 
+- Type: `bool`
 - Environment variable: `CODER_DERP_FORCE_WEBSOCKETS`
 - CLI flag: [`--derp-force-websockets`](../../reference/cli/server/index.md#--derp-force-websockets)
 - YAML key: `networking.derp.forceWebSockets`
@@ -1035,6 +1290,7 @@ Force clients and agents to always use WebSocket to connect to DERP relay server
 
 Whether to enable or disable the embedded DERP relay server.
 
+- Type: `bool`
 - Environment variable: `CODER_DERP_SERVER_ENABLE`
 - CLI flag: [`--derp-server-enable`](../../reference/cli/server/index.md#--derp-server-enable)
 - YAML key: `networking.derp.enable`
@@ -1044,6 +1300,7 @@ Whether to enable or disable the embedded DERP relay server.
 
 Region name that for the embedded DERP server.
 
+- Type: `string`
 - Environment variable: `CODER_DERP_SERVER_REGION_NAME`
 - CLI flag: [`--derp-server-region-name`](../../reference/cli/server/index.md#--derp-server-region-name)
 - YAML key: `networking.derp.regionName`
@@ -1051,16 +1308,22 @@ Region name that for the embedded DERP server.
 
 #### Server relay URL
 
-An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.
+An HTTP URL that is accessible by other replicas to relay DERP traffic.
+Required for high availability.
 
+- Type: `url`
 - Environment variable: `CODER_DERP_SERVER_RELAY_URL`
 - CLI flag: [`--derp-server-relay-url`](../../reference/cli/server/index.md#--derp-server-relay-url)
 - YAML key: `networking.derp.relayURL`
 
 #### Server STUN addresses
 
-Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.
+Addresses for STUN servers to establish P2P connections.
+It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces.
+Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`.
+Use special value 'disable' to turn off STUN completely.
 
+- Type: `string-array`
 - Environment variable: `CODER_DERP_SERVER_STUN_ADDRESSES`
 - CLI flag: [`--derp-server-stun-addresses`](../../reference/cli/server/index.md#--derp-server-stun-addresses)
 - YAML key: `networking.derp.stunAddresses`
@@ -1070,32 +1333,43 @@ Addresses for STUN servers to establish P2P connections. It's recommended to hav
 
 #### Additional CSP policy
 
-Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
+Coder configures a Content Security Policy (CSP) to protect against XSS attacks.
+This setting allows you to add additional CSP directives, which can open the attack surface of the deployment.
+Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
 
+- Type: `string-array`
 - Environment variable: `CODER_ADDITIONAL_CSP_POLICY`
 - CLI flag: [`--additional-csp-policy`](../../reference/cli/server/index.md#--additional-csp-policy)
 - YAML key: `networking.http.additionalCSPPolicy`
 
 #### Disable password authentication
 
-Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
+Disable password authentication.
+This is recommended for security purposes in production deployments that rely on an identity provider.
+Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out.
+If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_PASSWORD_AUTH`
 - CLI flag: [`--disable-password-auth`](../../reference/cli/server/index.md#--disable-password-auth)
 - YAML key: `networking.http.disablePasswordAuth`
 
 #### Disable session expiry refresh
 
-Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
+Disable automatic session expiry bumping due to activity.
+This forces all sessions to become invalid after the session expiry duration has been reached.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_SESSION_EXPIRY_REFRESH`
 - CLI flag: [`--disable-session-expiry-refresh`](../../reference/cli/server/index.md#--disable-session-expiry-refresh)
 - YAML key: `networking.http.disableSessionExpiryRefresh`
 
 #### Address
 
-HTTP bind address of the server. Unset to disable the HTTP endpoint.
+HTTP bind address of the server.
+Unset to disable the HTTP endpoint.
 
+- Type: `string`
 - Environment variable: `CODER_HTTP_ADDRESS`
 - CLI flag: [`--http-address`](../../reference/cli/server/index.md#--http-address)
 - YAML key: `networking.http.httpAddress`
@@ -1105,6 +1379,7 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
 The maximum lifetime duration users can specify when creating an API token.
 
+- Type: `duration`
 - Environment variable: `CODER_MAX_TOKEN_LIFETIME`
 - CLI flag: [`--max-token-lifetime`](../../reference/cli/server/index.md#--max-token-lifetime)
 - YAML key: `networking.http.maxTokenLifetime`
@@ -1114,6 +1389,7 @@ The maximum lifetime duration users can specify when creating an API token.
 
 The maximum lifetime duration administrators can specify when creating an API token.
 
+- Type: `duration`
 - Environment variable: `CODER_MAX_ADMIN_TOKEN_LIFETIME`
 - CLI flag: [`--max-admin-token-lifetime`](../../reference/cli/server/index.md#--max-admin-token-lifetime)
 - YAML key: `networking.http.maxAdminTokenLifetime`
@@ -1123,6 +1399,7 @@ The maximum lifetime duration administrators can specify when creating an API to
 
 The interval in which coderd should be checking the status of workspace proxies.
 
+- Type: `duration`
 - Environment variable: `CODER_PROXY_HEALTH_INTERVAL`
 - CLI flag: [`--proxy-health-interval`](../../reference/cli/server/index.md#--proxy-health-interval)
 - YAML key: `networking.http.proxyHealthInterval`
@@ -1130,8 +1407,10 @@ The interval in which coderd should be checking the status of workspace proxies.
 
 #### Session duration
 
-The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+The token expiry duration for browser sessions.
+Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
 
+- Type: `duration`
 - Environment variable: `CODER_SESSION_DURATION`
 - CLI flag: [`--session-duration`](../../reference/cli/server/index.md#--session-duration)
 - YAML key: `networking.http.sessionDuration`
@@ -1139,12 +1418,16 @@ The token expiry duration for browser sessions. Sessions may last longer if they
 
 ### TLS
 
-Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind a TLS-terminating reverse proxy or are accessing Coder over a secure link, you can safely ignore these settings.
+Configure TLS / HTTPS for your Coder deployment.
+If you're running Coder behind a TLS-terminating reverse proxy or are accessing Coder over a secure link, you can safely ignore these settings.
 
 #### Strict-Transport-Security
 
-Controls if the 'Strict-Transport-Security' header is set on all static file responses. This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of the header.
+Controls if the 'Strict-Transport-Security' header is set on all static file responses.
+This header should only be set if the server is accessed via HTTPS.
+This value is the MaxAge in seconds of the header.
 
+- Type: `int`
 - Environment variable: `CODER_STRICT_TRANSPORT_SECURITY`
 - CLI flag: [`--strict-transport-security`](../../reference/cli/server/index.md#--strict-transport-security)
 - YAML key: `networking.tls.strictTransportSecurity`
@@ -1152,8 +1435,10 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 
 #### Strict-Transport-Security options
 
-Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
+Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'.
+The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
 
+- Type: `string-array`
 - Environment variable: `CODER_STRICT_TRANSPORT_SECURITY_OPTIONS`
 - CLI flag: [`--strict-transport-security-options`](../../reference/cli/server/index.md#--strict-transport-security-options)
 - YAML key: `networking.tls.strictTransportSecurityOptions`
@@ -1162,6 +1447,7 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 HTTPS bind address of the server.
 
+- Type: `host:port`
 - Environment variable: `CODER_TLS_ADDRESS`
 - CLI flag: [`--tls-address`](../../reference/cli/server/index.md#--tls-address)
 - YAML key: `networking.tls.address`
@@ -1169,8 +1455,10 @@ HTTPS bind address of the server.
 
 #### Allow insecure ciphers
 
-By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+By default, only ciphers marked as 'secure' are allowed to be used.
+See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
 
+- Type: `bool`
 - Environment variable: `CODER_TLS_ALLOW_INSECURE_CIPHERS`
 - CLI flag: [`--tls-allow-insecure-ciphers`](../../reference/cli/server/index.md#--tls-allow-insecure-ciphers)
 - YAML key: `networking.tls.tlsAllowInsecureCiphers`
@@ -1178,24 +1466,32 @@ By default, only ciphers marked as 'secure' are allowed to be used. See https://
 
 #### Certificate files
 
-Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+Path to each certificate for TLS.
+It requires a PEM-encoded file.
+To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together.
+The primary certificate should appear first in the combined file.
 
+- Type: `string-array`
 - Environment variable: `CODER_TLS_CERT_FILE`
 - CLI flag: [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file)
 - YAML key: `networking.tls.certFiles`
 
 #### Ciphers
 
-Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+Specify specific TLS ciphers that allowed to be used.
+See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
+- Type: `string-array`
 - Environment variable: `CODER_TLS_CIPHERS`
 - CLI flag: [`--tls-ciphers`](../../reference/cli/server/index.md#--tls-ciphers)
 - YAML key: `networking.tls.tlsCiphers`
 
 #### Client auth
 
-Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+Policy the server will follow for TLS Client Authentication.
+Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
 
+- Type: `string`
 - Environment variable: `CODER_TLS_CLIENT_AUTH`
 - CLI flag: [`--tls-client-auth`](../../reference/cli/server/index.md#--tls-client-auth)
 - YAML key: `networking.tls.clientAuth`
@@ -1205,22 +1501,27 @@ Policy the server will follow for TLS Client Authentication. Accepted values are
 
 PEM-encoded Certificate Authority file used for checking the authenticity of client.
 
+- Type: `string`
 - Environment variable: `CODER_TLS_CLIENT_CA_FILE`
 - CLI flag: [`--tls-client-ca-file`](../../reference/cli/server/index.md#--tls-client-ca-file)
 - YAML key: `networking.tls.clientCAFile`
 
 #### Client cert file
 
-Path to certificate for client TLS authentication. It requires a PEM-encoded file.
+Path to certificate for client TLS authentication.
+It requires a PEM-encoded file.
 
+- Type: `string`
 - Environment variable: `CODER_TLS_CLIENT_CERT_FILE`
 - CLI flag: [`--tls-client-cert-file`](../../reference/cli/server/index.md#--tls-client-cert-file)
 - YAML key: `networking.tls.clientCertFile`
 
 #### Client key file
 
-Path to key for client TLS authentication. It requires a PEM-encoded file.
+Path to key for client TLS authentication.
+It requires a PEM-encoded file.
 
+- Type: `string`
 - Environment variable: `CODER_TLS_CLIENT_KEY_FILE`
 - CLI flag: [`--tls-client-key-file`](../../reference/cli/server/index.md#--tls-client-key-file)
 - YAML key: `networking.tls.clientKeyFile`
@@ -1229,22 +1530,27 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 
 Whether TLS will be enabled.
 
+- Type: `bool`
 - Environment variable: `CODER_TLS_ENABLE`
 - CLI flag: [`--tls-enable`](../../reference/cli/server/index.md#--tls-enable)
 - YAML key: `networking.tls.enable`
 
 #### Key files
 
-Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
+Paths to the private keys for each of the certificates.
+It requires a PEM-encoded file.
 
+- Type: `string-array`
 - Environment variable: `CODER_TLS_KEY_FILE`
 - CLI flag: [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file)
 - YAML key: `networking.tls.keyFiles`
 
 #### Minimum version
 
-Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
+Minimum supported version of TLS.
+Accepted values are "tls10", "tls11", "tls12" or "tls13".
 
+- Type: `string`
 - Environment variable: `CODER_TLS_MIN_VERSION`
 - CLI flag: [`--tls-min-version`](../../reference/cli/server/index.md#--tls-min-version)
 - YAML key: `networking.tls.minVersion`
@@ -1258,6 +1564,7 @@ Configure how notifications are processed and delivered.
 
 How long to wait while a notification is being sent before giving up.
 
+- Type: `duration`
 - Environment variable: `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`
 - CLI flag: [`--notifications-dispatch-timeout`](../../reference/cli/server/index.md#--notifications-dispatch-timeout)
 - YAML key: `notifications.dispatchTimeout`
@@ -1267,6 +1574,7 @@ How long to wait while a notification is being sent before giving up.
 
 The upper limit of attempts to send a notification.
 
+- Type: `int`
 - Environment variable: `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS`
 - CLI flag: [`--notifications-max-send-attempts`](../../reference/cli/server/index.md#--notifications-max-send-attempts)
 - YAML key: `notifications.maxSendAttempts`
@@ -1276,6 +1584,7 @@ The upper limit of attempts to send a notification.
 
 Which delivery method to use (available options: 'smtp', 'webhook').
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_METHOD`
 - CLI flag: [`--notifications-method`](../../reference/cli/server/index.md#--notifications-method)
 - YAML key: `notifications.method`
@@ -1287,32 +1596,40 @@ Configure how email notifications are sent.
 
 #### Force TLS
 
-**Deprecated.** Force a TLS connection to the configured SMTP smarthost.
+**Deprecated.**
+Force a TLS connection to the configured SMTP smarthost.
 
+- Type: `bool`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS`
 - CLI flag: [`--notifications-email-force-tls`](../../reference/cli/server/index.md#--notifications-email-force-tls)
 - YAML key: `notifications.email.forceTLS`
 
 #### From address
 
-**Deprecated.** The sender's address to use.
+**Deprecated.**
+The sender's address to use.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_FROM`
 - CLI flag: [`--notifications-email-from`](../../reference/cli/server/index.md#--notifications-email-from)
 - YAML key: `notifications.email.from`
 
 #### Hello
 
-**Deprecated.** The hostname identifying the SMTP server.
+**Deprecated.**
+The hostname identifying the SMTP server.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_HELLO`
 - CLI flag: [`--notifications-email-hello`](../../reference/cli/server/index.md#--notifications-email-hello)
 - YAML key: `notifications.email.hello`
 
 #### Smarthost
 
-**Deprecated.** The intermediary SMTP host through which emails are sent.
+**Deprecated.**
+The intermediary SMTP host through which emails are sent.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_SMARTHOST`
 - CLI flag: [`--notifications-email-smarthost`](../../reference/cli/server/index.md#--notifications-email-smarthost)
 - YAML key: `notifications.email.smarthost`
@@ -1323,31 +1640,41 @@ Configure SMTP authentication options.
 
 ##### Identity
 
-**Deprecated.** Identity to use with PLAIN authentication.
+**Deprecated.**
+Identity to use with PLAIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY`
 - CLI flag: [`--notifications-email-auth-identity`](../../reference/cli/server/index.md#--notifications-email-auth-identity)
 - YAML key: `notifications.email.emailAuth.identity`
 
 ##### Password
 
-**Deprecated.** Password to use with PLAIN/LOGIN authentication.
+**Deprecated.**
+Password to use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD`
 - CLI flag: [`--notifications-email-auth-password`](../../reference/cli/server/index.md#--notifications-email-auth-password)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ##### Password file
 
-**Deprecated.** File from which to load password for use with PLAIN/LOGIN authentication.
+**Deprecated.**
+File from which to load password for use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE`
 - CLI flag: [`--notifications-email-auth-password-file`](../../reference/cli/server/index.md#--notifications-email-auth-password-file)
 - YAML key: `notifications.email.emailAuth.passwordFile`
 
 ##### Username
 
-**Deprecated.** Username to use with PLAIN/LOGIN authentication.
+**Deprecated.**
+Username to use with PLAIN/LOGIN authentication.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME`
 - CLI flag: [`--notifications-email-auth-username`](../../reference/cli/server/index.md#--notifications-email-auth-username)
 - YAML key: `notifications.email.emailAuth.username`
@@ -1358,48 +1685,60 @@ Configure TLS for your SMTP server target.
 
 ##### Certificate authority file
 
-**Deprecated.** CA certificate file to use.
+**Deprecated.**
+CA certificate file to use.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE`
 - CLI flag: [`--notifications-email-tls-ca-cert-file`](../../reference/cli/server/index.md#--notifications-email-tls-ca-cert-file)
 - YAML key: `notifications.email.emailTLS.caCertFile`
 
 ##### Certificate file
 
-**Deprecated.** Certificate file to use.
+**Deprecated.**
+Certificate file to use.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE`
 - CLI flag: [`--notifications-email-tls-cert-file`](../../reference/cli/server/index.md#--notifications-email-tls-cert-file)
 - YAML key: `notifications.email.emailTLS.certFile`
 
 ##### Certificate key file
 
-**Deprecated.** Certificate key file to use.
+**Deprecated.**
+Certificate key file to use.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE`
 - CLI flag: [`--notifications-email-tls-cert-key-file`](../../reference/cli/server/index.md#--notifications-email-tls-cert-key-file)
 - YAML key: `notifications.email.emailTLS.certKeyFile`
 
 ##### Server name
 
-**Deprecated.** Server name to verify against the target certificate.
+**Deprecated.**
+Server name to verify against the target certificate.
 
+- Type: `string`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME`
 - CLI flag: [`--notifications-email-tls-server-name`](../../reference/cli/server/index.md#--notifications-email-tls-server-name)
 - YAML key: `notifications.email.emailTLS.serverName`
 
 ##### Skip certificate verification (insecure)
 
-**Deprecated.** Skip verification of the target server's certificate (insecure).
+**Deprecated.**
+Skip verification of the target server's certificate (insecure).
 
+- Type: `bool`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY`
 - CLI flag: [`--notifications-email-tls-skip-verify`](../../reference/cli/server/index.md#--notifications-email-tls-skip-verify)
 - YAML key: `notifications.email.emailTLS.insecureSkipVerify`
 
 ##### StartTLS
 
-**Deprecated.** Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+**Deprecated.**
+Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
+- Type: `bool`
 - Environment variable: `CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS`
 - CLI flag: [`--notifications-email-tls-starttls`](../../reference/cli/server/index.md#--notifications-email-tls-starttls)
 - YAML key: `notifications.email.emailTLS.startTLS`
@@ -1410,6 +1749,7 @@ Configure TLS for your SMTP server target.
 
 Enable Coder Inbox.
 
+- Type: `bool`
 - Environment variable: `CODER_NOTIFICATIONS_INBOX_ENABLED`
 - CLI flag: [`--notifications-inbox-enabled`](../../reference/cli/server/index.md#--notifications-inbox-enabled)
 - YAML key: `notifications.inbox.enabled`
@@ -1421,6 +1761,7 @@ Enable Coder Inbox.
 
 The endpoint to which to send webhooks.
 
+- Type: `url`
 - Environment variable: `CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT`
 - CLI flag: [`--notifications-webhook-endpoint`](../../reference/cli/server/index.md#--notifications-webhook-endpoint)
 - YAML key: `notifications.webhook.endpoint`
@@ -1435,6 +1776,7 @@ Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 
 
 Allow all logins, setting this option means allowed orgs and teams must be empty.
 
+- Type: `bool`
 - Environment variable: `CODER_OAUTH2_GITHUB_ALLOW_EVERYONE`
 - CLI flag: [`--oauth2-github-allow-everyone`](../../reference/cli/server/index.md#--oauth2-github-allow-everyone)
 - YAML key: `oauth2.github.allowEveryone`
@@ -1443,6 +1785,7 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 
 Whether new users can sign up with GitHub.
 
+- Type: `bool`
 - Environment variable: `CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS`
 - CLI flag: [`--oauth2-github-allow-signups`](../../reference/cli/server/index.md#--oauth2-github-allow-signups)
 - YAML key: `oauth2.github.allowSignups`
@@ -1451,14 +1794,17 @@ Whether new users can sign up with GitHub.
 
 Organizations the user must be a member of to Login with GitHub.
 
+- Type: `string-array`
 - Environment variable: `CODER_OAUTH2_GITHUB_ALLOWED_ORGS`
 - CLI flag: [`--oauth2-github-allowed-orgs`](../../reference/cli/server/index.md#--oauth2-github-allowed-orgs)
 - YAML key: `oauth2.github.allowedOrgs`
 
 #### Allowed teams
 
-Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.
+Teams inside organizations the user must be a member of to Login with GitHub.
+Structured as: `<organization-name>/<team-slug>`.
 
+- Type: `string-array`
 - Environment variable: `CODER_OAUTH2_GITHUB_ALLOWED_TEAMS`
 - CLI flag: [`--oauth2-github-allowed-teams`](../../reference/cli/server/index.md#--oauth2-github-allowed-teams)
 - YAML key: `oauth2.github.allowedTeams`
@@ -1467,6 +1813,7 @@ Teams inside organizations the user must be a member of to Login with GitHub. St
 
 Client ID for Login with GitHub.
 
+- Type: `string`
 - Environment variable: `CODER_OAUTH2_GITHUB_CLIENT_ID`
 - CLI flag: [`--oauth2-github-client-id`](../../reference/cli/server/index.md#--oauth2-github-client-id)
 - YAML key: `oauth2.github.clientID`
@@ -1475,13 +1822,17 @@ Client ID for Login with GitHub.
 
 Client secret for Login with GitHub.
 
+- Type: `string`
 - Environment variable: `CODER_OAUTH2_GITHUB_CLIENT_SECRET`
 - CLI flag: [`--oauth2-github-client-secret`](../../reference/cli/server/index.md#--oauth2-github-client-secret)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 #### Default provider enable
 
 Enable the default GitHub OAuth2 provider managed by Coder.
 
+- Type: `bool`
 - Environment variable: `CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE`
 - CLI flag: [`--oauth2-github-default-provider-enable`](../../reference/cli/server/index.md#--oauth2-github-default-provider-enable)
 - YAML key: `oauth2.github.defaultProviderEnable`
@@ -1491,6 +1842,7 @@ Enable the default GitHub OAuth2 provider managed by Coder.
 
 Enable device flow for Login with GitHub.
 
+- Type: `bool`
 - Environment variable: `CODER_OAUTH2_GITHUB_DEVICE_FLOW`
 - CLI flag: [`--oauth2-github-device-flow`](../../reference/cli/server/index.md#--oauth2-github-device-flow)
 - YAML key: `oauth2.github.deviceFlow`
@@ -1500,6 +1852,7 @@ Enable device flow for Login with GitHub.
 
 Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
+- Type: `string`
 - Environment variable: `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`
 - CLI flag: [`--oauth2-github-enterprise-base-url`](../../reference/cli/server/index.md#--oauth2-github-enterprise-base-url)
 - YAML key: `oauth2.github.enterpriseBaseURL`
@@ -1508,8 +1861,11 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
 #### Enable
 
-Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users.
+Disabled by default.
+When disabled, the OAuth2 endpoints and discovery documents return 404.
 
+- Type: `bool`
 - Environment variable: `CODER_OAUTH2_PROVIDER_ENABLE`
 - CLI flag: [`--oauth2-provider-enable`](../../reference/cli/server/index.md#--oauth2-provider-enable)
 - YAML key: `oauth2.provider.enable`
@@ -1521,6 +1877,7 @@ Enable the OAuth 2.1 authorization server, which lets external applications (suc
 
 Automatically creates missing groups from a user's groups claim.
 
+- Type: `bool`
 - Environment variable: `CODER_OIDC_GROUP_AUTO_CREATE`
 - CLI flag: [`--oidc-group-auto-create`](../../reference/cli/server/index.md#--oidc-group-auto-create)
 - YAML key: `oidc.enableGroupAutoCreate`
@@ -1530,6 +1887,7 @@ Automatically creates missing groups from a user's groups claim.
 
 Whether new users can sign up with OIDC.
 
+- Type: `bool`
 - Environment variable: `CODER_OIDC_ALLOW_SIGNUPS`
 - CLI flag: [`--oidc-allow-signups`](../../reference/cli/server/index.md#--oidc-allow-signups)
 - YAML key: `oidc.allowSignups`
@@ -1537,8 +1895,11 @@ Whether new users can sign up with OIDC.
 
 ### Allowed groups
 
-If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.
+If provided any group name not in the list will not be allowed to authenticate.
+This allows for restricting access to a specific set of groups.
+This filter is applied after the group mapping and before the regex filter.
 
+- Type: `string-array`
 - Environment variable: `CODER_OIDC_ALLOWED_GROUPS`
 - CLI flag: [`--oidc-allowed-groups`](../../reference/cli/server/index.md#--oidc-allowed-groups)
 - YAML key: `oidc.groupAllowed`
@@ -1547,6 +1908,7 @@ If provided any group name not in the list will not be allowed to authenticate. 
 
 OIDC auth URL parameters to pass to the upstream provider.
 
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_AUTH_URL_PARAMS`
 - CLI flag: [`--oidc-auth-url-params`](../../reference/cli/server/index.md#--oidc-auth-url-params)
 - YAML key: `oidc.authURLParams`
@@ -1554,8 +1916,11 @@ OIDC auth URL parameters to pass to the upstream provider.
 
 ### Client cert file
 
-Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.
+Pem encoded certificate file to use for oauth2 PKI/JWT authorization.
+The public certificate that accompanies oidc-client-key-file.
+A standard x509 certificate is expected.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_CLIENT_CERT_FILE`
 - CLI flag: [`--oidc-client-cert-file`](../../reference/cli/server/index.md#--oidc-client-cert-file)
 - YAML key: `oidc.oidcClientCertFile`
@@ -1564,14 +1929,17 @@ Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public
 
 Client ID to use for Login with OIDC.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_CLIENT_ID`
 - CLI flag: [`--oidc-client-id`](../../reference/cli/server/index.md#--oidc-client-id)
 - YAML key: `oidc.clientID`
 
 ### Client key file
 
-Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be used instead of oidc-client-secret if your IDP supports it.
+Pem encoded RSA private key to use for oauth2 PKI/JWT authorization.
+This can be used instead of oidc-client-secret if your IDP supports it.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_CLIENT_KEY_FILE`
 - CLI flag: [`--oidc-client-key-file`](../../reference/cli/server/index.md#--oidc-client-key-file)
 - YAML key: `oidc.oidcClientKeyFile`
@@ -1580,13 +1948,17 @@ Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
 
 Client secret to use for Login with OIDC.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_CLIENT_SECRET`
 - CLI flag: [`--oidc-client-secret`](../../reference/cli/server/index.md#--oidc-client-secret)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### Email domain
 
 Email domains that clients logging in with OIDC must match.
 
+- Type: `string-array`
 - Environment variable: `CODER_OIDC_EMAIL_DOMAIN`
 - CLI flag: [`--oidc-email-domain`](../../reference/cli/server/index.md#--oidc-email-domain)
 - YAML key: `oidc.emailDomain`
@@ -1595,6 +1967,7 @@ Email domains that clients logging in with OIDC must match.
 
 OIDC claim field to use as the email.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_EMAIL_FIELD`
 - CLI flag: [`--oidc-email-field`](../../reference/cli/server/index.md#--oidc-email-field)
 - YAML key: `oidc.emailField`
@@ -1602,16 +1975,20 @@ OIDC claim field to use as the email.
 
 ### Group field
 
-This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.
+This field must be set if using the group sync feature and the scope name is not 'groups'.
+Set to the claim to be used for groups.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_GROUP_FIELD`
 - CLI flag: [`--oidc-group-field`](../../reference/cli/server/index.md#--oidc-group-field)
 - YAML key: `oidc.groupField`
 
 ### Group mapping
 
-A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
+A map of OIDC group IDs and the group in Coder it should map to.
+This is useful for when OIDC providers only return group IDs.
 
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_GROUP_MAPPING`
 - CLI flag: [`--oidc-group-mapping`](../../reference/cli/server/index.md#--oidc-group-mapping)
 - YAML key: `oidc.groupMapping`
@@ -1621,6 +1998,7 @@ A map of OIDC group IDs and the group in Coder it should map to. This is useful 
 
 Ignore the email_verified claim from the upstream provider.
 
+- Type: `bool`
 - Environment variable: `CODER_OIDC_IGNORE_EMAIL_VERIFIED`
 - CLI flag: [`--oidc-ignore-email-verified`](../../reference/cli/server/index.md#--oidc-ignore-email-verified)
 - YAML key: `oidc.ignoreEmailVerified`
@@ -1629,6 +2007,7 @@ Ignore the email_verified claim from the upstream provider.
 
 Ignore the userinfo endpoint and only use the ID token for user information.
 
+- Type: `bool`
 - Environment variable: `CODER_OIDC_IGNORE_USERINFO`
 - CLI flag: [`--oidc-ignore-userinfo`](../../reference/cli/server/index.md#--oidc-ignore-userinfo)
 - YAML key: `oidc.ignoreUserInfo`
@@ -1638,6 +2017,7 @@ Ignore the userinfo endpoint and only use the ID token for user information.
 
 Issuer URL to use for Login with OIDC.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_ISSUER_URL`
 - CLI flag: [`--oidc-issuer-url`](../../reference/cli/server/index.md#--oidc-issuer-url)
 - YAML key: `oidc.issuerURL`
@@ -1646,6 +2026,7 @@ Issuer URL to use for Login with OIDC.
 
 OIDC claim field to use as the name.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_NAME_FIELD`
 - CLI flag: [`--oidc-name-field`](../../reference/cli/server/index.md#--oidc-name-field)
 - YAML key: `oidc.nameField`
@@ -1653,16 +2034,22 @@ OIDC claim field to use as the name.
 
 ### Redirect URL
 
-Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+Optional override of the default redirect url which uses the deployment's access url.
+Useful in situations where a deployment has more than 1 domain.
+Using this setting can also break OIDC, so use with caution.
 
+- Type: `url`
 - Environment variable: `CODER_OIDC_REDIRECT_URL`
 - CLI flag: [`--oidc-redirect-url`](../../reference/cli/server/index.md#--oidc-redirect-url)
 - YAML key: `oidc.oidc-redirect-url`
 
 ### Regex group filter
 
-If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
+If provided any group name not matching the regex is ignored.
+This allows for filtering out groups that are not needed.
+This filter is applied after the group mapping.
 
+- Type: `regexp`
 - Environment variable: `CODER_OIDC_GROUP_REGEX_FILTER`
 - CLI flag: [`--oidc-group-regex-filter`](../../reference/cli/server/index.md#--oidc-group-regex-filter)
 - YAML key: `oidc.groupRegexFilter`
@@ -1672,6 +2059,7 @@ If provided any group name not matching the regex is ignored. This allows for fi
 
 Scopes to grant when authenticating with OIDC.
 
+- Type: `string-array`
 - Environment variable: `CODER_OIDC_SCOPES`
 - CLI flag: [`--oidc-scopes`](../../reference/cli/server/index.md#--oidc-scopes)
 - YAML key: `oidc.scopes`
@@ -1679,24 +2067,32 @@ Scopes to grant when authenticating with OIDC.
 
 ### User role default
 
-If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.
+If user role sync is enabled, these roles are always included for all authenticated users.
+The 'member' role is always assigned.
 
+- Type: `string-array`
 - Environment variable: `CODER_OIDC_USER_ROLE_DEFAULT`
 - CLI flag: [`--oidc-user-role-default`](../../reference/cli/server/index.md#--oidc-user-role-default)
 - YAML key: `oidc.userRoleDefault`
 
 ### User role field
 
-This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.
+This field must be set if using the user roles sync feature.
+Set this to the name of the claim used to store the user's role.
+The roles should be sent as an array of strings.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_USER_ROLE_FIELD`
 - CLI flag: [`--oidc-user-role-field`](../../reference/cli/server/index.md#--oidc-user-role-field)
 - YAML key: `oidc.userRoleField`
 
 ### User role mapping
 
-A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.
+A map of the OIDC passed in user roles and the groups in Coder it should map to.
+This is useful if the group names do not match.
+If mapped to the empty string, the role will ignored.
 
+- Type: `YAML mapping`
 - Environment variable: `CODER_OIDC_USER_ROLE_MAPPING`
 - CLI flag: [`--oidc-user-role-mapping`](../../reference/cli/server/index.md#--oidc-user-role-mapping)
 - YAML key: `oidc.userRoleMapping`
@@ -1706,6 +2102,7 @@ A map of the OIDC passed in user roles and the groups in Coder it should map to.
 
 OIDC claim field to use as the username.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_USERNAME_FIELD`
 - CLI flag: [`--oidc-username-field`](../../reference/cli/server/index.md#--oidc-username-field)
 - YAML key: `oidc.usernameField`
@@ -1715,6 +2112,7 @@ OIDC claim field to use as the username.
 
 The text to show on the OpenID Connect sign in button.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_SIGN_IN_TEXT`
 - CLI flag: [`--oidc-sign-in-text`](../../reference/cli/server/index.md#--oidc-sign-in-text)
 - YAML key: `oidc.signInText`
@@ -1724,22 +2122,28 @@ The text to show on the OpenID Connect sign in button.
 
 URL pointing to the icon to use on the OpenID Connect login button.
 
+- Type: `url`
 - Environment variable: `CODER_OIDC_ICON_URL`
 - CLI flag: [`--oidc-icon-url`](../../reference/cli/server/index.md#--oidc-icon-url)
 - YAML key: `oidc.iconURL`
 
 ### Signups disabled text
 
-The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.
+The custom text to show on the error page informing about disabled OIDC signups.
+Markdown format is supported.
 
+- Type: `string`
 - Environment variable: `CODER_OIDC_SIGNUPS_DISABLED_TEXT`
 - CLI flag: [`--oidc-signups-disabled-text`](../../reference/cli/server/index.md#--oidc-signups-disabled-text)
 - YAML key: `oidc.signupsDisabledText`
 
 ### Skip OIDC issuer checks (not recommended)
 
-OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
+OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration.
+This flag disables that requirement, and can lead to an insecure OIDC configuration.
+It is not recommended to use this flag.
 
+- Type: `bool`
 - Environment variable: `CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS`
 - CLI flag: [`--dangerous-oidc-skip-issuer-checks`](../../reference/cli/server/index.md#--dangerous-oidc-skip-issuer-checks)
 - YAML key: `oidc.dangerousSkipIssuerChecks`
@@ -1750,8 +2154,11 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.
+Disable the reuse of Terraform modules cached at template import for all templates.
+Modules are re-downloaded on every workspace build.
+Individual templates cannot opt back in.
 
+- Type: `bool`
 - Environment variable: `CODER_PROVISIONER_DISABLE_MODULE_CACHE`
 - CLI flag: [`--provisioner-disable-module-cache`](../../reference/cli/server/index.md#--provisioner-disable-module-cache)
 - YAML key: `provisioning.disableModuleCache`
@@ -1761,6 +2168,7 @@ Disable the reuse of Terraform modules cached at template import for all templat
 
 Time to force cancel provisioning tasks that are stuck.
 
+- Type: `duration`
 - Environment variable: `CODER_PROVISIONER_FORCE_CANCEL_INTERVAL`
 - CLI flag: [`--provisioner-force-cancel-interval`](../../reference/cli/server/index.md#--provisioner-force-cancel-interval)
 - YAML key: `provisioning.forceCancelInterval`
@@ -1770,13 +2178,18 @@ Time to force cancel provisioning tasks that are stuck.
 
 Pre-shared key to authenticate external provisioner daemons to Coder server.
 
+- Type: `string`
 - Environment variable: `CODER_PROVISIONER_DAEMON_PSK`
 - CLI flag: [`--provisioner-daemon-psk`](../../reference/cli/server/index.md#--provisioner-daemon-psk)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
 
 ### Provisioner daemons
 
-Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
+Number of provisioner daemons to create on start.
+If builds are stuck in queued state for a long time, consider increasing this.
 
+- Type: `int`
 - Environment variable: `CODER_PROVISIONER_DAEMONS`
 - CLI flag: [`--provisioner-daemons`](../../reference/cli/server/index.md#--provisioner-daemons)
 - YAML key: `provisioning.daemons`
@@ -1786,6 +2199,7 @@ Number of provisioner daemons to create on start. If builds are stuck in queued 
 
 **Deprecated** and ignored.
 
+- Type: `duration`
 - Environment variable: `CODER_PROVISIONER_DAEMON_POLL_INTERVAL`
 - CLI flag: [`--provisioner-daemon-poll-interval`](../../reference/cli/server/index.md#--provisioner-daemon-poll-interval)
 - YAML key: `provisioning.daemonPollInterval`
@@ -1795,6 +2209,7 @@ Number of provisioner daemons to create on start. If builds are stuck in queued 
 
 **Deprecated** and ignored.
 
+- Type: `duration`
 - Environment variable: `CODER_PROVISIONER_DAEMON_POLL_JITTER`
 - CLI flag: [`--provisioner-daemon-poll-jitter`](../../reference/cli/server/index.md#--provisioner-daemon-poll-jitter)
 - YAML key: `provisioning.daemonPollJitter`
@@ -1802,12 +2217,17 @@ Number of provisioner daemons to create on start. If builds are stuck in queued 
 
 ## Retention
 
-Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.
+Configure data retention policies for various database tables.
+Retention policies automatically purge old data to reduce database size and improve performance.
+Setting a retention duration to 0 disables automatic purging for that data type.
 
 ### API keys retention
 
-How long expired API keys are retained before being deleted. Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key. Set to 0 to disable automatic deletion of expired keys.
+How long expired API keys are retained before being deleted.
+Keeping expired keys allows the backend to return a more helpful error when a user tries to use an expired key.
+Set to 0 to disable automatic deletion of expired keys.
 
+- Type: `duration`
 - Environment variable: `CODER_API_KEYS_RETENTION`
 - CLI flag: [`--api-keys-retention`](../../reference/cli/server/index.md#--api-keys-retention)
 - YAML key: `retention.api_keys`
@@ -1815,8 +2235,11 @@ How long expired API keys are retained before being deleted. Keeping expired key
 
 ### Audit logs retention
 
-How long audit log entries are retained. Set to 0 to disable (keep indefinitely). We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
+How long audit log entries are retained.
+Set to 0 to disable (keep indefinitely).
+We advise keeping audit logs for at least a year, and in accordance with your compliance requirements.
 
+- Type: `duration`
 - Environment variable: `CODER_AUDIT_LOGS_RETENTION`
 - CLI flag: [`--audit-logs-retention`](../../reference/cli/server/index.md#--audit-logs-retention)
 - YAML key: `retention.audit_logs`
@@ -1824,8 +2247,12 @@ How long audit log entries are retained. Set to 0 to disable (keep indefinitely)
 
 ### Boundary log retention
 
-How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.
+How long boundary audit log entries are retained.
+Boundary logs record HTTP requests processed by a Boundary confinement proxy.
+Set to 0 to disable automatic deletion (keep indefinitely).
+Adjust to match your organization's regulatory requirements.
 
+- Type: `duration`
 - Environment variable: `CODER_BOUNDARY_LOG_RETENTION`
 - CLI flag: [`--boundary-log-retention`](../../reference/cli/server/index.md#--boundary-log-retention)
 - YAML key: `retention.boundary_logs`
@@ -1833,8 +2260,10 @@ How long boundary audit log entries are retained. Boundary logs record HTTP requ
 
 ### Connection logs retention
 
-How long connection log entries are retained. Set to 0 to disable (keep indefinitely).
+How long connection log entries are retained.
+Set to 0 to disable (keep indefinitely).
 
+- Type: `duration`
 - Environment variable: `CODER_CONNECTION_LOGS_RETENTION`
 - CLI flag: [`--connection-logs-retention`](../../reference/cli/server/index.md#--connection-logs-retention)
 - YAML key: `retention.connection_logs`
@@ -1842,8 +2271,12 @@ How long connection log entries are retained. Set to 0 to disable (keep indefini
 
 ### Workspace agent logs retention
 
-How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+How long workspace agent logs are retained.
+Logs from non-latest builds are deleted if the agent hasn't connected within this period.
+Logs from the latest build are always retained.
+Set to 0 to disable automatic deletion.
 
+- Type: `duration`
 - Environment variable: `CODER_WORKSPACE_AGENT_LOGS_RETENTION`
 - CLI flag: [`--workspace-agent-logs-retention`](../../reference/cli/server/index.md#--workspace-agent-logs-retention)
 - YAML key: `retention.workspace_agent_logs`
@@ -1851,12 +2284,16 @@ How long workspace agent logs are retained. Logs from non-latest builds are dele
 
 ## Telemetry
 
-Telemetry is critical to our ability to improve Coder. We strip all personal information before sending data to our servers. Please only disable telemetry when required by your organization's security policy.
+Telemetry is critical to our ability to improve Coder.
+We strip all personal information before sending data to our servers.
+Please only disable telemetry when required by your organization's security policy.
 
 ### Enable
 
-Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
+Whether telemetry is enabled or not.
+Coder collects anonymized usage data to help improve our product.
 
+- Type: `bool`
 - Environment variable: `CODER_TELEMETRY_ENABLE`
 - CLI flag: [`--telemetry`](../../reference/cli/server/index.md#--telemetry)
 - YAML key: `telemetry.enable`
@@ -1866,16 +2303,20 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 
 ### Disable Template Builder
 
-Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+Disable the template builder feature for guided template creation.
+When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
+- Type: `bool`
 - Environment variable: `CODER_DISABLE_TEMPLATE_BUILDER`
 - CLI flag: [`--disable-template-builder`](../../reference/cli/server/index.md#--disable-template-builder)
 - YAML key: `templateBuilder.disabled`
 
 ### Registry URL
 
-The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
+The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443").
+An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
 
+- Type: `string`
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server/index.md#--template-builder-registry-url)
 - YAML key: `templateBuilder.registryURL`
@@ -1887,8 +2328,10 @@ Allow users to set quiet hours schedules each day for workspaces to avoid worksp
 
 ### Allow custom quiet hours
 
-Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
+Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings).
+If false, users can't change their quiet hours schedule and the site default is always used.
 
+- Type: `bool`
 - Environment variable: `CODER_ALLOW_CUSTOM_QUIET_HOURS`
 - CLI flag: [`--allow-custom-quiet-hours`](../../reference/cli/server/index.md#--allow-custom-quiet-hours)
 - YAML key: `userQuietHoursSchedule.allowCustomQuietHours`
@@ -1896,8 +2339,12 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 
 ### Default quiet hours schedule
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves.
+The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default).
+The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *.
+Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
+- Type: `string`
 - Environment variable: `CODER_QUIET_HOURS_DEFAULT_SCHEDULE`
 - CLI flag: [`--default-quiet-hours-schedule`](../../reference/cli/server/index.md#--default-quiet-hours-schedule)
 - YAML key: `userQuietHoursSchedule.defaultQuietHoursSchedule`
@@ -1911,6 +2358,7 @@ Configure how workspace prebuilds behave.
 
 How often to reconcile workspace prebuilds state.
 
+- Type: `duration`
 - Environment variable: `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`
 - CLI flag: [`--workspace-prebuilds-reconciliation-interval`](../../reference/cli/server/index.md#--workspace-prebuilds-reconciliation-interval)
 - YAML key: `workspace_prebuilds.reconciliation_interval`
@@ -1919,18 +2367,27 @@ How often to reconcile workspace prebuilds state.
 ## Dangerous
 
 > [!CAUTION]
-> These options can break your deployment or weaken its security. Change them only when you understand the consequences.
+> These options can break your deployment or weaken its security.
+> Change them only when you understand the consequences.
 
 ### Allow path app sharing
 
-Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
+Allow workspace apps that are not served from subdomains to be shared.
+Path-based app sharing is DISABLED by default for security purposes.
+Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript.
+Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
+- Type: `bool`
 - Environment variable: `CODER_DANGEROUS_ALLOW_PATH_APP_SHARING`
 - CLI flag: [`--dangerous-allow-path-app-sharing`](../../reference/cli/server/index.md#--dangerous-allow-path-app-sharing)
 
 ### Allow site owners to access path apps
 
-Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
+Allow site-owners to access workspace apps from workspaces they do not own.
+Owners cannot access path-based apps they do not own by default.
+Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript.
+Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
+- Type: `bool`
 - Environment variable: `CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS`
 - CLI flag: [`--dangerous-allow-path-app-site-owner-access`](../../reference/cli/server/index.md#--dangerous-allow-path-app-site-owner-access)

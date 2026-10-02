@@ -10,7 +10,10 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import {
+	MockChatAutomation,
+	MockChatFileMetadata,
+} from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -432,6 +435,7 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
+	automationNames: { names: new Map(), status: "settled" },
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -778,6 +782,28 @@ export const UserMessageBubbleAlignment: Story = {
 		const userRow = messageText.closest('[data-role="user"]');
 
 		await userEvent.hover(userRow?.parentElement as HTMLElement);
+	},
+};
+
+export const AutomationUserMessages: Story = {
+	args: {
+		...buildStoryArgs(
+			{
+				...buildUserMessage({ id: 1, text: "Check the nightly build." }),
+				automation_id: MockChatAutomation.id,
+				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+			},
+			buildUserMessage({ id: 2, text: "Thanks, anything else?" }),
+			{
+				...buildUserMessage({ id: 3, text: "Summarize open issues." }),
+				automation_id: "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
+				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
+			},
+		),
+		automationNames: {
+			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+			status: "settled",
+		},
 	},
 };
 

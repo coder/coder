@@ -55,6 +55,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -2060,7 +2061,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	const text = "investigate the flaky workspace upload tests today"
 
-	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, *chatd.Server, database.Chat) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		server := newTestServer(t, db, ps, uuid.New())
@@ -2070,6 +2071,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
 			Title:          title,
+			TitleSource:    source,
 			ModelConfigID:  model.ID,
 		})
 		require.NoError(t, err)
@@ -2088,7 +2090,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PlaceholderTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		result := send(ctx, t, server, chat.ID)
 		require.True(t, result.FirstUserTurn)
@@ -2101,7 +2103,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("ExistingTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, "custom title")
+		ctx, db, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
 
 		result := send(ctx, t, server, chat.ID)
 		require.False(t, result.FirstUserTurn)
@@ -2109,18 +2111,20 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		stored, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "custom title", stored.Title)
+		require.Equal(t, database.ChatTitleSourceUser, stored.TitleSource)
 	})
 
 	t.Run("PriorVisibleMessage", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		send(ctx, t, server, chat.ID)
 		// Reset to an idle chat that still carries the placeholder
 		// title but already has a user-visible message.
 		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-			ID:    chat.ID,
-			Title: chatprompt.DefaultChatTitle,
+			ID:          chat.ID,
+			Title:       chatprompt.DefaultChatTitle,
+			TitleSource: database.ChatTitleSourceFallback,
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -5499,6 +5503,9 @@ func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.S
 		evaluator, err := experimentrules.New(cfg.Logger, experimentstest.Store{}, cfg.Experiments)
 		require.NoError(t, err)
 		cfg.ExperimentEvaluator = evaluator
+	}
+	if cfg.Authorizer == nil {
+		cfg.Authorizer = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	}
 	server, err := chatd.New(ps, cfg)
 	require.NoError(t, err)
@@ -10009,6 +10016,89 @@ func setOpenAIProviderBaseURL(
 		return
 	}
 	require.Fail(t, "openai provider not found")
+}
+
+// An unowned chat has no runner, so InterruptChat and an interrupting
+// SendMessage finish the interruption inline. They must still clear the
+// cached turn summary, as the worker does after it finishes an
+// interruption.
+func TestInterruptUnownedChatClearsLastTurnSummary(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		interrupting bool
+		send         bool
+	}{
+		{name: "InterruptRunning"},
+		{name: "InterruptInterrupting", interrupting: true},
+		{name: "SendRunning", send: true},
+		{name: "SendInterrupting", interrupting: true, send: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			// The server is never started, so no worker acquires the chat.
+			server := newChatdServer(t, ps, chatd.Config{
+				Logger:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Database:  db,
+				ReplicaID: uuid.New(),
+			})
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
+			user, org, model := seedChatDependencies(t, db)
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "interrupt-unowned",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+			})
+			require.NoError(t, err)
+			if tc.interrupting {
+				// A worker acquires the chat, sees it interrupted, and
+				// abandons it before its runner starts.
+				machine := chatstate.NewChatMachine(db, ps, chat.ID)
+				require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					if _, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()}); err != nil {
+						return err
+					}
+					if _, err := tx.Interrupt(chatstate.InterruptInput{}); err != nil {
+						return err
+					}
+					_, err := tx.Abandon(chatstate.AbandonInput{})
+					return err
+				}))
+			}
+			chat, err = db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.False(t, chat.WorkerID.Valid)
+			seedLastTurnSummary(ctx, t, db, chat, "previous summary")
+
+			if tc.send {
+				sent, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:       chat.ID,
+					CreatedBy:    user.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
+					BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+				})
+				require.NoError(t, err)
+				require.False(t, sent.Queued, "the message is promoted inline")
+				require.Equal(t, database.ChatStatusRunning, sent.Chat.Status)
+			} else {
+				updated, err := server.InterruptChat(ctx, chat)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusWaiting, updated.Status)
+			}
+
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				fromDB, err := db.GetChatByID(ctx, chat.ID)
+				return err == nil && !fromDB.LastTurnSummary.Valid
+			}, testutil.IntervalFast, "the inline interruption must clear the cached turn summary")
+		})
+	}
 }
 
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
