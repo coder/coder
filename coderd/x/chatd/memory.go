@@ -80,7 +80,8 @@ func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 // first turn and compaction, which drops the earlier snapshot. Changes since
 // the model last saw the index go out only at turn start, so other chats'
 // writes reach the model on its next turn and never mid-turn. Nothing is sent
-// right after an assistant step, whose tool results must follow it directly.
+// while the latest assistant step has tool calls without results, which must
+// follow it directly.
 func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (chatstate.Message, bool, error) {
 	store, _, ok := p.resolveProjectMemory(ctx, chat)
 	if !ok {
@@ -93,8 +94,21 @@ func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (ch
 		return chatstate.Message{}, false, xerrors.Errorf("load prompt messages: %w", err)
 	}
 	turnStart := currentTurnStepCount(promptRows) == 0
-	if !turnStart && lastActiveMessageRole(promptRows) == database.ChatMessageRoleAssistant {
-		return chatstate.Message{}, false, nil
+	if !turnStart {
+		if lastActiveMessageRole(promptRows) == database.ChatMessageRoleAssistant {
+			return chatstate.Message{}, false, nil
+		}
+		// A step can commit some tool results while others, such as
+		// client-executed dynamic tools, are still pending. Providers reject a
+		// message between a tool call and its result, so wait until every call
+		// is resolved.
+		localCalls, dynamicCalls, _, err := unresolvedToolCallsFromHistory(promptRows, dynamicToolNamesFromChat(chat))
+		if err != nil {
+			return chatstate.Message{}, false, xerrors.Errorf("find unresolved tool calls: %w", err)
+		}
+		if len(localCalls) > 0 || len(dynamicCalls) > 0 {
+			return chatstate.Message{}, false, nil
+		}
 	}
 	messages := promptRows
 	snapshotOnly := !turnStart
