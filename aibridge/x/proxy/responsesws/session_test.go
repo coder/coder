@@ -15,6 +15,7 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
@@ -84,14 +85,91 @@ type testRecorder struct {
 	failStart atomic.Bool
 	// blockEnd makes RecordInterceptionEnded wait until its ctx ends.
 	blockEnd atomic.Bool
+	// blockUsage makes RecordTokenUsage wait until its ctx ends.
+	blockUsage atomic.Bool
+	// usageGate, when set, makes RecordTokenUsage wait until it is closed.
+	// Each wait first sends on usageEntered.
+	usageGate    atomic.Pointer[chan struct{}]
+	usageEntered chan struct{}
+
+	mu sync.Mutex
+	// endCounts counts end records per interception ID.
+	endCounts map[string]int
+	// endDeadlines holds the ctx deadline of each end record.
+	endDeadlines map[string]time.Time
+	// usageReturned is when the last token usage record returned.
+	usageReturned time.Time
+}
+
+func (r *testRecorder) RecordTokenUsage(ctx context.Context, rec *recorder.TokenUsageRecord) error {
+	if gate := r.usageGate.Load(); gate != nil {
+		select {
+		case r.usageEntered <- struct{}{}:
+		default:
+		}
+		select {
+		case <-*gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if r.blockUsage.Load() {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	err := r.MockRecorder.RecordTokenUsage(ctx, rec)
+	r.mu.Lock()
+	r.usageReturned = time.Now()
+	r.mu.Unlock()
+	return err
 }
 
 func (r *testRecorder) RecordInterceptionEnded(ctx context.Context, rec *recorder.InterceptionRecordEnded) error {
+	deadline, _ := ctx.Deadline()
+	r.mu.Lock()
+	if r.endCounts == nil {
+		r.endCounts, r.endDeadlines = map[string]int{}, map[string]time.Time{}
+	}
+	r.endCounts[rec.ID]++
+	r.endDeadlines[rec.ID] = deadline
+	r.mu.Unlock()
 	if r.blockEnd.Load() {
 		<-ctx.Done()
 		return ctx.Err()
 	}
 	return r.MockRecorder.RecordInterceptionEnded(ctx, rec)
+}
+
+func (r *testRecorder) endCount(id string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.endCounts[id]
+}
+
+// logSink captures log messages.
+type logSink struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (s *logSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, e.Message)
+}
+
+func (*logSink) Sync() {}
+
+func (s *logSink) count(message string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, m := range s.messages {
+		if m == message {
+			n++
+		}
+	}
+	return n
 }
 
 func (r *testRecorder) RecordInterception(ctx context.Context, rec *recorder.InterceptionRecord) error {
@@ -107,12 +185,14 @@ type harness struct {
 	sess *responsesws.Session
 	conn *fakeConn
 	rec  *testRecorder
+	logs *logSink
 }
 
 func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) *harness {
 	t.Helper()
 	conn := &fakeConn{toClient: make(chan []byte, 16), readErrs: make(chan error, 1), written: make(chan []byte, 16), closed: make(chan struct{})}
-	rec := &testRecorder{}
+	rec := &testRecorder{usageEntered: make(chan struct{}, 64)}
+	logs := &logSink{}
 	sessionID := "client-session"
 	// Production recorders refuse records with unset timestamps. The
 	// validating middleware logs each refusal at error level, which fails
@@ -122,7 +202,7 @@ func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) 
 		Provider:        provider.NewOpenAI(config.OpenAI{}),
 		Recorder:        validating,
 		Admit:           admit,
-		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logs),
 		Client:          "codex",
 		ClientSessionID: &sessionID,
 		UserAgent:       "codex-cli/1.0",
@@ -131,7 +211,7 @@ func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) 
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sess.Close(nil) })
-	return &harness{t: t, ctx: ctx, sess: sess, conn: conn, rec: rec}
+	return &harness{t: t, ctx: ctx, sess: sess, conn: conn, rec: rec, logs: logs}
 }
 
 // send forwards a client frame and returns what reached upstream, or nil.
@@ -147,8 +227,16 @@ func (h *harness) send(frame string) []byte {
 }
 
 // relay pushes server frames upstream and requires the client receives them
-// unchanged. Recording for a frame completes before Recv returns it.
+// unchanged, then waits until their accounting completed.
 func (h *harness) relay(frames ...string) {
+	h.t.Helper()
+	h.forward(frames...)
+	require.NoError(h.t, responsesws.Drain(h.ctx, h.sess))
+}
+
+// forward pushes server frames upstream and requires the client receives
+// them unchanged, without waiting for their accounting.
+func (h *harness) forward(frames ...string) {
 	h.t.Helper()
 	for _, f := range frames {
 		codertestutil.RequireSend(h.ctx, h.t, h.conn.toClient, []byte(f))
@@ -517,6 +605,9 @@ func TestSessionEndEndsOpenInterceptions(t *testing.T) {
 		close(h.conn.toClient)
 		_, err := h.sess.Recv(h.ctx)
 		require.ErrorIs(t, err, io.EOF)
+		// The accountant ends open interceptions after the reader exits;
+		// Close waits for it.
+		require.NoError(t, h.sess.Close(nil))
 		requireEnded(t, h, "EOF")
 		require.ErrorIs(t, h.sess.Send(h.ctx, []byte(create("", "gpt-6", "x"))), responsesws.ErrClosed)
 	})
@@ -539,6 +630,7 @@ func TestSessionEndEndsOpenInterceptions(t *testing.T) {
 		cancel()
 		_, err := h.sess.Recv(context.Background())
 		require.ErrorIs(t, err, context.Canceled)
+		require.NoError(t, h.sess.Close(nil))
 		requireEnded(t, h, context.Canceled.Error())
 	})
 }
@@ -912,9 +1004,10 @@ func TestCreateRecordsCorrelatingToolCallID(t *testing.T) {
 	require.Nil(t, h.interceptionFor("plain").CorrelatingToolCallID)
 }
 
-// TestCloseBoundedWhenRecorderBlocks requires that ending many open
-// interceptions shares one cleanup deadline, so Close returns in bounded
-// time even when every end record blocks.
+// TestCloseBoundedWhenRecorderBlocks requires that shutdown shares one
+// cleanup deadline: with 16 open interceptions, queued accounting, and a
+// recorder whose usage and end records block until their ctx ends, Close
+// returns within the bound and the accountant exits (checked by goleak).
 func TestCloseBoundedWhenRecorderBlocks(t *testing.T) {
 	t.Parallel()
 	ctx := codertestutil.Context(t, codertestutil.WaitMedium)
@@ -922,11 +1015,22 @@ func TestCloseBoundedWhenRecorderBlocks(t *testing.T) {
 	for i := range 16 {
 		require.NotNil(t, h.send(create(fmt.Sprint(i), "gpt-6", "hi")))
 	}
+	for i := range 8 {
+		h.relay(created(fmt.Sprint(i), fmt.Sprintf("resp_%d", i), "gpt-6"))
+	}
 	h.rec.blockEnd.Store(true)
+	h.rec.blockUsage.Store(true)
+	// Queue terminal events behind a blocked usage record.
+	for i := range 8 {
+		h.forward(completed(fmt.Sprint(i), fmt.Sprintf("resp_%d", i)))
+	}
 
 	closed := make(chan error, 1)
 	start := time.Now()
 	go func() { closed <- h.sess.Close(nil) }()
 	require.NoError(t, codertestutil.TryReceive(ctx, t, closed))
 	require.Less(t, time.Since(start), recorder.DefaultAsyncTimeout+codertestutil.WaitShort)
+	for _, ic := range h.rec.RecordedInterceptions() {
+		require.Equal(t, 1, h.rec.endCount(ic.ID))
+	}
 }

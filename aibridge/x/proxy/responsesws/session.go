@@ -24,6 +24,13 @@
 //   - An interception ends with its response's terminal event, an error event
 //     rejecting its create, or session end. Session end ends every open
 //     interception within one shared cleanup deadline.
+//
+// Accounting never delays forwarding. The reader binds frames to
+// interceptions and forwards them; one accountant goroutine feeds the events
+// an extractor acts on to each response's extract/responses extraction, in
+// order, and ends the interception from its outcome. The accounting queue
+// is bounded: on overload the reader drops accounting jobs, never frames,
+// logs each drop, and the affected interception ends with an overload error.
 package responsesws
 
 import (
@@ -31,7 +38,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -46,6 +52,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
+	respextract "github.com/coder/coder/v2/aibridge/extract/responses"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -66,10 +73,6 @@ const (
 	eventFailed     = "response.failed"
 	eventIncomplete = "response.incomplete"
 	eventError      = "error"
-
-	eventSteerAccepted = "response.steer.accepted"
-	eventSteerPending  = "response.steer.pending"
-	eventSteerFailed   = "response.steer.failed"
 )
 
 // ErrClosed is returned after the session has been closed.
@@ -102,9 +105,6 @@ type AdmitFunc func(ctx context.Context, model string) error
 type Options struct {
 	Provider Provider
 	Recorder recorder.Recorder
-	// Observer receives frames bound to interceptions. Nil uses
-	// NewRecordingObserver(Recorder, Logger).
-	Observer Observer
 	// Admit is consulted before each client response.create. Nil admits all.
 	Admit           AdmitFunc
 	Logger          slog.Logger
@@ -135,9 +135,25 @@ type Session struct {
 	closeOnce sync.Once
 	closeErr  error
 
+	// queue holds accounting jobs for the accountant, which closes
+	// accountDone when it exits.
+	queue       *jobQueue
+	accountDone chan struct{}
+	// cleanupCtx scopes every record call. It outlives the session and ends
+	// at the shutdown cleanup deadline.
+	cleanupCtx    context.Context
+	cleanupCancel context.CancelFunc
+	// cleanupDeadline cancels cleanupCtx once the session ended. Set by the
+	// reader before readDone is closed.
+	cleanupDeadline *time.Timer
+
 	mu     sync.Mutex
 	closed bool
-	open   map[string]*interception
+	// endErr is the cause open interceptions end with at session end, and
+	// endedAt the time the end was first observed, by Close or the reader.
+	endErr  error
+	endedAt time.Time
+	open    map[string]*interception
 	// pending holds admitted creates per lane, in write order, waiting for
 	// response.created.
 	pending map[string][]*interception
@@ -146,11 +162,28 @@ type Session struct {
 	// responses maps response IDs to their owning interception until the
 	// response's terminal usage is recorded or the session ends.
 	responses map[string]*interception
+	// overloaded holds interceptions whose terminal accounting job was
+	// dropped, in hand-off order, for the accountant to end. overloadWake
+	// signals the accountant after a hand-off.
+	overloaded   []overloadedEnd
+	overloadWake chan struct{}
 }
 
 type interception struct {
 	id   string
 	lane string
+	// prompt is the create's last user prompt, recorded once its response ID
+	// is known. Empty for interceptions the server opened.
+	prompt string
+	// model and startedAt are recorded in the interception start record.
+	// startedAt is when the create was sent or the server frame arrived,
+	// not when the accountant records the start.
+	model     string
+	startedAt time.Time
+	// started marks an interception whose start is recorded. Creates start
+	// before they are forwarded; interceptions the server opened are
+	// started by the accountant, which alone reads and writes it for them.
+	started bool
 	// written marks a create whose upstream write succeeded. Only a written
 	// create binds a response. Guarded by Session.mu.
 	written bool
@@ -158,8 +191,24 @@ type interception struct {
 	// or error event on its lane could not be attributed. Guarded by
 	// Session.mu.
 	raced bool
+	// racedAt is when the first event that raced the create's write
+	// arrived. racedErr is the first error event that raced it, which
+	// arrived at racedErrAt. The error becomes the create's end cause, else
+	// the create ends without one at racedAt. Guarded by Session.mu.
+	racedAt    time.Time
+	racedErr   []byte
+	racedErrAt time.Time
 	// responseID is the bound response, if any. Guarded by Session.mu.
 	responseID string
+	// ended is set once, by whoever ends the interception. Guarded by
+	// Session.mu.
+	ended bool
+	// lossy marks an interception that lost an accounting job. Guarded by
+	// Session.mu.
+	lossy bool
+	// ext records the response through rec. Only the accountant uses them.
+	ext *respextract.ResponseExtraction
+	rec *boundedRecorder
 }
 
 // NewSession starts relaying upstream. ctx bounds the session and must carry
@@ -176,25 +225,29 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 	case opts.Recorder == nil:
 		return nil, xerrors.New("recorder is required")
 	}
-	if opts.Observer == nil {
-		opts.Observer = NewRecordingObserver(opts.Recorder, opts.Logger)
-	}
 	sessionCtx, cancel := context.WithCancelCause(ctx)
+	cleanupCtx, cleanupCancel := context.WithCancel(context.WithoutCancel(ctx))
 	s := &Session{
-		opts:      opts,
-		actor:     actor,
-		upstream:  upstream,
-		ctx:       sessionCtx,
-		cancel:    cancel,
-		frames:    make(chan []byte, frameBuffer),
-		errors:    make(chan []byte, errorBuffer),
-		readDone:  make(chan struct{}),
-		open:      make(map[string]*interception),
-		pending:   make(map[string][]*interception),
-		active:    make(map[string]*interception),
-		responses: make(map[string]*interception),
+		opts:          opts,
+		actor:         actor,
+		upstream:      upstream,
+		ctx:           sessionCtx,
+		cancel:        cancel,
+		frames:        make(chan []byte, frameBuffer),
+		errors:        make(chan []byte, errorBuffer),
+		readDone:      make(chan struct{}),
+		queue:         newJobQueue(),
+		accountDone:   make(chan struct{}),
+		cleanupCtx:    cleanupCtx,
+		cleanupCancel: cleanupCancel,
+		open:          make(map[string]*interception),
+		pending:       make(map[string][]*interception),
+		active:        make(map[string]*interception),
+		responses:     make(map[string]*interception),
+		overloadWake:  make(chan struct{}, 1),
 	}
 	go s.readLoop()
+	go s.accountLoop()
 	return s, nil
 }
 
@@ -220,6 +273,8 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 //
 // After a failed step, Send returns nil exactly when it queued an event.
 func (s *Session) Send(ctx context.Context, frame []byte) error {
+	// The time the client sent the frame, for the records it causes.
+	sentAt := time.Now()
 	if s.isClosed() {
 		return ErrClosed
 	}
@@ -229,7 +284,7 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 	defer stop()
 	eventType := gjson.GetBytes(frame, "type").String()
 	if eventType == eventCreate {
-		return s.sendCreate(ctx, opCtx, frame)
+		return s.sendCreate(ctx, opCtx, frame, sentAt)
 	}
 	var steered *interception
 	if eventType == eventSteer {
@@ -244,11 +299,31 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 		return xerrors.Errorf("write upstream: %w", err)
 	}
 	if steered != nil {
-		recordCtx, cancel := recordContext(ctx)
-		defer cancel()
-		s.opts.Observer.ClientEvent(recordCtx, steered.id, frame)
+		s.recordSteerPrompt(steered, frame, sentAt)
 	}
 	return nil
+}
+
+// recordSteerPrompt records a forwarded steer's input, sent at sentAt, as a
+// prompt on the interception owning the steered response.
+func (s *Session) recordSteerPrompt(ic *interception, frame []byte, sentAt time.Time) {
+	facts, err := respextract.RequestExtractor{}.ExtractRequest(frame)
+	if err != nil {
+		s.opts.Logger.Debug(s.cleanupCtx, "steer prompt not fully parsed", slog.Error(err))
+	}
+	if facts.Prompt == "" {
+		return
+	}
+	ctx, cancel := s.recordContext()
+	defer cancel()
+	if err := s.opts.Recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+		CreatedAt:      sentAt.UTC(),
+		InterceptionID: ic.id,
+		MsgID:          gjson.GetBytes(frame, "previous_response_id").String(),
+		Prompt:         facts.Prompt,
+	}); err != nil {
+		s.opts.Logger.Warn(ctx, "failed to record prompt usage", slog.Error(err), slog.F("interception_id", ic.id))
+	}
 }
 
 // sendAborted reports why a Send step was cut short by its operation
@@ -293,16 +368,20 @@ func (s *Session) Recv(ctx context.Context) ([]byte, error) {
 }
 
 // Close ends the session, closes upstream, and ends every open interception
-// with err, or ErrClosed when err is nil. It waits for the reader to exit.
+// with err, or ErrClosed when err is nil. It waits for the reader and the
+// accountant to exit, which takes at most the shutdown cleanup deadline when
+// the recorder honors its context.
 func (s *Session) Close(err error) error {
 	s.closeOnce.Do(func() {
 		cause := err
 		if cause == nil {
 			cause = ErrClosed
 		}
+		s.observeEnd(time.Now())
 		s.cancel(cause)
 		s.closeErr = s.upstream.Close()
 		<-s.readDone
+		<-s.accountDone
 	})
 	return s.closeErr
 }
@@ -312,14 +391,18 @@ func (s *Session) readLoop() {
 	for {
 		frame, err := s.upstream.Read(s.ctx)
 		if err == nil {
+			arrived := time.Now()
+			// route copies what accounting keeps, so the client owns this
+			// copy and may modify it.
 			frame = bytes.Clone(frame)
-			s.handleServerEvent(frame)
+			s.route(frame, arrived)
 			select {
 			case s.frames <- frame:
 				continue
 			case <-s.ctx.Done():
 			}
 		}
+		endedAt := time.Now()
 		if s.ctx.Err() != nil {
 			err = context.Cause(s.ctx)
 		}
@@ -328,17 +411,50 @@ func (s *Session) readLoop() {
 		// admission, stops when upstream ends. After Close this is a no-op
 		// that keeps Close's cause.
 		s.cancel(err)
-		s.endAll(err)
+		// The accountant ends the open interceptions once the reader exits.
+		// The cleanup deadline starts now, so it also bounds a record call
+		// the accountant is already blocked in.
+		s.observeEnd(endedAt)
+		s.mu.Lock()
+		s.closed = true
+		s.endErr = err
+		s.cleanupDeadline = time.AfterFunc(recorder.DefaultAsyncTimeout, s.cleanupCancel)
+		s.mu.Unlock()
 		return
 	}
 }
 
-// sendCreate implements Send for response.create. ctx is the caller's
-// context and opCtx the Send operation context.
-func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte) error {
+// observeEnd records at as the session end time unless an earlier end was
+// observed.
+func (s *Session) observeEnd(at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.endedAt.IsZero() || at.Before(s.endedAt) {
+		s.endedAt = at
+	}
+}
+
+// sessionEndTime returns when the session end was observed, or now when
+// the caller observed it before Close or the reader did.
+func (s *Session) sessionEndTime(now time.Time) time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.endedAt.IsZero() {
+		return now
+	}
+	return s.endedAt
+}
+
+// sendCreate implements Send for response.create, sent at sentAt. ctx is
+// the caller's context and opCtx the Send operation context.
+func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte, sentAt time.Time) error {
 	lane := gjson.GetBytes(frame, "stream_id").String()
-	model := gjson.GetBytes(frame, "model").String()
+	facts, factsErr := respextract.RequestExtractor{}.ExtractRequest(frame)
+	model := facts.Model
 	log := s.opts.Logger.With(slog.F("model", model), slog.F("stream_id", lane))
+	if factsErr != nil {
+		log.Debug(ctx, "response.create not fully parsed", slog.Error(factsErr))
+	}
 	if s.opts.Admit != nil {
 		err := s.opts.Admit(opCtx, model)
 		// A create admitted or refused after the session or the caller
@@ -358,7 +474,12 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte) error {
 			return s.enqueueError(ctx, opCtx, lane, http.StatusForbidden, "invalid_request_error", "request_refused", "request refused by AI Gateway")
 		}
 	}
-	ic, err := s.startInterception(opCtx, lane, model, correlatingToolCallID(frame), func(ic *interception) {
+	var toolCallID *string
+	if facts.CorrelatingToolCallID != "" {
+		toolCallID = &facts.CorrelatingToolCallID
+	}
+	ic, err := s.startInterception(opCtx, lane, model, sentAt, toolCallID, func(ic *interception) {
+		ic.prompt = facts.Prompt
 		s.pending[lane] = append(s.pending[lane], ic)
 	})
 	if err != nil {
@@ -373,9 +494,6 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte) error {
 	if aborted := s.sendAborted(ctx); aborted != nil {
 		return s.endStarted(ctx, ic, aborted)
 	}
-	recordCtx, cancel := recordContext(ctx)
-	defer cancel()
-	s.opts.Observer.ClientEvent(recordCtx, ic.id, frame)
 	if err := s.upstream.Write(opCtx, frame); err != nil {
 		return s.endStarted(ctx, ic, xerrors.Errorf("write response.create upstream: %w", err))
 	}
@@ -389,10 +507,11 @@ func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte) error {
 // the write was in flight, it may have been this create's answer, so the
 // create ends without a response instead: binding it to a later response
 // would shift every following response on the lane onto the wrong create.
+// An error event that raced the write is its answer, so it becomes the end
+// cause.
 func (s *Session) publish(ic *interception) {
 	s.mu.Lock()
-	if s.open[ic.id] == nil {
-		// The session ended and ended the interception.
+	if ic.ended {
 		s.mu.Unlock()
 		return
 	}
@@ -401,56 +520,52 @@ func (s *Session) publish(ic *interception) {
 		s.mu.Unlock()
 		return
 	}
-	s.forgetLocked(ic)
+	racedErr, racedErrAt, racedAt := ic.racedErr, ic.racedErrAt, ic.racedAt
 	s.mu.Unlock()
-	ctx, cancel := recordContext(s.ctx)
-	defer cancel()
-	s.recordEnded(ctx, ic, nil)
+	if racedErr == nil {
+		s.end(ic, nil, racedAt)
+		return
+	}
+	// The create was never bound, so no other goroutine records for it.
+	ext, rec := s.newExtraction(ic)
+	rec.at = racedErrAt
+	ext.OnEvent(eventError, racedErr)
+	s.end(ic, ext.Outcome().Err, racedErrAt)
 }
 
 // endStarted ends ic, which a Send step started before failing with err, and
 // returns what Send reports, classified as documented on Send.
 func (s *Session) endStarted(ctx context.Context, ic *interception, err error) error {
+	// Send observed the failure now.
+	now := time.Now()
 	switch {
 	case s.isClosed():
-		s.endInterception(ic, context.Cause(s.ctx))
+		s.end(ic, context.Cause(s.ctx), s.sessionEndTime(now))
 		return ErrClosed
 	case ctx.Err() != nil:
-		s.endInterception(ic, ctx.Err())
+		s.end(ic, ctx.Err(), now)
 		return ctx.Err()
 	default:
-		s.endInterception(ic, err)
+		s.end(ic, err, now)
 		return err
 	}
 }
 
-// startInterception records a new interception and runs register under the
-// session lock so a concurrent shutdown cannot miss it.
-func (s *Session) startInterception(ctx context.Context, lane, model string, toolCallID *string, register func(*interception)) (*interception, error) {
-	ic := &interception{id: uuid.NewString(), lane: lane}
-	if err := s.opts.Recorder.RecordInterception(ctx, &recorder.InterceptionRecord{
-		ID:                    ic.id,
-		CorrelatingToolCallID: toolCallID,
-		InitiatorID:           s.actor.ID,
-		Metadata:              s.actor.Metadata,
-		Model:                 model,
-		Provider:              s.opts.Provider.Type(),
-		ProviderName:          s.opts.Provider.Name(),
-		StartedAt:             time.Now(),
-		ClientSessionID:       s.opts.ClientSessionID,
-		Client:                s.opts.Client,
-		UserAgent:             s.opts.UserAgent,
-		CredentialKind:        s.opts.CredentialKind,
-		CredentialHint:        s.opts.CredentialHint,
-	}); err != nil {
+// startInterception records a new interception, started at startedAt, and
+// runs register under the session lock so a concurrent shutdown cannot miss
+// it.
+func (s *Session) startInterception(ctx context.Context, lane, model string, startedAt time.Time, toolCallID *string, register func(*interception)) (*interception, error) {
+	ic := &interception{id: uuid.NewString(), lane: lane, model: model, startedAt: startedAt, started: true}
+	if err := s.opts.Recorder.RecordInterception(ctx, s.interceptionRecord(ic, toolCallID)); err != nil {
 		return nil, xerrors.Errorf("record interception: %w", err)
 	}
 	s.mu.Lock()
 	if s.closed {
+		// The reader set the end time when it closed the session.
+		ic.ended = true
+		endedAt := s.endedAt
 		s.mu.Unlock()
-		endCtx, cancel := recordContext(s.ctx)
-		defer cancel()
-		s.recordEnded(endCtx, ic, context.Cause(s.ctx))
+		s.recordEnded(ic, context.Cause(s.ctx), endedAt)
 		return nil, ErrClosed
 	}
 	s.open[ic.id] = ic
@@ -459,152 +574,168 @@ func (s *Session) startInterception(ctx context.Context, lane, model string, too
 	return ic, nil
 }
 
-func (s *Session) handleServerEvent(frame []byte) {
-	ctx, cancel := recordContext(s.ctx)
-	defer cancel()
+func (s *Session) interceptionRecord(ic *interception, toolCallID *string) *recorder.InterceptionRecord {
+	return &recorder.InterceptionRecord{
+		ID:                    ic.id,
+		CorrelatingToolCallID: toolCallID,
+		InitiatorID:           s.actor.ID,
+		Metadata:              s.actor.Metadata,
+		Model:                 ic.model,
+		Provider:              s.opts.Provider.Type(),
+		ProviderName:          s.opts.Provider.Name(),
+		StartedAt:             ic.startedAt,
+		ClientSessionID:       s.opts.ClientSessionID,
+		Client:                s.opts.Client,
+		UserAgent:             s.opts.UserAgent,
+		CredentialKind:        s.opts.CredentialKind,
+		CredentialHint:        s.opts.CredentialHint,
+	}
+}
+
+// route binds a server frame, read at arrived, to an interception and
+// queues the accounting the frame needs. It runs on the reader, never
+// blocks, and makes no recorder calls: interceptions the server opens are
+// registered here and recorded by the accountant, in queue order before
+// their events. When the queue drops a terminal job, the interception is
+// handed to the accountant for an overload end right away.
+func (s *Session) route(frame []byte, arrived time.Time) {
+	eventType := gjson.GetBytes(frame, "type").String()
 	lane := gjson.GetBytes(frame, "stream_id").String()
-	var ic *interception
-	switch eventType := gjson.GetBytes(frame, "type").String(); eventType {
-	case eventCreated:
-		ic = s.bindCreated(ctx, lane, frame)
-	case eventCompleted, eventFailed, eventIncomplete:
-		s.finishResponse(ctx, lane, eventType, frame)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
 		return
-	case eventSteerAccepted, eventSteerPending, eventSteerFailed:
-		s.mu.Lock()
-		ic = s.responses[gjson.GetBytes(frame, "steer.previous_response_id").String()]
-		s.mu.Unlock()
+	}
+	ev := job{kind: jobEvent, frame: frame, eventType: eventType, arrived: arrived}
+	var ic *interception
+	switch eventType {
+	case eventCreated:
+		s.bindCreatedLocked(lane, ev)
+		return
+	case eventCompleted, eventFailed, eventIncomplete:
+		response := gjson.GetBytes(frame, "response")
+		ic = s.responses[response.Get("id").String()]
+		ev.terminal = true
+		if ic == nil {
+			// A response no interception owns still has its usage recorded.
+			s.openLocked(lane, response.Get("model").String(), response.Get("id").String(), ev)
+			return
+		}
+		if s.active[ic.lane] == ic {
+			delete(s.active, ic.lane)
+		}
+		s.pushTerminalLocked(ic, ev)
+		return
 	case eventError:
 		// Error events are request-scoped: they reject the oldest written
 		// create on their lane. In-flight responses end via response.failed.
-		s.mu.Lock()
-		if q := s.pending[lane]; len(q) > 0 && q[0].written {
+		q := s.pending[lane]
+		switch {
+		case len(q) > 0 && q[0].written:
 			ic = q[0]
-		} else if len(q) > 0 {
-			// The error may answer the create whose write is in flight.
-			q[0].raced = true
+			setQueue(s.pending, lane, q[1:])
+			ev.terminal = true
+			s.pushTerminalLocked(ic, ev)
+		case len(q) > 0:
+			// The error may answer the create whose write is in flight. See
+			// publish.
+			q[0].markRaced(arrived)
+			if q[0].racedErr == nil {
+				// Copied, since the client owns frame.
+				q[0].racedErr, q[0].racedErrAt = bytes.Clone(frame), arrived
+			}
 		}
-		s.mu.Unlock()
-		if ic == nil {
-			return
-		}
-		s.opts.Observer.ServerEvent(ctx, ic.id, frame)
-		errObj := gjson.GetBytes(frame, "error")
-		code, message := errObj.Get("code").String(), errObj.Get("message").String()
-		if !errObj.Exists() {
-			code, message = gjson.GetBytes(frame, "code").String(), gjson.GetBytes(frame, "message").String()
-		}
-		s.endInterception(ic, upstreamError(int(gjson.GetBytes(frame, "status").Int()), errObj.Get("type").String(), code, message))
 		return
 	default:
-		s.mu.Lock()
 		ic = s.active[lane]
-		s.mu.Unlock()
 	}
-	if ic != nil {
-		s.opts.Observer.ServerEvent(ctx, ic.id, frame)
+	if ic != nil && respextract.Relevant(eventType) {
+		ev.ic = ic
+		s.pushLocked(ic, ev)
 	}
 }
 
-// bindCreated binds a new response to the oldest create on its lane whose
-// write succeeded. Otherwise the response opens its own interception so
-// nothing goes unrecorded; admission is not applied to such responses.
-func (s *Session) bindCreated(ctx context.Context, lane string, frame []byte) *interception {
-	responseID := gjson.GetBytes(frame, "response.id").String()
-	bind := func(ic *interception) {
-		s.active[lane] = ic
-		if responseID != "" {
-			s.responses[responseID] = ic
-			ic.responseID = responseID
-		}
+// pushTerminalLocked queues ic's terminal job, or hands ic off for an
+// overload end when the queue drops it.
+func (s *Session) pushTerminalLocked(ic *interception, ev job) {
+	ev.ic = ic
+	if !s.pushLocked(ic, ev) {
+		s.handOffLocked(ic, ev.arrived)
 	}
-	s.mu.Lock()
-	if q := s.pending[lane]; len(q) > 0 && q[0].written {
+}
+
+// bindCreatedLocked binds a new response to the oldest create on its lane
+// whose write succeeded. Otherwise the response opens its own interception
+// so nothing goes unrecorded; admission is not applied to such responses.
+func (s *Session) bindCreatedLocked(lane string, ev job) {
+	responseID := gjson.GetBytes(ev.frame, "response.id").String()
+	q := s.pending[lane]
+	if len(q) > 0 && q[0].written {
 		ic := q[0]
 		setQueue(s.pending, lane, q[1:])
-		bind(ic)
-		s.mu.Unlock()
-		return ic
-	} else if len(q) > 0 {
+		ic.responseID = responseID
+		s.bindLocked(ic, responseID)
+		ev.ic = ic
+		s.pushLocked(ic, ev)
+		return
+	}
+	if len(q) > 0 {
 		// Creates are written in order, so an unwritten head is the create
 		// whose write is in flight. See publish.
-		q[0].raced = true
+		q[0].markRaced(ev.arrived)
 	}
-	s.mu.Unlock()
+	if ic := s.openLocked(lane, gjson.GetBytes(ev.frame, "response.model").String(), responseID, ev); ic != nil {
+		s.bindLocked(ic, responseID)
+	}
+}
 
-	model := gjson.GetBytes(frame, "response.model").String()
-	ic, err := s.startInterception(ctx, lane, model, nil, bind)
-	if err != nil {
-		s.opts.Logger.Warn(ctx, "failed to record unexplained response", slog.Error(err), slog.F("response_id", responseID))
+// bindLocked routes the lane's events and responseID's terminal event to ic.
+// ic.responseID is set before ic's jobs are queued, since the accountant
+// reads it.
+func (s *Session) bindLocked(ic *interception, responseID string) {
+	s.active[ic.lane] = ic
+	if responseID != "" {
+		s.responses[responseID] = ic
+	}
+}
+
+// openLocked registers an interception the server opened, starting when ev
+// arrived, and queues its start record before ev. If the queue cannot take
+// both, nothing is registered and the loss is logged.
+func (s *Session) openLocked(lane, model, responseID string, ev job) *interception {
+	ic := &interception{id: uuid.NewString(), lane: lane, model: model, responseID: responseID, startedAt: ev.arrived}
+	ev.ic = ic
+	if !s.pushLocked(ic, job{kind: jobStart, ic: ic}, ev) {
 		return nil
 	}
+	s.open[ic.id] = ic
 	return ic
 }
 
-// finishResponse records a terminal response on its interception and ends
-// the interception. A response no interception owns opens one of its own, so
-// its usage is recorded.
-func (s *Session) finishResponse(ctx context.Context, lane, eventType string, frame []byte) {
-	response := gjson.GetBytes(frame, "response")
-	responseID := response.Get("id").String()
-	s.mu.Lock()
-	ic := s.responses[responseID]
-	if ic != nil && s.active[ic.lane] == ic {
-		delete(s.active, ic.lane)
+// markRaced marks a create whose write was in flight when an event on its
+// lane, which arrived at at, could not be attributed. Called with s.mu held.
+func (ic *interception) markRaced(at time.Time) {
+	if !ic.raced {
+		ic.raced, ic.racedAt = true, at
 	}
-	s.mu.Unlock()
-	if ic == nil {
-		var err error
-		ic, err = s.startInterception(ctx, lane, response.Get("model").String(), nil, func(*interception) {})
-		if err != nil {
-			s.opts.Logger.Warn(ctx, "failed to record terminal event for unknown response", slog.Error(err), slog.F("type", eventType), slog.F("response_id", responseID))
-			return
-		}
-	}
-	// The response mapping is removed only after the observer recorded the
-	// terminal usage.
-	s.opts.Observer.ServerEvent(ctx, ic.id, frame)
-	var err error
-	if eventType == eventFailed {
-		code, message := response.Get("error.code").String(), response.Get("error.message").String()
-		err = upstreamError(codeStatus(code), "", code, message)
-	}
-	s.endInterception(ic, err)
 }
 
-func (s *Session) endInterception(ic *interception, err error) {
+// end ends ic with err at endedAt exactly once: only the first caller
+// records the end. An interception that lost an accounting job ends with
+// errAccountingOverloaded instead, whichever path ends it.
+func (s *Session) end(ic *interception, err error, endedAt time.Time) {
 	s.mu.Lock()
-	if s.open[ic.id] == nil {
+	if ic.ended {
 		s.mu.Unlock()
 		return
 	}
+	ic.ended = true
+	if ic.lossy {
+		err = errAccountingOverloaded
+	}
 	s.forgetLocked(ic)
 	s.mu.Unlock()
-	ctx, cancel := recordContext(s.ctx)
-	defer cancel()
-	s.recordEnded(ctx, ic, err)
-}
-
-// endAll ends every open interception with err. All end records share one
-// cleanup deadline, so a blocked recorder cannot hold up shutdown per
-// interception.
-func (s *Session) endAll(err error) {
-	s.mu.Lock()
-	s.closed = true
-	ended := slices.Collect(maps.Values(s.open))
-	clear(s.open)
-	clear(s.pending)
-	clear(s.active)
-	clear(s.responses)
-	s.mu.Unlock()
-	if err == nil {
-		err = ErrClosed
-	}
-	ctx, cancel := recordContext(s.ctx)
-	defer cancel()
-	for _, ic := range ended {
-		s.recordEnded(ctx, ic, err)
-	}
+	s.recordEnded(ic, err, endedAt)
 }
 
 func (s *Session) forgetLocked(ic *interception) {
@@ -629,16 +760,15 @@ func setQueue(m map[string][]*interception, lane string, q []*interception) {
 	m[lane] = q
 }
 
-func (s *Session) recordEnded(ctx context.Context, ic *interception, err error) {
-	// The observer shares ctx with the end record, so a slow observer can
-	// use up the end record's budget. The default observer returns at once;
-	// before custom observers are supported, give the end record its own
-	// bounded context.
-	s.opts.Observer.InterceptionEnded(ctx, ic.id)
+// recordEnded records the end of ic at endedAt with a fresh bounded
+// context, so the time extraction spent recording does not shorten it.
+func (s *Session) recordEnded(ic *interception, err error, endedAt time.Time) {
+	ctx, cancel := s.recordContext()
+	defer cancel()
 	errType, message := interceptionerror.Categorize(s.opts.Provider, err)
 	if err := s.opts.Recorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
 		ID:             ic.id,
-		EndedAt:        time.Now(),
+		EndedAt:        endedAt,
 		CredentialHint: s.opts.CredentialHint,
 		ErrorType:      errType,
 		ErrorMessage:   message,
@@ -687,38 +817,5 @@ func (s *Session) enqueueError(ctx, opCtx context.Context, lane string, status i
 			return aborted
 		}
 		return opCtx.Err()
-	}
-}
-
-// recordContext detaches recording from cancellation, bounded like async
-// recordings, so a closing session or caller still persists what it saw.
-func recordContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
-}
-
-// upstreamError wraps an upstream error event so provider categorizers see
-// the OpenAI error envelope and status.
-func upstreamError(status int, errType, code, message string) error {
-	if message == "" {
-		message = code
-	}
-	if message == "" {
-		message = "upstream error"
-	}
-	return intercept.NewResponseError(message, errType, code, status, 0)
-}
-
-// codeStatus maps response.failed error codes, which carry no HTTP status, to
-// the status the equivalent HTTP error would have.
-func codeStatus(code string) int {
-	switch code {
-	case intercept.OpenAIErrCodeRateLimit:
-		return http.StatusTooManyRequests
-	case intercept.OpenAIErrCodeServer:
-		return http.StatusInternalServerError
-	case "":
-		return 0
-	default:
-		return http.StatusBadRequest
 	}
 }

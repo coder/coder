@@ -18,9 +18,11 @@ import (
 
 // TestRecordingInvariants drives random interleavings of client creates and
 // steers, upstream write outcomes (success, failure, or blocked while server
-// events arrive), server events, and session end. After each scenario:
+// events arrive), server events, and session end. Every other scenario
+// holds token usage records until the session ends, so accounting lags
+// behind forwarding. After each scenario:
 //   - every terminal response's usage is recorded exactly once,
-//   - every started interception is ended,
+//   - every started interception is ended exactly once,
 //   - no response is recorded on a create whose write had not succeeded
 //     when the server announced the response.
 func TestRecordingInvariants(t *testing.T) {
@@ -30,7 +32,11 @@ func TestRecordingInvariants(t *testing.T) {
 		seed := rng.Uint64()
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			t.Parallel()
-			runScenario(t, rand.New(rand.NewPCG(seed, 0))) //nolint:gosec // Deterministic test input.
+			var usageGate chan struct{}
+			if i%2 == 1 {
+				usageGate = make(chan struct{})
+			}
+			runScenario(t, rand.New(rand.NewPCG(seed, 0)), usageGate) //nolint:gosec // Deterministic test input.
 		})
 	}
 }
@@ -39,6 +45,8 @@ type scenario struct {
 	t   *testing.T
 	rng *rand.Rand
 	h   *harness
+	// usageGate, when set, holds token usage records until it is closed.
+	usageGate chan struct{}
 
 	// writeResult is what the next upstream write returns; block makes it
 	// wait for release first.
@@ -64,12 +72,18 @@ type scenario struct {
 
 var errWrite = xerrors.New("broken pipe")
 
-func runScenario(t *testing.T, rng *rand.Rand) {
+// runScenario runs one scenario. A non-nil usageGate holds token usage
+// records until the session ends.
+func runScenario(t *testing.T, rng *rand.Rand, usageGate chan struct{}) {
 	ctx := codertestutil.Context(t, codertestutil.WaitShort)
 	s := &scenario{
 		t: t, rng: rng, h: newHarness(ctx, t, nil),
 		written: map[string]bool{}, received: map[string][]string{},
 		lanes: map[string]string{}, allowed: map[string]map[string]bool{},
+	}
+	if usageGate != nil {
+		s.usageGate = usageGate
+		s.h.rec.usageGate.Store(&s.usageGate)
 	}
 	write := func(ctx context.Context) error {
 		if s.block {
@@ -94,14 +108,29 @@ func runScenario(t *testing.T, rng *rand.Rand) {
 			s.serverEvent()
 		}
 	}
+	if s.usageGate != nil {
+		close(s.usageGate)
+	}
 	if rng.IntN(2) == 0 {
 		require.NoError(t, s.h.sess.Close(nil))
 	} else {
 		close(s.h.conn.toClient)
 		_, err := s.h.sess.Recv(ctx)
 		require.ErrorIs(t, err, io.EOF)
+		// Close waits for the accountant to end open interceptions.
+		require.NoError(t, s.h.sess.Close(nil))
 	}
 	s.check()
+}
+
+// relay forwards server frames and, unless usage records are held, waits
+// for their accounting.
+func (s *scenario) relay(frames ...string) {
+	if s.usageGate != nil {
+		s.h.forward(frames...)
+		return
+	}
+	s.h.relay(frames...)
 }
 
 func (s *scenario) lane() string {
@@ -188,7 +217,7 @@ func (s *scenario) serverEvent() {
 		s.allowed[id] = maps.Clone(s.written)
 		s.lanes[id] = lane
 		s.inFlight = append(s.inFlight, id)
-		s.h.relay(created(lane, id, "srv-"+id))
+		s.relay(created(lane, id, "srv-"+id))
 	case 2:
 		s.finish()
 	default:
@@ -196,7 +225,7 @@ func (s *scenario) serverEvent() {
 		l := s.lane()
 		if q := s.received[l]; len(q) > 0 {
 			s.received[l] = q[1:]
-			s.h.relay(fmt.Sprintf(`{"type":"error","status":400%s,"error":{"type":"invalid_request_error","code":"invalid","message":"bad"}}`, lane(l)))
+			s.relay(fmt.Sprintf(`{"type":"error","status":400%s,"error":{"type":"invalid_request_error","code":"invalid","message":"bad"}}`, lane(l)))
 		}
 	}
 }
@@ -226,14 +255,15 @@ func (s *scenario) finish() {
 		eventType, extra = "response.failed", extra+`,"error":{"code":"server_error","message":"boom"}`
 	}
 	s.terminals = append(s.terminals, id)
-	s.h.relay(terminal(s.lanes[id], eventType, id, extra))
+	s.relay(terminal(s.lanes[id], eventType, id, extra))
 }
 
 func (s *scenario) check() {
+	require.Zero(s.t, s.h.logs.count("accounting queue full: dropped event"))
 	models := map[string]string{}
 	for _, ic := range s.h.rec.RecordedInterceptions() {
 		models[ic.ID] = ic.Model
-		require.NotNil(s.t, s.h.rec.RecordedInterceptionEnd(ic.ID), "interception %s left open", ic.Model)
+		require.Equal(s.t, 1, s.h.rec.endCount(ic.ID), "end records of interception %s", ic.Model)
 	}
 	usages := usagesByResponse(s.h)
 	require.Len(s.t, usages, len(s.terminals))
