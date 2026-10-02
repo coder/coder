@@ -98,7 +98,7 @@ func TestMigration000612ConcurrentTraffic(t *testing.T) {
 		requireWaitsFor(ctx, t, sqlDB, pid, updatePID)
 
 		published := async(execAndCommit(ctx, publish, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, f.y))
-		// The fixed migration retries its lock, so the publisher may finish
+		// The migration retries its lock, so the publisher may finish
 		// without ever waiting. Either way, it must have started before the
 		// update needs chat a.
 		require.Eventually(t, func() bool {
@@ -144,13 +144,7 @@ func TestMigration000612MigratorConcurrentTraffic(t *testing.T) {
 	publish, publishPID := beginLocked(ctx, t, sqlDB, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, f.chatA)
 
 	migrated := async(func() error { return migrations.Up(sqlDB) })
-	// Only the migrator waits for the update transaction.
-	var pid int
-	require.Eventually(t, func() bool {
-		err := sqlDB.QueryRowContext(ctx, `SELECT pid FROM pg_stat_activity
-			WHERE datname = current_database() AND $1::int = ANY(pg_blocking_pids(pid))`, updatePID).Scan(&pid)
-		return err == nil
-	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the update transaction")
+	pid := requireMigratorWaitsFor(ctx, t, sqlDB, updatePID)
 
 	published := async(execAndCommit(ctx, publish, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, f.y))
 	require.Eventually(t, func() bool {
@@ -185,11 +179,7 @@ func TestMigration000612MigratorFrom610(t *testing.T) {
 	update, updatePID := beginLocked(ctx, t, sqlDB, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, f.x)
 
 	migrated := async(func() error { return migrations.Up(sqlDB) })
-	require.Eventually(t, func() bool {
-		var pid int
-		return sqlDB.QueryRowContext(ctx, `SELECT pid FROM pg_stat_activity
-			WHERE datname = current_database() AND $1::int = ANY(pg_blocking_pids(pid))`, updatePID).Scan(&pid) == nil
-	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the update transaction")
+	requireMigratorWaitsFor(ctx, t, sqlDB, updatePID)
 
 	requireNoDeadlockVictim(ctx, t, "update", async(execAndCommit(ctx, update,
 		`UPDATE chat_automations SET target_chat_id = $1 WHERE id = $2`, f.chatA, f.x)))
@@ -306,6 +296,18 @@ func requireWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, pid, blocker
 	t.Helper()
 	require.Eventually(t, func() bool { return waitsFor(ctx, db, pid, blocker) },
 		testutil.WaitMedium, testutil.IntervalFast, "pid %d never waited for pid %d", pid, blocker)
+}
+
+// requireMigratorWaitsFor waits until a backend waits for updatePID and
+// returns its PID. Only the migrator waits for the update transaction.
+func requireMigratorWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, updatePID int) int {
+	t.Helper()
+	var pid int
+	require.Eventually(t, func() bool {
+		return db.QueryRowContext(ctx, `SELECT pid FROM pg_stat_activity
+			WHERE datname = current_database() AND $1::int = ANY(pg_blocking_pids(pid))`, updatePID).Scan(&pid) == nil
+	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the update transaction")
+	return pid
 }
 
 func requireNoDeadlockVictim(ctx context.Context, t *testing.T, who string, done <-chan error) {
