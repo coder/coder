@@ -91,19 +91,7 @@ func (r *connectionReporter) Connect(connectEvent proto.ConnectEvent) proto.Disc
 		connectEvent.IP = "127.0.0.1"
 	}
 
-	payload := &proto.ReportConnectionRequest{
-		Connection: &proto.Connection{
-			Id:              connectEvent.ID[:],
-			Action:          proto.Connection_CONNECT,
-			Type:            connectEvent.Type,
-			Timestamp:       timestamppb.New(time.Now()),
-			Ip:              connectEvent.IP,
-			StatusCode:      0,
-			Reason:          nil,
-			ClientSessionId: connectEvent.ClientSessionID,
-		},
-	}
-
+	payload := connectionRequest(&connectEvent, nil)
 	select {
 	case r.report <- payload:
 	default:
@@ -129,19 +117,7 @@ type disconnectionReporter struct {
 }
 
 func (r *disconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent) {
-	payload := &proto.ReportConnectionRequest{
-		Connection: &proto.Connection{
-			Id:              r.connectEvent.ID[:],
-			Action:          proto.Connection_DISCONNECT,
-			Type:            r.connectEvent.Type,
-			Timestamp:       timestamppb.New(time.Now()),
-			Ip:              r.connectEvent.IP,
-			StatusCode:      int32(disconnectEvent.Code), //nolint:gosec
-			Reason:          &disconnectEvent.Reason,
-			ClientSessionId: r.connectEvent.ClientSessionID,
-		},
-	}
-
+	payload := connectionRequest(r.connectEvent, &disconnectEvent)
 	select {
 	case r.report <- payload:
 	default:
@@ -150,4 +126,30 @@ func (r *disconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent
 			slog.F("payload", payload),
 		)
 	}
+}
+
+// connectionRequest converts connect and disconnect events into a proto
+// connection request.  Disconnect events must pass both the original connect
+// event and the disconnect event.
+func connectionRequest(connect *proto.ConnectEvent, disconnect *proto.DisconnectEvent) *proto.ReportConnectionRequest {
+	// TODO: For now, `connect.AppName` is ignored.  It needs to be added once the
+	// type and app names are separated in the database.
+	payload := &proto.ReportConnectionRequest{
+		Connection: &proto.Connection{
+			Id:              connect.ID[:],
+			Action:          proto.Connection_CONNECT,
+			Type:            connect.Type,
+			Timestamp:       timestamppb.New(time.Now()),
+			Ip:              connect.IP,
+			StatusCode:      0,
+			Reason:          nil,
+			ClientSessionId: connect.ClientSessionID,
+		},
+	}
+	if disconnect != nil {
+		payload.Connection.Action = proto.Connection_DISCONNECT
+		payload.Connection.StatusCode = int32(disconnect.Code) //nolint:gosec
+		payload.Connection.Reason = &disconnect.Reason
+	}
+	return payload
 }
