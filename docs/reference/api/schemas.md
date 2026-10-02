@@ -2351,6 +2351,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2466,6 +2468,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2511,6 +2515,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `title_source`          | [codersdk.ChatTitleSource](#codersdkchattitlesource)            | false    |              | Title source is where Title came from. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order fallback, generated, user.                                                                                        |
+| `title_updated_at`      | string                                                          | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -5498,6 +5504,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `include_default_system_prompt` | boolean | false    |              |             |
 | `system_prompt`                 | string  | false    |              |             |
 
+## codersdk.ChatTitleSource
+
+```json
+"fallback"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `fallback`, `generated`, `user` |
+
 ## codersdk.ChatUnsupportedProvider
 
 ```json
@@ -5661,6 +5681,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -6702,6 +6724,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -6717,23 +6740,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                           |
-|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                       |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages. |
-| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                             |
-| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                       |
-| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                       |
-| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                         |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                       |
-| `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                       |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                            |
-| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages.                                                                                                                                 |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                                                                                                                                                             |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                                                                                                                                                         |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `title`                | string                                                                      | false    |              | Title, when set, is stored as the user title and automatic title generation does not run. It is trimmed and must then be non-empty and at most 200 Unicode code points (MaxChatTitleRunes), else the request fails with 400. When omitted, the title is derived from the first prompt and may later be replaced by a generated title. |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                                                            |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -16562,7 +16586,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
 |`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
 The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
-|`title`|string|false|||
+|`title`|string|false||Title, when set, is stored as the user title even when its text is unchanged, so a generated title never replaces it afterwards. It is validated like CreateChatRequest.Title.|
 |`workspace_id`|string|false|||
 
 ## codersdk.UpdateChatRetentionDaysRequest

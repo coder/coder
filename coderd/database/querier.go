@@ -1536,7 +1536,6 @@ type sqlcQuerier interface {
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatAutomationByID(ctx context.Context, arg UpdateChatAutomationByIDParams) (ChatAutomation, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
-	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation
@@ -1606,12 +1605,9 @@ type sqlcQuerier interface {
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
+	// Writes only when @title_source ranks at or above the current source.
+	// chat_title_source declares its values in rank order.
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
-	// Compare-and-set variant of UpdateChatTitleByID: the title is only
-	// written when the stored title still equals @expected_title. Automatic
-	// title generation uses it so a rename that lands while the model call
-	// runs is not overwritten. Returns no rows when the title changed.
-	UpdateChatTitleByIDIfTitle(ctx context.Context, arg UpdateChatTitleByIDIfTitleParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

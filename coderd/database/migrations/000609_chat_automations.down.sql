@@ -52,7 +52,9 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.title_source,
+    c.title_updated_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
