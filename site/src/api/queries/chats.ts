@@ -1231,6 +1231,19 @@ export const infiniteChats = (input?: ChatListInput) => {
 				},
 				signal,
 			),
+		// Keep optimistic read-state changes in cache so rollback preserves
+		// ordering and cannot resurrect rows removed by a newer response.
+		select: (data: InfiniteChatsCacheData): InfiniteChatsCacheData =>
+			params.status === "all"
+				? data
+				: {
+						...data,
+						pages: data.pages.map((page) =>
+							page.filter(
+								(chat) => chat.has_unread === (params.status === "unread"),
+							),
+						),
+					},
 		refetchOnWindowFocus: true,
 		retry: 3,
 	});
@@ -1654,33 +1667,13 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
-/**
- * Chat lists apply their read-status filter server-side, so a read-state
- * change can move a chat out of a list entirely. The filter params are the
- * last segment of the list query key.
- */
-const chatListStatusFromKey = (
-	queryKey: QueryKey,
-): ChatListStatusFilter | "all" => {
-	const params = queryKey[chatListFamilyKey.length];
-	if (params && typeof params === "object" && "status" in params) {
-		const { status } = params;
-		if (status === "read" || status === "unread") {
-			return status;
-		}
-	}
-	return "all";
-};
-
 type ChatListSnapshot = ReadonlyArray<
 	readonly [QueryKey, InfiniteChatsCacheData]
 >;
 
 /**
- * Applies a read-state change across every cached chat list, dropping the
- * chat from lists whose read-status filter it no longer satisfies. Returns
- * the replaced cache entries so a failed mutation can restore them without
- * depending on a refetch.
+ * Patches read state without removing roots. The list selector hides roots
+ * excluded by its read filter, keeping rollback independent of a refetch.
  */
 const applyChatReadStateToLists = (
 	queryClient: QueryClient,
@@ -1696,8 +1689,6 @@ const applyChatReadStateToLists = (
 		if (!data?.pages) {
 			continue;
 		}
-		const excluded =
-			chatListStatusFromKey(queryKey) === (read ? "unread" : "read");
 		let changed = false;
 		const pages = data.pages.map((page) => {
 			let pageChanged = false;
@@ -1705,9 +1696,7 @@ const applyChatReadStateToLists = (
 			for (const chat of page) {
 				if (chat.id === chatId) {
 					pageChanged = true;
-					if (!excluded) {
-						nextPage.push({ ...chat, has_unread: !read });
-					}
+					nextPage.push({ ...chat, has_unread: !read });
 					continue;
 				}
 				// Subagent chats are nested under their root and the list
@@ -1745,10 +1734,43 @@ const applyChatReadStateToLists = (
 
 const restoreChatLists = (
 	queryClient: QueryClient,
+	chatId: string,
 	snapshot: ChatListSnapshot,
 ) => {
 	for (const [queryKey, data] of snapshot) {
-		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, data);
+		const previousRoots = data.pages.flat();
+		const originalRoot = previousRoots.find((chat) => chat.id === chatId);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (current) => {
+			if (!current?.pages) return current;
+			let changed = false;
+			const pages = current.pages.map((page) =>
+				page.map((chat) => {
+					if (chat.id === chatId && originalRoot) {
+						changed = true;
+						return { ...chat, has_unread: originalRoot.has_unread };
+					}
+					const previousChild = previousRoots
+						.find((parent) => parent.id === chat.id)
+						?.children?.find((child) => child.id === chatId);
+					if (
+						!previousChild ||
+						!chat.children?.some((child) => child.id === chatId)
+					) {
+						return chat;
+					}
+					changed = true;
+					return {
+						...chat,
+						children: chat.children.map((child) =>
+							child.id === chatId
+								? { ...child, has_unread: previousChild.has_unread }
+								: child,
+						),
+					};
+				}),
+			);
+			return changed ? { ...current, pages } : current;
+		});
 	}
 };
 
@@ -1757,12 +1779,25 @@ type SetChatReadStateContext = {
 	readonly previousLists: ChatListSnapshot;
 };
 
+const chatReadStateMutationKey = ["chats", "read-state"] as const;
+
+/** Select pending targets across chat row unmounts and remounts. */
+export const pendingChatReadStates = {
+	filters: {
+		mutationKey: chatReadStateMutationKey,
+		status: "pending" as const,
+	},
+	select: ({ state: { variables } }: Mutation): string | undefined =>
+		typeof variables === "string" ? variables : undefined,
+};
+
 /**
  * Moves the owner's read cursor for a chat, which drives the sidebar's
  * unread indicator. Opening a chat marks it read on its own, so this
  * only exists for explicitly marking a chat read or unread.
  */
 const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationKey: chatReadStateMutationKey,
 	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
 	onMutate: async (chatId: string): Promise<SetChatReadStateContext> => {
 		await cancelChatListQueries(queryClient);
@@ -1787,15 +1822,23 @@ const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
 		// Restore before invalidating so a failed refetch still leaves the
 		// rejected read state off the screen.
 		if (context) {
-			restoreChatLists(queryClient, context.previousLists);
+			restoreChatLists(queryClient, chatId, context.previousLists);
 		}
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			patchChatEntity(queryClient, chatId, (current) =>
+				current ? { ...current, has_unread: previousChat.has_unread } : current,
+			);
 		}
-		void invalidateChatListQueries(queryClient);
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
+		// This mutation is still pending during settlement. Refetching earlier
+		// would replace another row's optimistic read state with server data.
+		if (
+			queryClient.isMutating({ mutationKey: chatReadStateMutationKey }) <= 1
+		) {
+			await invalidateChatListQueries(queryClient);
+		}
 		await invalidateChatEntity(queryClient, chatId);
 	},
 });
