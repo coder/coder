@@ -1238,6 +1238,34 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		// Workspace secrets are write-only: users who can build the workspace
+		// can set, clear, and list metadata, but nobody reads values back.
+		{
+			Name:     "WorkspaceSecretsWrite",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceWorkspaceSecret.WithOwner(currentUser.String()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				// orgMemberMe holds only the org-member floor role, which
+				// grants no workspace access.
+				true: {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {
+					orgMemberMe, memberMe, otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "WorkspaceSecretsReadSecret",
+			Actions:  []policy.Action{policy.ActionReadSecret},
+			Resource: rbac.ResourceWorkspaceSecret.WithOwner(currentUser.String()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				false: {
+					owner, orgMemberMe, orgAdmin, memberMe, orgWorkspaceAccessUser,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 		// Skills are user-authored instructions, not secrets. Owners can inspect
 		// and delete them, but only the user can create or update them.
 		{

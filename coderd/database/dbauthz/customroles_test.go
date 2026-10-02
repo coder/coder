@@ -163,6 +163,16 @@ func TestInsertCustomRoles(t *testing.T) {
 			errorContains: "not allowed to grant this permission",
 		},
 		{
+			// No user role holds read_secret, so no custom role can grant it.
+			name:           "workspace-secret-read-secret-owner",
+			organizationID: orgID,
+			subject:        merge(canCreateCustomRole, rbac.RoleOwner(), rbac.ScopedRoleOrgAdmin(orgID)),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspaceSecret: {codersdk.ActionReadSecret},
+			}),
+			errorContains: "not allowed to grant this permission",
+		},
+		{
 			name: "user-escalation",
 			// These roles do not grant user perms
 			organizationID: orgID,

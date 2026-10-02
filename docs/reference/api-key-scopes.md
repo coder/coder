@@ -72,14 +72,16 @@ Each scope below grants the permissions in its table.
 | `organization_member` | `read`                                      |
 | `template`            | `read`, `use`                               |
 | `workspace`           | `create`, `read`, `start`, `stop`, `update` |
+| `workspace_secret`    | `create`, `update`                          |
 
 ### `coder:workspaces.delete`
 
-| Resource              | Actions          |
-|-----------------------|------------------|
-| `organization_member` | `read`           |
-| `template`            | `read`, `use`    |
-| `workspace`           | `delete`, `read` |
+| Resource              | Actions            |
+|-----------------------|--------------------|
+| `organization_member` | `read`             |
+| `template`            | `read`, `use`      |
+| `workspace`           | `delete`, `read`   |
+| `workspace_secret`    | `create`, `update` |
 
 ### `coder:workspaces.operate`
 
@@ -88,6 +90,7 @@ Each scope below grants the permissions in its table.
 | `organization_member` | `read`                            |
 | `template`            | `read`                            |
 | `workspace`           | `read`, `start`, `stop`, `update` |
+| `workspace_secret`    | `create`, `update`                |
 
 ## Low-level scopes
 
