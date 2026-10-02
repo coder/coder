@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -125,6 +126,9 @@ func (a manageAutomationsArgs) checkFields(action string) error {
 			return xerrors.New("update needs at least one field to change")
 		}
 	default:
+		if action == "list" && strings.TrimSpace(a.AutomationID) != "" {
+			set = append([]string{"automation_id"}, set...)
+		}
 		if len(set) > 0 {
 			return xerrors.Errorf("%s does not take %s", action, strings.Join(set, ", "))
 		}
@@ -140,14 +144,15 @@ type automationTurnTrigger struct {
 }
 
 // automationTurnTriggerFromHistory returns the automation input that
-// reached the current turn. messages is the chat's full, ordered history:
-// the prompt window is not enough because compaction replays pending user
-// rows without their automation_id. The turn is the latest user prompt,
-// the contiguous user rows before it back to the previous assistant or
-// tool row, and any user rows after it. The latest of these rows that
-// carries an automation_id is the trigger, so a human message sent right
-// after an automation message, with no response in between, also counts
-// as reached. That errs on the restrictive side.
+// reached the current turn. messages is the chat's ordered history or the
+// rows of GetChatMessagesForAutomationTurnTrigger, which give the same
+// result. The prompt window is not enough because compaction replays
+// pending user rows without their automation_id. The turn is the latest
+// user prompt, the contiguous user rows before it back to the previous
+// assistant or tool row, and any user rows after it. The latest of these
+// rows that carries an automation_id is the trigger, so a human message
+// sent right after an automation message, with no response in between,
+// also counts as reached. That errs on the restrictive side.
 func automationTurnTriggerFromHistory(messages []database.ChatMessage) automationTurnTrigger {
 	start := lastUserPromptIndex(messages)
 	if start == -1 {
@@ -244,7 +249,9 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	}
 	ownerCtx := dbauthz.As(ctx, owner)
 
-	history, err := p.db.GetChatMessagesByChatID(chatdCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	// Only the current turn's user rows decide the trigger, so the tool
+	// does not load the full history.
+	history, err := p.db.GetChatMessagesForAutomationTurnTrigger(chatdCtx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "manage_automations failed to load chat history", slog.Error(err))
 		return nil, xerrors.New("failed to load chat history")
@@ -604,6 +611,9 @@ func (*Server) manageAutomationsError(ctx context.Context, logger slog.Logger, v
 		return xerrors.New("the automation is disabled: enable it before running it")
 	case errors.Is(err, ErrAutomationChatBusy):
 		return xerrors.New("the target chat is busy, and the automation skips runs while it is busy")
+	case errors.Is(err, chatstate.ErrMessageQueueFull):
+		// Admission passed, but other messages filled the whole queue.
+		return xerrors.New("the target chat's message queue is full: try again after the chat sends its queued messages")
 	}
 	for _, refusal := range []error{
 		ErrAutomationQueueShareFull,

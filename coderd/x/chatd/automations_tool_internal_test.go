@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -58,7 +60,7 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 		AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
 		InputID:      uuid.NullUUID{UUID: inputID, Valid: true},
 	}
-	for _, tc := range []struct {
+	cases := []struct {
 		name     string
 		messages []database.ChatMessage
 		want     automationTurnTrigger
@@ -102,6 +104,17 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			want: reached,
 		},
 		{
+			// Compaction ran before the automation message got a response,
+			// then a human sent a message. Compressed rows do not end the
+			// turn.
+			name: "CompactionBeforeResponse",
+			messages: []database.ChatMessage{
+				assistant, fromAutomation(automationID, inputID),
+				compressed(assistant), compressed(tool), replayed, human(),
+			},
+			want: reached,
+		},
+		{
 			// Editing an automation message deletes it and inserts a human
 			// message in its place.
 			name:     "EditedAutomationMessage",
@@ -112,12 +125,68 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			messages: []database.ChatMessage{fromAutomation(automationID, inputID), deleted(assistant), human()},
 			want:     reached,
 		},
-	} {
+	}
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, automationTurnTriggerFromHistory(tc.messages))
 		})
 	}
+
+	// The tool reads only the current turn's user rows. Over every case,
+	// those rows must give the same trigger as the full history.
+	t.Run("CurrentTurnQuery", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+		// insert stores messages in a new chat and returns its ID.
+		insert := func(t *testing.T, messages []database.ChatMessage) uuid.UUID {
+			t.Helper()
+			chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: model.ID})
+			for _, m := range messages {
+				m.ChatID = chat.ID
+				row := dbgen.ChatMessage(t, db, m)
+				if m.Deleted {
+					require.NoError(t, db.SoftDeleteChatMessageByID(testutil.Context(t, testutil.WaitShort), row.ID))
+				}
+			}
+			return chat.ID
+		}
+		// load returns the rows of the tool's query and the full history.
+		load := func(t *testing.T, chatID uuid.UUID) (turn, history []database.ChatMessage) {
+			t.Helper()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			turn, err := db.GetChatMessagesForAutomationTurnTrigger(ctx, chatID)
+			require.NoError(t, err)
+			history, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+			require.NoError(t, err)
+			return turn, history
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				turn, history := load(t, insert(t, tc.messages))
+				require.Equal(t, tc.want, automationTurnTriggerFromHistory(turn))
+				require.Equal(t, automationTurnTriggerFromHistory(history), automationTurnTriggerFromHistory(turn))
+			})
+		}
+
+		t.Run("ReadsOnlyCurrentTurn", func(t *testing.T) {
+			t.Parallel()
+			var messages []database.ChatMessage
+			for range 20 {
+				messages = append(messages, fromAutomation(automationID, inputID), assistant, tool, assistant)
+			}
+			messages = append(messages, human())
+			turn, history := load(t, insert(t, messages))
+			require.Len(t, history, len(messages))
+			require.Len(t, turn, 1)
+			require.Equal(t, automationTurnTrigger{}, automationTurnTriggerFromHistory(turn))
+		})
+	})
 }
 
 func TestManageAutomationsNotOfferedInPlanOrExploreTurns(t *testing.T) {
@@ -405,7 +474,11 @@ func TestManageAutomationsTool(t *testing.T) {
 
 				chatID := tc.revoke(ctx, t, f)
 				for _, action := range []string{"list", "disable", "delete"} {
-					content, isError := f.call(ctx, t, chatID, action, automation.ID)
+					id := automation.ID
+					if action == "list" {
+						id = uuid.Nil
+					}
+					content, isError := f.call(ctx, t, chatID, action, id)
 					require.True(t, isError, "%s: %s", action, content)
 					require.Contains(t, content, "not available for this chat")
 				}
@@ -731,6 +804,7 @@ func TestManageAutomationsTool(t *testing.T) {
 			want string
 		}{
 			{createWithID, "create does not take automation_id"},
+			{manageAutomationsArgs{Action: "list", AutomationID: heartbeat.ID.String()}, "list does not take automation_id"},
 			{manageAutomationsArgs{Action: "update", AutomationID: heartbeat.ID.String()}, "update needs at least one field to change"},
 			{manageAutomationsArgs{Action: "enable", AutomationID: heartbeat.ID.String(), Prompt: ptr.Ref("Changed.")}, "enable does not take prompt"},
 		} {
@@ -741,6 +815,38 @@ func TestManageAutomationsTool(t *testing.T) {
 		f.requireUnchanged(ctx, t, heartbeat)
 		require.Len(t, f.ownerAutomations(ctx, t), 1)
 		require.Empty(t, f.auditor.AuditLogs())
+	})
+
+	t.Run("RunNowQueueFull", func(t *testing.T) {
+		t.Parallel()
+		// A queue of 2 leaves automations a share of 1, so admission
+		// accepts the run while human messages fill the whole queue.
+		f := newScheduleFixture(t, database.ChatStatusRunning, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+		f.setSwitch(t, f.chat.ID, true)
+		server := f.newServer(t, Limits{MaxQueuedMessagesPerChat: 2})
+		sink := testutil.NewFakeSink(t)
+		server.logger = sink.Logger()
+		mf := manageAutomationsFixture{scheduleFixture: f, server: server}
+		ctx := testutil.Context(t, testutil.WaitLong)
+		heartbeat := f.existingChat(ctx, t, server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		for range 2 {
+			sent, err := server.SendMessage(f.asOwner(ctx, t), SendMessageOptions{
+				ChatID:    f.chat.ID,
+				CreatedBy: f.owner.ID,
+				Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
+			})
+			require.NoError(t, err)
+			require.True(t, sent.Queued)
+		}
+		inputs := f.inputs(ctx, t)
+
+		content, isError := mf.call(ctx, t, f.chat.ID, "run_now", heartbeat.ID)
+		require.True(t, isError, content)
+		require.Equal(t, "the target chat's message queue is full: try again after the chat sends its queued messages", content)
+		require.Equal(t, inputs, f.inputs(ctx, t))
+		require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "manage_automations action failed"
+		}))
 	})
 
 	t.Run("WebhookSecrets", func(t *testing.T) {

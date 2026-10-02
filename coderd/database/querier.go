@@ -535,6 +535,14 @@ type sqlcQuerier interface {
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
 	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
+	// Returns the user rows of the chat's current turn: every user row after the
+	// latest non-user row that precedes the latest user prompt. It reads the same
+	// rows as GetChatMessagesByChatID (visibility user or both, not deleted), so
+	// the manage_automations reached-turn check gives the same result over these
+	// rows as over the full history without loading it. A user prompt is a user
+	// row that is not compressed, and a compressed row never ends the turn. A
+	// chat without a user prompt returns no rows.
+	GetChatMessagesForAutomationTurnTrigger(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)

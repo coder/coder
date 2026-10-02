@@ -3601,6 +3601,15 @@ func (q *querier) GetChatMessagesByRevisionForStream(ctx context.Context, arg da
 	return q.db.GetChatMessagesByRevisionForStream(ctx, arg)
 }
 
+func (q *querier) GetChatMessagesForAutomationTurnTrigger(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesForAutomationTurnTrigger(ctx, chatID)
+}
+
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
