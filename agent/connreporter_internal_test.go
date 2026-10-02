@@ -126,7 +126,7 @@ func TestConnectionReporter(t *testing.T) {
 			default:
 			}
 
-			if i < 2 {
+			if i < limit {
 				require.NotNil(t, r, "should have received a report")
 			} else {
 				require.Nil(t, r, "report should have been dropped")
