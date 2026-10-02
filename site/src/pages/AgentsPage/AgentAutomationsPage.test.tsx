@@ -384,6 +384,49 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
+	it("keeps the delete confirmation open while the delete is pending", async () => {
+		const user = userEvent.setup();
+		setup();
+		let finishDelete = () => {};
+		const deleteFinished = new Promise<void>((resolve) => {
+			finishDelete = resolve;
+		});
+		let deleted = false;
+		server.use(
+			http.delete(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async () => {
+					await deleteFinished;
+					deleted = true;
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+		await user.keyboard("{Escape}");
+		finishDelete();
+
+		// Escape is ignored while pending, so the dialog still owns focus
+		// when the row disappears and hands it to a stable control.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "New automation" }),
+			).toHaveFocus();
+		});
+	});
+
 	it("does not delete an automation when the confirmation is canceled", async () => {
 		const user = userEvent.setup();
 		const { requests } = setup();

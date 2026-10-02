@@ -197,7 +197,12 @@ const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
 			title={`Delete ${automation.name}?`}
 			confirmLoading={state.isDeleting}
 			onConfirm={state.onConfirm}
-			onClose={state.onClose}
+			// Closing mid-request would hand focus to a row that may vanish.
+			onClose={() => {
+				if (!state.isDeleting) {
+					state.onClose();
+				}
+			}}
 			onCloseAutoFocus={(event) => {
 				const target =
 					opener instanceof HTMLElement && opener.isConnected
