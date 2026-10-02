@@ -223,7 +223,7 @@ func ResolveParameters(
 	// parameter the template declares, so absence from the output means nothing.
 	// Keeping those values is safe, because provisionerd resolves modules itself
 	// and the build still applies them correctly. Dropping them destroys user data.
-	if transition == database.WorkspaceTransitionStart && !incompleteRender(diags) {
+	if transition == database.WorkspaceTransitionStart && !incompleteRender(renderer, diags) {
 		for k := range values {
 			if _, ok := parameterNames[k]; !ok {
 				delete(values, k)
@@ -250,13 +250,30 @@ func (p parameterValueMap) ValuesMap() map[string]string {
 	return values
 }
 
+// incompleteRenderReporter is implemented by renderers that can report an
+// incomplete render from coderd's own state, without inferring it from the
+// render output.
+type incompleteRenderReporter interface {
+	MissingModuleFiles() bool
+}
+
 // incompleteRender reports whether the render could not see the whole template.
 // Parameters missing from such a render are missing because the renderer could
 // not reach their source, not because the template stopped declaring them.
-func incompleteRender(diags hcl.Diagnostics) bool {
+func incompleteRender(renderer Renderer, diags hcl.Diagnostics) bool {
+	// Prefer coderd's own evidence. A version that depends on a remotely
+	// sourced module but has no cached module archive cannot be rendered
+	// completely, whatever the render reports.
+	if reporter, ok := renderer.(incompleteRenderReporter); ok && reporter.MissingModuleFiles() {
+		return true
+	}
+
 	for _, diag := range diags {
 		// A module that fails to load takes every parameter it declares with it.
-		// This happens when the template version has no cached module files.
+		// This diagnostic is inferred by the renderer rather than detected, so it
+		// is treated as a fallback signal: acting on it keeps values that are
+		// safe to keep, but it must not be the only thing standing between a
+		// missing module and a user's stored values.
 		if previewtypes.ExtractDiagnosticExtra(diag).Code == previewtypes.DiagnosticModuleNotLoaded {
 			return true
 		}
