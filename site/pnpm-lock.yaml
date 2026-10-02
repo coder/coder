@@ -317,6 +317,9 @@ importers:
       '@types/lodash':
         specifier: 4.17.25
         version: 4.17.25
+      '@types/mdast':
+        specifier: 4.0.4
+        version: 4.0.4
       '@types/node':
         specifier: 20.19.41
         version: 20.19.41

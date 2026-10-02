@@ -2023,6 +2023,7 @@ export const WithReasoningInline: Story = {
 			name: "Thinking: Reasoning body",
 		});
 		await userEvent.click(trigger);
+		await canvas.findByText("Reasoning body", { selector: "p" });
 	},
 };
 

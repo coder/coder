@@ -2101,6 +2101,9 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 				name: /Let me think about this step by step/,
 			}),
 		);
+		await canvas.findByText(/Let me think about this step by step/, {
+			selector: "p",
+		});
 	},
 };
 

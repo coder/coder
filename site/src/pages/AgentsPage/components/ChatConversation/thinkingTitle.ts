@@ -1,6 +1,7 @@
-import remarkGfm from "remark-gfm";
+import type { Nodes } from "mdast";
 import remarkParse from "remark-parse";
 import remend from "remend";
+import { defaultRemarkPlugins } from "streamdown";
 import { unified } from "unified";
 import { sliceAtGraphemeBoundary } from "./SmoothText";
 
@@ -11,7 +12,9 @@ const PREVIEW_TITLE_MAX_LENGTH = 100;
 const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_LENGTH * 4;
 
 // Parses like the Streamdown body so titles keep exactly the text it renders.
-const markdownParser = unified().use(remarkParse).use(remarkGfm);
+const markdownParser = unified()
+	.use(remarkParse)
+	.use(Object.values(defaultRemarkPlugins));
 
 type LineRange = {
 	line: string;
@@ -32,15 +35,6 @@ type ThinkingDisclosureDisplay = {
 	body: string;
 };
 
-type MarkdownNode = {
-	type: string;
-	value?: string;
-	alt?: string | null;
-	ordered?: boolean | null;
-	start?: number | null;
-	children?: MarkdownNode[];
-};
-
 const phrasingParentTypes = new Set([
 	"paragraph",
 	"heading",
@@ -52,35 +46,39 @@ const phrasingParentTypes = new Set([
 	"tableCell",
 ]);
 
-const getNodeText = (node: MarkdownNode): string => {
-	if (node.type === "image" || node.type === "imageReference") {
-		return node.alt ?? "";
+const getNodeText = (node: Nodes): string => {
+	switch (node.type) {
+		case "image":
+		case "imageReference":
+			return node.alt ?? "";
+		case "break":
+			return " ";
+		case "list": {
+			const start = node.start ?? 1;
+			return node.children
+				.map((item, index) => {
+					const marker = node.ordered ? `${start + index}.` : "-";
+					return `${marker} ${getNodeText(item)}`;
+				})
+				.join(" ");
+		}
 	}
-	if (node.type === "break") {
-		return " ";
-	}
-	if (node.value !== undefined) {
+	if ("value" in node) {
 		return node.value;
 	}
-	const children = node.children ?? [];
-	if (node.type === "list") {
-		const start = node.start ?? 1;
-		return children
-			.map((item, index) => {
-				const marker = node.ordered ? `${start + index}.` : "-";
-				return `${marker} ${getNodeText(item)}`;
-			})
-			.join(" ");
+	if (!("children" in node)) {
+		return "";
 	}
+	const children: readonly Nodes[] = node.children;
 	return children
 		.map(getNodeText)
 		.join(phrasingParentTypes.has(node.type) ? "" : " ");
 };
 
-const getPlainText = (node: MarkdownNode): string =>
+const getPlainText = (node: Nodes): string =>
 	getNodeText(node).replace(/\s+/g, " ").trim();
 
-const cleanHeadingText = (markdown: string): string =>
+const markdownToPlainText = (markdown: string): string =>
 	getPlainText(markdownParser.parse(markdown));
 
 const getLines = (text: string): LineRange[] => {
@@ -106,10 +104,26 @@ const getLines = (text: string): LineRange[] => {
 };
 
 const getAtxHeadingText = (line: string): string | undefined => {
-	if (!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
+	if (
+		line.length > PARSED_SOURCE_MAX_LENGTH ||
+		!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)
+	) {
 		return undefined;
 	}
-	return cleanHeadingText(line) || undefined;
+	return markdownToPlainText(line) || undefined;
+};
+
+const getSetextHeadingText = (
+	line: string,
+	underline: string,
+): string | undefined => {
+	if (line.length > PARSED_SOURCE_MAX_LENGTH) {
+		return undefined;
+	}
+	const [block] = markdownParser.parse(`${line}\n${underline}`).children;
+	return block?.type === "heading"
+		? getPlainText(block) || undefined
+		: undefined;
 };
 
 const getFenceMarker = (
@@ -144,20 +158,6 @@ const hasBodyAfterLine = (
 	index: number,
 ): boolean => lines.slice(index + 1).some(({ line }) => line.trim().length > 0);
 
-const isListItem = (line: string): boolean =>
-	/^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/.test(line);
-
-const getEmphasizedLineHeadingText = (line: string): string | undefined => {
-	const [paragraph] = markdownParser.parse(line).children;
-	if (paragraph?.type !== "paragraph" || paragraph.children.length !== 1) {
-		return undefined;
-	}
-	const [strong] = paragraph.children;
-	return strong.type === "strong"
-		? getPlainText(strong) || undefined
-		: undefined;
-};
-
 const isHeadingLikeParagraph = (
 	lines: readonly LineRange[],
 	index: number,
@@ -165,22 +165,24 @@ const isHeadingLikeParagraph = (
 ): string | undefined => {
 	const lineRange = lines[index];
 	const prefix = text.slice(0, lineRange.start);
-	if (
-		prefix.trim() ||
-		isListItem(lineRange.line) ||
-		lineRange.line.length > PARSED_SOURCE_MAX_LENGTH
-	) {
+	if (prefix.trim() || lineRange.line.length > PARSED_SOURCE_MAX_LENGTH) {
 		return undefined;
 	}
 
-	const emphasizedHeading = getEmphasizedLineHeadingText(lineRange.line);
+	const [paragraph] = markdownParser.parse(lineRange.line).children;
+	if (paragraph?.type !== "paragraph") {
+		return undefined;
+	}
+	const [firstChild] = paragraph.children;
+	const isEmphasized =
+		paragraph.children.length === 1 && firstChild.type === "strong";
 	const nextLine = lines[index + 1];
 	const hasBody = hasBodyAfterLine(lines, index);
-	if ((!nextLine || nextLine.line.trim() || !hasBody) && !emphasizedHeading) {
+	if ((!nextLine || nextLine.line.trim() || !hasBody) && !isEmphasized) {
 		return undefined;
 	}
 
-	const heading = emphasizedHeading ?? cleanHeadingText(lineRange.line);
+	const heading = getPlainText(isEmphasized ? firstChild : paragraph);
 	if (!heading) {
 		return undefined;
 	}
@@ -239,19 +241,18 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 			};
 		}
 
-		if (/^ {0,3}(=+|-+)[ \t]*$/.test(line) && setextCandidate) {
-			const heading = cleanHeadingText(setextCandidate.line);
-			if (!heading) {
-				return undefined;
+		if (setextCandidate && /^ {0,3}(=+|-+)[ \t]*$/.test(line)) {
+			const heading = getSetextHeadingText(setextCandidate.line, line);
+			if (heading) {
+				return {
+					text: heading,
+					start: setextCandidate.start,
+					end: lineRange.nextStart,
+				};
 			}
-			return {
-				text: heading,
-				start: setextCandidate.start,
-				end: lineRange.nextStart,
-			};
 		}
 
-		setextCandidate = line.trim() && !isListItem(line) ? lineRange : undefined;
+		setextCandidate = line.trim() ? lineRange : undefined;
 	}
 
 	return undefined;
@@ -275,12 +276,20 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 	return body.replace(/^\s+/, "");
 };
 
+// A streamed emphasized heading would otherwise show as the preview until
+// its closing markup arrives and it becomes the heading.
+const isHeadingInProgress = (text: string): boolean =>
+	/^(\*\*|__)(?:(?!\1).)*$/.test(text.trimStart());
+
 const getPreviewTitle = (text: string, isStreaming: boolean): string => {
+	if (isStreaming && isHeadingInProgress(text)) {
+		return "";
+	}
 	const source = sliceAtGraphemeBoundary(text, PARSED_SOURCE_MAX_LENGTH);
 	const isSourceCut = source.length < text.length;
 	// Streamed or cut text can stop inside markup, which the streaming body
 	// repairs the same way.
-	const preview = cleanHeadingText(
+	const preview = markdownToPlainText(
 		isStreaming || isSourceCut ? remend(source) : source,
 	);
 	if (
@@ -292,21 +301,13 @@ const getPreviewTitle = (text: string, isStreaming: boolean): string => {
 	return `${sliceAtGraphemeBoundary(preview, PREVIEW_TITLE_MAX_LENGTH).trimEnd()}…`;
 };
 
-// A streamed heading arrives before its closing markup, so its opening
-// markup would otherwise flash as the preview title.
-const isHeadingInProgress = (text: string): boolean =>
-	/^(?:#{1,6}[ \t]*|(\*\*|__)(?:(?!\1).)*)$/.test(text.trimStart());
-
 export const getThinkingDisclosureDisplay = (
 	text: string,
-	{ isStreaming = false }: { isStreaming?: boolean } = {},
+	{ isStreaming }: { isStreaming: boolean },
 ): ThinkingDisclosureDisplay => {
 	const heading = getFirstHeading(text);
 	if (!heading) {
-		const preview =
-			isStreaming && isHeadingInProgress(text)
-				? ""
-				: getPreviewTitle(text, isStreaming);
+		const preview = getPreviewTitle(text, isStreaming);
 		if (!preview) {
 			return { title: DEFAULT_THINKING_TITLE, body: text };
 		}
