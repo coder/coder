@@ -85,12 +85,14 @@ func (d *pgTxnDriver) Unlock() error {
 //
 //   - On a fresh database chats does not exist and nothing uses it, so there
 //     is nothing to lock.
-//   - lock_timeout stays below deadlock_timeout. PostgreSQL runs the deadlock
-//     check in the backend that has waited deadlock_timeout and aborts that
-//     backend. This transaction always gives up first, so it never runs the
-//     check, and an application transaction waits at most one lock_timeout
-//     for it. A wait that times out rolls back the subtransaction, which
-//     releases every lock the attempt took, and the attempt starts again.
+//   - Each attempt ends within half of deadlock_timeout: every lock wait is
+//     capped at 100ms and at the time the attempt has left. PostgreSQL runs
+//     the deadlock check in the backend that has waited deadlock_timeout and
+//     aborts that backend. This transaction always gives up first, so it
+//     never runs the check, and an application transaction never waits for
+//     it longer than one attempt. A wait that times out rolls back the
+//     subtransaction, which releases every lock the attempt took, and the
+//     attempt starts again.
 //   - Attempts alternate between locking the chats_expanded view before and
 //     after the tables. Readers of the view lock it before chats, while
 //     transactions that lock a chat row and then read the view lock chats
@@ -131,13 +133,18 @@ DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');
 	deadline timestamptz := clock_timestamp() + interval '2 minutes';
-	-- Half of deadlock_timeout, at most 100ms and at least 1ms.
-	attempt_lock_timeout text := greatest(1, floor(extract(epoch FROM
-		least(interval '100ms', current_setting('deadlock_timeout')::interval / 2)) * 1000))::bigint || 'ms';
-	tables text;
-	view_options text[];
+	-- Every lock an attempt takes is held until the attempt ends, so the
+	-- whole attempt, not each lock wait, must stay below deadlock_timeout.
+	attempt_budget interval := current_setting('deadlock_timeout')::interval / 2;
+	lock_wait interval := least(interval '100ms', attempt_budget);
+	attempt_deadline timestamptz;
+	remaining interval;
+	lock_tables text[];
 	lock_view text;
+	statements text[];
+	statement text;
 	view_first boolean := false;
+	view_options text[];
 BEGIN
 	IF to_regclass('chats') IS NULL THEN
 		RETURN;
@@ -152,8 +159,9 @@ BEGIN
 		JOIN locked ON con.confrelid = locked.oid
 		WHERE con.contype = 'f'
 	)
-	SELECT string_agg(format('%I.%I', n.nspname, c.relname), ', ' ORDER BY c.relname <> 'chats', c.relname)
-	INTO tables
+	SELECT array_agg(format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', n.nspname, c.relname)
+		ORDER BY c.relname <> 'chats', c.relname)
+	INTO lock_tables
 	FROM locked
 	JOIN pg_class c ON c.oid = locked.oid
 	JOIN pg_namespace n ON n.oid = c.relnamespace;
@@ -167,15 +175,23 @@ BEGIN
 	END IF;
 	LOOP
 		view_first := NOT view_first;
+		statements := lock_tables;
+		IF lock_view IS NOT NULL AND view_first THEN
+			statements := lock_view || statements;
+		ELSIF lock_view IS NOT NULL THEN
+			statements := statements || lock_view;
+		END IF;
 		BEGIN
-			PERFORM set_config('lock_timeout', attempt_lock_timeout, true);
-			IF view_first AND lock_view IS NOT NULL THEN
-				EXECUTE lock_view;
-			END IF;
-			EXECUTE 'LOCK TABLE ' || tables || ' IN ACCESS EXCLUSIVE MODE';
-			IF NOT view_first AND lock_view IS NOT NULL THEN
-				EXECUTE lock_view;
-			END IF;
+			attempt_deadline := clock_timestamp() + attempt_budget;
+			FOREACH statement IN ARRAY statements LOOP
+				remaining := attempt_deadline - clock_timestamp();
+				IF remaining <= interval '0' THEN
+					RAISE EXCEPTION 'chat table lock attempt ran out of time' USING ERRCODE = 'lock_not_available';
+				END IF;
+				PERFORM set_config('lock_timeout',
+					greatest(1, floor(extract(epoch FROM least(lock_wait, remaining)) * 1000))::bigint || 'ms', true);
+				EXECUTE statement;
+			END LOOP;
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
