@@ -305,6 +305,150 @@ func TestDynamicParameterBuild(t *testing.T) {
 		})
 	})
 
+	// StaleOptionValue covers a template update that removes an option value an existing workspace already selected.
+	t.Run("StaleOptionValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		before, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: string(must(os.ReadFile("testdata/parameters/staleoptionbefore/main.tf"))),
+		})
+
+		wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: before.ID,
+			Name:       coderdtest.RandomUsername(t),
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{
+				{Name: "color", Value: "red"},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+		stop, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, stop.ID)
+
+		// "red" is not an option in this version.
+		_, after := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF:     string(must(os.ReadFile("testdata/parameters/staleoptionafter/main.tf"))),
+			TemplateID: before.ID,
+		})
+
+		// No parameter values are sent, so the build can only use the previous value or the new default.
+		start, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: after.ID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+		params, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+		require.NoError(t, err)
+		require.Len(t, params, 1)
+		require.Equal(t, "color", params[0].Name)
+		require.Equal(t, "blue", params[0].Value, "the removed option is replaced by the new default")
+	})
+
+	// A list(string) parameter that is not a multi select carries whole lists as its option values.
+	// Matching entries individually would find none of them and reset the workspace.
+	t.Run("ListOptionValueSurvivesRebuild", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const selected = `["us-east-1","us-west-2"]`
+
+		tpl, version := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: string(must(os.ReadFile("testdata/parameters/listoptions/main.tf"))),
+		})
+
+		wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: tpl.ID,
+			Name:       coderdtest.RandomUsername(t),
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{
+				{Name: "regions", Value: selected},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+		stop, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, stop.ID)
+
+		// No parameter values are sent, so the build carries the previous one forward.
+		start, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: version.ID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+		params, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+		require.NoError(t, err)
+		require.Len(t, params, 1)
+		require.Equal(t, "regions", params[0].Name)
+		require.Equal(t, selected, params[0].Value, "a value that is still an option is kept")
+	})
+
+	// Removing an option can invalidate a second parameter whose options are derived from the first.
+	// The first render still sees the old option set, so the second parameter only becomes stale once the first one is dropped.
+	t.Run("ChainedStaleOptionValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		before, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: string(must(os.ReadFile("testdata/parameters/chainedoptionsbefore/main.tf"))),
+		})
+
+		wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: before.ID,
+			Name:       coderdtest.RandomUsername(t),
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{
+				{Name: "region", Value: "eu"},
+				{Name: "instance", Value: "eu-large"},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+		stop, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, stop.ID)
+
+		// Dropping "eu" also strands "eu-large", which is only an option while region is "eu".
+		_, after := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF:     string(must(os.ReadFile("testdata/parameters/chainedoptionsafter/main.tf"))),
+			TemplateID: before.ID,
+		})
+
+		start, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: after.ID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+		params, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+		require.NoError(t, err)
+		values := make(map[string]string, len(params))
+		for _, p := range params {
+			values[p.Name] = p.Value
+		}
+		require.Equal(t, map[string]string{
+			"region":   "us",
+			"instance": "us-small",
+		}, values, "both the removed option and the option it stranded fall back to defaults")
+	})
+
 	t.Run("ImmutableValidation", func(t *testing.T) {
 		t.Parallel()
 

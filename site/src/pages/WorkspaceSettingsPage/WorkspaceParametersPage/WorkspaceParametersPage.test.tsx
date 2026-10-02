@@ -4,6 +4,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter4,
@@ -357,5 +358,100 @@ describe("WorkspaceParametersPage", () => {
 			name: /update and restart/i,
 		});
 		await waitFor(() => expect(submitButton).toBeDisabled());
+	});
+
+	it("keeps submit enabled when a parameter reports only warnings", async () => {
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		renderWorkspaceParametersPage();
+
+		// A value the template no longer offers is reconciled to the default and
+		// reported as a warning, which must not block the build.
+		await connectWithInitialParameters(mockPublisher, [
+			{
+				...MockPreviewParameter1,
+				diagnostics: [
+					{
+						severity: "warning",
+						summary: "Previously selected option is no longer available",
+						detail: 'The value "red" is not one of the available options.',
+						extra: { code: "stale_option" },
+					},
+				],
+			},
+		]);
+
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+	});
+
+	it("disables submit when a parameter reports an error", async () => {
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		renderWorkspaceParametersPage();
+
+		await connectWithInitialParameters(mockPublisher, [
+			{
+				...MockPreviewParameter1,
+				diagnostics: [
+					{
+						severity: "error",
+						summary: "Value must be a valid option",
+						detail: 'the value "red" must be defined as one of options',
+						extra: { code: "" },
+					},
+				],
+			},
+		]);
+
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+	});
+
+	it("allows editing parameters when updating to the active version", async () => {
+		const workspace = MockOutdatedStoppedWorkspaceRequireActiveVersion;
+		vi.spyOn(API, "getWorkspaceByOwnerAndName")
+			.mockReset()
+			.mockResolvedValue(workspace);
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		// The user cannot change versions, but the page targets the active one.
+		renderWorkspaceParametersPage(
+			`/@${workspace.owner_name}/${workspace.name}/settings?templateVersionId=${workspace.template_active_version_id}`,
+		);
+
+		await connectWithInitialParameters(mockPublisher, [MockPreviewParameter1]);
+
+		await waitForLoaderToBeRemoved();
+		await checkParameters(MockPreviewParameter1);
+
+		const edited = { name: MockPreviewParameter1.name, value: "edited" };
+		await editParameters(edited);
+
+		await waitFor(() => {
+			expect(mockPublisher.clientSentData).toHaveLength(1);
+			expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
+				expect.objectContaining({
+					id: 0,
+					inputs: { [edited.name]: edited.value },
+				}),
+			);
+		});
 	});
 });

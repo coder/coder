@@ -236,13 +236,88 @@ export const RequireActiveVersionEditable: Story = {
 	},
 };
 
-function workspaceRouterParameters(workspace: Workspace) {
+export const RequireActiveVersionUpdating: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{
+				templateVersionId:
+					MockOutdatedStoppedWorkspaceRequireActiveVersion.template_active_version_id,
+			},
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+};
+
+// The template dropped the option this workspace had selected. The backend
+// falls back to the default and reports the substitution as a warning.
+export const StaleOptionWarning: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{
+				templateVersionId:
+					MockOutdatedStoppedWorkspaceRequireActiveVersion.template_active_version_id,
+			},
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: staleOptionWebSocketParams(),
+	},
+};
+
+// The backend never substitutes an immutable parameter's value, so the stale
+// value is kept, fails option validation, and blocks the update.
+export const StaleOptionOnImmutableParameter: Story = {
+	parameters: {
+		webSocket: [
+			{
+				event: "open",
+			},
+			{
+				event: "message",
+				data: JSON.stringify({
+					id: 0,
+					diagnostics: [],
+					parameters: [
+						{
+							...MockDropdownParameter,
+							mutable: false,
+							value: { value: "t2.nano", valid: true },
+							diagnostics: [
+								{
+									severity: "error",
+									summary: "Value must be a valid option",
+									detail:
+										'the value "t2.nano" must be defined as one of options',
+									extra: { code: "" },
+								},
+							],
+						},
+					],
+				}),
+			},
+		],
+	},
+};
+
+function workspaceRouterParameters(
+	workspace: Workspace,
+	searchParams?: Record<string, string>,
+) {
 	return reactRouterParameters({
 		location: {
 			pathParams: {
 				username: `@${workspace.owner_name}`,
 				workspace: workspace.name,
 			},
+			searchParams,
 		},
 		routing: reactRouterOutlet(
 			{
@@ -302,6 +377,36 @@ function filledWebSocketParams(): WebSocketEvent[] {
 					MockDropdownParameter,
 				],
 			}),
+		},
+	];
+}
+
+function staleOptionWebSocketParams(): WebSocketEvent[] {
+	const staleParams = JSON.stringify({
+		id: 0,
+		diagnostics: [],
+		parameters: [
+			{
+				...MockDropdownParameter,
+				value: MockDropdownParameter.default_value,
+				diagnostics: [
+					{
+						severity: "warning",
+						summary: "Previously selected option is no longer available",
+						detail: 'The value "t2.nano" is not one of the available options.',
+						extra: { code: "stale_option" },
+					},
+				],
+			},
+		],
+	});
+	return [
+		{
+			event: "open",
+		},
+		{
+			event: "message",
+			data: staleParams,
 		},
 	];
 }
