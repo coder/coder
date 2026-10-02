@@ -15,4 +15,8 @@ children:
     path: ./reference/feature-stages.md
   - include: reference/api.yml
   - include: reference/cli.yml
+  - title: API key scopes
+    description: Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.
+    path: ./reference/api-key-scopes.md
+    icon_path: ./images/icons/api.svg
   - include: reference/agent-api.yml
