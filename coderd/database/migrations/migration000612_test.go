@@ -144,7 +144,7 @@ func TestMigration000612MigratorConcurrentTraffic(t *testing.T) {
 	publish, publishPID := beginLocked(ctx, t, sqlDB, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, f.chatA)
 
 	migrated := async(func() error { return migrations.Up(sqlDB) })
-	pid := requireMigratorWaitsFor(ctx, t, sqlDB, updatePID)
+	pid := requireMigratorWaitsFor(ctx, t, sqlDB, updatePID, publishPID)
 
 	published := async(execAndCommit(ctx, publish, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, f.y))
 	require.Eventually(t, func() bool {
@@ -298,15 +298,18 @@ func requireWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, pid, blocker
 		testutil.WaitMedium, testutil.IntervalFast, "pid %d never waited for pid %d", pid, blocker)
 }
 
-// requireMigratorWaitsFor waits until a backend waits for updatePID and
-// returns its PID. Only the migrator waits for the update transaction.
-func requireMigratorWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, updatePID int) int {
+// requireMigratorWaitsFor waits until a backend waits for one of the
+// application transactions in appPIDs and returns its PID. Only the
+// migrator waits for them. Which one it waits for depends on the tables it
+// locks first.
+func requireMigratorWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, appPIDs ...int) int {
 	t.Helper()
 	var pid int
 	require.Eventually(t, func() bool {
 		return db.QueryRowContext(ctx, `SELECT pid FROM pg_stat_activity
-			WHERE datname = current_database() AND $1::int = ANY(pg_blocking_pids(pid))`, updatePID).Scan(&pid) == nil
-	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the update transaction")
+			WHERE datname = current_database() AND pg_blocking_pids(pid) && $1::int[]
+			LIMIT 1`, pq.Array(appPIDs)).Scan(&pid) == nil
+	}, testutil.WaitMedium, testutil.IntervalFast, "migrator never waited for the application transactions")
 	return pid
 }
 
