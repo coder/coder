@@ -88,15 +88,12 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		onCreateChat,
 		isCreating,
 		lockedOrganizationId,
-		header,
-		footer,
 		prefill,
 	}: MockAgentCreateFormProps) => {
 		mountedLockedOrganizationIds.push(lockedOrganizationId);
 		return (
 			<div>
 				<span data-testid="prefill-message">{prefill?.message}</span>
-				{header}
 				<button
 					type="button"
 					disabled={isCreating}
@@ -110,7 +107,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 				>
 					Create chat
 				</button>
-				{footer}
 			</div>
 		);
 	};

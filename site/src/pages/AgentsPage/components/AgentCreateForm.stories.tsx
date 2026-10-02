@@ -56,6 +56,7 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
 import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
@@ -264,7 +265,14 @@ const defaultQueries = [
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
-	decorators: [withDashboardProvider],
+	decorators: [
+		(Story) => (
+			<AgentCreateFormFrame>
+				<Story />
+			</AgentCreateFormFrame>
+		),
+		withDashboardProvider,
+	],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,
@@ -332,8 +340,8 @@ const mockPermittedOrganizations = (
 export const Default: Story = {};
 
 export const ProjectComposer: Story = {
-	args: {
-		header: (
+	render: (args) => (
+		<div className="flex flex-col gap-2">
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
@@ -341,8 +349,9 @@ export const ProjectComposer: Story = {
 					description: "d".repeat(1024),
 				}}
 			/>
-		),
-	},
+			<AgentCreateForm {...args} />
+		</div>
+	),
 };
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {

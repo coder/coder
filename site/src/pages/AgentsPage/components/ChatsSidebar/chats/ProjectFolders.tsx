@@ -1,12 +1,7 @@
 import { cn } from "cn";
-import {
-	ChevronRightIcon,
-	EllipsisVerticalIcon,
-	PlusIcon,
-	SquarePenIcon,
-} from "lucide-react";
+import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef } from "react";
-import { Link, NavLink, type To, useLocation } from "react-router";
+import { NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -32,6 +27,7 @@ import {
 	rowActionsTriggerProps,
 	stopRowContextMenu,
 } from "../tree/rowMenuEvents";
+import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
 export type ProjectDialogMode =
@@ -208,7 +204,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								align="end"
 								onContextMenu={stopRowContextMenu}
 							>
-								<ProjectFolderMenuItems
+								<ProjectActionsMenuItems
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
@@ -220,7 +216,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent>
-					<ProjectFolderMenuItems
+					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
@@ -245,41 +241,3 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		</div>
 	);
 };
-
-type ProjectFolderMenuItem = typeof DropdownMenuItem | typeof ContextMenuItem;
-type ProjectFolderMenuSeparator =
-	| typeof DropdownMenuSeparator
-	| typeof ContextMenuSeparator;
-
-type ProjectFolderMenuItemsProps = {
-	readonly Item: ProjectFolderMenuItem;
-	readonly Separator: ProjectFolderMenuSeparator;
-	readonly projectPath: To;
-	readonly onEdit: () => void;
-	readonly onDelete: () => void;
-};
-
-const ProjectFolderMenuItems: React.FC<ProjectFolderMenuItemsProps> = ({
-	Item,
-	Separator,
-	projectPath,
-	onEdit,
-	onDelete,
-}) => (
-	<>
-		<Item asChild>
-			<Link to={projectPath}>
-				<SquarePenIcon />
-				New chat
-			</Link>
-		</Item>
-		<Separator />
-		<Item onSelect={onEdit}>Edit project</Item>
-		<Item
-			className="text-content-destructive focus:text-content-destructive"
-			onSelect={onDelete}
-		>
-			Delete project
-		</Item>
-	</>
-);
