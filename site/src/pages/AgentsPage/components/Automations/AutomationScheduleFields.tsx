@@ -122,6 +122,7 @@ export const AutomationScheduleFields: React.FC<
 	const cronId = useId();
 	const cronDescriptionId = useId();
 	const cronErrorId = useId();
+	const intervalWarningId = useId();
 	const [repeat, setRepeat] = useState<string>(isCreate ? "daily" : "");
 	const [time, setTime] = useState("09:00");
 
@@ -147,6 +148,7 @@ export const AutomationScheduleFields: React.FC<
 				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 			: undefined;
 	const cronError = cronField.error ? cronField.helperText : cronPreviewError;
+	const intervalWarning = previewQuery.data?.interval_warning;
 	const timeZoneError = timeZoneField.error
 		? timeZoneField.helperText
 		: timeZonePreviewError;
@@ -182,13 +184,14 @@ export const AutomationScheduleFields: React.FC<
 					))}
 				</ul>
 				{previewQuery.data.clock_change_note && (
-					<p className="m-0 mt-2 text-xs">
-						{previewQuery.data.clock_change_note}
-					</p>
+					<p className="mt-2 text-xs">{previewQuery.data.clock_change_note}</p>
 				)}
-				{previewQuery.data.interval_warning && (
-					<p className="m-0 mt-2 text-xs text-content-warning">
-						{previewQuery.data.interval_warning}
+				{intervalWarning && (
+					<p
+						id={intervalWarningId}
+						className="mt-2 text-xs text-content-warning"
+					>
+						{intervalWarning}
 					</p>
 				)}
 			</>
@@ -255,11 +258,13 @@ export const AutomationScheduleFields: React.FC<
 						}}
 						required
 						aria-invalid={Boolean(cronError)}
-						aria-describedby={
-							cronError
-								? `${cronDescriptionId} ${cronErrorId}`
-								: cronDescriptionId
-						}
+						aria-describedby={[
+							cronDescriptionId,
+							cronError && cronErrorId,
+							intervalWarning && intervalWarningId,
+						]
+							.filter(Boolean)
+							.join(" ")}
 						className="font-mono"
 					/>
 					{/* Always rendered so screen readers announce preview errors while typing. */}
