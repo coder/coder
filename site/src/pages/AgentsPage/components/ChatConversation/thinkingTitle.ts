@@ -11,7 +11,8 @@ const PREVIEW_TITLE_MAX_GRAPHEMES = 100;
 // reasoning that can grow to many kilobytes.
 const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_GRAPHEMES * 4;
 
-// Parses like the Streamdown body so titles keep exactly the text it renders.
+// Uses the Streamdown body's remark setup so titles read Markdown the way the
+// body does.
 const markdownParser = unified()
 	.use(remarkParse)
 	.use(Object.values(defaultRemarkPlugins));
@@ -61,9 +62,11 @@ const getNodeText = (node: Nodes): string => {
 				.map((item, index) => {
 					const marker = node.ordered ? `${start + index}.` : "-";
 					const checkbox =
-						typeof item.checked === "boolean"
-							? `[${item.checked ? "x" : " "}] `
-							: "";
+						item.checked === true
+							? "[x] "
+							: item.checked === false
+								? "[ ] "
+								: "";
 					return `${marker} ${checkbox}${getNodeText(item)}`;
 				})
 				.join(" ");
