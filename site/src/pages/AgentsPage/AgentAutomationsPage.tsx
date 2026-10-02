@@ -33,38 +33,22 @@ import {
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AutomationEditorDialog } from "./components/Automations/AutomationEditorDialog";
-import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
 import { AutomationWebhookSecretDialog } from "./components/Automations/AutomationWebhookSecretDialog";
+import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
-	const { organizations, showOrganizations } = useDashboard();
-	return useAutomationsEnabled() ? (
-		<AutomationsList
-			organizations={organizations}
-			showOrganizations={showOrganizations}
-		/>
-	) : (
-		<NotFoundPage />
-	);
+	return useAutomationsEnabled() ? <AutomationsList /> : <NotFoundPage />;
 };
 
 type EditorState =
 	| { mode: "create" }
 	| { mode: "edit"; automation: ChatAutomation };
 
-type AutomationsListProps = {
-	organizations: readonly Organization[];
-	showOrganizations: boolean;
-};
-
-const AutomationsList: React.FC<AutomationsListProps> = ({
-	organizations,
-	showOrganizations,
-}) => {
+const AutomationsList: React.FC = () => {
+	const { buildInfo, organizations, showOrganizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
-	const { buildInfo } = useDashboard();
 	// Senders must reach the configured URL, not the address this tab uses.
 	const webhookOrigin = new URL(buildInfo.dashboard_url).origin;
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
