@@ -81,6 +81,7 @@ endif
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -196,6 +197,12 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
+
+# scopesdocgen reads the RBAC scope catalog to produce the API key scopes
+# reference page.
+_gen/bin/scopesdocgen: $(wildcard scripts/scopesdocgen/*.go) $(wildcard scripts/docgenenv/*.go) $(RBAC_GO_FILES) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/scopesdocgen
 
 _gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
@@ -773,7 +780,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -844,6 +851,13 @@ lint/style-claims:
 	echo "--- check docs style guide enforcement claims"
 	go run ./scripts/styleclaims
 .PHONY: lint/style-claims
+
+# Fails when documented --experiments and CODER_EXPERIMENTS values are not in
+# codersdk.ExperimentsKnown.
+lint/check-experiment-keys:
+	echo "--- check documented experiment keys"
+	go run ./scripts/checkexperimentkeys
+.PHONY: lint/check-experiment-keys
 
 lint/architecture:
 	./scripts/check_architecture.sh
@@ -1072,6 +1086,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	docs/manifest/generated/cli.json \
@@ -1172,6 +1187,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/admin/setup/configuration-reference.md \
+		docs/reference/api-key-scopes.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		docs/manifest/generated/cli.json \
@@ -1413,6 +1429,13 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/configdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/scopesdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
