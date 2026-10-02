@@ -47,7 +47,8 @@ func TestACPHarness(t *testing.T) {
 }
 
 type fakeNativeSession struct {
-	Value string `json:"value"`
+	History []string `json:"history"`
+	Value   string   `json:"value"`
 }
 
 type fakeHarnessMode string
@@ -55,6 +56,14 @@ type fakeHarnessMode string
 const (
 	// fakeHarnessModeBoth advertises load and resume capabilities.
 	fakeHarnessModeBoth fakeHarnessMode = "both"
+	// fakeHarnessModeLoad advertises only load for recovery, testing history
+	// replay and transcript generation resets.
+	fakeHarnessModeLoad fakeHarnessMode = "load"
+	// fakeHarnessModeResume advertises only resume for recovery, testing
+	// restoration without history replay.
+	fakeHarnessModeResume fakeHarnessMode = "resume"
+	// fakeHarnessModeNone disables load and resume to test unavailable recovery.
+	fakeHarnessModeNone fakeHarnessMode = "none"
 	// fakeHarnessModeFail returns an initialization error to test reporting a
 	// failed probe without preventing discovery of other harnesses.
 	fakeHarnessModeFail fakeHarnessMode = "fail"
@@ -93,6 +102,16 @@ func (f *fakeHarness) Initialize(ctx context.Context, req acp.InitializeRequest)
 	}
 	var result acp.InitializeResponse
 	_ = json.Unmarshal([]byte(`{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"sessionCapabilities":{"resume":{}}}}`), &result)
+	if f.mode == fakeHarnessModeLoad {
+		result.AgentCapabilities.SessionCapabilities.Resume = nil
+	}
+	if f.mode == fakeHarnessModeResume {
+		result.AgentCapabilities.LoadSession = false
+	}
+	if f.mode == fakeHarnessModeNone {
+		result.AgentCapabilities.LoadSession = false
+		result.AgentCapabilities.SessionCapabilities.Resume = nil
+	}
 	if f.mode == fakeHarnessModeFail {
 		return result, xerrors.New("probe failed")
 	}
@@ -166,6 +185,12 @@ func (f *fakeHarness) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 	}
 	response := "answer:" + text + ":" + f.value
 	_ = f.update(ctx, req.SessionId, "agent_message_chunk", response)
+	raw, _ := os.ReadFile(string(req.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	saved.History = append(saved.History, text, response)
+	raw, _ = json.Marshal(saved)
+	_ = os.WriteFile(string(req.SessionId)+".json", raw, 0o600)
 	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
 }
 
@@ -176,6 +201,42 @@ func (f *fakeHarness) Cancel(context.Context, acp.CancelNotification) error {
 		f.cancel()
 	}
 	return nil
+}
+
+func (f *fakeHarness) LoadSession(ctx context.Context, req acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
+	if err := f.check(req.Cwd, req.McpServers); err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
+	raw, err := os.ReadFile(string(req.SessionId) + ".json")
+	if err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	f.value = saved.Value
+	if saved.Value == "fail-load" {
+		_ = f.update(ctx, req.SessionId, "agent_message_chunk", "partial replay")
+		return acp.LoadSessionResponse{}, xerrors.New("load failed after partial replay")
+	}
+	for i, text := range saved.History {
+		kind := "user_message_chunk"
+		if i%2 == 1 {
+			kind = "agent_message_chunk"
+		}
+		_ = f.update(ctx, req.SessionId, kind, text)
+	}
+	return acp.LoadSessionResponse{ConfigOptions: f.options()}, nil
+}
+
+func (f *fakeHarness) ResumeSession(_ context.Context, req acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	if err := f.check(req.Cwd, req.McpServers); err != nil {
+		return acp.ResumeSessionResponse{}, err
+	}
+	raw, err := os.ReadFile(string(req.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	f.value = saved.Value
+	return acp.ResumeSessionResponse{ConfigOptions: f.options()}, err
 }
 
 func (f *fakeHarness) SetSessionConfigOption(_ context.Context, req acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {

@@ -71,6 +71,38 @@ func TestSessionClientUpdates(t *testing.T) {
 	require.Len(t, read.Events, 1)
 }
 
+func TestSessionClientHistoryReplay(t *testing.T) {
+	t.Parallel()
+	s, _, _ := newRuntimeSession(t, workspacesdk.ACPSessionStatusInitializing)
+	c := &sessionClient{session: s}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.NoError(t, c.SessionUpdate(ctx, sessionNotification(s.id, "old response")))
+	for _, text := range []string{"first user chunk", "second user chunk"} {
+		require.NoError(t, c.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: acp.SessionId(s.id.SessionID),
+			Update:    acp.SessionUpdate{UserMessageChunk: &acp.SessionUpdateUserMessageChunk{Content: acp.TextBlock(text)}},
+		}))
+	}
+	require.NoError(t, c.SessionUpdate(ctx, sessionNotification(s.id, "history")))
+	wrongID := s.id
+	wrongID.SessionID = "other"
+	require.ErrorIs(t, c.SessionUpdate(ctx, sessionNotification(wrongID, "wrong session")), ErrInvalid)
+	before, err := s.Read(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, "history", before.AssistantResponse)
+	require.Len(t, before.Events, 1)
+	require.Equal(t, workspacesdk.ACPSessionStatusInitializing, before.Session.Status)
+	require.NoError(t, s.finishInitialization(s.id.SessionID, before.Session.Harness))
+	after, err := s.Read(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, "history", after.AssistantResponse)
+	require.Len(t, after.Events, 1)
+	require.Equal(t, before.Events, after.Events)
+	require.Equal(t, workspacesdk.ACPSessionStatusIdle, after.Session.Status)
+	// Once initialized, idle sessions reject live updates through the FSM.
+	require.ErrorIs(t, c.SessionUpdate(ctx, sessionNotification(s.id, "late")), ErrConflict)
+}
+
 func TestSessionClientSetupNotifications(t *testing.T) {
 	t.Parallel()
 	s, _, _ := newRuntimeSession(t, workspacesdk.ACPSessionStatusInitializing)
