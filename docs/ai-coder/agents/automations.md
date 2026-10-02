@@ -281,7 +281,7 @@ Administrators set the minimum with `--chat-min-automation-schedule-interval`.
 Schedules that already run more often keep running, and their responses include `"schedule_interval_below_minimum": true`.
 To change the cron expression or time zone of such a schedule, the new schedule must meet the minimum.
 Coder measures the interval on the wall clock of the schedule's time zone.
-On the night clocks go forward, two runs can be closer together than the minimum, because a skipped time runs at the end of the change.
+On the night clocks go forward, two runs can be closer together than the minimum, because the clock jumps forward between them.
 
 ### Check upcoming runs
 
