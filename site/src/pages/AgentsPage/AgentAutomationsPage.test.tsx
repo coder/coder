@@ -1284,7 +1284,11 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		server.use(
 			http.get(automationsPath(":organizationId"), () =>
 				HttpResponse.json([
-					{ ...unused, webhook_consumed_at: "2026-09-30T10:15:00Z" },
+					{
+						...unused,
+						prompt: "Changed in another tab.",
+						webhook_consumed_at: "2026-09-30T10:15:00Z",
+					},
 				]),
 			),
 		);
