@@ -697,6 +697,19 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param user Can be the user's ID or username
+	 */
+	getOrganizationMember = async (organization: string, user: string) => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationMemberWithUserData>(
+				`/api/v2/organizations/${organization}/members/${user}`,
+			);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 * @param options Pagination options
 	 */
 	getOrganizationPaginatedMembers = async (

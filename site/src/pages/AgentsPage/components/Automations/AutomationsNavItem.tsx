@@ -1,4 +1,4 @@
-import { ZapIcon } from "lucide-react";
+import { RadioIcon } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { SettingsNavItem } from "../ChatsSidebar/settings/SettingsNavItem";
@@ -15,7 +15,7 @@ export const AutomationsNavItem: React.FC<AutomationsNavItemProps> = ({
 	const location = useLocation();
 	return useAutomationsEnabled() ? (
 		<SettingsNavItem
-			icon={ZapIcon}
+			icon={RadioIcon}
 			label="Automations"
 			active={location.pathname.startsWith(AUTOMATIONS_PATH)}
 			to={{ pathname: AUTOMATIONS_PATH, search: locationSearch }}
@@ -24,7 +24,9 @@ export const AutomationsNavItem: React.FC<AutomationsNavItemProps> = ({
 };
 
 /** The mobile header's link to the page; the sidebar nav is hidden there. */
-export const AutomationsMobileLink: React.FC = () => {
+export const AutomationsMobileLink: React.FC<AutomationsNavItemProps> = ({
+	locationSearch,
+}) => {
 	return useAutomationsEnabled() ? (
 		<Button
 			asChild
@@ -33,8 +35,8 @@ export const AutomationsMobileLink: React.FC = () => {
 			aria-label="Automations"
 			className="size-7 sm:hidden"
 		>
-			<Link to={AUTOMATIONS_PATH}>
-				<ZapIcon />
+			<Link to={{ pathname: AUTOMATIONS_PATH, search: locationSearch }}>
+				<RadioIcon />
 			</Link>
 		</Button>
 	) : null;

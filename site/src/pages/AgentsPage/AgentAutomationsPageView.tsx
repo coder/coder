@@ -1,13 +1,17 @@
+import { ArchiveIcon } from "lucide-react";
 import { useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
@@ -23,6 +27,8 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import {
 	AutomationRow,
 	ChatTitleLink,
@@ -48,7 +54,6 @@ type AutomationChatsDialogState = {
 type AgentAutomationsPageViewProps = {
 	header?: React.ReactNode;
 	currentUserId: string;
-	organizationName: string | undefined;
 	organizationSelector?: React.ReactNode;
 	automations: readonly ChatAutomation[] | undefined;
 	isLoading: boolean;
@@ -94,8 +99,14 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 		body = (
 			<ul className="m-0 flex list-none flex-col gap-2 p-0">
 				{state.chats.map((chat) => (
-					<li key={chat.id}>
+					<li key={chat.id} className="flex items-center gap-2">
 						<ChatTitleLink chatId={chat.id} title={chat.title} />
+						{chat.archived && (
+							<Badge size="sm">
+								<ArchiveIcon />
+								Archived
+							</Badge>
+						)}
 					</li>
 				))}
 				{Boolean(state.error) && (
@@ -143,6 +154,11 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 					</DialogDescription>
 				</DialogHeader>
 				{body}
+				<DialogFooter>
+					<Button variant="outline" onClick={state.onClose}>
+						Close
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);
@@ -153,7 +169,6 @@ export const AgentAutomationsPageView: React.FC<
 > = ({
 	header,
 	currentUserId,
-	organizationName,
 	organizationSelector,
 	automations,
 	isLoading,
@@ -171,6 +186,7 @@ export const AgentAutomationsPageView: React.FC<
 	editorDialog,
 	webhookSecretDialog,
 }) => {
+	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	let rows: React.ReactNode;
 	if (isLoading) {
 		rows = <TableLoader />;
@@ -187,6 +203,7 @@ export const AgentAutomationsPageView: React.FC<
 				key={automation.id}
 				automation={automation}
 				isOwner={automation.owner_id === currentUserId}
+				compact={isMobile}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
 				isAnyRunPending={runningAutomationId !== undefined}
@@ -205,11 +222,8 @@ export const AgentAutomationsPageView: React.FC<
 				<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 					<SectionHeader
 						label="Automations"
-						description={
-							organizationName
-								? `Schedules and webhooks that send prompts to agents in ${organizationName}.`
-								: "Schedules and webhooks that send prompts to agents."
-						}
+						badge={<ExperimentalBadge />}
+						description="Run agents in the background on a schedule or when an event arrives. Runs happen on your Coder deployment, so your browser and devices can be closed."
 						action={
 							<div className="flex items-center gap-2">
 								{organizationSelector}
@@ -237,19 +251,32 @@ export const AgentAutomationsPageView: React.FC<
 							</AlertDescription>
 						</Alert>
 					)}
-					{Boolean(error) && <ErrorAlert error={error} />}
+					{Boolean(error) &&
+						(automations && automations.length > 0 ? (
+							<Alert severity="warning" prominent>
+								<AlertTitle>Could not refresh automations</AlertTitle>
+								<AlertDescription>
+									The automations shown may be out of date.{" "}
+									{getErrorMessage(error, "The list did not refresh.")}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<ErrorAlert error={error} />
+						))}
 					{(!error || automations) && (
 						<Table aria-label="Automations">
 							<TableHeader>
 								<TableRow>
 									<TableHead>Name</TableHead>
-									<TableHead>Trigger</TableHead>
-									<TableHead>Target</TableHead>
-									<TableHead>Next run</TableHead>
+									{!isMobile && (
+										<>
+											<TableHead>Trigger</TableHead>
+											<TableHead>Target</TableHead>
+											<TableHead>Next run</TableHead>
+										</>
+									)}
 									<TableHead>Enabled</TableHead>
-									<TableHead>
-										<span className="sr-only">Actions</span>
-									</TableHead>
+									<TableHead className="text-right">Actions</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>{rows}</TableBody>

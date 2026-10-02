@@ -4,9 +4,13 @@ import userEvent, {
 } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { QueryClient } from "react-query";
+import type { To } from "react-router";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
+import {
+	chatAutomationsKey,
+	webhookPublishEndpoint,
+} from "#/api/queries/chatAutomations";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -21,16 +25,28 @@ import {
 	MockBuildInfo,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockOrganizationMember2,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentAutomationsPage from "./AgentAutomationsPage";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 
-// AgentPageHeader needs the layout's outlet context.
-vi.mock("./components/AgentPageHeader", () => ({
-	AgentPageHeader: () => null,
-}));
+// AgentPageHeader needs the layout's outlet context. The mock keeps its
+// mobile back link so tests can check where it leads.
+vi.mock("./components/AgentPageHeader", async () => {
+	const { Link } = await import("react-router");
+	return {
+		AgentPageHeader: ({
+			mobileBack,
+		}: {
+			mobileBack?: { to: To; label: string };
+		}) =>
+			mobileBack ? (
+				<Link to={mobileBack.to} aria-label={mobileBack.label} />
+			) : null,
+	};
+});
 
 const mockAutomation: ChatAutomation = {
 	...MockChatAutomation,
@@ -50,9 +66,11 @@ const automationsPath = (organizationId: string) =>
 const setup = ({
 	experiments = ["chat-automations"],
 	automations = [mockAutomation],
+	route,
 }: {
 	experiments?: string[];
 	automations?: ChatAutomation[];
+	route?: string;
 } = {}) => {
 	const requests: Request[] = [];
 	server.use(
@@ -76,7 +94,9 @@ const setup = ({
 			HttpResponse.json(automations),
 		),
 	);
-	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />);
+	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />, {
+		route,
+	});
 	return { requests, queryClient, router };
 };
 
@@ -134,6 +154,81 @@ describe("AgentAutomationsPage", () => {
 
 		await screen.findByText("This page could not be found.");
 		expect(requests).toEqual([]);
+	});
+
+	it.each([
+		{
+			state: "on",
+			experiments: ["chat-automations"],
+			pageText: mockAutomation.name,
+		},
+		{
+			state: "off",
+			experiments: [],
+			pageText: "This page could not be found.",
+		},
+	])(
+		"keeps the sidebar search on the mobile back link when the experiment is $state",
+		async ({ experiments, pageText }) => {
+			setup({ experiments, route: "/?archived=true" });
+
+			await screen.findByText(pageText);
+			expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
+				"href",
+				"/agents?archived=true",
+			);
+		},
+	);
+
+	it("names the owner of another user's automation", async () => {
+		server.use(
+			http.get(
+				`/api/v2/organizations/${MockDefaultOrganization.id}/members/${MockOrganizationMember2.user_id}`,
+				() => HttpResponse.json({ ...MockOrganizationMember2, name: "" }),
+			),
+		);
+		setup({
+			automations: [
+				{ ...mockAutomation, owner_id: MockOrganizationMember2.user_id },
+			],
+		});
+
+		expect(
+			await screen.findByText(`Owned by ${MockOrganizationMember2.username}`),
+		).toBeInTheDocument();
+	});
+
+	it("shows the next run that has not passed yet", async () => {
+		setup({
+			automations: [
+				{
+					...mockAutomation,
+					next_run_times: ["2000-01-15T03:00:00Z", "2099-06-20T07:00:00Z"],
+				},
+			],
+		});
+
+		expect(await screen.findByText(/Jun 20/)).toBeInTheDocument();
+		expect(screen.queryByText(/Jan 15/)).toBeNull();
+	});
+
+	it("keeps the rows and warns when a refresh fails", async () => {
+		const { queryClient } = setup();
+		await screen.findByText(mockAutomation.name);
+		server.use(
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json({ message: "Refresh failed." }, { status: 500 }),
+			),
+		);
+
+		await queryClient.refetchQueries({
+			queryKey: chatAutomationsKey(MockDefaultOrganization.id),
+		});
+
+		expect(
+			await screen.findByText("Could not refresh automations"),
+		).toBeInTheDocument();
+		expect(screen.getByText(mockAutomation.name)).toBeInTheDocument();
 	});
 
 	it("disables an automation with the enabled switch", async () => {
@@ -280,6 +375,54 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
+	it("does not show a run failure on the organization picked after Run now", async () => {
+		const user = userEvent.setup();
+		setup();
+		let failRun = () => {};
+		const runFailed = new Promise<void>((resolve) => {
+			failRun = resolve;
+		});
+		server.use(
+			http.post(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
+				async () => {
+					await runFailed;
+					return HttpResponse.json(
+						{ message: "The target chat is busy." },
+						{ status: 409 },
+					);
+				},
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		failRun();
+
+		// Run now is disabled until the pending run settles.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: `Run now ${mockAutomation.name}` }),
+			).toBeEnabled();
+		});
+		expect(
+			screen.queryByText(`Could not run ${mockAutomation.name}`),
+		).toBeNull();
+	});
+
 	it("requests an automation's archived and active chats", async () => {
 		const user = userEvent.setup();
 		const { requests } = setup();
@@ -292,28 +435,70 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&offset=0`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25`,
 			);
 		});
 	});
 
-	it("returns focus to View chats when the chats dialog closes", async () => {
+	it.each([
+		{
+			via: "Escape",
+			close: (user: ReturnType<typeof userEvent.setup>) =>
+				user.keyboard("{Escape}"),
+		},
+		{
+			via: "the Close button",
+			close: async (user: ReturnType<typeof userEvent.setup>) =>
+				user.click(screen.getByRole("button", { name: "Close" })),
+		},
+	])(
+		"closes the chats dialog with $via and returns focus to View chats",
+		async ({ close }) => {
+			const user = userEvent.setup();
+			setup();
+
+			const viewChats = await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			});
+			viewChats.focus();
+			await user.keyboard("{Enter}");
+			const dialogName = `Chats for ${mockAutomation.name}`;
+			await screen.findByRole("dialog", { name: dialogName });
+			await close(user);
+
+			await waitFor(() => {
+				expect(viewChats).toHaveFocus();
+			});
+			expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
+		},
+	);
+
+	it("marks archived chats in the chats dialog", async () => {
 		const user = userEvent.setup();
 		setup();
+		server.use(
+			http.get("/api/v2/chats", () =>
+				HttpResponse.json([
+					{ ...MockChat, id: "chat-archived", title: "Old", archived: true },
+					{ ...MockChat, id: "chat-active", title: "New", archived: false },
+				]),
+			),
+		);
 
-		const viewChats = await screen.findByRole("button", {
-			name: `View chats ${mockAutomation.name}`,
-		});
-		viewChats.focus();
-		await user.keyboard("{Enter}");
-		await screen.findByRole("dialog", {
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
 			name: `Chats for ${mockAutomation.name}`,
 		});
-		await user.keyboard("{Escape}");
+		await within(dialog).findByRole("link", { name: "Old" });
 
-		await waitFor(() => {
-			expect(viewChats).toHaveFocus();
-		});
+		const [archivedItem, activeItem] = within(dialog).getAllByRole("listitem");
+		expect(within(archivedItem).getByText("Archived")).toBeInTheDocument();
+		expect(within(activeItem).getByRole("link", { name: "New" })).toBeVisible();
+		expect(within(activeItem).queryByText("Archived")).toBeNull();
 	});
 
 	it("loads more of an automation's chats", async () => {
@@ -322,14 +507,18 @@ describe("AgentAutomationsPage", () => {
 		const mockChatPage = Array.from({ length: 25 }, (_, index) => ({
 			...MockChat,
 			id: `chat-${index}`,
+			title: `Chat ${index}`,
 		}));
+		const lastChat = mockChatPage[24];
+		const olderChat = { ...MockChat, id: "chat-older", title: "Older chat" };
 		server.use(
 			http.get("/api/v2/chats", ({ request }) => {
 				requests.push(request);
+				// A chat that moves up between requests can show on both pages.
 				return HttpResponse.json(
-					new URL(request.url).searchParams.get("offset") === "0"
-						? mockChatPage
-						: [MockChat],
+					new URL(request.url).searchParams.get("after_id") === lastChat.id
+						? [lastChat, olderChat]
+						: mockChatPage,
 				);
 			}),
 		);
@@ -343,9 +532,16 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&offset=25`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&after_id=${lastChat.id}`,
 			);
 		});
+		const dialog = screen.getByRole("dialog", {
+			name: `Chats for ${mockAutomation.name}`,
+		});
+		await within(dialog).findByRole("link", { name: olderChat.title });
+		expect(
+			within(dialog).getAllByRole("link", { name: lastChat.title }),
+		).toHaveLength(1);
 	});
 });
 

@@ -5,6 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
+import { useLocation } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -36,9 +37,35 @@ import { AutomationEditorDialog } from "./components/Automations/AutomationEdito
 import { AutomationWebhookSecretDialog } from "./components/Automations/AutomationWebhookSecretDialog";
 import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
+import { normalizeLocationSearch } from "./components/ChatsSidebar/locationSearch";
 
 const AgentAutomationsPage: React.FC = () => {
-	return useAutomationsEnabled() ? <AutomationsList /> : <NotFoundPage />;
+	return useAutomationsEnabled() ? (
+		<AutomationsList />
+	) : (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<AutomationsPageHeader />
+			<div className="min-h-0 flex-1">
+				<NotFoundPage />
+			</div>
+		</div>
+	);
+};
+
+/** Keeps the sidebar's search filters on the mobile link back to Agents. */
+const AutomationsPageHeader: React.FC = () => {
+	const location = useLocation();
+	return (
+		<AgentPageHeader
+			mobileBack={{
+				to: {
+					pathname: "/agents",
+					search: normalizeLocationSearch(location.search),
+				},
+				label: "Agents",
+			}}
+		/>
+	);
 };
 
 type EditorState =
@@ -60,7 +87,11 @@ const AutomationsList: React.FC = () => {
 		organizations[0];
 	const organizationId = selectedOrg?.id ?? "";
 
-	const [runError, setRunError] = useState<AutomationRunError>();
+	// Holds the organization of the run, so a failure that arrives after the
+	// viewer switched organizations does not show on the new one.
+	const [runError, setRunError] = useState<
+		AutomationRunError & { organizationId: string }
+	>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
 	const [editor, setEditor] = useState<EditorState>();
 	// The only copy of a new webhook secret. Never cache or persist it.
@@ -80,6 +111,8 @@ const AutomationsList: React.FC = () => {
 	const chatsQuery = useInfiniteQuery({
 		...automationChats(chatsAutomation?.id ?? ""),
 		enabled: Boolean(chatsAutomation),
+		// Scheduled and webhook runs add chats while the dialog is open.
+		refetchInterval: 30_000,
 	});
 	const updateMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
@@ -182,23 +215,21 @@ const AutomationsList: React.FC = () => {
 
 	const handleRunNow = (automation: ChatAutomation) => {
 		setRunError(undefined);
+		const runOrganizationId = organizationId;
 		runMutation.mutate(automation.id, {
 			onSuccess: () => {
 				toast.success(`${automation.name} accepted the run.`);
 			},
 			onError: (error) => {
-				setRunError({ automation, error });
+				setRunError({ automation, error, organizationId: runOrganizationId });
 			},
 		});
 	};
 
 	return (
 		<AgentAutomationsPageView
-			header={
-				<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
-			}
+			header={<AutomationsPageHeader />}
 			currentUserId={user.id}
-			organizationName={selectedOrg?.display_name || selectedOrg?.name}
 			organizationSelector={
 				showOrganizations && (
 					<CompactOrgSelector
@@ -220,7 +251,9 @@ const AutomationsList: React.FC = () => {
 			runningAutomationId={
 				runMutation.isPending ? runMutation.variables : undefined
 			}
-			runError={runError}
+			runError={
+				runError?.organizationId === organizationId ? runError : undefined
+			}
 			onDismissRunError={() => setRunError(undefined)}
 			onToggleEnabled={handleToggleEnabled}
 			onRunNow={handleRunNow}
@@ -285,7 +318,7 @@ const AutomationsList: React.FC = () => {
 			chatsDialog={
 				chatsAutomation && {
 					automation: chatsAutomation,
-					chats: chatsQuery.data?.pages.flat(),
+					chats: chatsQuery.data,
 					isLoading: chatsQuery.isLoading,
 					error: chatsQuery.error,
 					hasNextPage: chatsQuery.hasNextPage,

@@ -1,4 +1,5 @@
 import {
+	type InfiniteData,
 	infiniteQueryOptions,
 	type QueryClient,
 	queryOptions,
@@ -155,14 +156,28 @@ export const invalidateAutomationChats = (queryClient: QueryClient) =>
 
 const automationChatsPageSize = 25;
 
+// A chat that moves up between page requests can appear on two pages.
+const selectUniqueChats = (data: InfiniteData<Chat[]>): Chat[] => {
+	const seen = new Set<string>();
+	return data.pages.flat().filter((chat) => {
+		if (seen.has(chat.id)) {
+			return false;
+		}
+		seen.add(chat.id);
+		return true;
+	});
+};
+
 export const automationChats = (automationId: string) =>
 	infiniteQueryOptions({
 		queryKey: automationChatsKey(automationId),
-		initialPageParam: 0,
-		getNextPageParam: (lastPage: Chat[], pages: Chat[][]) =>
+		initialPageParam: undefined as string | undefined,
+		// Pages by cursor, not offset: new runs add chats to the top while the
+		// dialog is open, which would shift every offset.
+		getNextPageParam: (lastPage: Chat[]) =>
 			lastPage.length < automationChatsPageSize
 				? undefined
-				: pages.length * automationChatsPageSize,
+				: lastPage.at(-1)?.id,
 		queryFn: ({ pageParam, signal }) =>
 			API.experimental.getChats(
 				{
@@ -171,10 +186,11 @@ export const automationChats = (automationId: string) =>
 					// created or wrote to them.
 					q: "archived:any",
 					limit: automationChatsPageSize,
-					offset: pageParam,
+					after_id: pageParam,
 				},
 				signal,
 			),
+		select: selectUniqueChats,
 	});
 
 export const runChatAutomation = (

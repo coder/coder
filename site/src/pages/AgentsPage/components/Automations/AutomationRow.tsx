@@ -1,8 +1,10 @@
+import { PlayIcon } from "lucide-react";
 import { memo } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { chat } from "#/api/queries/chats";
+import { organizationMember } from "#/api/queries/organizations";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -11,11 +13,14 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import { useTime } from "#/hooks/useTime";
 import { formatDate } from "#/utils/time";
 
 type AutomationRowProps = {
 	automation: ChatAutomation;
 	isOwner: boolean;
+	/** Stacks the row into Name, Enabled and Actions cells for narrow screens. */
+	compact: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
 	/** One run request at a time, so a pending run disables every row. */
@@ -26,13 +31,16 @@ type AutomationRowProps = {
 	onEdit: (automation: ChatAutomation) => void;
 };
 
-const formatNextRun = (automation: ChatAutomation): string => {
-	const next = automation.next_run_times[0];
-	if (automation.kind !== "schedule" || !next) {
+const formatNextRun = (automation: ChatAutomation, now: number): string => {
+	if (automation.kind !== "schedule") {
 		return "Not scheduled";
 	}
-	const date = new Date(next);
-	if (!Number.isFinite(date.getTime())) {
+	// The list refetches about once a minute, so its first entry can already
+	// be in the past.
+	const date = automation.next_run_times
+		.map((runTime) => new Date(runTime))
+		.find((runTime) => runTime.getTime() > now);
+	if (!date) {
 		return "Not scheduled";
 	}
 	return formatDate(date, {
@@ -45,6 +53,17 @@ const formatNextRun = (automation: ChatAutomation): string => {
 		hour: "numeric",
 		minute: "2-digit",
 		second: undefined,
+	});
+};
+
+type NextRunProps = {
+	automation: ChatAutomation;
+};
+
+const NextRun: React.FC<NextRunProps> = ({ automation }) => {
+	return useTime(() => formatNextRun(automation, Date.now()), {
+		interval: 15_000,
+		disabled: automation.kind !== "schedule",
 	});
 };
 
@@ -83,7 +102,7 @@ const ChatTitle: React.FC<ChatTitleProps> = ({
 	size,
 }) => {
 	if (isLoading) {
-		return <Skeleton className="h-4 w-32" />;
+		return <Skeleton className="inline-block h-4 w-32 align-middle" />;
 	}
 	if (error) {
 		return (
@@ -99,13 +118,14 @@ type CreatingChatProps = {
 	chatId: string;
 };
 
+// Inline text, not flex, so a long title wraps as part of one sentence.
 const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 	const chatQuery = useQuery(chat(chatId));
 	return (
-		<span className="flex items-center gap-1 text-xs text-content-secondary">
-			Created by agent in
+		<span className="text-xs text-content-secondary">
+			Created by the agent in{" "}
 			{getErrorStatus(chatQuery.error) === 404 ? (
-				" a deleted chat"
+				"a deleted chat"
 			) : (
 				<ChatTitle
 					chat={chatQuery.data}
@@ -115,6 +135,30 @@ const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 					size="sm"
 				/>
 			)}
+		</span>
+	);
+};
+
+type OwnerNameProps = {
+	organizationId: string;
+	userId: string;
+};
+
+const OwnerName: React.FC<OwnerNameProps> = ({ organizationId, userId }) => {
+	// Every organization member can read the organization's members, so
+	// this works for admins who cannot read site users.
+	const memberQuery = useQuery(organizationMember(organizationId, userId));
+	if (memberQuery.isLoading) {
+		return <Skeleton className="h-3 w-24" />;
+	}
+	if (!memberQuery.data) {
+		return (
+			<span className="text-xs text-content-secondary">Owner unavailable</span>
+		);
+	}
+	return (
+		<span className="text-xs text-content-secondary">
+			Owned by {memberQuery.data.name || memberQuery.data.username}
 		</span>
 	);
 };
@@ -156,6 +200,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 	({
 		automation,
 		isOwner,
+		compact,
 		isUpdating,
 		isRunning,
 		isAnyRunPending,
@@ -183,96 +228,132 @@ export const AutomationRow = memo<AutomationRowProps>(
 				getErrorStatus(targetQuery.error) === 404 ||
 				Boolean(targetQuery.data?.archived));
 
+		const nameDetails = (
+			<>
+				<span className="font-medium text-content-primary">
+					{automation.name}
+				</span>
+				{!isOwner && (
+					<OwnerName
+						organizationId={automation.organization_id}
+						userId={automation.owner_id}
+					/>
+				)}
+				{automation.created_by_chat_id &&
+					(isOwner ? (
+						<CreatingChat chatId={automation.created_by_chat_id} />
+					) : (
+						<span className="text-xs text-content-secondary">
+							Created by the agent
+						</span>
+					))}
+			</>
+		);
+		const target =
+			automation.target_mode === "new_chat" ? (
+				<span className="text-content-secondary">New chat each run</span>
+			) : isTargetMissing || !targetChatId ? (
+				<Badge variant="warning" size="sm">
+					Missing target
+				</Badge>
+			) : !isOwner ? (
+				<span className="text-content-secondary">Existing chat</span>
+			) : (
+				<ChatTitle
+					chat={targetQuery.data}
+					chatId={targetChatId}
+					isLoading={targetQuery.isLoading}
+					error={targetQuery.error}
+					size="sm"
+				/>
+			);
+		const enabledSwitch = (
+			<Switch
+				// A used single-use webhook rejects every delivery, so
+				// it shows as off and the switch cannot change that.
+				checked={automation.enabled && !isConsumed}
+				// Only the owner can re-enable an automation.
+				disabled={isConsumed || isUpdating || (!isOwner && !automation.enabled)}
+				aria-label={`Enable ${automation.name}`}
+				onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
+			/>
+		);
+		const actions = (
+			<div
+				className={
+					compact ? "flex flex-col items-end gap-2" : "flex justify-end gap-2"
+				}
+			>
+				{automation.kind === "schedule" && isOwner && (
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={!automation.enabled || isTargetMissing || isAnyRunPending}
+						aria-label={`Run now ${automation.name}`}
+						onClick={() => onRunNow(automation)}
+					>
+						<Spinner loading={isRunning}>
+							<PlayIcon />
+						</Spinner>
+						Run now
+					</Button>
+				)}
+				{isOwner && (
+					<Button
+						size="sm"
+						variant="outline"
+						aria-label={`View chats ${automation.name}`}
+						onClick={() => onViewChats(automation)}
+					>
+						View chats
+					</Button>
+				)}
+				<Button
+					size="sm"
+					variant="outline"
+					aria-label={`Edit ${automation.name}`}
+					onClick={() => onEdit(automation)}
+				>
+					Edit
+				</Button>
+			</div>
+		);
+
+		if (compact) {
+			return (
+				<TableRow>
+					<TableCell className="align-top">
+						<div className="flex min-w-0 flex-col gap-1 break-words">
+							{nameDetails}
+							<TriggerCell automation={automation} />
+							<div>{target}</div>
+							{automation.kind === "schedule" && (
+								<span>
+									Next run: <NextRun automation={automation} />
+								</span>
+							)}
+						</div>
+					</TableCell>
+					<TableCell className="align-top">{enabledSwitch}</TableCell>
+					<TableCell className="align-top">{actions}</TableCell>
+				</TableRow>
+			);
+		}
+
 		return (
 			<TableRow>
 				<TableCell>
-					<div className="flex flex-col gap-0.5">
-						<span className="font-medium text-content-primary">
-							{automation.name}
-						</span>
-						{automation.created_by_chat_id &&
-							(isOwner ? (
-								<CreatingChat chatId={automation.created_by_chat_id} />
-							) : (
-								<span className="text-xs text-content-secondary">
-									Created by agent
-								</span>
-							))}
-					</div>
+					<div className="flex flex-col gap-0.5">{nameDetails}</div>
 				</TableCell>
 				<TableCell>
 					<TriggerCell automation={automation} />
 				</TableCell>
-				<TableCell>
-					{automation.target_mode === "new_chat" ? (
-						<span className="text-content-secondary">New chat each run</span>
-					) : isTargetMissing || !targetChatId ? (
-						<Badge variant="warning" size="sm">
-							Missing target
-						</Badge>
-					) : !isOwner ? (
-						<span className="text-content-secondary">Existing chat</span>
-					) : (
-						<ChatTitle
-							chat={targetQuery.data}
-							chatId={targetChatId}
-							isLoading={targetQuery.isLoading}
-							error={targetQuery.error}
-						/>
-					)}
-				</TableCell>
+				<TableCell>{target}</TableCell>
 				<TableCell className="whitespace-nowrap">
-					{formatNextRun(automation)}
+					<NextRun automation={automation} />
 				</TableCell>
-				<TableCell>
-					<Switch
-						// A used single-use webhook rejects every delivery, so
-						// it shows as off and the switch cannot change that.
-						checked={automation.enabled && !isConsumed}
-						// Only the owner can re-enable an automation.
-						disabled={
-							isConsumed || isUpdating || (!isOwner && !automation.enabled)
-						}
-						aria-label={`Enable ${automation.name}`}
-						onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
-					/>
-				</TableCell>
-				<TableCell>
-					<div className="flex justify-end gap-2">
-						{automation.kind === "schedule" && isOwner && (
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={
-									!automation.enabled || isTargetMissing || isAnyRunPending
-								}
-								aria-label={`Run now ${automation.name}`}
-								onClick={() => onRunNow(automation)}
-							>
-								<Spinner loading={isRunning} />
-								Run now
-							</Button>
-						)}
-						{isOwner && (
-							<Button
-								size="sm"
-								variant="outline"
-								aria-label={`View chats ${automation.name}`}
-								onClick={() => onViewChats(automation)}
-							>
-								View chats
-							</Button>
-						)}
-						<Button
-							size="sm"
-							variant="outline"
-							aria-label={`Edit ${automation.name}`}
-							onClick={() => onEdit(automation)}
-						>
-							Edit
-						</Button>
-					</div>
-				</TableCell>
+				<TableCell>{enabledSwitch}</TableCell>
+				<TableCell>{actions}</TableCell>
 			</TableRow>
 		);
 	},
