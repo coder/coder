@@ -11,8 +11,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -180,8 +184,24 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.Header.Del("Authorization")
 				return r
 			},
-			status: http.StatusBadGateway, message: "upstream authentication unavailable\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request without an upstream credential",
+			status:     http.StatusForbidden,
+			message:    "upstream authentication unavailable: no provider credentials supplied or configured\n",
+			logLevel:   slog.LevelWarn,
+			logMessage: "failed to resolve credential",
+		},
+		{
+			name: "MissingCopilotCredential",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Del("Authorization")
+				return r
+			},
+			provider: func(*testing.T) provider.Provider {
+				return provider.NewCopilot(config.Copilot{BaseURL: "https://upstream.example.test"})
+			},
+			status:     http.StatusForbidden,
+			message:    "upstream authentication unavailable: no provider credentials supplied or configured\n",
+			logLevel:   slog.LevelWarn,
+			logMessage: "failed to resolve credential",
 		},
 		{
 			name: "UnsupportedSigning",
@@ -231,6 +251,53 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 			require.NotContains(t, fmt.Sprint(entries), "user-secret-key", "rejection logs must not include credentials")
 		})
 	}
+}
+
+func TestForwardingHandlerUnexpectedCredentialError(t *testing.T) {
+	t.Parallel()
+
+	resolutionErr := xerrors.New("credential store unavailable")
+	prov := credentialErrorProvider{
+		Provider: provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}),
+		err:      resolutionErr,
+	}
+	body := &unreadBody{}
+	req := recordedRequest(t, body)
+	spans := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	t.Cleanup(func() { require.NoError(t, tp.Shutdown(context.Background())) })
+	ctx, span := tp.Tracer(t.Name()).Start(req.Context(), "Proxy")
+	sink := codertestutil.NewFakeSink(t)
+	h := &forwardingHandler{provider: prov, logger: sink.Logger(), recorder: &struct{ recorder.Recorder }{}}
+	response := httptest.NewRecorder()
+	record, cred := h.checkRequest(response, req.WithContext(ctx))
+	span.End()
+
+	require.Nil(t, record)
+	require.Nil(t, cred)
+	require.Equal(t, http.StatusInternalServerError, response.Code)
+	require.Equal(t, "upstream authentication unavailable\n", response.Body.String())
+	require.False(t, body.read)
+	require.False(t, body.closed)
+	entries := sink.Entries()
+	require.Len(t, entries, 1)
+	require.Equal(t, slog.LevelWarn, entries[0].Level)
+	require.Equal(t, "failed to resolve credential", entries[0].Message)
+	require.Contains(t, entries[0].Fields, slog.F("path", req.URL.Path))
+	require.Contains(t, entries[0].Fields, slog.Error(resolutionErr))
+	ended := spans.Ended()
+	require.Len(t, ended, 1)
+	require.Equal(t, codes.Error, ended[0].Status().Code)
+	require.Equal(t, "failed to resolve credential", ended[0].Status().Description)
+}
+
+type credentialErrorProvider struct {
+	provider.Provider
+	err error
+}
+
+func (p credentialErrorProvider) ResolveCredential(*http.Request) (credential.Credential, error) {
+	return nil, p.err
 }
 
 func TestForwardingHandlerRequestMetadata(t *testing.T) {
@@ -301,9 +368,10 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	}))
 
 	for _, tc := range []struct {
-		name      string
-		websocket bool
-		status    int
+		name         string
+		websocket    bool
+		noCredential bool
+		status       int
 	}{
 		{
 			name:   "OpenCircuit",
@@ -314,6 +382,11 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			websocket: true,
 			status:    http.StatusNotImplemented,
 		},
+		{
+			name:         "CredentialBeforeCircuit",
+			noCredential: true,
+			status:       http.StatusForbidden,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -321,6 +394,9 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+"/responses", body)
 			req = req.WithContext(aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
 			req.Header.Set("Authorization", "Bearer user-key")
+			if tc.noCredential {
+				req.Header.Del("Authorization")
+			}
 			req.Pattern = prov.RoutePrefix() + "/responses"
 			if tc.websocket {
 				req.Method = http.MethodGet
@@ -332,7 +408,7 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			require.Equal(t, tc.status, response.Code)
 			require.False(t, body.read)
 			require.False(t, body.closed)
-			if !tc.websocket {
+			if tc.status == http.StatusServiceUnavailable {
 				require.Contains(t, response.Body.String(), circuitbreaker.ErrCircuitOpen.Error())
 			}
 		})

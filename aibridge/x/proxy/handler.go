@@ -2,10 +2,12 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
@@ -113,8 +115,13 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	}
 	cred, err := h.provider.ResolveCredential(r)
 	if err != nil {
-		logger.Warn(ctx, "rejecting request without an upstream credential", slog.Error(err))
-		http.Error(w, "upstream authentication unavailable", http.StatusBadGateway)
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to resolve credential")
+		logger.Warn(ctx, "failed to resolve credential", slog.Error(err), slog.F("path", r.URL.Path))
+		if errors.Is(err, provider.ErrNoCredential) {
+			http.Error(w, "upstream authentication unavailable: no provider credentials supplied or configured", http.StatusForbidden)
+		} else {
+			http.Error(w, "upstream authentication unavailable", http.StatusInternalServerError)
+		}
 		return nil, nil
 	}
 	switch cred.(type) {
