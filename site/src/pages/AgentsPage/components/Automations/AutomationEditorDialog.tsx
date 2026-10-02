@@ -200,6 +200,10 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 }) => {
 	const isCreate = !automation;
 	const triggerLabelId = useId();
+	// Only the owner can change an automation, so others get a read-only view.
+	const isReadOnly = Boolean(
+		automation && automation.owner_id !== currentUserId,
+	);
 	// A user-picked When busy value survives trigger changes.
 	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
 	const modelErrorId = useId();
@@ -342,7 +346,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 				>
 					<DialogHeader className="px-6 pt-6">
 						<DialogTitle>
-							{isCreate ? "New automation" : `Edit ${automation.name}`}
+							{isCreate
+								? "New automation"
+								: isReadOnly
+									? "View automation"
+									: `Edit ${automation.name}`}
 						</DialogTitle>
 						<DialogDescription>
 							{isCreate
@@ -357,10 +365,10 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					    browsers still dispatch to fieldset-disabled buttons. */}
 					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
 						<fieldset
-							disabled={isSubmitting}
+							disabled={isSubmitting || isReadOnly}
 							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
 						>
-							{automation && automation.owner_id !== currentUserId && (
+							{isReadOnly && (
 								<p className="m-0 text-sm text-content-secondary">
 									Only the owner of this automation can change it.
 								</p>
@@ -459,6 +467,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										rotateSecretError={rotateSecretError}
 										isRotatingSecret={isRotatingSecret}
 										isSubmitting={isSubmitting}
+										canRotateSecret={!isReadOnly}
 										onRotateSecret={onRotateSecret}
 									/>
 								)}
@@ -598,12 +607,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							disabled={isPending}
 							onClick={onClose}
 						>
-							Cancel
+							{isReadOnly ? "Close" : "Cancel"}
 						</Button>
-						<Button type="submit" disabled={isPending}>
-							<Spinner loading={isSubmitting} />
-							Save
-						</Button>
+						{!isReadOnly && (
+							<Button type="submit" disabled={isPending}>
+								<Spinner loading={isSubmitting} />
+								Save
+							</Button>
+						)}
 					</DialogFooter>
 				</form>
 			</DialogContent>

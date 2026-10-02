@@ -23,6 +23,8 @@ type AutomationWebhookFieldsProps = {
 	rotateSecretError: unknown;
 	isRotatingSecret: boolean;
 	isSubmitting: boolean;
+	/** False for viewers who do not own the webhook. */
+	canRotateSecret: boolean;
 	onRotateSecret: (rotateButton: HTMLButtonElement | null) => void;
 };
 
@@ -36,6 +38,7 @@ export const AutomationWebhookFields: React.FC<
 	rotateSecretError,
 	isRotatingSecret,
 	isSubmitting,
+	canRotateSecret,
 	onRotateSecret,
 }) => {
 	const useLabelId = useId();
@@ -120,7 +123,7 @@ export const AutomationWebhookFields: React.FC<
 					)}
 				</Alert>
 			)}
-			{!isUsedUp && (
+			{canRotateSecret && !isUsedUp && (
 				<Button
 					ref={rotateButtonRef}
 					type="button"
