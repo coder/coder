@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -183,6 +184,58 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		refreshed, err := db.GetChatByID(sysCtx, root.ID)
 		require.NoError(t, err)
 		require.False(t, refreshed.Archived)
+	})
+
+	// Promoting a stale automation row under edit from paused deletes it
+	// and answers 404, and the chat leaves paused with the row behind it.
+	t.Run("PromoteStalePausedHead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+			LastModelConfigID: modelConfig.ID, Title: "stale paused head", Status: database.ChatStatusPaused,
+		})
+		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID, Enabled: true,
+		})
+		stale, err := db.InsertChatQueuedMessageWithCreator(sysCtx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:        chat.ID,
+			Content:       queuedTextContent(t, "stale"),
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			CreatedBy:     user.UserID,
+			AutomationID:  uuid.NullUUID{UUID: automation.ID, Valid: true},
+			InputID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			// A row from another queue generation fails the guard.
+			QueueGeneration: sql.NullInt64{Int64: automation.QueueGeneration + 1, Valid: true},
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatQueuedMessageEditing(sysCtx, database.UpdateChatQueuedMessageEditingParams{
+			ID: stale.ID, ChatID: chat.ID, Editing: true,
+		})
+		require.NoError(t, err)
+		next := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "next"), modelConfig.ID)
+		watch, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
+		require.NoError(t, err)
+		defer watch.Close(websocket.StatusNormalClosure, "done")
+
+		res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, stale.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+
+		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, listed.QueuedMessages, "the stale row is deleted and the next row is sent")
+		require.Equal(t, "next", listed.Messages[len(listed.Messages)-1].Content[0].Text)
+		require.NotNil(t, listed.Messages[len(listed.Messages)-1].QueuedMessageID)
+		require.Equal(t, next.ID, *listed.Messages[len(listed.Messages)-1].QueuedMessageID)
+		require.Equal(t, codersdk.ChatStatusRunning, waitForChatWatchStatusChangeEvent(ctx, t, watch, chat.ID).Chat.Status,
+			"leaving paused publishes the running status to watchers")
 	})
 
 	t.Run("Guards", func(t *testing.T) {
