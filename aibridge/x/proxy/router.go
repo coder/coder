@@ -51,6 +51,10 @@ func NewRouter(providers []provider.Provider, logger slog.Logger) (*Router, erro
 
 // ServeHTTP serves the routes registered for the router's providers.
 func (p *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	if err := routing.ValidateForwardPath(r.URL); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
 	// Cap the body as it is read; routes that do not read it retain their status.
 	r.Body = http.MaxBytesReader(rw, r.Body, routing.MaxRequestBodyBytes)
 	p.mux.ServeHTTP(rw, r)
