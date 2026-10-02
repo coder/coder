@@ -237,6 +237,7 @@ type AgentChatInputProps = {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+	fillWidth?: boolean;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -557,6 +558,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
+	fillWidth = false,
 }) => {
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -1320,7 +1322,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		<div
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
+				fillWidth ? "max-w-full" : chatWidthClass(chatFullWidth),
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
