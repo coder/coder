@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -21,8 +22,11 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/utils"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
@@ -981,6 +985,169 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.Equal(t, testUserID.String(), recorded.GetInitiatorId())
 			require.Contains(t, recorded.GetMetadata(), "Username")
 			require.NotContains(t, recorded.GetMetadata(), "Email")
+		})
+	}
+}
+
+func TestServeHTTP_ProxyRecording(t *testing.T) {
+	t.Parallel()
+	for _, delegated := range []bool{false, true} {
+		name := "Direct"
+		if delegated {
+			name = "Delegated"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			actorID, workspaceID := uuid.New(), uuid.New()
+			apiKeyID := "authorized-key"
+			started := make(chan *proto.RecordInterceptionRequest, 1)
+			ended := make(chan *proto.RecordInterceptionEndedRequest, 1)
+			blockRecord := func(recordCtx context.Context, release <-chan struct{}) error {
+				select {
+				case <-release:
+					return nil
+				case <-recordCtx.Done():
+					return recordCtx.Err()
+				}
+			}
+			releaseStarted, releaseEnded := make(chan struct{}), make(chan struct{})
+			unblockStarted := sync.OnceFunc(func() { close(releaseStarted) })
+			unblockEnded := sync.OnceFunc(func() { close(releaseEnded) })
+			defer unblockStarted()
+			defer unblockEnded()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case <-releaseStarted:
+				default:
+					t.Error("upstream request preceded the completed start record")
+				}
+				assert.Equal(t, "Bearer provider-key", r.Header.Get("Authorization"))
+				payload, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, "unparsed request", string(payload))
+				w.WriteHeader(http.StatusOK)
+				_, _ = io.WriteString(w, "unparsed response")
+			}))
+			t.Cleanup(upstream.Close)
+			client := mock.NewMockDRPCClient(gomock.NewController(t))
+			conn := newCountingDRPCConn(nil)
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).Return(noMCPConfigs(), nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+				if delegated {
+					assert.Equal(t, apiKeyID, req.GetKeyId())
+					assert.Empty(t, req.GetKey())
+				} else {
+					assert.Equal(t, "coder-secret", req.GetKey())
+				}
+				return &proto.IsAuthorizedResponse{ApiKeyId: apiKeyID, OwnerId: actorID.String(), Username: "actor", Email: "private@example.test", WorkspaceId: workspaceID.String()}, nil
+			})
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).DoAndReturn(func(recordCtx context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+				started <- req
+				if err := blockRecord(recordCtx, releaseStarted); err != nil {
+					return nil, err
+				}
+				return &proto.RecordInterceptionResponse{}, nil
+			})
+			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).DoAndReturn(func(recordCtx context.Context, req *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+				ended <- req
+				if err := blockRecord(recordCtx, releaseEnded); err != nil {
+					return nil, err
+				}
+				assert.Zero(t, conn.closes.Load(), "DRPC must remain live until the final record completes")
+				return &proto.RecordInterceptionEndedResponse{}, nil
+			})
+			sink := testutil.NewFakeSink(t)
+			options := aibridged.DefaultPoolOptions
+			options.StructuredLogging = true
+			options.DisableContentRecording = true
+			srv, err := aibridged.New(ctx, func(context.Context) (aibridged.DRPCClient, error) { return client, nil }, sink.Logger(), testTracer, proxyExperiments(), nil, aibridged.WithPoolOptions(options))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = srv.Close() })
+			waitReady(t, srv)
+			require.NoError(t, srv.ReplaceProviders(ctx, []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: upstream.URL, KeyPool: singleKeyPool(t, "openai", "provider-key")})}))
+			// Delegated requests use the in-process transport, whose EOF follows
+			// handler return; direct requests observe handler return itself.
+			var (
+				status int
+				body   string
+			)
+			served := make(chan struct{})
+			if delegated {
+				requestCtx := agplaibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
+				requestCtx = agplaibridge.WithDelegatedAttribution(requestCtx, agplaibridge.Attribution{WorkspaceID: workspaceID})
+				rt, err := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv)).TransportFor("openai", agplaibridge.SourceAgents)
+				require.NoError(t, err)
+				req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, "http://in-memory/v1/chat/completions", bytes.NewBufferString("unparsed request"))
+				require.NoError(t, err)
+				go func() {
+					defer close(served)
+					resp, err := rt.RoundTrip(req)
+					if !assert.NoError(t, err) {
+						return
+					}
+					defer resp.Body.Close()
+					payload, err := io.ReadAll(resp.Body)
+					assert.NoError(t, err)
+					status, body = resp.StatusCode, string(payload)
+				}()
+			} else {
+				req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString("unparsed request")).WithContext(ctx)
+				req.Header.Set("Authorization", "Bearer coder-secret")
+				go func() {
+					defer close(served)
+					response := httptest.NewRecorder()
+					srv.ServeHTTP(response, req)
+					status, body = response.Code, response.Body.String()
+				}()
+			}
+			record := testutil.RequireReceive(ctx, t, started)
+			require.Equal(t, apiKeyID, record.GetApiKeyId())
+			require.Equal(t, actorID.String(), record.GetInitiatorId())
+			require.Equal(t, workspaceID.String(), record.GetWorkspaceId())
+			require.Contains(t, record.GetMetadata(), "Username")
+			require.NotContains(t, record.GetMetadata(), "Email")
+			require.Empty(t, record.GetModel())
+			require.Empty(t, record.GetClientSessionId())
+			require.Empty(t, record.GetCorrelatingToolCallId())
+			require.Equal(t, credential.HintFailoverKey, record.GetCredentialHint())
+			// The start record completes before forwarding; the upstream handler
+			// asserts the release happened first.
+			unblockStarted()
+			end := testutil.RequireReceive(ctx, t, ended)
+			require.Equal(t, record.GetId(), end.GetId())
+			require.Equal(t, utils.MaskSecret("provider-key"), end.GetCredentialHint())
+
+			shutdownDone := make(chan error, 1)
+			go func() { shutdownDone <- srv.Shutdown(ctx) }()
+			// GetRequestHandler returns the shutdown sentinel once admission closes.
+			require.Eventually(t, func() bool {
+				h, err := srv.GetRequestHandler(ctx, aibridged.Request{})
+				if err != nil {
+					return false
+				}
+				return serveHandler(t, h, "/unknown").Code == http.StatusServiceUnavailable
+			}, testutil.WaitShort, testutil.IntervalFast)
+			select {
+			case err := <-shutdownDone:
+				t.Fatalf("shutdown returned before the end record completed: %v", err)
+			default:
+			}
+			require.Zero(t, conn.closes.Load())
+			unblockEnded()
+			testutil.TryReceive(ctx, t, served)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, "unparsed response", body)
+			require.NoError(t, testutil.RequireReceive(ctx, t, shutdownDone))
+			var lifecycleLogs int
+			for _, entry := range sink.Entries() {
+				if entry.Message == recorder.InterceptionLogMarker {
+					lifecycleLogs++
+				}
+			}
+			require.Equal(t, 2, lifecycleLogs, "content policy must preserve structured lifecycle records")
 		})
 	}
 }

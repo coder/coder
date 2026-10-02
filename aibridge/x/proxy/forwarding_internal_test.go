@@ -146,7 +146,7 @@ func (c *forwardingCall) forward(w http.ResponseWriter) {
 	c.state.err = c.handler.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
 		outbound, body := c.handler.prepareForwarding(c.request, c.cred)
 		c.body = body
-		return c.handler.forwardPrepared(rw, outbound, body, c.state)
+		return c.handler.forward(rw, outbound, body, c.state)
 	})
 }
 
