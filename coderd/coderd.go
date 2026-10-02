@@ -1392,6 +1392,7 @@ func New(options *Options) *API {
 				r.Patch("/", api.patchChatAutomation)
 				r.Delete("/", api.deleteChatAutomation)
 				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
+				r.Post("/runs", api.postChatAutomationRun)
 			})
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {

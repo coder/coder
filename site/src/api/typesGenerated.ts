@@ -2215,6 +2215,17 @@ export const ChatAutomationKinds: ChatAutomationKind[] = [
 
 // From codersdk/chatautomations.go
 /**
+ * ChatAutomationRunResponse is returned when a schedule automation runs
+ * now. InputID identifies the accepted input on the message it created in
+ * ChatID.
+ */
+export interface ChatAutomationRunResponse {
+	readonly input_id: string;
+	readonly chat_id: string;
+}
+
+// From codersdk/chatautomations.go
+/**
  * ChatAutomationSchedulePreviewRequest is a schedule to preview. It
  * follows the same rules as the schedule of a chat automation.
  */

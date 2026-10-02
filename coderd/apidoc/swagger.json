@@ -727,6 +727,84 @@
 				}
 			}
 		},
+		"/api/experimental/organizations/{organization}/chat-automations/{automation}/runs": {
+			"post": {
+				"description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Run chat automation now",
+				"operationId": "run-chat-automation",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Automation ID",
+						"name": "automation",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"202": {
+						"description": "Accepted",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatAutomationRunResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"403": {
+						"description": "Forbidden",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"409": {
+						"description": "Conflict",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"429": {
+						"description": "Too Many Requests",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					},
+					"502": {
+						"description": "Bad Gateway",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
 			"post": {
 				"description": "Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.",
@@ -18833,6 +18911,19 @@
 				"ChatAutomationKindWebhook",
 				"ChatAutomationKindSchedule"
 			]
+		},
+		"codersdk.ChatAutomationRunResponse": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"input_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
 		},
 		"codersdk.ChatAutomationSchedulePreviewRequest": {
 			"type": "object",

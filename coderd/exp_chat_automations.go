@@ -295,6 +295,46 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Run chat automation now
+// @Description Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.
+// @ID run-chat-automation
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param organization path string true "Organization ID"
+// @Param automation path string true "Automation ID" format(uuid)
+// @Success 202 {object} codersdk.ChatAutomationRunResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
+// @Failure 429 {object} codersdk.Response
+// @Failure 502 {object} codersdk.Response
+// @Router /api/experimental/organizations/{organization}/chat-automations/{automation}/runs [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	automation, ok := api.chatAutomationParam(rw, r)
+	if !ok {
+		return
+	}
+	result, err := api.chatDaemon.RunAutomation(ctx, apiKey.UserID, automation.ID)
+	if err != nil {
+		api.writeChatAutomationRunError(ctx, rw, err)
+		return
+	}
+	if automation.TargetMode == database.ChatAutomationTargetModeNewChat {
+		api.auditChatAutomationCreatedChat(ctx, r, automation, result)
+	}
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatAutomationRunResponse{
+		InputID: result.InputID,
+		ChatID:  result.ChatID,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
 // @Summary Preview chat automation schedule
 // @Description Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.
 // @ID preview-chat-automation-schedule
@@ -367,6 +407,33 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 		httpapi.Forbidden(rw)
 	default:
 		httpapi.InternalServerError(rw, err)
+	}
+}
+
+// writeChatAutomationRunError maps RunAutomation errors to responses.
+// Refusals reuse the webhook responses, except that a disabled
+// automation gets 409 instead of 403 and a missing one 404 instead of 401.
+func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if writeChatHookErr(ctx, rw, err, "Chat automation run denied by lifecycle hook.") {
+		return
+	}
+	var validationErr *chatd.AutomationValidationError
+	switch {
+	case errors.Is(err, chatd.ErrAutomationOwnerOnly):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the owner of a chat automation can run it.",
+		})
+	case errors.As(err, &validationErr), errors.Is(err, chatd.ErrAutomationNotFound):
+		api.writeChatAutomationError(ctx, rw, err)
+	case errors.Is(err, chatd.ErrAutomationDisabled):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat automation is disabled."})
+	case errors.Is(err, chatd.ErrAutomationChatBusy):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The target chat is busy.",
+			Detail:  "The automation skips runs while the chat is busy.",
+		})
+	default:
+		writeChatAutomationEventError(ctx, rw, err)
 	}
 }
 
