@@ -412,6 +412,14 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
+CREATE TYPE chat_title_source AS ENUM (
+    'fallback',
+    'generated',
+    'user'
+);
+
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -2390,6 +2398,8 @@ CREATE TABLE chats (
     summary text,
     summary_generated_at timestamp with time zone,
     project_id uuid,
+    title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
+    title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
     automation_id uuid,
     manage_automations_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
@@ -2418,6 +2428,10 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+
+COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
+
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 
 COMMENT ON COLUMN chats.automation_id IS 'Automation that created this chat. No foreign key by design.';
 
@@ -2523,6 +2537,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_resources,
     c.context_error,
     c.compaction_requested_at,
+    c.title_source,
+    c.title_updated_at,
     c.automation_id,
     c.manage_automations_enabled
    FROM ((chats c

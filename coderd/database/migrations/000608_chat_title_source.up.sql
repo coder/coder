@@ -1,8 +1,21 @@
-DROP VIEW IF EXISTS chats_expanded;
+CREATE TYPE chat_title_source AS ENUM (
+    'fallback',
+    'generated',
+    'user'
+);
+
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 ALTER TABLE chats
-    DROP COLUMN manage_automations_enabled;
+    ADD COLUMN title_source chat_title_source NOT NULL DEFAULT 'fallback',
+    ADD COLUMN title_updated_at timestamptz NOT NULL DEFAULT NOW();
 
+COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
+
+-- Refresh chats_expanded to include the new chat columns. The gentest
+-- TestViewSubsetChat requires every chats column to appear in the view.
+DROP VIEW IF EXISTS chats_expanded;
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
@@ -52,7 +65,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_resources,
     c.context_error,
     c.compaction_requested_at,
-    c.automation_id
+    c.title_source,
+    c.title_updated_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
