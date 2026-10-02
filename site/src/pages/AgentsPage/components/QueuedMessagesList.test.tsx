@@ -166,6 +166,7 @@ describe("QueuedMessagesList", () => {
 			<TooltipProvider>
 				<QueuedMessagesList
 					messages={messages}
+					automationNames={{ names: new Map(), status: "settled" }}
 					onDelete={onDelete}
 					onPromote={onPromote}
 					{...handlers}
