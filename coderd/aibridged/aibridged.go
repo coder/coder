@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -378,6 +379,29 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	}
 	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(router), keyPools: router.KeyPools})
 	return nil
+}
+
+// newRecorder builds the recorder for one API key.
+//
+// revive:disable-next-line:flag-parameter // Constructor configuration flags.
+func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structuredLogging bool, disableContentRecording bool, clientFn ClientFunc) recorder.Recorder {
+	var middleware []recorder.Middleware
+	if disableContentRecording {
+		middleware = append(middleware, recorder.WithoutRecords(recorder.DisabledRecords{
+			PromptUsage:  true,
+			ToolUsage:    true,
+			ModelThought: true,
+		}))
+	}
+	return aibridge.NewRecorder(
+		logger.Named("recorder"), tracer, apiKeyID, structuredLogging,
+		recorder.NewDRPCRecorder(apiKeyID, func(ctx context.Context) (proto.DRPCRecorderClient, error) {
+			// The recorder outlives its caller, so acquire the client with each
+			// record call's context.
+			return clientFn(ctx)
+		}),
+		middleware...,
+	)
 }
 
 // PoolOptions reports the options the published interception pool was built
