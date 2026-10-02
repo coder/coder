@@ -54,10 +54,9 @@ func (r *connectionReporter) reportLoop(ctx context.Context, sink connectionRepo
 			_, err := sink.ReportConnection(ctx, payload)
 			if err != nil {
 				// Do not fail the loop if we fail to report a connection, just
-				// log a warning.
+				// log a warning and continue processing new reports.
 				// Related to https://github.com/coder/coder/issues/20194
 				logger.Warn(ctx, "failed to report connection to server", slog.Error(err))
-				// keep going, we still need to remove it from the slice
 			} else {
 				logger.Debug(ctx, "successfully reported connection")
 			}
