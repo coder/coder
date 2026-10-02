@@ -3,6 +3,7 @@ package agentacp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os/exec"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/coder/quartz"
 )
 
 type diagnosticBuffer struct {
@@ -34,14 +36,19 @@ func (b *diagnosticBuffer) String() string {
 }
 
 type process struct {
-	conn   *acp.ClientSideConnection
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	cancel context.CancelFunc
-	done   chan struct{}
-	once   sync.Once
-	stderr diagnosticBuffer
+	writeMu        sync.Mutex
+	requestWritten chan error
+	requestMethod  string
+	clock          quartz.Clock
+	conn           *acp.ClientSideConnection
+	cmd            *exec.Cmd
+	stdin          io.WriteCloser
+	stdout         io.ReadCloser
+	cancel         context.CancelFunc
+	done           chan struct{}
+	err            error // Read only after done closes.
+	once           sync.Once
+	stderr         diagnosticBuffer
 }
 
 func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Client) (*process, error) {
@@ -62,7 +69,7 @@ func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Cli
 	configureProcess(cmd)
 	cmd.Cancel = sync.OnceValue(cmd.Cancel)
 	cmd.WaitDelay = 2 * time.Second
-	p := &process{cmd: cmd, cancel: cancel, done: make(chan struct{})}
+	p := &process{cmd: cmd, cancel: cancel, done: make(chan struct{}), clock: m.clock}
 	var err error
 	p.stdin, err = cmd.StdinPipe()
 	if err != nil {
@@ -82,9 +89,9 @@ func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Cli
 		cancel()
 		return nil, xerrors.Errorf("start harness: %w", err)
 	}
-	p.conn = acp.NewClientSideConnection(handler, p.stdin, p.stdout)
+	p.conn = acp.NewClientSideConnection(handler, p, p.stdout)
 	go func() {
-		_ = cmd.Wait()
+		p.err = cmd.Wait()
 		// The shell may exit before its descendants. CommandContext stops
 		// watching cancellation after Wait, so terminate the group explicitly.
 		_ = cmd.Cancel()
@@ -95,4 +102,41 @@ func (m *Manager) launch(ctx context.Context, cfg harnessConfig, handler acp.Cli
 
 func (p *process) close() {
 	p.once.Do(func() { p.cancel(); _ = p.stdin.Close(); _ = p.stdout.Close(); <-p.done })
+}
+
+// Write observes request admission at the ACP transport boundary. The FSM
+// holds its mutex until this write finishes before accepting another operation.
+func (p *process) Write(raw []byte) (int, error) {
+	// Closing the transport bounds the actual write, including calls whose
+	// contexts the ACP SDK only checks after writing the request.
+	timer := p.clock.AfterFunc(setupTimeout, func() {
+		p.cancel()
+		_ = p.stdin.Close()
+		_ = p.stdout.Close()
+	}, "acp-write")
+	defer timer.Stop()
+	n, err := p.stdin.Write(raw)
+	if err == nil && n != len(raw) {
+		err = io.ErrShortWrite
+	}
+	var message struct {
+		Method string `json:"method"`
+	}
+	if json.Unmarshal(raw, &message) == nil && message.Method != "" {
+		p.writeMu.Lock()
+		if p.requestWritten != nil && message.Method == p.requestMethod {
+			p.requestWritten <- err
+			p.requestWritten = nil
+		}
+		p.writeMu.Unlock()
+	}
+	return n, err
+}
+
+func (p *process) expectWrite(method string) <-chan error {
+	p.writeMu.Lock()
+	p.requestMethod = method
+	defer p.writeMu.Unlock()
+	p.requestWritten = make(chan error, 1)
+	return p.requestWritten
 }

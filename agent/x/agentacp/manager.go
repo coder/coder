@@ -3,6 +3,7 @@ package agentacp
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -19,7 +20,13 @@ import (
 	"github.com/coder/quartz"
 )
 
-var errUnavailable = xerrors.New("ACP harness unavailable")
+// Errors classify agent API failures.
+var (
+	ErrInvalid     = xerrors.New("invalid ACP request")
+	ErrNotFound    = xerrors.New("ACP session not found")
+	ErrConflict    = xerrors.New("ACP request conflict")
+	ErrUnavailable = xerrors.New("ACP harness unavailable")
+)
 
 const setupTimeout = 30 * time.Second
 
@@ -161,6 +168,21 @@ func configOptions(options []acp.SessionConfigOption) []workspacesdk.ACPConfigOp
 		out = append(out, opt)
 	}
 	return out
+}
+
+func cloneEvent(e workspacesdk.ACPEvent) workspacesdk.ACPEvent {
+	e.Update = slices.Clone(e.Update)
+	if e.MessageID != nil {
+		id := *e.MessageID
+		e.MessageID = &id
+	}
+	if e.Session != nil {
+		info := *e.Session
+		info.Config = maps.Clone(info.Config)
+		info.Harness = cloneHarness(info.Harness)
+		e.Session = &info
+	}
+	return e
 }
 
 func cloneHarness(h workspacesdk.ACPHarness) workspacesdk.ACPHarness {
