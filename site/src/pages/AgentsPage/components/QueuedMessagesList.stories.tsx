@@ -23,6 +23,11 @@ const meta: Meta<typeof QueuedMessagesList> = {
 		automationNames: { names: new Map(), status: "settled" },
 		onDelete: fn(),
 		onPromote: fn(),
+		onEdit: fn(),
+		onEndEdit: fn(),
+		queuedMessageUnderEditID: null,
+		composerQueuedMessageID: null,
+		showEnterToSendHint: true,
 	},
 };
 
@@ -220,17 +225,28 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Queued messages retain send and delete actions without exposing edit.
-export const ActionsExcludeEdit: Story = {
+// One row with every action.
+export const HeadRowActions: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
 	},
 };
 
+// A read-only viewer gets no edit handlers, so only Send now and Remove render.
+export const ReadOnlyViewerActions: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("Run the linter"))],
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
 // A row under edit behind the head: the head stays sendable; rows behind the
-// edit wait. The Editing badge shows its tooltip.
+// edit wait. The row, under edit in another client, offers Cancel edit, Edit,
+// Send now and Remove, and its Editing badge shows its tooltip.
 export const RowUnderEditWithWaitingTail: Story = {
 	args: {
+		queuedMessageUnderEditID: 2,
 		messages: [
 			buildMessage(1, textContent("Install dependencies")),
 			{
@@ -250,8 +266,10 @@ export const RowUnderEditWithWaitingTail: Story = {
 
 // The queue head is under edit, so the Enter-to-send hint is hidden. The
 // Waiting badge on the row behind it shows its tooltip.
-export const HeadUnderEdit: Story = {
+export const WaitingBehindHeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: 1,
+		showEnterToSendHint: false,
 		messages: [
 			{
 				...MockChatQueuedMessageUnderEdit,
@@ -264,6 +282,80 @@ export const HeadUnderEdit: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
+	},
+};
+
+// The queue head is under edit on a paused chat, so the Enter-to-send hint is
+// hidden, and the Cancel edit tooltip says cancelling sends the head.
+export const HeadUnderEdit: Story = {
+	args: {
+		queuedMessageUnderEditID: 1,
+		isChatPaused: true,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByRole("button", { name: "Cancel edit" }));
+	},
+};
+
+// The chat is paused: Edit on the row behind the head is disabled and its
+// tooltip says why.
+export const PausedEditBehindHead: Story = {
+	args: {
+		queuedMessageUnderEditID: 1,
+		isChatPaused: true,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editBehind = canvas.getAllByRole("button", { name: "Edit" })[1];
+		await userEvent.hover(editBehind);
+	},
+};
+
+// The begin request is in flight: the row shows as under edit and the Enter
+// hint is hidden because Enter saves the edit.
+export const BeginRequestPending: Story = {
+	args: {
+		queuedMessageUnderEditID: 1,
+		showEnterToSendHint: false,
+		messages: [
+			buildMessage(1, textContent("Run the test suite")),
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+};
+
+// The end request is in flight while the row still carries the server
+// marker: the row shows no edit state.
+export const EndRequestPending: Story = {
+	args: {
+		queuedMessageUnderEditID: null,
+		messages: [
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
 	},
 };
 

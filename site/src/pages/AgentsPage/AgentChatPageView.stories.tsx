@@ -194,6 +194,9 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
+		handleEditQueuedMessage: fn(),
+		handleEndQueuedMessageEdit: fn(),
+		queuedMessageUnderEditID: null,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -949,24 +952,42 @@ export const EditingMessage: Story = {
 	),
 };
 
-/** The turn finished while the queue head was under edit. The composer
- *  queues a send. */
+const pausedQueue: TypesGen.ChatQueuedMessage[] = [
+	{
+		...MockChatQueuedMessageUnderEdit,
+		id: 1,
+		content: [{ type: "text", text: "Run the migrations" }],
+	},
+	{
+		...MockChatQueuedMessage,
+		id: 2,
+		content: [{ type: "text", text: "Start the dev server" }],
+	},
+];
+
+/** The turn completed while the queue head was under edit. Cancel edit on
+ *  the head sends it, and a send from the composer is queued. */
 export const PausedAtQueuedEdit: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			store={buildStoreWithMessages(editingMessages, "paused", [
-				{
-					...MockChatQueuedMessageUnderEdit,
-					id: 1,
-					content: [{ type: "text", text: "Run the migrations" }],
-				},
-				{
-					...MockChatQueuedMessage,
-					id: 2,
-					content: [{ type: "text", text: "Start the dev server" }],
-				},
-			])}
+			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
 			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+		/>
+	),
+};
+
+/** The composer is editing the paused chat's queue head. */
+export const EditingQueuedMessageWhilePaused: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
+			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+			editing={{
+				editingTarget: { kind: "queued", id: 1 },
+				editorInitialValue: "Run the migrations",
+			}}
 		/>
 	),
 };

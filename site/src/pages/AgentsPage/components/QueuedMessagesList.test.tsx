@@ -1,9 +1,12 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import { getQueuedMessageInfo, QueuedMessagesList } from "./QueuedMessagesList";
 
 const buildMessage = (
@@ -156,12 +159,25 @@ describe("QueuedMessagesList", () => {
 		handlers: Partial<
 			Pick<
 				React.ComponentProps<typeof QueuedMessagesList>,
-				"onDelete" | "onPromote"
+				| "onDelete"
+				| "onPromote"
+				| "onEdit"
+				| "onEndEdit"
+				| "isChatPaused"
+				| "queuedMessageUnderEditID"
+				| "composerQueuedMessageID"
 			>
 		> = {},
 	) => {
 		const onDelete = vi.fn();
 		const onPromote = vi.fn();
+		const onEdit = vi.fn();
+		const onEndEdit = vi.fn();
+		const {
+			queuedMessageUnderEditID = null,
+			composerQueuedMessageID = null,
+			...rest
+		} = handlers;
 		render(
 			<TooltipProvider>
 				<QueuedMessagesList
@@ -169,11 +185,15 @@ describe("QueuedMessagesList", () => {
 					automationNames={{ names: new Map(), status: "settled" }}
 					onDelete={onDelete}
 					onPromote={onPromote}
-					{...handlers}
+					onEdit={onEdit}
+					onEndEdit={onEndEdit}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
+					{...rest}
 				/>
 			</TooltipProvider>,
 		);
-		return { onDelete, onPromote };
+		return { onDelete, onPromote, onEdit, onEndEdit };
 	};
 
 	it.each([
@@ -222,5 +242,108 @@ describe("QueuedMessagesList", () => {
 		});
 		await user.click(removeHead);
 		expect(onDelete).toHaveBeenCalledWith(7);
+	});
+
+	it("forwards Edit and Cancel edit with the row id", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedMessageUnderEditID: 9 },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
+
+		const editButtons = screen.getAllByRole("button", { name: "Edit" });
+		await user.click(editButtons[0]);
+		await user.click(editButtons[1]);
+		expect(onEdit).toHaveBeenNthCalledWith(1, 9);
+		expect(onEdit).toHaveBeenNthCalledWith(2, 10);
+	});
+
+	it("while the chat is paused, Edit on a row other than the one under edit is unavailable, and focusing it shows why", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ isChatPaused: true, queuedMessageUnderEditID: 9 },
+		);
+
+		const [editUnderEdit, editBehind] = screen.getAllByRole("button", {
+			name: "Edit",
+		});
+		act(() => editBehind.focus());
+		expect(editBehind).toHaveFocus();
+		await waitFor(() =>
+			expect(editBehind).toHaveAccessibleDescription(
+				"Finish the current edit first.",
+			),
+		);
+
+		await user.click(editBehind);
+		expect(onEdit).not.toHaveBeenCalled();
+
+		await user.click(editUnderEdit);
+		expect(onEdit).toHaveBeenCalledWith(9);
+	});
+
+	it.each([
+		{
+			name: "the row this composer edits has no Edit",
+			composerQueuedMessageID: 9,
+			editedIDs: [10],
+		},
+		{
+			name: "a row under edit elsewhere keeps Edit",
+			composerQueuedMessageID: null,
+			editedIDs: [9, 10],
+		},
+	])("$name", async ({ composerQueuedMessageID, editedIDs }) => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedMessageUnderEditID: 9, composerQueuedMessageID },
+		);
+
+		for (const button of screen.getAllByRole("button", { name: "Edit" })) {
+			await user.click(button);
+		}
+		expect(onEdit.mock.calls.map(([id]) => id)).toEqual(editedIDs);
+	});
+
+	it("while the chat is paused with no row under edit, Edit calls onEdit", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ isChatPaused: true },
+		);
+
+		await user.click(screen.getAllByRole("button", { name: "Edit" })[1]);
+		expect(onEdit).toHaveBeenCalledWith(10);
+	});
+
+	it("offers Cancel edit on the row under edit before the server marks it", async () => {
+		const user = userEvent.setup();
+		const { onEndEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedMessageUnderEditID: 9 },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
 	});
 });

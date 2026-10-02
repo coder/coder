@@ -130,6 +130,7 @@ const StoryChatPageInput: React.FC<{
 			canConfigureAgentSetup={false}
 			editingTarget={null}
 			onCancelEdit={fn()}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -458,6 +459,7 @@ const CompactionChatPageInput: React.FC = () => {
 				canConfigureAgentSetup={false}
 				editingTarget={null}
 				onCancelEdit={fn()}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);

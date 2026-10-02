@@ -1,3 +1,5 @@
+import { getErrorMessage, getErrorStatus } from "#/api/errors";
+import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
@@ -161,6 +163,54 @@ export const runDeleteQueuedMessage = async (params: {
 			store.setQueuedMessages(previousQueuedMessages);
 		}
 		throw error;
+	}
+};
+
+/**
+ * Sends a queued-message edit request and applies its outcome to the store.
+ * A 404 means the row was sent or removed; it is dropped locally because no
+ * queue_update is guaranteed to follow. A successful request that sets
+ * `editing` is written into the store so the composer does not wait for the
+ * queue_update. Every failure is reported through onError and rethrown.
+ */
+export const runEditQueuedMessage = async (params: {
+	id: number;
+	req: TypesGen.EditChatQueuedMessageRequest;
+	store: Pick<ChatStore, "getSnapshot" | "setQueuedMessages">;
+	editQueuedMessage: (
+		variables: EditChatQueuedMessageVariables,
+	) => Promise<unknown>;
+	failureMessage: string;
+	onError: (message: string) => void;
+}): Promise<void> => {
+	const { id, req, store, editQueuedMessage, failureMessage, onError } = params;
+	try {
+		await editQueuedMessage({ queuedMessageId: id, req });
+	} catch (error) {
+		if (getErrorStatus(error) === 404) {
+			store.setQueuedMessages(
+				store.getSnapshot().queuedMessages.filter((row) => row.id !== id),
+			);
+			onError("Queued message was already sent or removed.");
+		} else {
+			onError(getErrorMessage(error, failureMessage));
+		}
+		throw error;
+	}
+	if (req.editing !== undefined) {
+		// The server allows one row under edit per chat, so a begin ends any
+		// other row's edit.
+		const editingSince = req.editing ? new Date().toISOString() : undefined;
+		store.setQueuedMessages(
+			store.getSnapshot().queuedMessages.map((row) => {
+				if (row.id === id) {
+					return { ...row, editing_since: editingSince };
+				}
+				return req.editing && row.editing_since
+					? { ...row, editing_since: undefined }
+					: row;
+			}),
+		);
 	}
 };
 

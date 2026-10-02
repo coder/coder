@@ -155,6 +155,7 @@ const renderChatPageInput = (
 			canConfigureAgentSetup={false}
 			editingTarget={null}
 			onCancelEdit={vi.fn()}
+			queuedMessageUnderEditID={null}
 			{...overrides}
 		/>,
 	);
