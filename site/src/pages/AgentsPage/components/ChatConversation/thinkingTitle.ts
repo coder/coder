@@ -1,10 +1,17 @@
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import remend from "remend";
+import { unified } from "unified";
 import { sliceAtGraphemeBoundary } from "./SmoothText";
 
 const DEFAULT_THINKING_TITLE = "Thinking";
 const PREVIEW_TITLE_MAX_LENGTH = 100;
-// Bounds the cleanup work: the preview is recomputed for every streamed
-// chunk of reasoning, which can grow to many kilobytes.
-const PREVIEW_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_LENGTH * 4;
+// Bounds the Markdown parsing, which reruns for every streamed chunk of
+// reasoning that can grow to many kilobytes.
+const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_LENGTH * 4;
+
+// Parses like the Streamdown body so titles keep exactly the text it renders.
+const markdownParser = unified().use(remarkParse).use(remarkGfm);
 
 type LineRange = {
 	line: string;
@@ -25,52 +32,56 @@ type ThinkingDisclosureDisplay = {
 	body: string;
 };
 
-// CommonMark drops one space of padding from each side of a code span.
-const getCodeSpanText = (code: string): string => {
-	const text = code.replace(/\r\n?|\n/g, " ");
-	return text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text)
-		? text.slice(1, -1)
-		: text;
+type MarkdownNode = {
+	type: string;
+	value?: string;
+	alt?: string | null;
+	ordered?: boolean | null;
+	start?: number | null;
+	children?: MarkdownNode[];
 };
 
-const cleanHeadingText = (text: string): string => {
-	// Backslash escapes and code spans render literally, so they are set aside
-	// while the rules below run. One pass keeps their Markdown precedence, and
-	// unmatched backtick runs are consumed whole so no code span starts inside
-	// one. HTML-like text and spaced asterisks (`2 * n * m`) also stay literal.
-	const literals: string[] = [];
-	const setAside = (literal: string): string => {
-		literals.push(literal);
-		return `\uE000${literals.length - 1}\uE001`;
-	};
-	// Strong spans run twice: one that wraps emphasis matches only once that
-	// emphasis is stripped.
-	return text
-		.replace(
-			/\\([!-/:-@[-`{-~])|(`+)([^`]|[^`][\s\S]*?[^`])\2(?!`)|`+/g,
-			(match, escaped?: string, _fence?: string, code?: string) => {
-				if (escaped !== undefined) {
-					return setAside(escaped);
-				}
-				return code === undefined ? match : setAside(getCodeSpanText(code));
-			},
-		)
-		.replace(/!\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, "$1")
-		.replace(/\[([^\]]+)\]\((?:[^()]|\([^()]*\))*\)/g, "$1")
-		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
-		.replace(/\b__([^_]+)__\b/g, "$1")
-		.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1")
-		.replace(/\b_([^_]+)_\b/g, "$1")
-		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
-		.replace(/\b__([^_]+)__\b/g, "$1")
-		.replace(/~~([^~]+)~~/g, "$1")
-		.replace(
-			/\uE000(\d+)\uE001/g,
-			(match, index: string) => literals[Number(index)] ?? match,
-		)
-		.replace(/\s+/g, " ")
-		.trim();
+const phrasingParentTypes = new Set([
+	"paragraph",
+	"heading",
+	"emphasis",
+	"strong",
+	"delete",
+	"link",
+	"linkReference",
+	"tableCell",
+]);
+
+const getNodeText = (node: MarkdownNode): string => {
+	if (node.type === "image" || node.type === "imageReference") {
+		return node.alt ?? "";
+	}
+	if (node.type === "break") {
+		return " ";
+	}
+	if (node.value !== undefined) {
+		return node.value;
+	}
+	const children = node.children ?? [];
+	if (node.type === "list") {
+		const start = node.start ?? 1;
+		return children
+			.map((item, index) => {
+				const marker = node.ordered ? `${start + index}.` : "-";
+				return `${marker} ${getNodeText(item)}`;
+			})
+			.join(" ");
+	}
+	return children
+		.map(getNodeText)
+		.join(phrasingParentTypes.has(node.type) ? "" : " ");
 };
+
+const getPlainText = (node: MarkdownNode): string =>
+	getNodeText(node).replace(/\s+/g, " ").trim();
+
+const cleanHeadingText = (markdown: string): string =>
+	getPlainText(markdownParser.parse(markdown));
 
 const getLines = (text: string): LineRange[] => {
 	const lines: LineRange[] = [];
@@ -95,13 +106,10 @@ const getLines = (text: string): LineRange[] => {
 };
 
 const getAtxHeadingText = (line: string): string | undefined => {
-	const match = line.match(/^ {0,3}#{1,6}(?:[ \t]+|$)(.*)$/);
-	if (!match) {
+	if (!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
 		return undefined;
 	}
-
-	const heading = cleanHeadingText(match[1].replace(/[ \t]+#{1,}[ \t]*$/, ""));
-	return heading || undefined;
+	return cleanHeadingText(line) || undefined;
 };
 
 const getFenceMarker = (
@@ -140,13 +148,14 @@ const isListItem = (line: string): boolean =>
 	/^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/.test(line);
 
 const getEmphasizedLineHeadingText = (line: string): string | undefined => {
-	const match = line.match(/^ {0,3}(?:\*\*([^*]+)\*\*|__([^_]+)__)[ \t]*$/);
-	if (!match) {
+	const [paragraph] = markdownParser.parse(line).children;
+	if (paragraph?.type !== "paragraph" || paragraph.children.length !== 1) {
 		return undefined;
 	}
-
-	const heading = cleanHeadingText(match[1] ?? match[2] ?? "");
-	return heading || undefined;
+	const [strong] = paragraph.children;
+	return strong.type === "strong"
+		? getPlainText(strong) || undefined
+		: undefined;
 };
 
 const isHeadingLikeParagraph = (
@@ -156,7 +165,11 @@ const isHeadingLikeParagraph = (
 ): string | undefined => {
 	const lineRange = lines[index];
 	const prefix = text.slice(0, lineRange.start);
-	if (prefix.trim() || isListItem(lineRange.line)) {
+	if (
+		prefix.trim() ||
+		isListItem(lineRange.line) ||
+		lineRange.line.length > PARSED_SOURCE_MAX_LENGTH
+	) {
 		return undefined;
 	}
 
@@ -262,10 +275,14 @@ const removeHeading = (text: string, heading: HeadingMatch): string => {
 	return body.replace(/^\s+/, "");
 };
 
-const getPreviewTitle = (text: string): string => {
-	const source = sliceAtGraphemeBoundary(text, PREVIEW_SOURCE_MAX_LENGTH);
-	const preview = cleanHeadingText(source);
+const getPreviewTitle = (text: string, isStreaming: boolean): string => {
+	const source = sliceAtGraphemeBoundary(text, PARSED_SOURCE_MAX_LENGTH);
 	const isSourceCut = source.length < text.length;
+	// Streamed or cut text can stop inside markup, which the streaming body
+	// repairs the same way.
+	const preview = cleanHeadingText(
+		isStreaming || isSourceCut ? remend(source) : source,
+	);
 	if (
 		!preview ||
 		(preview.length <= PREVIEW_TITLE_MAX_LENGTH && !isSourceCut)
@@ -287,7 +304,9 @@ export const getThinkingDisclosureDisplay = (
 	const heading = getFirstHeading(text);
 	if (!heading) {
 		const preview =
-			isStreaming && isHeadingInProgress(text) ? "" : getPreviewTitle(text);
+			isStreaming && isHeadingInProgress(text)
+				? ""
+				: getPreviewTitle(text, isStreaming);
 		if (!preview) {
 			return { title: DEFAULT_THINKING_TITLE, body: text };
 		}

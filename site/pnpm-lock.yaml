@@ -205,6 +205,12 @@ importers:
       remark-gfm:
         specifier: 4.0.1
         version: 4.0.1
+      remark-parse:
+        specifier: 11.0.0
+        version: 11.0.0
+      remend:
+        specifier: 1.3.1
+        version: 1.3.1
       semver:
         specifier: 7.8.5
         version: 7.8.5
@@ -223,6 +229,9 @@ importers:
       ufuzzy:
         specifier: npm:@leeoniya/ufuzzy@1.0.10
         version: '@leeoniya/ufuzzy@1.0.10'
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1

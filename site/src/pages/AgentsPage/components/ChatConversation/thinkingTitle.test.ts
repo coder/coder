@@ -69,6 +69,15 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it("keeps link-like text whose destination has a space", () => {
+		const text = "Use [state](draft value) before updating";
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title: text,
+			ariaLabel: `Thinking: ${text}`,
+			body: text,
+		});
+	});
+
 	it("keeps text that Markdown renders literally in the preview title", () => {
 		const text =
 			"Check `Promise<User>`, `*args*`, 0 < n and n > 0 in user_id_field and APP__DB__URL";
@@ -134,6 +143,16 @@ describe("getThinkingDisclosureDisplay", () => {
 			title: "**Checking the co",
 			ariaLabel: "Thinking: **Checking the co",
 			body: "**Checking the co",
+		});
+	});
+
+	it("hides unclosed inline markup in the preview while streaming", () => {
+		expect(
+			getThinkingDisclosureDisplay("I should **inspect", { isStreaming: true }),
+		).toEqual({
+			title: "I should inspect",
+			ariaLabel: "Thinking: I should inspect",
+			body: "I should **inspect",
 		});
 	});
 
