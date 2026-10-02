@@ -4,7 +4,7 @@ import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
-import { AUTOMATIONS_PATH } from "../Automations/AutomationsNavItem";
+import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";

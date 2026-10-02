@@ -22,7 +22,7 @@ import {
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	automationNames?: ChatAutomationNames;
+	automationNames: ChatAutomationNames;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
@@ -190,8 +190,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 								<AutomationLabel
 									automationId={item.automationId}
 									inputId={item.inputId}
-									automationName={automationNames?.names.get(item.automationId)}
-									nameStatus={automationNames?.status}
+									automationName={automationNames.names.get(item.automationId)}
+									nameStatus={automationNames.status}
 								/>
 							</div>
 						)}

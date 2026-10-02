@@ -66,7 +66,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { AUTOMATIONS_PATH } from "./components/Automations/AutomationsNavItem";
+import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,

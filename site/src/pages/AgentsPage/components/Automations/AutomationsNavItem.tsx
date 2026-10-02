@@ -1,14 +1,8 @@
 import { ZapIcon } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { Button } from "#/components/Button/Button";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { SettingsNavItem } from "../ChatsSidebar/settings/SettingsNavItem";
-
-export const AUTOMATIONS_PATH = "/agents/automations";
-
-/** Whether the chat-automations experiment is on for the viewer. */
-export const useAutomationsEnabled = (): boolean =>
-	useDashboard().experiments.includes("chat-automations");
+import { AUTOMATIONS_PATH, useAutomationsEnabled } from "./automationsFlag";
 
 type AutomationsNavItemProps = {
 	/** Normalized query string the sidebar appends to its own links. */
