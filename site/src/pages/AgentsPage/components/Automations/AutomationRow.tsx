@@ -164,6 +164,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onViewChats,
 		onEdit,
 	}) => {
+		const isConsumed = Boolean(automation.webhook_consumed_at);
 		const targetChatId =
 			automation.target_mode === "existing_chat"
 				? automation.target_chat_id
@@ -225,9 +226,13 @@ export const AutomationRow = memo<AutomationRowProps>(
 				</TableCell>
 				<TableCell>
 					<Switch
-						checked={automation.enabled}
+						// A used single-use webhook rejects every delivery, so
+						// it shows as off and the switch cannot change that.
+						checked={automation.enabled && !isConsumed}
 						// Only the owner can re-enable an automation.
-						disabled={isUpdating || (!isOwner && !automation.enabled)}
+						disabled={
+							isConsumed || isUpdating || (!isOwner && !automation.enabled)
+						}
 						aria-label={`Enable ${automation.name}`}
 						onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
 					/>
