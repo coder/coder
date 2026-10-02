@@ -59,6 +59,8 @@ export const PortForwardingAuthenticated: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "port_forwarding",
+			app_name: "",
+			app_display_name: "",
 			web_info: {
 				...MockWebConnectionLog.web_info!,
 				slug_or_port: "8080",
@@ -85,6 +87,30 @@ export const VSCode: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "vscode",
+			app_name: "vscode",
+			app_display_name: "VS Code",
+		},
+	},
+};
+
+export const Cursor: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "vscode",
+			app_name: "cursor",
+			app_display_name: "Cursor",
+		},
+	},
+};
+
+export const UnregisteredApp: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "unknown",
+			app_name: "an_unregistered_ide",
+			app_display_name: "an_unregistered_ide",
 		},
 	},
 };
@@ -94,6 +120,8 @@ export const JetBrains: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "jetbrains",
+			app_name: "jetbrains",
+			app_display_name: "JetBrains",
 		},
 	},
 };
@@ -134,6 +162,8 @@ export const WebTerminal: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "reconnecting_pty",
+			app_name: "reconnecting_pty",
+			app_display_name: "Web Terminal",
 		},
 	},
 };

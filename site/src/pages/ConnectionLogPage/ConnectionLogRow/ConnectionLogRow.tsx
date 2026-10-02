@@ -12,7 +12,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { connectionTypeIsWeb } from "#/utils/connection";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 
 type ConnectionLogRowProps = {
@@ -25,7 +24,8 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	const userAgent = connectionLog.web_info?.user_agent
 		? userAgentParser(connectionLog.web_info?.user_agent)
 		: undefined;
-	const isWeb = connectionTypeIsWeb(connectionLog.type);
+	// Tunnels carry web_info too, though most come from the CLI.
+	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
 
