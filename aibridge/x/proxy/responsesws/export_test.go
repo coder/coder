@@ -1,0 +1,25 @@
+package responsesws
+
+// StateSizes returns the number of entries in each of the session's
+// bookkeeping maps that holds any, keyed by map name.
+func StateSizes(s *Session) map[string]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sizes := map[string]int{
+		"open":      len(s.open),
+		"pending":   len(s.pending),
+		"active":    len(s.active),
+		"responses": len(s.responses),
+	}
+	for name, n := range sizes {
+		if n == 0 {
+			delete(sizes, name)
+		}
+	}
+	return sizes
+}
+
+// QueuedEvents returns the number of synthesized events waiting for Recv.
+func QueuedEvents(s *Session) int {
+	return len(s.errors)
+}
