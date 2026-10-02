@@ -3294,6 +3294,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
@@ -3359,6 +3360,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "id": 0,
+  "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "queued_message_id": 0,
   "role": "system",
@@ -3378,11 +3380,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
 |---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `automation_id`     | string                                                        | false    |              | Automation ID is the chat automation that delivered this message, if any. The automation may since have been deleted.                                                                                                                                                                                                           |
 | `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 | `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 | `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 | `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 | `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `input_id`          | string                                                        | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set.                                                                                                                                                                      |
 | `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 | `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
 | `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
@@ -3563,6 +3567,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "has_more": true,
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3628,6 +3633,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -3644,6 +3650,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued_messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3708,6 +3715,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
   ]
@@ -4993,6 +5001,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
@@ -5057,19 +5066,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
+  "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                                                |
+|-------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `automation_id`   | string                                                        | false    |              | Automation ID is the chat automation that queued this message, if any. The automation may since have been deleted.                                         |
+| `chat_id`         | string                                                        | false    |              |                                                                                                                                                            |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                            |
+| `created_at`      | string                                                        | false    |              |                                                                                                                                                            |
+| `id`              | integer                                                       | false    |              |                                                                                                                                                            |
+| `input_id`        | string                                                        | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set. |
+| `model_config_id` | string                                                        | false    |              |                                                                                                                                                            |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5156,6 +5168,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status_code": 0
   },
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -5221,6 +5234,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
@@ -5301,6 +5315,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "queued_messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -5365,6 +5380,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
   ],
@@ -6292,6 +6308,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -6357,6 +6374,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
@@ -6372,6 +6390,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -6437,6 +6456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -6453,6 +6473,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued": true,
   "queued_message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -6517,6 +6538,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
   "warnings": [
@@ -9346,6 +9368,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     0
   ],
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -9411,6 +9434,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
@@ -9426,6 +9450,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -9491,6 +9516,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",

@@ -787,6 +787,71 @@ func TestChatMessage_QueuedMessageID(t *testing.T) {
 	})
 }
 
+// TestChatMessageAutomationProvenance guards the API contract that
+// automation input carries automation_id and input_id while ordinary
+// input omits both keys, for history and queued messages alike.
+func TestChatMessageAutomationProvenance(t *testing.T) {
+	t.Parallel()
+
+	automationID := uuid.New()
+	inputID := uuid.New()
+	set := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+
+	cases := []struct {
+		name      string
+		automated any
+		ordinary  any
+	}{
+		{
+			name: "ChatMessage",
+			automated: db2sdk.ChatMessage(database.ChatMessage{
+				ChatID:       uuid.New(),
+				Role:         database.ChatMessageRoleUser,
+				AutomationID: set(automationID),
+				InputID:      set(inputID),
+			}),
+			ordinary: db2sdk.ChatMessage(database.ChatMessage{
+				ChatID: uuid.New(),
+				Role:   database.ChatMessageRoleUser,
+			}),
+		},
+		{
+			name: "ChatQueuedMessage",
+			automated: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+				ChatID:       uuid.New(),
+				AutomationID: set(automationID),
+				InputID:      set(inputID),
+			}),
+			ordinary: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+				ChatID: uuid.New(),
+			}),
+		},
+	}
+
+	fieldsOf := func(t *testing.T, v any) map[string]json.RawMessage {
+		t.Helper()
+		raw, err := json.Marshal(v)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		return fields
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			automated := fieldsOf(t, tc.automated)
+			require.JSONEq(t, `"`+automationID.String()+`"`, string(automated["automation_id"]))
+			require.JSONEq(t, `"`+inputID.String()+`"`, string(automated["input_id"]))
+
+			ordinary := fieldsOf(t, tc.ordinary)
+			require.NotContains(t, ordinary, "automation_id")
+			require.NotContains(t, ordinary, "input_id")
+		})
+	}
+}
+
 func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 

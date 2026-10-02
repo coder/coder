@@ -2544,6 +2544,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   "has_more": true,
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -2609,6 +2610,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -2625,6 +2627,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued_messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -2689,6 +2692,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
   ]
@@ -2779,6 +2783,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -2844,6 +2849,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
@@ -2859,6 +2865,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -2924,6 +2931,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -2940,6 +2948,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "queued": true,
   "queued_message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -3004,6 +3013,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
   "warnings": [
@@ -3080,6 +3090,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     0
   ],
   "message": {
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -3145,6 +3156,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
+    "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "queued_message_id": 0,
     "role": "system",
@@ -3160,6 +3172,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
   },
   "messages": [
     {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3225,6 +3238,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -3697,6 +3711,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "status_code": 0
     },
     "message": {
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3762,6 +3777,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
+      "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "queued_message_id": 0,
       "role": "system",
@@ -3842,6 +3858,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
     },
     "queued_messages": [
       {
+        "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "content": [
           {
@@ -3906,6 +3923,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         ],
         "created_at": "2019-08-24T14:15:22Z",
         "id": 0,
+        "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
         "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
       }
     ],
@@ -3953,6 +3971,7 @@ Status Code **200**
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» automation_id`                 | string(uuid)                                                                     | false    |              | Automation ID is the chat automation that delivered this message, if any. The automation may since have been deleted.                                                                                                                                                                                                                                                                                      |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4003,6 +4022,7 @@ Status Code **200**
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_by`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» input_id`                      | string(uuid)                                                                     | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set.                                                                                                                                                                                                                                                 |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» queued_message_id`             | integer                                                                          | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it.                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4021,10 +4041,12 @@ Status Code **200**
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» automation_id`                 | string(uuid)                                                                     | false    |              | Automation ID is the chat automation that queued this message, if any. The automation may since have been deleted.                                                                                                                                                                                                                                                                                         |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» input_id`                      | string(uuid)                                                                     | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set.                                                                                                                                                                                                                                                 |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» attempt`                       | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |

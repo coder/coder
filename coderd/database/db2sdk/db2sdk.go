@@ -1667,6 +1667,8 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:       m.CreatedAt,
 		Role:            codersdk.ChatMessageRole(m.Role),
 		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
+		InputID:         nullUUIDPtr(m.InputID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1731,6 +1733,8 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		AutomationID:  nullUUIDPtr(message.AutomationID),
+		InputID:       nullUUIDPtr(message.InputID),
 	}
 }
 

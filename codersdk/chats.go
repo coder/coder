@@ -355,6 +355,13 @@ type ChatMessage struct {
 	// the queue (edits create a new message without it) or when a server
 	// version that did not record the link created it.
 	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
+	// AutomationID is the chat automation that delivered this message,
+	// if any. The automation may since have been deleted.
+	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
+	// InputID identifies the automation input that produced this
+	// message: a webhook delivery or a schedule occurrence. It is set
+	// only when AutomationID is set.
+	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -1885,6 +1892,13 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// AutomationID is the chat automation that queued this message, if
+	// any. The automation may since have been deleted.
+	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
+	// InputID identifies the automation input that produced this
+	// message: a webhook delivery or a schedule occurrence. It is set
+	// only when AutomationID is set.
+	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.

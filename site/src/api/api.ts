@@ -3884,6 +3884,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatAutomations = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatAutomation[]> => {
+		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+		);
+		return response.data;
+	};
+
 	createChatModel = async (
 		organizationId: string,
 		req: TypesGen.CreateChatModelRequest,
