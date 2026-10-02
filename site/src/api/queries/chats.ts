@@ -2,6 +2,7 @@ import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	infiniteQueryOptions,
+	type Mutation,
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
@@ -1352,7 +1353,29 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+const chatArchiveMutationKey = ["chats", "archive"] as const;
+
+/** Select all targets so pending state remains correct across navigation. */
+export const pendingChatArchives = {
+	filters: { mutationKey: chatArchiveMutationKey, status: "pending" as const },
+	select: ({ state: { variables } }: Mutation): string | undefined => {
+		if (typeof variables === "string") {
+			return variables;
+		}
+		if (
+			variables !== null &&
+			typeof variables === "object" &&
+			"chatId" in variables &&
+			typeof variables.chatId === "string"
+		) {
+			return variables.chatId;
+		}
+		return undefined;
+	},
+};
+
 export const archiveChat = (queryClient: QueryClient) => ({
+	mutationKey: chatArchiveMutationKey,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
@@ -1408,6 +1431,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
+	mutationKey: chatArchiveMutationKey,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
@@ -1491,6 +1515,7 @@ type ArchiveAndDeleteChatResult = {
 // workspace is being deleted. The chat stays archived and the failure
 // toast points at the archived filter, where Unarchive is one click.
 export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
+	mutationKey: chatArchiveMutationKey,
 	mutationFn: async ({
 		chatId,
 		workspaceId,

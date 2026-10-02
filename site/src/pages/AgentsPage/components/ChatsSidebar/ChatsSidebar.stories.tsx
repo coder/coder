@@ -5,11 +5,13 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -90,9 +92,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
-		onArchiveAgent: fn(),
 		navigateAfterArchive: fn(),
-		onUnarchiveAgent: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
 		onMarkChatRead: fn(),
@@ -1489,6 +1489,11 @@ export const NoArchivedSection: Story = {
 };
 
 export const ArchivingShowsSpinnerOnly: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
 	args: {
 		chats: [
 			buildChat({
@@ -1496,9 +1501,24 @@ export const ArchivingShowsSpinnerOnly: Story = {
 				title: "Chat being archived",
 				updated_at: recentTimestamp,
 			}),
+			buildChat({
+				id: "available-chat",
+				title: "Another chat stays available",
+				updated_at: recentTimestamp,
+			}),
 		],
-		isArchiving: true,
-		archivingChatId: "archiving-chat",
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Chat being archived",
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Archive agent",
+			}),
+		);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

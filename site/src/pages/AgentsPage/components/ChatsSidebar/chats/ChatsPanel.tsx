@@ -86,9 +86,8 @@ type ChatsPanelProps = {
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
-	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
 	readonly navigateAfterArchive: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
@@ -98,8 +97,6 @@ type ChatsPanelProps = {
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -121,9 +118,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatErrorReasons,
 	modelConfigs,
 	isLoadingModelConfigs,
-	onArchiveAgent,
+	onArchiveSuccess,
 	navigateAfterArchive,
-	onUnarchiveAgent,
 	onPinAgent,
 	onUnpinAgent,
 	onMarkChatRead,
@@ -133,8 +129,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
-	isArchiving,
-	archivingChatId,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -330,12 +324,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
+		onArchiveSuccess,
 		navigateAfterArchive,
-		onUnarchiveAgent,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,

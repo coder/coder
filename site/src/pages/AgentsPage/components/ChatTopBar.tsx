@@ -10,12 +10,23 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useMutation,
+	useMutationState,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { Link, useLocation, useNavigate, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { archiveAndDeleteChat, chat as chatById } from "#/api/queries/chats";
+import {
+	archiveAndDeleteChat,
+	archiveChat,
+	chat as chatById,
+	pendingChatArchives,
+	unarchiveChat,
+} from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -140,17 +151,36 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		requestArchiveAgent,
+		clearChatErrorReason,
 		navigateAfterArchive,
-		requestUnarchiveAgent,
 		requestPinAgent,
 		requestUnpinAgent,
 		onOpenRenameDialog,
-		isArchiving = false,
-		archivingChatId,
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			clearChatErrorReason?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 	const [confirmingWorkspace, setConfirmingWorkspace] =
 		useState<TypesGen.Workspace>();
 	const archiveAndDeleteOptions = archiveAndDeleteChat(queryClient);
@@ -217,12 +247,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
-	const isArchivingThisChat =
-		Boolean(
-			isArchiving &&
-				chat &&
-				(archivingChatId === undefined || archivingChatId === chat.id),
-		) || archiveAndDeleteMutation.isPending;
+	const isArchivingThisChat = useMutationState(pendingChatArchives).includes(
+		chat?.id,
+	);
 	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
@@ -359,13 +386,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 									if (isArchived) {
 										return;
 									}
-									requestArchiveAgent?.(chat.id);
+									archiveMutation.mutate(chat.id);
 								}}
 								onUnarchiveAgent={() => {
 									if (!isArchived) {
 										return;
 									}
-									requestUnarchiveAgent?.(chat.id);
+									unarchiveMutation.mutate(chat.id);
 								}}
 								onArchiveAndDeleteWorkspace={() => {
 									const workspaceId = chat.workspace_id;
