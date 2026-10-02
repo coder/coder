@@ -40,8 +40,9 @@ const (
 	providerBedrock = "bedrock"
 
 	// defaults
-	apiKey         = "api-key"
-	defaultActorID = "ae235cc1-9f8f-417d-a636-a7b170bac62e"
+	apiKey          = "api-key"
+	defaultActorID  = "ae235cc1-9f8f-417d-a636-a7b170bac62e"
+	defaultAPIKeyID = "integration-test-api-key-id"
 )
 
 var (
@@ -62,7 +63,8 @@ type bridgeConfig struct {
 	actorID       uuid.UUID
 	actorUsername string
 	logger        slog.Logger
-	// apiKeyID is passed to the recorder and stamped on the request actor.
+	// apiKeyID is stamped on the request actor. Recorders require it, so
+	// [newBridgeTestServer] defaults it to defaultAPIKeyID.
 	apiKeyID string
 	// structuredLogging makes the bridge emit AI Gateway interception
 	// records in the format described by [recorder.InterceptionLogMarker].
@@ -149,6 +151,7 @@ func withActor(id uuid.UUID, username string) bridgeOption {
 //   - slogtest debug logger
 //   - defaultTracer (unless withTracer)
 //   - defaultActorID with no username (unless withActor)
+//   - defaultAPIKeyID (unless apiKeyID is set)
 func newBridgeTestServer(
 	ctx context.Context,
 	t *testing.T,
@@ -162,6 +165,9 @@ func newBridgeTestServer(
 	}
 	for _, o := range opts {
 		o(cfg)
+	}
+	if cfg.apiKeyID == "" {
+		cfg.apiKeyID = defaultAPIKeyID
 	}
 	if cfg.tracer == nil {
 		cfg.tracer = defaultTracer
@@ -186,7 +192,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.apiKeyID, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
 
 	bridge, err := aibridge.NewRequestBridge(
 		ctx, providers, rec, cfg.mcpProxy,

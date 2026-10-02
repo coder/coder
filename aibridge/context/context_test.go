@@ -62,6 +62,52 @@ func TestActorFromContext(t *testing.T) {
 	})
 }
 
+func TestAPIKeyIDFromContext(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		actor    *aibcontext.Actor
+		detached bool
+		want     string
+		wantErr  error
+	}{
+		{
+			name:  "Present",
+			actor: &aibcontext.Actor{APIKeyID: "test-key-id"},
+			want:  "test-key-id",
+		},
+		{
+			name:    "MissingActor",
+			wantErr: aibcontext.ErrMissingAPIKeyID,
+		},
+		{
+			name:    "EmptyAPIKeyID",
+			actor:   &aibcontext.Actor{},
+			wantErr: aibcontext.ErrMissingAPIKeyID,
+		},
+		{
+			name:     "DetachedContext",
+			actor:    &aibcontext.Actor{APIKeyID: "test-key-id"},
+			detached: true,
+			want:     "test-key-id",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			if tc.actor != nil {
+				ctx = aibcontext.AsActor(ctx, *tc.actor)
+			}
+			if tc.detached {
+				ctx = context.WithoutCancel(ctx)
+			}
+			got, err := aibcontext.APIKeyIDFromContext(ctx)
+			require.ErrorIs(t, err, tc.wantErr)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestActorIDFromContext(t *testing.T) {
 	t.Parallel()
 

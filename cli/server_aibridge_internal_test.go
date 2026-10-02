@@ -235,7 +235,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 
 			interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), request, noop.NewTracerProvider().Tracer("test"))
 			require.NoError(t, err)
-			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), "", false, nil), nil)
+			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), false, nil), nil)
 
 			processRequest := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`)).WithContext(request.Context())
 			response := httptest.NewRecorder()

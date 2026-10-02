@@ -4,11 +4,15 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 type (
 	actorContextKey struct{}
 )
+
+// ErrMissingAPIKeyID indicates that the context has no actor with an API-key ID.
+var ErrMissingAPIKeyID = xerrors.New("missing authenticated API-key ID")
 
 // Actor is the authenticated identity attached to an AI Gateway request.
 type Actor struct {
@@ -42,4 +46,14 @@ func ActorIDFromContext(ctx context.Context) string {
 		return actor.ID.String()
 	}
 	return ""
+}
+
+// APIKeyIDFromContext returns the actor's API-key ID, or ErrMissingAPIKeyID if
+// the actor is absent or its API-key ID is empty.
+func APIKeyIDFromContext(ctx context.Context) (string, error) {
+	actor := ActorFromContext(ctx)
+	if actor == nil || actor.APIKeyID == "" {
+		return "", ErrMissingAPIKeyID
+	}
+	return actor.APIKeyID, nil
 }

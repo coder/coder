@@ -381,10 +381,11 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	return nil
 }
 
-// newRecorder builds the recorder for one API key.
+// newRecorder builds a reusable recorder that reads identity from each call's
+// actor context and acquires the DRPC client with that call's context.
 //
 // revive:disable-next-line:flag-parameter // Constructor configuration flags.
-func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structuredLogging bool, disableContentRecording bool, clientFn ClientFunc) recorder.Recorder {
+func newRecorder(logger slog.Logger, tracer trace.Tracer, structuredLogging bool, disableContentRecording bool, clientFn ClientFunc) recorder.Recorder {
 	var middleware []recorder.Middleware
 	if disableContentRecording {
 		middleware = append(middleware, recorder.WithoutRecords(recorder.DisabledRecords{
@@ -394,10 +395,8 @@ func newRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, struc
 		}))
 	}
 	return aibridge.NewRecorder(
-		logger.Named("recorder"), tracer, apiKeyID, structuredLogging,
-		recorder.NewDRPCRecorder(apiKeyID, func(ctx context.Context) (proto.DRPCRecorderClient, error) {
-			// The recorder outlives its caller, so acquire the client with each
-			// record call's context.
+		logger.Named("recorder"), tracer, structuredLogging,
+		recorder.NewDRPCRecorder(func(ctx context.Context) (proto.DRPCRecorderClient, error) {
 			return clientFn(ctx)
 		}),
 		middleware...,
