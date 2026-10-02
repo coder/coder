@@ -10735,9 +10735,14 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, automation_id, input_id, queue_generation FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY created_at ASC, id ASC
+ORDER BY position ASC, id ASC
 `
 
+// Returns the queue in promotion order (position ASC, id ASC), the same
+// order chatstate uses to pick the head. Clients read the queue through
+// this query, so it must not order by created_at: promoting a message
+// changes only its position, and concurrent senders can commit with
+// created_at and position in opposite orders.
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
 	if err != nil {
