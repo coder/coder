@@ -1,4 +1,5 @@
 import {
+	type InfiniteData,
 	infiniteQueryOptions,
 	type QueryClient,
 	queryOptions,
@@ -145,6 +146,38 @@ export const updateChatAutomation = (
 		}),
 });
 
+const removeCachedAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+	automationId: string,
+) =>
+	queryClient.setQueryData<ChatAutomation[]>(
+		chatAutomationsKey(organizationId),
+		(automations) =>
+			automations?.filter((automation) => automation.id !== automationId),
+	);
+
+export const deleteChatAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (automationId: string) =>
+		API.experimental.deleteChatAutomation(organizationId, automationId),
+	// Drops the row right away, before the dialog closes, so focus moves to
+	// a stable element instead of the removed row.
+	onSuccess: (_: unknown, automationId: string) =>
+		removeCachedAutomation(queryClient, organizationId, automationId),
+	onError: (error: unknown, automationId: string) => {
+		if (getErrorStatus(error) === 404) {
+			removeCachedAutomation(queryClient, organizationId, automationId);
+		}
+	},
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(organizationId),
+		}),
+});
+
 const automationChatsFamilyKey = ["chat-automation-chats"] as const;
 
 export const automationChatsKey = (automationId: string) =>
@@ -155,14 +188,31 @@ export const invalidateAutomationChats = (queryClient: QueryClient) =>
 
 const automationChatsPageSize = 25;
 
+// The first page has no cursor.
+const firstChatsPage: string | undefined = undefined;
+
+// A chat that moves up between page requests can appear on two pages.
+const selectUniqueChats = (data: InfiniteData<Chat[]>): Chat[] => {
+	const seen = new Set<string>();
+	return data.pages.flat().filter((chat) => {
+		if (seen.has(chat.id)) {
+			return false;
+		}
+		seen.add(chat.id);
+		return true;
+	});
+};
+
 export const automationChats = (automationId: string) =>
 	infiniteQueryOptions({
 		queryKey: automationChatsKey(automationId),
-		initialPageParam: 0,
-		getNextPageParam: (lastPage: Chat[], pages: Chat[][]) =>
+		initialPageParam: firstChatsPage,
+		// Pages by cursor, not offset: new runs add chats to the top while the
+		// dialog is open, which would shift every offset.
+		getNextPageParam: (lastPage: Chat[]) =>
 			lastPage.length < automationChatsPageSize
 				? undefined
-				: pages.length * automationChatsPageSize,
+				: lastPage.at(-1)?.id,
 		queryFn: ({ pageParam, signal }) =>
 			API.experimental.getChats(
 				{
@@ -171,10 +221,11 @@ export const automationChats = (automationId: string) =>
 					// created or wrote to them.
 					q: "archived:any",
 					limit: automationChatsPageSize,
-					offset: pageParam,
+					after_id: pageParam,
 				},
 				signal,
 			),
+		select: selectUniqueChats,
 	});
 
 export const runChatAutomation = (

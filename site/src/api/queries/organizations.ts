@@ -93,6 +93,24 @@ export const organizationMembers = (id: string, req: UsersRequest) => {
 	};
 };
 
+export const organizationMemberKey = (id: string, userId: string) => [
+	"organization",
+	id,
+	"members",
+	userId,
+];
+
+/**
+ * Fetches one member of an organization. Every organization member can read
+ * the organization's members, unlike site users.
+ */
+export const organizationMember = (id: string, userId: string) => {
+	return {
+		queryFn: () => API.getOrganizationMember(id, userId),
+		queryKey: organizationMemberKey(id, userId),
+	};
+};
+
 export const paginatedOrganizationMembers = (
 	id: string,
 	searchParams: URLSearchParams,

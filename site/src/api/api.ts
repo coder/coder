@@ -697,6 +697,19 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param user Can be the user's ID or username
+	 */
+	getOrganizationMember = async (organization: string, user: string) => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationMemberWithUserData>(
+				`/api/v2/organizations/${encodeURIComponent(organization)}/members/${encodeURIComponent(user)}`,
+			);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 * @param options Pagination options
 	 */
 	getOrganizationPaginatedMembers = async (
@@ -3930,6 +3943,15 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	deleteChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+		);
 	};
 
 	runChatAutomation = async (

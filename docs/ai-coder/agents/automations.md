@@ -85,6 +85,8 @@ Users with the Owner role can read every automation, and organization admins can
 Only the automation's owner can edit it, turn it back on, rotate its secret, or run it.
 Other users who can update an automation, such as an organization admin, can only turn it off.
 Users with delete permission can delete it.
+On the **Automations** page, only the owner sees the delete button on the automation's row.
+Deleting an automation removes the messages it queued that haven't started yet.
 
 ## Create a webhook automation
 
@@ -160,7 +162,7 @@ Other management requests use the same base path:
 | `GET /api/experimental/organizations/{organization}/chat-automations`                 | List the automations you can read.                                   |
 | `GET /api/experimental/organizations/{organization}/chat-automations/{automation}`    | Get one automation.                                                  |
 | `PATCH /api/experimental/organizations/{organization}/chat-automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
-| `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation. The dashboard has no delete control.          |
+| `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation.                                               |
 
 ## Send an event to a webhook
 
