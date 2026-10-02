@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -173,11 +174,18 @@ func editingCase(tr chatstate.Transition, from, want chatstate.ExecutionState, s
 
 // withPromotedRow extends an editing case whose transition promotes the
 // queued row at idx: the only new active history message is that row,
-// linked to its queue entry, and the entry is gone.
+// linked to its queue entry, the entry is gone, and the result reports
+// when the row was queued.
 func withPromotedRow(spec transitionCaseSpec, idx int) transitionCaseSpec {
 	assertCase := spec.assert
 	spec.assert = func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 		assertCase(ctx, t, f, seeded, base, result)
+		promotedQueuedAt := map[chatstate.Transition]time.Time{
+			chatstate.TransitionEditQueuedMessage:    result.editQueuedMessage.PromotedQueuedAt,
+			chatstate.TransitionDeleteQueuedMessage:  result.deleteQueuedMessage.PromotedQueuedAt,
+			chatstate.TransitionPromoteQueuedMessage: result.promoteQueuedMessage.PromotedQueuedAt,
+		}[spec.transition]
+		require.False(t, promotedQueuedAt.IsZero(), "the result reports the promoted row's queued time")
 		newIDs := newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID))
 		require.Len(t, newIDs, 1, "the promotion inserts one history message")
 		promoted := requireChatMessageByID(ctx, t, f, newIDs[0])
