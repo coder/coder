@@ -6,14 +6,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	aibridgecore "github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/testutil"
@@ -512,6 +519,48 @@ func TestInMemoryRoundTripper_CloseCancelsServedRequestOnly(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	testutil.TryReceive(parentCtx, t, canceled)
 	require.NoError(t, parentCtx.Err(), "closing a response must not cancel the caller context")
+}
+
+// A nil-body request served through the proxy router reaches a passthrough
+// upstream with an empty body.
+func TestInMemoryRoundTripper_ProxyForwardsNilBody(t *testing.T) {
+	t.Parallel()
+
+	upstreamCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Empty(t, body)
+		upstreamCalled <- struct{}{}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+
+	logger := slogtest.Make(t, nil)
+	gate := aibridgecore.NewInflightGate(logger)
+	prov := provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})
+	router, err := proxy.NewRouter([]provider.Provider{prov}, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		assert.NoError(t, gate.Shutdown(ctx), "admitted proxy work must drain")
+		gate.Close()
+	})
+
+	rt, err := aibridged.NewTransportFactory(http.StripPrefix(aibridge.AIGatewayRootPath, router)).TransportFor(prov.Name(), aibridge.SourceAgents)
+	require.NoError(t, err)
+	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "key-id")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/other", nil)
+	require.NoError(t, err)
+	require.Nil(t, req.Body)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	testutil.TryReceive(ctx, t, upstreamCalled)
 }
 
 // A handler that returns without writing must not block RoundTrip; the caller

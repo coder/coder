@@ -32,7 +32,8 @@ type Router struct {
 	mux *http.ServeMux
 
 	// providers is an owned copy of the provider list, fixed at construction.
-	providers []provider.Provider
+	providers  []provider.Provider
+	transports []*http.Transport
 }
 
 var _ http.Handler = (*Router)(nil)
@@ -47,7 +48,7 @@ var _ http.Handler = (*Router)(nil)
 // All routes reuse the same inflight gate across a server's snapshots.
 // Shutdown drains all admitted requests.
 // rec is shared across requests and must read identity from the request context.
-func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
+func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -56,6 +57,11 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 	mux := http.NewServeMux()
 	mux.Handle("/", inflight.Middleware(routing.NewProviderMux(snapshot, logger)))
 	router := &Router{providers: snapshot, mux: mux}
+	defer func() {
+		if outErr != nil {
+			router.CloseIdleConnections()
+		}
+	}()
 	for _, prov := range snapshot {
 		if !prov.Enabled() {
 			continue
@@ -65,7 +71,12 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 		// Bedrock is excluded before validation because proxy mode does not
 		// forward it. Providers without bridged routes need no handler.
 		if prov.Type() != config.ProviderBedrock && len(prov.BridgedRoutes()) > 0 {
-			bridged = newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+			handler, transport, err := newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+			if err != nil {
+				return nil, err
+			}
+			bridged = handler
+			router.transports = append(router.transports, transport)
 		}
 		for _, path := range prov.BridgedRoutes() {
 			pattern, err := url.JoinPath(prov.RoutePrefix(), path)
@@ -100,4 +111,12 @@ func (p *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // KeyPools returns the non-nil key pools from this router's provider snapshot.
 func (p *Router) KeyPools() []*keypool.Pool {
 	return provider.CollectKeyPools(p.providers)
+}
+
+// CloseIdleConnections releases idle connections owned by bridged forwarding.
+// Active requests retain their connections until they finish.
+func (p *Router) CloseIdleConnections() {
+	for _, transport := range p.transports {
+		transport.CloseIdleConnections()
+	}
 }
