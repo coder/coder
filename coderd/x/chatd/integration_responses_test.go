@@ -3,7 +3,9 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -102,8 +104,99 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	require.NotNil(t, followup.Store)
 	require.False(t, *followup.Store)
 	require.NotEmpty(t, followup.Prompt)
-	requireNoResponsesProviderItemReplay(t, followup.Prompt, reasoningID, webSearchID)
+	requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
 	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
+	requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
+		"checked provider-side search state")
+}
+
+func TestOpenAIResponsesStatelessReasoningReplay(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		reasoningID = "rs_stateless_reasoning"
+		blob        = "encrypted-stateless"
+	)
+	var recorder responsesRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch recorder.record(req) {
+		case 1:
+			resp := chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("list_templates", `{}`),
+			)
+			resp.Reasoning = &chattest.OpenAIReasoningItem{
+				ID:               reasoningID,
+				EncryptedContent: blob,
+			}
+			return resp
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("done")...,
+			)
+		}
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	// An empty call config is the default deployment shape: no stored
+	// responses and no requested reasoning summary.
+	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "stateless-reasoning"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("list the templates"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+	require.Len(t, recorder.all(), 2)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("thanks"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	requests := recorder.all()
+	require.Len(t, requests, 3)
+	for _, request := range requests {
+		require.NotNil(t, request.Store)
+		require.False(t, *request.Store)
+		require.Contains(t, request.Include, "reasoning.encrypted_content")
+	}
+	// requests[1] continues the tool step from in-memory history;
+	// requests[2] rebuilds the prompt from persisted messages.
+	for _, request := range requests[1:] {
+		reasoningIndex := requireInlineReasoningItem(t, request.Prompt, reasoningID, blob, "")
+		require.NotContains(t, promptItemTypes(request.Prompt), "item_reference")
+		functionCallIndex := slices.IndexFunc(request.Prompt, func(item interface{}) bool {
+			itemMap, ok := item.(map[string]interface{})
+			return ok && chattest.StringResponseField(itemMap, "type") == "function_call"
+		})
+		require.NotEqual(t, -1, functionCallIndex, "missing function_call item")
+		require.Less(t, reasoningIndex, functionCallIndex, "types=%v", promptItemTypes(request.Prompt))
+	}
 }
 
 func TestOpenAIResponsesPersistsProviderResponseID(t *testing.T) {
@@ -236,8 +329,9 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 }
 
 type recordedResponsesRequest struct {
-	Prompt []interface{}
-	Store  *bool
+	Prompt  []interface{}
+	Store   *bool
+	Include []string
 }
 
 type responsesRequestRecorder struct {
@@ -254,9 +348,14 @@ func (r *responsesRequestRecorder) record(req *chattest.OpenAIRequest) int {
 		value := *req.Store
 		store = &value
 	}
+	var body struct {
+		Include []string `json:"include"`
+	}
+	_ = json.Unmarshal(req.RawBody, &body)
 	r.requests = append(r.requests, recordedResponsesRequest{
-		Prompt: append([]interface{}(nil), req.Prompt...),
-		Store:  store,
+		Prompt:  append([]interface{}(nil), req.Prompt...),
+		Store:   store,
+		Include: body.Include,
 	})
 	return len(r.requests)
 }
@@ -372,12 +471,17 @@ func assertNoResponsesProviderItemReplay(
 				if key == "type" && text == "web_search_call" {
 					require.FailNow(t, "prompt replayed web_search_call provider item")
 				}
+				if key == "type" && text == "item_reference" {
+					require.FailNow(t, "prompt replayed provider item reference")
+				}
 				if key == "id" || key == "call_id" || key == "item_id" {
 					if _, isStale := staleIDs[text]; isStale {
 						require.FailNowf(t, "prompt replayed stale provider item ID",
 							"field %q contained stale provider ID %q", key, text)
 					}
-					if strings.HasPrefix(text, "ws_") || strings.HasPrefix(text, "rs_") {
+					// Finalized reasoning is replayed inline, so only hosted
+					// tool items are provider-managed state here.
+					if strings.HasPrefix(text, "ws_") {
 						require.FailNowf(t, "prompt replayed provider item ID",
 							"field %q contained provider-managed ID %q", key, text)
 					}
@@ -390,6 +494,39 @@ func assertNoResponsesProviderItemReplay(
 			assertNoResponsesProviderItemReplay(t, item, staleIDs)
 		}
 	}
+}
+
+// requireInlineReasoningItem asserts that the prompt replays the reasoning
+// item in full and returns its index. An empty summary must still be sent
+// as an empty array.
+func requireInlineReasoningItem(
+	t *testing.T,
+	prompt []interface{},
+	id string,
+	encryptedContent string,
+	summary string,
+) int {
+	t.Helper()
+	for index, item := range prompt {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok || chattest.StringResponseField(itemMap, "type") != "reasoning" ||
+			chattest.StringResponseField(itemMap, "id") != id {
+			continue
+		}
+		require.Equal(t, encryptedContent, chattest.StringResponseField(itemMap, "encrypted_content"))
+		summaryItems, ok := itemMap["summary"].([]interface{})
+		require.True(t, ok, "reasoning summary must be an array, got %T", itemMap["summary"])
+		var texts []string
+		for _, summaryItem := range summaryItems {
+			summaryMap, ok := summaryItem.(map[string]interface{})
+			require.True(t, ok)
+			texts = append(texts, chattest.StringResponseField(summaryMap, "text"))
+		}
+		require.Equal(t, summary, strings.Join(texts, ""))
+		return index
+	}
+	require.FailNowf(t, "missing inline reasoning item", "id=%q types=%v", id, promptItemTypes(prompt))
+	return -1
 }
 
 func requirePromptItemReferenceOrder(
