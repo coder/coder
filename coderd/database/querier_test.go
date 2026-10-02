@@ -1558,7 +1558,7 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 	_, err = db.GetChatAutomationByID(ctx, webhook.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+	schedule := dbgen.ChatAutomation(t, db, database.ChatAutomation{
 		OrganizationID:       org.ID,
 		OwnerID:              owner.ID,
 		Kind:                 database.ChatAutomationKindSchedule,
@@ -1605,6 +1605,11 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			check: database.CheckChatAutomationsNameLength,
 		},
 		{
+			name:  "NameTooLong",
+			munge: func(p *database.InsertChatAutomationParams) { p.Name = strings.Repeat("a", 129) },
+			check: database.CheckChatAutomationsNameLength,
+		},
+		{
 			name: "ExistingChatWithNewChatModel",
 			munge: func(p *database.InsertChatAutomationParams) {
 				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
@@ -1620,9 +1625,38 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			check: database.CheckChatAutomationsTargetShape,
 		},
 		{
+			name: "NewChatWithTargetChat",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+				p.TargetChatID = uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name:  "WebhookWithoutUse",
+			munge: func(p *database.InsertChatAutomationParams) { p.WebhookUse = database.NullChatAutomationWebhookUse{} },
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
 			name: "WebhookWithCron",
 			munge: func(p *database.InsertChatAutomationParams) {
 				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "WebhookWithScheduleTimeZone",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "WebhookWithScheduleNextRunAt",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleNextRunAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
 			},
 			check: database.CheckChatAutomationsKindShape,
 		},
@@ -1675,6 +1709,16 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			}
 		})
 	}
+
+	// InsertChatAutomation has no webhook_consumed_at parameter, and only
+	// ConsumeChatAutomationWebhookByID sets it, for webhook rows.
+	t.Run("ScheduleWithWebhookConsumedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET webhook_consumed_at = now() WHERE id = $1`, schedule.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatAutomationsKindShape), "got %v", err)
+	})
 
 	t.Run("RetargetToOtherOrgChat", func(t *testing.T) {
 		t.Parallel()
