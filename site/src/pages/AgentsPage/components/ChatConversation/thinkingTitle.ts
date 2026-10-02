@@ -78,9 +78,6 @@ const getNodeText = (node: Nodes): string => {
 const getPlainText = (node: Nodes): string =>
 	getNodeText(node).replace(/\s+/g, " ").trim();
 
-const markdownToPlainText = (markdown: string): string =>
-	getPlainText(markdownParser.parse(markdown));
-
 const parseHeadingCandidate = (markdown: string) =>
 	markdown.length > PARSED_SOURCE_MAX_LENGTH
 		? undefined
@@ -290,8 +287,8 @@ const getPreviewTitle = (text: string, isStreaming: boolean): string => {
 	const isSourceCut = source.length < text.length;
 	// Streamed or cut text can stop inside markup, which the streaming body
 	// repairs the same way.
-	const preview = markdownToPlainText(
-		isStreaming || isSourceCut ? remend(source) : source,
+	const preview = getPlainText(
+		markdownParser.parse(isStreaming || isSourceCut ? remend(source) : source),
 	);
 	if (
 		!preview ||
