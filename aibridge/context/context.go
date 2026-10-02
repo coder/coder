@@ -39,3 +39,26 @@ func ActorIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+type createAdmissionContextKey struct{}
+
+// CreateAdmissionFunc decides whether one Responses WebSocket
+// response.create for model may be forwarded upstream. It returns nil to
+// admit the create. A refusal is an *intercept.ResponseError carrying the
+// status, type, code, and message relayed to the client, which keeps its
+// connection.
+type CreateAdmissionFunc func(ctx context.Context, model string) error
+
+// WithCreateAdmission returns a copy of ctx carrying admit. Only the gateway
+// sets it, for every authorized request, so each create of a WebSocket the
+// request opens is checked like a separate HTTP request.
+func WithCreateAdmission(ctx context.Context, admit CreateAdmissionFunc) context.Context {
+	return context.WithValue(ctx, createAdmissionContextKey{}, admit)
+}
+
+// CreateAdmissionFromContext returns the function attached by
+// [WithCreateAdmission], or nil when none was attached.
+func CreateAdmissionFromContext(ctx context.Context) CreateAdmissionFunc {
+	admit, _ := ctx.Value(createAdmissionContextKey{}).(CreateAdmissionFunc)
+	return admit
+}

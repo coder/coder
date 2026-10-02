@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1033,4 +1034,46 @@ func TestCloseBoundedWhenRecorderBlocks(t *testing.T) {
 	for _, ic := range h.rec.RecordedInterceptions() {
 		require.Equal(t, 1, h.rec.endCount(ic.ID))
 	}
+}
+
+// TestSlowClientBackpressure requires that upstream frames read ahead of
+// Recv are bounded by bytes as well as by count: once the buffered frames
+// reach the byte bound the reader stops reading upstream, so a client that
+// reads slowly slows its own upstream instead of growing the buffer. A frame
+// larger than the bound still passes on its own.
+func TestSlowClientBackpressure(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+
+	// Two frames fit the byte bound, three do not.
+	pad := strings.Repeat("x", responsesws.MaxBufferedFrameBytes/3)
+	frames := make([]string, 6)
+	for i := range frames {
+		frames[i] = fmt.Sprintf(`{"type":"response.output_text.delta","delta":"%d%s"}`, i, pad)
+		codertestutil.RequireSend(ctx, t, h.conn.toClient, []byte(frames[i]))
+	}
+	size := len(frames[0])
+	// requireState waits until the reader read all but unread frames and
+	// holds buffered of them for Recv. The reader always holds one more
+	// frame it read, waiting for room.
+	requireState := func(unread, buffered int) {
+		t.Helper()
+		require.True(t, codertestutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(h.conn.toClient) == unread && responsesws.BufferedFrameBytes(h.sess) == buffered*size
+		}, codertestutil.IntervalFast), "want %d unread and %d buffered frames", unread, buffered)
+		require.LessOrEqual(t, responsesws.BufferedFrameBytes(h.sess), responsesws.MaxBufferedFrameBytes)
+	}
+
+	requireState(3, 2)
+	for i, want := range frames {
+		got, err := h.sess.Recv(ctx)
+		require.NoError(t, err)
+		require.Equal(t, want, string(got))
+		received := i + 1
+		requireState(max(0, len(frames)-received-3), min(2, len(frames)-received))
+	}
+
+	big := fmt.Sprintf(`{"type":"response.output_text.delta","delta":%q}`, strings.Repeat("y", 2*responsesws.MaxBufferedFrameBytes))
+	h.forward(big)
 }

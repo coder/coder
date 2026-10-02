@@ -48,3 +48,13 @@ func SetQueueBounds(s *Session, jobs, bytes int) {
 	defer s.queue.mu.Unlock()
 	s.queue.maxJobs, s.queue.maxBytes = jobs, bytes
 }
+
+// MaxBufferedFrameBytes is the byte bound of frames read ahead of Recv.
+const MaxBufferedFrameBytes = maxBufferedFrameBytes
+
+// BufferedFrameBytes returns the bytes of the frames read ahead of Recv.
+func BufferedFrameBytes(s *Session) int {
+	s.frameBytes.mu.Lock()
+	defer s.frameBytes.mu.Unlock()
+	return s.frameBytes.used
+}

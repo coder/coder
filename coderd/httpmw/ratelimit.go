@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -173,6 +174,11 @@ func keyByNormalizedEndpoint(r *http.Request) (string, error) {
 //   - It includes a Retry-After header in 429 responses for backpressure signaling.
 //
 // If no token is found in the headers, it falls back to rate limiting by IP address.
+//
+// Admitted requests carry an [aibridge.RateLimitConsumer] that counts further
+// requests against the same limiter and key, for work one HTTP request
+// carries out many times, such as each response.create of a Responses
+// WebSocket.
 func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) http.Handler {
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -180,18 +186,9 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 		}
 	}
 
-	return httprate.Limit(
+	limiter := httprate.NewRateLimiter(
 		count,
 		window,
-		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-			// Try to extract auth token for per-user rate limiting using
-			// AI provider authentication headers (Authorization Bearer or X-Api-Key).
-			if token := aibridge.ExtractAuthToken(r.Header); token != "" {
-				return token, nil
-			}
-			// Fall back to IP-based rate limiting if no token present.
-			return httprate.KeyByIP(r)
-		}),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			// Add Retry-After header for backpressure signaling.
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
@@ -200,10 +197,59 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 			})
 		}),
 	)
+	// keyFn is the key httprate.WithKeyFuncs would install, so the key is
+	// computed once here and shared with the consumer.
+	keyFn := httprate.JoinKeys(func(r *http.Request) (string, error) {
+		// Try to extract auth token for per-user rate limiting using
+		// AI provider authentication headers (Authorization Bearer or X-Api-Key).
+		if token := aibridge.ExtractAuthToken(r.Header); token != "" {
+			return token, nil
+		}
+		// Fall back to IP-based rate limiting if no token present.
+		return httprate.KeyByIP(r)
+	})
+
+	// This mirrors (*httprate.RateLimiter).Handler, adding the consumer.
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key, err := keyFn(r)
+			if err != nil {
+				// Unreachable: the key function never fails. Reported like
+				// httprate's default error handler.
+				http.Error(w, err.Error(), http.StatusPreconditionRequired)
+				return
+			}
+			if limiter.RespondOnLimit(w, r, key) {
+				return
+			}
+			consume := func() error {
+				// OnLimit only sets headers on the writer, which no response
+				// carries once the request was admitted.
+				if limiter.OnLimit(discardResponseWriter{header: http.Header{}}, r, key) {
+					return aibridge.ErrRateLimited
+				}
+				return nil
+			}
+			next.ServeHTTP(w, r.WithContext(aibridge.WithRateLimitConsumer(r.Context(), consume)))
+		})
+	}
 }
+
+// discardResponseWriter accepts and drops a response.
+type discardResponseWriter struct {
+	header http.Header
+}
+
+func (d discardResponseWriter) Header() http.Header       { return d.header }
+func (discardResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (discardResponseWriter) WriteHeader(int)             {}
 
 // ConcurrencyLimit returns a handler that limits the number of concurrent
 // requests. When the limit is exceeded, it returns HTTP 503 Service Unavailable.
+//
+// Admitted requests carry an [aibridge.ConcurrencySlotRelease] that frees
+// their slot before the handler returns, for a handler that keeps serving a
+// long-lived connection after its admission work is done.
 func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handler) http.Handler {
 	if maxConcurrent <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -215,7 +261,9 @@ func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			c := current.Add(1)
-			defer current.Add(-1)
+			var once sync.Once
+			release := func() { once.Do(func() { current.Add(-1) }) }
+			defer release()
 
 			if c > maxConcurrent {
 				httpapi.Write(r.Context(), w, http.StatusServiceUnavailable, codersdk.Response{
@@ -223,7 +271,7 @@ func ConcurrencyLimit(maxConcurrent int64, resourceName string) func(http.Handle
 				})
 				return
 			}
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(aibridge.WithConcurrencySlotRelease(r.Context(), release)))
 		})
 	}
 }

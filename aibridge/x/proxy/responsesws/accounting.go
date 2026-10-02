@@ -30,7 +30,8 @@ const (
 	// events the extractor acts on are queued, a few per response.
 	maxQueuedJobs = 256
 	// maxQueuedBytes bounds the frame bytes held by queued jobs, since one
-	// event can be up to extract.MaxEventBytes.
+	// event can be up to extract.MaxEventBytes. Larger frames are queued
+	// without their bytes, so a single event never exceeds it.
 	maxQueuedBytes = 16 << 20
 )
 
@@ -56,6 +57,9 @@ type job struct {
 	kind  jobKind
 	ic    *interception
 	frame []byte // jobEvent
+	// oversized is the size of a jobEvent frame over extract.MaxEventBytes,
+	// which the extractor skips, so frame is not kept.
+	oversized int
 	// eventType is the frame's type, as the reader read it. Set for
 	// jobEvent.
 	eventType string
@@ -144,11 +148,18 @@ func (q *jobQueue) counts() (pushed, popped uint64) {
 	return q.pushed, q.popped
 }
 
-// accountLoop is the accountant: the only goroutine that calls extraction
-// methods or records what server events report. It processes jobs one at a
-// time, so the events of each response are observed in order, while the
-// reader keeps forwarding frames. After the reader exits it drains the queue
-// and ends every open interception within one shared cleanup deadline.
+// accountLoop is the accountant: it calls the extraction methods and records
+// what server events report for every interception a job refers to. It
+// processes jobs one at a time, so the events of each response are observed
+// in order, while the reader keeps forwarding frames. After the reader exits
+// it drains the queue and ends every open interception within one shared
+// cleanup deadline.
+//
+// The only other extraction runs in publish, on the Send goroutine, for a
+// create whose write raced an error event. That is safe: the create was
+// never bound to a response, so no job refers to it and the accountant never
+// touches it, and the extraction is created there, so it shares no state
+// with the accountant's.
 func (s *Session) accountLoop() {
 	defer close(s.accountDone)
 	for {
@@ -220,7 +231,13 @@ func (s *Session) runJob(j job) {
 			ic.ext, ic.rec = s.newExtraction(ic)
 		}
 		ic.rec.at = j.arrived
-		ic.ext.OnEvent(j.eventType, j.frame)
+		if j.oversized > 0 {
+			s.opts.Logger.Warn(s.cleanupCtx, "skipped accounting of an event over the size limit",
+				slog.F("interception_id", ic.id), slog.F("type", j.eventType),
+				slog.F("bytes", j.oversized), slog.F("limit", extract.MaxEventBytes))
+		} else {
+			ic.ext.OnEvent(j.eventType, j.frame)
+		}
 		if !j.terminal {
 			return
 		}
@@ -370,9 +387,15 @@ func (s *Session) sweep() {
 // s.mu held.
 func (s *Session) pushLocked(ic *interception, jobs ...job) bool {
 	// Queued frames are copied: the reader hands its frame to the client,
-	// which owns it and may modify it before the accountant runs.
+	// which owns it and may modify it before the accountant runs. A frame
+	// the extractor would skip is not kept; the reader already took the IDs
+	// its job needs, and a terminal event's type still decides the outcome.
 	for i := range jobs {
-		if jobs[i].frame != nil {
+		switch {
+		case len(jobs[i].frame) > extract.MaxEventBytes:
+			jobs[i].oversized = len(jobs[i].frame)
+			jobs[i].frame = nil
+		case jobs[i].frame != nil:
 			jobs[i].frame = bytes.Clone(jobs[i].frame)
 		}
 	}
@@ -383,6 +406,50 @@ func (s *Session) pushLocked(ic *interception, jobs ...job) bool {
 	s.opts.Logger.Error(s.cleanupCtx, "accounting queue full: dropped event",
 		slog.F("interception_id", ic.id), slog.F("response_id", ic.responseID), slog.F("type", jobs[len(jobs)-1].eventType))
 	return false
+}
+
+// byteBudget bounds the bytes held by a buffer with one producer: the
+// producer acquires a frame's bytes before buffering it and the consumer
+// releases them once it took the frame.
+type byteBudget struct {
+	mu    sync.Mutex
+	used  int
+	limit int
+	// freed holds a token after a release, so a waiting producer rechecks.
+	freed chan struct{}
+}
+
+func newByteBudget(maxBytes int) *byteBudget {
+	return &byteBudget{limit: maxBytes, freed: make(chan struct{}, 1)}
+}
+
+// acquire waits until n more bytes fit, or nothing is held so any frame
+// fits, and reports false if ctx ended first.
+func (b *byteBudget) acquire(ctx context.Context, n int) bool {
+	for {
+		b.mu.Lock()
+		if b.used == 0 || b.used+n <= b.limit {
+			b.used += n
+			b.mu.Unlock()
+			return true
+		}
+		b.mu.Unlock()
+		select {
+		case <-b.freed:
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+func (b *byteBudget) release(n int) {
+	b.mu.Lock()
+	b.used -= n
+	b.mu.Unlock()
+	select {
+	case b.freed <- struct{}{}:
+	default:
+	}
 }
 
 func (s *Session) markLossy(ic *interception) {

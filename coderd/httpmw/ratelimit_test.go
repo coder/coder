@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -280,6 +281,37 @@ func TestRateLimitByAuthToken(t *testing.T) {
 		}
 	})
 
+	// Work a request carries out many times, such as the creates of a
+	// Responses WebSocket, counts against the request's own bucket.
+	t.Run("ConsumerSharesBucket", func(t *testing.T) {
+		t.Parallel()
+		var consume aibridge.RateLimitConsumer
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimitByAuthToken(3, time.Hour))
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			consume = aibridge.RateLimitConsumerFromContext(r.Context())
+			rw.WriteHeader(http.StatusOK)
+		})
+		serve := func(token string) int {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			return rec.Code
+		}
+
+		require.Equal(t, http.StatusOK, serve("token-a"))
+		require.NotNil(t, consume)
+		require.NoError(t, consume())
+		// The request and one consumed unit leave one request for token-a.
+		require.Equal(t, http.StatusOK, serve("token-a"))
+		require.ErrorIs(t, consume(), aibridge.ErrRateLimited)
+		require.Equal(t, http.StatusTooManyRequests, serve("token-a"))
+		// Other tokens keep their own buckets.
+		require.Equal(t, http.StatusOK, serve("token-b"))
+		require.NoError(t, consume())
+	})
+
 	t.Run("DisabledWhenZero", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
@@ -385,6 +417,49 @@ func TestConcurrencyLimit(t *testing.T) {
 			require.NoError(t, res.err)
 			require.Equal(t, http.StatusOK, res.statusCode)
 		}
+	})
+
+	// A handler that releases its slot early frees it for the next request,
+	// exactly once: repeated calls and the release on return free nothing
+	// more.
+	t.Run("ReleaseFreesSlotOnce", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		released, finish := make(chan struct{}), make(chan struct{})
+		holding, unhold := make(chan struct{}), make(chan struct{})
+		handler := httpmw.ConcurrencyLimit(1, "Test")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/release":
+				release := aibridge.ConcurrencySlotReleaseFromContext(r.Context())
+				release()
+				release()
+				close(released)
+				<-finish
+			case "/hold":
+				close(holding)
+				<-unhold
+			}
+			rw.WriteHeader(http.StatusOK)
+		}))
+		serve := func(path string) int {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			return rec.Code
+		}
+
+		first := make(chan int, 1)
+		go func() { first <- serve("/release") }()
+		_ = testutil.TryReceive(ctx, t, released)
+		require.Equal(t, http.StatusOK, serve("/"))
+
+		close(finish)
+		require.Equal(t, http.StatusOK, testutil.TryReceive(ctx, t, first))
+		held := make(chan int, 1)
+		go func() { held <- serve("/hold") }()
+		_ = testutil.TryReceive(ctx, t, holding)
+		require.Equal(t, http.StatusServiceUnavailable, serve("/"))
+		close(unhold)
+		require.Equal(t, http.StatusOK, testutil.TryReceive(ctx, t, held))
 	})
 
 	t.Run("DisabledWhenZero", func(t *testing.T) {

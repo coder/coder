@@ -88,6 +88,12 @@ coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds 0
 # HELP coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
 # TYPE coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds gauge
 coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds 0
+# HELP coder_ai_gateway_responses_websockets_open The number of open Responses WebSocket connections, including connecting ones.
+# TYPE coder_ai_gateway_responses_websockets_open gauge
+coder_ai_gateway_responses_websockets_open{provider=""} 0
+# HELP coder_ai_gateway_responses_websockets_refusals_total The number of Responses WebSocket connections refused before upgrade (reason: actor_limit, replica_limit, shutdown).
+# TYPE coder_ai_gateway_responses_websockets_refusals_total counter
+coder_ai_gateway_responses_websockets_refusals_total{provider="",reason=""} 0
 # HELP coder_ai_gateway_tokens_total The number of tokens used by intercepted requests.
 # TYPE coder_ai_gateway_tokens_total counter
 coder_ai_gateway_tokens_total{provider="",model="",type="",initiator_id="",client=""} 0

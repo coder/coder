@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 )
 
@@ -48,6 +49,10 @@ type Server struct {
 	// inflight tracks proxy requests across router snapshots. Shutdown waits
 	// for completion or cancels their contexts when its deadline expires.
 	inflight *aibridge.InflightGate
+
+	// sockets owns Responses WebSockets, which outlive the per-user bridges
+	// that served their upgrades.
+	sockets *SocketRegistry
 
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
 	reverseProxyExp bool
@@ -113,6 +118,7 @@ func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace
 		reverseProxyExp: experiments.Enabled(codersdk.ExperimentAIGatewayReverseProxy),
 		metrics:         metrics,
 		inflight:        aibridge.NewInflightGate(logger),
+		sockets:         newSocketRegistry(quartz.NewReal(), metrics, defaultSocketLimits),
 		poolOptions:     DefaultPoolOptions,
 	}
 	for _, opt := range opts {
@@ -339,6 +345,11 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	return current.proxyRouter, nil
 }
 
+// Sockets returns the registry owning the server's Responses WebSockets.
+func (s *Server) Sockets() *SocketRegistry {
+	return s.sockets
+}
+
 // Ready reports whether the server currently has an active DRPC connection to coderd.
 func (s *Server) Ready() bool {
 	return s.connected.Load()
@@ -424,6 +435,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Safe to call in both modes. The proxy gate is idle in interception mode.
 		err = s.inflight.Shutdown(ctx)
 		s.inflight.Close()
+
+		// Sockets outlive the bridges in the pool, so they are ended here.
+		// They end before the lifecycle does: canceling it closes the coderd
+		// connection, and a closing socket still records its last usage and
+		// interception ends through Client.
+		if drainErr := s.sockets.Shutdown(ctx); drainErr != nil {
+			s.logger.Debug(ctx, "shutdown deadline passed with Responses WebSockets open", slog.Error(drainErr))
+		}
+
 		s.cancelFn(ErrShutdown)
 		if err != nil {
 			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(err))
