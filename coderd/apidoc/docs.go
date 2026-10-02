@@ -156,7 +156,7 @@ const docTemplate = `{
         },
         "/api/experimental/chat-automations/{automation}/events": {
             "post": {
-                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent to the target chat as the owner; a running turn is never interrupted.",
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
                 "consumes": [
                     "application/json"
                 ],
@@ -237,12 +237,6 @@ const docTemplate = `{
                     },
                     "429": {
                         "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "501": {
-                        "description": "Not Implemented",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }

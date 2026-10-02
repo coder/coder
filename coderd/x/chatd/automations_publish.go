@@ -31,15 +31,16 @@ var (
 	// deleted, suspended, or dormant.
 	ErrAutomationOwnerInactive = xerrors.New("chat automation owner is not active")
 	// ErrAutomationForbidden is returned when the automation owner may not
-	// write the target chat.
+	// write the target chat or, for new_chat automations, create a chat.
 	ErrAutomationForbidden = xerrors.New("chat automation owner cannot write the target chat")
 	// ErrAutomationTargetUnavailable is returned when the target chat is
 	// gone, archived, or no longer a root chat of the owner in the
 	// automation's organization.
 	ErrAutomationTargetUnavailable = xerrors.New("chat automation target chat is unavailable")
-	// ErrAutomationTargetNotSupported is returned for target modes that
-	// cannot publish yet.
-	ErrAutomationTargetNotSupported = xerrors.New("chat automation target mode is not supported")
+	// ErrAutomationModelUnavailable is returned when the model config of a
+	// new_chat automation is gone, disabled, unreadable by the owner, or
+	// outside the automation's organization.
+	ErrAutomationModelUnavailable = xerrors.New("chat automation model config is unavailable")
 	// ErrAutomationSecretChanged is returned when the webhook secret was
 	// rotated after the request was verified.
 	ErrAutomationSecretChanged = xerrors.New("chat automation webhook secret changed")
@@ -135,10 +136,18 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if in.webhook && automation.Kind != database.ChatAutomationKindWebhook {
 		return PublishAutomationResult{}, ErrAutomationNotFound
 	}
+	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
+	if err != nil {
+		return PublishAutomationResult{}, err
+	}
+	// Everything from here runs as the owner, so the owner's chat, model
+	// config, and MCP server permissions apply to the send.
+	ownerCtx := dbauthz.As(ctx, owner)
+
 	switch automation.TargetMode {
 	case database.ChatAutomationTargetModeExistingChat:
 	case database.ChatAutomationTargetModeNewChat:
-		return PublishAutomationResult{}, ErrAutomationTargetNotSupported
+		return p.publishAutomationNewChat(ownerCtx, owner, automation, in)
 	default:
 		return PublishAutomationResult{}, xerrors.Errorf("publish automation: unknown target mode %q", automation.TargetMode)
 	}
@@ -147,13 +156,6 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	}
 	chatID := automation.TargetChatID.UUID
 	logger := p.logger.With(slog.F("automation_id", automation.ID), slog.F("chat_id", chatID))
-	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
-	if err != nil {
-		return PublishAutomationResult{}, err
-	}
-	// Everything from here runs as the owner, so the owner's chat, model
-	// config, and MCP server permissions apply to the send.
-	ownerCtx := dbauthz.As(ctx, owner)
 
 	// Decide admission on unlocked reads before the send, so a refused
 	// input never reaches the prompt hooks. admitAutomation repeats the
@@ -198,6 +200,58 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		return PublishAutomationResult{}, err
 	}
 	return PublishAutomationResult{InputID: inputID, ChatID: chatID}, nil
+}
+
+// publishAutomationNewChat creates a chat as the automation owner whose
+// first message is the automation's input. ctx must run as owner.
+// Checks made before the create are repeated under the automation lock
+// by admitAutomationNewChat, which decides.
+func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subject, automation database.ChatAutomation, in automationPublish) (PublishAutomationResult, error) {
+	logger := p.logger.With(slog.F("automation_id", automation.ID))
+	// Check before the create so a refused input never reaches the
+	// prompt hooks.
+	if err := checkAutomationInput(in, automation); err != nil {
+		return PublishAutomationResult{}, err
+	}
+	if err := p.checkAutomationNewChat(ctx, p.db, owner, automation); err != nil {
+		return PublishAutomationResult{}, err
+	}
+	modelConfigID := automation.NewChatModelConfigID.UUID
+	var reasoningEffort *string
+	if automation.ReasoningEffort.Valid {
+		effort := string(automation.ReasoningEffort.ChatReasoningEffort)
+		reasoningEffort = &effort
+	}
+	// The input id is fixed per call, so a retried transaction reuses it.
+	inputID := uuid.New()
+	acceptedAt := p.clock.Now().UTC()
+	chat, err := p.CreateChat(ctx, CreateOptions{
+		OrganizationID: automation.OrganizationID,
+		OwnerID:        automation.OwnerID,
+		CreatedBy:      automation.OwnerID,
+		// The title is explicit and its user source stops title
+		// generation, so the event data never becomes the chat title.
+		Title:              fmt.Sprintf("%s %s", automation.Name, acceptedAt.Format("2006-01-02 15:04 UTC")),
+		TitleSource:        database.ChatTitleSourceUser,
+		ModelConfigID:      modelConfigID,
+		ReasoningEffort:    reasoningEffort,
+		ClientType:         database.ChatClientTypeApi,
+		InitialUserContent: in.content(automation),
+		// No MCP servers are selected; CreateChat still adds the Force On
+		// servers the owner can read.
+		MCPServerIDs: nil,
+		AdmitInTx: func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
+			return p.admitAutomationNewChat(ctx, store, in, automation.ID, modelConfigID, chatID, inputID)
+		},
+	})
+	if err != nil {
+		if errors.Is(err, ErrInvalidModelConfigID) {
+			err = ErrAutomationModelUnavailable
+		}
+		logAutomationRefusal(ctx, logger, err)
+		return PublishAutomationResult{}, err
+	}
+	return PublishAutomationResult{InputID: inputID, ChatID: chat.ID}, nil
 }
 
 // logAutomationRefusal logs the refusals that depend on the target chat's
@@ -256,6 +310,64 @@ func (p *Server) admitAutomation(
 	if err := p.checkAdmission(in, automation, chat, queued, locked); err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
+	return p.acceptAutomationInput(ctx, store, in, automation, inputID)
+}
+
+// admitAutomationNewChat is the admission callback of
+// publishAutomationNewChat. It runs after the new chat row is inserted,
+// locks the automation, repeats every check against the locked row, and
+// marks the chat as created by the automation.
+func (p *Server) admitAutomationNewChat(
+	ctx context.Context,
+	store database.Store,
+	in automationPublish,
+	automationID, modelConfigID, chatID uuid.UUID,
+	inputID uuid.UUID,
+) (chatstate.AutomationProvenance, error) {
+	// The new chat has no queued rows, so only this automation is locked.
+	locked, err := chatstate.LockAutomations(ctx, store, []uuid.UUID{automationID})
+	if err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	automation, ok := locked[automationID]
+	if !ok {
+		return chatstate.AutomationProvenance{}, ErrAutomationNotFound
+	}
+	if err := checkAutomationInput(in, automation); err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	if automation.TargetMode != database.ChatAutomationTargetModeNewChat {
+		return chatstate.AutomationProvenance{}, ErrAutomationTargetUnavailable
+	}
+	// The chat was created with the model config checked before the
+	// create, so a changed model config refuses the input.
+	if automation.NewChatModelConfigID != (uuid.NullUUID{UUID: modelConfigID, Valid: true}) {
+		return chatstate.AutomationProvenance{}, ErrAutomationModelUnavailable
+	}
+	owner, err := automationOwnerSubject(ctx, store, automation.OwnerID)
+	if err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	if err := p.checkAutomationNewChat(ctx, store, owner, automation); err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	count, err := store.UpdateChatAutomationIDByID(ctx, database.UpdateChatAutomationIDByIDParams{
+		ID:           chatID,
+		AutomationID: automation.ID,
+	})
+	if err != nil {
+		return chatstate.AutomationProvenance{}, xerrors.Errorf("set chat automation id: %w", err)
+	}
+	if count != 1 {
+		return chatstate.AutomationProvenance{}, xerrors.Errorf("set chat automation id: updated %d chats, want 1", count)
+	}
+	return p.acceptAutomationInput(ctx, store, in, automation, inputID)
+}
+
+// acceptAutomationInput consumes a single-use webhook and returns the
+// provenance of the admitted input. automation must be locked and have
+// passed checkAutomationInput.
+func (p *Server) acceptAutomationInput(ctx context.Context, store database.Store, in automationPublish, automation database.ChatAutomation, inputID uuid.UUID) (chatstate.AutomationProvenance, error) {
 	if in.webhook && isSingleUseWebhook(automation) {
 		// Consumed as the owner, like any other change to the owner's
 		// automation; the transaction rolls it back if the send fails.
@@ -277,18 +389,11 @@ func (p *Server) admitAutomation(
 	}, nil
 }
 
-// checkAdmission decides whether the automation input is admitted to
-// chat. publishAutomation calls it on unlocked reads before the send, so a
-// refused input never reaches the prompt hooks, and admitAutomation calls
-// it again on the locked rows. queued are the chat's queued rows, and
-// automations must hold every existing automation of those rows.
-func (p *Server) checkAdmission(
-	in automationPublish,
-	automation database.ChatAutomation,
-	chat database.Chat,
-	queued []database.ChatQueuedMessage,
-	automations map[uuid.UUID]database.ChatAutomation,
-) error {
+// checkAutomationInput decides whether the automation still accepts in:
+// it is enabled and, for a webhook delivery, still has the verified
+// secret and an unused single-use webhook. Both target modes call it on
+// an unlocked read before the send and again on the locked row.
+func checkAutomationInput(in automationPublish, automation database.ChatAutomation) error {
 	if !automation.Enabled {
 		return ErrAutomationDisabled
 	}
@@ -299,6 +404,25 @@ func (p *Server) checkAdmission(
 		if isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
 			return ErrAutomationWebhookConsumed
 		}
+	}
+	return nil
+}
+
+// checkAdmission decides whether the input of an existing_chat
+// automation is admitted to chat. publishAutomation calls it on unlocked
+// reads before the send, so a refused input never reaches the prompt
+// hooks, and admitAutomation calls it again on the locked rows. queued are
+// the chat's queued rows, and automations must hold every existing
+// automation of those rows.
+func (p *Server) checkAdmission(
+	in automationPublish,
+	automation database.ChatAutomation,
+	chat database.Chat,
+	queued []database.ChatQueuedMessage,
+	automations map[uuid.UUID]database.ChatAutomation,
+) error {
+	if err := checkAutomationInput(in, automation); err != nil {
+		return err
 	}
 	if automation.TargetMode != database.ChatAutomationTargetModeExistingChat ||
 		automation.TargetChatID != (uuid.NullUUID{UUID: chat.ID, Valid: true}) {
@@ -427,6 +551,31 @@ func (p *Server) checkAutomationTarget(ctx context.Context, store database.Store
 		return database.Chat{}, ErrAutomationForbidden
 	}
 	return chat, nil
+}
+
+// checkAutomationNewChat requires that the owner may create a chat in the
+// automation's organization and read the automation's model config, which
+// must be enabled and in the same organization.
+func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Store, owner rbac.Subject, automation database.ChatAutomation) error {
+	if !automation.NewChatModelConfigID.Valid {
+		return ErrAutomationModelUnavailable
+	}
+	config, err := store.GetEnabledChatModelConfigByID(dbauthz.As(ctx, owner), automation.NewChatModelConfigID.UUID)
+	if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+		return ErrAutomationModelUnavailable
+	}
+	if err != nil {
+		return xerrors.Errorf("get model config: %w", err)
+	}
+	if config.OrganizationID != automation.OrganizationID {
+		return ErrAutomationModelUnavailable
+	}
+	// The object InsertChat authorizes.
+	chat := rbac.ResourceChat.WithOwner(automation.OwnerID.String()).InOrg(automation.OrganizationID)
+	if err := p.authorizer.Authorize(ctx, owner, policy.ActionCreate, chat); err != nil {
+		return ErrAutomationForbidden
+	}
+	return nil
 }
 
 // automationEventText labels an event payload as untrusted data. body

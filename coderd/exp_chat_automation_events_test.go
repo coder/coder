@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -194,6 +196,12 @@ func TestChatAutomationEvents(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		require.NoError(t, err)
+		newChatReq := env.webhookRequest()
+		newChatReq.TargetMode = codersdk.ChatAutomationTargetModeNewChat
+		newChatReq.TargetChatID = nil
+		newChatReq.NewChatModelConfigID = &env.modelConfig.ID
+		newChat, err := env.member.CreateChatAutomation(ctx, env.orgID, newChatReq)
+		require.NoError(t, err)
 		_, err = env.owner.UpdateChatModel(ctx, env.orgID, env.modelConfig.ID, codersdk.UpdateChatModelRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
 
@@ -201,11 +209,15 @@ func TestChatAutomationEvents(t *testing.T) {
 		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
 		require.Equal(t, http.StatusBadRequest, status, string(body))
 		require.Contains(t, string(body), "No chat model is available in this organization.")
+		status, body = postChatAutomationEvent(t, env.member, newChat.Automation.ID, newChat.WebhookSecret, event)
+		require.Equal(t, http.StatusConflict, status, string(body))
+		require.Contains(t, string(body), "The model of the chat automation is unavailable.")
 	})
 
 	t.Run("NewChatTarget", func(t *testing.T) {
 		t.Parallel()
-		env := newChatAutomationTestEnv(t, nil, nil)
+		auditor := audit.NewMock()
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) { o.Auditor = auditor })
 		ctx := testutil.Context(t, testutil.WaitLong)
 		req := env.webhookRequest()
 		req.TargetMode = codersdk.ChatAutomationTargetModeNewChat
@@ -215,6 +227,41 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
-		require.Equal(t, http.StatusNotImplemented, status, string(body))
+		require.Equal(t, http.StatusAccepted, status, string(body))
+		var res codersdk.ChatAutomationEventResponse
+		require.NoError(t, json.Unmarshal(body, &res))
+		require.NotEqual(t, env.memberChat.ID, res.ChatID)
+
+		chat, err := env.member.GetChat(ctx, res.ChatID)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(chat.Title, "Deploy hook "), chat.Title)
+		_, err = time.Parse("2006-01-02 15:04 UTC", strings.TrimPrefix(chat.Title, "Deploy hook "))
+		require.NoError(t, err, "the title ends with the acceptance time in UTC")
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     res.ChatID,
+			UserID:         env.memberID,
+			OrganizationID: env.orgID,
+		}), "the created chat is audited as created by the automation owner")
+		for _, entry := range auditor.AuditLogs() {
+			if entry.ResourceType == database.ResourceTypeChat && entry.ResourceID == res.ChatID {
+				require.NotEqual(t, uuid.Nil, entry.RequestID, "the entry carries the webhook request id")
+			}
+		}
+
+		messages, err := env.member.GetChatMessages(ctx, res.ChatID, nil)
+		require.NoError(t, err)
+		var content []codersdk.ChatMessagePart
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				require.Nil(t, content, "one user message")
+				content = message.Content
+			}
+		}
+		require.Len(t, content, 2)
+		require.Equal(t, "A deploy finished.", content[0].Text)
+		require.Contains(t, content[1].Text, string(event))
 	})
 }

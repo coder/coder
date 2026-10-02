@@ -7662,6 +7662,17 @@ func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.Upd
 	return q.db.UpdateChatAutomationByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatAutomationIDByID(ctx context.Context, arg database.UpdateChatAutomationIDByIDParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatAutomationIDByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 		return q.db.GetChatAutomationByID(ctx, arg.ID)

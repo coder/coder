@@ -13603,6 +13603,30 @@ func (q *sqlQuerier) UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByI
 	return err
 }
 
+const updateChatAutomationIDByID = `-- name: UpdateChatAutomationIDByID :execrows
+UPDATE chats
+SET
+    automation_id = $1::uuid
+WHERE
+    id = $2::uuid
+    AND automation_id IS NULL
+`
+
+type UpdateChatAutomationIDByIDParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+// Marks a chat as created by an automation. The mark is set once, when the
+// automation creates the chat, and never changes afterwards.
+func (q *sqlQuerier) UpdateChatAutomationIDByID(ctx context.Context, arg UpdateChatAutomationIDByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatAutomationIDByID, arg.AutomationID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateChatBuildAgentBinding = `-- name: UpdateChatBuildAgentBinding :one
 WITH updated_chat AS (
 UPDATE chats SET
