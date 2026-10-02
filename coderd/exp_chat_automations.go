@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -32,12 +33,17 @@ import (
 const chatAutomationNextRunCount = 5
 
 // chatAutomationResponses converts rows to their SDK form with their
-// paused reasons and upcoming schedule runs. A paused automation lists no
-// upcoming runs. ctx must carry the caller's authorization.
+// paused reasons, upcoming schedule runs, and the chats they refer to. A
+// paused automation lists no upcoming runs. ctx must carry the caller's
+// authorization: only chats the caller can read are included.
 func (api *API) chatAutomationResponses(ctx context.Context, rows []database.ChatAutomation) ([]codersdk.ChatAutomation, error) {
 	reasons, err := api.chatDaemon.AutomationPausedReasons(ctx, rows)
 	if err != nil {
 		return nil, xerrors.Errorf("get chat automation paused reasons: %w", err)
+	}
+	chats, err := api.chatAutomationChats(ctx, rows)
+	if err != nil {
+		return nil, err
 	}
 	now := api.Clock.Now()
 	automations := make([]codersdk.ChatAutomation, 0, len(rows))
@@ -48,9 +54,42 @@ func (api *API) chatAutomationResponses(ctx context.Context, rows []database.Cha
 		}
 		automation := db2sdk.ChatAutomation(row, nextRuns)
 		automation.PausedReasons = reasons[row.ID]
+		if row.TargetChatID.Valid {
+			automation.TargetChat = chats[row.TargetChatID.UUID]
+		}
+		if row.CreatedByChatID.Valid {
+			automation.CreatedByChat = chats[row.CreatedByChatID.UUID]
+		}
 		automations = append(automations, automation)
 	}
 	return automations, nil
+}
+
+// chatAutomationChats reads the target and creating chats of rows in one
+// query as the caller, so chats the caller cannot read are left out.
+func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAutomation) (map[uuid.UUID]*codersdk.ChatAutomationChat, error) {
+	seen := make(map[uuid.UUID]bool)
+	var ids []uuid.UUID
+	for _, row := range rows {
+		for _, id := range []uuid.NullUUID{row.TargetChatID, row.CreatedByChatID} {
+			if id.Valid && !seen[id.UUID] {
+				seen[id.UUID] = true
+				ids = append(ids, id.UUID)
+			}
+		}
+	}
+	chats := make(map[uuid.UUID]*codersdk.ChatAutomationChat, len(ids))
+	if len(ids) == 0 {
+		return chats, nil
+	}
+	found, err := api.Database.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation chats: %w", err)
+	}
+	for _, chat := range found {
+		chats[chat.ID] = &codersdk.ChatAutomationChat{ID: chat.ID, Title: chat.Title}
+	}
+	return chats, nil
 }
 
 // chatAutomationResponse is chatAutomationResponses for one row.

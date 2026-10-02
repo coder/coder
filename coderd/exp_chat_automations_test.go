@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -831,6 +832,77 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		requireStatus(t, env.owner, existing.ID, codersdk.ChatAutomationPausedReasonExperimentDisabled)
 		requireStatus(t, env.owner, deletedTarget.ID, codersdk.ChatAutomationPausedReasonExperimentDisabled, codersdk.ChatAutomationPausedReasonTargetUnavailable)
+	})
+
+	t.Run("ReferencedChats", func(t *testing.T) {
+		t.Parallel()
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		env := newChatAutomationTestEnv(t, nil, func(opts *coderdtest.Options) {
+			opts.Database = db
+			opts.Pubsub = ps
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		admin, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		newChat := func(ownerID uuid.UUID) database.Chat {
+			return dbgen.Chat(t, env.db, database.Chat{
+				OrganizationID:    env.orgID,
+				OwnerID:           ownerID,
+				LastModelConfigID: env.modelConfig.ID,
+			})
+		}
+		creator := newChat(env.memberID)
+		deletedCreator := newChat(env.memberID)
+		// The member cannot read the admin's chat.
+		unreadable := newChat(admin.ID)
+
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		readable := created.Automation
+		require.Equal(t, &codersdk.ChatAutomationChat{ID: env.memberChat.ID, Title: env.memberChat.Title}, readable.TargetChat)
+		withCreator := dbgen.ChatAutomation(t, env.db, database.ChatAutomation{
+			OrganizationID:  env.orgID,
+			OwnerID:         env.memberID,
+			TargetChatID:    uuid.NullUUID{UUID: unreadable.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
+		})
+		withDeletedCreator := dbgen.ChatAutomation(t, env.db, database.ChatAutomation{
+			OrganizationID:  env.orgID,
+			OwnerID:         env.memberID,
+			TargetChatID:    uuid.NullUUID{UUID: env.memberChat.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: deletedCreator.ID, Valid: true},
+		})
+		// Deleting a chat sets the automation's reference to it to NULL.
+		_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", deletedCreator.ID)
+		require.NoError(t, err)
+
+		list, err := env.member.ChatAutomations(ctx, env.orgID)
+		require.NoError(t, err)
+		byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
+		for _, automation := range list {
+			byID[automation.ID] = automation
+		}
+		require.Len(t, byID, 3)
+		for _, id := range []uuid.UUID{readable.ID, withCreator.ID, withDeletedCreator.ID} {
+			got, err := env.member.ChatAutomation(ctx, env.orgID, id)
+			require.NoError(t, err)
+			require.Equal(t, byID[id].TargetChat, got.TargetChat, "list and get disagree on %s", id)
+			require.Equal(t, byID[id].CreatedByChat, got.CreatedByChat, "list and get disagree on %s", id)
+		}
+
+		require.Nil(t, byID[readable.ID].CreatedByChat)
+		// An unreadable target keeps its id but has no title.
+		require.Equal(t, &unreadable.ID, byID[withCreator.ID].TargetChatID)
+		require.Nil(t, byID[withCreator.ID].TargetChat)
+		require.Equal(t, &codersdk.ChatAutomationChat{ID: creator.ID, Title: creator.Title}, byID[withCreator.ID].CreatedByChat)
+		require.Nil(t, byID[withDeletedCreator.ID].CreatedByChatID)
+		require.Nil(t, byID[withDeletedCreator.ID].CreatedByChat)
+		require.Equal(t, &codersdk.ChatAutomationChat{ID: env.memberChat.ID, Title: env.memberChat.Title}, byID[withDeletedCreator.ID].TargetChat)
+
+		// The admin can read both chats.
+		got, err := env.owner.ChatAutomation(ctx, env.orgID, withCreator.ID)
+		require.NoError(t, err)
+		require.Equal(t, &codersdk.ChatAutomationChat{ID: unreadable.ID, Title: unreadable.Title}, got.TargetChat)
 	})
 
 	t.Run("SchedulePreview", func(t *testing.T) {

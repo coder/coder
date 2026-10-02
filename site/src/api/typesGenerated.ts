@@ -2176,10 +2176,22 @@ export interface ChatAutomation {
 	readonly owner_id: string;
 	readonly name: string;
 	readonly created_by_chat_id?: string;
+	/**
+	 * CreatedByChat is the chat that created the automation. It is set by
+	 * the chat automations API only when the caller can read that chat, so
+	 * it is absent for automations created outside a chat, for deleted
+	 * chats, and for chats the caller cannot read.
+	 */
+	readonly created_by_chat?: ChatAutomationChat;
 	readonly kind: ChatAutomationKind;
 	readonly enabled: boolean;
 	readonly target_mode: ChatAutomationTargetMode;
 	readonly target_chat_id?: string;
+	/**
+	 * TargetChat is the target chat of an existing_chat automation. Like
+	 * CreatedByChat, it is set only when the caller can read that chat.
+	 */
+	readonly target_chat?: ChatAutomationChat;
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
@@ -2212,6 +2224,15 @@ export interface ChatAutomation {
 	readonly paused_reasons?: readonly ChatAutomationPausedReason[];
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that a chat automation refers to.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
 }
 
 // From codersdk/chatautomations.go

@@ -61,9 +61,15 @@ const (
 	// ChatAutomationPausedReasonModelUnavailable means the model config of a
 	// new_chat automation is unset, deleted, disabled, in another
 	// organization, or not readable by the owner, or its provider is
-	// disabled or deleted.
+	// disabled or deleted. It is not evaluated while the owner is inactive.
 	ChatAutomationPausedReasonModelUnavailable ChatAutomationPausedReason = "model_unavailable"
 )
+
+// ChatAutomationChat identifies a chat that a chat automation refers to.
+type ChatAutomationChat struct {
+	ID    uuid.UUID `json:"id" format:"uuid"`
+	Title string    `json:"title"`
+}
 
 // ChatAutomation is a webhook or scheduled automation that delivers a
 // prompt to an agent chat. It never carries the webhook secret or its
@@ -74,10 +80,18 @@ type ChatAutomation struct {
 	OwnerID              uuid.UUID                 `json:"owner_id" format:"uuid"`
 	Name                 string                    `json:"name"`
 	CreatedByChatID      *uuid.UUID                `json:"created_by_chat_id,omitempty" format:"uuid"`
+	// CreatedByChat is the chat that created the automation. It is set by
+	// the chat automations API only when the caller can read that chat, so
+	// it is absent for automations created outside a chat, for deleted
+	// chats, and for chats the caller cannot read.
+	CreatedByChat *ChatAutomationChat `json:"created_by_chat,omitempty"`
 	Kind                 ChatAutomationKind        `json:"kind" enums:"webhook,schedule"`
 	Enabled              bool                      `json:"enabled"`
 	TargetMode           ChatAutomationTargetMode  `json:"target_mode" enums:"existing_chat,new_chat"`
 	TargetChatID         *uuid.UUID                `json:"target_chat_id,omitempty" format:"uuid"`
+	// TargetChat is the target chat of an existing_chat automation. Like
+	// CreatedByChat, it is set only when the caller can read that chat.
+	TargetChat           *ChatAutomationChat       `json:"target_chat,omitempty"`
 	NewChatModelConfigID *uuid.UUID                `json:"new_chat_model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort      *string                   `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`

@@ -20883,6 +20883,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "created_by_chat": {
+                    "description": "CreatedByChat is the chat that created the automation. It is set by\nthe chat automations API only when the caller can read that chat, so\nit is absent for automations created outside a chat, for deleted\nchats, and for chats the caller cannot read.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
+                },
                 "created_by_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20958,6 +20966,14 @@ const docTemplate = `{
                 "schedule_time_zone": {
                     "type": "string"
                 },
+                "target_chat": {
+                    "description": "TargetChat is the target chat of an existing_chat automation. Like\nCreatedByChat, it is set only when the caller can read that chat.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
+                },
                 "target_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21005,6 +21021,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationChat": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },

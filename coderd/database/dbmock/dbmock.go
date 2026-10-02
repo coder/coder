@@ -3822,6 +3822,21 @@ func (mr *MockStoreMockRecorder) GetChatsByChatFileID(ctx, fileID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByChatFileID", reflect.TypeOf((*MockStore)(nil).GetChatsByChatFileID), ctx, fileID)
 }
 
+// GetChatsByIDs mocks base method.
+func (m *MockStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsByIDs indicates an expected call of GetChatsByIDs.
+func (mr *MockStoreMockRecorder) GetChatsByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByIDs), ctx, ids)
+}
+
 // GetChatsByIDsForRunnerSync mocks base method.
 func (m *MockStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()

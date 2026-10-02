@@ -1055,6 +1055,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatFamilyIDsByRootID(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(ids)
 	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
+	}))
 	s.Run("GetChatsByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})

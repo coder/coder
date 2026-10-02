@@ -2597,6 +2597,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "created_by_chat": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
   "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -2616,6 +2620,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "schedule_cron": "string",
   "schedule_next_run_at": "2019-08-24T14:15:22Z",
   "schedule_time_zone": "string",
+  "target_chat": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
   "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
   "target_mode": "existing_chat",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2631,6 +2639,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                       | Type                                                                                | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |----------------------------|-------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `created_at`               | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `created_by_chat`          | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              | Created by chat is the chat that created the automation. It is set by the chat automations API only when the caller can read that chat, so it is absent for automations created outside a chat, for deleted chats, and for chats the caller cannot read.                                                                                                                                                                                                                               |
 | `created_by_chat_id`       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `enabled`                  | boolean                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `id`                       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -2646,6 +2655,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `schedule_cron`            | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `schedule_next_run_at`     | string                                                                              | false    |              | Schedule next run at is the scheduler cursor, not a promise that a run happens then. It does not change while the automation is paused.                                                                                                                                                                                                                                                                                                                                                |
 | `schedule_time_zone`       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `target_chat`              | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              | Target chat is the target chat of an existing_chat automation. Like CreatedByChat, it is set only when the caller can read that chat.                                                                                                                                                                                                                                                                                                                                                  |
 | `target_chat_id`           | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode)              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `updated_at`               | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -2662,6 +2672,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `target_mode` | `existing_chat`, `new_chat` |
 | `webhook_use` | `multi`, `single`           |
 | `when_busy`   | `queue`, `skip`             |
+
+## codersdk.ChatAutomationChat
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `id`    | string | false    |              |             |
+| `title` | string | false    |              |             |
 
 ## codersdk.ChatAutomationEventResponse
 
@@ -6224,6 +6250,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "automation": {
     "created_at": "2019-08-24T14:15:22Z",
+    "created_by_chat": {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
     "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
     "enabled": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -6243,6 +6273,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "schedule_cron": "string",
     "schedule_next_run_at": "2019-08-24T14:15:22Z",
     "schedule_time_zone": "string",
+    "target_chat": {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
     "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
     "target_mode": "existing_chat",
     "updated_at": "2019-08-24T14:15:22Z",
