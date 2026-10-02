@@ -217,6 +217,7 @@ func upOnce(db *sql.DB, migs fs.FS) (retErr error) {
 // errors.As cannot see through it. This walks wrapped and joined errors and
 // the OrigErr of database.Error values instead.
 func isDeadlockError(err error) bool {
+	//nolint:errorlint // Walks the error tree by hand, see above.
 	switch e := err.(type) {
 	case nil:
 		return false
@@ -229,6 +230,7 @@ func isDeadlockError(err error) bool {
 	case *database.Error:
 		return e != nil && isDeadlockError(e.OrigErr)
 	}
+	//nolint:errorlint // Walks the error tree by hand, see above.
 	switch e := err.(type) {
 	case interface{ Unwrap() []error }:
 		for _, inner := range e.Unwrap() {
