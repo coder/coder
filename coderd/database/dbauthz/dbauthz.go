@@ -7613,17 +7613,6 @@ func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.
 	return q.db.UpdateChatBuildAgentBinding(ctx, arg)
 }
 
-func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatByID(ctx, arg)
-}
-
 func (q *querier) UpdateChatDebugRun(ctx context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7841,17 +7830,6 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatTitleByID(ctx, arg)
-}
-
-func (q *querier) UpdateChatTitleByIDIfTitle(ctx context.Context, arg database.UpdateChatTitleByIDIfTitleParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatTitleByIDIfTitle(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {

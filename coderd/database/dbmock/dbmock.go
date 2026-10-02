@@ -10235,21 +10235,6 @@ func (mr *MockStoreMockRecorder) UpdateChatBuildAgentBinding(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatBuildAgentBinding", reflect.TypeOf((*MockStore)(nil).UpdateChatBuildAgentBinding), ctx, arg)
 }
 
-// UpdateChatByID mocks base method.
-func (m *MockStore) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatByID", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatByID indicates an expected call of UpdateChatByID.
-func (mr *MockStoreMockRecorder) UpdateChatByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatByID", reflect.TypeOf((*MockStore)(nil).UpdateChatByID), ctx, arg)
-}
-
 // UpdateChatDebugRun mocks base method.
 func (m *MockStore) UpdateChatDebugRun(ctx context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()
@@ -10530,21 +10515,6 @@ func (m *MockStore) UpdateChatTitleByID(ctx context.Context, arg database.Update
 func (mr *MockStoreMockRecorder) UpdateChatTitleByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTitleByID", reflect.TypeOf((*MockStore)(nil).UpdateChatTitleByID), ctx, arg)
-}
-
-// UpdateChatTitleByIDIfTitle mocks base method.
-func (m *MockStore) UpdateChatTitleByIDIfTitle(ctx context.Context, arg database.UpdateChatTitleByIDIfTitleParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatTitleByIDIfTitle", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatTitleByIDIfTitle indicates an expected call of UpdateChatTitleByIDIfTitle.
-func (mr *MockStoreMockRecorder) UpdateChatTitleByIDIfTitle(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTitleByIDIfTitle", reflect.TypeOf((*MockStore)(nil).UpdateChatTitleByIDIfTitle), ctx, arg)
 }
 
 // UpdateChatWorkspaceBinding mocks base method.
