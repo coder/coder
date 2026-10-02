@@ -431,7 +431,7 @@ func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParame
 
 func templateVersionParametersNotFound(unknown string, params []codersdk.TemplateVersionParameter) error {
 	var sb strings.Builder
-	_, _ = sb.WriteString(fmt.Sprintf("parameter %q is not present in the template.", unknown))
+	_, _ = fmt.Fprintf(&sb, "parameter %q is not present in the template.", unknown)
 	// Going with a fairly generous edit distance
 	maxDist := len(unknown) / 2
 	var paramNames []string
@@ -440,7 +440,7 @@ func templateVersionParametersNotFound(unknown string, params []codersdk.Templat
 	}
 	matches := levenshtein.Matches(unknown, maxDist, paramNames...)
 	if len(matches) > 0 {
-		_, _ = sb.WriteString(fmt.Sprintf("\nDid you mean: %s", strings.Join(matches, ", ")))
+		_, _ = fmt.Fprintf(&sb, "\nDid you mean: %s", strings.Join(matches, ", "))
 	}
 	return xerrors.Errorf(sb.String())
 }

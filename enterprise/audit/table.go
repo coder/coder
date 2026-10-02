@@ -623,7 +623,7 @@ func auditMap(m map[any]map[string]Action) Table {
 // are tracked. And no excess fields are tracked.
 func entry(v any, f map[string]Action) (string, map[string]Action) {
 	vt := reflect.TypeOf(v)
-	for vt.Kind() == reflect.Ptr {
+	for vt.Kind() == reflect.Pointer {
 		vt = vt.Elem()
 	}
 

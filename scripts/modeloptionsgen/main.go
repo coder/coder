@@ -171,7 +171,7 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool, provider
 
 		// Determine the underlying type, dereferencing pointers.
 		ft := f.Type
-		if ft.Kind() == reflect.Ptr {
+		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 
@@ -284,7 +284,7 @@ func jsonSegmentToGoName(seg string) string {
 // string.
 func goTypeToSchemaType(t reflect.Type) string {
 	// Dereference pointers.
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 

@@ -37,7 +37,7 @@ func PopulateStruct(s interface{}, r *Random) error {
 	}
 
 	v := reflect.ValueOf(s)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return xerrors.Errorf("s must be a non-nil pointer")
 	}
 

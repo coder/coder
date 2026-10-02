@@ -528,7 +528,7 @@ func TestSearchWorkspace(t *testing.T) {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				assert.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
@@ -623,7 +623,7 @@ func TestSearchAudit(t *testing.T) {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
@@ -917,7 +917,7 @@ func TestSearchUsers(t *testing.T) {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
@@ -1072,7 +1072,7 @@ func TestSearchTemplates(t *testing.T) {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
@@ -1649,7 +1649,7 @@ func TestSearchChats(t *testing.T) {
 				}
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
@@ -1740,7 +1740,7 @@ func TestSearchGroups(t *testing.T) {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
 				for _, err := range errs {
-					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+					_, _ = fmt.Fprintf(&s, "%s: %s\n", err.Field, err.Detail)
 				}
 				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {

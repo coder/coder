@@ -25,7 +25,7 @@ func HSTSConfigOptions(maxAge int, options []string) (HSTSConfig, error) {
 
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
 	var str strings.Builder
-	_, err := str.WriteString(fmt.Sprintf("max-age=%d", maxAge))
+	_, err := fmt.Fprintf(&str, "max-age=%d", maxAge)
 	if err != nil {
 		return HSTSConfig{}, xerrors.Errorf("hsts: write max-age: %w", err)
 	}
