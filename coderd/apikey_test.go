@@ -363,6 +363,41 @@ func TestTokenScopeCeiling(t *testing.T) {
 	}
 }
 
+// A scoped caller's key must not outlive it; a coder:all caller's may.
+func TestTokenLifetimeCeiling(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	parent, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes:   []codersdk.APIKeyScope{codersdk.APIKeyScopeApiKeyCreate, codersdk.APIKeyScopeUserRead},
+		Lifetime: time.Hour,
+	})
+	require.NoError(t, err)
+	parentKey, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(parent.Key, "-")[0])
+	require.NoError(t, err)
+	scoped := codersdk.New(client.URL, codersdk.WithSessionToken(parent.Key))
+
+	token, err := scoped.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Lifetime: 7 * 24 * time.Hour})
+	require.NoError(t, err)
+	session, err := scoped.CreateAPIKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	for _, child := range []string{token.Key, session.Key} {
+		key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(child, "-")[0])
+		require.NoError(t, err)
+		require.False(t, key.ExpiresAt.After(parentKey.ExpiresAt), "child outlives its creator")
+		require.Equal(t, codersdk.LoginTypeToken, key.LoginType, "a password key would slide past its creator")
+	}
+
+	unscoped, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Lifetime: 7 * 24 * time.Hour})
+	require.NoError(t, err)
+	key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(unscoped.Key, "-")[0])
+	require.NoError(t, err)
+	require.Greater(t, key.ExpiresAt, dbtime.Now().Add(6*24*time.Hour))
+}
+
 // Lives in this package because database imports rbac, so rbac cannot check its
 // own names against the api_key_scope enum.
 func TestExternalScopesAreStorable(t *testing.T) {

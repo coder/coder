@@ -314,7 +314,7 @@ func TestWorkspaceApplicationAuthScoped(t *testing.T) {
 
 	//nolint:gocritic // Reading the minted key back.
 	keys, err := api.Database.GetAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeysByUserIDParams{
-		LoginType: database.LoginTypePassword,
+		LoginType: database.LoginTypeToken,
 		UserID:    user.UserID,
 	})
 	require.NoError(t, err)
