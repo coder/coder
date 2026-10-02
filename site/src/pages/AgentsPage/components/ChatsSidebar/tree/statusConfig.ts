@@ -49,7 +49,7 @@ export const getChatStatusDisplay = (status: ChatStatus): ChatIconConfig => {
 	return statusConfig[status] ?? statusConfig.waiting;
 };
 
-const getPRIconConfig = (
+export const getPRIconConfig = (
 	diffStatus: ChatDiffStatus | undefined,
 ): ChatIconConfig | undefined => {
 	const state = diffStatus?.pull_request_state;
