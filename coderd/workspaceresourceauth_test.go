@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -106,8 +108,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Expired", func(t *testing.T) {
 		t.Parallel()
-		instanceID := "instanceidentifier"
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, true)
+		instanceID := uuid.NewString()
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, true, "coder")
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
@@ -124,8 +126,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 
 	t.Run("InstanceNotFound", func(t *testing.T) {
 		t.Parallel()
-		instanceID := "instanceidentifier"
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
+		instanceID := uuid.NewString()
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, "coder")
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
@@ -140,44 +142,62 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		instanceID := "instanceidentifier"
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
-		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleTokenValidator:     validator,
-			IncludeProvisionerDaemon: true,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
-							Name: "somename",
-							Type: "someinstance",
-							Agents: []*proto.Agent{{
-								Name: "dev",
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
-								},
+	for _, tc := range []struct {
+		name             string
+		audience         string
+		wantUnauthorized bool
+	}{
+		{name: "Success", audience: "coder"},
+		{name: "ForeignAudience", audience: "other-service", wantUnauthorized: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			instanceID := uuid.NewString()
+			validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, tc.audience)
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				GoogleTokenValidator:     validator,
+				IncludeProvisionerDaemon: true,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Response{{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: []*proto.Resource{{
+								Name: "somename",
+								Type: "someinstance",
+								Agents: []*proto.Agent{{
+									Name: "dev",
+									Auth: &proto.Agent_InstanceId{
+										InstanceId: instanceID,
+									},
+								}},
 							}},
-						}},
+						},
 					},
-				},
-			}},
+				}},
+			})
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
+			err := agentClient.RefreshToken(ctx)
+			if tc.wantUnauthorized {
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			expectedAgent, err := store.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), instanceID)
+			require.NoError(t, err)
+			require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
-		err := agentClient.RefreshToken(ctx)
-		require.NoError(t, err)
-	})
+	}
 }
