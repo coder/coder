@@ -7,6 +7,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -51,6 +52,14 @@ type AutomationChatsDialogState = {
 	onClose: () => void;
 };
 
+type AutomationDeleteDialogState = {
+	automation: ChatAutomation;
+	isDeleting: boolean;
+	error: unknown;
+	onConfirm: () => void;
+	onClose: () => void;
+};
+
 type AgentAutomationsPageViewProps = {
 	header?: React.ReactNode;
 	currentUserId: string;
@@ -67,7 +76,9 @@ type AgentAutomationsPageViewProps = {
 	onViewChats: (automation: ChatAutomation) => void;
 	onCreateAutomation: () => void;
 	onEditAutomation: (automation: ChatAutomation) => void;
+	onDeleteAutomation: (automation: ChatAutomation) => void;
 	chatsDialog?: AutomationChatsDialogState;
+	deleteDialog?: AutomationDeleteDialogState;
 	editorDialog?: React.ReactNode;
 	webhookSecretDialog?: React.ReactNode;
 };
@@ -164,6 +175,51 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 	);
 };
 
+type AutomationDeleteDialogProps = {
+	state: AutomationDeleteDialogState;
+};
+
+const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
+	state,
+}) => {
+	// Like the chats dialog, this opens from a row button, so the focused
+	// element at mount is the Delete button to return to on cancel.
+	const [opener] = useState(() => document.activeElement);
+	const { automation } = state;
+	return (
+		<ConfirmDialog
+			open
+			type="delete"
+			title={`Delete ${automation.name}?`}
+			confirmLoading={state.isDeleting}
+			onConfirm={state.onConfirm}
+			onClose={state.onClose}
+			onCloseAutoFocus={(event) => {
+				if (opener instanceof HTMLElement && opener.isConnected) {
+					event.preventDefault();
+					opener.focus();
+				}
+			}}
+			description={
+				<>
+					<p>
+						{automation.kind === "schedule"
+							? "Its schedule stops, and no more runs start."
+							: "Its webhook endpoint stops accepting events."}{" "}
+						Messages it queued in chats that have not started yet are removed.
+						Chats it created and messages it already sent stay.
+					</p>
+					{Boolean(state.error) && (
+						<div className="mt-4">
+							<ErrorAlert error={state.error} />
+						</div>
+					)}
+				</>
+			}
+		/>
+	);
+};
+
 export const AgentAutomationsPageView: React.FC<
 	AgentAutomationsPageViewProps
 > = ({
@@ -182,7 +238,9 @@ export const AgentAutomationsPageView: React.FC<
 	onViewChats,
 	onCreateAutomation,
 	onEditAutomation,
+	onDeleteAutomation,
 	chatsDialog,
+	deleteDialog,
 	editorDialog,
 	webhookSecretDialog,
 }) => {
@@ -211,6 +269,7 @@ export const AgentAutomationsPageView: React.FC<
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
 				onEdit={onEditAutomation}
+				onDelete={onDeleteAutomation}
 			/>
 		));
 	}
@@ -285,6 +344,7 @@ export const AgentAutomationsPageView: React.FC<
 				</div>
 			</div>
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
+			{deleteDialog && <AutomationDeleteDialog state={deleteDialog} />}
 			{editorDialog}
 			{webhookSecretDialog}
 		</ScrollArea>

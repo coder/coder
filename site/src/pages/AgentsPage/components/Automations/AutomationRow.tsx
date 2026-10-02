@@ -29,6 +29,7 @@ type AutomationRowProps = {
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
 	onEdit: (automation: ChatAutomation) => void;
+	onDelete: (automation: ChatAutomation) => void;
 };
 
 const formatNextRun = (automation: ChatAutomation, now: number): string => {
@@ -208,6 +209,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onRunNow,
 		onViewChats,
 		onEdit,
+		onDelete,
 	}) => {
 		const isConsumed = Boolean(automation.webhook_consumed_at);
 		const targetChatId =
@@ -316,6 +318,16 @@ export const AutomationRow = memo<AutomationRowProps>(
 				>
 					Edit
 				</Button>
+				{isOwner && (
+					<Button
+						size="sm"
+						variant="outline"
+						aria-label={`Delete ${automation.name}`}
+						onClick={() => onDelete(automation)}
+					>
+						Delete
+					</Button>
+				)}
 			</div>
 		);
 

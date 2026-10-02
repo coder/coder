@@ -196,6 +196,10 @@ describe("AgentAutomationsPage", () => {
 		expect(
 			await screen.findByText(`Owned by ${MockOrganizationMember2.username}`),
 		).toBeInTheDocument();
+		// Only the owner can delete an automation from the list.
+		expect(
+			screen.queryByRole("button", { name: `Delete ${mockAutomation.name}` }),
+		).toBeNull();
 	});
 
 	it("shows the next run that has not passed yet", async () => {
@@ -373,6 +377,87 @@ describe("AgentAutomationsPage", () => {
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(`POST ${runPath}`);
 		});
+	});
+
+	it("deletes an automation after confirmation", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup();
+		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		server.use(
+			http.delete(deletePath, ({ request }) => {
+				requests.push(request);
+				return new HttpResponse(null, { status: 204 });
+			}),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		expect(requestPaths(requests)).not.toContain(`DELETE ${deletePath}`);
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
+		});
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).toBeNull();
+		});
+	});
+
+	it("does not delete an automation when the confirmation is canceled", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).toBeNull();
+		});
+		expect(
+			requestPaths(requests).filter((path) => path.startsWith("DELETE")),
+		).toEqual([]);
+	});
+
+	it("keeps the delete confirmation open with the server's error", async () => {
+		const user = userEvent.setup();
+		setup();
+		server.use(
+			http.delete(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				() =>
+					HttpResponse.json(
+						{ message: "You cannot delete this automation." },
+						{ status: 403 },
+					),
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		expect(
+			await within(dialog).findByText("You cannot delete this automation."),
+		).toBeInTheDocument();
 	});
 
 	it("does not show a run failure on the organization picked after Run now", async () => {

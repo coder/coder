@@ -3945,6 +3945,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	deleteChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+		);
+	};
+
 	runChatAutomation = async (
 		organizationId: string,
 		automationId: string,

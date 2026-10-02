@@ -12,6 +12,7 @@ import {
 	automationChats,
 	chatAutomations,
 	createChatAutomation,
+	deleteChatAutomation,
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
@@ -93,6 +94,7 @@ const AutomationsList: React.FC = () => {
 		AutomationRunError & { organizationId: string }
 	>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
+	const [deleteTarget, setDeleteTarget] = useState<ChatAutomation>();
 	const [editor, setEditor] = useState<EditorState>();
 	// The only copy of a new webhook secret. Never cache or persist it.
 	const [webhookSecret, setWebhookSecret] = useState<{
@@ -122,6 +124,9 @@ const AutomationsList: React.FC = () => {
 	);
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
+	);
+	const deleteMutation = useMutation(
+		deleteChatAutomation(queryClient, organizationId),
 	);
 	const createMutation = useMutation({
 		...createChatAutomation(
@@ -195,6 +200,21 @@ const AutomationsList: React.FC = () => {
 		localStorage.setItem(selectedOrganizationIdStorageKey, organization.id);
 		setRunError(undefined);
 		setEditor(undefined);
+		setDeleteTarget(undefined);
+	};
+
+	const openDeleteDialog = (automation: ChatAutomation) => {
+		deleteMutation.reset();
+		setDeleteTarget(automation);
+	};
+
+	const handleDelete = (automation: ChatAutomation) => {
+		deleteMutation.mutate(automation.id, {
+			onSuccess: () => {
+				toast.success(`Deleted ${automation.name}.`);
+				setDeleteTarget(undefined);
+			},
+		});
 	};
 
 	const handleToggleEnabled = (
@@ -261,6 +281,16 @@ const AutomationsList: React.FC = () => {
 			onCreateAutomation={() => openEditor({ mode: "create" })}
 			onEditAutomation={(automation) =>
 				openEditor({ mode: "edit", automation })
+			}
+			onDeleteAutomation={openDeleteDialog}
+			deleteDialog={
+				deleteTarget && {
+					automation: deleteTarget,
+					isDeleting: deleteMutation.isPending,
+					error: deleteMutation.error,
+					onConfirm: () => handleDelete(deleteTarget),
+					onClose: () => setDeleteTarget(undefined),
+				}
 			}
 			editorDialog={
 				editor && (

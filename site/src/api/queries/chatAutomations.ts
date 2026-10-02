@@ -146,6 +146,18 @@ export const updateChatAutomation = (
 		}),
 });
 
+export const deleteChatAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (automationId: string) =>
+		API.experimental.deleteChatAutomation(organizationId, automationId),
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(organizationId),
+		}),
+});
+
 const automationChatsFamilyKey = ["chat-automation-chats"] as const;
 
 export const automationChatsKey = (automationId: string) =>

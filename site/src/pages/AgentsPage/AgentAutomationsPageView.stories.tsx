@@ -81,6 +81,7 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 		onViewChats: fn(),
 		onCreateAutomation: fn(),
 		onEditAutomation: fn(),
+		onDeleteAutomation: fn(),
 	},
 	parameters: {
 		queries: [
@@ -195,5 +196,29 @@ export const ListError: Story = {
 	args: {
 		automations: undefined,
 		error: mockApiError({ message: "Failed to list chat automations." }),
+	},
+};
+
+export const DeleteDialog: Story = {
+	args: {
+		deleteDialog: {
+			automation: mockScheduleAutomation,
+			isDeleting: false,
+			error: undefined,
+			onConfirm: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const DeleteDialogError: Story = {
+	args: {
+		deleteDialog: {
+			automation: mockWebhookAutomation,
+			isDeleting: false,
+			error: mockApiError({ message: "Could not delete the automation." }),
+			onConfirm: fn(),
+			onClose: fn(),
+		},
 	},
 };
