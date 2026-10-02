@@ -216,6 +216,36 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusRequestEntityTooLarge, status)
 	})
 
+	t.Run("EscapedEventTooLarge", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req := env.webhookRequest()
+		req.WebhookUse = ptr.Ref(codersdk.ChatAutomationWebhookUseSingle)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+
+		// About 50 KB raw, but each < escapes to six bytes, so the event
+		// data would exceed 256 KiB in the message.
+		large := []byte(`"` + strings.Repeat("<", 50_000) + `"`)
+		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, large)
+		require.Equal(t, http.StatusRequestEntityTooLarge, status, string(body))
+		var resp codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &resp))
+		require.Equal(t, "Event data too large.", resp.Message)
+		require.Contains(t, resp.Detail, "300002 bytes")
+		require.Contains(t, resp.Detail, "six bytes")
+		require.Empty(t, env.userMessages(t, env.memberChat.ID))
+		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
+		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
+		require.NoError(t, err)
+		require.False(t, stored.WebhookConsumedAt.Valid, "a refused delivery does not use up the webhook")
+
+		status, body = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusAccepted, status, string(body))
+		require.Len(t, env.userMessages(t, env.memberChat.ID), 1)
+	})
+
 	t.Run("BusyChat", func(t *testing.T) {
 		t.Parallel()
 		// A queue of 2 leaves automations a share of 1.

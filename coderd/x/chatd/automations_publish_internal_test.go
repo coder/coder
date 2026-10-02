@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAutomationEventText(t *testing.T) {
@@ -22,7 +24,7 @@ func TestAutomationEventText(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			text := automationEventText(`Deploy "prod" <hook>`, []byte(tc.body))
+			text := automationEventText(`Deploy "prod" <hook>`, escapeAutomationEventData([]byte(tc.body)))
 
 			require.True(t, strings.HasPrefix(text, "\n\n"), "clients that join text parts need a separator from the prompt")
 			require.Equal(t, 1, strings.Count(text, closing), text)
@@ -39,4 +41,29 @@ func TestAutomationEventText(t *testing.T) {
 			require.Equal(t, want, got, "escaping keeps the JSON value")
 		})
 	}
+}
+
+// TestPublishAutomationWebhookEventSize checks the cap on the escaped event
+// data at its boundary. The check runs before anything else, so a zero
+// Server refuses an oversized body with the size error and fails a body at
+// the cap only later, for its missing configuration.
+func TestPublishAutomationWebhookEventSize(t *testing.T) {
+	t.Parallel()
+	// A JSON string of plain letters escapes to itself.
+	body := func(size int) []byte {
+		return []byte(`"` + strings.Repeat("a", size-2) + `"`)
+	}
+	p := &Server{}
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	_, err := p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{Body: body(MaxAutomationEventDataBytes)})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrAutomationEventTooLarge)
+
+	_, err = p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{Body: body(MaxAutomationEventDataBytes + 1)})
+	var tooLarge *AutomationEventTooLargeError
+	require.ErrorAs(t, err, &tooLarge)
+	require.ErrorIs(t, err, ErrAutomationEventTooLarge)
+	require.Equal(t, MaxAutomationEventDataBytes+1, tooLarge.Size)
+	require.Equal(t, MaxAutomationEventDataBytes, tooLarge.Max)
 }
