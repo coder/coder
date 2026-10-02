@@ -201,7 +201,7 @@ The MCP server exposes tools across several areas:
 - **Workspace management**: list, inspect, create, and build workspaces
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
-- **Workspace interaction**: run commands, forward ports, list apps, and read logs
+- **Workspace interaction**: run commands, manage background processes, forward ports, list apps, and read logs
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, organization memberships, tar uploads, and task reporting
 
@@ -209,6 +209,13 @@ The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+The workspace file and command tools (`coder_workspace_read_file`,
+`coder_workspace_write_file`, `coder_workspace_edit_files`,
+`coder_workspace_execute`, and the `coder_workspace_process_*` tools) accept
+the same arguments and return the same results as the matching
+[Coder Agents](./agents/index.md) tools. They also take a `workspace` argument
+that selects the workspace to act on.
 
 ## Available Prompts
 

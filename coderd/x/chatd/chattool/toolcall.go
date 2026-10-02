@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -69,7 +70,7 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	case ExecuteToolName:
 		if canceled.Received {
 			if _, err := canceled.StartProcessResult(); err != nil {
-				return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), nil
+				return marshalExecuteResult(workspacetools.StartErrorResult("start process", err)), nil
 			}
 		}
 		// The process can outlive the record, so read its output either way.

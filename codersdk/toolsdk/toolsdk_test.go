@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -1291,7 +1292,7 @@ func TestTools(t *testing.T) {
 		})
 	})
 
-	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+	t.Run("WorkspaceExecute", func(t *testing.T) {
 		// Setup workspace exactly like main SSH tests
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
@@ -1306,40 +1307,111 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test basic command execution
-		result, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+		result, err := testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: workspace.Name,
 			Command:   "echo 'hello world'",
 		})
 		require.NoError(t, err)
+		require.True(t, result.Success, "result: %+v", result)
 		require.Equal(t, 0, result.ExitCode)
-		require.Equal(t, "hello world", result.Output)
-
-		// Test output trimming
-		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
-			Workspace: workspace.Name,
-			Command:   "echo '  test with whitespace  '",
-		})
-		require.NoError(t, err)
-		require.Equal(t, 0, result.ExitCode)
-		require.Equal(t, "test with whitespace", result.Output) // Should be trimmed
+		require.Equal(t, "hello world\n", result.Output)
 
 		// Test non-zero exit code
-		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: workspace.Name,
 			Command:   "exit 42",
 		})
 		require.NoError(t, err)
+		require.False(t, result.Success)
 		require.Equal(t, 42, result.ExitCode)
 		require.Empty(t, result.Output)
 
 		// Test with workspace owner format - using the myuser from setup
-		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: "myuser/" + workspace.Name,
 			Command:   "echo 'owner format works'",
 		})
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
-		require.Equal(t, "owner format works", result.Output)
+		require.Equal(t, "owner format works\n", result.Output)
+
+		// Invalid arguments are tool errors, not results.
+		_, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
+			Workspace: workspace.Name,
+			Command:   "echo hi",
+			Timeout:   ptr.Ref("soon"),
+		})
+		require.ErrorContains(t, err, `invalid timeout "soon"`)
+
+		// A foreground command that outlives its timeout keeps running
+		// and can be followed up with the process tools.
+		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
+			Workspace: workspace.Name,
+			Command:   "echo started; sleep 600",
+			Timeout:   ptr.Ref("1s"),
+		})
+		require.NoError(t, err)
+		require.False(t, result.Success)
+		require.Contains(t, result.Error, "command timed out after 1s")
+		require.NotEmpty(t, result.BackgroundProcessID)
+		slowID := result.BackgroundProcessID
+
+		// Background commands return immediately with a process ID.
+		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
+			Workspace:       workspace.Name,
+			Command:         "echo background done",
+			RunInBackground: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, result.Success)
+		require.True(t, result.Backgrounded)
+		backgroundID := result.BackgroundProcessID
+		require.NotEmpty(t, backgroundID)
+
+		result, err = testTool(t, toolsdk.WorkspaceProcessOutput, tb, toolsdk.WorkspaceProcessOutputArgs{
+			Workspace:   workspace.Name,
+			ProcessID:   backgroundID,
+			WaitTimeout: ptr.Ref(testutil.WaitShort.String()),
+		})
+		require.NoError(t, err)
+		require.False(t, result.Running)
+		require.Equal(t, "background done\n", result.Output)
+		require.Equal(t, "echo background done", result.Command)
+
+		list, err := testTool(t, toolsdk.WorkspaceProcessList, tb, toolsdk.WorkspaceProcessListArgs{
+			Workspace: workspace.Name,
+		})
+		require.NoError(t, err)
+		running := make(map[string]bool, len(list.Processes))
+		for _, p := range list.Processes {
+			running[p.ID] = p.Running
+		}
+		require.Contains(t, running, backgroundID)
+		require.True(t, running[slowID], "timed-out process should still be running")
+
+		_, err = testTool(t, toolsdk.WorkspaceProcessSignal, tb, toolsdk.WorkspaceProcessSignalArgs{
+			Workspace: workspace.Name,
+			ProcessID: slowID,
+			Signal:    "hangup",
+		})
+		require.ErrorContains(t, err, `signal must be "terminate" or "kill"`)
+
+		signaled, err := testTool(t, toolsdk.WorkspaceProcessSignal, tb, toolsdk.WorkspaceProcessSignalArgs{
+			Workspace: workspace.Name,
+			ProcessID: slowID,
+			Signal:    "kill",
+		})
+		require.NoError(t, err)
+		require.True(t, signaled.Success)
+
+		result, err = testTool(t, toolsdk.WorkspaceProcessOutput, tb, toolsdk.WorkspaceProcessOutputArgs{
+			Workspace:   workspace.Name,
+			ProcessID:   slowID,
+			WaitTimeout: ptr.Ref(testutil.WaitShort.String()),
+		})
+		require.NoError(t, err)
+		require.False(t, result.Running)
+		require.Contains(t, result.Output, "started")
 
 		// Regression test: agent-backed tools should also work when the
 		// workspace name is a valid dashless UUID.
@@ -1351,13 +1423,13 @@ func TestTools(t *testing.T) {
 		uuidTB, err := toolsdk.NewDeps(uuidClient)
 		require.NoError(t, err)
 
-		result, err = testTool(t, toolsdk.WorkspaceBash, uuidTB, toolsdk.WorkspaceBashArgs{
+		result, err = testTool(t, toolsdk.WorkspaceExecute, uuidTB, toolsdk.WorkspaceExecuteArgs{
 			Workspace: uuidWorkspace.Name,
 			Command:   "echo 'uuid-like name works'",
 		})
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
-		require.Equal(t, "uuid-like name works", result.Output)
+		require.Equal(t, "uuid-like name works\n", result.Output)
 	})
 
 	t.Run("WorkspaceLS", func(t *testing.T) {
@@ -1450,21 +1522,7 @@ func TestTools(t *testing.T) {
 					_, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
 						Workspace: workspace.Name,
 						Path:      "/tmp/file",
-						Content:   []byte("hello from agent connection function"),
-					})
-					return err
-				},
-			},
-			{
-				name: "WorkspaceEditFile",
-				run: func(t *testing.T, tb toolsdk.Deps) error {
-					_, err := testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
-						Workspace: workspace.Name,
-						Path:      "/tmp/file",
-						Edits: []workspacesdk.FileEdit{{
-							OldText: "hello",
-							NewText: "goodbye",
-						}},
+						Content:   "hello from agent connection function",
 					})
 					return err
 				},
@@ -1486,11 +1544,41 @@ func TestTools(t *testing.T) {
 				},
 			},
 			{
-				name: "WorkspaceBash",
+				name: "WorkspaceExecute",
 				run: func(t *testing.T, tb toolsdk.Deps) error {
-					_, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+					_, err := testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 						Workspace: workspace.Name,
 						Command:   "echo hello",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceProcessOutput",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceProcessOutput, tb, toolsdk.WorkspaceProcessOutputArgs{
+						Workspace: workspace.Name,
+						ProcessID: "proc",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceProcessList",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceProcessList, tb, toolsdk.WorkspaceProcessListArgs{
+						Workspace: workspace.Name,
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceProcessSignal",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceProcessSignal, tb, toolsdk.WorkspaceProcessSignalArgs{
+						Workspace: workspace.Name,
+						ProcessID: "proc",
+						Signal:    "kill",
 					})
 					return err
 				},
@@ -1529,28 +1617,17 @@ func TestTools(t *testing.T) {
 
 		tmpdir := os.TempDir()
 		filePath := filepath.Join(tmpdir, "file")
-		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
-		require.NoError(t, err)
-
-		largeFilePath := filepath.Join(tmpdir, "large")
-		largeFile, err := fs.Create(largeFilePath)
-		require.NoError(t, err)
-		err = largeFile.Truncate(1 << 21)
-		require.NoError(t, err)
-
-		imagePath := filepath.Join(tmpdir, "file.png")
-		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
+		err = afero.WriteFile(fs, filePath, []byte("one\ntwo\nthree"), 0o644)
 		require.NoError(t, err)
 
 		tests := []struct {
-			name     string
-			path     string
-			limit    int64
-			offset   int64
-			mimeType string
-			bytes    []byte
-			length   int
-			error    string
+			name      string
+			path      string
+			limit     *int64
+			offset    *int64
+			content   string
+			linesRead int
+			error     string
 		}{
 			{
 				name:  "NonExistent",
@@ -1558,36 +1635,18 @@ func TestTools(t *testing.T) {
 				error: "file does not exist",
 			},
 			{
-				name:     "Exists",
-				path:     filePath,
-				bytes:    []byte("content"),
-				mimeType: "application/octet-stream",
+				name:      "Exists",
+				path:      filePath,
+				content:   "1\tone\n2\ttwo\n3\tthree",
+				linesRead: 3,
 			},
 			{
-				name:     "Limit1Offset2",
-				path:     filePath,
-				limit:    1,
-				offset:   2,
-				bytes:    []byte("n"),
-				mimeType: "application/octet-stream",
-			},
-			{
-				name:     "DefaultMaxLimit",
-				path:     largeFilePath,
-				length:   1 << 20,
-				mimeType: "application/octet-stream",
-			},
-			{
-				name:  "ExceedMaxLimit",
-				path:  filePath,
-				limit: 1 << 21,
-				error: "limit must be 1048576 or less, got 2097152",
-			},
-			{
-				name:     "ImageMimeType",
-				path:     imagePath,
-				bytes:    []byte("not really an image"),
-				mimeType: "image/png",
+				name:      "Limit1Offset2",
+				path:      filePath,
+				limit:     ptr.Ref[int64](1),
+				offset:    ptr.Ref[int64](2),
+				content:   "2\ttwo",
+				linesRead: 1,
 			},
 		}
 
@@ -1604,16 +1663,12 @@ func TestTools(t *testing.T) {
 				if tt.error != "" {
 					require.Error(t, err)
 					require.Contains(t, err.Error(), tt.error)
-				} else {
-					require.NoError(t, err)
-					if tt.length != 0 {
-						require.Len(t, resp.Content, tt.length)
-					}
-					if tt.bytes != nil {
-						require.Equal(t, tt.bytes, resp.Content)
-					}
-					require.Equal(t, tt.mimeType, resp.MimeType)
+					return
 				}
+				require.NoError(t, err)
+				require.Equal(t, tt.content, resp.Content)
+				require.Equal(t, tt.linesRead, resp.LinesRead)
+				require.Equal(t, 3, resp.TotalLines)
 			})
 		}
 	})
@@ -1633,57 +1688,17 @@ func TestTools(t *testing.T) {
 		tmpdir := os.TempDir()
 		filePath := filepath.Join(tmpdir, "write")
 
-		_, err = testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+		res, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
 			Workspace: workspace.Name,
 			Path:      filePath,
-			Content:   []byte("content"),
+			Content:   "content",
 		})
 		require.NoError(t, err)
+		require.True(t, res.OK)
 
 		b, err := afero.ReadFile(fs, filePath)
 		require.NoError(t, err)
 		require.Equal(t, []byte("content"), b)
-	})
-
-	t.Run("WorkspaceEditFile", func(t *testing.T) {
-		t.Parallel()
-
-		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		fs := afero.NewMemMapFs()
-		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
-			opts.Filesystem = fs
-		})
-		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-		tb, err := toolsdk.NewDeps(client)
-		require.NoError(t, err)
-
-		tmpdir := os.TempDir()
-		filePath := filepath.Join(tmpdir, "edit")
-		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
-		require.NoError(t, err)
-
-		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
-			Workspace: workspace.Name,
-			Path:      filePath,
-			Edits:     []workspacesdk.FileEdit{},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "must specify at least one edit")
-
-		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
-			Workspace: workspace.Name,
-			Path:      filePath,
-			Edits: []workspacesdk.FileEdit{
-				{
-					OldText: "foo",
-					NewText: "bar",
-				},
-			},
-		})
-		require.NoError(t, err)
-		b, err := afero.ReadFile(fs, filePath)
-		require.NoError(t, err)
-		require.Equal(t, "bar bar", string(b))
 	})
 
 	t.Run("WorkspaceEditFiles", func(t *testing.T) {
@@ -1711,10 +1726,15 @@ func TestTools(t *testing.T) {
 			Workspace: workspace.Name,
 			Files:     []workspacesdk.FileEdits{},
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "must specify at least one file")
+		require.ErrorContains(t, err, "files is required")
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+			Files:     []workspacesdk.FileEdits{{Path: filePath1, Edits: []workspacesdk.FileEdit{}}},
+		})
+		require.ErrorContains(t, err, "files[0].edits must contain at least one edit")
+
+		res, err := testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
 			Workspace: workspace.Name,
 			Files: []workspacesdk.FileEdits{
 				{
@@ -1738,6 +1758,10 @@ func TestTools(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		require.True(t, res.OK)
+		require.Len(t, res.Files, 2)
+		require.Equal(t, filePath1, res.Files[0].Path)
+		require.Contains(t, res.Files[0].Diff, "+bar1 bar1")
 
 		b, err := afero.ReadFile(fs, filePath1)
 		require.NoError(t, err)
@@ -1975,12 +1999,6 @@ func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsd
 // MCP args survive decoding into the typed edit args.
 func TestEditFileTools_DecodeDeprecatedKeys(t *testing.T) {
 	t.Parallel()
-
-	var single toolsdk.WorkspaceEditFileArgs
-	require.NoError(t, json.Unmarshal([]byte(
-		`{"workspace":"w","path":"/p","edits":[{"search":"foo","replace":"bar"}]}`), &single))
-	require.Equal(t, "foo", single.Edits[0].OldText)
-	require.Equal(t, "bar", single.Edits[0].NewText)
 
 	var multi toolsdk.WorkspaceEditFilesArgs
 	require.NoError(t, json.Unmarshal([]byte(
