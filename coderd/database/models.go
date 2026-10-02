@@ -5413,6 +5413,7 @@ type Chat struct {
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 	AutomationID             uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	ManageAutomationsEnabled bool                    `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 // Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.
@@ -5737,6 +5738,8 @@ type ChatTable struct {
 	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 	// Automation that created this chat. No foreign key by design.
 	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.
+	ManageAutomationsEnabled bool `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 type ChatUsageLimitConfig struct {

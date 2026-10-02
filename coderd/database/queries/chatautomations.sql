@@ -88,6 +88,18 @@ ORDER BY
     created_at DESC,
     id DESC;
 
+-- name: GetChatAutomationsByOrganizationIDAndOwnerID :many
+SELECT
+    *
+FROM
+    chat_automations
+WHERE
+    organization_id = @organization_id::uuid
+    AND owner_id = @owner_id::uuid
+ORDER BY
+    created_at DESC,
+    id DESC;
+
 -- name: CountChatAutomationsByOwnerID :one
 -- Counts the automations owner_id owns across all organizations.
 SELECT

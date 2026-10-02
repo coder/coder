@@ -126,6 +126,8 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		Labels:            labels,
 		DynamicTools:      seed.DynamicTools,
 		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
+
+		ManageAutomationsEnabled: seed.ManageAutomationsEnabled,
 	})
 	require.NoError(t, err, "insert chat")
 	return chat

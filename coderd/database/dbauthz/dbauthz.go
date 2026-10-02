@@ -3264,6 +3264,10 @@ func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, organi
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationID)(ctx, organizationID)
 }
 
+func (q *querier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationIDAndOwnerID)(ctx, arg)
+}
+
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
@@ -7819,6 +7823,17 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
+}
+
+func (q *querier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatManageAutomationsEnabledByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

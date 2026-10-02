@@ -2110,6 +2110,11 @@ export interface Chat {
 	 */
 	readonly inline_mcp_servers?: readonly InlineMCPServer[];
 	/**
+	 * ManageAutomationsEnabled offers the manage_automations tool to this
+	 * chat's agent. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
+	/**
 	 * Children holds child (subagent) chats nested under this root
 	 * chat. Always initialized to an empty slice so the JSON field
 	 * is present as []. Child chats cannot create their own
@@ -4368,6 +4373,12 @@ export interface CreateChatRequest {
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ManageAutomationsEnabled offers the manage_automations tool to the
+	 * chat's agent. Enabling it requires the chat-automations experiment
+	 * for the chat owner. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
 }
 
 // From codersdk/users.go
@@ -10790,6 +10801,13 @@ export interface UpdateChatRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ManageAutomationsEnabled turns the manage_automations tool on or
+	 * off for a root chat. Only the chat owner may set it. Enabling it
+	 * requires the chat-automations experiment for the owner; disabling
+	 * is always accepted. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
 }
 
 // From codersdk/chats.go

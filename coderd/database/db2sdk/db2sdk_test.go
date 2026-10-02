@@ -987,6 +987,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
+
+		ManageAutomationsEnabled: true,
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus

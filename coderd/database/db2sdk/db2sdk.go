@@ -1947,6 +1947,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+
+		ManageAutomationsEnabled: c.ManageAutomationsEnabled,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String

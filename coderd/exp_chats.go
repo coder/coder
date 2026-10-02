@@ -1449,6 +1449,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The switch belongs to the chat owner, so the experiment is checked
+	// for the owner, not the caller acting through owner_id.
+	if req.ManageAutomationsEnabled && !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, ownerID) {
+		writeManageAutomationsExperimentRequired(ctx, rw)
+		return
+	}
+
 	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, req.MCPServerIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1580,7 +1587,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
-		ParentChatID: uuid.NullUUID{},
+		ParentChatID:             uuid.NullUUID{},
+		ManageAutomationsEnabled: req.ManageAutomationsEnabled,
 	})
 	if err != nil {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
@@ -2503,6 +2511,31 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The manage_automations switch lets the chat's agent act on the
+	// owner's automations, so only the owner may change it. Enabling it
+	// is validated before any write; disabling is always accepted so the
+	// switch can be turned off with the experiment off.
+	if req.ManageAutomationsEnabled != nil {
+		if chat.OwnerID != httpmw.APIKey(r).UserID {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only the chat owner can change manage_automations_enabled.",
+			})
+			return
+		}
+		if *req.ManageAutomationsEnabled {
+			if chat.ParentChatID.Valid {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "manage_automations_enabled can only be set on a root chat.",
+				})
+				return
+			}
+			if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, chat.OwnerID) {
+				writeManageAutomationsExperimentRequired(ctx, rw)
+				return
+			}
+		}
+	}
+
 	var title string
 	if req.Title != nil {
 		normalized, resp := normalizeChatTitle(*req.Title)
@@ -2780,6 +2813,25 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
+	if req.ManageAutomationsEnabled != nil {
+		updatedChat, err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+			ManageAutomationsEnabled: *req.ManageAutomationsEnabled,
+			ID:                       chat.ID,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update manage_automations_enabled.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
 	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
 		aReq.New = refreshed
 	} else {
@@ -2788,6 +2840,16 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// writeManageAutomationsExperimentRequired rejects enabling the
+// manage_automations switch while the chat-automations experiment is off
+// for the chat owner.
+func writeManageAutomationsExperimentRequired(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "manage_automations_enabled requires the chat automations experiment for the chat owner.",
+		Detail:  fmt.Sprintf("Enable the %s experiment for the chat owner.", codersdk.ExperimentChatAutomations),
+	})
 }
 
 // writeChatInvalidState writes the shared invalid-state response for

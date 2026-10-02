@@ -210,6 +210,9 @@ type Chat struct {
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
 	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
+	// ManageAutomationsEnabled offers the manage_automations tool to this
+	// chat's agent. Experimental.
+	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -749,6 +752,10 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
+	// ManageAutomationsEnabled offers the manage_automations tool to the
+	// chat's agent. Enabling it requires the chat-automations experiment
+	// for the chat owner. Experimental.
+	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -810,6 +817,11 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ManageAutomationsEnabled turns the manage_automations tool on or
+	// off for a root chat. Only the chat owner may set it. Enabling it
+	// requires the chat-automations experiment for the owner; disabling
+	// is always accepted. Experimental.
+	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
