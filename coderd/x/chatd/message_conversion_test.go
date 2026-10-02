@@ -30,9 +30,10 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	startedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	completedAt := startedAt.Add(2 * time.Second)
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:  modelConfigID,
-		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         slog.Make(),
+		modelConfigID:    modelConfigID,
+		contentVersion:   chatprompt.CurrentContentVersion,
+		logger:           slog.Make(),
+		providerIdentity: "provider-a",
 		step: stepData{
 			Content: []fantasy.Content{
 				fantasy.ReasoningContent{Text: "thinking"},
@@ -56,8 +57,10 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	require.Equal(t, "thinking", parts[0].Text)
 	require.Equal(t, startedAt, requireNotNilTime(t, parts[0].CreatedAt))
 	require.Equal(t, completedAt, requireNotNilTime(t, parts[0].CompletedAt))
+	require.Equal(t, "provider-a", parts[0].ProviderIdentity)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[1].Type)
 	require.Equal(t, "hello", parts[1].Text)
+	require.Empty(t, parts[1].ProviderIdentity)
 }
 
 func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T) {
