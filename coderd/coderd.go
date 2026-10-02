@@ -1377,10 +1377,12 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.listChatAutomations)
 			r.Post("/", api.postChatAutomation)
+			r.Post("/schedule-preview", api.postChatAutomationSchedulePreview)
 			r.Route("/{automation}", func(r chi.Router) {
 				r.Get("/", api.chatAutomation)
 				r.Patch("/", api.patchChatAutomation)
 				r.Delete("/", api.deleteChatAutomation)
+				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
 			})
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {

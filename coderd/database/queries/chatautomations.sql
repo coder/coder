@@ -111,6 +111,22 @@ SET
     schedule_time_zone = @schedule_time_zone,
     schedule_revision = @schedule_revision,
     schedule_next_run_at = @schedule_next_run_at,
+    enabled = @enabled,
+    queue_generation = @queue_generation,
+    updated_at = @updated_at
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatAutomationWebhookSecretByID :one
+-- Replaces the webhook secret hash and increments the secret version. The
+-- single-use marker webhook_consumed_at is intentionally kept.
+UPDATE
+    chat_automations
+SET
+    webhook_secret_hash = @webhook_secret_hash,
+    webhook_secret_version = webhook_secret_version + 1,
     updated_at = @updated_at
 WHERE
     id = @id::uuid
