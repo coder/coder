@@ -229,15 +229,21 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 
 	t.Run("foreign instance drops OpenAI reasoning", func(t *testing.T) {
 		t.Parallel()
+		legacyReasoning := chatprompt.PartFromContent(fantasy.ReasoningContent{
+			Text: "summary",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs_legacy"},
+			},
+		})
 		rows := []database.ChatMessage{
 			userRow(t, "hi"),
-			assistantRow(t, openAIInstanceCfg, openAIReasoning, codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")),
+			assistantRow(t, openAIInstanceCfg, openAIReasoning, legacyReasoning, codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")),
 		}
 		got, stats := stripForeignProviderStateRows(rows, otherOpenAIProviderID.String(), resolver)
 		require.Len(t, got, 2)
 		require.Equal(t, rows[0], got[0])
 		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")}, partsOf(t, got[1]))
-		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
 	})
 
 	t.Run("unknown origin drops OpenAI reasoning", func(t *testing.T) {

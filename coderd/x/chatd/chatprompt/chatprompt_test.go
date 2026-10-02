@@ -71,13 +71,32 @@ func TestConvertMessagesWithFilesPreservesEmptyReplayableReasoning(t *testing.T)
 			kept: true,
 		},
 		{
-			name: "OpenAIItemReference",
+			name: "OpenAIUnfinalized",
 			metadata: fantasy.ProviderMetadata{
 				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-					ItemID: "rs_1",
+					ItemID:           "rs_1",
+					EncryptedContent: &encrypted,
 				},
 			},
-			kept: true,
+		},
+		{
+			name: "OpenAIFinalizedWithoutEncryptedContent",
+			metadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:    "rs_1",
+					Finalized: true,
+				},
+			},
+		},
+		{
+			name: "OpenAIFinalizedWithEmptyEncryptedContent",
+			metadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:           "rs_1",
+					EncryptedContent: new(""),
+					Finalized:        true,
+				},
+			},
 		},
 		{
 			name: "OpenAIWithoutItemID",
