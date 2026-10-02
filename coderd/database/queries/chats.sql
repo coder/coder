@@ -442,7 +442,7 @@ WHERE
             AND deleted = true
             AND compressed = false
             AND role = 'assistant'
-            AND id > @previous_message_id::bigint
+            AND id > @previous_user_message_id::bigint
             AND id < @user_message_id::bigint
     )
 ORDER BY

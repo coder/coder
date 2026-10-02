@@ -490,14 +490,14 @@ func (s *taskStarter) cancelDeletedToolCalls(
 	if userMessageIndex == -1 {
 		return
 	}
-	// messages holds no deleted messages, so the deleted messages directly
-	// before the user message have IDs between it and the message before it.
+	// EditMessage marks the edited user message and every later message as
+	// deleted, so they lie between the previous user message and this one.
 	params := database.GetDeletedChatMessagesFromLastAssistantParams{
 		ChatID:        chat.ID,
 		UserMessageID: messages[userMessageIndex].ID,
 	}
-	if userMessageIndex > 0 {
-		params.PreviousMessageID = messages[userMessageIndex-1].ID
+	if previous := lastUserPromptIndex(messages[:userMessageIndex]); previous != -1 {
+		params.PreviousUserMessageID = messages[previous].ID
 	}
 	var deleted []database.ChatMessage
 	err := machine.ReadLock(ctx, func(store database.Store) error {

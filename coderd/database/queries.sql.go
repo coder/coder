@@ -12061,15 +12061,15 @@ ORDER BY
 `
 
 type GetDeletedChatMessagesFromLastAssistantParams struct {
-	ChatID            uuid.UUID `db:"chat_id" json:"chat_id"`
-	UserMessageID     int64     `db:"user_message_id" json:"user_message_id"`
-	PreviousMessageID int64     `db:"previous_message_id" json:"previous_message_id"`
+	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
+	UserMessageID         int64     `db:"user_message_id" json:"user_message_id"`
+	PreviousUserMessageID int64     `db:"previous_user_message_id" json:"previous_user_message_id"`
 }
 
 // Returns the last deleted assistant message and the deleted rows after it.
 // Every visibility is included: a model-only row can hold a tool call's result.
 func (q *sqlQuerier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg GetDeletedChatMessagesFromLastAssistantParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getDeletedChatMessagesFromLastAssistant, arg.ChatID, arg.UserMessageID, arg.PreviousMessageID)
+	rows, err := q.db.QueryContext(ctx, getDeletedChatMessagesFromLastAssistant, arg.ChatID, arg.UserMessageID, arg.PreviousUserMessageID)
 	if err != nil {
 		return nil, err
 	}

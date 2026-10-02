@@ -1015,6 +1015,18 @@ func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
 			},
 		},
 		{
+			// EditMessage inserts a result for the earlier unresolved call
+			// between the deleted messages and the replacement.
+			name: "UnresolvedCallBeforeEditedMessage",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("read_file"))
+				h.commit(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("next"))
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+			},
+			want: []string{"execute"},
+		},
+		{
 			name: "SecondStep",
 			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"))
