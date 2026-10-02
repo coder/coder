@@ -2,15 +2,19 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -83,7 +87,8 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
 		return nil, nil
 	}
-	if _, _, err := headers.ExtractAgentFirewallHeaders(r); err != nil {
+	firewallID, firewallSequence, err := headers.ExtractAgentFirewallHeaders(r)
+	if err != nil {
 		logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
 		return nil, nil
@@ -92,17 +97,57 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		if r.Body != nil {
 			_ = r.Body.Close()
 		}
-		logger.Debug(ctx, "rejecting oversized request body",
-			slog.F("route", strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())),
-			slog.F("client", string(client)),
-			slog.F("content_length", r.ContentLength),
-		)
+		logger.Warn(ctx, "rejecting oversized request body", slog.F("content_length", r.ContentLength))
 		routing.WriteRequestBodyTooLarge(ctx, w)
 		return nil, nil
 	}
 
-	// TODO: validate actor, recorder, and credentials; populate record metadata.
-	return &recorder.InterceptionRecord{}, nil
+	actor := aibcontext.ActorFromContext(ctx)
+	if actor == nil {
+		logger.Warn(ctx, "rejecting request without an actor")
+		http.Error(w, "no actor found", http.StatusBadRequest)
+		return nil, nil
+	}
+	if h.recorder == nil {
+		logger.Warn(ctx, "rejecting request without a recorder")
+		http.Error(w, "recorder unavailable", http.StatusInternalServerError)
+		return nil, nil
+	}
+	cred, err := h.provider.ResolveCredential(r)
+	if err != nil {
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to resolve credential")
+		logger.Warn(ctx, "failed to resolve credential", slog.Error(err), slog.F("path", r.URL.Path))
+		if errors.Is(err, provider.ErrNoCredential) {
+			http.Error(w, "upstream authentication unavailable: no provider credentials supplied or configured", http.StatusForbidden)
+		} else {
+			http.Error(w, "upstream authentication unavailable", http.StatusInternalServerError)
+		}
+		return nil, nil
+	}
+	switch cred.(type) {
+	case credential.BYOK, *credential.CentralizedPool:
+	default:
+		// The type name identifies the credential kind; the value may hold secrets.
+		logger.Warn(ctx, "rejecting unsupported upstream credential", slog.F("credential_type", fmt.Sprintf("%T", cred)))
+		http.Error(w, "upstream authentication is not supported in proxy mode", http.StatusNotImplemented)
+		return nil, nil
+	}
+	var metadata recorder.Metadata
+	if actor.Username != "" {
+		metadata = recorder.Metadata{"Username": actor.Username}
+	}
+	return &recorder.InterceptionRecord{
+		InitiatorID:                 actor.ID.String(),
+		Metadata:                    metadata,
+		Provider:                    h.provider.Type(),
+		ProviderName:                h.provider.Name(),
+		Client:                      string(client),
+		UserAgent:                   r.UserAgent(),
+		AgentFirewallSessionID:      firewallID,
+		AgentFirewallSequenceNumber: firewallSequence,
+		CredentialKind:              cred.Kind(),
+		CredentialHint:              cred.Hint(),
+	}, cred
 }
 
 func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential) *http.Request {

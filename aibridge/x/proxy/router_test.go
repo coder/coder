@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -19,10 +20,12 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
@@ -143,14 +146,14 @@ func TestRouterRoutes(t *testing.T) {
 		{
 			name:       "BridgedRoute",
 			path:       "/openai/v1/chat/completions",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "no actor found\n",
 		},
 		{
 			name:       "BridgedRouteOverridesPassthrough",
 			path:       "/openai/v1/models/bridged",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "no actor found\n",
 		},
 		{
 			name:       "PassthroughRoute/Models",
@@ -255,6 +258,101 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 			router.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, tc.path, nil))
 			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
 			assert.Equal(t, "AI Gateway is shutting down\n", resp.Body.String())
+		})
+	}
+}
+
+func TestRouterBridgedRemainsStubbed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		actor    bool
+		shutdown bool
+		status   int
+		body     string
+	}{
+		{
+			name:   "Valid",
+			actor:  true,
+			status: http.StatusNotFound,
+			body:   "404 page not found\n",
+		},
+		{
+			name:   "Rejected",
+			status: http.StatusBadRequest,
+			body:   "no actor found\n",
+		},
+		{
+			name:     "AfterShutdown",
+			actor:    true,
+			shutdown: true,
+			status:   http.StatusServiceUnavailable,
+			body:     "AI Gateway is shutting down\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+			t.Cleanup(upstream.Close)
+			gate := newRouterGate(t)
+			router, err := proxy.NewRouter([]provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL})}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+			require.NoError(t, err)
+			if tc.shutdown {
+				require.NoError(t, gate.Shutdown(t.Context()))
+			}
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+			if tc.actor {
+				req = req.WithContext(aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
+			}
+			req.Header.Set("Authorization", "Bearer user-key")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, req)
+			require.Equal(t, tc.status, response.Code)
+			require.Equal(t, tc.body, response.Body.String())
+			require.Zero(t, calls.Load(), "bridged forwarding must remain disabled until lifecycle recording is connected")
+		})
+	}
+}
+
+func TestRouterBedrockBridgedRemainsDisabled(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		authorization string
+	}{
+		{
+			name: "NoAuth",
+		},
+		{
+			name:          "BYOK",
+			authorization: "Bearer user-key",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+			t.Cleanup(upstream.Close)
+			prov, err := provider.NewBedrock(t.Context(), config.Anthropic{BaseURL: upstream.URL}, config.AWSBedrock{
+				Region: "us-east-1", AccessKey: "test-key", AccessKeySecret: "test-secret",
+				Model: "test-model", SmallFastModel: "test-small-model",
+			})
+			require.NoError(t, err)
+			router, err := proxy.NewRouter([]provider.Provider{prov}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &struct{ recorder.Recorder }{})
+			require.NoError(t, err)
+			ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
+			for _, route := range prov.BridgedRoutes() {
+				req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+route, nil).WithContext(ctx)
+				if tc.authorization != "" {
+					req.Header.Set("Authorization", tc.authorization)
+				}
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, req)
+				require.Equal(t, http.StatusNotFound, response.Code)
+				require.Equal(t, "404 page not found\n", response.Body.String())
+			}
+			require.Zero(t, calls.Load(), "Bedrock forwarding is not supported")
 		})
 	}
 }
