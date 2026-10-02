@@ -73,6 +73,7 @@ When the experiment is off for a user:
   Otherwise the occurrence counts as missed and the schedule continues from its next time.
   To avoid depending on this recovery, turn the experiment back on before the occurrence is due.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
+- The chat list's `automation_id` filter returns `400` for that user.
 - Messages that automations already queued in a chat stay queued and still run.
   To remove them, turn off or delete the automation before you turn the experiment off, or select **Remove from queue** on each message in the chat.
 

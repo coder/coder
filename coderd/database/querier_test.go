@@ -17959,10 +17959,10 @@ func TestGetChatsFilter(t *testing.T) {
 		{"Title/MultiWord", database.GetChatsParams{TitleQuery: "alpha project"}, []uuid.UUID{alphaProject.ID}},
 		{"Title/NoMatch", database.GetChatsParams{TitleQuery: "nonexistent"}, nil},
 		{"Title/EmptyReturnsAll", database.GetChatsParams{TitleQuery: ""}, allRootIDs},
-		// % acts as wildcard since we don't escape ILIKE metacharacters.
-		{"Title/PercentWildcard", database.GetChatsParams{TitleQuery: "100%"}, []uuid.UUID{percentComplete.ID, thousandOne.ID}},
-		// _ acts as single-char wildcard.
-		{"Title/UnderscoreWildcard", database.GetChatsParams{TitleQuery: "user_name"}, []uuid.UUID{underscoreConfig.ID, hyphenConfig.ID}},
+		// % and _ are escaped, so they match literally instead of acting as
+		// ILIKE wildcards.
+		{"Title/PercentLiteral", database.GetChatsParams{TitleQuery: "100%"}, []uuid.UUID{percentComplete.ID}},
+		{"Title/UnderscoreLiteral", database.GetChatsParams{TitleQuery: "user_name"}, []uuid.UUID{underscoreConfig.ID}},
 
 		// PR status filter.
 		{"PRStatus/Draft", database.GetChatsParams{PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},

@@ -11205,7 +11205,7 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $8
+    WHERE id = $9
 )
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at, chats_expanded.title_source, chats_expanded.title_updated_at, chats_expanded.automation_id, chats_expanded.manage_automations_enabled,
@@ -11240,11 +11240,15 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats_expanded.organization_id = $8::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $9 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -11258,7 +11262,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
+        WHEN $10::jsonb IS NOT NULL THEN chats_expanded.labels @> $10::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -11266,25 +11270,27 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $10::text IS NOT NULL THEN EXISTS (
+        WHEN $11::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($10::text)
+              AND LOWER(cds.url) = LOWER($11::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
     END
-    -- Filter by title substring (case-insensitive). Applied when the
-    -- caller provides a non-empty title_query.
+    -- Filter by literal title substring (case-insensitive). Applied when
+    -- the caller provides a non-empty title_query. The query escapes
+    -- backslash, '%' and '_' so they match literally instead of acting
+    -- as ILIKE wildcards.
     AND CASE
-        WHEN $11 :: text != '' THEN chats_expanded.title ILIKE '%' || $11 || '%'
+        WHEN $12 :: text != '' THEN chats_expanded.title ILIKE '%' || replace(replace(replace($12 :: text, '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
         ELSE true
     END
     AND CASE
-        WHEN $12::boolean IS NOT NULL THEN (
+        WHEN $13::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -11292,14 +11298,14 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $12::boolean
+        ) = $13::boolean
         ELSE true
     END
     -- Filter by the stored chat_status enum, the same value the sidebar
     -- row icon uses.
     AND CASE
-        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN
-            chats_expanded.status::text = ANY($13::text[])
+        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($14::text[])
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -11310,9 +11316,9 @@ WHERE
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN (
+        WHEN COALESCE(array_length($15::text[], 1), 0) > 0 THEN (
             (
-                'none' = ANY($14::text[])
+                'none' = ANY($15::text[])
                 AND NOT EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
@@ -11330,56 +11336,56 @@ WHERE
                             WHEN cds.pull_request_state = 'open' THEN 'open'
                             ELSE cds.pull_request_state
                         END
-                    ) = ANY($14::text[])
+                    ) = ANY($15::text[])
             )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $15::int != 0 THEN EXISTS (
+        WHEN $16::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $15
+                AND cds.pr_number = $16
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $16::text != '' THEN EXISTS (
+        WHEN $17::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $16 || '%'
-                    OR cds.url ILIKE '%' || $16 || '%'
+                    cds.git_remote_origin ILIKE '%' || $17 || '%'
+                    OR cds.url ILIKE '%' || $17 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $17::text != '' THEN EXISTS (
+        WHEN $18::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $17 || '%'
+                AND cds.pull_request_title ILIKE '%' || $18 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $18::text != '' THEN (
+        WHEN $19::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $19)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $19)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -11393,18 +11399,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $19))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $19))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $19 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $18::bigint
+                        AND cds.pr_number = $19::bigint
                 )
                 ELSE false
             END
@@ -11414,13 +11420,13 @@ WHERE
     -- Filter to chats an automation created or sent messages to. Served
     -- by chats_automation_idx and chat_messages_automation_idx.
     AND CASE
-        WHEN $19::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            chats_expanded.automation_id = $19::uuid
+        WHEN $20::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            chats_expanded.automation_id = $20::uuid
             OR EXISTS (
                 SELECT 1
                 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
-                    AND cm.automation_id = $19::uuid
+                    AND cm.automation_id = $20::uuid
                     AND cm.deleted = false
             )
         )
@@ -11442,11 +11448,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $20
+OFFSET $21
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($21 :: int, 0), 50)
+    COALESCE(NULLIF($22 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -11457,6 +11463,7 @@ type GetChatsParams struct {
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
@@ -11487,6 +11494,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
+		arg.OrganizationID,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,

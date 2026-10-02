@@ -2211,8 +2211,8 @@ type ListChatsOptions struct {
 	Labels    map[string]string
 	ProjectID *uuid.UUID
 	// AutomationID filters to chats the automation created or sent
-	// messages to. The server ignores it unless the chat-automations
-	// experiment is enabled for the caller.
+	// messages to. The server rejects it with 400 Bad Request unless the
+	// chat-automations experiment is enabled for the caller.
 	AutomationID uuid.UUID
 	Pagination
 }

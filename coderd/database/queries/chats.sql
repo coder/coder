@@ -630,6 +630,10 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats_expanded.organization_id = @organization_id::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
@@ -667,10 +671,12 @@ WHERE
         )
         ELSE true
     END
-    -- Filter by title substring (case-insensitive). Applied when the
-    -- caller provides a non-empty title_query.
+    -- Filter by literal title substring (case-insensitive). Applied when
+    -- the caller provides a non-empty title_query. The query escapes
+    -- backslash, '%' and '_' so they match literally instead of acting
+    -- as ILIKE wildcards.
     AND CASE
-        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
+        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || replace(replace(replace(@title_query :: text, '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
         ELSE true
     END
     AND CASE
