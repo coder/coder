@@ -1931,6 +1931,68 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+// Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+type ChatTitleSource string
+
+const (
+	ChatTitleSourceFallback  ChatTitleSource = "fallback"
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	ChatTitleSourceUser      ChatTitleSource = "user"
+)
+
+func (e *ChatTitleSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatTitleSource(s)
+	case string:
+		*e = ChatTitleSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatTitleSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatTitleSource struct {
+	ChatTitleSource ChatTitleSource `json:"chat_title_source"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatTitleSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatTitleSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatTitleSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatTitleSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatTitleSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatTitleSource), nil
+}
+
+func (e ChatTitleSource) Valid() bool {
+	switch e {
+	case ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatTitleSourceValues() []ChatTitleSource {
+	return []ChatTitleSource{
+		ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -5098,6 +5160,8 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5371,6 +5435,10 @@ type ChatTable struct {
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 	// Optional project that groups a root chat with related chats.
 	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Rows from before this column existed are fallback regardless of who set their title.
+	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 }
 
 type ChatUsageLimitConfig struct {
