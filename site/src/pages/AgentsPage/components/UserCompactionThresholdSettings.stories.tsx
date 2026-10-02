@@ -145,7 +145,7 @@ export const SaveAll: Story = {
 		await userEvent.type(gpt4oInput, "95");
 		await userEvent.type(claudeInput, "50");
 
-		// Footer should show "Save 2 changes"
+		// Actions should show "Save 2 changes"
 		const saveButton = await canvas.findByRole("button", {
 			name: /Save 2 changes/i,
 		});
@@ -203,8 +203,8 @@ export const CancelChanges: Story = {
 	},
 };
 
-export const InvalidDraftShowsFooter: Story = {
-	name: "Invalid Draft Shows Footer",
+export const InvalidDraftShowsActions: Story = {
+	name: "Invalid Draft Shows Actions",
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const gpt4oInput = await canvas.findByRole("textbox", {
@@ -265,8 +265,8 @@ export const PartialSaveFailure: Story = {
 			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
 		});
 
-		// model-2 should show an error, footer should still be visible
-		// with Save showing "Save 1 change" for the failed row
+		// model-2 should show an error, and Save should show "Save 1 change"
+		// for the failed row
 		await waitFor(() => {
 			expect(canvas.getByText("Network error")).toBeInTheDocument();
 			expect(
@@ -323,7 +323,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 		await canvas.findByRole("button", { name: /Save 1 change/i });
 
 		// Switch to the other organization: the draft belongs to a hidden
-		// row, so the footer must disappear.
+		// row, so the save actions must disappear.
 		await userEvent.click(
 			canvas.getByRole("button", {
 				name: `Organization ${modelsOrganization.display_name}`,
@@ -351,7 +351,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
 		});
 
-		// Switching back restores the hidden draft and its footer.
+		// Switching back restores the hidden draft and its save action.
 		await userEvent.click(
 			canvas.getByRole("button", {
 				name: `Organization ${MockOrganization2.display_name}`,
@@ -366,7 +366,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 			name: /GPT-4o compaction threshold/i,
 		});
 		expect(restoredInput).toHaveValue("95");
-		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// Wait out the temporary "Saved" state (2.5s) before the
 		// action buttons reappear.
 		await waitFor(
 			() => {
@@ -376,6 +376,12 @@ export const OrganizationFilterScopesSaveActions: Story = {
 			},
 			{ timeout: 5000 },
 		);
+	},
+};
+
+export const NoEnabledModels: Story = {
+	args: {
+		models: [],
 	},
 };
 
