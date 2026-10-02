@@ -120,6 +120,11 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 // passed through wrap, when set, so a test can observe or pace its reads.
 func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap func(database.Store) database.Store) *Server {
 	t.Helper()
+	// Most tests use per-minute schedules, which the default minimum
+	// interval between runs rejects.
+	if limits.MinAutomationScheduleInterval == 0 {
+		limits.MinAutomationScheduleInterval = time.Minute
+	}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
 	require.NoError(t, err)
@@ -342,7 +347,7 @@ func TestAutomationScheduleScan(t *testing.T) {
 					chats := f.createdChats(ctx, t)
 					require.Len(t, chats, 1, "the refused instance's chat is rolled back")
 					// 10:01 UTC is 19:01 in Tokyo.
-					require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
+					require.Equal(t, "Standup · 1 Jun 19:01 JST", chats[0].Title)
 					// Like a chat created through the chat API, the chat is
 					// audited once, as created by the owner.
 					logs := f.auditor.AuditLogs()
@@ -454,18 +459,23 @@ WHERE id = $1`, automation.ID, edited)
 		t.Parallel()
 		for _, tc := range []struct {
 			name string
+			spec string
 			// late is how long after the occurrence the new instance scans.
 			late     time.Duration
 			accepted int
 		}{
-			{name: "WithinGrace", late: automationScheduleGrace, accepted: 1},
-			{name: "AfterMissedRuns", late: 4*time.Minute + 30*time.Second, accepted: 0},
+			{name: "WithinGrace", spec: "*/5 * * * *", late: automationScheduleGrace, accepted: 1},
+			// No cron time falls within the grace window before now.
+			{name: "AfterMissedRuns", spec: "*/5 * * * *", late: 12 * time.Minute, accepted: 0},
+			// The cursor is missed, but the cron time 0.7 s before now is
+			// within the grace window and runs in the same scan.
+			{name: "AfterMissedRunsWithTimelyRun", spec: "* * * * *", late: 2*time.Minute + 700*time.Millisecond, accepted: 1},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
 				ctx := testutil.Context(t, testutil.WaitLong)
-				automation := f.existingChat(ctx, t, f.newServer(t, Limits{}), "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+				automation := f.existingChat(ctx, t, f.newServer(t, Limits{}), tc.spec, "UTC", codersdk.ChatAutomationWhenBusyQueue)
 				f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(tc.late))
 
 				restarted := f.newServer(t, Limits{})
@@ -474,7 +484,7 @@ WHERE id = $1`, automation.ID, edited)
 					require.Equal(t, tc.accepted, f.inputs(ctx, t))
 					// Missed runs are not replayed: the cursor moves to the
 					// first run after now.
-					require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+					require.Equal(t, nextRun(t, tc.spec, "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
 				}
 			})
 		}
@@ -514,6 +524,25 @@ WHERE id = $1`, automation.ID, edited)
 		wait()
 
 		require.Zero(t, f.inputs(ctx, t))
+		// The cursor moves to the first run within the grace window, which
+		// the next scan publishes.
+		require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now().Add(-automationScheduleGrace)), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("ModelUnavailableSkipsOccurrence", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.newChat(ctx, t, server, "* * * * *", "UTC")
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET enabled = false WHERE id = $1", f.model.ID)
+		require.NoError(t, err)
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
+
+		// The refusal is definite, so the first attempt moves the cursor
+		// instead of retrying the occurrence on every scan.
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Empty(t, f.createdChats(ctx, t))
 		require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
 	})
 
@@ -646,7 +675,7 @@ WHERE id = $1`, automation.ID, edited)
 		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		chats := f.createdChats(ctx, t)
 		require.Len(t, chats, 1)
-		require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
+		require.Equal(t, "Standup · 1 Jun 19:01 JST", chats[0].Title)
 	})
 
 	t.Run("PagesPastRowsThatStayDue", func(t *testing.T) {

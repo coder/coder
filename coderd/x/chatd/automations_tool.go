@@ -576,7 +576,10 @@ func manageAutomationsVisible(chat database.Chat, trigger automationTurnTrigger,
 // manageAutomationsView converts row to the API shape, which carries no
 // webhook secret or secret hash.
 func (p *Server) manageAutomationsView(row database.ChatAutomation) codersdk.ChatAutomation {
-	return db2sdk.ChatAutomation(row, AutomationNextRuns(row, p.clock.Now(), manageAutomationsNextRunCount))
+	now := p.clock.Now()
+	view := db2sdk.ChatAutomation(row, AutomationNextRuns(row, now, manageAutomationsNextRunCount))
+	view.ScheduleIntervalBelowMinimum = AutomationScheduleBelowMinimum(row, now, p.chatLimits.MinAutomationScheduleInterval)
+	return view
 }
 
 // manageAutomationsError maps service errors to tool errors that reveal

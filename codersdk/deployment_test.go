@@ -1255,6 +1255,37 @@ func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
 	}
 }
 
+func TestDeploymentValues_Validate_ChatMinAutomationScheduleInterval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		interval time.Duration
+		wantErr  string
+	}{
+		{name: "Minimum", interval: time.Minute},
+		{name: "BelowMinimum", interval: 30 * time.Second, wantErr: "--chat-min-automation-schedule-interval"},
+		{name: "Maximum", interval: 24 * time.Hour},
+		{name: "AboveMaximum", interval: 25 * time.Hour, wantErr: "--chat-min-automation-schedule-interval"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.MinAutomationScheduleInterval = serpent.Duration(tt.interval)
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 	t.Parallel()
 
