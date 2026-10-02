@@ -133,6 +133,9 @@ export const automationChats = (automationId: string) =>
 			API.experimental.getChats(
 				{
 					automation_id: automationId,
+					// The history includes chats archived after the automation
+					// created or wrote to them.
+					q: "archived:any",
 					limit: automationChatsPageSize,
 					offset: pageParam,
 				},
