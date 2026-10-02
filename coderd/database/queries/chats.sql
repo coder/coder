@@ -772,6 +772,21 @@ WHERE
         )
         ELSE true
     END
+    -- Filter to chats an automation created or sent messages to. Served
+    -- by chats_automation_idx and chat_messages_automation_idx.
+    AND CASE
+        WHEN @automation_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            chats_expanded.automation_id = @automation_id::uuid
+            OR EXISTS (
+                SELECT 1
+                FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.automation_id = @automation_id::uuid
+                    AND cm.deleted = false
+            )
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should

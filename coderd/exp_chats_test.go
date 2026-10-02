@@ -3025,6 +3025,95 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, archivedWithPR.ID, chats[0].ID)
 		})
 	})
+
+	t.Run("AutomationFilter", func(t *testing.T) {
+		t.Parallel()
+
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automationID := uuid.New()
+		markCreatedBy := func(chat database.Chat) {
+			t.Helper()
+			rows, err := env.db.UpdateChatAutomationIDByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatAutomationIDByIDParams{
+				ID:           chat.ID,
+				AutomationID: automationID,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, rows)
+		}
+		newMemberChat := func() database.Chat {
+			return dbgen.Chat(t, env.db, database.Chat{
+				OrganizationID:    env.orgID,
+				OwnerID:           env.memberID,
+				LastModelConfigID: env.modelConfig.ID,
+			})
+		}
+
+		created := newMemberChat()
+		markCreatedBy(created)
+		// Archived chats stay in the automation's history when the
+		// caller asks for archived:any.
+		archivedCreated := newMemberChat()
+		markCreatedBy(archivedCreated)
+		require.NoError(t, env.member.UpdateChat(ctx, archivedCreated.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+		// The automation only sent a message to this existing chat.
+		writtenTo := env.memberChat
+		dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       writtenTo.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		unrelated := newMemberChat()
+		// A deleted automation message no longer counts as writing to
+		// the chat.
+		deletedMessageChat := newMemberChat()
+		deletedMessage := dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       deletedMessageChat.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		require.NoError(t, env.db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedMessage.ID))
+		// Another user's chat that the member may not read.
+		owner, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		markCreatedBy(dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: env.modelConfig.ID,
+		}))
+
+		chatIDs := func(opts *codersdk.ListChatsOptions) []uuid.UUID {
+			t.Helper()
+			chats, err := env.member.ListChats(ctx, opts)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(chats))
+			for _, chat := range chats {
+				ids = append(ids, chat.ID)
+			}
+			return ids
+		}
+
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		require.ElementsMatch(t, []uuid.UUID{created.ID, archivedCreated.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:any"}))
+		require.Equal(t, []uuid.UUID{archivedCreated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:true"}))
+		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
+
+		for _, value := range []string{"not-a-uuid", uuid.Nil.String()} {
+			status, body := rawGet(t, env.member, "/api/v2/chats?automation_id="+value)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			require.Contains(t, body, "automation_id")
+		}
+
+		// With the experiment off for the member, the filter is ignored.
+		member, err := env.member.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:      codersdk.ExperimentRuleModeCondition,
+			Condition: fmt.Sprintf("user.username != %q", member.Username),
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID, deletedMessageChat.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		status, body := rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
+		require.Equal(t, http.StatusOK, status, body)
+	})
 }
 
 func TestListChatModels(t *testing.T) {

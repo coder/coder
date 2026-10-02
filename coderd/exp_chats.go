@@ -413,11 +413,12 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool` (`archived:any` matches archived and active chats), `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
+// @Param automation_id query string false "Filter to chats the automation created or sent messages to. Ignored unless the chat-automations experiment is enabled for the caller." format(uuid)
 // @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
@@ -464,6 +465,30 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		labelFilter = pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
+		}
+	}
+
+	// The chat list is not experiment-gated, so the automation filter is
+	// ignored, not rejected, when the experiment is off for the caller.
+	// The evaluator reads the database, so it runs only when the filter
+	// is requested.
+	automationID := uuid.Nil
+	if r.URL.Query().Has("automation_id") && chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, apiKey.UserID) {
+		parser := httpapi.NewQueryParamParser()
+		automationID = parser.UUID(r.URL.Query(), uuid.Nil, "automation_id")
+		// The query treats the nil UUID as "no filter".
+		if len(parser.Errors) == 0 && automationID == uuid.Nil {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "automation_id",
+				Detail: "Query param \"automation_id\" must not be the nil UUID.",
+			})
+		}
+		if len(parser.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Query parameters have invalid values.",
+				Validations: parser.Errors,
+			})
+			return
 		}
 	}
 
@@ -517,6 +542,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		RepoQuery:           searchParams.RepoQuery,
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
+		AutomationID:        automationID,
 		ProjectID:           projectID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),

@@ -1,13 +1,23 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
+import {
+	infiniteQueryOptions,
+	type QueryClient,
+	type UseQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
-import type { ChatAutomation } from "#/api/typesGenerated";
+import { invalidateChatListQueries } from "#/api/queries/chats";
+import type {
+	Chat,
+	ChatAutomation,
+	ChatAutomationRunResponse,
+	UpdateChatAutomationRequest,
+} from "#/api/typesGenerated";
 
 const chatAutomationsFamilyKey = ["chat-automations"] as const;
 
 export const chatAutomationsKey = (organizationId: string) =>
 	[...chatAutomationsFamilyKey, organizationId] as const;
 
-const chatAutomations = (organizationId: string) => ({
+export const chatAutomations = (organizationId: string) => ({
 	queryKey: chatAutomationsKey(organizationId),
 	queryFn: (): Promise<ChatAutomation[]> =>
 		API.experimental.getChatAutomations(organizationId),
@@ -38,3 +48,67 @@ export const chatAutomationNameMap = (
 /** Refetches automation names, for example after new automation input. */
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });
+
+export const updateChatAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: ({
+		automationId,
+		req,
+	}: {
+		automationId: string;
+		req: UpdateChatAutomationRequest;
+	}) =>
+		API.experimental.updateChatAutomation(organizationId, automationId, req),
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(organizationId),
+		}),
+});
+
+const automationChatsKey = (automationId: string) =>
+	["chat-automation-chats", automationId] as const;
+
+const automationChatsPageSize = 25;
+
+export const automationChats = (automationId: string) =>
+	infiniteQueryOptions({
+		queryKey: automationChatsKey(automationId),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage: Chat[], pages: Chat[][]) =>
+			lastPage.length < automationChatsPageSize
+				? undefined
+				: pages.length * automationChatsPageSize,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					automation_id: automationId,
+					// The history includes chats archived after the automation
+					// created or wrote to them.
+					q: "archived:any",
+					limit: automationChatsPageSize,
+					offset: pageParam,
+				},
+				signal,
+			),
+	});
+
+export const runChatAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (automationId: string): Promise<ChatAutomationRunResponse> =>
+		API.experimental.runChatAutomation(organizationId, automationId),
+	onSuccess: async (_: ChatAutomationRunResponse, automationId: string) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: chatAutomationsKey(organizationId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: automationChatsKey(automationId),
+			}),
+			invalidateChatListQueries(queryClient),
+		]);
+	},
+});

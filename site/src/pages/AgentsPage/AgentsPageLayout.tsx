@@ -66,6 +66,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -728,6 +729,10 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isBoardRoute =
 		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
+	// On mobile the automations page replaces the sidebar, like a settings
+	// detail page.
+	const isFullPageRoute =
+		isSettingsDetail || location.pathname.startsWith(AUTOMATIONS_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -775,7 +780,7 @@ const AgentsPageLayout: React.FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail
+							: isFullPageRoute
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
@@ -830,7 +835,7 @@ const AgentsPageLayout: React.FC = () => {
 						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
 						isSettingsIndex ? "hidden sm:flex" : "flex",
 						!agentId &&
-							!isSettingsDetail &&
+							!isFullPageRoute &&
 							sidebarView.panel === "chats" &&
 							"contents sm:flex sm:flex-1 sm:flex-col",
 					)}

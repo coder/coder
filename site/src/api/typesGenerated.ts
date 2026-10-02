@@ -6536,6 +6536,12 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * AutomationID filters to chats the automation created or sent
+	 * messages to. The server ignores it unless the chat-automations
+	 * experiment is enabled for the caller.
+	 */
+	readonly AutomationID: string;
 }
 
 // From codersdk/inboxnotification.go
