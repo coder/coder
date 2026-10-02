@@ -124,6 +124,8 @@ Key differences:
   `workspace_id` instead.
 - Optionally pass `model_config_id` to override the default model, or
   `mcp_server_ids` to attach MCP servers.
+- Optionally pass `title` to set the chat's title.
+  A title you set is kept; automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
