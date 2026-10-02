@@ -499,6 +499,9 @@ type responseCopier struct {
 }
 
 func (r *responseCopier) copyMiddleware(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+	// SDK retries and key failover call the middleware again on the same
+	// copier. Release the previous attempt before sending the next one.
+	r.closeUpstream()
 	resp, err := next(req)
 	if err != nil || resp == nil {
 		return resp, err
@@ -507,8 +510,6 @@ func (r *responseCopier) copyMiddleware(req *http.Request, next option.Middlewar
 	r.responseReceived.Store(true)
 	r.responseStatus = resp.StatusCode
 	r.responseHeaders = resp.Header
-	// SDK retries call the middleware again on the same copier.
-	r.closeUpstream()
 	r.upstreamBody = resp.Body
 	resp.Body = io.NopCloser(io.TeeReader(resp.Body, &r.buff))
 	r.responseBody = resp.Body

@@ -2,14 +2,17 @@ package responses
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 	oairesponses "github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -577,6 +580,73 @@ func TestResponseCopierDoesntSendIfNoResponseReceived(t *testing.T) {
 	require.True(t, mrw.headerCalled)
 	require.True(t, mrw.writeCalled)
 	require.True(t, mrw.writeHeaderCalled)
+}
+
+func TestResponseCopierReleasesUpstreamBeforeRetry(t *testing.T) {
+	t.Parallel()
+
+	type connKey struct{}
+	var (
+		mu        sync.Mutex
+		connDone  = map[net.Conn]chan struct{}{}
+		firstConn net.Conn
+	)
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, _ := r.Context().Value(connKey{}).(net.Conn)
+		mu.Lock()
+		first := firstConn
+		if first == nil {
+			firstConn = conn
+		}
+		firstDone := connDone[first]
+		mu.Unlock()
+
+		if first == nil {
+			w.Header().Set("Retry-After-Ms", "1")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"message":"retry"}}`))
+			return
+		}
+		// The retry may reuse the first connection only if its body was
+		// released; otherwise that connection must close before the retry.
+		if conn != first {
+			select {
+			case <-firstDone:
+			case <-time.After(testutil.WaitShort):
+				t.Error("first upstream response still held while the retry was in flight")
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_retry","object":"response","output":[]}`))
+	}))
+	upstream.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+		return context.WithValue(ctx, connKey{}, c)
+	}
+	upstream.Config.ConnState = func(c net.Conn, state http.ConnState) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch state {
+		case http.StateNew:
+			connDone[c] = make(chan struct{})
+		case http.StateClosed:
+			close(connDone[c])
+		default:
+		}
+	}
+	upstream.Start()
+	t.Cleanup(upstream.Close)
+
+	var copier responseCopier
+	t.Cleanup(copier.closeUpstream)
+	client := openai.NewClient(
+		option.WithBaseURL(upstream.URL),
+		option.WithAPIKey("test"),
+		option.WithMaxRetries(1),
+		option.WithMiddleware(copier.copyMiddleware),
+	)
+	resp, err := client.Responses.New(t.Context(), oairesponses.ResponseNewParams{})
+	require.NoError(t, err)
+	require.Equal(t, "resp_retry", resp.ID)
 }
 
 func TestMarkKeyOnError(t *testing.T) {
