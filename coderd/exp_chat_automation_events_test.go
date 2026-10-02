@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -125,6 +126,12 @@ func TestChatAutomationEvents(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		require.NoError(t, err)
+		newChatReq := env.webhookRequest()
+		newChatReq.TargetMode = codersdk.ChatAutomationTargetModeNewChat
+		newChatReq.TargetChatID = nil
+		newChatReq.NewChatModelConfigID = &env.modelConfig.ID
+		newChat, err := env.member.CreateChatAutomation(ctx, env.orgID, newChatReq)
+		require.NoError(t, err)
 		member, err := env.member.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
@@ -137,6 +144,62 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, status, "the secret is checked before the experiment")
 		status, _ = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
 		require.Equal(t, http.StatusNotFound, status)
+		status, _ = postChatAutomationEvent(t, env.member, newChat.Automation.ID, newChat.WebhookSecret, event)
+		require.Equal(t, http.StatusNotFound, status)
+
+		// A refused event leaves no trace: no message or queued input in
+		// the target chat and no chat created by either automation.
+		messages, err := env.member.GetChatMessages(ctx, env.memberChat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, messages.Messages)
+		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
+		for _, automationID := range []uuid.UUID{created.Automation.ID, newChat.Automation.ID} {
+			chats, err := env.db.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{AutomationID: automationID})
+			require.NoError(t, err)
+			require.Empty(t, chats)
+		}
+	})
+
+	t.Run("SingleUseExperimentOff", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req := env.webhookRequest()
+		req.WebhookUse = ptr.Ref(codersdk.ChatAutomationWebhookUseSingle)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		member, err := env.member.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		rule, err := env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:      codersdk.ExperimentRuleModeCondition,
+			Condition: fmt.Sprintf("user.username != %q", member.Username),
+		})
+		require.NoError(t, err)
+
+		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusNotFound, status, string(body))
+		// The owner cannot read the automation while the experiment is off,
+		// so check the stored row.
+		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
+		require.NoError(t, err)
+		require.False(t, stored.WebhookConsumedAt.Valid, "a refused delivery does not use up the webhook")
+
+		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:             codersdk.ExperimentRuleModeInherit,
+			ExpectedRevision: rule.Revision,
+		})
+		require.NoError(t, err)
+		status, body = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusAccepted, status, string(body))
+		status, body = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusConflict, status, string(body))
+		require.Contains(t, string(body), "This single-use webhook was already used.")
+		automation, err := env.member.ChatAutomation(ctx, env.orgID, created.Automation.ID)
+		require.NoError(t, err)
+		require.NotNil(t, automation.WebhookConsumedAt)
+		messages, err := env.member.GetChatMessages(ctx, env.memberChat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, messages.Messages, 1, "the secret delivered exactly once")
 	})
 
 	t.Run("InvalidBody", func(t *testing.T) {

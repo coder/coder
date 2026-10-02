@@ -145,8 +145,13 @@ export const updateChatAutomation = (
 		}),
 });
 
-const automationChatsKey = (automationId: string) =>
-	["chat-automation-chats", automationId] as const;
+const automationChatsFamilyKey = ["chat-automation-chats"] as const;
+
+export const automationChatsKey = (automationId: string) =>
+	[...automationChatsFamilyKey, automationId] as const;
+
+export const invalidateAutomationChats = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({ queryKey: automationChatsFamilyKey });
 
 const automationChatsPageSize = 25;
 

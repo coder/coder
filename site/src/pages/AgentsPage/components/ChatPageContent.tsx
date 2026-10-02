@@ -335,6 +335,7 @@ type ChatPageInputProps = {
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -392,6 +393,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
+	onManageAutomationsToggle,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -869,6 +871,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			manageAutomationsEnabled={chat.manage_automations_enabled}
+			onManageAutomationsToggle={onManageAutomationsToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
