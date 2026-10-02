@@ -40,6 +40,7 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureAuditLog:              1,
+				codersdk.FeatureCustomRoles:           1,
 				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
@@ -59,6 +60,16 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 
 	t.Run("Authorization", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
+		updateOnlyRole, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "chat-model-config-update-only",
+			OrganizationID: orgID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceChatModelConfig: {codersdk.ActionUpdate},
+			}),
+		})
+		require.NoError(t, err)
+		updateOnly, _ := newClient(orgID, rbac.RoleIdentifier{Name: updateOnlyRole.Name, OrganizationID: orgID})
+
 		cases := []struct {
 			name      string
 			client    *codersdk.ExperimentalClient
@@ -66,6 +77,7 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 			putStatus int
 		}{
 			{name: "Owner", client: owner, getStatus: http.StatusOK, putStatus: http.StatusNoContent},
+			{name: "UpdateOnlyRole", client: updateOnly, getStatus: http.StatusNotFound, putStatus: http.StatusNoContent},
 			{name: "OrgAdmin", client: orgAdmin, getStatus: http.StatusOK, putStatus: http.StatusNoContent},
 			{name: "OrgAuditor", client: orgAuditor, getStatus: http.StatusOK, putStatus: http.StatusForbidden},
 			{name: "Member", client: member, getStatus: http.StatusNotFound, putStatus: http.StatusForbidden},

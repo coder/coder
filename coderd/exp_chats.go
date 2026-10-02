@@ -5031,7 +5031,11 @@ func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 		if err := tx.AcquireLock(lockCtx, database.LockIDChatOrganizationSystemPrompt(organization.ID)); err != nil {
 			return xerrors.Errorf("acquire organization chat system prompt write lock: %w", err)
 		}
-		old, err := tx.GetChatOrganizationSystemPrompt(ctx, organization.ID)
+		// The ActionUpdate check above gates this endpoint. Read the previous
+		// value for the audit diff under a system context so a custom role
+		// that grants update without read can still write.
+		//nolint:gocritic // See above.
+		old, err := tx.GetChatOrganizationSystemPrompt(dbauthz.AsSystemRestricted(ctx), organization.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
