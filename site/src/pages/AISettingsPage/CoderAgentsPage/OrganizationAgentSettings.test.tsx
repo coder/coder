@@ -354,7 +354,7 @@ describe("OrganizationAgentSettings", () => {
 		});
 
 		it("keeps the instructions read-only for viewers", async () => {
-			const updateSystemPrompt = mockModelsAndInstructions("Org guidance.");
+			mockModelsAndInstructions("Org guidance.");
 			const user = userEvent.setup();
 			renderSettings({ canEdit: false, canViewInstructions: true });
 
@@ -368,7 +368,9 @@ describe("OrganizationAgentSettings", () => {
 			await user.type(textarea, " Edited.");
 
 			expect(textarea).toHaveValue("Org guidance.");
-			expect(updateSystemPrompt).not.toHaveBeenCalled();
+			expect(
+				within(form).queryByRole("button", { name: "Save" }),
+			).not.toBeInTheDocument();
 		});
 	});
 });
