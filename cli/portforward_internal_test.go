@@ -3,10 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_parsePortForwards(t *testing.T) {
@@ -122,23 +119,16 @@ func Test_parsePortForwards(t *testing.T) {
 func TestPortForwardUsageRequest(t *testing.T) {
 	t.Parallel()
 
-	agentID := uuid.New()
-	idle := codersdk.PostWorkspaceUsageRequest{}
-	active := codersdk.PostWorkspaceUsageRequest{
-		AgentID: agentID,
-		AppName: string(codersdk.UsageAppNamePortForwarding),
-	}
-
 	for _, tc := range []struct {
 		name string
 		// steps runs before each request. Each entry is one reporting tick.
 		steps []func(u *portForwardUsage, done *func())
-		want  []codersdk.PostWorkspaceUsageRequest
+		want  []bool
 	}{
 		{
 			name:  "Idle",
 			steps: []func(*portForwardUsage, *func()){nil, nil},
-			want:  []codersdk.PostWorkspaceUsageRequest{idle, idle},
+			want:  []bool{false, false},
 		},
 		{
 			name: "OpenConnection",
@@ -146,7 +136,7 @@ func TestPortForwardUsageRequest(t *testing.T) {
 				func(u *portForwardUsage, done *func()) { *done = u.track() },
 				nil,
 			},
-			want: []codersdk.PostWorkspaceUsageRequest{active, active},
+			want: []bool{true, true},
 		},
 		{
 			name: "GoesIdleAfterClose",
@@ -155,7 +145,7 @@ func TestPortForwardUsageRequest(t *testing.T) {
 				nil,
 				func(_ *portForwardUsage, done *func()) { (*done)() },
 			},
-			want: []codersdk.PostWorkspaceUsageRequest{active, active, idle},
+			want: []bool{true, true, false},
 		},
 		{
 			name: "OpenOnlyBetweenTicks",
@@ -163,7 +153,7 @@ func TestPortForwardUsageRequest(t *testing.T) {
 				func(u *portForwardUsage, _ *func()) { u.track()() },
 				nil,
 			},
-			want: []codersdk.PostWorkspaceUsageRequest{active, idle},
+			want: []bool{true, false},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -177,7 +167,7 @@ func TestPortForwardUsageRequest(t *testing.T) {
 				if step != nil {
 					step(&u, &done)
 				}
-				require.Equal(t, tc.want[i], u.request(agentID), "tick %d", i)
+				require.Equal(t, tc.want[i], u.inUse(), "tick %d", i)
 			}
 		})
 	}

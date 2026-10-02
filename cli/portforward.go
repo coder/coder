@@ -226,7 +226,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 // portForwardUsage counts forwarded TCP connections for usage reporting.
 type portForwardUsage struct {
 	active atomic.Int64
-	seen   atomic.Bool // Set when a connection opens, cleared by request.
+	seen   atomic.Bool // Set when a connection opens, cleared by inUse.
 }
 
 // track records an open connection. Call the returned func when it closes.
@@ -236,52 +236,51 @@ func (u *portForwardUsage) track() func() {
 	return func() { u.active.Add(-1) }
 }
 
-// request returns the next usage report. The body is empty, which only bumps
-// the workspace's last-used time, unless a connection is open or opened since
-// the previous call.
-func (u *portForwardUsage) request(agentID uuid.UUID) codersdk.PostWorkspaceUsageRequest {
+// inUse reports whether a connection is open or opened since the last call.
+func (u *portForwardUsage) inUse() bool {
 	// Swap first so a connection that opened and closed between calls counts.
-	if u.seen.Swap(false) || u.active.Load() > 0 {
-		return codersdk.PostWorkspaceUsageRequest{
-			AgentID: agentID,
-			AppName: string(codersdk.UsageAppNamePortForwarding),
-		}
-	}
-	return codersdk.PostWorkspaceUsageRequest{}
+	return u.seen.Swap(false) || u.active.Load() > 0
 }
 
 // reportPortForwardUsage reports usage now, every minute, and once more on
-// stop. Call the returned func to wait for the final report.
+// stop. Call the returned func to stop and wait for the final report.
 func reportPortForwardUsage(ctx context.Context, client *codersdk.Client, workspaceID, agentID uuid.UUID, usage *portForwardUsage) func() {
 	report := func(ctx context.Context) {
-		if err := client.PostWorkspaceUsageWithBody(ctx, workspaceID, usage.request(agentID)); err != nil {
+		var req codersdk.PostWorkspaceUsageRequest
+		if usage.inUse() {
+			req = codersdk.PostWorkspaceUsageRequest{
+				AgentID: agentID,
+				AppName: string(codersdk.UsageAppNamePortForwarding),
+			}
+		}
+		if err := client.PostWorkspaceUsageWithBody(ctx, workspaceID, req); err != nil {
 			client.Logger().Warn(ctx, "failed to post workspace usage", slog.Error(err))
 		}
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	report(ctx)
-	ticker := time.NewTicker(time.Minute)
-	doneCh := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
-		defer func() {
-			ticker.Stop()
-			close(doneCh)
-		}()
+		defer close(done)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				report(ctx)
 			case <-ctx.Done():
 				// ctx is canceled, so send the final report on a detached one.
-				finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 				report(finalCtx)
-				cancel()
+				finalCancel()
 				return
 			}
 		}
 	}()
 	return func() {
-		<-doneCh
+		cancel()
+		<-done
 	}
 }
 
