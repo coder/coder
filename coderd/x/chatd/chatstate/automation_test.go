@@ -420,15 +420,6 @@ func TestSendMessage_QueueCapIgnoresStaleRows(t *testing.T) {
 			for _, id := range stale {
 				requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, id)
 			}
-			var want []int64
-			for _, id := range before {
-				if !slices.Contains(stale, id) {
-					want = append(want, id)
-				}
-			}
-			if result.QueuedMessage != nil {
-				want = append(want, result.QueuedMessage.ID)
-			}
 			after := queuedIDsByPosition(ctx, t, f, chat.Chat.ID)
 			if tc.from == chatstate.StateE1 {
 				// Every older row was stale, so E1 promotes the new
@@ -439,6 +430,13 @@ func TestSendMessage_QueueCapIgnoresStaleRows(t *testing.T) {
 				return
 			}
 			require.NotNil(t, result.QueuedMessage)
+			var want []int64
+			for _, id := range before {
+				if !slices.Contains(stale, id) {
+					want = append(want, id)
+				}
+			}
+			want = append(want, result.QueuedMessage.ID)
 			require.Equal(t, want, after, "only the stale rows are deleted and the new message is queued")
 		})
 	}
