@@ -23,8 +23,13 @@ export const AutomationsNavItem: React.FC<AutomationsNavItemProps> = ({
 	) : null;
 };
 
+type AutomationsMobileLinkProps = {
+	/** Normalized query string the sidebar appends to its own links. */
+	readonly locationSearch: string;
+};
+
 /** The mobile header's link to the page; the sidebar nav is hidden there. */
-export const AutomationsMobileLink: React.FC<AutomationsNavItemProps> = ({
+export const AutomationsMobileLink: React.FC<AutomationsMobileLinkProps> = ({
 	locationSearch,
 }) => {
 	return useAutomationsEnabled() ? (

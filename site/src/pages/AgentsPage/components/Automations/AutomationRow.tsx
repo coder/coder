@@ -36,8 +36,8 @@ const formatNextRun = (automation: ChatAutomation, now: number): string => {
 	if (automation.kind !== "schedule") {
 		return "Not scheduled";
 	}
-	// The list refetches about once a minute, so its first entry can already
-	// be in the past.
+	// The server computed the list when it last loaded, so its first entry
+	// can already be in the past.
 	const date = automation.next_run_times
 		.map((runTime) => new Date(runTime))
 		.find((runTime) => runTime.getTime() > now);
@@ -146,8 +146,6 @@ type OwnerNameProps = {
 };
 
 const OwnerName: React.FC<OwnerNameProps> = ({ organizationId, userId }) => {
-	// Every organization member can read the organization's members, so
-	// this works for admins who cannot read site users.
 	const memberQuery = useQuery(organizationMember(organizationId, userId));
 	if (memberQuery.isLoading) {
 		return <Skeleton className="h-3 w-24" />;
@@ -335,7 +333,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 			return (
 				<TableRow>
 					<TableCell className="align-top">
-						<div className="flex min-w-0 flex-col gap-1 break-words">
+						<div className="flex flex-col gap-1 break-words">
 							{nameDetails}
 							<TriggerCell automation={automation} />
 							<div>{target}</div>

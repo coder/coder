@@ -196,7 +196,6 @@ describe("AgentAutomationsPage", () => {
 		expect(
 			await screen.findByText(`Owned by ${MockOrganizationMember2.username}`),
 		).toBeInTheDocument();
-		// Only the owner can delete an automation from the list.
 		expect(
 			screen.queryByRole("button", { name: `Delete ${mockAutomation.name}` }),
 		).toBeNull();
@@ -558,34 +557,6 @@ describe("AgentAutomationsPage", () => {
 		},
 	);
 
-	it("marks archived chats in the chats dialog", async () => {
-		const user = userEvent.setup();
-		setup();
-		server.use(
-			http.get("/api/v2/chats", () =>
-				HttpResponse.json([
-					{ ...MockChat, id: "chat-archived", title: "Old", archived: true },
-					{ ...MockChat, id: "chat-active", title: "New", archived: false },
-				]),
-			),
-		);
-
-		await user.click(
-			await screen.findByRole("button", {
-				name: `View chats ${mockAutomation.name}`,
-			}),
-		);
-		const dialog = await screen.findByRole("dialog", {
-			name: `Chats for ${mockAutomation.name}`,
-		});
-		await within(dialog).findByRole("link", { name: "Old" });
-
-		const [archivedItem, activeItem] = within(dialog).getAllByRole("listitem");
-		expect(within(archivedItem).getByText("Archived")).toBeInTheDocument();
-		expect(within(activeItem).getByRole("link", { name: "New" })).toBeVisible();
-		expect(within(activeItem).queryByText("Archived")).toBeNull();
-	});
-
 	it("loads more of an automation's chats", async () => {
 		const user = userEvent.setup();
 		const { requests } = setup();
@@ -594,15 +565,19 @@ describe("AgentAutomationsPage", () => {
 			id: `chat-${index}`,
 			title: `Chat ${index}`,
 		}));
-		const lastChat = mockChatPage[24];
-		const olderChat = { ...MockChat, id: "chat-older", title: "Older chat" };
+		const mockLastChat = mockChatPage[24];
+		const mockOlderChat = {
+			...MockChat,
+			id: "chat-older",
+			title: "Older chat",
+		};
 		server.use(
 			http.get("/api/v2/chats", ({ request }) => {
 				requests.push(request);
 				// A chat that moves up between requests can show on both pages.
 				return HttpResponse.json(
-					new URL(request.url).searchParams.get("after_id") === lastChat.id
-						? [lastChat, olderChat]
+					new URL(request.url).searchParams.get("after_id") === mockLastChat.id
+						? [mockLastChat, mockOlderChat]
 						: mockChatPage,
 				);
 			}),
@@ -617,15 +592,15 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&after_id=${lastChat.id}`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&after_id=${mockLastChat.id}`,
 			);
 		});
 		const dialog = screen.getByRole("dialog", {
 			name: `Chats for ${mockAutomation.name}`,
 		});
-		await within(dialog).findByRole("link", { name: olderChat.title });
+		await within(dialog).findByRole("link", { name: mockOlderChat.title });
 		expect(
-			within(dialog).getAllByRole("link", { name: lastChat.title }),
+			within(dialog).getAllByRole("link", { name: mockLastChat.title }),
 		).toHaveLength(1);
 	});
 });

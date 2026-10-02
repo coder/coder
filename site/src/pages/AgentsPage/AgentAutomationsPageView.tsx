@@ -206,8 +206,8 @@ const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
 						{automation.kind === "schedule"
 							? "Its schedule stops, and no more runs start."
 							: "Its webhook endpoint stops accepting events."}{" "}
-						Messages it queued in chats that have not started yet are removed.
-						Chats it created and messages it already sent stay.
+						Messages it queued that have not started yet are removed from their
+						chats. Chats it created and messages it already sent stay.
 					</p>
 					{Boolean(state.error) && (
 						<div className="mt-4">

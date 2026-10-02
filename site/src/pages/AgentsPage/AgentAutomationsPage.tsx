@@ -113,7 +113,8 @@ const AutomationsList: React.FC = () => {
 	const chatsQuery = useInfiniteQuery({
 		...automationChats(chatsAutomation?.id ?? ""),
 		enabled: Boolean(chatsAutomation),
-		// Scheduled and webhook runs add chats while the dialog is open.
+		// Scheduled and webhook runs add chats while the dialog is open. Each
+		// tick refetches every loaded page, which stays small in practice.
 		refetchInterval: 30_000,
 	});
 	const updateMutation = useMutation(
@@ -235,13 +236,12 @@ const AutomationsList: React.FC = () => {
 
 	const handleRunNow = (automation: ChatAutomation) => {
 		setRunError(undefined);
-		const runOrganizationId = organizationId;
 		runMutation.mutate(automation.id, {
 			onSuccess: () => {
 				toast.success(`${automation.name} accepted the run.`);
 			},
 			onError: (error) => {
-				setRunError({ automation, error, organizationId: runOrganizationId });
+				setRunError({ automation, error, organizationId });
 			},
 		});
 	};

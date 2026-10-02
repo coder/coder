@@ -702,7 +702,7 @@ class ApiMethods {
 	getOrganizationMember = async (organization: string, user: string) => {
 		const response =
 			await this.axios.get<TypesGen.OrganizationMemberWithUserData>(
-				`/api/v2/organizations/${organization}/members/${user}`,
+				`/api/v2/organizations/${encodeURIComponent(organization)}/members/${encodeURIComponent(user)}`,
 			);
 
 		return response.data;
