@@ -61,7 +61,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
-		return errUnavailable
+		return ErrUnavailable
 	}
 	m.wg.Add(1)
 	m.mu.Unlock()

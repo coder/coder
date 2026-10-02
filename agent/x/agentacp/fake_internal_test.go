@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,14 +25,16 @@ func TestACPHarness(t *testing.T) {
 		return
 	}
 	mode := fakeHarnessMode(os.Getenv("CODER_ACP_TEST_MODE"))
-	f := &fakeHarness{mode: mode, value: "default"}
+	f := &fakeHarness{mode: mode, ready: make(chan struct{}), value: "default"}
 	f.conn = acp.NewAgentSideConnection(f, os.Stdout, os.Stdin)
+	close(f.ready)
 	<-f.conn.Done()
 	os.Exit(0) //nolint:revive // The subprocess must not write test output to ACP stdout.
 }
 
 type fakeNativeSession struct {
-	Value string `json:"value"`
+	History []string `json:"history"`
+	Value   string   `json:"value"`
 }
 
 type fakeHarnessMode string
@@ -39,6 +42,15 @@ type fakeHarnessMode string
 const (
 	// fakeHarnessModeBoth advertises load, resume, and steering capabilities.
 	fakeHarnessModeBoth fakeHarnessMode = "both"
+	// fakeHarnessModeLoad advertises only load for recovery, testing history
+	// replay and transcript epoch resets.
+	fakeHarnessModeLoad fakeHarnessMode = "load"
+	// fakeHarnessModeResume advertises only resume for recovery, testing
+	// restoration without history replay.
+	fakeHarnessModeResume fakeHarnessMode = "resume"
+	// fakeHarnessModeNone disables load, resume, and steering to test unavailable
+	// recovery and conflicts when messaging a busy session.
+	fakeHarnessModeNone fakeHarnessMode = "none"
 	// fakeHarnessModeFail returns an initialization error to test reporting a
 	// failed probe without preventing discovery of other harnesses.
 	fakeHarnessModeFail fakeHarnessMode = "fail"
@@ -47,9 +59,20 @@ const (
 	fakeHarnessModeHang fakeHarnessMode = "hang"
 )
 
+type fakeTurn struct {
+	end     chan struct{}
+	done    chan struct{}
+	started chan struct{}
+	cancel  context.CancelFunc
+	once    sync.Once
+}
+
 type fakeHarness struct {
+	mu   sync.Mutex
+	turn *fakeTurn
 	acp.Agent
 	conn  *acp.AgentSideConnection
+	ready chan struct{}
 	mode  fakeHarnessMode
 	value string
 }
@@ -64,6 +87,17 @@ func (f *fakeHarness) Initialize(ctx context.Context, req acp.InitializeRequest)
 	}
 	var result acp.InitializeResponse
 	_ = json.Unmarshal([]byte(`{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"sessionCapabilities":{"resume":{}}},"_meta":{"steering":{"supported":true}}}`), &result)
+	if f.mode == fakeHarnessModeLoad {
+		result.AgentCapabilities.SessionCapabilities.Resume = nil
+	}
+	if f.mode == fakeHarnessModeResume {
+		result.AgentCapabilities.LoadSession = false
+	}
+	if f.mode == fakeHarnessModeNone {
+		result.AgentCapabilities.LoadSession = false
+		result.AgentCapabilities.SessionCapabilities.Resume = nil
+		result.Meta = nil
+	}
 	if f.mode == fakeHarnessModeFail {
 		return result, xerrors.New("probe failed")
 	}
@@ -98,6 +132,187 @@ func (f *fakeHarness) NewSession(_ context.Context, req acp.NewSessionRequest) (
 	raw, _ := json.Marshal(fakeNativeSession{Value: f.value})
 	err := os.WriteFile(id+".json", raw, 0o600)
 	return acp.NewSessionResponse{SessionId: acp.SessionId(id), ConfigOptions: f.options()}, err
+}
+
+func (f *fakeHarness) update(ctx context.Context, id acp.SessionId, kind, text string) error {
+	<-f.ready
+	raw, _ := json.Marshal(map[string]any{"sessionUpdate": kind, "content": map[string]any{"type": "text", "text": text}})
+	var update acp.SessionUpdate
+	_ = json.Unmarshal(raw, &update)
+	return f.conn.SessionUpdate(ctx, acp.SessionNotification{SessionId: id, Update: update})
+}
+
+func (f *fakeHarness) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	return f.executePrompt(ctx, req, nil)
+}
+
+func (f *fakeHarness) executePrompt(ctx context.Context, req acp.PromptRequest, registered chan<- *fakeTurn) (acp.PromptResponse, error) {
+	text := req.Prompt[0].Text.Text
+	if text == "exit-secret" {
+		_, _ = fmt.Fprintln(os.Stderr, "credential=runtime-secret")
+		os.Exit(7) //nolint:revive // Exercise stderr confidentiality on failure.
+	}
+	if text == "exit" {
+		os.Exit(7) //nolint:revive // Exercise a real harness process failure.
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	turn := &fakeTurn{end: make(chan struct{}), done: make(chan struct{}), started: make(chan struct{}), cancel: cancel}
+	f.mu.Lock()
+	f.turn = turn
+	f.mu.Unlock()
+	if registered != nil {
+		registered <- turn
+	}
+	defer func() {
+		_ = f.status(context.Background(), req.SessionId, "idle")
+		f.mu.Lock()
+		if f.turn == turn {
+			f.turn = nil
+		}
+		f.mu.Unlock()
+		close(turn.done)
+		cancel()
+	}()
+	_ = f.status(ctx, req.SessionId, "active")
+	_ = f.update(ctx, req.SessionId, "agent_thought_chunk", "thinking")
+	var tool acp.SessionUpdate
+	_ = json.Unmarshal([]byte(`{"sessionUpdate":"tool_call","toolCallId":"call","title":"Inspect","kind":"read","status":"in_progress"}`), &tool)
+	_ = f.conn.SessionUpdate(ctx, acp.SessionNotification{SessionId: req.SessionId, Update: tool})
+	tool = acp.SessionUpdate{}
+	_ = json.Unmarshal([]byte(`{"sessionUpdate":"tool_call_update","toolCallId":"call","status":"completed","content":[{"type":"content","content":{"type":"text","text":"tool result"}}]}`), &tool)
+	_ = f.conn.SessionUpdate(ctx, acp.SessionNotification{SessionId: req.SessionId, Update: tool})
+	if strings.HasPrefix(text, "hold") {
+		_ = f.update(ctx, req.SessionId, "agent_message_chunk", "started")
+		close(turn.started)
+		select {
+		case <-ctx.Done():
+			return acp.PromptResponse{StopReason: acp.StopReasonCancelled}, nil
+		case <-turn.end:
+			return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
+		}
+	}
+	close(turn.started)
+	response := "answer:" + text + ":" + f.value
+	_ = f.update(ctx, req.SessionId, "agent_message_chunk", response)
+	raw, _ := os.ReadFile(string(req.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	saved.History = append(saved.History, text, response)
+	raw, _ = json.Marshal(saved)
+	_ = os.WriteFile(string(req.SessionId)+".json", raw, 0o600)
+	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
+}
+
+func (f *fakeHarness) Cancel(context.Context, acp.CancelNotification) error {
+	f.mu.Lock()
+	turn := f.turn
+	f.mu.Unlock()
+	if turn != nil {
+		turn.cancel()
+	}
+	return nil
+}
+
+func (f *fakeHarness) status(ctx context.Context, id acp.SessionId, status string) error {
+	if f.mode != fakeHarnessModeBoth {
+		return nil
+	}
+	var update acp.SessionUpdate
+	raw, _ := json.Marshal(map[string]any{"sessionUpdate": "session_info_update", "_meta": map[string]any{"codex": map[string]any{"threadStatus": map[string]any{"type": status}}}})
+	_ = json.Unmarshal(raw, &update)
+	return f.conn.SessionUpdate(ctx, acp.SessionNotification{SessionId: id, Update: update})
+}
+
+func (f *fakeHarness) LoadSession(ctx context.Context, req acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
+	if err := f.check(req.Cwd, req.McpServers); err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
+	raw, err := os.ReadFile(string(req.SessionId) + ".json")
+	if err != nil {
+		return acp.LoadSessionResponse{}, err
+	}
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	f.value = saved.Value
+	if saved.Value == "fail-load" {
+		_ = f.update(ctx, req.SessionId, "agent_message_chunk", "partial replay")
+		return acp.LoadSessionResponse{}, xerrors.New("load failed after partial replay")
+	}
+	for i, text := range saved.History {
+		kind := "user_message_chunk"
+		if i%2 == 1 {
+			kind = "agent_message_chunk"
+		}
+		_ = f.update(ctx, req.SessionId, kind, text)
+	}
+	return acp.LoadSessionResponse{ConfigOptions: f.options()}, nil
+}
+
+func (f *fakeHarness) ResumeSession(_ context.Context, req acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	if err := f.check(req.Cwd, req.McpServers); err != nil {
+		return acp.ResumeSessionResponse{}, err
+	}
+	raw, err := os.ReadFile(string(req.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	f.value = saved.Value
+	return acp.ResumeSessionResponse{ConfigOptions: f.options()}, err
+}
+
+func (f *fakeHarness) SetSessionConfigOption(_ context.Context, req acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
+	if req.ValueId == nil || req.ValueId.ConfigId != "model" {
+		return acp.SetSessionConfigOptionResponse{}, xerrors.New("unknown config")
+	}
+	f.value = string(req.ValueId.Value)
+	raw, _ := os.ReadFile(string(req.ValueId.SessionId) + ".json")
+	var saved fakeNativeSession
+	_ = json.Unmarshal(raw, &saved)
+	saved.Value = f.value
+	raw, _ = json.Marshal(saved)
+	_ = os.WriteFile(string(req.ValueId.SessionId)+".json", raw, 0o600)
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: f.options()}, nil
+}
+
+func (f *fakeHarness) HandleExtensionMethod(ctx context.Context, method string, req json.RawMessage) (any, error) {
+	if method != "_session/steering" {
+		return nil, acp.NewMethodNotFound(method)
+	}
+	var message struct {
+		Prompt    []acp.ContentBlock `json:"prompt"`
+		SessionID acp.SessionId      `json:"sessionId"`
+	}
+	_ = json.Unmarshal(req, &message)
+	text := message.Prompt[0].Text.Text
+	f.mu.Lock()
+	turn := f.turn
+	f.mu.Unlock()
+	if turn != nil && text != "new" && text != "new-complete" {
+		_ = f.update(ctx, message.SessionID, "agent_message_chunk", "injected:"+text)
+		return map[string]any{"outcome": "injected"}, nil
+	}
+	if turn != nil {
+		turn.once.Do(func() { close(turn.end) })
+		<-turn.done
+	}
+	prompt := text
+	if text == "new" {
+		prompt = "hold-new"
+	}
+	done := make(chan struct{})
+	registered := make(chan *fakeTurn, 1)
+	go func() {
+		defer close(done)
+		_, _ = f.executePrompt(context.Background(), acp.PromptRequest{SessionId: message.SessionID, Prompt: []acp.ContentBlock{acp.TextBlock(prompt)}}, registered)
+	}()
+	if text == "new-complete" {
+		<-done
+	} else {
+		// The first status/update from the detached prompt is visible before its
+		// startedNewTurn acknowledgement, just as in the Codex adapter.
+		next := <-registered
+		<-next.started
+	}
+	return map[string]any{"outcome": "startedNewTurn"}, nil
 }
 
 func fakeCommand(t *testing.T, mode fakeHarnessMode) string {
