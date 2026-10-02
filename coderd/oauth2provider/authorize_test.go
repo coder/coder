@@ -977,24 +977,33 @@ func TestOAuth2AuthorizeSessionCeiling(t *testing.T) {
 		CallbackURL: appCallbackURL,
 	})
 
-	sessions := map[string]codersdk.CreateTokenRequest{
-		"ScopedSessionRefused": {Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess}},
-		"RestrictedAllowListRefused": {AllowList: []codersdk.APIAllowListTarget{
-			codersdk.AllowTypeTarget(codersdk.ResourceOauth2AppCodeToken),
-			codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
-		}},
+	sessions := map[string]struct {
+		req    codersdk.CreateTokenRequest
+		reason string
+	}{
+		"ScopedSessionRefused": {
+			req:    codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess}},
+			reason: reasonBeyondSession,
+		},
+		"RestrictedAllowListRefused": {
+			req: codersdk.CreateTokenRequest{AllowList: []codersdk.APIAllowListTarget{
+				codersdk.AllowTypeTarget(codersdk.ResourceOauth2AppCodeToken),
+				codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
+			}},
+			reason: reasonSessionAllowList,
+		},
 	}
-	for name, req := range sessions {
+	for name, tc := range sessions {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			token, err := client.CreateToken(ctx, codersdk.Me, req)
+			token, err := client.CreateToken(ctx, codersdk.Me, tc.req)
 			require.NoError(t, err)
 			session := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
 			for _, method := range []string{http.MethodGet, http.MethodPost} {
 				resp := authorizeRequest(ctx, t, session, method, app.ID.String(), "")
-				requireInvalidScope(t, resp, reasonBeyondSession)
+				requireInvalidScope(t, resp, tc.reason)
 				resp.Body.Close()
 			}
 		})
@@ -1086,6 +1095,7 @@ var (
 	reasonNoGrantableScope = oauth2provider.ReasonNoGrantableScope
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 	reasonBeyondSession    = oauth2provider.ReasonBeyondSession
+	reasonSessionAllowList = oauth2provider.ReasonSessionAllowList
 )
 
 func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode codersdk.OAuth2ErrorCode, wantDescription string) {

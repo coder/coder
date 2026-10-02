@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -29,7 +28,7 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from scope negotiation.
+// Rejection reasons from scope negotiation and the session check.
 var (
 	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
@@ -43,8 +42,10 @@ var (
 	// The coverage check itself failed. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
-	// The grant exceeds the signed-in session authorizing it.
+	// The grant exceeds the signed-in session's scopes.
 	errBeyondSession = xerrors.New("scope requests permissions beyond the signed-in session")
+	// The session has an allow list, which `*:*` access tokens would escape.
+	errSessionAllowList = xerrors.New("the signed-in session is restricted to an allow list; authorize from an unrestricted session")
 )
 
 // canonicalScopes rewrites each name to its api_key_scope enum spelling and
@@ -186,20 +187,26 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
-// withinSession refuses a grant beyond the session authorizing it. Access
-// tokens are minted with `*:*`, so the session must allow everything too.
-func withinSession(session database.APIKey, granted string) error {
-	scopes := slice.StringEnums[database.APIKeyScope](strings.Fields(granted))
-	if _, _, err := apikey.CapToCaller(session, scopes, database.AllowList{rbac.AllowListAll()}); err != nil {
-		return errBeyondSession
+// withinSession also requires a `*:*` allow list, since access tokens are
+// minted with one.
+func withinSession(ctx context.Context, logger slog.Logger, appID uuid.UUID, session database.APIKey, granted string) error {
+	if !slices.Contains(session.AllowList, rbac.AllowListAll()) {
+		return errSessionAllowList
+	}
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseAuthorize, appID, canonicalScopes(slice.ToStrings(session.Scopes)), strings.Fields(granted))
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		return xerrors.Errorf("%q: %w", outside, errBeyondSession)
 	}
 	return nil
 }
 
-// scopeFailureResponse maps a negotiateScope rejection to the client's error.
-// errCoverageUndecidable is this server failing to compare, not a bad request,
-// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
-// negotiateScope already logged the detail.
+// scopeFailureResponse maps a negotiateScope or withinSession rejection to the
+// client's error. errCoverageUndecidable is this server failing to compare, not
+// a bad request, so it answers server_error (RFC 6749 §4.1.2.1) with a fixed
+// description; firstScopeBeyondCeiling logged the detail.
 func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
 	if errors.Is(err, errCoverageUndecidable) {
 		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
@@ -691,7 +698,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err == nil {
-			err = withinSession(httpmw.APIKey(r), grantedScope)
+			err = withinSession(r.Context(), logger, app.ID, httpmw.APIKey(r), grantedScope)
 		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
@@ -775,7 +782,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err == nil {
-			err = withinSession(apiKey, grantedScope)
+			err = withinSession(ctx, logger, app.ID, apiKey, grantedScope)
 		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)

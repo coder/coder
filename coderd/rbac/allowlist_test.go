@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 func TestParseAllowListEntry(t *testing.T) {
@@ -169,7 +170,7 @@ func TestFirstAllowListEntryNotCovered(t *testing.T) {
 	wsOther := rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}
 	tplID := rbac.AllowListElement{Type: rbac.ResourceTemplate.Type, ID: id}
 	anyID := rbac.AllowListElement{Type: policy.WildcardSymbol, ID: id}
-	l := func(e ...rbac.AllowListElement) []rbac.AllowListElement { return e }
+	l := slice.New[rbac.AllowListElement]
 
 	tests := []struct {
 		name               string
