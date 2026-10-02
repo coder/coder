@@ -290,6 +290,11 @@ beforeAll(() => {
 	});
 });
 
+// Project pages list the project's chats below the composer.
+beforeEach(() => {
+	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+});
+
 afterEach(() => {
 	mountedLockedOrganizationIds.length = 0;
 	navigateBack = undefined;
