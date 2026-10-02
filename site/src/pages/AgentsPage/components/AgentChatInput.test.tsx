@@ -125,6 +125,24 @@ afterEach(() => {
 });
 
 describe("AgentChatInput", () => {
+	it("fills its container when the page column sets the width", () => {
+		localStorage.removeItem("agents.chat-full-width");
+		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const column = screen.getByTestId("chat-composer").parentElement;
+
+		expect(column).toHaveClass("max-w-3xl");
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...inputProps} fillWidth />
+			</AppProviders>,
+		);
+
+		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
+			"max-w-full",
+		);
+	});
+
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();

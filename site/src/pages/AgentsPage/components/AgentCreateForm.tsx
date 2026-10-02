@@ -247,6 +247,7 @@ type AgentCreateFormProps = {
 	 */
 	lockedOrganizationId?: string;
 	prefill?: AgentCreatePrefill;
+	fillWidth?: boolean;
 };
 
 export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
@@ -262,6 +263,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	isWorkspacesLoading,
 	lockedOrganizationId,
 	prefill,
+	fillWidth,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const {
@@ -889,6 +891,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						/>
 					)}
 				<AgentChatInput
+					fillWidth={fillWidth}
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={
