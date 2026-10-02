@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -39,7 +40,9 @@ func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalize
 // stripForeignProviderStateRows drops provider-executed tool blocks (calls and
 // results) and OpenAI reasoning state from assistant rows whose producing
 // provider differs from targetIdentity. Reasoning item IDs and encrypted
-// content only resolve on the provider instance that issued them. Rows with an
+// content only resolve on the provider instance that issued them. A reasoning
+// part's recorded ProviderIdentity takes precedence over its row's origin,
+// since the row's model config may have moved to another provider. Rows with an
 // unknown origin are treated as foreign (fail closed). Rows emptied by
 // stripping are dropped; rows that fail to parse or re-marshal are kept
 // unchanged.
@@ -61,7 +64,10 @@ func stripForeignProviderStateRows(
 			out = append(out, row)
 			continue
 		}
-		if origin, ok := originProvider(row.ModelConfigID); ok && origin == targetIdentity {
+		origin, ok := originProvider(row.ModelConfigID)
+		nativeRow := ok && origin == targetIdentity
+		// Only stamped reasoning parts can be foreign inside a native row.
+		if nativeRow && !bytes.Contains(row.Content.RawMessage, []byte(`"provider_identity"`)) {
 			out = append(out, row)
 			continue
 		}
@@ -76,11 +82,11 @@ func stripForeignProviderStateRows(
 		var removedCalls, removedResults, removedReasoning int
 		for _, part := range parts {
 			switch {
-			case part.Type == codersdk.ChatMessagePartTypeToolCall && part.ProviderExecuted:
+			case !nativeRow && part.Type == codersdk.ChatMessagePartTypeToolCall && part.ProviderExecuted:
 				removedCalls++
-			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
+			case !nativeRow && part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
 				removedResults++
-			case part.Type == codersdk.ChatMessagePartTypeReasoning && hasOpenAIReasoningState(part):
+			case part.Type == codersdk.ChatMessagePartTypeReasoning && isForeignReasoning(part, nativeRow, targetIdentity):
 				removedReasoning++
 			default:
 				kept = append(kept, part)
@@ -108,6 +114,14 @@ func stripForeignProviderStateRows(
 		out = append(out, row)
 	}
 	return out, stats
+}
+
+func isForeignReasoning(part codersdk.ChatMessagePart, nativeRow bool, targetIdentity string) bool {
+	foreign := !nativeRow
+	if part.ProviderIdentity != "" {
+		foreign = part.ProviderIdentity != targetIdentity
+	}
+	return foreign && hasOpenAIReasoningState(part)
 }
 
 func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
