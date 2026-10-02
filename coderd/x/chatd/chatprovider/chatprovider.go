@@ -17,9 +17,11 @@ import (
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3/option"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
@@ -91,9 +93,10 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 	return unsupported
 }
 
-// ProviderAllowsAmbientCredentials reports whether provider can use
-// ambient credentials from the Coder server instead of an explicit
-// API key.
+// ProviderAllowsAmbientCredentials reports whether a direct client for
+// the provider type can use ambient credentials from the Coder server
+// instead of an explicit API key. Individual provider configs can also
+// support ambient credentials through ConfiguredProvider.SupportsAmbientCredentials.
 func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
 }
@@ -221,6 +224,9 @@ type ConfiguredProvider struct {
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
+	// SupportsAmbientCredentials reports that the provider configuration supports
+	// ambient credentials. It does not verify that credentials are available.
+	SupportsAmbientCredentials bool
 }
 
 // APIKey returns the effective API key for a provider.
@@ -389,10 +395,10 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
-		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
-			// Bedrock can use ambient AWS credentials from the Coder server
-			// without an explicit key, but only when the credential policy
-			// allows central credentials to satisfy the request.
+		case (normalizedProvider == fantasybedrock.Name || provider.SupportsAmbientCredentials) && provider.CentralAPIKeyEnabled:
+			// These provider configurations support ambient credentials without an
+			// explicit key, but only when the credential policy allows central
+			// credentials to satisfy the request.
 			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
 				resolved.Available = true
 			} else {
@@ -436,7 +442,7 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
+	if trimmedKey != "" || availability.Available {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }
@@ -694,13 +700,36 @@ func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 	return config.UseResponsesAPI
 }
 
+// effectiveOpenAIConfig fills the Responses API and reasoning-model overrides
+// a configured reasoning mode implies when the config leaves them unset,
+// because the SDK's known-model list cannot vouch for an alias it has never seen.
+func effectiveOpenAIConfig(callConfig *codersdk.ChatModelCallConfig) *codersdk.ChatModelOpenAIConfig {
+	if callConfig == nil {
+		return nil
+	}
+	if chatopenai.ReasoningMode(callConfig) == nil {
+		return callConfig.OpenAIConfig
+	}
+	var config codersdk.ChatModelOpenAIConfig
+	if callConfig.OpenAIConfig != nil {
+		config = *callConfig.OpenAIConfig
+	}
+	if config.UseResponsesAPI == nil {
+		config.UseResponsesAPI = ptr.Ref(true)
+	}
+	if config.ReasoningModel == nil {
+		config.ReasoningModel = ptr.Ref(true)
+	}
+	return &config
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
 // HTTP headers on every request. httpClient, when non-nil, is used for
-// all provider HTTP requests. openAIConfig carries the model's OpenAI client
-// settings, including the transport override applied here.
+// all provider HTTP requests. callConfig carries the model's client-scoped
+// OpenAI settings applied here: the transport override and reasoning mode.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -708,12 +737,17 @@ func ModelFromConfig(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIConfig *codersdk.ChatModelOpenAIConfig,
+	callConfig *codersdk.ChatModelCallConfig,
 ) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
 		return Model{}, err
 	}
+
+	if err := chatopenai.ValidateReasoningMode(provider, callConfig); err != nil {
+		return Model{}, err
+	}
+	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
@@ -813,6 +847,11 @@ func ModelFromConfig(
 		if openAIConfig != nil && openAIConfig.ReasoningModel != nil {
 			reasoningModel := *openAIConfig.ReasoningModel
 			options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return reasoningModel }))
+		}
+		// The pinned SDK reinterprets pre-serialization overlay keys as JSON paths.
+		// Escape the dot so its merge adds mode without replacing reasoning.
+		if mode := chatopenai.ReasoningMode(callConfig); mode != nil {
+			options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:

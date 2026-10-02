@@ -76,13 +76,13 @@ Use a reverse proxy to handle TLS termination with automatic certificate managem
 
 If your reverse proxy rewrites the request `Host` and forwards the original
 host in `X-Forwarded-Host`, configure
-[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server.md#--proxy-trusted-origins)
+[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server/index.md#--proxy-trusted-origins)
 to trust that proxy's address. Otherwise Coder will ignore `X-Forwarded-Host`
 for subdomain app routing.
 
 ### DNS Setup
 
-You'll need to configure DNS to point wildcard subdomains to your Coder server:
+You'll need to configure DNS to point wildcard subdomains to your control plane:
 
 > [!NOTE]
 > We do not recommend using a top-level-domain for Coder wildcard access
@@ -114,7 +114,7 @@ Configure `*.example.com` instead, and ensure routing that wildcard to Coder doe
 If you're using [workspace proxies](workspace-proxies.md) for geo-distributed teams, each proxy requires its own wildcard access URL configuration:
 
 ```sh
-# Main Coder server
+# Main control plane
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
 
 # Sydney workspace proxy
@@ -156,7 +156,7 @@ If workspace applications are not working:
 1. Verify the `CODER_WILDCARD_ACCESS_URL` environment variable is configured correctly:
    - Check the deployment settings in the Coder dashboard (Settings > Deployment)
    - Ensure it matches your wildcard domain (e.g., `*.coder.example.com`)
-   - Restart the Coder server if you made changes to the environment variable
+   - Restart the control plane if you made changes to the environment variable
 2. Check DNS resolution for wildcard subdomains:
 
    ```sh

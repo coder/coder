@@ -55,12 +55,15 @@ const (
 	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
 	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
 	ResourceTypeChat                    ResourceType = "chat"
+	ResourceTypeChatProject             ResourceType = "chat_project"
 	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig         ResourceType = "chat_model_config"
+	ResourceTypeChatAutomation          ResourceType = "chat_automation"
 	ResourceTypeUserSecret              ResourceType = "user_secret"
 	ResourceTypeUserSkill               ResourceType = "user_skill"
 	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
 	ResourceTypeChatOperationalSettings ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule          ResourceType = "experiment_rule"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -135,10 +138,14 @@ func (r ResourceType) FriendlyString() string {
 		return "user ai budget override"
 	case ResourceTypeChat:
 		return "chat"
+	case ResourceTypeChatProject:
+		return "chat project"
 	case ResourceTypeMCPServerConfig:
 		return "mcp server config"
 	case ResourceTypeChatModelConfig:
 		return "chat model config"
+	case ResourceTypeChatAutomation:
+		return "chat automation"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:
@@ -147,6 +154,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat instruction settings"
 	case ResourceTypeChatOperationalSettings:
 		return "chat operational settings"
+	case ResourceTypeExperimentRule:
+		return "experiment rule"
 	default:
 		return "unknown"
 	}

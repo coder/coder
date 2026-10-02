@@ -1,8 +1,7 @@
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 
-export const SessionTimelineSkeleton: FC = () => {
+export const SessionTimelineSkeleton: React.FC = () => {
 	return (
 		<div className="relative">
 			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">

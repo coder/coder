@@ -18,12 +18,13 @@ func TestAsActor(t *testing.T) {
 	metadata := recorder.Metadata{"key": "value"}
 
 	// When: storing an actor in the context
-	ctx := aibcontext.AsActor(context.Background(), "actor-123", metadata)
+	ctx := aibcontext.AsActor(context.Background(), "actor-123", "actor@example.com", metadata)
 
-	// Then: the actor should be retrievable with correct ID and metadata
+	// Then: the actor should be retrievable with correct ID, email, and metadata
 	actor := aibcontext.ActorFromContext(ctx)
 	require.NotNil(t, actor)
 	assert.Equal(t, "actor-123", actor.ID)
+	assert.Equal(t, "actor@example.com", actor.Email)
 	assert.Equal(t, "value", actor.Metadata["key"])
 }
 
@@ -34,7 +35,7 @@ func TestActorFromContext(t *testing.T) {
 		t.Parallel()
 
 		// Given: a context with an actor
-		ctx := aibcontext.AsActor(context.Background(), "test-id", recorder.Metadata{})
+		ctx := aibcontext.AsActor(context.Background(), "test-id", "", recorder.Metadata{})
 
 		// When: extracting the actor from context
 		actor := aibcontext.ActorFromContext(ctx)
@@ -65,7 +66,7 @@ func TestActorIDFromContext(t *testing.T) {
 		t.Parallel()
 
 		// Given: a context with an actor
-		ctx := aibcontext.AsActor(context.Background(), "test-actor-id", recorder.Metadata{})
+		ctx := aibcontext.AsActor(context.Background(), "test-actor-id", "", recorder.Metadata{})
 
 		// When: extracting the actor ID from context
 		got := aibcontext.ActorIDFromContext(ctx)

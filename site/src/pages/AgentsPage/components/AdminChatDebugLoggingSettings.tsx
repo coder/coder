@@ -1,11 +1,10 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
 import { docs } from "#/utils/docs";
 
-interface AdminChatDebugLoggingSettingsProps {
+type AdminChatDebugLoggingSettingsProps = {
 	adminSettings: TypesGen.ChatDebugLoggingAdminSettings | undefined;
 	isLoadingAdminSetting: boolean;
 	onSaveAdminSetting: (
@@ -13,9 +12,9 @@ interface AdminChatDebugLoggingSettingsProps {
 	) => void;
 	isSavingAdminSetting: boolean;
 	isSaveAdminSettingError: boolean;
-}
+};
 
-export const AdminChatDebugLoggingSettings: FC<
+export const AdminChatDebugLoggingSettings: React.FC<
 	AdminChatDebugLoggingSettingsProps
 > = ({
 	adminSettings,

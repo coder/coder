@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -15,7 +14,7 @@ import {
 	useSingleSignOnSection,
 } from "./SingleSignOnSection";
 
-const SecurityPage: FC = () => {
+const SecurityPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const updatePasswordMutation = useMutation(updatePassword());
 	const authMethodsQuery = useQuery(authMethods());
@@ -59,16 +58,16 @@ const SecurityPage: FC = () => {
 	);
 };
 
-interface SecurityPageViewProps {
+type SecurityPageViewProps = {
 	security: {
-		form: ComponentProps<typeof SecurityForm>;
+		form: React.ComponentProps<typeof SecurityForm>;
 	};
 	oidc?: {
-		section: ComponentProps<typeof SingleSignOnSection>;
+		section: React.ComponentProps<typeof SingleSignOnSection>;
 	};
-}
+};
 
-export const SecurityPageView: FC<SecurityPageViewProps> = ({
+export const SecurityPageView: React.FC<SecurityPageViewProps> = ({
 	security,
 	oidc,
 }) => {

@@ -210,6 +210,31 @@ export const filterModelsWithEnabledProvider = (
 		return info !== undefined && info.enabled !== false;
 	});
 
+/** Unlike getModelOptionsFromModels, neither filters nor sorts. */
+export const toEnabledModelSelectorOptions = (
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly ModelSelectorOption[] =>
+	enabledModels.map((modelConfig) => {
+		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
+		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
+		return {
+			id: modelConfig.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: modelConfig.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: modelConfig.model,
+			displayName: modelConfig.display_name.trim() || modelConfig.model,
+			contextLimit: modelConfig.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
+	});
+
 export const getModelOptionsFromModels = (
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 	catalog: TypesGen.OrganizationChatModelsResponse | null | undefined,
@@ -283,12 +308,12 @@ type SelectorQuery<T> = {
 	readonly isLoading: boolean;
 };
 
-interface ModelSelectorState {
+type ModelSelectorState = {
 	readonly options: readonly ModelSelectorOption[];
 	readonly isModelCatalogLoading: boolean;
 	readonly modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	readonly hasConfiguredModels: boolean;
-}
+};
 
 // Provider identity comes from a separate query (userProviderModels).
 // Folding both loading states into one flag here spares every caller the

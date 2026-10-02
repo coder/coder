@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { StatusIndicator } from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
@@ -12,7 +11,7 @@ type ProvisionerVersionProps = {
 	provisionerVersion: string;
 };
 
-export const ProvisionerVersion: FC<ProvisionerVersionProps> = ({
+export const ProvisionerVersion: React.FC<ProvisionerVersionProps> = ({
 	provisionerVersion,
 	buildVersion,
 }) => {

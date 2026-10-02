@@ -123,7 +123,7 @@ func TestMCPServerConfigUpdateOnlyRoleReachesACLExcludedConfigs(t *testing.T) {
 	require.Equal(t, disabled.URL, fetched.URL)
 
 	requireMCPServerConfigRequestStatus(t, updateOnly, http.MethodGet,
-		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
+		"/api/v2/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
 		nil, http.StatusNotFound)
 
 	updatedName := "updated-hidden-mcp"
@@ -187,7 +187,7 @@ func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
 	require.Empty(t, fetched.URL)
 
 	requireMCPServerConfigRequestStatus(t, deleteOnly, http.MethodGet,
-		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
+		"/api/v2/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
 		nil, http.StatusNotFound)
 
 	err = deleteOnly.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID)
@@ -270,7 +270,7 @@ func TestMCPServerConfigShareOnlyRoleRoutes(t *testing.T) {
 	err = shareOnly.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
 	require.NoError(t, err)
 
-	configPath := "/api/experimental/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers/" + config.ID.String()
+	configPath := "/api/v2/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers/" + config.ID.String()
 	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodGet, configPath, nil, http.StatusNotFound)
 	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodGet, configPath+"/oauth2/connect", nil, http.StatusNotFound)
 	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodPatch, configPath,
@@ -329,7 +329,7 @@ func TestMCPServerConfigReadOnlyRoleCanConnect(t *testing.T) {
 	}
 
 	requireMCPServerConfigRequestStatus(t, readOnly, http.MethodGet,
-		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+config.ID.String()+"/oauth2/connect",
+		"/api/v2/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+config.ID.String()+"/oauth2/connect",
 		nil, http.StatusTemporaryRedirect)
 }
 
@@ -380,7 +380,7 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 	otherClient, _ := coderdtest.CreateAnotherUser(t, client, secondOrg.ID)
 	config := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "private-org-one-mcp")
-	organizationPath := "/api/experimental/organizations/" + secondOrg.ID.String() + "/mcp-servers/" + config.ID.String()
+	organizationPath := "/api/v2/organizations/" + secondOrg.ID.String() + "/mcp-servers/" + config.ID.String()
 	frozenPath := "/api/experimental/mcp/servers/" + config.ID.String()
 	mAudit.ResetLogs()
 
@@ -399,7 +399,7 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 		// Disconnect returns 200 for every caller without a token,
 		// including nonexistent config IDs, so the response does not
 		// reveal whether the config exists.
-		{name: "OAuthDisconnect", method: http.MethodDelete, path: frozenPath + "/oauth2/disconnect", wantStatus: http.StatusOK},
+		{name: "OAuthDisconnect", method: http.MethodDelete, path: "/api/v2/mcp/servers/" + config.ID.String() + "/oauth2/disconnect", wantStatus: http.StatusOK},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -426,7 +426,7 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDisconnect := func(id uuid.UUID) (int, string) {
 			res, err := otherClient.Request(ctx, http.MethodDelete,
-				"/api/experimental/mcp/servers/"+id.String()+"/oauth2/disconnect", nil)
+				"/api/v2/mcp/servers/"+id.String()+"/oauth2/disconnect", nil)
 			require.NoError(t, err)
 			defer res.Body.Close()
 			body, err := io.ReadAll(res.Body)

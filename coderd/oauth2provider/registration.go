@@ -26,6 +26,29 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// registeredScopeAllowlist narrows a DCR scope list to canonical catalog names
+// for storage (RFC 7591 section 3.2.2) and drops duplicates. A list that keeps
+// no catalog name is refused, since storing it as "" would mean no allowlist.
+// The error is safe to return as an error_description.
+func registeredScopeAllowlist(raw string) (sql.NullString, error) {
+	if err := codersdk.ValidateOAuth2ScopeList(raw); err != nil {
+		return sql.NullString{}, err
+	}
+	if raw == "" {
+		return scopeAllowlist(raw), nil
+	}
+	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return sql.NullString{}, xerrors.New("scope is blank; omit it or list supported scopes")
+	}
+	kept := grantableScopes(raw)
+	if len(kept) == 0 {
+		shown := capErrorDescription(sanitizeErrorDescription(strings.Join(names, " ")))
+		return sql.NullString{}, xerrors.Errorf("'%s': %w; see scopes_supported in /.well-known/oauth-authorization-server", shown, errUnknownScope)
+	}
+	return scopeAllowlist(strings.Join(kept, " ")), nil
+}
+
 // CreateDynamicClientRegistration returns an http.HandlerFunc that handles POST /oauth2/register
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -69,6 +92,12 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", err.Error())
 			return
 		}
+		scope, err := registeredScopeAllowlist(req.Scope)
+		if err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", "invalid scope: "+err.Error())
+			return
+		}
 
 		// Apply defaults
 		req = req.ApplyDefaults()
@@ -105,6 +134,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		// The app and its secret are written in one transaction. A partial
 		// write would commit an app that can never authenticate, and which
 		// still holds a registration access token.
+		redirectURIs := resolveRedirectURIs("", req.RedirectURIs, nil)
 		var app database.OAuth2ProviderApp
 		err = db.InTx(func(tx database.Store) error {
 			var err error
@@ -115,8 +145,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				UpdatedAt:               now,
 				Name:                    clientName,
 				Icon:                    req.LogoURI,
-				CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
-				RedirectUris:            req.RedirectURIs,
+				CallbackURL:             redirectURIs[0],
+				RedirectUris:            redirectURIs,
 				ClientType:              string(clientType),
 				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 				ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
@@ -124,7 +154,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				GrantTypes:              slice.ToStrings(req.GrantTypes),
 				ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 				TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-				Scope:                   sql.NullString{String: req.Scope, Valid: true},
+				Scope:                   scope,
 				Contacts:                req.Contacts,
 				ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 				LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -251,7 +281,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			ClientID:                app.ID.String(),
 			ClientIDIssuedAt:        app.ClientIDIssuedAt.Time.Unix(),
 			ClientSecretExpiresAt:   0, // No expiration for now
-			RedirectURIs:            app.RedirectUris,
+			RedirectURIs:            app.RegisteredRedirectURIs(),
 			ClientName:              app.Name,
 			ClientURI:               app.ClientUri.String,
 			LogoURI:                 app.LogoUri.String,
@@ -335,6 +365,19 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
+		// RFC 7592 updates resend every field, so an unchanged scope list is
+		// not rechecked. Apps registered before these checks may store a list
+		// that fails them and could otherwise not update other fields.
+		scope := scopeAllowlist(req.Scope)
+		if req.Scope != existingApp.Scope.String {
+			scope, err = registeredScopeAllowlist(req.Scope)
+			if err != nil {
+				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+					"invalid_client_metadata", "invalid scope: "+err.Error())
+				return
+			}
+		}
+
 		// A client's type is fixed at registration (RFC 7592 §2.2 permits
 		// rejecting metadata the server will not accept). Flipping it would
 		// either drop the secret requirement for a client that has one, or mark
@@ -364,14 +407,15 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 
 		// Update app in database
 		now := dbtime.Now()
+		redirectURIs := resolveRedirectURIs("", req.RedirectURIs, nil)
 		//nolint:gocritic // OAuth2 system context, RFC 7592 client configuration endpoint
 		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
 			ID:           clientID,
 			UpdatedAt:    now,
 			Name:         req.GenerateClientName(),
 			Icon:         req.LogoURI,
-			CallbackURL:  req.RedirectURIs[0], // Primary redirect URI
-			RedirectUris: req.RedirectURIs,
+			CallbackURL:  redirectURIs[0],
+			RedirectUris: redirectURIs,
 			// Carried through unchanged. The guard above rejects a request that
 			// would change the type, so re-deriving it here could only ever
 			// differ for a legacy row whose stored type and auth method
@@ -382,7 +426,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-			Scope:                   sql.NullString{String: req.Scope, Valid: true},
+			Scope:                   scope,
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},

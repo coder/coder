@@ -103,25 +103,21 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 				return err
 			}
 			// To preserve existing behavior, if an argument is passed we will
-			// only show the schedule for that workspace.
-			// This will clobber the search query if one is passed.
-			f := filter.Filter()
+			// only show the schedule for that workspace, resolved exactly by
+			// [owner/]workspace rather than a name filter query, which matches
+			// substrings and, without an owner, only the current user's workspaces.
+			var res []scheduleListRow
 			if len(inv.Args) == 1 {
-				// If the argument contains a slash, we assume it's a full owner/name reference
-				if strings.Contains(inv.Args[0], "/") {
-					_, workspaceName, err := codersdk.SplitWorkspaceIdentifier(inv.Args[0])
-					if err != nil {
-						return err
-					}
-					f.FilterQuery = fmt.Sprintf("name:%s", workspaceName)
-				} else {
-					// Otherwise, we assume it's a workspace name owned by the current user
-					f.FilterQuery = fmt.Sprintf("owner:me name:%s", inv.Args[0])
+				workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
+				if err != nil {
+					return xerrors.Errorf("get workspace: %w", err)
 				}
-			}
-			res, err := QueryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
-			if err != nil {
-				return err
+				res = []scheduleListRow{scheduleListRowFromWorkspace(time.Now(), workspace)}
+			} else {
+				res, err = QueryConvertWorkspaces(inv.Context(), client, filter.Filter(), scheduleListRowFromWorkspace)
+				if err != nil {
+					return err
+				}
 			}
 
 			out, err := formatter.Format(inv.Context(), res)

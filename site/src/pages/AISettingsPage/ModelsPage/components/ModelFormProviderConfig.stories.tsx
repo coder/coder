@@ -9,7 +9,9 @@ import { withToaster } from "#/testHelpers/storybook";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
+	MockAzureProviderState,
 	MockOpenAIProviderState,
+	mockGPT5,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -125,5 +127,32 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 			canvas.getByRole("combobox", { name: /search context size/i }),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/allowed domains/i)).toBeInTheDocument();
+	},
+};
+
+// A saved selection fills a dropdown instead of its Default empty state.
+export const ProviderConfigOpenAIReasoningMode: Story = {
+	args: {
+		editingModel: {
+			...mockGPT5,
+			model_config: {
+				provider_options: { openai: { reasoning_mode: "pro" } },
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openProviderConfig(canvasElement);
+	},
+};
+
+// Azure shares the OpenAI field group but not its OpenAI-only fields, so the
+// grid renders without reasoning_mode.
+export const ProviderConfigAzure: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockAzureProviderState],
+		selectedProviderState: MockAzureProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		await openProviderConfig(canvasElement);
 	},
 };

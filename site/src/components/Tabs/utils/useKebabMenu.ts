@@ -1,10 +1,4 @@
-import {
-	type RefObject,
-	useCallback,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 type TabValue = {
 	value: string;
@@ -18,7 +12,7 @@ type UseKebabMenuOptions<T extends TabValue> = {
 };
 
 type UseKebabMenuResult<T extends TabValue> = {
-	containerRef: RefObject<HTMLDivElement | null>;
+	containerRef: React.RefObject<HTMLDivElement | null>;
 	visibleTabs: T[];
 	overflowTabs: T[];
 	getTabMeasureProps: (tabValue: string) => Record<string, string>;

@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, JSX } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -19,7 +18,10 @@ import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 // Elevated states show a corner badge with a distinct icon per state.
 const severityIndicators: Partial<
-	Record<UsageSeverity, { badge: string; icon: JSX.Element; label: string }>
+	Record<
+		UsageSeverity,
+		{ badge: string; icon: React.JSX.Element; label: string }
+	>
 > = {
 	warning: {
 		badge: "bg-surface-orange text-highlight-orange",
@@ -33,16 +35,16 @@ const severityIndicators: Partial<
 	},
 };
 
-interface UserDropdownProps {
+type UserDropdownProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	canViewLicenses: boolean;
-}
+};
 
-export const UserDropdown: FC<UserDropdownProps> = ({
+export const UserDropdown: React.FC<UserDropdownProps> = ({
 	buildInfo,
 	user,
 	supportLinks,

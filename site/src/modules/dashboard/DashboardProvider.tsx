@@ -1,4 +1,4 @@
-import { createContext, type FC, type PropsWithChildren } from "react";
+import { createContext } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "#/api/queries/appearance";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -19,7 +19,7 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";
 
-export interface DashboardValue {
+export type DashboardValue = {
 	entitlements: Entitlements;
 	experiments: Experiment[];
 	appearance: AppearanceConfig;
@@ -27,17 +27,19 @@ export interface DashboardValue {
 	organizations: readonly Organization[];
 	showOrganizations: boolean;
 	canViewOrganizationSettings: boolean;
-}
+};
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
 	undefined,
 );
 
-export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
+export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
-	const { permissions } = useAuthenticated();
+	const { user, permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
-	const experimentsQuery = useQuery(experiments(metadata.experiments));
+	const experimentsQuery = useQuery(experiments(user.id, metadata));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
@@ -45,7 +47,9 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const error =
 		entitlementsQuery.error ||
 		appearanceQuery.error ||
-		experimentsQuery.error ||
+		// Experiments refetch in the background; keep the last list when a
+		// refetch fails instead of replacing the dashboard with an error.
+		(!experimentsQuery.data && experimentsQuery.error) ||
 		buildInfoQuery.error ||
 		organizationsQuery.error;
 

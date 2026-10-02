@@ -11,6 +11,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
+import { invalidateChatAutomations } from "#/api/queries/chatAutomations";
 import {
 	chatMessagesKey,
 	invalidateChatPrompts,
@@ -92,7 +93,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-interface UseChatStoreOptions {
+type UseChatStoreOptions = {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
@@ -102,7 +103,7 @@ interface UseChatStoreOptions {
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
-}
+};
 
 export const useChatStore = (
 	options: UseChatStoreOptions,
@@ -207,6 +208,11 @@ export const useChatStore = (
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
 				void invalidateChatPrompts(queryClient, chatID);
+			}
+			// New automation input can come from an automation created or
+			// renamed after the name list loaded.
+			if (messages.some((msg) => msg.automation_id !== undefined)) {
+				void invalidateChatAutomations(queryClient);
 			}
 			void invalidateChatSearches(queryClient);
 		},
@@ -602,11 +608,21 @@ export const useChatStore = (
 							}
 							continue;
 						}
-						case "queue_update":
+						case "queue_update": {
 							wsQueueUpdateReceivedRef.current = true;
+							const previousQueuedIDs = new Set(
+								store.getSnapshot().queuedMessages.map((m) => m.id),
+							);
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
+							const hasNewAutomationInput = streamEvent.queued_messages?.some(
+								(m) =>
+									m.automation_id !== undefined && !previousQueuedIDs.has(m.id),
+							);
+							if (hasNewAutomationInput) {
+								void invalidateChatAutomations(queryClient);
+							}
 							// Cache the store's filtered queue, not the raw
 							// event, so a promoted message suppressed by the
 							// store cannot reappear on REST re-hydration.
@@ -616,6 +632,7 @@ export const useChatStore = (
 								store.getSnapshot().queuedMessages,
 							);
 							continue;
+						}
 						case "status": {
 							const nextStatus = streamEvent.status?.status;
 							if (!nextStatus) {

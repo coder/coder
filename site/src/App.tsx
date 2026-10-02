@@ -1,12 +1,6 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import {
-	type FC,
-	type ReactNode,
-	StrictMode,
-	useEffect,
-	useState,
-} from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router";
 import {
@@ -28,12 +22,12 @@ const defaultQueryClient = new QueryClient({
 	},
 });
 
-interface AppProvidersProps {
-	children: ReactNode;
+type AppProvidersProps = {
+	children: React.ReactNode;
 	queryClient?: QueryClient;
-}
+};
 
-export const AppProviders: FC<AppProvidersProps> = ({
+export const AppProviders: React.FC<AppProvidersProps> = ({
 	children,
 	queryClient = defaultQueryClient,
 }) => {
@@ -71,7 +65,7 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	);
 };
 
-export const App: FC = () => {
+export const App: React.FC = () => {
 	return (
 		<StrictMode>
 			<AppProviders>

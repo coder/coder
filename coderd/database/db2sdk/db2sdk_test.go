@@ -749,6 +749,109 @@ func TestChatDebugRunDetail_NullableFieldsNil(t *testing.T) {
 	require.Empty(t, sdk.Steps)
 }
 
+func TestChatMessage_QueuedMessageID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Promoted", func(t *testing.T) {
+		t.Parallel()
+		result := db2sdk.ChatMessage(database.ChatMessage{
+			ID:              2,
+			ChatID:          uuid.New(),
+			Role:            database.ChatMessageRoleUser,
+			QueuedMessageID: sql.NullInt64{Int64: 7, Valid: true},
+		})
+		require.NotNil(t, result.QueuedMessageID)
+		require.Equal(t, int64(7), *result.QueuedMessageID)
+
+		raw, err := json.Marshal(result)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		require.JSONEq(t, "7", string(fields["queued_message_id"]))
+	})
+
+	t.Run("NotPromoted", func(t *testing.T) {
+		t.Parallel()
+		result := db2sdk.ChatMessage(database.ChatMessage{
+			ID:     1,
+			ChatID: uuid.New(),
+			Role:   database.ChatMessageRoleUser,
+		})
+		require.Nil(t, result.QueuedMessageID)
+
+		raw, err := json.Marshal(result)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		require.NotContains(t, fields, "queued_message_id")
+	})
+}
+
+// TestChatMessageAutomationProvenance guards the API contract that
+// automation input carries automation_id and input_id while ordinary
+// input omits both keys, for history and queued messages alike.
+func TestChatMessageAutomationProvenance(t *testing.T) {
+	t.Parallel()
+
+	automationID := uuid.New()
+	inputID := uuid.New()
+	set := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+
+	cases := []struct {
+		name      string
+		automated any
+		ordinary  any
+	}{
+		{
+			name: "ChatMessage",
+			automated: db2sdk.ChatMessage(database.ChatMessage{
+				ChatID:       uuid.New(),
+				Role:         database.ChatMessageRoleUser,
+				AutomationID: set(automationID),
+				InputID:      set(inputID),
+			}),
+			ordinary: db2sdk.ChatMessage(database.ChatMessage{
+				ChatID: uuid.New(),
+				Role:   database.ChatMessageRoleUser,
+			}),
+		},
+		{
+			name: "ChatQueuedMessage",
+			automated: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+				ChatID:       uuid.New(),
+				AutomationID: set(automationID),
+				InputID:      set(inputID),
+			}),
+			ordinary: db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+				ChatID: uuid.New(),
+			}),
+		},
+	}
+
+	fieldsOf := func(t *testing.T, v any) map[string]json.RawMessage {
+		t.Helper()
+		raw, err := json.Marshal(v)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		return fields
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			automated := fieldsOf(t, tc.automated)
+			require.JSONEq(t, `"`+automationID.String()+`"`, string(automated["automation_id"]))
+			require.JSONEq(t, `"`+inputID.String()+`"`, string(automated["input_id"]))
+
+			ordinary := fieldsOf(t, tc.ordinary)
+			require.NotContains(t, ordinary, "automation_id")
+			require.NotContains(t, ordinary, "input_id")
+		})
+	}
+}
+
 func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 
@@ -859,6 +962,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID:   uuid.New(),
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		Title:               "all-fields-test",
+		TitleSource:         database.ChatTitleSourceUser,
+		TitleUpdatedAt:      now,
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
@@ -878,9 +983,12 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 		// Pinned-context columns drive codersdk.Chat.Context. Set all of
 		// them so the converted sub-struct's fields are non-zero too.
+		ProjectID:            uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
+
+		ManageAutomationsEnabled: true,
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
@@ -908,7 +1016,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	v := reflect.ValueOf(got)
 	typ := v.Type()
 	// These fields are set outside db2sdk.Chat and intentionally remain zero.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true, "InlineMCPServers": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {

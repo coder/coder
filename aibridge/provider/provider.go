@@ -2,18 +2,34 @@ package provider
 
 import (
 	"net/http"
+	"regexp"
 
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
+// ErrUnknownRoute is returned when a request path does not match any of the
+// provider's routes.
 var ErrUnknownRoute = xerrors.New("unknown route")
+
+// PassthroughTransportWrapper is an optional capability implemented by
+// providers that authenticate by signing requests or by minting tokens rather
+// than by injecting a static key. Passthrough auth is otherwise driven entirely
+// by the key pool, so without this the provider's passthrough routes would be
+// unauthenticated.
+//
+// The returned transport wraps inner and is installed beneath the key failover
+// transport, so BYOK and centralized keys still take precedence.
+type PassthroughTransportWrapper interface {
+	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
+}
 
 // ErrNoCredential is returned when a request resolves to centralized
 // authentication but the provider has no centralized keys configured (and the
@@ -68,6 +84,11 @@ type Provider interface {
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
 
+	// ResolveCredential determines the upstream credential for a request.
+	// Coder authentication credentials must already have been removed from it.
+	// Remaining provider authentication headers are interpreted as BYOK credentials.
+	ResolveCredential(*http.Request) (credential.Credential, error)
+
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.
 	RoutePrefix() string
@@ -106,4 +127,34 @@ type Provider interface {
 	// APIDumpDir returns the directory path for dumping API requests and responses.
 	// Empty string is returned when API dumping is not enabled.
 	APIDumpDir() string
+}
+
+// validProviderName matches lowercase alphanumeric names separated by hyphens.
+var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidateProviders checks that provider names are valid and unique.
+func ValidateProviders(providers []Provider) error {
+	names := make(map[string]bool, len(providers))
+	for _, prov := range providers {
+		name := prov.Name()
+		if !validProviderName.MatchString(name) {
+			return xerrors.Errorf("invalid provider name %q: must contain only lowercase alphanumeric characters and hyphens", name)
+		}
+		if names[name] {
+			return xerrors.Errorf("duplicate provider name: %q", name)
+		}
+		names[name] = true
+	}
+	return nil
+}
+
+// CollectKeyPools returns the non-nil key pools of the given providers.
+func CollectKeyPools(providers []Provider) []*keypool.Pool {
+	pools := make([]*keypool.Pool, 0, len(providers))
+	for _, prov := range providers {
+		if pool := prov.KeyPool(); pool != nil {
+			pools = append(pools, pool)
+		}
+	}
+	return pools
 }

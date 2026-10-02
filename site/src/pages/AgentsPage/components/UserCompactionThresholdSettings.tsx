@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RotateCcwIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -37,7 +37,7 @@ import {
 	resolveCompactionContextLimit,
 } from "../utils/modelOptions";
 
-interface UserCompactionThresholdSettingsProps {
+type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
@@ -56,7 +56,7 @@ interface UserCompactionThresholdSettingsProps {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-}
+};
 
 const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
@@ -74,7 +74,7 @@ const parseThresholdDraft = (value: string): number | null => {
 	return parsedValue;
 };
 
-const ContextCompactionHeader: FC = () => (
+const ContextCompactionHeader: React.FC = () => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
 			Context compaction
@@ -86,7 +86,7 @@ const ContextCompactionHeader: FC = () => (
 	</div>
 );
 
-export const UserCompactionThresholdSettings: FC<
+export const UserCompactionThresholdSettings: React.FC<
 	UserCompactionThresholdSettingsProps
 > = ({
 	models,

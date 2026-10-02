@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -65,37 +65,6 @@ func init() {
 		return codersdk.OAuth2AppNameValid(str) == nil
 	}
 	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
-	if err != nil {
-		panic(err)
-	}
-
-	// oauth2_callback_url validates the common callback target shape for OAuth2
-	// app administration. Public clients receive the additional DCR redirect URI
-	// policy in the handler after their stored client type is available.
-	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
-		str, ok := fl.Field().Interface().(string)
-		if !ok {
-			return false
-		}
-		u, err := url.Parse(str)
-		if err != nil {
-			return false
-		}
-		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
-			return false
-		}
-		if u.Scheme == "urn" {
-			return true
-		}
-		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
-			return false
-		}
-		if u.Opaque != "" || (u.Host == "" && u.Path == "") {
-			return false
-		}
-		return true
-	}
-	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -386,6 +355,26 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	<-chan struct{},
 	error,
 ) {
+	return newServerSentEventSender(quartz.NewReal(), rw, r)
+}
+
+// ServerSentEventSenderWithClock is ServerSentEventSender with the heartbeat
+// ticker driven by clk.
+func ServerSentEventSenderWithClock(clk quartz.Clock) EventSender {
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(sse codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		return newServerSentEventSender(clk, rw, r)
+	}
+}
+
+func newServerSentEventSender(clk quartz.Clock, rw http.ResponseWriter, r *http.Request) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -408,7 +397,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := clk.NewTicker(HeartbeatInterval, "ServerSentEventSender")
 		defer ticker.Stop()
 
 		for {

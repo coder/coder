@@ -285,7 +285,17 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'chat_project:*',
+    'chat_project:create',
+    'chat_project:read',
+    'chat_project:update',
+    'chat_project:delete',
+    'chat_automation:*',
+    'chat_automation:create',
+    'chat_automation:read',
+    'chat_automation:update',
+    'chat_automation:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -330,6 +340,26 @@ CREATE TYPE build_reason AS ENUM (
     'ssh_connection',
     'vscode_connection',
     'jetbrains_connection'
+);
+
+CREATE TYPE chat_automation_kind AS ENUM (
+    'webhook',
+    'schedule'
+);
+
+CREATE TYPE chat_automation_target_mode AS ENUM (
+    'existing_chat',
+    'new_chat'
+);
+
+CREATE TYPE chat_automation_webhook_use AS ENUM (
+    'single',
+    'multi'
+);
+
+CREATE TYPE chat_automation_when_busy AS ENUM (
+    'queue',
+    'skip'
 );
 
 CREATE TYPE chat_client_type AS ENUM (
@@ -381,6 +411,14 @@ CREATE TYPE chat_status AS ENUM (
     'requires_action',
     'interrupting'
 );
+
+CREATE TYPE chat_title_source AS ENUM (
+    'fallback',
+    'generated',
+    'user'
+);
+
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 CREATE TYPE connection_status AS ENUM (
     'connected',
@@ -616,7 +654,10 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'experiment_rule',
+    'chat_project',
+    'chat_automation'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1016,6 +1057,42 @@ BEGIN
 	DELETE FROM user_ai_budget_overrides
 	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_chat_automation_chat_organization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Validate a reference only when it or organization_id changes. Chat
+	-- deletion runs one ON DELETE SET NULL update per reference, and the
+	-- other, unchanged reference may point at a chat the same statement is
+	-- deleting.
+	IF NEW.target_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.target_chat_id IS DISTINCT FROM OLD.target_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'target chat % is not in organization %', NEW.target_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	IF NEW.created_by_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.created_by_chat_id IS DISTINCT FROM OLD.created_by_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'creating chat % is not in organization %', NEW.created_by_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	RETURN NEW;
 END;
 $$;
 
@@ -1731,6 +1808,8 @@ CREATE TABLE aibridge_token_usages (
     cache_read_price_micros bigint,
     cache_write_price_micros bigint,
     cost_micros bigint,
+    provider_model text,
+    priced_model text,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1741,6 +1820,10 @@ CREATE TABLE aibridge_token_usages (
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
 
 COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
+
+COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
@@ -1902,6 +1985,52 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_automations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    created_by_chat_id uuid,
+    kind chat_automation_kind NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    target_mode chat_automation_target_mode NOT NULL,
+    target_chat_id uuid,
+    new_chat_model_config_id uuid,
+    reasoning_effort chat_reasoning_effort,
+    when_busy chat_automation_when_busy,
+    webhook_use chat_automation_webhook_use,
+    webhook_secret_hash bytea,
+    webhook_secret_version bigint DEFAULT 0 NOT NULL,
+    webhook_consumed_at timestamp with time zone,
+    prompt text NOT NULL,
+    schedule_cron text,
+    schedule_time_zone text,
+    schedule_revision bigint DEFAULT 1 NOT NULL,
+    schedule_next_run_at timestamp with time zone,
+    queue_generation bigint DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
+    CONSTRAINT chat_automations_name_length CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
+    CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL) AND (when_busy IS NOT NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL) AND (when_busy IS NULL))))
+);
+
+COMMENT ON TABLE chat_automations IS 'Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.';
+
+COMMENT ON COLUMN chat_automations.target_chat_id IS 'Target chat for existing_chat automations. Set to NULL when the target chat is deleted.';
+
+COMMENT ON COLUMN chat_automations.webhook_secret_hash IS 'Hash of the webhook bearer secret. The plaintext secret is never stored.';
+
+COMMENT ON COLUMN chat_automations.webhook_secret_version IS 'Incremented each time the webhook secret is rotated.';
+
+COMMENT ON COLUMN chat_automations.webhook_consumed_at IS 'Single-use webhook marker. Set once when the webhook is consumed and never reset.';
+
+COMMENT ON COLUMN chat_automations.schedule_revision IS 'Incremented whenever the schedule changes, so work computed from an older schedule can be detected as stale.';
+
+COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.';
+
+COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.';
+
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
     source text NOT NULL,
@@ -2021,6 +2150,27 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_mcp_servers (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    slug text NOT NULL,
+    url text NOT NULL,
+    headers text DEFAULT '{}'::text NOT NULL,
+    headers_key_id text,
+    tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
+    tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
+    allow_in_subagents boolean DEFAULT false NOT NULL,
+    forward_coder_headers boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_mcp_servers IS 'MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers IS 'JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers_key_id IS 'The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2046,7 +2196,10 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config chat_message_search_tsv_config
+    search_tsv_config chat_message_search_tsv_config,
+    queued_message_id bigint,
+    automation_id uuid,
+    input_id uuid
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2054,6 +2207,12 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
+
+COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
+
+COMMENT ON COLUMN chat_messages.automation_id IS 'Automation that delivered this message. No foreign key by design.';
+
+COMMENT ON COLUMN chat_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that delivered this message.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2099,6 +2258,25 @@ CREATE TABLE chat_organization_model_overrides (
     CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
 
+CREATE TABLE chat_projects (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    icon text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
+    CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
+);
+
+COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+
+COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
+
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
     INCREMENT BY 1
@@ -2114,10 +2292,20 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    automation_id uuid,
+    input_id uuid,
+    queue_generation bigint,
+    CONSTRAINT chat_queued_messages_automation_shape CHECK ((((automation_id IS NULL) AND (input_id IS NULL) AND (queue_generation IS NULL)) OR ((automation_id IS NOT NULL) AND (input_id IS NOT NULL) AND (queue_generation IS NOT NULL))))
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.automation_id IS 'Automation that queued this message. No foreign key by design.';
+
+COMMENT ON COLUMN chat_queued_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that queued this message.';
+
+COMMENT ON COLUMN chat_queued_messages.queue_generation IS 'chat_automations.queue_generation at queue time. A lower value than the automation''s current generation marks the message stale.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2209,6 +2397,11 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    project_id uuid,
+    title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
+    title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    automation_id uuid,
+    manage_automations_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2233,6 +2426,16 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+
+COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
+
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
+
+COMMENT ON COLUMN chats.automation_id IS 'Automation that created this chat. No foreign key by design.';
+
+COMMENT ON COLUMN chats.manage_automations_enabled IS 'Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2311,6 +2514,7 @@ CREATE VIEW chats_expanded AS
     c.last_read_message_id,
     c.dynamic_tools,
     c.organization_id,
+    c.project_id,
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
@@ -2332,7 +2536,11 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.title_source,
+    c.title_updated_at,
+    c.automation_id,
+    c.manage_automations_enabled
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -2353,7 +2561,9 @@ CREATE TABLE connection_logs (
     slug_or_port text,
     connection_id uuid,
     disconnect_time timestamp with time zone,
-    disconnect_reason text
+    disconnect_reason text,
+    client_session_id text,
+    CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
@@ -2369,6 +2579,8 @@ COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used 
 COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -2596,6 +2808,8 @@ CREATE TABLE mcp_server_configs (
     organization_id uuid NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    signing_secret text DEFAULT ''::text NOT NULL,
+    signing_secret_key_id text,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -2770,7 +2984,9 @@ CREATE TABLE oauth2_provider_apps (
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
 
-COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+COMMENT ON COLUMN oauth2_provider_apps.callback_url IS 'Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.';
+
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.';
 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 
@@ -4273,6 +4489,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
 
@@ -4283,7 +4502,7 @@ ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT chat_debug_steps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_diff_statuses
-    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
+    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id, git_remote_origin, git_branch);
 
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
@@ -4296,6 +4515,12 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_slug_key UNIQUE (chat_id, slug);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
@@ -4311,6 +4536,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4669,7 +4897,23 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
+
+CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_next_run_at) WHERE ((kind = 'schedule'::chat_automation_kind) AND enabled);
+
+CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
+
+CREATE INDEX chat_automations_owner_id_idx ON chat_automations USING btree (owner_id);
+
+CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
+
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX chat_messages_automation_idx ON chat_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
+
+CREATE INDEX chat_queued_messages_automation_idx ON chat_queued_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
+
+CREATE INDEX chats_automation_idx ON chats USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -4797,6 +5041,10 @@ CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING 
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
+CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
+
+CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
+
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
@@ -4812,6 +5060,8 @@ CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
+
+CREATE INDEX idx_chats_project_id ON chats USING btree (project_id) WHERE (project_id IS NOT NULL);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
@@ -5059,6 +5309,8 @@ CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BE
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
 
+CREATE TRIGGER trigger_enforce_chat_automation_chat_organization BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id ON chat_automations FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
+
 CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT OR UPDATE ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION enforce_user_ai_budget_override_membership();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
@@ -5126,6 +5378,21 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
 
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_created_by_chat_id_fkey FOREIGN KEY (created_by_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_new_chat_model_config_fkey FOREIGN KEY (organization_id, new_chat_model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_target_chat_id_fkey FOREIGN KEY (target_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5153,6 +5420,12 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_headers_key_id_fkey FOREIGN KEY (headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5176,6 +5449,12 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -5206,6 +5485,9 @@ ALTER TABLE ONLY chats
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
@@ -5281,6 +5563,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_signing_secret_key_id_fkey FOREIGN KEY (signing_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;

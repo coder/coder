@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -18,17 +18,15 @@ import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/
 import { useTheme } from "#/theme/context";
 import { getFormHelpers } from "#/utils/formUtils";
 
-interface AnnouncementBannerDialogProps {
+type AnnouncementBannerDialogProps = {
 	banner: BannerConfig;
 	onCancel: () => void;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
-}
+};
 
-export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
-	banner,
-	onCancel,
-	onUpdate,
-}) => {
+export const AnnouncementBannerDialog: React.FC<
+	AnnouncementBannerDialogProps
+> = ({ banner, onCancel, onUpdate }) => {
 	const theme = useTheme();
 	const isCreating = banner.message === "";
 

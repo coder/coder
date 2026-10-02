@@ -4,7 +4,7 @@
  */
 
 import { cn } from "cn";
-import { createContext, type Ref, useContext, useId, useMemo } from "react";
+import { createContext, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -36,10 +36,7 @@ function useChart() {
 	return context;
 }
 
-type ChartContainerProps = Omit<
-	React.ComponentPropsWithRef<"div">,
-	"children"
-> &
+type ChartContainerProps = Omit<React.ComponentProps<"div">, "children"> &
 	Pick<
 		React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer>,
 		"children"
@@ -134,7 +131,7 @@ type ChartTooltipContentProps = React.ComponentProps<
 	indicator?: "line" | "dot" | "dashed";
 	nameKey?: string;
 	labelKey?: string;
-	ref?: Ref<HTMLDivElement>;
+	ref?: React.Ref<HTMLDivElement>;
 };
 
 export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({

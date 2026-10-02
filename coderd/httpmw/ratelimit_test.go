@@ -201,30 +201,6 @@ func TestRateLimit(t *testing.T) {
 	})
 }
 
-func TestRateLimitByAPICompatibilityEndpoint(t *testing.T) {
-	t.Parallel()
-
-	rtr := chi.NewRouter()
-	rtr.Use(httpmw.RateLimitByAPICompatibilityEndpoint(1, time.Second))
-	rtr.Get("/*", func(rw http.ResponseWriter, r *http.Request) {
-		rw.WriteHeader(http.StatusOK)
-	})
-
-	remoteAddr := randRemoteAddr()
-	for i, p := range []string{
-		"/api/v2/chats/files/00000000-0000-0000-0000-000000000000",
-		"/api/experimental/chats/files/00000000-0000-0000-0000-000000000000",
-	} {
-		req := httptest.NewRequest("GET", p, nil)
-		req.RemoteAddr = remoteAddr
-		rec := httptest.NewRecorder()
-		rtr.ServeHTTP(rec, req)
-		resp := rec.Result()
-		_ = resp.Body.Close()
-		require.Equal(t, i != 0, resp.StatusCode == http.StatusTooManyRequests, p)
-	}
-}
-
 func TestRateLimitByAuthToken(t *testing.T) {
 	t.Parallel()
 

@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -34,12 +34,12 @@ import {
 	isActiveStatus,
 } from "./debugPanelUtils";
 
-interface DebugRunCardProps {
+type DebugRunCardProps = {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
 	download?: DownloadDebugFile;
-}
+};
 
 // Max characters shown in the run header label before truncation.
 const RUN_LABEL_CLAMP_CHARS = 80;
@@ -60,7 +60,7 @@ const getMCPOutcomeBadgeVariant = (outcome: string) => {
 	}
 };
 
-export const DebugRunCard: FC<DebugRunCardProps> = ({
+export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,

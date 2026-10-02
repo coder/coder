@@ -1,11 +1,10 @@
-import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { pageTitle } from "#/utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
-const ObservabilitySettingsPage: FC = () => {
+const ObservabilitySettingsPage: React.FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
 	const { permissions } = useAuthenticated();

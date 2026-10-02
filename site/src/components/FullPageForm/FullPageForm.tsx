@@ -1,18 +1,17 @@
-import type { FC, ReactNode } from "react";
 import { Margins, type Size } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-export interface FullPageFormProps {
+export type FullPageFormProps = {
 	title: string;
-	detail?: ReactNode;
-	children?: ReactNode;
+	detail?: React.ReactNode;
+	children?: React.ReactNode;
 	size?: Size;
-}
+};
 
-export const FullPageForm: FC<FullPageFormProps> = ({
+export const FullPageForm: React.FC<FullPageFormProps> = ({
 	title,
 	detail,
 	children,

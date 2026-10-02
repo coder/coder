@@ -1,10 +1,10 @@
 import { cn } from "cn";
 import { TableRow, type TableRowProps } from "#/components/Table/Table";
 
-interface TimelineEntryProps extends TableRowProps {
+type TimelineEntryProps = TableRowProps & {
 	ref?: React.Ref<HTMLTableRowElement>;
 	clickable?: boolean;
-}
+};
 
 export const TimelineEntry: React.FC<TimelineEntryProps> = ({
 	children,

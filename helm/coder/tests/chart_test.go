@@ -138,6 +138,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "deployment_strategy",
+		expectedError: "",
+	},
+	{
 		name:          "probes_custom",
 		expectedError: "",
 	},

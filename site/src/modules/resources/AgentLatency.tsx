@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	Tooltip,
@@ -29,11 +28,11 @@ const getDisplayLatency = (agent: WorkspaceAgent) => {
 	};
 };
 
-interface AgentLatencyProps {
+type AgentLatencyProps = {
 	agent: WorkspaceAgent;
-}
+};
 
-export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
+export const AgentLatency: React.FC<AgentLatencyProps> = ({ agent }) => {
 	const latency = getDisplayLatency(agent);
 
 	if (!latency || !agent.latency) {

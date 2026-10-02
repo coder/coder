@@ -1,5 +1,4 @@
 import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
-import type { ComponentProps, FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 
@@ -19,14 +18,14 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	}
 };
 
-interface ProvisionerTagProps {
+type ProvisionerTagProps = {
 	tagName: string;
 	tagValue: string;
 	/** Only used in the TemplateVersionEditor */
 	onDelete?: (tagName: string) => void;
-}
+};
 
-export const ProvisionerTag: FC<ProvisionerTagProps> = ({
+export const ProvisionerTag: React.FC<ProvisionerTagProps> = ({
 	tagName,
 	tagValue,
 	onDelete,
@@ -67,13 +66,13 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 };
 
 type BooleanPillProps = Omit<
-	ComponentProps<typeof Badge>,
+	React.ComponentProps<typeof Badge>,
 	"variant" | "value"
 > & {
 	value: boolean;
 };
 
-const BooleanPill: FC<BooleanPillProps> = ({
+const BooleanPill: React.FC<BooleanPillProps> = ({
 	value,
 	children,
 	...badgeProps

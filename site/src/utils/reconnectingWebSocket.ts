@@ -61,10 +61,10 @@ export type ReconnectSchedule = {
  * manage. Both native `WebSocket` and `OneWayWebSocket` satisfy this
  * contract.
  */
-interface Closable {
+type Closable = {
 	addEventListener(event: string, handler: (...args: unknown[]) => void): void;
 	close(...args: unknown[]): void;
-}
+};
 
 /**
  * Configuration for {@link createReconnectingWebSocket}.
@@ -72,7 +72,7 @@ interface Closable {
  * @typeParam TSocket - The concrete socket type returned by the
  *   `connect` function (e.g. `OneWayWebSocket<ServerSentEvent>`).
  */
-interface ReconnectingWebSocketOptions<TSocket extends Closable> {
+type ReconnectingWebSocketOptions<TSocket extends Closable> = {
 	/**
 	 * Factory that creates and returns a new socket. Called on the
 	 * initial connection and on every reconnection attempt. The caller
@@ -123,7 +123,7 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	 * to `[0, 1]`; non-finite values fall back to `0.5`.
 	 */
 	random?: () => number;
-}
+};
 
 const normalizeUnitInterval = (value: number, fallback: number): number =>
 	Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : fallback;

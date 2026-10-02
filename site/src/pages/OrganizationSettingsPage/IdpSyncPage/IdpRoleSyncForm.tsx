@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { useId, useState } from "react";
 import * as Yup from "yup";
 import type { Role, RoleSyncSettings } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -53,16 +53,16 @@ const roleSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-interface IdpRoleSyncFormProps {
+type IdpRoleSyncFormProps = {
 	roleSyncSettings: RoleSyncSettings;
 	claimFieldValues: readonly string[] | undefined;
 	roleMappingCount: number;
 	roles: Role[];
 	onSubmit: (data: RoleSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
-}
+};
 
-export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
+export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
 	claimFieldValues,
 	roleMappingCount,
@@ -99,7 +99,9 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 		form.handleSubmit();
 	};
 
-	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+	const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+		event,
+	) => {
 		if (
 			event.key === "Enter" &&
 			comboInputValue &&
@@ -305,14 +307,14 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	);
 };
 
-interface RoleRowProps {
+type RoleRowProps = {
 	idpRole: string;
 	exists: boolean | undefined;
 	coderRoles: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
-const RoleRow: FC<RoleRowProps> = ({
+const RoleRow: React.FC<RoleRowProps> = ({
 	idpRole,
 	exists = true,
 	coderRoles,

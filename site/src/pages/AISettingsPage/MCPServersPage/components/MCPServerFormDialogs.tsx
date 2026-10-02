@@ -1,19 +1,18 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import type { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 
-interface MCPServerFormDialogsProps {
+type MCPServerFormDialogsProps = {
 	server?: TypesGen.MCPServerConfig;
 	confirmingDelete: boolean;
 	setConfirmingDelete: (open: boolean) => void;
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	isDeleting: boolean;
 	unsavedChanges: ReturnType<typeof useUnsavedChangesPrompt>;
-}
+};
 
-export const MCPServerFormDialogs: FC<MCPServerFormDialogsProps> = ({
+export const MCPServerFormDialogs: React.FC<MCPServerFormDialogsProps> = ({
 	server,
 	confirmingDelete,
 	setConfirmingDelete,

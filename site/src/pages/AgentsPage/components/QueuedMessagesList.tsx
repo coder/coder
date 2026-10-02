@@ -2,11 +2,11 @@ import { cn } from "cn";
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
-	ImageIcon,
 	InfoIcon,
+	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -15,19 +15,24 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	AutomationLabel,
+	type ChatAutomationNames,
+} from "./ChatConversation/AutomationLabel";
 
-interface QueuedMessagesListProps {
+type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
+	automationNames: ChatAutomationNames;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
-}
+};
 
-interface QueuedMessageInfo {
+type QueuedMessageInfo = {
 	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
-}
+};
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
@@ -36,7 +41,7 @@ export const getQueuedMessageInfo = (
 	const textParts: string[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "file") {
+		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);
@@ -53,8 +58,9 @@ export const getQueuedMessageInfo = (
 	};
 };
 
-export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
+export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
+	automationNames,
 	onDelete,
 	onPromote,
 	className,
@@ -62,7 +68,14 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	const items = messages.map((message) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			automationId: message.automation_id,
+			inputId: message.input_id,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -172,6 +185,16 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							setHoveredID((current) => (current === item.id ? null : current))
 						}
 					>
+						{item.automationId && (
+							<div className="mb-1 flex">
+								<AutomationLabel
+									automationId={item.automationId}
+									inputId={item.inputId}
+									automationName={automationNames.names.get(item.automationId)}
+									nameStatus={automationNames.status}
+								/>
+							</div>
+						)}
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
 								{item.displayText.split("\n")[0]}
@@ -180,10 +203,10 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
-									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+									aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
 									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
 								>
-									<ImageIcon className="size-3" aria-hidden="true" />
+									<PaperclipIcon className="size-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
 							)}
@@ -206,11 +229,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{isFirst && (
 								<span
 									className={cn(
-										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
+										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
 										showActions ? "opacity-100" : "opacity-0",
 									)}
 								>
-									<CornerDownLeftIcon className="size-3" />
+									<CornerDownLeftIcon className="size-3" aria-hidden="true" />
+									<span className="sr-only">Enter</span>
 									to send
 								</span>
 							)}

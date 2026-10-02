@@ -78,6 +78,14 @@ export const Default: Story = {
 	},
 };
 
+export const SigningSecret: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /behavior/i }),
+		);
+	},
+};
+
 export const UserOIDCRequiresDeploymentPermission: Story = {
 	args: {
 		canSelectUserOIDC: false,

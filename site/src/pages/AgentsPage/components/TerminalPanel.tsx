@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
@@ -22,7 +22,7 @@ const READY_FALLBACK_MS = 100;
 /** Keeps a recently hidden terminal attached long enough for quick tab toggles. */
 const TERMINAL_IDLE_DETACH_MS = 30_000;
 
-interface TerminalPanelProps {
+type TerminalPanelProps = {
 	chatId: string;
 	reconnectionToken?: string;
 	/** Command run when the PTY session is first created, such as a command app. */
@@ -41,9 +41,9 @@ interface TerminalPanelProps {
 	onReady?: () => void;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-}
+};
 
-export const TerminalPanel: FC<TerminalPanelProps> = ({
+export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
 	initialCommand,

@@ -34,6 +34,10 @@ const (
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
+
+	// defaultAutomationScheduleBatchSize is how many due automations a
+	// schedule scan reads per page.
+	defaultAutomationScheduleBatchSize = int32(500)
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -65,8 +69,11 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	TurnSpan                 *runnerTurnSpan
+	TurnToken                turnToken
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
+	TurnExperiments          *turnExperimentDecisions
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
@@ -141,6 +148,72 @@ func (t *stopNudgeTracker) reset() {
 	t.mu.Unlock()
 }
 
+// turnExperimentDecisions keeps user-scoped experiment decisions for
+// one turn, so every step of the turn uses the decision made when the
+// turn first prepared and a rule change applies from the next turn.
+// Steps run as separate tasks, so the decisions live on the runner and
+// are keyed by the turn's prompt row like stopNudgeTracker. A runner
+// restart evaluates again.
+type turnExperimentDecisions struct {
+	mu              sync.Mutex
+	mcpToolSearch   turnExperimentDecision
+	chatAutomations turnExperimentDecision
+}
+
+// turnExperimentDecision is one experiment's decision and the turn it
+// belongs to. Experiments decide independently because each is evaluated
+// only when the turn needs it.
+type turnExperimentDecision struct {
+	turnKey int64
+	decided bool
+	enabled bool
+}
+
+// mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling
+// evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.mcpToolSearch, turnKey, evaluate)
+}
+
+// chatAutomationsEnabled returns the turn's chat-automations decision,
+// calling evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) chatAutomationsEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.chatAutomations, turnKey, evaluate)
+}
+
+func (t *turnExperimentDecisions) decide(d *turnExperimentDecision, turnKey int64, evaluate func() bool) bool {
+	if turnKey == 0 {
+		// Without a prompt row there is no turn identity to key on, and
+		// caching under 0 would pin one decision across such turns.
+		return evaluate()
+	}
+	t.mu.Lock()
+	if d.decided && d.turnKey == turnKey {
+		enabled := d.enabled
+		t.mu.Unlock()
+		return enabled
+	}
+	t.mu.Unlock()
+
+	// Evaluate outside the lock because it reads the database. If
+	// another task of the same turn decided meanwhile, its decision wins.
+	enabled := evaluate()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if d.decided && d.turnKey == turnKey {
+		return d.enabled
+	}
+	if d.decided && d.turnKey > turnKey {
+		// A canceled task of an older turn finished late. Prompt row IDs
+		// increase, so keep the newer turn's decision.
+		return enabled
+	}
+	d.turnKey = turnKey
+	d.decided = true
+	d.enabled = enabled
+	return enabled
+}
+
 type sessionStartTracker struct {
 	mu        sync.Mutex
 	completed bool
@@ -193,15 +266,24 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval        time.Duration
-	CapacityMetricsInterval    time.Duration
-	AcquisitionBatchSize       int32
-	ArchiveInterval            time.Duration
-	ArchiveBatchSize           int32
-	RunnerSyncInterval         time.Duration
-	HeartbeatInterval          time.Duration
-	HeartbeatCleanupInterval   time.Duration
-	HeartbeatStaleSeconds      int32
+	AcquisitionInterval         time.Duration
+	CapacityMetricsInterval     time.Duration
+	AcquisitionBatchSize        int32
+	ArchiveInterval             time.Duration
+	ArchiveBatchSize            int32
+	AutomationScheduleInterval  time.Duration
+	AutomationScheduleBatchSize int32
+	RunnerSyncInterval          time.Duration
+	HeartbeatInterval           time.Duration
+	HeartbeatCleanupInterval    time.Duration
+	HeartbeatStaleSeconds       int32
+	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
+	// stay well below the stale threshold so a slow tick fails and
+	// retries instead of letting every lease go stale.
+	HeartbeatRenewalTimeout time.Duration
+	// HeartbeatLockTimeout bounds the renewal's wait for the capacity
+	// admission lock.
+	HeartbeatLockTimeout       time.Duration
 	StateChannelSize           int
 	RunnerManagerChannelSize   int
 	AcquisitionWakeChannelSize int
@@ -240,6 +322,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.ArchiveBatchSize <= 0 {
 		o.ArchiveBatchSize = defaultArchiveBatchSize
 	}
+	if o.AutomationScheduleInterval <= 0 {
+		o.AutomationScheduleInterval = automationScheduleInterval
+	}
+	if o.AutomationScheduleBatchSize <= 0 {
+		o.AutomationScheduleBatchSize = defaultAutomationScheduleBatchSize
+	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
@@ -254,6 +342,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.HeartbeatStaleSeconds <= 0 {
 		o.HeartbeatStaleSeconds = int32(DefaultInFlightChatStaleAfter / time.Second)
+	}
+	if o.HeartbeatRenewalTimeout <= 0 {
+		o.HeartbeatRenewalTimeout = time.Duration(o.HeartbeatStaleSeconds) * time.Second / 3
+	}
+	if o.HeartbeatLockTimeout <= 0 {
+		o.HeartbeatLockTimeout = o.HeartbeatRenewalTimeout / 2
 	}
 	if o.AgentCapacityLimiter == nil {
 		o.AgentCapacityLimiter = newAgentCapacityLimiter(nil, o.HeartbeatStaleSeconds)

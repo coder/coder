@@ -5,21 +5,21 @@ export const DEBUG_RUN_LIST_LIMIT = 100;
 
 const DEBUG_ID_PREFIX_LENGTH = 8;
 
-export interface ChatDebugRunFetchFailure {
+export type ChatDebugRunFetchFailure = {
 	readonly run_id: string;
 	readonly message: string;
-}
+};
 
-interface DebugRunExport {
+type DebugRunExport = {
 	readonly version: 1;
 	readonly scope: "run";
 	readonly exported_at: string;
 	readonly chat_id: string;
 	readonly run_id: string;
 	readonly run: ChatDebugRun;
-}
+};
 
-interface DebugChatExport {
+type DebugChatExport = {
 	readonly version: 1;
 	readonly scope: "chat";
 	readonly exported_at: string;
@@ -29,7 +29,7 @@ interface DebugChatExport {
 	readonly limited_to_most_recent: number;
 	readonly failed_runs?: readonly ChatDebugRunFetchFailure[];
 	readonly runs: readonly ChatDebugRun[];
-}
+};
 
 type ChatDebugExport = DebugRunExport | DebugChatExport;
 

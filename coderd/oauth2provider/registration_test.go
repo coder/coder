@@ -669,6 +669,117 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 	}
 }
 
+func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
+	t.Parallel()
+
+	oversized := strings.TrimSpace(strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1))
+	unknown := "workspace:read nosuch:scope"
+
+	tests := []struct {
+		name       string
+		stored     string
+		scope      string
+		wantStatus int
+		// The scope stored after the request.
+		wantScope string
+	}{
+		{
+			name:       "ResendingStoredOversizedScopeIsAccepted",
+			stored:     oversized,
+			scope:      oversized,
+			wantStatus: http.StatusOK,
+			wantScope:  oversized,
+		},
+		{
+			name:       "NewOversizedScopeIsRejected",
+			stored:     oversized,
+			scope:      oversized + " workspace:update",
+			wantStatus: http.StatusBadRequest,
+			wantScope:  oversized,
+		},
+		{
+			name:       "ResendingStoredUnknownScopeIsAccepted",
+			stored:     unknown,
+			scope:      unknown,
+			wantStatus: http.StatusOK,
+			wantScope:  unknown,
+		},
+		{
+			name:       "NewCatalogScopeIsStored",
+			stored:     unknown,
+			scope:      "template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "template:read",
+		},
+		{
+			name:       "NewMixedScopeIsNarrowed",
+			stored:     unknown,
+			scope:      unknown + " template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "workspace:read template:read",
+		},
+		{
+			name:       "NewAllUnknownScopeIsRejected",
+			stored:     unknown,
+			scope:      "other:scope",
+			wantStatus: http.StatusBadRequest,
+			wantScope:  unknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, _ := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertOAuth2DCREnabled(ctx, true))
+
+			legacy := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+				Name:                    "legacy-app",
+				CallbackURL:             "https://example.com/callback",
+				RedirectUris:            []string{"https://example.com/callback"},
+				ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
+				TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
+				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+				Scope:                   sql.NullString{String: tt.stored, Valid: true},
+			})
+
+			logger := slogtest.Make(t, nil)
+			auditor := audit.NewNop()
+			handler := tracing.StatusWriterMiddleware(oauth2provider.UpdateClientConfiguration(db, &auditor, logger))
+
+			body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+				ClientName:              "renamed-app",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+				Scope:                   tt.scope,
+			})
+			require.NoError(t, err)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("client_id", legacy.ID.String())
+			r := httptest.NewRequest(http.MethodPut, "/oauth2/clients/"+legacy.ID.String(),
+				bytes.NewReader(body)).WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			r.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, tt.wantStatus, rw.Code, "body: %s", rw.Body.String())
+
+			app, err := db.GetOAuth2ProviderAppByClientID(ctx, legacy.ID)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantScope, app.Scope.String)
+			if tt.wantStatus == http.StatusOK {
+				require.Equal(t, "renamed-app", app.Name)
+			} else {
+				require.Equal(t, "legacy-app", app.Name)
+				require.Contains(t, rw.Body.String(), "invalid_client_metadata")
+			}
+		})
+	}
+}
+
 // TestCreateDynamicClientRegistration_BodyTooLarge asserts that an oversized
 // body is rejected with an RFC 7591 error body rather than a codersdk.Response.
 // Every other error in this handler is protocol-shaped, and a client that parses

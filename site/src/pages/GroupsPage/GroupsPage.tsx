@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
 
-const GroupsPage: FC = () => {
+const GroupsPage: React.FC = () => {
 	const { permissions: authPermissions } = useAuthenticated();
 	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();

@@ -15,11 +15,11 @@ import {
 	getAgentScriptIssues,
 } from "./health";
 
-interface AgentOverrides {
+type AgentOverrides = {
 	status?: WorkspaceAgentStatus;
 	lifecycle_state?: WorkspaceAgentLifecycle;
 	parent_id?: string | null;
-}
+};
 
 function buildAgent(overrides: AgentOverrides): WorkspaceAgent {
 	return {

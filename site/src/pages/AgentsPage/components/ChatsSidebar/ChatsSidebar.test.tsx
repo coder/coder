@@ -1,8 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -20,7 +19,10 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	type AgentSidebarFilters,
+} from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -76,13 +78,21 @@ const dashboardValue = {
 	canViewOrganizationSettings: false,
 };
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+type WrapperProps = {
+	children: React.ReactNode;
+	initialPath?: string;
+};
+
+const Wrapper: React.FC<WrapperProps> = ({
+	children,
+	initialPath = "/agents",
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
-					<MemoryRouter initialEntries={["/agents"]}>
+					<MemoryRouter initialEntries={[initialPath]}>
 						<DashboardContext.Provider value={dashboardValue}>
 							{children}
 						</DashboardContext.Provider>
@@ -97,7 +107,8 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
 	prStatuses: [],
-	chatStatuses: ["unread", "read"],
+	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	unread: false,
 	sources: ["created_by_me"],
 };
 
@@ -110,6 +121,8 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
+	onMarkChatRead: vi.fn(),
+	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -122,8 +135,39 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 
 // ---- Tests ----
 
+describe("ChatsSidebar section switcher", () => {
+	const LocationProbe: React.FC = () => {
+		const location = useLocation();
+		return <div data-testid="location-pathname">{location.pathname}</div>;
+	};
+
+	it.each([
+		["Workspaces", "/workspaces"],
+		["Templates", "/templates"],
+		["Agents", "/agents"],
+	])("navigates to %s", async (label, pathname) => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialPath="/agents/chat-1">
+				<ChatsSidebar {...defaultProps} />
+				<LocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Agents" }));
+		await user.click(await screen.findByRole("menuitem", { name: label }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				pathname,
+			);
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
-	it("renders unpinned shared chats in Shared with you before date sections", () => {
+	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar
@@ -140,6 +184,13 @@ describe("ChatsSidebar sections", () => {
 							title: "Shared chat",
 							owner_id: "sharing-user-id",
 							shared: true,
+						}),
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
 						}),
 						buildChat({
 							id: "owned-shared-chat",
@@ -169,7 +220,7 @@ describe("ChatsSidebar sections", () => {
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
 
 		expect(pinnedSection).toHaveTextContent("Pinned (1)");
-		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (2)");
 		expect(todaySection).toHaveTextContent("Today (2)");
 		expect(
 			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
@@ -194,8 +245,116 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+describe("ChatsSidebar pinned reordering", () => {
+	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
+	const ROW_HEIGHT = 40;
+
+	// dnd-kit's keyboard sensor picks the drop target from measured
+	// rects, which jsdom reports as all zeros. Lay the sortable rows out
+	// vertically in document order so ArrowDown resolves to the next row.
+	const layoutSortableRows = () => {
+		const rows = screen.getAllByRole("button", {
+			description: SORTABLE_INSTRUCTIONS,
+		});
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				const index = rows.findIndex((row) => row.contains(this));
+				const top = index === -1 ? 0 : index * ROW_HEIGHT;
+				const height = index === -1 ? 0 : ROW_HEIGHT;
+				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+			},
+		);
+		return rows;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("reorders only the viewer's own pinned chats", async () => {
+		const user = userEvent.setup();
+		const onReorderPinnedAgent = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					onReorderPinnedAgent={onReorderPinnedAgent}
+					chats={[
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-first",
+							title: "Own first pinned chat",
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-second",
+							title: "Own second pinned chat",
+							pin_order: 2,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const sortableRows = layoutSortableRows();
+		expect(sortableRows.map((row) => row.textContent)).toEqual([
+			expect.stringContaining("Own first pinned chat"),
+			expect.stringContaining("Own second pinned chat"),
+		]);
+
+		sortableRows[0].focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await user.keyboard("[Space]");
+
+		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
+		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
+	});
+});
+
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+const openFilterMenu = async (user: MenuUser) => {
+	await user.click(screen.getByRole("button", { name: "Filter agents" }));
+};
+
+// Every element reports a zero-size rect in jsdom, so Radix's pointer grace
+// area closes a submenu as soon as user-event moves the pointer into it.
+// Keyboard navigation drives the same selection path, and the real pointer
+// path is covered by the FilterPopover stories.
+const focusMenuItem = async (
+	user: MenuUser,
+	role: "menuitem" | "menuitemcheckbox" | "menuitemradio",
+	name: string | RegExp,
+) => {
+	const item = await screen.findByRole(role, { name });
+	for (let step = 0; step < 16 && document.activeElement !== item; step++) {
+		await user.keyboard("{ArrowDown}");
+	}
+	expect(item).toHaveFocus();
+};
+
+const toggleSubmenuOption = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	name: string,
+) => {
+	await openFilterMenu(user);
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, "menuitemcheckbox", name);
+	await user.keyboard("{Enter}");
+	await user.keyboard("{Escape}{Escape}");
+};
+
 describe("ChatsSidebar filters", () => {
-	it("calls the sidebar filter change callback after Apply is clicked", async () => {
+	it("applies the archived checkbox", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -210,11 +369,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("radio", { name: "Archived" }));
-
-		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
-
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -230,7 +387,7 @@ describe("ChatsSidebar filters", () => {
 			archiveStatus: "archived",
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
-			chatStatuses: ["unread"],
+			chatStatuses: ["running"],
 			sources: ["shared_with_me"],
 		};
 
@@ -257,7 +414,7 @@ describe("ChatsSidebar filters", () => {
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...sidebarFilters,
 			prStatuses: [],
-			chatStatuses: ["unread", "read"],
+			chatStatuses: defaultSidebarFilters.chatStatuses,
 			sources: ["created_by_me"],
 		});
 	});
@@ -276,9 +433,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await toggleSubmenuOption(user, "Source", "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
@@ -298,13 +453,96 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await toggleSubmenuOption(user, "Source", "Created by me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			sources: ["shared_with_me"],
+		});
+	});
+
+	it("resets a filter subset when its last option is cleared", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		const sidebarFilters: AgentSidebarFilters = {
+			...defaultSidebarFilters,
+			chatStatuses: ["running"],
+			sources: ["shared_with_me"],
+		};
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, /Source/, "Shared with me");
+
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
+			...sidebarFilters,
+			chatStatuses: defaultSidebarFilters.chatStatuses,
+		});
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(2, {
+			...sidebarFilters,
+			sources: defaultSidebarFilters.sources,
+		});
+	});
+
+	it("applies the unread checkbox", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Unread" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			unread: true,
+		});
+	});
+
+	it("clears every sidebar filter from the menu", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						archiveStatus: "archived",
+						groupBy: "chat_status",
+						prStatuses: ["draft"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			groupBy: "chat_status",
 		});
 	});
 
@@ -315,13 +553,29 @@ describe("ChatsSidebar filters", () => {
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
+							id: "attention-chat",
+							title: "Needs action",
+							status: "requires_action",
 						}),
 						buildChat({
-							id: "read-chat",
-							title: "Read chat",
+							id: "error-chat",
+							title: "Failed chat",
+							status: "error",
+						}),
+						buildChat({
+							id: "working-chat",
+							title: "Working chat",
+							status: "running",
+						}),
+						buildChat({
+							id: "interrupting-chat",
+							title: "Interrupting chat",
+							status: "interrupting",
+						}),
+						buildChat({
+							id: "idle-chat",
+							title: "Idle chat",
+							status: "waiting",
 						}),
 					]}
 					sidebarFilters={{
@@ -332,26 +586,42 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		const unreadSection = screen.getByTestId("agents-section-toggle-Unread");
-		const readSection = screen.getByTestId("agents-section-toggle-Read");
-		const unreadNode = screen.getByTestId("agents-tree-node-unread-chat");
-		const readNode = screen.getByTestId("agents-tree-node-read-chat");
+		const attentionSection = screen.getByTestId(
+			"agents-section-toggle-Requires-action",
+		);
+		const errorSection = screen.getByTestId("agents-section-toggle-Error");
+		const workingSection = screen.getByTestId("agents-section-toggle-Working");
+		const interruptingSection = screen.getByTestId(
+			"agents-section-toggle-Interrupting",
+		);
+		const idleSection = screen.getByTestId("agents-section-toggle-Idle");
+		const attentionNode = screen.getByTestId("agents-tree-node-attention-chat");
+		const errorNode = screen.getByTestId("agents-tree-node-error-chat");
+		const workingNode = screen.getByTestId("agents-tree-node-working-chat");
+		const interruptingNode = screen.getByTestId(
+			"agents-tree-node-interrupting-chat",
+		);
+		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
 		).not.toBeInTheDocument();
-		expect(
-			unreadSection.compareDocumentPosition(unreadNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			unreadNode.compareDocumentPosition(readSection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			readSection.compareDocumentPosition(readNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+		for (const [before, after] of [
+			[attentionSection, attentionNode],
+			[attentionNode, errorSection],
+			[errorSection, errorNode],
+			[errorNode, workingSection],
+			[workingSection, workingNode],
+			[workingNode, interruptingSection],
+			[interruptingSection, interruptingNode],
+			[interruptingNode, idleSection],
+			[idleSection, idleNode],
+		] as const) {
+			expect(
+				before.compareDocumentPosition(after) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			).toBeTruthy();
+		}
 	});
 });
 
@@ -664,5 +934,67 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar read state actions", () => {
+	const openActionsMenu = async (title: string) => {
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		return user;
+	};
+
+	it("marks a read chat as unread", async () => {
+		const onMarkChatUnread = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+							has_unread: false,
+						}),
+					]}
+					onMarkChatUnread={onMarkChatUnread}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Read chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+		);
+
+		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
+	});
+
+	it("marks an unread chat as read", async () => {
+		const onMarkChatRead = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+					]}
+					onMarkChatRead={onMarkChatRead}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Unread chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as read" }),
+		);
+
+		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
 	});
 });

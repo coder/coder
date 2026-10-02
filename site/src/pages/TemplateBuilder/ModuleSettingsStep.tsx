@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -15,7 +14,7 @@ import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
-interface ModuleSettingsStepProps {
+type ModuleSettingsStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	moduleVariables: Record<string, Record<string, string>>;
@@ -26,7 +25,7 @@ interface ModuleSettingsStepProps {
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	showErrors?: boolean;
-}
+};
 
 function variableToField(
 	moduleId: string,
@@ -104,7 +103,7 @@ export function moduleSettingsComplete(
 	return true;
 }
 
-export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
+export const ModuleSettingsStep: React.FC<ModuleSettingsStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	moduleVariables,

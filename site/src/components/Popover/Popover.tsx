@@ -6,7 +6,7 @@
 import { cn } from "cn";
 import { Popover as PopoverPrimitive } from "radix-ui";
 
-export type PopoverContentProps = React.ComponentPropsWithRef<
+export type PopoverContentProps = React.ComponentProps<
 	typeof PopoverPrimitive.Content
 > & {
 	disablePortal?: boolean;
@@ -32,8 +32,9 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 			collisionPadding={16}
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
-				text-content-primary shadow-md outline-hidden
+				text-content-primary shadow-md outline-hidden ease-out-strong
 				max-h-(--radix-popper-available-height) overflow-y-auto
+				origin-(--radix-popper-transform-origin)
 				data-[state=open]:animate-in data-[state=closed]:animate-out
 				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
 				data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95

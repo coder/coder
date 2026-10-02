@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -10,7 +10,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
-const SSHKeysPage: FC = () => {
+const SSHKeysPage: React.FC = () => {
 	const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
 		useState(false);
 

@@ -2,6 +2,7 @@ package chatstate_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"slices"
 	"sync"
@@ -25,7 +26,10 @@ import (
 // helper accessors. It is intentionally NOT a generic chatd test
 // fixture; tests outside this package should not depend on it.
 type testFixture struct {
-	DB    database.Store
+	DB database.Store
+	// SQLDB is the raw handle behind DB, for test-only writes that have
+	// no production query, such as disabling an automation.
+	SQLDB *sql.DB
 	Pub   *recordingPubsub
 	User  database.User
 	Org   database.Organization
@@ -34,7 +38,7 @@ type testFixture struct {
 
 func newTestFixture(t *testing.T) *testFixture {
 	t.Helper()
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -53,6 +57,7 @@ func newTestFixture(t *testing.T) *testFixture {
 	pub := newRecordingPubsub()
 	return &testFixture{
 		DB:    db,
+		SQLDB: sqlDB,
 		Pub:   pub,
 		User:  user,
 		Org:   org,
@@ -153,6 +158,7 @@ func createTestChat(t *testing.T, f *testFixture) chatstate.CreateChatResult {
 		LastModelConfigID: f.Model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("hello", f.User.ID, f.Model.ID),
 		},
@@ -261,6 +267,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

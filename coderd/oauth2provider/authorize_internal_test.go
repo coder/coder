@@ -268,10 +268,8 @@ var (
 // MaxErrorDescription is the description bound, for the same tests.
 const MaxErrorDescription = maxErrorDescription
 
-// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
-// contents. app.Scope is unvalidated registration metadata read on every
-// authorization and redemption, so collecting duplicates and dropping them
-// afterwards would size the slice by the input rather than by the catalog.
+// TestGrantableScopesNotSizedByInput checks the result is sized by the catalog,
+// not by app.Scope, which not every write path narrows.
 func TestGrantableScopesNotSizedByInput(t *testing.T) {
 	t.Parallel()
 
@@ -643,13 +641,13 @@ func TestFailureKind(t *testing.T) {
 	t.Parallel()
 
 	deliverable := authorizeResponse{callback: &url.URL{Scheme: "https", Host: "app.example.com"}}
-	unusable := xerrors.New("registered callback is not usable")
+	unusable := xerrors.New("registered redirect URI is not usable")
 
 	require.Equal(t, failureAnswerHere, authorizeFailure{}.kind())
 	require.Equal(t, failureDeliverToClient, authorizeFailure{redirect: deliverable}.kind())
-	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptCallback: unusable}.kind())
+	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptRedirectURI: unusable}.kind())
 	require.Equal(t, failureCorruptRegistration,
-		authorizeFailure{corruptCallback: unusable, redirect: deliverable}.kind(),
+		authorizeFailure{corruptRedirectURI: unusable, redirect: deliverable}.kind(),
 		"the registration is what a Location header would be trusting, so its failure outranks a usable callback")
 }
 
@@ -795,15 +793,28 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 		}, got)
 	})
 
-	// An admin edit rewrites CallbackURL without touching RedirectUris.
-	t.Run("EditedCallbackIsIncluded", func(t *testing.T) {
+	// The list is the source of truth. A callback_url that disagrees with it
+	// can only come from a row written before migration 000599 by an older
+	// binary, and it is not registered.
+	t.Run("ColumnIsIgnored", func(t *testing.T) {
 		t.Parallel()
 		got := strs(t, database.OAuth2ProviderApp{
 			CallbackURL:  "https://new.example.com/callback",
 			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb"},
 		})
 		require.Equal(t, []string{
-			"https://new.example.com/callback",
+			"https://a.example.com/cb",
+			"https://b.example.com/cb",
+		}, got)
+	})
+
+	t.Run("DuplicatesDropped", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://a.example.com/cb",
+			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb", "https://a.example.com/cb"},
+		})
+		require.Equal(t, []string{
 			"https://a.example.com/cb",
 			"https://b.example.com/cb",
 		}, got)

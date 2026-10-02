@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/tailnet"
@@ -262,7 +263,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 			wg.Add(1)
 			defer wg.Done()
 
-			if logDirPath != "" {
+			// Session diagnostic logging is on by default; --log-dir overrides the
+			// default user state directory.
+			{
+				logDir := logDirPath
+				if logDir == "" {
+					logDir = defaultSessionLogDir()
+				}
+				if err := os.MkdirAll(logDir, 0o700); err != nil {
+					return xerrors.Errorf("create log dir %q: %w", logDir, err)
+				}
+				pruneErr := pruneSessionLogs(logDir, keepSessionLogFiles)
+
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
 					return xerrors.Errorf("generate nonce: %w", err)
@@ -286,14 +298,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				logFileBaseName += ".log"
 
-				logFilePath := filepath.Join(logDirPath, logFileBaseName)
+				logFilePath := filepath.Join(logDir, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
 					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
 					0o600,
 				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logDir, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
@@ -301,9 +313,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
-				logger = logger.AppendSinks(sloghuman.Sink(dc))
-				if r.verbose {
-					logger = logger.Leveled(slog.LevelDebug)
+				// Record debug detail in memory and write it to the log file only
+				// when the command logs an error (via the deferred error log above),
+				// so normal operation stays quiet. Verbose writes debug directly.
+				logger = r.flightRecorder(logger, sloghuman.Sink(dc), r.flightRecorderSize)
+
+				// Pruning is best effort, so surface any failures in the log file
+				// rather than aborting the session.
+				if pruneErr != nil {
+					logger.Warn(ctx, "failed to prune old session logs", slog.Error(pruneErr))
 				}
 
 				// log HTTP requests
@@ -1171,7 +1189,14 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		ws, err := client.Workspace(ctx, workspaceID)
+		// Only TTLMillis (derived from the template) and the latest build's
+		// deadline are read below.
+		ws, err := client.Workspace(ctx, workspaceID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				Template:    true,
+				LatestBuild: &wsrelated.LatestBuild{},
+			},
+		})
 		if err != nil {
 			return time.Time{}, nil
 		}
@@ -1532,21 +1557,18 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == disableUsageApp {
+// getUsageAppName returns the app name to report usage under, or the empty
+// string to report none. Any name is valid because the server normalizes it
+// at ingestion.
+func getUsageAppName(usageApp string) string {
+	switch usageApp {
+	case disableUsageApp:
 		return ""
+	case "":
+		return string(codersdk.UsageAppNameSSH)
+	default:
+		return usageApp
 	}
-
-	allowedUsageApps := []string{
-		string(codersdk.UsageAppNameSSH),
-		string(codersdk.UsageAppNameVscode),
-		string(codersdk.UsageAppNameJetbrains),
-	}
-	if slices.Contains(allowedUsageApps, usageApp) {
-		return codersdk.UsageAppName(usageApp)
-	}
-
-	return codersdk.UsageAppNameSSH
 }
 
 func setStatsCallback(

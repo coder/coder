@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import {
 	expect,
@@ -11,7 +10,11 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import {
+	MockChatAutomation,
+	MockChatFileMetadata,
+} from "#/testHelpers/chatEntities";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -432,6 +435,7 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
+	automationNames: { names: new Map(), status: "settled" },
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -781,6 +785,28 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+export const AutomationUserMessages: Story = {
+	args: {
+		...buildStoryArgs(
+			{
+				...buildUserMessage({ id: 1, text: "Check the nightly build." }),
+				automation_id: MockChatAutomation.id,
+				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+			},
+			buildUserMessage({ id: 2, text: "Thanks, anything else?" }),
+			{
+				...buildUserMessage({ id: 3, text: "Summarize open issues." }),
+				automation_id: "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
+				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
+			},
+		),
+		automationNames: {
+			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+			status: "settled",
+		},
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -883,8 +909,6 @@ export const UserMessageWithExpiredImage: Story = {
 			name: "Image expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -1163,8 +1187,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			name: "Attachment expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -2388,6 +2410,31 @@ export const ThinkingBlockWithShellTools: Story = {
 						tool_call_id: "tool-2",
 						tool_name: "process_output",
 						result: { output: "Spacing looks stable." },
+					},
+				],
+			},
+		]),
+	},
+};
+
+export const UserMessageWithWorkspaceFileReference: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Unzip this in my workspace" },
+					{
+						type: "workspace-file-reference",
+						workspace_file_path:
+							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+						workspace_file_name: "dataset.zip",
+						workspace_file_size: 4096,
+						workspace_file_media_type: "application/zip",
+						workspace_file_workspace_id: "ws-1",
 					},
 				],
 			},

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
@@ -913,6 +914,64 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 			require.Equal(t, []string{"audience", "nonce", `we"ird`}, entry.Fields.Params)
 			require.NotContains(t, logs.String(), "nonce-value")
 			require.NotContains(t, logs.String(), "audience-value")
+		})
+	}
+}
+
+// RFC 6749 §3.1 makes the authorization endpoint ignore a client_secret in its
+// URL, so the only trace of the misconfiguration is this warning. The consent
+// POST repeats the GET's query, so one flow logs once.
+func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
+	t.Parallel()
+
+	const msg = "oauth2 authorization request carried client_secret in the URL query string"
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), CallbackURL: "http://localhost:3000/callback"}
+			query := url.Values{}
+			query.Set("response_type", "code")
+			query.Set("client_id", app.ID.String())
+			query.Set("redirect_uri", app.CallbackURL)
+			query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
+			query.Set("client_secret", "secret-value")
+			req := httptest.NewRequest(method, "/oauth2/authorize?"+query.Encode(), nil)
+			req.Header.Set("User-Agent", "probe/1.0")
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			_, failure := extractAuthorizeParams(req, logger, app)
+			require.Nil(t, failure, "the secret must be ignored, not rejected")
+			require.NotContains(t, logs.String(), "secret-value")
+
+			type entry struct {
+				Level  string `json:"level"`
+				Msg    string `json:"msg"`
+				Fields struct {
+					AppID      string `json:"app_id"`
+					RemoteAddr string `json:"remote_addr"`
+					UserAgent  string `json:"user_agent"`
+				} `json:"fields"`
+			}
+			var warnings []entry
+			for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+				var e entry
+				require.NoError(t, json.Unmarshal([]byte(line), &e), line)
+				if e.Msg == msg {
+					warnings = append(warnings, e)
+				}
+			}
+			if method == http.MethodPost {
+				require.Empty(t, warnings, "the consent POST must not log a second time")
+				return
+			}
+			require.Len(t, warnings, 1)
+			require.Equal(t, "WARN", warnings[0].Level)
+			require.Equal(t, app.ID.String(), warnings[0].Fields.AppID)
+			require.Equal(t, req.RemoteAddr, warnings[0].Fields.RemoteAddr)
+			require.Equal(t, "probe/1.0", warnings[0].Fields.UserAgent)
 		})
 	}
 }

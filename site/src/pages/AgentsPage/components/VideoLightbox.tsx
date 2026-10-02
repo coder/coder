@@ -1,14 +1,14 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { RECORDING_UNAVAILABLE_TEXT } from "./ChatElements/tools/previewConstants";
 
-interface VideoLightboxProps {
+type VideoLightboxProps = {
 	src: string;
 	open: boolean;
 	onClose: () => void;
-}
+};
 
-export const VideoLightbox: FC<VideoLightboxProps> = ({
+export const VideoLightbox: React.FC<VideoLightboxProps> = ({
 	src,
 	open,
 	onClose,

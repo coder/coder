@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	Group,
 	User,
@@ -26,12 +26,9 @@ type AddWorkspaceUserOrGroupProps = {
 	) => void;
 };
 
-export const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
-	organizationID,
-	isLoading,
-	workspaceACL,
-	onSubmit,
-}) => {
+export const AddWorkspaceUserOrGroup: React.FC<
+	AddWorkspaceUserOrGroupProps
+> = ({ organizationID, isLoading, workspaceACL, onSubmit }) => {
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");

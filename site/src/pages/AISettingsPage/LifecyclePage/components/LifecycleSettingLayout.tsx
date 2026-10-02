@@ -1,12 +1,11 @@
 import { cn } from "cn";
-import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 
-interface LifecycleSettingLayoutProps {
+type LifecycleSettingLayoutProps = {
 	title: string;
 	description: string;
 	docsHref?: string;
@@ -14,16 +13,16 @@ interface LifecycleSettingLayoutProps {
 	onCheckedChange: (checked: boolean) => void;
 	switchLabel: string;
 	disabled?: boolean;
-	children?: ReactNode;
-	error?: ReactNode;
+	children?: React.ReactNode;
+	error?: React.ReactNode;
 	showSave: boolean;
 	isSaving: boolean;
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
-	onSubmit: FormEventHandler<HTMLFormElement>;
-}
+	onSubmit: React.FormEventHandler<HTMLFormElement>;
+};
 
-export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
+export const LifecycleSettingLayout: React.FC<LifecycleSettingLayoutProps> = ({
 	title,
 	description,
 	docsHref,
@@ -91,7 +90,7 @@ export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 	);
 };
 
-interface DaysFieldProps {
+type DaysFieldProps = {
 	name: string;
 	value: number;
 	onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -101,9 +100,9 @@ interface DaysFieldProps {
 	error?: boolean;
 	min: number;
 	max: number;
-}
+};
 
-export const DaysField: FC<DaysFieldProps> = ({
+export const DaysField: React.FC<DaysFieldProps> = ({
 	name,
 	value,
 	onChange,
