@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -27,11 +28,13 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	"github.com/coder/quartz"
@@ -134,6 +137,7 @@ func prepareForwardingHeaders(clientHeaders http.Header, cred credential.Credent
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	release, ok := h.inflight.Admit()
 	if !ok {
 		http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
@@ -145,7 +149,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, _ := h.checkRequest(w, r)
+	logger, record, cred := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -157,12 +161,40 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
 	}
 
+	record.ID, record.StartedAt = uuid.NewString(), start.UTC()
+	fields := []slog.Field{slog.F("interception_id", record.ID), slog.F("provider", h.provider.Name()), slog.F("credential_kind", string(cred.Kind()))}
+	ctx = slog.With(ctx, fields...)
+	span.SetAttributes(attribute.String(tracing.InterceptionID, record.ID), attribute.String(tracing.InitiatorID, record.InitiatorID), attribute.String(tracing.Provider, h.provider.Name()))
+	// The start record must exist before forwarding or recording its outcome.
+	if err := h.recorder.RecordInterception(ctx, record); err != nil {
+		span.SetStatus(codes.Error, "failed to record interception")
+		logger.Warn(ctx, "failed to record interception", slog.Error(err))
+		http.Error(w, "failed to record interception", http.StatusInternalServerError)
+		return
+	}
+	asyncRecorder := recorder.NewAsyncRecorder(h.recorder, recorder.DefaultAsyncTimeout)
+	defer asyncRecorder.Wait()
 	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
-	defer func() { h.finishForwarding(ctx, record, logger, state.err) }()
-	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
-	state.err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		// Capture stays dormant until lifecycle recording activates forwarding.
-		return h.forward(rw, r.WithContext(context.WithValue(ctx, observationContextKey{}, state)), nil, state, logger)
+	var body *replaybody.TeeBuffer
+
+	route := strings.TrimPrefix(r.Pattern, "/"+h.provider.Name())
+	if h.metrics != nil {
+		h.metrics.InterceptionsInflight.WithLabelValues(h.provider.Name(), "", route).Inc()
+	}
+	defer func() {
+		panicValue := recover()
+		if body != nil {
+			_ = body.Close()
+		}
+		h.finishForwarding(ctx, r, start, record, body, state, asyncRecorder, logger, panicValue)
+		if panicValue != nil {
+			panic(panicValue)
+		}
+	}()
+	state.err = h.breaker.Execute(strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name()), "", w, func(rw http.ResponseWriter) error {
+		rw, outbound, buffer := h.prepareForwarding(rw, r.WithContext(context.WithValue(ctx, observationContextKey{}, state)), logger)
+		body = buffer
+		return h.forward(rw, outbound, cred, body, state, logger)
 	})
 }
 
@@ -232,6 +264,7 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	if actor.Username != "" {
 		metadata = recorder.Metadata{"Username": actor.Username}
 	}
+	// Body-derived fields remain unset; this step never reads the request body.
 	ir := &recorder.InterceptionRecord{
 		StartedAt:                   time.Now().UTC(),
 		ID:                          uuid.NewString(),
@@ -260,20 +293,8 @@ func (*forwardingHandler) prepareForwarding(w http.ResponseWriter, r *http.Reque
 	return w, r, body
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ *replaybody.TeeBuffer, _ *responseObservation, _ slog.Logger) error {
-	// TODO: connect forwardPrepared only when lifecycle recording is connected.
-	// https://linear.app/codercom/issue/AIGOV-615
-	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
-	return nil
-}
-
-func (*forwardingHandler) finishForwarding(context.Context, *recorder.InterceptionRecord, slog.Logger, error) {
-	// TODO: finalize the outcome and lifecycle records, including breaker rejection.
-	// https://linear.app/codercom/issue/AIGOV-615
-}
-
-// forwardPrepared delivers the prepared request and observes its terminal response.
-func (h *forwardingHandler) forwardPrepared(w http.ResponseWriter, r *http.Request, cred credential.Credential, _ *replaybody.TeeBuffer, state *responseObservation, logger slog.Logger) error {
+// forward delivers the prepared request and observes its terminal response.
+func (h *forwardingHandler) forward(w http.ResponseWriter, r *http.Request, cred credential.Credential, _ *replaybody.TeeBuffer, state *responseObservation, logger slog.Logger) error {
 	ctx := r.Context()
 	writer := &errorCapturingWriter{ResponseWriter: w, client: state.client}
 	defer func() {
@@ -301,6 +322,54 @@ func (h *forwardingHandler) forwardPrepared(w http.ResponseWriter, r *http.Reque
 		panic(http.ErrAbortHandler)
 	}
 	return state.err
+}
+
+// finishForwarding records the outcome after response delivery finishes or aborts.
+func (h *forwardingHandler) finishForwarding(ctx context.Context, r *http.Request, start time.Time, record *recorder.InterceptionRecord, body *replaybody.TeeBuffer, state *responseObservation, rec *recorder.AsyncRecorder, _ slog.Logger, panicValue any) {
+	end := time.Now()
+	terminal := state.err
+	if body != nil {
+		_, requestErr := body.Wait(context.Background())
+		if terminal == nil && state.status < http.StatusBadRequest {
+			terminal = requestErr
+		}
+	}
+	if terminal == nil && ctx.Err() != nil && (state.body == nil || !state.body.eof) {
+		terminal = ctx.Err()
+	}
+	if terminal == nil && state.body != nil {
+		terminal = state.body.readErr
+	}
+	if terminal == nil && panicValue != nil {
+		terminal = xerrors.New("response stream aborted")
+	}
+	errType, message := interceptionerror.Categorize(h.provider, terminal)
+	//nolint:errcheck // AsType returns the match; only its presence matters.
+	if _, ok := errors.AsType[*http.MaxBytesError](terminal); ok {
+		errType = recorder.ErrorTypeBadRequest
+	}
+	if terminal == nil && state.status >= http.StatusBadRequest {
+		errType, message = recorder.ErrorTypeFromStatus(state.status), http.StatusText(state.status)
+	}
+	status := metrics.InterceptionCountStatusCompleted
+	if errType != "" {
+		status = metrics.InterceptionCountStatusFailed
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, message)
+	}
+	if h.metrics != nil {
+		route := strings.TrimPrefix(r.Pattern, "/"+h.provider.Name())
+		h.metrics.InterceptionsInflight.WithLabelValues(h.provider.Name(), "", route).Dec()
+		h.metrics.InterceptionDuration.WithLabelValues(h.provider.Name(), "").Observe(end.Sub(start).Seconds())
+		h.metrics.InterceptionCount.WithLabelValues(h.provider.Name(), "", status, route, r.Method, record.InitiatorID, record.Client).Inc()
+	}
+	//nolint:errcheck // AsyncRecorder always returns nil; Wait joins recording.
+	_ = rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+		ID:             record.ID,
+		EndedAt:        end.UTC(),
+		CredentialHint: state.credentialHint,
+		ErrorType:      errType,
+		ErrorMessage:   message,
+	})
 }
 
 // RoundTrip observes only the final response returned by key failover. Its
