@@ -1,9 +1,7 @@
 import { useFormik } from "formik";
-import { useId, useState } from "react";
-import { useQuery } from "react-query";
+import { useState } from "react";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
 	ChatAutomationKind,
@@ -24,25 +22,13 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
-import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
-import { SelectItem } from "#/components/Select/Select";
-import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
-import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
-import {
-	getModelSelectorPlaceholder,
-	hasUserFixableProviders,
-	resolveModelSelector,
-} from "../../utils/modelOptions";
-import { pickReasoningEffort } from "../../utils/reasoningEffort";
-import { getModelSelectorHelp } from "../ModelSelectorHelp";
-import { AutomationChatPicker } from "./AutomationChatPicker";
+import { AutomationTargetField } from "./AutomationTargetField";
 import { AutomationTriggerField } from "./AutomationTriggerField";
-import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
 
@@ -64,7 +50,7 @@ const SERVER_FIELDS: Record<
 };
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
-type AutomationFormValues = {
+export type AutomationFormValues = {
 	name: string;
 	prompt: string;
 	kind: ChatAutomationKind;
@@ -208,23 +194,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	);
 	// A user-picked When busy value survives trigger changes.
 	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
-	const modelErrorId = useId();
 	const restoreFocus = useRestoreFocusOnClose();
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
-	const modelsQuery = useQuery(chatModels(organizationId));
-	const {
-		options: modelOptions,
-		isModelCatalogLoading,
-		modelCatalog,
-		hasConfiguredModels,
-	} = resolveModelSelector(organizationId, modelsQuery);
-	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
-		hasModelOptions: modelOptions.length > 0,
-		hasConfiguredModels,
-		hasUserFixableModelProviders: hasUserFixableProviders(modelCatalog),
-	});
 
 	// Frozen at open, so a list refetch that refreshes `automation` neither
 	// resets the user's input nor changes the PATCH baseline.
@@ -288,14 +260,16 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			key in submittedValues;
 		return !isFormField(field) || submittedValues[field] === form.values[field];
 	};
-	const getFieldHelpers = (name: keyof AutomationFormValues) =>
-		getFormHelpers(form, serverErrorApplies(name) ? error : undefined)(name);
-	const modelField = getFieldHelpers("new_chat_model_config_id");
+	const getFieldHelpers = (
+		name: keyof AutomationFormValues,
+		options?: { helperText?: React.ReactNode },
+	) =>
+		getFormHelpers(form, serverErrorApplies(name) ? error : undefined)(
+			name,
+			options,
+		);
 	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
-	const selectedModel = modelOptions.find(
-		(option) => option.id === form.values.new_chat_model_config_id,
-	);
 
 	const renderedFields: readonly string[] = [
 		"name",
@@ -303,7 +277,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		...(isSchedule ? ["schedule_cron", "schedule_time_zone"] : []),
 		...(isExistingChat
 			? ["target_chat_id", "when_busy"]
-			: ["new_chat_model_config_id"]),
+			: ["new_chat_model_config_id", "reasoning_effort"]),
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
@@ -340,14 +314,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								? "New automation"
 								: isReadOnly
 									? "View automation"
-									: `Edit ${automation.name}`}
+									: "Edit automation"}
 						</DialogTitle>
 						<DialogDescription>
 							{isCreate
 								? "Create a schedule or webhook that sends a prompt to an agent."
-								: isSchedule
-									? "The trigger and target type cannot change after creation."
-									: "The trigger, webhook use, and target type cannot change after creation."}
+								: isReadOnly
+									? "Only the owner of this automation can change it."
+									: "Changes apply to the next run."}
 						</DialogDescription>
 					</DialogHeader>
 					{/* Browser and Radix constraints on this layout:
@@ -372,11 +346,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							disabled={isSubmitting || isReadOnly}
 							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
 						>
-							{isReadOnly && (
-								<p className="m-0 text-sm text-content-secondary">
-									Only the owner of this automation can change it.
-								</p>
-							)}
 							{showAlert && (
 								<Alert severity="error" prominent>
 									<AlertTitle>
@@ -402,7 +371,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								required
 							/>
 							<FormField
-								field={getFieldHelpers("prompt")}
+								field={getFieldHelpers("prompt", {
+									helperText: isSchedule
+										? "Sent as the message for every run."
+										: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+								})}
 								label="Prompt"
 								required
 								control={(props) => (
@@ -444,132 +417,13 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									onRotateSecret,
 								}}
 							/>
-							<section className="flex flex-col gap-4">
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Target
-								</h3>
-								{!isCreate && (
-									<p className="m-0 text-sm text-content-secondary">
-										Changes apply to the next run.
-									</p>
-								)}
-								{isCreate ? (
-									<RadioGroup
-										aria-label="Target"
-										value={form.values.target_mode}
-										onValueChange={(value) => {
-											if (value === "existing_chat" || value === "new_chat") {
-												form.setFieldValue("target_mode", value);
-											}
-										}}
-									>
-										<RadioOption value="existing_chat" label="Existing chat" />
-										<RadioOption value="new_chat" label="New chat each run" />
-									</RadioGroup>
-								) : (
-									<p className="m-0 text-sm text-content-secondary">
-										{isExistingChat ? "Existing chat" : "New chat each run"}
-									</p>
-								)}
-								{isExistingChat ? (
-									<div className="grid grid-cols-2 gap-4">
-										<FormField
-											field={getFieldHelpers("target_chat_id")}
-											label="Chat"
-											control={(props) => (
-												<AutomationChatPicker
-													{...props}
-													organizationId={organizationId}
-													value={form.values.target_chat_id}
-													onChange={(chatId) =>
-														form.setFieldValue("target_chat_id", chatId)
-													}
-												/>
-											)}
-										/>
-										<SelectField
-											field={getFieldHelpers("when_busy")}
-											label="When busy"
-											onValueChange={(value) => {
-												if (value === "skip" || value === "queue") {
-													setWhenBusyChosen(true);
-													form.setFieldValue("when_busy", value);
-												}
-											}}
-										>
-											<SelectItem value="skip">Skip the run</SelectItem>
-											<SelectItem value="queue">Queue the prompt</SelectItem>
-										</SelectField>
-									</div>
-								) : (
-									<div className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-content-primary">
-											Model
-										</span>
-										<div>
-											<ModelSelector
-												className="w-fit"
-												triggerAriaLabel="Model"
-												triggerAriaInvalid={modelField.error}
-												triggerAriaDescribedBy={
-													modelField.error ? modelErrorId : undefined
-												}
-												placeholder={getModelSelectorPlaceholder(
-													modelOptions,
-													isModelCatalogLoading,
-													hasConfiguredModels,
-													modelCatalog,
-												)}
-												options={modelOptions}
-												value={form.values.new_chat_model_config_id}
-												onValueChange={(modelId) => {
-													if (
-														modelId !== form.values.new_chat_model_config_id
-													) {
-														form.setFieldValue(
-															"new_chat_model_config_id",
-															modelId,
-														);
-														form.setFieldValue("reasoning_effort", "");
-													}
-												}}
-												reasoningEffort={
-													selectedModel
-														? pickReasoningEffort(
-																form.values.reasoning_effort,
-																selectedModel.reasoningEfforts ?? [],
-																selectedModel.reasoningEffortDefault,
-															)
-														: form.values.reasoning_effort
-												}
-												onReasoningEffortChange={(effort) =>
-													form.setFieldValue("reasoning_effort", effort)
-												}
-											/>
-											<div aria-live="polite">
-												{modelField.error && (
-													<p
-														id={modelErrorId}
-														className="m-0 mt-2 text-xs text-content-destructive"
-													>
-														{modelField.helperText}
-													</p>
-												)}
-											</div>
-										</div>
-										{modelSelectorHelp && (
-											<span className="text-xs text-content-secondary">
-												{modelSelectorHelp}
-											</span>
-										)}
-										{modelsQuery.isError && (
-											<span className="text-xs text-content-destructive">
-												Could not load models.
-											</span>
-										)}
-									</div>
-								)}
-							</section>
+							<AutomationTargetField
+								organizationId={organizationId}
+								isCreate={isCreate}
+								form={form}
+								getFieldHelpers={getFieldHelpers}
+								onWhenBusyChange={() => setWhenBusyChosen(true)}
+							/>
 						</fieldset>
 					</div>
 					<DialogFooter className="border-0 border-t border-solid border-border-default px-6 py-4">

@@ -139,6 +139,43 @@ export const NewChatTarget: Story = {
 	},
 };
 
+const mockEffortModel: ChatModel = {
+	...mockModel,
+	reasoning_efforts: ["low", "medium", "high"],
+};
+
+export const NewChatReasoningEffort: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			target_mode: "new_chat",
+			target_chat_id: undefined,
+			new_chat_model_config_id: mockEffortModel.id,
+			reasoning_effort: "high",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: { ...mockModelCatalog, models: [mockEffortModel] },
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Reasoning effort" }),
+		);
+	},
+};
+
 export const Edit: Story = {
 	args: { automation: mockAutomation },
 	parameters: {

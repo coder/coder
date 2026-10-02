@@ -540,40 +540,46 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 	});
 
 	it.each([
-		{ source: "the model default", keys: undefined, effort: {} },
+		{ source: "the model default", effortLabel: undefined, effort: {} },
 		{
 			source: "a picked effort",
-			keys: "{ArrowLeft}",
+			effortLabel: "Low",
 			effort: { reasoning_effort: "low" },
 		},
-	])("creates a new chat schedule with $source", async ({ keys, effort }) => {
-		const user = userEvent.setup();
-		const { createBodies } = setupEditor();
-		const dialog = await openCreateDialog(user);
+	])(
+		"creates a new chat schedule with $source",
+		async ({ effortLabel, effort }) => {
+			const user = userEvent.setup();
+			const { createBodies } = setupEditor();
+			const dialog = await openCreateDialog(user);
 
-		await pickNewChatModel(user, dialog);
-		if (keys) {
-			(await screen.findByRole("slider")).focus();
-			await user.keyboard(keys);
-		}
-		await user.keyboard("{Escape}");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await pickNewChatModel(user, dialog);
+			if (effortLabel) {
+				await user.click(
+					within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+				);
+				await user.click(
+					await screen.findByRole("option", { name: effortLabel }),
+				);
+			}
+			await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-		await waitFor(() => {
-			expect(createBodies).toEqual([
-				{
-					name: "Standup",
-					kind: "schedule",
-					target_mode: "new_chat",
-					prompt: "Summarize yesterday.",
-					schedule_cron: "0 9 * * *",
-					schedule_time_zone: browserTimeZone,
-					new_chat_model_config_id: mockModel.id,
-					...effort,
-				},
-			]);
-		});
-	});
+			await waitFor(() => {
+				expect(createBodies).toEqual([
+					{
+						name: "Standup",
+						kind: "schedule",
+						target_mode: "new_chat",
+						prompt: "Summarize yesterday.",
+						schedule_cron: "0 9 * * *",
+						schedule_time_zone: browserTimeZone,
+						new_chat_model_config_id: mockModel.id,
+						...effort,
+					},
+				]);
+			});
+		},
+	);
 
 	it("shows every required field error on the first Save", async () => {
 		const user = userEvent.setup();
@@ -928,13 +934,45 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				name: new RegExp(mockModel.display_name),
 			}),
 		);
-		await user.keyboard("{Escape}");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(screen.queryByRole("dialog")).toBeNull();
 		});
 		expect(updateBodies).toEqual([]);
+	});
+
+	it("clears a stored reasoning effort with Model default", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "low",
+				},
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			await within(dialog).findByRole("combobox", { name: "Reasoning effort" }),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Model default" }),
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ reasoning_effort: "" }]);
+		});
 	});
 
 	it.each([
@@ -1166,6 +1204,11 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		const dialog = await openCreateDialog(user);
 
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		expect(
+			within(dialog).getByLabelText(/^Prompt/),
+		).toHaveAccessibleDescription(
+			"Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+		);
 		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
 		await pickChat(user, dialog, MockChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
