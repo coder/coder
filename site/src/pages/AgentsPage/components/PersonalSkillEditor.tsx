@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { type FormikErrors, useFormik } from "formik";
-import { useId, useState } from "react";
+import { UploadIcon } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import * as Yup from "yup";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -17,6 +18,7 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { formatKiB } from "#/utils/fileSize";
+import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	buildPersonalSkillMarkdown,
 	getPersonalSkillContentSizeBytes,
@@ -130,6 +132,9 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 		},
 	});
 
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [isReadingFile, setIsReadingFile] = useState(false);
+	const isBusy = isSubmitting || isReadingFile;
 	const [importContent, setImportContent] = useState("");
 	const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
 
@@ -174,6 +179,48 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 				? "Updated name, description, and body fields."
 				: "Updated description and body fields. Kept the existing name.",
 		});
+	};
+
+	const handleFileChange = async (
+		event: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = event.currentTarget.files?.[0];
+		event.currentTarget.value = "";
+		if (!file) {
+			return;
+		}
+
+		setImportStatus(null);
+		if (file.size > PERSONAL_SKILL_MAX_SIZE_BYTES) {
+			setImportStatus({
+				kind: "error",
+				title: "File is too large",
+				detail: `Choose a file that is ${formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)} or smaller.`,
+			});
+			return;
+		}
+
+		setIsReadingFile(true);
+		try {
+			const content = await readAgentAttachmentText(file);
+			if (!content.trim()) {
+				setImportStatus({
+					kind: "error",
+					title: "File is empty",
+					detail: "Choose a SKILL.md file with frontmatter and a body.",
+				});
+			} else {
+				setImportContent(content);
+				await importSkillMarkdown(content);
+			}
+		} catch {
+			setImportStatus({
+				kind: "error",
+				title: "Could not read file",
+				detail: "Try selecting the file again.",
+			});
+		}
+		setIsReadingFile(false);
 	};
 
 	const handleImportContentChange = (
@@ -240,8 +287,8 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 							<div className="flex flex-col gap-1">
 								<Label htmlFor={importId}>Import from SKILL.md</Label>
 								<p className="m-0 text-xs text-content-secondary">
-									Paste a full SKILL.md file with frontmatter to auto-fill the
-									fields below.
+									Upload or paste a full SKILL.md file with frontmatter to
+									auto-fill the fields below.
 								</p>
 							</div>
 							<TextareaAutosize
@@ -250,7 +297,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 								onChange={handleImportContentChange}
 								onPaste={handleImportContentPaste}
 								placeholder="---\nname: my-skill\ndescription: ...\n---\n\nBody..."
-								disabled={isSubmitting}
+								disabled={isBusy}
 								minRows={4}
 								maxRows={10}
 								className="w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
@@ -263,12 +310,33 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 									)}
 								</Alert>
 							)}
-							<div className="flex justify-end gap-2">
+							<div className="flex flex-wrap justify-end gap-2">
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept=".md,.markdown,.txt,text/markdown,text/plain"
+									aria-label="Upload SKILL.md"
+									className="hidden"
+									disabled={isBusy}
+									onChange={handleFileChange}
+								/>
+								<Button
+									variant="outline"
+									size="sm"
+									className="mr-auto"
+									disabled={isBusy}
+									onClick={() => fileInputRef.current?.click()}
+								>
+									<Spinner loading={isReadingFile}>
+										<UploadIcon />
+									</Spinner>
+									Upload file
+								</Button>
 								{importContent && (
 									<Button
 										variant="outline"
 										size="sm"
-										disabled={isSubmitting}
+										disabled={isBusy}
 										onClick={() => {
 											setImportContent("");
 											setImportStatus(null);
@@ -279,7 +347,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 								)}
 								<Button
 									size="sm"
-									disabled={isSubmitting || !importContent.trim()}
+									disabled={isBusy || !importContent.trim()}
 									onClick={() => {
 										void importSkillMarkdown(importContent);
 									}}
@@ -298,7 +366,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 								onBlur={form.handleBlur}
 								placeholder="review-database-query"
 								readOnly={!isCreate}
-								disabled={isSubmitting}
+								disabled={isBusy}
 								aria-invalid={Boolean(nameError)}
 								aria-describedby={nameError ? nameErrorId : undefined}
 								className={cn(!isCreate && "bg-surface-secondary")}
@@ -327,7 +395,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 								onChange={form.handleChange}
 								onBlur={form.handleBlur}
 								placeholder="When to use this skill"
-								disabled={isSubmitting}
+								disabled={isBusy}
 								aria-invalid={Boolean(descriptionError)}
 								aria-describedby={
 									descriptionError ? descriptionErrorId : undefined
@@ -352,7 +420,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 								onChange={form.handleChange}
 								onBlur={form.handleBlur}
 								placeholder="Describe when and how agents should use this skill."
-								disabled={isSubmitting}
+								disabled={isBusy}
 								minRows={8}
 								aria-invalid={Boolean(bodyError)}
 								aria-describedby={bodyError ? bodyErrorId : undefined}
@@ -386,14 +454,14 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 					<DialogFooter className="border-t border-border-default px-6 py-4">
 						<Button
 							variant="outline"
-							disabled={isSubmitting}
+							disabled={isBusy}
 							onClick={() => onOpenChange(false)}
 						>
 							Cancel
 						</Button>
 						<Button
 							type="submit"
-							disabled={isSubmitting || !form.isValid || !form.dirty}
+							disabled={isBusy || !form.isValid || !form.dirty}
 						>
 							{isSubmitting && <Spinner className="size-4" loading />}
 							{submitLabel}
