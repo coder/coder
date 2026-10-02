@@ -1,12 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { projectChatsKey } from "#/api/queries/chats";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
+import type { Chat } from "#/api/typesGenerated";
+import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import { MockChatProject, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { ProjectPage } from "./ProjectPage";
+
+const chatQueries = (chats: Chat[]) => [
+	{
+		key: projectChatsKey(MockChatProject.id),
+		data: { pages: [chats], pageParams: [0] },
+	},
+	...chats.map((chat) => ({
+		key: chatCostTreeKey(chat.id),
+		data: mockChatCost(chat.id, 1_234_000),
+	})),
+];
 
 const meta: Meta<typeof ProjectPage> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectPage",
@@ -30,25 +42,16 @@ const meta: Meta<typeof ProjectPage> = {
 	},
 	parameters: {
 		user: MockUserOwner,
-		queries: [
+		features: ["aibridge"],
+		queries: chatQueries([
+			{ ...MockChat, id: "chat-1", title: "Plan the launch" },
 			{
-				key: projectChatsKey(MockChatProject.id),
-				data: {
-					pages: [
-						[
-							{ ...MockChat, id: "chat-1", title: "Plan the launch" },
-							{
-								...MockChat,
-								id: "chat-2",
-								title: "Draft the announcement",
-								status: "running",
-							},
-						],
-					],
-					pageParams: [0],
-				},
+				...MockChat,
+				id: "chat-2",
+				title: "Draft the announcement",
+				status: "running",
 			},
-		],
+		]),
 	},
 };
 
@@ -62,20 +65,12 @@ export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
-		queries: [
-			{
-				key: projectChatsKey(MockChatProject.id),
-				data: {
-					pages: [
-						Array.from({ length: 12 }, (_, index) => ({
-							...MockChat,
-							id: `chat-${index}`,
-							title: `Chat ${index + 1}`,
-						})),
-					],
-					pageParams: [0],
-				},
-			},
-		],
+		queries: chatQueries(
+			Array.from({ length: 12 }, (_, index) => ({
+				...MockChat,
+				id: `chat-${index}`,
+				title: `Chat ${index + 1}`,
+			})),
+		),
 	},
 };

@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
+import { chatCostTreeKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserMember, mockApiError } from "#/testHelpers/entities";
+import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
+import {
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { ProjectChatsListView } from "./ProjectChatsListView";
 
 const chats: Chat[] = [
@@ -72,7 +77,7 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		hasNextPage: false,
 		isFetchingNextPage: false,
 		onLoadMore: fn(),
-		currentUserId: MockChat.owner_id,
+		currentUser: MockUserOwner,
 		actions: {
 			requestArchiveAgent: fn(),
 			requestUnarchiveAgent: fn(),
@@ -82,6 +87,13 @@ const meta: Meta<typeof ProjectChatsListView> = {
 			onOpenRenameDialog: fn(),
 			isArchiving: false,
 		},
+		showCost: true,
+	},
+	parameters: {
+		queries: chats.map((chat, index) => ({
+			key: chatCostTreeKey(chat.id),
+			data: mockChatCost(chat.id, [1_234_000, 5_000, 0, 87_650_000][index]),
+		})),
 	},
 };
 
@@ -107,6 +119,10 @@ export const RowActionsOpen: Story = {
 
 export const WithoutActions: Story = {
 	args: { actions: undefined },
+};
+
+export const WithoutCost: Story = {
+	args: { showCost: false },
 };
 
 export const Loading: Story = {

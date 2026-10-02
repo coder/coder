@@ -390,6 +390,7 @@ const AgentCreatePage: React.FC = () => {
 
 	const form = (
 		<AgentCreateForm
+			fillWidth={selectedProject !== undefined}
 			key={
 				debugPrefill
 					? debugBuildId

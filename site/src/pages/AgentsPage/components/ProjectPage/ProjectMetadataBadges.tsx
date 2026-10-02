@@ -15,7 +15,6 @@ type ProjectMetadataBadgesProps = {
 	readonly organizationLabel?: string;
 };
 
-/** Owner, creation date, and organization of a chat project. */
 export const ProjectMetadataBadges: React.FC<ProjectMetadataBadgesProps> = ({
 	ownerLabel,
 	createdAt,

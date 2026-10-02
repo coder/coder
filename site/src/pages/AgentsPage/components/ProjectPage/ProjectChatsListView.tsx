@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, User } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -14,9 +14,11 @@ type ProjectChatsListViewProps = {
 	readonly hasNextPage: boolean;
 	readonly isFetchingNextPage: boolean;
 	readonly onLoadMore: () => void;
-	readonly currentUserId: string;
+	readonly currentUser: User;
 	/** Omit to hide the row actions menus. */
 	readonly actions?: ProjectChatRowActions;
+	/** Fetches and shows each chat's AI Gateway cost. */
+	readonly showCost: boolean;
 };
 
 /** The chats in a project, loaded page by page as the list scrolls. */
@@ -27,8 +29,9 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 	hasNextPage,
 	isFetchingNextPage,
 	onLoadMore,
-	currentUserId,
+	currentUser,
 	actions,
+	showCost,
 }) => {
 	const headingId = useId();
 	const errorAlert = Boolean(error) && (
@@ -48,17 +51,13 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 				id={headingId}
 				className="m-0 text-sm font-medium text-content-primary"
 			>
-				{chats
-					? `${chats.length}${hasNextPage ? "+" : ""} ${
-							chats.length === 1 && !hasNextPage ? "Chat" : "Chats"
-						}`
-					: "Chats"}
+				Chats
 			</h2>
 			{chats === undefined ? (
 				errorAlert || (
-					<div className="flex flex-col divide-y divide-solid divide-border rounded-lg border border-solid border-border">
+					<div className="flex flex-col">
 						{[0, 1, 2].map((index) => (
-							<div key={index} className="flex items-center gap-3 px-4 py-3">
+							<div key={index} className="flex items-center gap-3 py-3">
 								<Skeleton className="size-3.5 shrink-0" variant="circular" />
 								<Skeleton variant="text" className="w-1/3" />
 							</div>
@@ -75,13 +74,14 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 				</>
 			) : (
 				<>
-					<ul className="m-0 flex list-none flex-col divide-y divide-solid divide-border overflow-hidden rounded-lg border border-solid border-border p-0">
+					<ul className="m-0 flex list-none flex-col p-0">
 						{chats.map((chat) => (
 							<ProjectChatRow
 								key={chat.id}
 								chat={chat}
-								currentUserId={currentUserId}
+								currentUser={currentUser}
 								actions={actions}
+								showCost={showCost}
 							/>
 						))}
 					</ul>
