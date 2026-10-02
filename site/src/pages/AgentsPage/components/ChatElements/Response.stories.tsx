@@ -66,6 +66,16 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
+	// Focus reveals the hover-only copy button without triggering the
+	// copied state, which reverts on a timer.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const copyButton = await canvas.findByRole("button", {
+			name: "Copy code",
+		});
+		await userEvent.tab();
+		await expect(copyButton).toHaveFocus();
+	},
 };
 
 const singleLineCodeBlockMarkdown = `
@@ -77,6 +87,14 @@ const singleLineCodeBlockMarkdown = `
 export const SingleLineFencedBlock: Story = {
 	args: {
 		children: singleLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const copyButton = await canvas.findByRole("button", {
+			name: "Copy code",
+		});
+		await userEvent.tab();
+		await expect(copyButton).toHaveFocus();
 	},
 };
 
