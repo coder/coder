@@ -12034,6 +12034,92 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	return now, err
 }
 
+const getDeletedChatMessagesFromLastAssistant = `-- name: GetDeletedChatMessagesFromLastAssistant :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND deleted = true
+    AND id < $2::bigint
+    AND id >= (
+        SELECT
+            max(id)
+        FROM
+            chat_messages
+        WHERE
+            chat_id = $1::uuid
+            AND deleted = true
+            AND compressed = false
+            AND role = 'assistant'
+            AND id > $3::bigint
+            AND id < $2::bigint
+    )
+ORDER BY
+    id ASC
+`
+
+type GetDeletedChatMessagesFromLastAssistantParams struct {
+	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
+	UserMessageID         int64     `db:"user_message_id" json:"user_message_id"`
+	PreviousUserMessageID int64     `db:"previous_user_message_id" json:"previous_user_message_id"`
+}
+
+// Returns the last deleted assistant message and the deleted rows after it.
+// Every visibility is included: a model-only row can hold a tool call's result.
+func (q *sqlQuerier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg GetDeletedChatMessagesFromLastAssistantParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getDeletedChatMessagesFromLastAssistant, arg.ChatID, arg.UserMessageID, arg.PreviousUserMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
+			&i.AutomationID,
+			&i.InputID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id

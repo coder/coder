@@ -44,9 +44,9 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 	return ids
 }
 
-// CancelToolCall cancels tool call id on the agent and returns its result.
-// It returns an error if there is no result, such as when an old agent
-// responds with 404.
+// CancelToolCall sends the agent a cancel request for tool call id and
+// returns the call's result. It returns an error if there is no result,
+// such as when an old agent responds with 404.
 func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
 	if !CanCancelToolCall(toolName) {
 		return fantasy.ToolResponse{}, xerrors.Errorf("tool %q cannot be canceled on the agent", toolName)
