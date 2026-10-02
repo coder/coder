@@ -6,7 +6,10 @@ import {
 	useInfiniteQuery,
 } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import { chatListFamilyKey } from "#/api/queries/chats";
+import {
+	chatListFamilyKey,
+	chatProjectListFamilyKey,
+} from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import { boardChats, boardChatsKey } from "./boardChats";
@@ -92,8 +95,10 @@ describe("refetchChatListUntilLanded", () => {
 
 		refetchChatListUntilLanded(queryClient);
 
-		expect(invalidate).toHaveBeenCalledTimes(1);
-		expect(invalidate).toHaveBeenCalledWith({ queryKey: chatListFamilyKey });
+		expect(invalidate.mock.calls).toEqual([
+			[{ queryKey: chatListFamilyKey }],
+			[{ queryKey: chatProjectListFamilyKey }],
+		]);
 		expect(subscribe).not.toHaveBeenCalled();
 	});
 });

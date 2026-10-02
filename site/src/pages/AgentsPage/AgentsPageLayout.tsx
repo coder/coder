@@ -25,6 +25,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	findChatInListCaches,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -38,7 +39,6 @@ import {
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
-	readInfiniteChatsCache,
 	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
@@ -447,10 +447,7 @@ const AgentsPageLayout: React.FC = () => {
 						],
 						queryFn: () => API.getWorkspaceBuilds(workspaceId),
 					}),
-				() =>
-					readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === chatId,
-					)?.created_at,
+				() => findChatInListCaches(queryClient, chatId)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -583,8 +580,9 @@ const AgentsPageLayout: React.FC = () => {
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
+					const prevStatus = findChatInListCaches(
+						queryClient,
+						updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
