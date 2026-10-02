@@ -120,8 +120,7 @@ func TestBuildManifestErrors(t *testing.T) {
 		name    string
 		edit    func(files map[string]string)
 		wantErr string
-		// wantErrIs, when set, must be in the error chain. Use it for OS
-		// errors, whose text differs between platforms.
+		// Set for OS errors, whose text differs between platforms.
 		wantErrIs error
 	}{
 		{
