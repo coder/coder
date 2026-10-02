@@ -90,9 +90,17 @@ import (
 //   - Added the client_session_id to TelemetryEvent.
 //   - Added client_session_id to Connection on the agent API, for logging the
 //     client's session ID in the connections table.
+//
+// API v2.13:
+//   - Added the PluginBody variant to ContextResource and plugin_name to
+//     SkillMetaBody and MCPServerBody on the Agent API, for Agent Plugins
+//     (agent-plugins.org).
+//   - Added plugins_supported to Manifest. Agents emit plugin resources
+//     only when it is true, since older coderd versions reject unknown
+//     body variants.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 12
+	CurrentMinor = 13
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
