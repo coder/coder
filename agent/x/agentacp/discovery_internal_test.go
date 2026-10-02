@@ -21,7 +21,7 @@ import (
 func TestDiscoveryCatalog(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m, _, configDir := newTestManager(t, fakeHarnessModeBoth)
+	m, dir, configDir := newTestManager(t, fakeHarnessModeBoth)
 	catalog := m.Catalog()
 	require.Equal(t, "fake", catalog[0].DisplayName)
 	require.True(t, catalog[0].LoadSession)
@@ -56,6 +56,7 @@ func TestDiscoveryCatalog(t *testing.T) {
 			require.NotEmpty(t, h.Error)
 		}
 	}
+	info := createTestSession(t, m, dir)
 	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": "false", "display_name": "Changed"})
 	require.NoError(t, m.Reload(ctx))
 	var found bool
@@ -68,6 +69,10 @@ func TestDiscoveryCatalog(t *testing.T) {
 		}
 	}
 	require.True(t, found, "the edited harness must remain in the context snapshot")
+	session, err := m.Read(ctx, info.ID, nil)
+	require.NoError(t, err)
+	require.Equal(t, info.ID, session.Session.ID)
+	require.Equal(t, "fake", session.Session.HarnessDisplayName)
 	require.NoError(t, os.Remove(filepath.Join(configDir, "fake.json")))
 	require.NoError(t, m.Reload(ctx))
 	require.Len(t, m.Catalog(), 3)
@@ -122,6 +127,12 @@ func TestDiscoveryDirectoryCreation(t *testing.T) {
 	testutil.RequireReceive(ctx, t, changed)
 	require.Len(t, m.Catalog(), 1)
 	require.Empty(t, m.Catalog()[0].Error)
+	// Enabled configuration is still required for a new runtime.
+	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": fakeCommand(t, fakeHarnessModeBoth), "enabled": false})
+	advanceTestDiscovery(ctx, t, clock)
+	testutil.RequireReceive(ctx, t, changed)
+	_, err := m.Create(ctx, workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir})
+	require.ErrorIs(t, err, ErrUnavailable)
 }
 
 func TestProbeDeadline(t *testing.T) {
