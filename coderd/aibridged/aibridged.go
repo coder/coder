@@ -50,6 +50,10 @@ type Server struct {
 	// for completion or cancels their contexts when its deadline expires.
 	inflight *aibridge.InflightGate
 
+	// recorder is initialized once when proxy mode is selected and shared by
+	// all router snapshots. It remains nil in interception mode.
+	recorder recorder.Recorder
+
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
 	reverseProxyExp bool
 	metrics         *aibridge.Metrics
@@ -70,7 +74,7 @@ type Server struct {
 	// cancelFn closes the lifecycleCtx with the reason it closed.
 	cancelFn context.CancelCauseFunc
 
-	// poolOptions configures the interception pool created at startup.
+	// poolOptions configures the interception pool and recording in both modes.
 	poolOptions PoolOptions
 
 	shutdownOnce sync.Once
@@ -79,9 +83,9 @@ type Server struct {
 // ServerOption configures a [Server] at construction.
 type ServerOption func(*Server)
 
-// WithPoolOptions builds the server's interception pool with options instead of
-// [DefaultPoolOptions]. The deployment's record policy reaches the pool that
-// serves requests this way; see [PoolOptionsFromConfig].
+// WithPoolOptions overrides [DefaultPoolOptions] for the interception pool
+// and recording policy in both gateway modes. [PoolOptionsFromConfig]
+// derives these options from the deployment configuration.
 func WithPoolOptions(options PoolOptions) ServerOption {
 	return func(s *Server) { s.poolOptions = options }
 }
@@ -263,6 +267,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	}
 
 	// Otherwise, use proxy mode.
+	s.recorder = newRecorder(s.logger, s.tracer, s.poolOptions.StructuredLogging, s.poolOptions.DisableContentRecording, s.Client)
 	s.backend.Store(&backend{})
 	s.logger.Warn(ctx, "reverse proxy routing is not yet functional")
 	return nil
@@ -373,7 +378,7 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
-	router, err := proxy.NewRouter(providers, s.logger, s.metrics, s.tracer, s.inflight)
+	router, err := proxy.NewRouter(providers, s.logger, s.metrics, s.tracer, s.inflight, s.recorder)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}

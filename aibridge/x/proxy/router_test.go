@@ -73,7 +73,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t))
+			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -110,7 +110,7 @@ func TestRouterRoutes(t *testing.T) {
 	m := metrics.NewMetrics(prometheus.NewRegistry())
 	router, err := proxy.NewRouter(
 		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t),
+		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
 	)
 	require.NoError(t, err)
 
@@ -234,7 +234,7 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 			},
 			provider.NewDisabledStub("disabled-openai", "openai"),
 		},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate,
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil,
 	)
 	require.NoError(t, err)
 	require.NoError(t, gate.Shutdown(testutil.Context(t, testutil.WaitShort)))
@@ -282,7 +282,7 @@ func TestRouterSnapshotsProviders(t *testing.T) {
 		keyPoolProvider{Provider: provider.NewDisabledStub("disabled-openai", "openai"), pool: pool},
 	}
 
-	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t))
+	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
@@ -311,7 +311,7 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 
 	router, err := proxy.NewRouter(
 		[]provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t),
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
 	)
 	require.NoError(t, err)
 

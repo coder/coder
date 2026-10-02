@@ -148,6 +148,41 @@ func TestNewRecorder(t *testing.T) {
 	})
 }
 
+type noMCPConfigsClient struct{ DRPCClient }
+
+func (noMCPConfigsClient) GetMCPServerConfigs(context.Context, *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
+	return &proto.GetMCPServerConfigsResponse{}, nil
+}
+
+func TestServerProxy_RecorderReusedAcrossReloads(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	logger := slogtest.Make(t, nil)
+	client := noMCPConfigsClient{}
+	server := &Server{
+		lifecycleCtx: ctx,
+		logger:       logger,
+		tracer:       noop.NewTracerProvider().Tracer(t.Name()),
+		inflight:     aibridge.NewInflightGate(logger),
+		poolOptions:  DefaultPoolOptions,
+	}
+	t.Cleanup(server.inflight.Close)
+	require.NoError(t, server.initializeBackend(ctx, client))
+	rec := server.recorder
+	require.NotNil(t, rec, "proxy mode initializes the recorder before providers load")
+
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{})}
+	for range 2 {
+		previous := server.backend.Load().proxyRouter
+		require.NoError(t, server.ReplaceProviders(ctx, providers))
+		require.NotSame(t, previous, server.backend.Load().proxyRouter)
+		require.Same(t, rec, server.recorder, "provider reloads must reuse the recorder")
+		require.NoError(t, server.initializeBackend(ctx, client))
+		require.Same(t, rec, server.recorder, "reconnects must reuse the recorder")
+	}
+}
+
 // recordingClient captures interception RPCs by ID for concurrent assertions.
 // Its nil embedded client makes unexpected calls fail.
 type recordingClient struct {
@@ -451,7 +486,7 @@ func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibrid
 	upstream := httptest.NewServer(upstreamHandler)
 	t.Cleanup(upstream.Close)
 	router, err := proxy.NewRouter([]aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate)
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
 	require.NoError(t, err)
 	return router
 }
