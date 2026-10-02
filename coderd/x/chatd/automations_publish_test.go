@@ -553,6 +553,9 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uuid.NullUUID{UUID: automation.ID, Valid: true}, chat.AutomationID)
 		require.Equal(t, "Deploy hook 2026-03-04 21:07 UTC", chat.Title)
+		// A user title source keeps title generation from replacing the
+		// automation title with one derived from the event data.
+		require.Equal(t, database.ChatTitleSourceUser, chat.TitleSource)
 		require.Equal(t, database.ChatClientTypeApi, chat.ClientType)
 		require.Equal(t, f.model.ID, chat.LastModelConfigID)
 		require.Empty(t, chat.MCPServerIDs)

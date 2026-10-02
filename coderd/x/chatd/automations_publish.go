@@ -257,9 +257,10 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		OrganizationID: automation.OrganizationID,
 		OwnerID:        automation.OwnerID,
 		CreatedBy:      automation.OwnerID,
-		// The title is explicit and no title is generated, so the event
-		// data never becomes the chat title.
+		// The title is explicit and its user source stops title
+		// generation, so the event data never becomes the chat title.
 		Title:              automationNewChatTitle(automation, titleTime),
+		TitleSource:        database.ChatTitleSourceUser,
 		ModelConfigID:      modelConfigID,
 		ReasoningEffort:    reasoningEffort,
 		ClientType:         database.ChatClientTypeApi,
