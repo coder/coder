@@ -159,3 +159,108 @@ func eventTypes(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEventTyp
 	}
 	return types
 }
+
+// TestStreamLoopLatePartAfterError checks that parts of a generation
+// attempt that failed with a terminal error are dropped once the stream
+// has announced the error. The frontend clears its preview on the error
+// event (useChatStore.ts), so a late part of the failed attempt would
+// show a preview that starts mid-message under the error.
+func TestStreamLoopLatePartAfterError(t *testing.T) {
+	t.Parallel()
+
+	// startAttempt streams part 1 of attempt 1 of history version 1 and
+	// returns the loop and the last snapshot.
+	startAttempt := func(t *testing.T) (*streamLoop, database.Chat) {
+		t.Helper()
+
+		chatID := uuid.New()
+		worker := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		chat := database.Chat{
+			ID:                chatID,
+			Status:            database.ChatStatusRunning,
+			SnapshotVersion:   3,
+			HistoryVersion:    1,
+			GenerationAttempt: 1,
+			WorkerID:          worker,
+		}
+		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+		require.Contains(t, eventTypes(events), codersdk.ChatStreamEventTypePreviewReset)
+
+		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 1, Part: codersdk.ChatMessageText("Hel")})
+		require.NoError(t, err)
+		require.True(t, accepted)
+		return loop, chat
+	}
+
+	// failAttempt applies a non-retryable failure of the current attempt.
+	// FinishError changes only the status and last_error; the history
+	// version and generation attempt stay.
+	failAttempt := func(t *testing.T, loop *streamLoop, chat database.Chat) database.Chat {
+		t.Helper()
+
+		lastErr, err := json.Marshal(codersdk.ChatError{Message: "bad request", Kind: codersdk.ChatErrorKindGeneric})
+		require.NoError(t, err)
+		chat.SnapshotVersion++
+		chat.Status = database.ChatStatusError
+		chat.LastError = pqtype.NullRawMessage{RawMessage: lastErr, Valid: true}
+		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+		require.Equal(t, []codersdk.ChatStreamEventType{
+			codersdk.ChatStreamEventTypeStatus,
+			codersdk.ChatStreamEventTypeError,
+		}, eventTypes(events))
+		return chat
+	}
+
+	t.Run("FailedAttemptDropped", func(t *testing.T) {
+		t.Parallel()
+
+		loop, chat := startAttempt(t)
+		failAttempt(t, loop, chat)
+
+		// A part produced before the failure is still buffered in the
+		// relay. It must not be delivered after the error event.
+		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
+		require.NoError(t, err)
+		require.False(t, accepted, "part 2 of the failed attempt was delivered after the error event, which cleared the client preview")
+	})
+
+	t.Run("NextAttemptStreams", func(t *testing.T) {
+		t.Parallel()
+
+		loop, chat := startAttempt(t)
+		chat = failAttempt(t, loop, chat)
+
+		// The chat runs again and records a new generation attempt.
+		chat.SnapshotVersion++
+		chat.Status = database.ChatStatusRunning
+		chat.LastError = pqtype.NullRawMessage{}
+		chat.GenerationAttempt = 2
+		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+		require.Equal(t, []codersdk.ChatStreamEventType{
+			codersdk.ChatStreamEventTypeStatus,
+			codersdk.ChatStreamEventTypePreviewReset,
+		}, eventTypes(events))
+
+		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 2, Seq: 1, Part: codersdk.ChatMessageText("Hello")})
+		require.NoError(t, err)
+		require.True(t, accepted, "the new attempt starts a fresh preview")
+	})
+
+	t.Run("InterruptingKeepsStreaming", func(t *testing.T) {
+		t.Parallel()
+
+		loop, chat := startAttempt(t)
+
+		// An interrupt does not end the attempt's preview: the client
+		// keeps it until the worker persists the partial message.
+		chat.SnapshotVersion++
+		chat.Status = database.ChatStatusInterrupting
+		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
+
+		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
+		require.NoError(t, err)
+		require.True(t, accepted)
+	})
+}
