@@ -9,19 +9,20 @@ full-text search.
 
 ## Filters
 
-| Key          | Values                                                           | Description                                                                                                           |
-|--------------|------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `title`      | substring                                                        | Case-insensitive substring match. Quote multi-word values.                                                            |
-| `archived`   | `true`, `false`, `any`                                           | Filter by archived state. `any` matches archived and active conversations. Default: `false` hides archived ones.      |
-| `has_unread` | `true`, `false`                                                  | Conversations with unread assistant messages.                                                                         |
-| `status`     | `waiting`, `running`, `error`, `requires_action`, `interrupting` | Conversation state. Comma-separated or repeated values match any of them.                                             |
-| `pr_status`  | `draft`, `open`, `merged`, `closed`, `none`                      | Linked pull request state. Comma-separated for OR. `none` matches conversations with no linked pull request.          |
-| `diff_url`   | URL                                                              | Match by associated diff URL. Quote values containing colons.                                                         |
-| `pr`         | positive integer                                                 | Exact PR number match.                                                                                                |
-| `repo`       | substring                                                        | Case-insensitive substring match against git remote origin or URL. Quote values containing colons.                    |
-| `pr_title`   | substring                                                        | Case-insensitive PR title substring match. Quote multi-word values.                                                   |
-| `source`     | `created_by_me`, `shared_with_me`                                | Ownership scope. Default: `created_by_me`. Pass both values comma-separated to return owned and shared conversations. |
-| `search`     | text                                                             | Full-text search across chat titles, PR titles, PR numbers, and message content. Quote multi-word values.             |
+| Key            | Values                                                           | Description                                                                                                           |
+|----------------|------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `title`        | substring                                                        | Case-insensitive substring match. Quote multi-word values.                                                            |
+| `organization` | organization name or ID                                          | Exact match on the conversation's organization.                                                                       |
+| `archived`     | `true`, `false`, `any`                                           | Filter by archived state. `any` matches archived and active conversations. Default: `false` hides archived ones.      |
+| `has_unread`   | `true`, `false`                                                  | Conversations with unread assistant messages.                                                                         |
+| `status`       | `waiting`, `running`, `error`, `requires_action`, `interrupting` | Conversation state. Comma-separated or repeated values match any of them.                                             |
+| `pr_status`    | `draft`, `open`, `merged`, `closed`, `none`                      | Linked pull request state. Comma-separated for OR. `none` matches conversations with no linked pull request.          |
+| `diff_url`     | URL                                                              | Match by associated diff URL. Quote values containing colons.                                                         |
+| `pr`           | positive integer                                                 | Exact PR number match.                                                                                                |
+| `repo`         | substring                                                        | Case-insensitive substring match against git remote origin or URL. Quote values containing colons.                    |
+| `pr_title`     | substring                                                        | Case-insensitive PR title substring match. Quote multi-word values.                                                   |
+| `source`       | `created_by_me`, `shared_with_me`                                | Ownership scope. Default: `created_by_me`. Pass both values comma-separated to return owned and shared conversations. |
+| `search`       | text                                                             | Full-text search across chat titles, PR titles, PR numbers, and message content. Quote multi-word values.             |
 
 Multiple filters in one query combine with AND logic. `search:` cannot
 be combined with `title:`, `pr_title:`, or `pr:`.
@@ -54,6 +55,9 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 
 # Multi-word title (URL-encode the space or use +)
 ?q=title:my+project
+
+# Conversations in one organization (name or ID)
+?q=organization:my-org
 
 # Unread conversations
 ?q=has_unread:true
@@ -99,7 +103,8 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 
 - `status:waiting` is an idle conversation, `status:running` is a turn in progress, and `status:interrupting` is a turn being stopped.
 - `status:requires_action` means the agent needs you before it can continue, and `status:error` means the turn failed.
-- `title:`, `repo:`, and `pr_title:` use ILIKE matching. `%` and `_` act as wildcards.
+- `title:` matches `%` and `_` literally.
+  `repo:` and `pr_title:` use ILIKE matching, so `%` and `_` act as wildcards.
 - `pr_status:draft` means the PR is open **and** marked as a draft.
   `pr_status:open` means the PR is open and not a draft.
 - `pr_status:none` matches conversations with no pull request, including those whose linked PR was cleared.

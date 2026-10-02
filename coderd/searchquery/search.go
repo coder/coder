@@ -497,8 +497,9 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 // Chats parses a search query for chats.
 //
 // Supported query parameters:
-//   - title: case-insensitive title substring match via ILIKE (bare terms
-//     are rejected; use title:<value> for title filtering)
+//   - title: case-insensitive literal title substring match; '%' and
+//     '_' match literally (bare terms are rejected; use title:<value>
+//     for title filtering)
 //   - archived: boolean, or any to include archived and active chats
 //     (default: false, excludes archived chats unless explicitly set)
 //   - has_unread: nullable boolean (filter by unread message status)
@@ -518,7 +519,8 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 //     both)
 //   - search: full-text search over chat content; mutually exclusive
 //     with title, pr_title, and pr
-func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
+//   - organization: organization name or ID (exact match)
+func Chats(ctx context.Context, db database.Store, query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats and chats not owned by the caller.
 		Archived:  sql.NullBool{Bool: false, Valid: true},
@@ -577,6 +579,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 		}
 	}
 
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")

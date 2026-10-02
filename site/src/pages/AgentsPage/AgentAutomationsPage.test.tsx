@@ -360,13 +360,6 @@ const mockOtherChat: Chat = {
 	title: "Release notes",
 };
 
-const mockOtherOrgChat: Chat = {
-	...MockChat,
-	id: "chat-3",
-	organization_id: MockOrganization2.id,
-	title: "Other organization chat",
-};
-
 const mockModel: ChatModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
@@ -394,11 +387,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	server.use(
 		http.get("/api/v2/chats", ({ request }) => {
 			requests.push(request);
-			return HttpResponse.json([
-				mockTargetChat,
-				mockOtherChat,
-				mockOtherOrgChat,
-			]);
+			return HttpResponse.json([mockTargetChat, mockOtherChat]);
 		}),
 		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
 			HttpResponse.json({
@@ -505,7 +494,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(
 				requests.map((request) => new URL(request.url).searchParams.get("q")),
-			).toContain('title:"Rele" archived:false source:created_by_me');
+			).toContain(
+				`title:"Rele" archived:false source:created_by_me organization:${MockDefaultOrganization.id}`,
+			);
 		});
 		await user.click(
 			await screen.findByRole("option", { name: mockOtherChat.title }),
@@ -637,16 +628,21 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(within(dialog).queryByRole("alert")).toBeNull();
 	});
 
-	it("offers only chats from the automation's organization", async () => {
+	it("asks the server for chats from the automation's organization", async () => {
 		const user = userEvent.setup();
-		setupEditor();
+		const { requests } = setupEditor();
 		const dialog = await openCreateDialog(user);
 
 		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
 		await screen.findByRole("option", { name: mockOtherChat.title });
 		expect(
-			screen.getAllByRole("option").map((option) => option.textContent),
-		).toEqual([mockTargetChat.title, mockOtherChat.title]);
+			requests
+				.map((request) => new URL(request.url))
+				.filter((url) => url.pathname === "/api/v2/chats")
+				.map((url) => url.searchParams.get("q")),
+		).toContain(
+			`archived:false source:created_by_me organization:${MockDefaultOrganization.id}`,
+		);
 	});
 
 	it("saves a name of 128 code points that spans more UTF-16 units", async () => {
