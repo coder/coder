@@ -1,6 +1,6 @@
 import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -22,7 +22,9 @@ export const ensureProviderLabel = (provider: string) => {
 \`\`\`
 `;
 
-const sampleFileCode = `package auth
+const sampleFileMarkdown = `
+\`\`\`go
+package auth
 
 import "errors"
 
@@ -31,17 +33,9 @@ func ValidateToken(token string) error {
 		return errors.New("token is empty")
 	}
 	return nil
-}`;
-
-const sampleFileMarkdown = `
-\`\`\`go
-${sampleFileCode}
+}
 \`\`\`
 `;
-
-const mockClipboardWrite = () => {
-	spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
-};
 
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
@@ -72,15 +66,15 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
-	beforeEach: mockClipboardWrite,
-	// Clicks the hover-only copy button so the capture shows the
-	// copied confirmation state. Behavior is covered in Response.test.tsx.
+	// Focus reveals the hover-only copy button without triggering the
+	// copied state, which reverts on a timer.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
-		await userEvent.click(copyButton);
+		await userEvent.tab();
+		await expect(copyButton).toHaveFocus();
 	},
 };
 
@@ -94,14 +88,13 @@ export const SingleLineFencedBlock: Story = {
 	args: {
 		children: singleLineCodeBlockMarkdown,
 	},
-	beforeEach: mockClipboardWrite,
-	// Behavior is covered in Response.test.tsx.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
-		await userEvent.click(copyButton);
+		await userEvent.tab();
+		await expect(copyButton).toHaveFocus();
 	},
 };
 

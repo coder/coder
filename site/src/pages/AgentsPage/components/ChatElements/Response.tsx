@@ -94,7 +94,7 @@ const markdownFileViewerCSS = [
 	"[data-code] { padding-block: 8px !important; overflow: visible !important; }",
 	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
 	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
-	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
+	"[data-line] { min-height: 20px !important; padding-inline: 12px 40px !important; }",
 ].join(" ");
 
 const markdownFileViewerStyle = {
@@ -260,13 +260,11 @@ const createComponents = (
 									style={markdownFileViewerStyle}
 								/>
 							</ScrollArea>
-							{!isMermaid && (
-								<CopyButton
-									text={content}
-									label="Copy code"
-									className="absolute right-1.5 top-1.5 z-20 size-6 bg-surface-primary p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/code-block:opacity-100 focus-visible:opacity-100"
-								/>
-							)}
+							<CopyButton
+								text={content}
+								label="Copy code"
+								className="absolute right-1.5 top-1.5 z-20 size-6 bg-surface-primary p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/code-block:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+							/>
 						</div>
 					);
 					if (isMermaid) {
