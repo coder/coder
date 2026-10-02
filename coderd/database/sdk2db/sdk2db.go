@@ -31,10 +31,14 @@ func ConnectionLogTypeFilter(t codersdk.ConnectionType) (source database.Connect
 	}
 }
 
-// Each family is also a registered app name. Any other type is an unknown app,
-// so the connection is still logged.
-func ConnectionLogAppName(typ agentproto.Connection_Type) string {
-	switch typ {
+// Prefers the app the agent reported. Agents without app_name send only the
+// type, whose family is also a registered app name. Anything else is an
+// unknown app, so the connection is still logged.
+func ConnectionLogAppName(conn *agentproto.Connection) string {
+	if appName := conn.GetAppName(); appName != "" {
+		return codersdk.NormalizeAppName(appName)
+	}
+	switch conn.GetType() {
 	case agentproto.Connection_SSH:
 		return string(codersdk.AppFamilySSH)
 	case agentproto.Connection_JETBRAINS:
