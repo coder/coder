@@ -73,6 +73,12 @@ export const RBACResourceActions: Partial<
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
+	chat_automation: {
+		create: "create a new chat automation",
+		delete: "delete a chat automation",
+		read: "read chat automations",
+		update: "update a chat automation",
+	},
 	chat_model_config: {
 		create: "create a new chat model config",
 		delete: "delete a chat model config",

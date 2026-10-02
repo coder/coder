@@ -17,6 +17,7 @@ const (
 	ResourceBoundaryLog                   RBACResource = "boundary_log"
 	ResourceBoundaryUsage                 RBACResource = "boundary_usage"
 	ResourceChat                          RBACResource = "chat"
+	ResourceChatAutomation                RBACResource = "chat_automation"
 	ResourceChatModelConfig               RBACResource = "chat_model_config"
 	ResourceChatProject                   RBACResource = "chat_project"
 	ResourceConnectionLog                 RBACResource = "connection_log"
@@ -98,6 +99,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
+	ResourceChatAutomation:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
