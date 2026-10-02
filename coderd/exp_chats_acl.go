@@ -315,20 +315,25 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 		}
 	}
 
+	//nolint:gocritic // Users who can read the chat ACL should see shared group sizes even without group read permission.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return nil, false
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		//nolint:gocritic // Users who can read the chat ACL should see shared group sizes even without group read permission.
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return nil, false
-		}
 		entry := entries[group.Group.ID.String()]
 		groups = append(groups, codersdk.ChatGroup{
-			Group: db2sdk.Group(group, nil, int(memberCount)),
+			Group: db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])),
 			Role:  convertToChatRole(entry.Permissions),
 		})
 	}
