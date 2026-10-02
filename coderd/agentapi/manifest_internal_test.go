@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"testing"
@@ -12,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
-func Test_dbUserSecretsToProto(t *testing.T) {
+func Test_dbSecretsToProto(t *testing.T) {
 	t.Parallel()
 
 	secrets := []database.UserSecret{
@@ -20,6 +21,11 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 		{Name: "file-only", FilePath: "~/.ssh/id_rsa", Value: "file-val", Enabled: true},
 		{Name: "dual", EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: "dual-val", Enabled: true},
 		{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"},
+	}
+	workspaceSecrets := []database.WorkspaceSecret{
+		{Name: "ws-env", EnvName: "WS_ENV", Value: sql.NullString{String: "ws-val", Valid: true}},
+		{Name: "ws-file", FilePath: "/etc/ws", Value: sql.NullString{String: "ws-file-val", Valid: true}},
+		{Name: "ws-cleared", EnvName: "WS_CLEARED"},
 	}
 
 	cases := []struct {
@@ -34,6 +40,8 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
 				{FilePath: "~/.ssh/id_rsa", Value: []byte("file-val")},
 				{EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: []byte("dual-val")},
+				{EnvName: "WS_ENV", Value: []byte("ws-val")},
+				{FilePath: "/etc/ws", Value: []byte("ws-file-val")},
 			},
 		},
 		{
@@ -42,6 +50,7 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 			expected: []*agentproto.WorkspaceSecret{
 				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
 				{EnvName: "DUAL_ENV", Value: []byte("dual-val")},
+				{EnvName: "WS_ENV", Value: []byte("ws-val")},
 			},
 		},
 	}
@@ -50,7 +59,7 @@ func Test_dbUserSecretsToProto(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := dbUserSecretsToProto(secrets, c.policy)
+			got := dbSecretsToProto(secrets, workspaceSecrets, c.policy)
 			require.Len(t, got, len(c.expected))
 			for i, want := range c.expected {
 				require.Equal(t, want.EnvName, got[i].EnvName, "secret %d env_name", i)
