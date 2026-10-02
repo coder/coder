@@ -93,7 +93,7 @@ func (p *PTY) Write(r rune) {
 	p.t.Helper()
 
 	p.Logf("stdin: %q", r)
-	_, err := p.Input().Write([]byte{byte(r)})
+	_, err := p.Input().Write([]byte(string(r)))
 	require.NoError(p.t, err, "write failed")
 }
 

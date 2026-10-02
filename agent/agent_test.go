@@ -2677,14 +2677,13 @@ func runSubAgentMain() int {
 		return 1
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create request: %v\n", err)
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	req = req.WithContext(ctx)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {

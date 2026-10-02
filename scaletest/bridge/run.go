@@ -97,7 +97,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client:           client,
 		cfg:              cfg,
-		strategy:         cfg.NewStrategy(client),
+		strategy:         cfg.newStrategy(client),
 		providerStrategy: NewProviderStrategy(cfg.Provider),
 		clock:            quartz.NewReal(),
 		httpClient: &http.Client{

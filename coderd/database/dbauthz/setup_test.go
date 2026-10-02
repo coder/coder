@@ -176,6 +176,7 @@ func (s *MethodTestSuite) Mocked(testCaseF func(dmb *dbmock.MockStore, faker *go
 }
 
 // Subtest starts up a real postgres database for each test case.
+//
 // Deprecated: Use 'Mocked' instead for much faster tests.
 func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expects)) func() {
 	t := s.T()

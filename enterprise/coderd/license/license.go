@@ -1160,6 +1160,7 @@ type Claims struct {
 	Trial         bool                `json:"trial"`
 	FeatureSet    codersdk.FeatureSet `json:"feature_set"`
 	// AllFeatures represents 'FeatureSet = FeatureSetEnterprise'
+	//
 	// Deprecated: AllFeatures is deprecated in favor of FeatureSet.
 	AllFeatures      bool             `json:"all_features,omitempty"`
 	Version          uint64           `json:"version"`

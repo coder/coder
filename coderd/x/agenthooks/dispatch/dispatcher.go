@@ -492,7 +492,7 @@ func foldJSONName(name string) string {
 			if 'a' <= r && r <= 'z' {
 				r -= 'a' - 'A'
 			}
-			folded = append(folded, byte(r))
+			folded = append(folded, byte(r)) //nolint:gosec // Guarded by r < utf8.RuneSelf.
 			continue
 		}
 		for {

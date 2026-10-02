@@ -422,6 +422,7 @@ func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, r
 }
 
 // PostWorkspaceUsage marks the workspace as having been used recently.
+//
 // Deprecated: use PostWorkspaceUsageWithBody instead
 func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
@@ -476,6 +477,7 @@ func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, worksp
 // with the given id in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
+//
 // Deprecated: use UpdateWorkspaceUsageContextWithBody instead
 func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)

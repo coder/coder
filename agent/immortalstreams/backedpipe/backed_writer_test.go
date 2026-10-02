@@ -886,7 +886,7 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 		wg.Go(func() {
 			// Signal that this write is starting
 			writesStarted <- struct{}{}
-			data := []byte{byte('A' + i)}
+			data := []byte{byte('A' + i)} //nolint:gosec // i is a small loop index.
 			_, writeResults[i] = bw.Write(data)
 		})
 	}
