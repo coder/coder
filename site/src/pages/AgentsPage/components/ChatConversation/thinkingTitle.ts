@@ -114,25 +114,6 @@ const getLines = (text: string): LineRange[] => {
 	return lines;
 };
 
-const getAtxHeadingText = (line: string): string | undefined => {
-	if (!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
-		return undefined;
-	}
-	const root = parseHeadingCandidate(line);
-	return root ? getPlainText(root) || undefined : undefined;
-};
-
-const getSetextHeadingText = (
-	line: string,
-	underline: string,
-): string | undefined => {
-	const [block] =
-		parseHeadingCandidate(`${line}\n${underline}`)?.children ?? [];
-	return block?.type === "heading"
-		? getPlainText(block) || undefined
-		: undefined;
-};
-
 const getFenceMarker = (
 	line: string,
 ): { character: "`" | "~"; length: number } | undefined => {
@@ -230,13 +211,21 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 			continue;
 		}
 
-		const atxHeading = getAtxHeadingText(line);
-		if (atxHeading) {
-			return {
-				text: atxHeading,
-				start: lineRange.start,
-				end: lineRange.nextStart,
-			};
+		if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
+			const root = parseHeadingCandidate(line);
+			// A first heading too long to parse ends the scan, so a later
+			// heading cannot stand in for it.
+			if (!root) {
+				return undefined;
+			}
+			const heading = getPlainText(root);
+			if (heading) {
+				return {
+					text: heading,
+					start: lineRange.start,
+					end: lineRange.nextStart,
+				};
+			}
 		}
 
 		const paragraphHeading = getParagraphHeadingText(lines, index, text);
@@ -249,7 +238,12 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 		}
 
 		if (setextCandidate && /^ {0,3}(=+|-+)[ \t]*$/.test(line)) {
-			const heading = getSetextHeadingText(setextCandidate.line, line);
+			const root = parseHeadingCandidate(`${setextCandidate.line}\n${line}`);
+			if (!root) {
+				return undefined;
+			}
+			const [block] = root.children;
+			const heading = block?.type === "heading" ? getPlainText(block) : "";
 			if (heading) {
 				return {
 					text: heading,

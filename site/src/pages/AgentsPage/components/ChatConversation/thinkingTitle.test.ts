@@ -276,9 +276,9 @@ describe("getThinkingDisclosureDisplay", () => {
 	});
 
 	it.each([
-		`# Plan ${"step ".repeat(100)}`,
-		`Plan ${"step ".repeat(100)}\n---`,
-	])("previews headings too long to parse on every chunk: %j", (text) => {
+		`# Plan ${"step ".repeat(100)}\n\n## Next`,
+		`Plan ${"step ".repeat(100)}\n---\n\n## Next`,
+	])("previews a first heading too long to parse: %j", (text) => {
 		const title = `Plan ${"step ".repeat(19).trimEnd()}…`;
 		expect(getThinkingDisclosureDisplay(text, { isStreaming: false })).toEqual({
 			title,
