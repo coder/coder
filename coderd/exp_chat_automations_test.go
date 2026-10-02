@@ -643,6 +643,83 @@ func TestChatAutomations(t *testing.T) {
 		require.True(t, enabled.NextRunTimes[0].Equal(next))
 	})
 
+	t.Run("MinimumScheduleInterval", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		const wantDetail = "runs as often as every 2 minutes; this deployment allows at most one run every 5 minutes"
+
+		tooOften := env.scheduleRequest()
+		tooOften.ScheduleCron = ptr.Ref("*/2 * * * *")
+		_, err := env.member.CreateChatAutomation(ctx, env.orgID, tooOften)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "schedule_cron", sdkErr.Validations[0].Field)
+		require.Equal(t, wantDetail, sdkErr.Validations[0].Detail)
+
+		atMinimum := env.scheduleRequest()
+		atMinimum.ScheduleCron = ptr.Ref("*/5 * * * *")
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, atMinimum)
+		require.NoError(t, err)
+		require.False(t, created.Automation.ScheduleIntervalBelowMinimum)
+		id := created.Automation.ID
+
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{ScheduleCron: ptr.Ref("*/2 * * * *")})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "schedule_cron", sdkErr.Validations[0].Field)
+		require.Equal(t, wantDetail, sdkErr.Validations[0].Detail)
+
+		// An automation created before a stricter minimum keeps its
+		// schedule.
+		row, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, rbac.Subject{
+			ID:     uuid.NewString(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{},
+			Scope:  rbac.ScopeAll,
+		})
+		_, err = env.db.UpdateChatAutomationByID(ownerCtx, database.UpdateChatAutomationByIDParams{
+			ID:                   row.ID,
+			Name:                 row.Name,
+			Prompt:               row.Prompt,
+			TargetChatID:         row.TargetChatID,
+			NewChatModelConfigID: row.NewChatModelConfigID,
+			ReasoningEffort:      row.ReasoningEffort,
+			WhenBusy:             row.WhenBusy,
+			ScheduleCron:         sql.NullString{String: "*/2 * * * *", Valid: true},
+			ScheduleTimeZone:     row.ScheduleTimeZone,
+			ScheduleRevision:     row.ScheduleRevision,
+			ScheduleNextRunAt:    row.ScheduleNextRunAt,
+			Enabled:              row.Enabled,
+			QueueGeneration:      row.QueueGeneration,
+			UpdatedAt:            row.UpdatedAt,
+		})
+		require.NoError(t, err)
+
+		got, err := env.member.ChatAutomation(ctx, env.orgID, id)
+		require.NoError(t, err)
+		require.True(t, got.ScheduleIntervalBelowMinimum)
+		listed, err := env.member.ChatAutomations(ctx, env.orgID)
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		require.True(t, listed[0].ScheduleIntervalBelowMinimum)
+
+		// Changes that keep the schedule, and re-enabling, still work.
+		renamed, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
+		require.NoError(t, err)
+		require.Equal(t, "Renamed", renamed.Name)
+		require.True(t, renamed.ScheduleIntervalBelowMinimum)
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		enabled, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
+		require.NoError(t, err)
+		require.True(t, enabled.Enabled)
+		require.Equal(t, ptr.Ref("*/2 * * * *"), enabled.ScheduleCron)
+		require.NotEmpty(t, enabled.NextRunTimes)
+	})
+
 	t.Run("RotateWebhookSecret", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
@@ -716,6 +793,26 @@ func TestChatAutomations(t *testing.T) {
 				require.True(t, run.After(preview.NextRunTimes[i-1]))
 			}
 		}
+		// New York changes its clocks within every year; UTC never does.
+		require.Contains(t, preview.ClockChangeNote, "runs once, at its first occurrence")
+		utcPreview, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{
+			ScheduleCron:     "*/5 * * * *",
+			ScheduleTimeZone: "UTC",
+		})
+		require.NoError(t, err)
+		require.Len(t, utcPreview.NextRunTimes, 5)
+		require.Empty(t, utcPreview.ClockChangeNote)
+		require.Empty(t, utcPreview.IntervalWarning)
+
+		// A schedule below the minimum still previews, with a warning,
+		// because automations saved under a lower minimum keep it.
+		tooOften, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{
+			ScheduleCron:     "*/2 * * * *",
+			ScheduleTimeZone: "UTC",
+		})
+		require.NoError(t, err)
+		require.Len(t, tooOften.NextRunTimes, 5)
+		require.Equal(t, "Runs as often as every 2 minutes, but this deployment allows at most one run every 5 minutes. Saving a new or changed schedule like this fails.", tooOften.IntervalWarning)
 
 		for _, tc := range []struct {
 			name  string

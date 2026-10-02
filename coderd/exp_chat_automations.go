@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -31,8 +32,17 @@ const chatAutomationNextRunCount = 5
 
 // chatAutomationResponse converts row to its SDK form with its upcoming
 // schedule runs after now.
-func chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
-	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+func (api *API) chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
+	automation := db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+	automation.ScheduleIntervalBelowMinimum = chatd.AutomationScheduleBelowMinimum(row, now, api.minChatAutomationScheduleInterval())
+	return automation
+}
+
+// minChatAutomationScheduleInterval is the deployment's minimum interval
+// between schedule runs, with the default for an unset value as the chat
+// daemon applies it.
+func (api *API) minChatAutomationScheduleInterval() time.Duration {
+	return cmp.Or(api.chatLimits.MinAutomationScheduleInterval, codersdk.DefaultChatMinAutomationScheduleInterval)
 }
 
 // requireChatAutomations returns 404 unless the chat-automations
@@ -72,7 +82,7 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	now := api.Clock.Now()
 	automations := make([]codersdk.ChatAutomation, 0, len(rows))
 	for _, row := range rows {
-		automations = append(automations, chatAutomationResponse(row, now))
+		automations = append(automations, api.chatAutomationResponse(row, now))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
 }
@@ -122,7 +132,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = automation
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
-		Automation:    chatAutomationResponse(automation, api.Clock.Now()),
+		Automation:    api.chatAutomationResponse(automation, api.Clock.Now()),
 		WebhookSecret: secret,
 	})
 }
@@ -145,7 +155,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(automation, api.Clock.Now()))
+	httpapi.Write(ctx, rw, http.StatusOK, api.chatAutomationResponse(automation, api.Clock.Now()))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -209,7 +219,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
+	httpapi.Write(ctx, rw, http.StatusOK, api.chatAutomationResponse(updated, api.Clock.Now()))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -356,12 +366,16 @@ func (api *API) postChatAutomationSchedulePreview(rw http.ResponseWriter, r *htt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	runs, err := chatd.PreviewAutomationSchedule(req.ScheduleCron, req.ScheduleTimeZone, api.Clock.Now(), chatAutomationNextRunCount)
+	preview, err := chatd.PreviewAutomationSchedule(req.ScheduleCron, req.ScheduleTimeZone, api.Clock.Now(), chatAutomationNextRunCount, api.minChatAutomationScheduleInterval())
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{NextRunTimes: runs})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{
+		NextRunTimes:    preview.NextRuns,
+		ClockChangeNote: preview.ClockChangeNote,
+		IntervalWarning: preview.IntervalWarning,
+	})
 }
 
 // chatAutomationParam loads the {automation} path parameter as the caller.

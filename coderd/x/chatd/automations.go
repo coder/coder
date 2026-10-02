@@ -156,6 +156,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		if err != nil {
 			return database.ChatAutomation{}, "", err
 		}
+		if err := validateAutomationScheduleInterval(sched, now, p.chatLimits.MinAutomationScheduleInterval); err != nil {
+			return database.ChatAutomation{}, "", err
+		}
 		arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
 		arg.ScheduleTimeZone = sql.NullString{String: *req.ScheduleTimeZone, Valid: true}
 	case database.ChatAutomationKindWebhook:
@@ -356,6 +359,12 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 				return err
 			}
 			if sched.Cron() != row.ScheduleCron.String || timeZone != row.ScheduleTimeZone.String {
+				// Only a changed schedule must meet the minimum interval,
+				// so automations created before a stricter minimum keep
+				// working.
+				if err := validateAutomationScheduleInterval(sched, now, p.chatLimits.MinAutomationScheduleInterval); err != nil {
+					return err
+				}
 				invalidatesPendingRuns = true
 				arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
 				arg.ScheduleTimeZone = sql.NullString{String: timeZone, Valid: true}
@@ -641,14 +650,80 @@ func AutomationNextRuns(row database.ChatAutomation, now time.Time, n int) []tim
 	return scheduleNextRuns(sched, now, n)
 }
 
+// AutomationScheduleBelowMinimum reports whether row is a schedule
+// automation that runs more often than minimum allows. It reports false
+// for webhooks and schedules that no longer parse.
+func AutomationScheduleBelowMinimum(row database.ChatAutomation, now time.Time, minimum time.Duration) bool {
+	if row.Kind != database.ChatAutomationKindSchedule || !row.ScheduleCron.Valid || !row.ScheduleTimeZone.Valid {
+		return false
+	}
+	sched, err := cron.Standard(row.ScheduleCron.String, row.ScheduleTimeZone.String)
+	if err != nil {
+		return false
+	}
+	return validateAutomationScheduleInterval(sched, now, minimum) != nil
+}
+
+// AutomationSchedulePreview is a validated schedule's upcoming runs.
+type AutomationSchedulePreview struct {
+	// NextRuns are the next runs after now, in UTC.
+	NextRuns []time.Time
+	// ClockChangeNote explains the daylight saving rules when the
+	// schedule's time zone changes its UTC offset within a year.
+	ClockChangeNote string
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval, so creating it, or changing a
+	// schedule to it, fails. An automation that already has it keeps
+	// running.
+	IntervalWarning string
+}
+
+// automationClockChangeNote is the preview text for schedules whose time
+// zone changes its UTC offset. It states the rules cron.Standard applies.
+const automationClockChangeNote = "When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change."
+
 // PreviewAutomationSchedule validates a schedule like CreateAutomation
-// does and returns its next n runs after now, in UTC.
-func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int) ([]time.Time, error) {
+// does and returns its next n runs after now. A schedule that runs more
+// often than minimum is not an error here: the preview carries a warning
+// instead, because an automation saved under a lower minimum keeps its
+// schedule.
+func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int, minimum time.Duration) (AutomationSchedulePreview, error) {
 	sched, err := validateAutomationSchedule(spec, timeZone, now)
 	if err != nil {
-		return nil, err
+		return AutomationSchedulePreview{}, err
 	}
-	return scheduleNextRuns(sched, now, n), nil
+	preview := AutomationSchedulePreview{NextRuns: scheduleNextRuns(sched, now, n)}
+	// The preview still lists the runs of a schedule below the minimum,
+	// because an automation saved under an earlier, lower minimum keeps
+	// that schedule and keeps running.
+	if interval, ok := sched.ShortestInterval(now); ok && interval < minimum {
+		preview.IntervalWarning = fmt.Sprintf(
+			"Runs as often as every %s, but this deployment allows at most one run every %s. Saving a new or changed schedule like this fails.",
+			formatAutomationInterval(interval), formatAutomationInterval(minimum))
+	}
+	if offsetChangesWithinYear(sched.Location(), now) {
+		preview.ClockChangeNote = automationClockChangeNote
+	}
+	return preview, nil
+}
+
+// offsetChangesWithinYear reports whether loc changes its UTC offset
+// within one year after now.
+func offsetChangesWithinYear(loc *time.Location, now time.Time) bool {
+	_, offset := now.In(loc).Zone()
+	end := now.AddDate(1, 0, 0)
+	for at := now; at.Before(end); {
+		_, periodEnd := at.In(loc).ZoneBounds()
+		// A zero end means the current zone period never ends.
+		if periodEnd.IsZero() || !periodEnd.Before(end) {
+			return false
+		}
+		if _, next := periodEnd.In(loc).Zone(); next != offset {
+			return true
+		}
+		at = periodEnd
+	}
+	return false
 }
 
 func scheduleNextRuns(sched *cron.Schedule, now time.Time, n int) []time.Time {
@@ -693,6 +768,43 @@ func validateAutomationSchedule(spec, timeZone string, now time.Time) (*cron.Sch
 		return nil, automationFieldError("schedule_cron", "never runs")
 	}
 	return sched, nil
+}
+
+// validateAutomationScheduleInterval requires sched to leave at least
+// minimum between two runs on its wall clock.
+func validateAutomationScheduleInterval(sched *cron.Schedule, now time.Time, minimum time.Duration) error {
+	interval, ok := sched.ShortestInterval(now)
+	if !ok || interval >= minimum {
+		return nil
+	}
+	return automationFieldError("schedule_cron", fmt.Sprintf(
+		"runs as often as every %s; this deployment allows at most one run every %s",
+		formatAutomationInterval(interval), formatAutomationInterval(minimum)))
+}
+
+// formatAutomationInterval writes d in whole hours when it is a multiple
+// of an hour, and otherwise in minutes and, when present, seconds.
+func formatAutomationInterval(d time.Duration) string {
+	if d >= time.Hour && d%time.Hour == 0 {
+		return pluralAutomationUnit(int64(d/time.Hour), "hour")
+	}
+	minutes := pluralAutomationUnit(int64(d/time.Minute), "minute")
+	seconds := int64((d % time.Minute) / time.Second)
+	switch {
+	case seconds == 0:
+		return minutes
+	case d < time.Minute:
+		return pluralAutomationUnit(seconds, "second")
+	default:
+		return minutes + " " + pluralAutomationUnit(seconds, "second")
+	}
+}
+
+func pluralAutomationUnit(n int64, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 func validateAutomationWhenBusy(value codersdk.ChatAutomationWhenBusy) (database.ChatAutomationWhenBusy, error) {

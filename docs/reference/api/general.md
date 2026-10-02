@@ -242,6 +242,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
+        "min_automation_schedule_interval": 0,
         "stream_silence_timeout": 0
       }
     },

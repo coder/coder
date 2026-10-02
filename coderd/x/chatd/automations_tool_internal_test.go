@@ -743,6 +743,20 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.Empty(t, f.auditor.AuditLogs())
 	})
 
+	t.Run("RejectsScheduleBelowMinimumInterval", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		f.server = f.newServer(t, Limits{MinAutomationScheduleInterval: codersdk.DefaultChatMinAutomationScheduleInterval})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		args := heartbeatArgs()
+		args.ScheduleCron = ptr.Ref("*/2 * * * *")
+		content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+		require.True(t, isError, content)
+		require.Contains(t, content, "runs as often as every 2 minutes; this deployment allows at most one run every 5 minutes")
+		require.Empty(t, f.ownerAutomations(ctx, t))
+	})
+
 	t.Run("WebhookSecrets", func(t *testing.T) {
 		t.Parallel()
 		f := newManageAutomationsFixture(t)

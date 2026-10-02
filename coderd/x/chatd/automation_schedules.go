@@ -181,36 +181,54 @@ func (p *Server) scanAutomationSchedules(ctx context.Context, batchSize int32) {
 // runAutomationOccurrence publishes the occurrence at the cursor of a due
 // schedule automation that the scan read at now, or moves the cursor past
 // an occurrence that is missed or refused.
+//
+// A missed occurrence, one older than the grace window, is not replayed.
+// The cursor moves to the first cron time within the grace window instead,
+// and when that time is already due it is published in the same call, so
+// a late scan still runs an occurrence that is on time.
 func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatAutomation, now time.Time) {
 	occurrence := automationOccurrence{revision: row.ScheduleRevision, cursor: row.ScheduleNextRunAt.Time}
-	logger := p.logger.With(
-		slog.F("automation_id", row.ID),
-		slog.F("schedule_revision", occurrence.revision),
-		slog.F("scheduled_at", occurrence.cursor),
-	)
+	occurrenceLogger := func(occurrence automationOccurrence) slog.Logger {
+		return p.logger.With(
+			slog.F("automation_id", row.ID),
+			slog.F("schedule_revision", occurrence.revision),
+			slog.F("scheduled_at", occurrence.cursor),
+		)
+	}
+	logger := occurrenceLogger(occurrence)
 	sched, err := cron.Standard(row.ScheduleCron.String, row.ScheduleTimeZone.String)
 	if err != nil {
 		logger.Warn(ctx, "parse chat automation schedule", slog.Error(err))
 		return
 	}
-	// skip moves the cursor to the first cron time after a fresh clock
-	// read, unless someone else moved it first.
-	skip := func(msg string, fields ...slog.Field) {
+	// skip moves the cursor past the occurrence to the first cron time
+	// after a fresh clock read minus lookback, unless someone else moved
+	// it first. It returns the new cursor and whether it moved.
+	skip := func(lookback time.Duration, msg string, fields ...slog.Field) (time.Time, bool) {
 		skippedAt := dbtime.Time(p.clock.Now())
-		next := sched.Next(skippedAt)
+		next := sched.Next(skippedAt.Add(-lookback))
 		moved, err := advanceAutomationSchedule(ctx, p.db, row.ID, occurrence, next, skippedAt)
 		if err != nil {
 			logger.Warn(ctx, "skip chat automation schedule occurrence", slog.Error(err))
-			return
+			return time.Time{}, false
 		}
 		if moved {
 			logger.Info(ctx, msg, append(fields, slog.F("next_run_at", next))...)
 		}
+		return next, moved
 	}
 
 	if now.Sub(occurrence.cursor) > automationScheduleGrace {
-		skip("chat automation schedule occurrence missed")
-		return
+		// The occurrence is older than the grace window, so the first
+		// cron time within the window is after the cursor.
+		next, moved := skip(automationScheduleGrace, "chat automation schedule occurrence missed")
+		if !moved || next.IsZero() || next.After(dbtime.Time(p.clock.Now())) {
+			return
+		}
+		// The new cursor is within the grace window by construction, so
+		// this continues at most once.
+		occurrence = automationOccurrence{revision: occurrence.revision, cursor: next}
+		logger = occurrenceLogger(occurrence)
 	}
 	result, err := p.publishAutomation(ctx, automationPublish{
 		automationID: row.ID,
@@ -227,13 +245,17 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		if row.TargetMode == database.ChatAutomationTargetModeNewChat {
 			p.auditAutomationCreatedChat(ctx, logger, row, result, nil)
 		}
+	case errors.Is(err, ErrAutomationOccurrenceExpired):
+		// The occurrence expired while waiting for the locks. A later
+		// cron time may still be within the grace window.
+		skip(automationScheduleGrace, "chat automation schedule occurrence skipped", slog.F("reason", err.Error()))
 	case errors.Is(err, ErrAutomationChatBusy),
 		errors.Is(err, ErrAutomationQueueShareFull),
 		errors.Is(err, chatstate.ErrMessageQueueFull),
 		errors.As(err, &denied),
 		errors.Is(err, ErrAutomationForbidden),
-		errors.Is(err, ErrAutomationOccurrenceExpired):
-		skip("chat automation schedule occurrence skipped", slog.F("reason", err.Error()))
+		errors.Is(err, ErrAutomationModelUnavailable):
+		skip(0, "chat automation schedule occurrence skipped", slog.F("reason", err.Error()))
 	case errors.Is(err, ErrAutomationScheduleStale),
 		errors.Is(err, ErrAutomationDisabled),
 		errors.Is(err, ErrAutomationNotFound):

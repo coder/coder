@@ -108,7 +108,11 @@ export const CreateSchedule: Story = {
 					schedule_cron: "0 9 * * *",
 					schedule_time_zone: storyTimeZone,
 				}),
-				data: { next_run_times: nextRunTimes },
+				data: {
+					next_run_times: nextRunTimes,
+					clock_change_note:
+						"When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change.",
+				},
 			},
 		],
 	},
@@ -154,6 +158,40 @@ export const Edit: Story = {
 					schedule_time_zone: "UTC",
 				}),
 				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditBelowMinimumInterval: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			schedule_cron: "*/2 * * * *",
+			schedule_interval_below_minimum: true,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "*/2 * * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: {
+					next_run_times: [
+						"2026-10-01T09:00:00Z",
+						"2026-10-01T09:02:00Z",
+						"2026-10-01T09:04:00Z",
+					],
+					interval_warning:
+						"Runs as often as every 2 minutes, but this deployment allows at most one run every 5 minutes. Saving a new or changed schedule like this fails.",
+				},
 			},
 		],
 	},

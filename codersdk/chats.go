@@ -53,6 +53,9 @@ const (
 	// DefaultChatMaxAutomationsPerOwner is the default maximum number of
 	// chat automations one user can own across all organizations.
 	DefaultChatMaxAutomationsPerOwner = 50
+	// DefaultChatMinAutomationScheduleInterval is the default minimum time
+	// between two runs of a chat schedule automation.
+	DefaultChatMinAutomationScheduleInterval = 5 * time.Minute
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat

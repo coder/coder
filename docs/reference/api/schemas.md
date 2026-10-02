@@ -1090,6 +1090,7 @@ title: Schemas
     "max_prompt_bytes": 0,
     "max_queued_messages_per_chat": 0,
     "max_steps_per_turn": 0,
+    "min_automation_schedule_interval": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2611,6 +2612,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "prompt": "string",
   "reasoning_effort": "string",
   "schedule_cron": "string",
+  "schedule_interval_below_minimum": true,
   "schedule_next_run_at": "2019-08-24T14:15:22Z",
   "schedule_time_zone": "string",
   "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
@@ -2625,30 +2627,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                            |
-|----------------------------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `created_at`               | string                                                                 | false    |              |                                                                                                                        |
-| `created_by_chat_id`       | string                                                                 | false    |              |                                                                                                                        |
-| `enabled`                  | boolean                                                                | false    |              |                                                                                                                        |
-| `id`                       | string                                                                 | false    |              |                                                                                                                        |
-| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                        |
-| `name`                     | string                                                                 | false    |              |                                                                                                                        |
-| `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                        |
-| `next_run_times`           | array of string                                                        | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks and disabled schedules. |
-| `organization_id`          | string                                                                 | false    |              |                                                                                                                        |
-| `owner_id`                 | string                                                                 | false    |              |                                                                                                                        |
-| `prompt`                   | string                                                                 | false    |              |                                                                                                                        |
-| `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_cron`            | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_next_run_at`     | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_time_zone`       | string                                                                 | false    |              |                                                                                                                        |
-| `target_chat_id`           | string                                                                 | false    |              |                                                                                                                        |
-| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                        |
-| `updated_at`               | string                                                                 | false    |              |                                                                                                                        |
-| `webhook_consumed_at`      | string                                                                 | false    |              |                                                                                                                        |
-| `webhook_secret_version`   | integer                                                                | false    |              |                                                                                                                        |
-| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |                                                                                                                        |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |                                                                                                                        |
+| Name                              | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                         |
+|-----------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`                      | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `created_by_chat_id`              | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `enabled`                         | boolean                                                                | false    |              |                                                                                                                                                                                                                     |
+| `id`                              | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `kind`                            | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                                                                                                                     |
+| `name`                            | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `new_chat_model_config_id`        | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `next_run_times`                  | array of string                                                        | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks and disabled schedules.                                                                                              |
+| `organization_id`                 | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `owner_id`                        | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `prompt`                          | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `reasoning_effort`                | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `schedule_cron`                   | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `schedule_interval_below_minimum` | boolean                                                                | false    |              | Schedule interval below minimum is true when the schedule runs more often than the deployment's minimum interval between runs. Such automations keep running, but a change to their schedule must meet the minimum. |
+| `schedule_next_run_at`            | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `schedule_time_zone`              | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `target_chat_id`                  | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `target_mode`                     | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                                                                                                                     |
+| `updated_at`                      | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `webhook_consumed_at`             | string                                                                 | false    |              |                                                                                                                                                                                                                     |
+| `webhook_secret_version`          | integer                                                                | false    |              |                                                                                                                                                                                                                     |
+| `webhook_use`                     | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |                                                                                                                                                                                                                     |
+| `when_busy`                       | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |                                                                                                                                                                                                                     |
 
 #### Enumerated Values
 
@@ -2725,6 +2728,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "clock_change_note": "string",
+  "interval_warning": "string",
   "next_run_times": [
     "2019-08-24T14:15:22Z"
   ]
@@ -2733,9 +2738,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type            | Required | Restrictions | Description |
-|------------------|-----------------|----------|--------------|-------------|
-| `next_run_times` | array of string | false    |              |             |
+| Name                | Type            | Required | Restrictions | Description                                                                                                                                                                                                                         |
+|---------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clock_change_note` | string          | false    |              | Clock change note explains how the schedule runs across daylight saving changes. It is set when the schedule's time zone changes its UTC offset within a year.                                                                      |
+| `interval_warning`  | string          | false    |              | Interval warning is set when the schedule runs more often than the deployment's minimum interval. Creating such a schedule, or changing an automation's schedule to it, fails, but an automation that already has it keeps running. |
+| `next_run_times`    | array of string | false    |              |                                                                                                                                                                                                                                     |
 
 ## codersdk.ChatAutomationTargetMode
 
@@ -2837,29 +2844,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "max_prompt_bytes": 0,
   "max_queued_messages_per_chat": 0,
   "max_steps_per_turn": 0,
+  "min_automation_schedule_interval": 0,
   "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                               | Type                       | Required | Restrictions | Description                                                                                                                               |
-|------------------------------------|----------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                           |
-| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                           |
-| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                           |
-| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                           |
-| `hook_secret`                      | string                     | false    |              |                                                                                                                                           |
-| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
-| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
-| `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
-| `max_automations_per_owner`        | integer                    | false    |              | Max automations per owner is the maximum number of chat automations one user can own across all organizations.                            |
-| `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
-| `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
-| `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
-| `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
-| `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
-| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
+| Name                               | Type                       | Required | Restrictions | Description                                                                                                                                                                                       |
+|------------------------------------|----------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                                                                                   |
+| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                                                                                   |
+| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                                                                                   |
+| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                                                                                   |
+| `hook_secret`                      | string                     | false    |              |                                                                                                                                                                                                   |
+| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                                                                                   |
+| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                                                                                   |
+| `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                                                                         |
+| `max_automations_per_owner`        | integer                    | false    |              | Max automations per owner is the maximum number of chat automations one user can own across all organizations.                                                                                    |
+| `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.                                                              |
+| `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                                                                        |
+| `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.                                                         |
+| `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                                                                                      |
+| `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                                                                                 |
+| `min_automation_schedule_interval` | integer                    | false    |              | Min automation schedule interval is the minimum time between two runs of a chat schedule automation. Creating or changing a schedule that runs more often fails; existing schedules keep running. |
+| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                                                                                   |
 
 ## codersdk.ChatContext
 
@@ -6220,6 +6229,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "prompt": "string",
     "reasoning_effort": "string",
     "schedule_cron": "string",
+    "schedule_interval_below_minimum": true,
     "schedule_next_run_at": "2019-08-24T14:15:22Z",
     "schedule_time_zone": "string",
     "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
@@ -8000,6 +8010,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
+        "min_automation_schedule_interval": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -8639,6 +8650,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_prompt_bytes": 0,
       "max_queued_messages_per_chat": 0,
       "max_steps_per_turn": 0,
+      "min_automation_schedule_interval": 0,
       "stream_silence_timeout": 0
     }
   },

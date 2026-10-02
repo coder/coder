@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -671,15 +673,38 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 
 // automationNewChatTitle returns the title of a chat a new_chat
 // automation creates for an input at acceptedAt, the scheduled time of an
-// occurrence or the send time otherwise. Schedule automations show the
-// time in the schedule's time zone, webhooks in UTC.
+// occurrence or the send time otherwise, for example
+// "Digest · 16 Sep 09:00 CEST". Schedule automations show the time in the
+// schedule's time zone, webhooks in UTC.
 func automationNewChatTitle(automation database.ChatAutomation, acceptedAt time.Time) string {
+	loc := time.UTC
 	if automation.Kind == database.ChatAutomationKindSchedule && automation.ScheduleTimeZone.Valid {
-		if loc, err := time.LoadLocation(automation.ScheduleTimeZone.String); err == nil {
-			return fmt.Sprintf("%s %s", automation.Name, acceptedAt.In(loc).Format("2006-01-02 15:04 MST"))
+		if scheduleLoc, err := time.LoadLocation(automation.ScheduleTimeZone.String); err == nil {
+			loc = scheduleLoc
 		}
 	}
-	return fmt.Sprintf("%s %s", automation.Name, acceptedAt.UTC().Format("2006-01-02 15:04 UTC"))
+	local := acceptedAt.In(loc)
+	return fmt.Sprintf("%s · %s %s", automation.Name, local.Format("2 Jan 15:04"), automationZoneLabel(local))
+}
+
+// automationZoneLabel returns the zone abbreviation of t, such as CEST.
+// Zones without an alphabetic abbreviation, which Go prints as a numeric
+// offset like -03, are labeled with their UTC offset, such as UTC-03 or
+// UTC+05:45.
+func automationZoneLabel(t time.Time) string {
+	name, offset := t.Zone()
+	if strings.ContainsFunc(name, unicode.IsLetter) {
+		return name
+	}
+	sign := "+"
+	if offset < 0 {
+		sign, offset = "-", -offset
+	}
+	hours, minutes := offset/3600, offset%3600/60
+	if minutes == 0 {
+		return fmt.Sprintf("UTC%s%02d", sign, hours)
+	}
+	return fmt.Sprintf("UTC%s%02d:%02d", sign, hours, minutes)
 }
 
 // automationEventText labels an event payload as untrusted data. body

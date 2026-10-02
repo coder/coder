@@ -297,8 +297,8 @@ func TestChatAutomationEvents(t *testing.T) {
 
 		chat, err := env.member.GetChat(ctx, res.ChatID)
 		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(chat.Title, "Deploy hook "), chat.Title)
-		_, err = time.Parse("2006-01-02 15:04 UTC", strings.TrimPrefix(chat.Title, "Deploy hook "))
+		require.True(t, strings.HasPrefix(chat.Title, "Deploy hook · "), chat.Title)
+		_, err = time.Parse("2 Jan 15:04 UTC", strings.TrimPrefix(chat.Title, "Deploy hook · "))
 		require.NoError(t, err, "the title ends with the acceptance time in UTC")
 		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
 		require.True(t, auditor.Contains(t, database.AuditLog{

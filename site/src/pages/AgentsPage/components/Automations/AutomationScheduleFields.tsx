@@ -122,6 +122,7 @@ export const AutomationScheduleFields: React.FC<
 	const cronId = useId();
 	const cronDescriptionId = useId();
 	const cronErrorId = useId();
+	const intervalWarningId = useId();
 	const [repeat, setRepeat] = useState<string>(isCreate ? "daily" : "");
 	const [time, setTime] = useState("09:00");
 
@@ -147,6 +148,12 @@ export const AutomationScheduleFields: React.FC<
 				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 			: undefined;
 	const cronError = cronField.error ? cronField.helperText : cronPreviewError;
+	// Only the run list renders the warning, so the cron input refers to it
+	// only when that list is shown.
+	const intervalWarning =
+		!previewQuery.isError && previewQuery.data?.next_run_times.length
+			? previewQuery.data.interval_warning
+			: undefined;
 	const timeZoneError = timeZoneField.error
 		? timeZoneField.helperText
 		: timeZonePreviewError;
@@ -175,11 +182,24 @@ export const AutomationScheduleFields: React.FC<
 		preview = "No upcoming runs.";
 	} else {
 		preview = (
-			<ul className="m-0 flex list-none flex-col gap-1 p-0">
-				{previewQuery.data.next_run_times.map((runTime) => (
-					<li key={runTime}>{formatRunTime(runTime, debouncedTimeZone)}</li>
-				))}
-			</ul>
+			<>
+				<ul className="m-0 flex list-none flex-col gap-1 p-0">
+					{previewQuery.data.next_run_times.map((runTime) => (
+						<li key={runTime}>{formatRunTime(runTime, debouncedTimeZone)}</li>
+					))}
+				</ul>
+				{previewQuery.data.clock_change_note && (
+					<p className="mt-2 text-xs">{previewQuery.data.clock_change_note}</p>
+				)}
+				{intervalWarning && (
+					<p
+						id={intervalWarningId}
+						className="mt-2 text-xs text-content-warning"
+					>
+						{intervalWarning}
+					</p>
+				)}
+			</>
 		);
 	}
 
@@ -243,11 +263,13 @@ export const AutomationScheduleFields: React.FC<
 						}}
 						required
 						aria-invalid={Boolean(cronError)}
-						aria-describedby={
-							cronError
-								? `${cronDescriptionId} ${cronErrorId}`
-								: cronDescriptionId
-						}
+						aria-describedby={[
+							cronDescriptionId,
+							cronError && cronErrorId,
+							intervalWarning && intervalWarningId,
+						]
+							.filter(Boolean)
+							.join(" ")}
 						className="font-mono"
 					/>
 					{/* Always rendered so screen readers announce preview errors while typing. */}

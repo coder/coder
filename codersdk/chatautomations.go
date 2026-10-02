@@ -69,8 +69,13 @@ type ChatAutomation struct {
 	// NextRunTimes lists up to five upcoming runs of an enabled schedule.
 	// It is empty for webhooks and disabled schedules.
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
-	CreatedAt    time.Time   `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time   `json:"updated_at" format:"date-time"`
+	// ScheduleIntervalBelowMinimum is true when the schedule runs more
+	// often than the deployment's minimum interval between runs. Such
+	// automations keep running, but a change to their schedule must meet
+	// the minimum.
+	ScheduleIntervalBelowMinimum bool      `json:"schedule_interval_below_minimum"`
+	CreatedAt                    time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt                    time.Time `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatAutomationRequest creates a chat automation owned by the
@@ -139,6 +144,15 @@ type ChatAutomationSchedulePreviewRequest struct {
 // schedule.
 type ChatAutomationSchedulePreviewResponse struct {
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
+	// ClockChangeNote explains how the schedule runs across daylight
+	// saving changes. It is set when the schedule's time zone changes its
+	// UTC offset within a year.
+	ClockChangeNote string `json:"clock_change_note,omitempty"`
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval. Creating such a schedule, or changing
+	// an automation's schedule to it, fails, but an automation that
+	// already has it keeps running.
+	IntervalWarning string `json:"interval_warning,omitempty"`
 }
 
 // ChatAutomationEventResponse is returned when a webhook automation

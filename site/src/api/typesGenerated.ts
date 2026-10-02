@@ -2195,6 +2195,13 @@ export interface ChatAutomation {
 	 * It is empty for webhooks and disabled schedules.
 	 */
 	readonly next_run_times: readonly string[];
+	/**
+	 * ScheduleIntervalBelowMinimum is true when the schedule runs more
+	 * often than the deployment's minimum interval between runs. Such
+	 * automations keep running, but a change to their schedule must meet
+	 * the minimum.
+	 */
+	readonly schedule_interval_below_minimum: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -2246,6 +2253,19 @@ export interface ChatAutomationSchedulePreviewRequest {
  */
 export interface ChatAutomationSchedulePreviewResponse {
 	readonly next_run_times: readonly string[];
+	/**
+	 * ClockChangeNote explains how the schedule runs across daylight
+	 * saving changes. It is set when the schedule's time zone changes its
+	 * UTC offset within a year.
+	 */
+	readonly clock_change_note?: string;
+	/**
+	 * IntervalWarning is set when the schedule runs more often than the
+	 * deployment's minimum interval. Creating such a schedule, or changing
+	 * an automation's schedule to it, fails, but an automation that
+	 * already has it keeps running.
+	 */
+	readonly interval_warning?: string;
 }
 
 // From codersdk/chatautomations.go
@@ -2354,6 +2374,12 @@ export interface ChatConfig {
 	 * one user can own across all organizations.
 	 */
 	readonly max_automations_per_owner: number;
+	/**
+	 * MinAutomationScheduleInterval is the minimum time between two runs
+	 * of a chat schedule automation. Creating or changing a schedule that
+	 * runs more often fails; existing schedules keep running.
+	 */
+	readonly min_automation_schedule_interval: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
