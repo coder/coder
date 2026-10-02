@@ -10568,6 +10568,114 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 	return items, nil
 }
 
+const getChatMessagesForAutomationTurnTrigger = `-- name: GetChatMessagesForAutomationTurnTrigger :many
+WITH prompt AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND role = 'user'
+        AND visibility IN ('user', 'both')
+        AND deleted = false
+        AND compressed = false
+    ORDER BY
+        id DESC
+    LIMIT 1
+), boundary AS (
+    SELECT
+        COALESCE((
+            SELECT
+                prior.id
+            FROM
+                chat_messages AS prior, prompt
+            WHERE
+                prior.chat_id = $1::uuid
+                AND prior.id < prompt.id
+                AND prior.role <> 'user'
+                AND prior.visibility IN ('user', 'both')
+                AND prior.deleted = false
+                AND prior.compressed = false
+            ORDER BY
+                prior.id DESC
+            LIMIT 1
+        ), 0)::bigint AS id
+)
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+    AND EXISTS (SELECT 1 FROM prompt)
+    AND id > (SELECT boundary.id FROM boundary)
+ORDER BY
+    id ASC
+`
+
+// Returns the user rows of the chat's current turn: every user row after the
+// latest non-user row that precedes the latest user prompt. It reads the same
+// rows as GetChatMessagesByChatID (visibility user or both, not deleted), so
+// the manage_automations reached-turn check gives the same result over these
+// rows as over the full history without loading it. A user prompt is a user
+// row that is not compressed, and a compressed row never ends the turn. A
+// chat without a user prompt returns no rows.
+func (q *sqlQuerier) GetChatMessagesForAutomationTurnTrigger(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForAutomationTurnTrigger, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
+			&i.AutomationID,
+			&i.InputID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesForPromptByChatID = `-- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT

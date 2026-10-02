@@ -421,6 +421,61 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetChatMessagesForAutomationTurnTrigger :many
+-- Returns the user rows of the chat's current turn: every user row after the
+-- latest non-user row that precedes the latest user prompt. It reads the same
+-- rows as GetChatMessagesByChatID (visibility user or both, not deleted), so
+-- the manage_automations reached-turn check gives the same result over these
+-- rows as over the full history without loading it. A user prompt is a user
+-- row that is not compressed, and a compressed row never ends the turn. A
+-- chat without a user prompt returns no rows.
+WITH prompt AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = @chat_id::uuid
+        AND role = 'user'
+        AND visibility IN ('user', 'both')
+        AND deleted = false
+        AND compressed = false
+    ORDER BY
+        id DESC
+    LIMIT 1
+), boundary AS (
+    SELECT
+        COALESCE((
+            SELECT
+                prior.id
+            FROM
+                chat_messages AS prior, prompt
+            WHERE
+                prior.chat_id = @chat_id::uuid
+                AND prior.id < prompt.id
+                AND prior.role <> 'user'
+                AND prior.visibility IN ('user', 'both')
+                AND prior.deleted = false
+                AND prior.compressed = false
+            ORDER BY
+                prior.id DESC
+            LIMIT 1
+        ), 0)::bigint AS id
+)
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+    AND EXISTS (SELECT 1 FROM prompt)
+    AND id > (SELECT boundary.id FROM boundary)
+ORDER BY
+    id ASC;
+
 -- name: GetChatMessagesByRevisionForStream :many
 -- Stream deltas and reset snapshots must use the same message order.
 SELECT
