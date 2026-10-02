@@ -744,7 +744,11 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 // last assistant message in messages that can be canceled on the chat's
 // agent, and their tool call IDs. Unparsable history yields no calls.
 func (s *taskStarter) cancelableToolCallsFromHistory(ctx context.Context, chat database.Chat, messages []database.ChatMessage) ([]fantasy.ToolCallContent, map[string]uuid.UUID) {
-	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	// Every turn that offers dynamic tools also offers the cancelable
+	// built-ins, and a built-in takes precedence over a dynamic tool with
+	// the same name. So a call to a cancelable tool ran as the built-in even
+	// if the chat declares a dynamic tool with that name.
+	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, nil)
 	if err != nil {
 		s.opts.Logger.Warn(ctx, "find tool calls to cancel on agent", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, nil
