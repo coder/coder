@@ -73,9 +73,10 @@ func (d *pgTxnDriver) Unlock() error {
 // lockChatTablesQuery takes the chat table locks that migrations need,
 // before any pending migration touches those tables. See Run.
 //
-// chatd keeps using chats, chat_messages, chat_queued_messages and the
-// chats_expanded view while a rolling deploy migrates the database, and it
-// locks chats and chats_expanded in both orders. Migrations that alter those
+// chatd keeps using chats, the tables that reference it (chat_messages,
+// chat_queued_messages, chat_automations and others) and the chats_expanded
+// view while a rolling deploy migrates the database, and it locks chats and
+// chats_expanded in both orders. Migrations that alter those
 // relations one after another (for example 000600, 000601, 000607 and 000608)
 // take and upgrade their locks in an order that can deadlock with that
 // traffic. Taking every lock up front, with short waits that are retried, is
@@ -102,7 +103,12 @@ func (d *pgTxnDriver) Unlock() error {
 //     authentication until the migrations commit. No migration sets
 //     check_option or security_barrier on chats_expanded, so the RESET form
 //     runs today. The SET form keeps any future options unchanged.
-//   - Only the chat relations are locked here. Later migrations still wait
+//   - Every table with a foreign key path to chats is locked too, found from
+//     pg_constraint so that tables added later are covered. An application
+//     write to such a table locks the table, then waits for chats in its
+//     foreign key check while this transaction holds chats. A later
+//     migration that locks the table would then deadlock with it.
+//   - Only these relations are locked here. Later migrations still wait
 //     for their other locks without a timeout, while this transaction holds
 //     the chat locks. An application transaction that holds a lock on a
 //     table a later migration alters, and then touches a chat table, can
@@ -136,9 +142,21 @@ BEGIN
 	IF to_regclass('chats') IS NULL THEN
 		RETURN;
 	END IF;
-	SELECT string_agg(quote_ident(t), ', ') INTO tables
-	FROM unnest(ARRAY['chats', 'chat_messages', 'chat_queued_messages']) AS t
-	WHERE to_regclass(t) IS NOT NULL;
+	-- chats and every table whose foreign keys lead to it, directly or
+	-- through another such table. chats comes first.
+	WITH RECURSIVE locked(oid) AS (
+		SELECT to_regclass('chats')::oid
+		UNION
+		SELECT con.conrelid
+		FROM pg_constraint con
+		JOIN locked ON con.confrelid = locked.oid
+		WHERE con.contype = 'f'
+	)
+	SELECT string_agg(format('%I.%I', n.nspname, c.relname), ', ' ORDER BY c.relname <> 'chats', c.relname)
+	INTO tables
+	FROM locked
+	JOIN pg_class c ON c.oid = locked.oid
+	JOIN pg_namespace n ON n.oid = c.relnamespace;
 	IF to_regclass('chats_expanded') IS NOT NULL THEN
 		SELECT reloptions INTO view_options FROM pg_class WHERE oid = to_regclass('chats_expanded');
 		IF view_options IS NULL THEN

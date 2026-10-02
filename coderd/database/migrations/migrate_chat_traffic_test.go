@@ -10,6 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -79,6 +80,67 @@ func TestUpWithFSChatTrafficDuringUpgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUpWithFSChatAutomationTraffic upgrades from 610 while an application
+// transaction updates a chat automation, and a later migration (simulated by
+// a migration that locks chat_automations) alters that table. The update
+// locks chat_automations and then waits for chats in its target_chat_id
+// foreign key check. The migrator holds chats from the start of its
+// transaction, so it must take chat_automations at the same time, or the
+// later migration deadlocks with the update.
+func TestUpWithFSChatAutomationTraffic(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dsn, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("template1"))
+	require.NoError(t, err)
+	db := openDB(t, dsn)
+	require.NoError(t, migrations.UpWithFS(db, migrationsFS(t, 610)))
+	chatID := insertChatFixture(t, db)
+	var automationID uuid.UUID
+	require.NoError(t, db.QueryRowContext(ctx, `
+		INSERT INTO chat_automations (organization_id, owner_id, name, kind, target_mode, when_busy, webhook_use, prompt)
+		SELECT organization_id, owner_id, 'automation-concurrent', 'webhook', 'existing_chat', 'queue', 'multi', 'prompt'
+		FROM chats WHERE id = $1
+		RETURNING id`, chatID).Scan(&automationID))
+
+	migs := migrationsFS(t, 0)
+	migs["999999_lock_chat_automations.up.sql"] = &fstest.MapFile{Data: []byte(`LOCK TABLE chat_automations IN ACCESS EXCLUSIVE MODE;`)}
+	migs["999999_lock_chat_automations.down.sql"] = &fstest.MapFile{Data: []byte(`SELECT 1;`)}
+
+	// The application locks the automation row first, as an update of the
+	// automation does before it checks the foreign key.
+	conn, appPID := dedicatedConn(ctx, t, db)
+	tx, err := conn.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `SELECT id FROM chat_automations WHERE id = $1 FOR UPDATE`, automationID)
+	require.NoError(t, err)
+
+	migDB := openDB(t, dsn)
+	migDB.SetMaxOpenConns(1)
+	migDB.SetMaxIdleConns(1)
+	var migPID int
+	require.NoError(t, migDB.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&migPID))
+	sink := testutil.NewFakeSink(t)
+	migrated := async(func() error {
+		return migrations.UpWithFS(migDB, migs, migrations.WithLogger(slog.Make(sink)))
+	})
+	requireBlockedBy(ctx, t, db, migPID, appPID)
+
+	requireNoDeadlock(ctx, t, "application", async(func() error {
+		_, err := tx.ExecContext(ctx, `UPDATE chat_automations SET target_chat_id = $2 WHERE id = $1`, automationID, chatID)
+		if err != nil {
+			return err
+		}
+		return tx.Commit()
+	}))
+	requireNoDeadlock(ctx, t, "migration", migrated)
+	require.Empty(t, sink.Entries(), "the migrator logged, so it was retried as a deadlock victim")
+	var version int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT version FROM schema_migrations`).Scan(&version))
+	require.Equal(t, 999999, version)
 }
 
 // TestUpWithFSChatTableLocks checks when UpWithFS takes the chat table locks.
