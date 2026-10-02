@@ -621,81 +621,81 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	return func(h http.Handler) {
-			mutex.Lock()
-			defer mutex.Unlock()
-			handler = h
-		}, cancelFunc, serverURL, &coderd.Options{
-			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
-			// Force a long disconnection timeout to ensure
-			// agents are not marked as disconnected during slow tests.
-			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
-			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
-			ChatWorkerDisabled:             options.ChatWorkerDisabled,
-			AccessURL:                      accessURL,
-			AppHostname:                    options.AppHostname,
-			AppHostnameRegex:               appHostnameRegex,
-			Logger:                         *options.Logger,
-			CacheDir:                       cacheDir,
-			RuntimeConfig:                  runtimeManager,
-			Database:                       options.Database,
-			Pubsub:                         options.Pubsub,
-			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
-			ExternalAuthConfigs:            options.ExternalAuthConfigs,
-			UsageInserter:                  usageInserter,
+		mutex.Lock()
+		defer mutex.Unlock()
+		handler = h
+	}, cancelFunc, serverURL, &coderd.Options{
+		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+		// Force a long disconnection timeout to ensure
+		// agents are not marked as disconnected during slow tests.
+		AgentInactiveDisconnectTimeout: testutil.WaitShort,
+		MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
+		ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+		ChatWorkerDisabled:             options.ChatWorkerDisabled,
+		AccessURL:                      accessURL,
+		AppHostname:                    options.AppHostname,
+		AppHostnameRegex:               appHostnameRegex,
+		Logger:                         *options.Logger,
+		CacheDir:                       cacheDir,
+		RuntimeConfig:                  runtimeManager,
+		Database:                       options.Database,
+		Pubsub:                         options.Pubsub,
+		ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
+		ExternalAuthConfigs:            options.ExternalAuthConfigs,
+		UsageInserter:                  usageInserter,
 
-			Auditor:                            options.Auditor,
-			ConnectionLogger:                   options.ConnectionLogger,
-			AWSCertificates:                    options.AWSCertificates,
-			AzureCertificates:                  options.AzureCertificates,
-			GithubOAuth2Config:                 options.GithubOAuth2Config,
-			RealIPConfig:                       options.RealIPConfig,
-			OIDCConfig:                         options.OIDCConfig,
-			GoogleTokenValidator:               options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
-			DERPServer:                         derpServer,
-			APIRateLimit:                       options.APIRateLimit,
-			LoginRateLimit:                     options.LoginRateLimit,
-			FilesRateLimit:                     options.FilesRateLimit,
-			Authorizer:                         options.Authorizer,
-			Telemetry:                          options.TelemetryReporter,
-			TemplateScheduleStore:              &templateScheduleStore,
-			AccessControlStore:                 accessControlStore,
-			TLSCertificates:                    options.TLSCertificates,
-			TrialGenerator:                     options.TrialGenerator,
-			RefreshEntitlements:                options.RefreshEntitlements,
-			TailnetCoordinator:                 options.Coordinator,
-			WebPushDispatcher:                  options.WebpushDispatcher,
-			BaseDERPMap:                        derpMap,
-			DERPMapUpdateFrequency:             150 * time.Millisecond,
-			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,
-			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
-			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
-			DeploymentValues:                   options.DeploymentValues,
-			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
-			UpdateCheckOptions:                 options.UpdateCheckOptions,
-			SwaggerEndpoint:                    options.SwaggerEndpoint,
-			SSHConfig:                          options.ConfigSSH,
-			HealthcheckFunc:                    options.HealthcheckFunc,
-			HealthcheckTimeout:                 options.HealthcheckTimeout,
-			HealthcheckRefresh:                 options.HealthcheckRefresh,
-			StatsBatcher:                       options.StatsBatcher,
-			MetadataBatcherOptions:             options.MetadataBatcherOptions,
-			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
-			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
-			NewTicker:                          options.NewTicker,
-			DatabaseRolluper:                   options.DatabaseRolluper,
-			WorkspaceUsageTracker:              wuTracker,
-			NotificationsEnqueuer:              options.NotificationsEnqueuer,
-			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
-			Clock:                              options.Clock,
-			Acquirer:                           options.Acquirer,
-			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
-			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
-			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
-			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
-			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
-		}
+		Auditor:                            options.Auditor,
+		ConnectionLogger:                   options.ConnectionLogger,
+		AWSCertificates:                    options.AWSCertificates,
+		AzureCertificates:                  options.AzureCertificates,
+		GithubOAuth2Config:                 options.GithubOAuth2Config,
+		RealIPConfig:                       options.RealIPConfig,
+		OIDCConfig:                         options.OIDCConfig,
+		GoogleTokenValidator:               options.GoogleTokenValidator,
+		SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
+		DERPServer:                         derpServer,
+		APIRateLimit:                       options.APIRateLimit,
+		LoginRateLimit:                     options.LoginRateLimit,
+		FilesRateLimit:                     options.FilesRateLimit,
+		Authorizer:                         options.Authorizer,
+		Telemetry:                          options.TelemetryReporter,
+		TemplateScheduleStore:              &templateScheduleStore,
+		AccessControlStore:                 accessControlStore,
+		TLSCertificates:                    options.TLSCertificates,
+		TrialGenerator:                     options.TrialGenerator,
+		RefreshEntitlements:                options.RefreshEntitlements,
+		TailnetCoordinator:                 options.Coordinator,
+		WebPushDispatcher:                  options.WebpushDispatcher,
+		BaseDERPMap:                        derpMap,
+		DERPMapUpdateFrequency:             150 * time.Millisecond,
+		CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,
+		MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
+		AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
+		DeploymentValues:                   options.DeploymentValues,
+		DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
+		UpdateCheckOptions:                 options.UpdateCheckOptions,
+		SwaggerEndpoint:                    options.SwaggerEndpoint,
+		SSHConfig:                          options.ConfigSSH,
+		HealthcheckFunc:                    options.HealthcheckFunc,
+		HealthcheckTimeout:                 options.HealthcheckTimeout,
+		HealthcheckRefresh:                 options.HealthcheckRefresh,
+		StatsBatcher:                       options.StatsBatcher,
+		MetadataBatcherOptions:             options.MetadataBatcherOptions,
+		WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
+		AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
+		NewTicker:                          options.NewTicker,
+		DatabaseRolluper:                   options.DatabaseRolluper,
+		WorkspaceUsageTracker:              wuTracker,
+		NotificationsEnqueuer:              options.NotificationsEnqueuer,
+		OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
+		Clock:                              options.Clock,
+		Acquirer:                           options.Acquirer,
+		AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
+		OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+		ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
+		ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
+		WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
+	}
 }
 
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
@@ -1698,37 +1698,37 @@ func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certif
 	require.NoError(t, err)
 
 	return awsidentity.Certificates{
-			awsidentity.Other: certificatePEM.String(),
-		}, &http.Client{
-			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
-				// Only handle metadata server requests.
-				if r.URL.Host != "169.254.169.254" {
-					return http.DefaultTransport.RoundTrip(r)
-				}
-				switch r.URL.Path {
-				case "/latest/api/token":
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader([]byte("faketoken"))),
-						Header:     make(http.Header),
-					}, nil
-				case "/latest/dynamic/instance-identity/signature":
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(signature)),
-						Header:     make(http.Header),
-					}, nil
-				case "/latest/dynamic/instance-identity/document":
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(document)),
-						Header:     make(http.Header),
-					}, nil
-				default:
-					panic("unhandled route: " + r.URL.Path)
-				}
-			}),
-		}
+		awsidentity.Other: certificatePEM.String(),
+	}, &http.Client{
+		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+			// Only handle metadata server requests.
+			if r.URL.Host != "169.254.169.254" {
+				return http.DefaultTransport.RoundTrip(r)
+			}
+			switch r.URL.Path {
+			case "/latest/api/token":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader([]byte("faketoken"))),
+					Header:     make(http.Header),
+				}, nil
+			case "/latest/dynamic/instance-identity/signature":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(signature)),
+					Header:     make(http.Header),
+				}, nil
+			case "/latest/dynamic/instance-identity/document":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(document)),
+					Header:     make(http.Header),
+				}, nil
+			default:
+				panic("unhandled route: " + r.URL.Path)
+			}
+		}),
+	}
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token
@@ -1804,26 +1804,26 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (azureidentity.Op
 	roots.AddCert(rootCert)
 
 	return azureidentity.Options{
-			Roots:         roots,
-			Intermediates: []*x509.Certificate{interCert},
-		}, &http.Client{
-			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
-				// Only handle metadata server requests.
-				if r.URL.Host != "169.254.169.254" {
-					return http.DefaultTransport.RoundTrip(r)
-				}
-				switch r.URL.Path {
-				case "/metadata/attested/document":
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(payload)),
-						Header:     make(http.Header),
-					}, nil
-				default:
-					panic("unhandled route: " + r.URL.Path)
-				}
-			}),
-		}
+		Roots:         roots,
+		Intermediates: []*x509.Certificate{interCert},
+	}, &http.Client{
+		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+			// Only handle metadata server requests.
+			if r.URL.Host != "169.254.169.254" {
+				return http.DefaultTransport.RoundTrip(r)
+			}
+			switch r.URL.Path {
+			case "/metadata/attested/document":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(payload)),
+					Header:     make(http.Header),
+				}, nil
+			default:
+				panic("unhandled route: " + r.URL.Path)
+			}
+		}),
+	}
 }
 
 func RandomUsername(_ testing.TB) string {

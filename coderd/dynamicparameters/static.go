@@ -52,15 +52,15 @@ func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]
 	}
 
 	return &preview.Output{
-			Parameters: params,
-		}, hcl.Diagnostics{
-			{
-				// Only a warning because the form does still work.
-				Severity: hcl.DiagWarning,
-				Summary:  "This template version is missing required metadata to support dynamic parameters.",
-				Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
-			},
-		}
+		Parameters: params,
+	}, hcl.Diagnostics{
+		{
+			// Only a warning because the form does still work.
+			Severity: hcl.DiagWarning,
+			Summary:  "This template version is missing required metadata to support dynamic parameters.",
+			Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
+		},
+	}
 }
 
 func (*staticRender) Close() {}

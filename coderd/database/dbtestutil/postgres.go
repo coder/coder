@@ -413,16 +413,16 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 	}
 
 	return container{
-			Host:     host,
-			Port:     port,
-			Resource: resource,
-			Pool:     pool,
-		}, func() {
-			_ = pool.Purge(resource)
-			if tempDir != "" {
-				_ = os.RemoveAll(tempDir)
-			}
-		}, nil
+		Host:     host,
+		Port:     port,
+		Resource: resource,
+		Pool:     pool,
+	}, func() {
+		_ = pool.Purge(resource)
+		if tempDir != "" {
+			_ = os.RemoveAll(tempDir)
+		}
+	}, nil
 }
 
 // OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic

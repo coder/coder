@@ -159,7 +159,7 @@
         # 3. Update the sha256 and run again
         # 4. Nix will fail with the correct vendorHash
         # 5. Update the vendorHash
-        sqlc-custom = unstablePkgs.buildGo126Module {
+        sqlc-custom = unstablePkgs.buildGo127Module {
           pname = "sqlc";
           version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
 
@@ -174,19 +174,19 @@
           vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
 
-        paralleltestctx = unstablePkgs.buildGo126Module {
+        paralleltestctx = unstablePkgs.buildGo127Module {
           pname = "paralleltestctx";
-          version = "0.0.2";
+          version = "0.0.2-unstable-2026-10-02";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "paralleltestctx";
-            rev = "v0.0.2";
-            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+            rev = "d6c2546989b45c01a99506060ddc46809eb635de";
+            sha256 = "sha256-ruLPQNHR1lCnB2zSCxgNsr11Kei+TpaxO01JiVbxHgA=";
           };
 
           subPackages = [ "cmd/paralleltestctx" ];
-          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+          vendorHash = "sha256-gWFc1Cm+UMNcvBxUgyVrreFXbwR8rwac4L2QBUDKo6M=";
         };
 
         # Keep this pin aligned with mise.toml when updating Terraform.
@@ -282,10 +282,10 @@
             gnused
             gnugrep
             gnutar
-            unstablePkgs.go_1_26
+            unstablePkgs.go_1_27
             gofumpt
             migrate
-            (pinnedPkgs.golangci-lint)
+            unstablePkgs.golangci-lint
             gopls
             gotestsum
             hadolint
@@ -350,11 +350,11 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo126Module {
+          unstablePkgs.buildGo127Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-6sdvX0Wglj0CZiig2VD45JzuTcxwg7yrGoPPQUYvuqU=";
+            vendorHash = "sha256-YVJ0QmOnCh3ByQwqU01DbuY6IaY5Ag+c65cg0gvz15c=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [
