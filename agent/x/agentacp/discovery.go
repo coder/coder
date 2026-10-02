@@ -183,6 +183,7 @@ func (m *Manager) probe(ctx context.Context, cfg harnessConfig, directory string
 	envOverrides := m.envOverrides
 	m.mu.Unlock()
 	p, err := launch(ctx, cfg, directory, &discoveryClient{}, launchOptions{
+		clock:        m.clock,
 		execer:       m.execer,
 		envInfo:      m.envInfo,
 		envOverrides: envOverrides,

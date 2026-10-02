@@ -1,4 +1,4 @@
-// Package agentacp manages workspace-local ACP harnesses.
+// Package agentacp manages workspace-local ACP harnesses and sessions.
 package agentacp
 
 import (
@@ -6,9 +6,11 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -20,8 +22,13 @@ import (
 	"github.com/coder/quartz"
 )
 
-// ErrUnavailable indicates that an ACP harness is unavailable.
-var ErrUnavailable = xerrors.New("ACP harness unavailable")
+// Errors classify agent API failures.
+var (
+	ErrInvalid     = xerrors.New("invalid ACP request")
+	ErrNotFound    = xerrors.New("ACP session not found")
+	ErrConflict    = xerrors.New("ACP request conflict")
+	ErrUnavailable = xerrors.New("ACP harness unavailable")
+)
 
 const setupTimeout = 30 * time.Second
 
@@ -36,7 +43,8 @@ type Options struct {
 	WorkingDir   func() string
 }
 
-// Manager owns discovery subprocesses and catalog snapshots.
+// Manager owns harness discovery and the session registry.
+// Each SessionFSM owns its process, tasks, operations, status, and transcript.
 type Manager struct {
 	configHashes  map[string][32]byte
 	reloadTrigger chan struct{}
@@ -52,6 +60,7 @@ type Manager struct {
 	workingDir    func() string
 	mu            sync.Mutex
 	closed        bool
+	sessions      map[workspacesdk.ACPSessionID]*SessionFSM
 	configs       map[string]harnessConfig
 	retryAfter    map[string]time.Time
 	configDir     string
@@ -68,7 +77,7 @@ type Manager struct {
 // EnvOverrides is optional and is copied before use.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
+	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
 }
 
 // SetEnvOverrides replaces the environment overrides for future harnesses.
@@ -114,7 +123,47 @@ func (m *Manager) validate(directory string) error {
 	return nil
 }
 
-// Close stops discovery subprocesses and all manager-owned goroutines.
+// Create initializes a dedicated idle adapter.
+func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
+	s, err := m.createSession(ctx, req)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	return r.Session, err
+}
+
+// Message submits a prompt to an existing idle session.
+func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
+	if req.ID == uuid.Nil || strings.TrimSpace(req.Text) == "" {
+		return workspacesdk.ACPMessageResponse{}, ErrInvalid
+	}
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
+	}
+	return s.Message(ctx, req)
+}
+
+// Interrupt obtains a session without recovering failures, then writes cancel.
+func (m *Manager) Interrupt(ctx context.Context, id workspacesdk.ACPSessionID) (workspacesdk.ACPSession, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	return s.Interrupt(ctx)
+}
+
+// Read preserves failed instances and their partial output.
+func (m *Manager) Read(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSessionResponse{}, err
+	}
+	return s.Read(ctx, after)
+}
+
+// Close prevents initialization and stops all session runtimes.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -124,16 +173,24 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.cancel()
+	sessions := slices.Collect(maps.Values(m.sessions))
 	m.mu.Unlock()
+	for _, s := range sessions {
+		s.Close()
+	}
 	m.wg.Wait()
 	close(m.closedDone)
 	return nil
 }
 
 func harnessInfo(cfg harnessConfig, init acp.InitializeResponse) workspacesdk.ACPHarness {
-	steering, _ := init.Meta["steering"].(map[string]any)
-	supported, _ := steering["supported"].(bool)
-	return workspacesdk.ACPHarness{Slug: cfg.slug, DisplayName: cfg.displayName, LoadSession: init.AgentCapabilities.LoadSession, ResumeSession: init.AgentCapabilities.SessionCapabilities.Resume != nil, Steering: supported, ConfigOptions: []workspacesdk.ACPConfigOption{}}
+	return workspacesdk.ACPHarness{
+		Slug:          cfg.slug,
+		DisplayName:   cfg.displayName,
+		LoadSession:   init.AgentCapabilities.LoadSession,
+		ResumeSession: init.AgentCapabilities.SessionCapabilities.Resume != nil,
+		ConfigOptions: []workspacesdk.ACPConfigOption{},
+	}
 }
 
 func configOptions(options []acp.SessionConfigOption) []workspacesdk.ACPConfigOption {
@@ -172,6 +229,21 @@ func configOptions(options []acp.SessionConfigOption) []workspacesdk.ACPConfigOp
 		out = append(out, opt)
 	}
 	return out
+}
+
+func cloneEvent(e workspacesdk.ACPEvent) workspacesdk.ACPEvent {
+	e.Update = slices.Clone(e.Update)
+	if e.MessageID != nil {
+		id := *e.MessageID
+		e.MessageID = &id
+	}
+	if e.Session != nil {
+		info := *e.Session
+		info.Config = maps.Clone(info.Config)
+		info.Harness = cloneHarness(info.Harness)
+		e.Session = &info
+	}
+	return e
 }
 
 func cloneHarness(h workspacesdk.ACPHarness) workspacesdk.ACPHarness {
