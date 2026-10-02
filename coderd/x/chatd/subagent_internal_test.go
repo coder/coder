@@ -965,6 +965,55 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 }
 
+func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "org-prompt-parent")
+
+	systemTexts := func(chatID uuid.UUID) []string {
+		t.Helper()
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+		require.NoError(t, err)
+		var texts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			texts = append(texts, parts[0].Text)
+		}
+		return texts
+	}
+	parentTexts := systemTexts(parent.ID)
+
+	// Set after the parent exists: the child resolves the prompt at spawn
+	// time while the parent keeps the rows it was created with.
+	const orgPrompt = "Organization instructions for delegated agents."
+	_, err := db.UpsertChatOrganizationSystemPrompt(ctx, database.UpsertChatOrganizationSystemPromptParams{
+		OrganizationID: org.ID,
+		SystemPrompt:   orgPrompt,
+	})
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect bindings", "", childSubagentChatOptions{})
+	require.NoError(t, err)
+
+	childTexts := systemTexts(child.ID)
+	require.Greater(t, len(childTexts), 2)
+	require.Equal(t, strings.Replace(DefaultSystemPrompt, subagentOrchestrationPromptBlock, "", 1), childTexts[0])
+	require.Equal(t, orgPrompt, childTexts[1])
+	require.NotContains(t, childTexts[2:], orgPrompt)
+	require.Equal(t, parentTexts, systemTexts(parent.ID))
+	require.NotContains(t, parentTexts, orgPrompt)
+}
+
 func createInternalParentChat(
 	ctx context.Context,
 	t *testing.T,

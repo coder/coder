@@ -3596,6 +3596,26 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getOrganizationChatSystemPrompt = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationChatSystemPromptResponse> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationChatSystemPromptResponse>(
+				`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			);
+		return response.data;
+	};
+
+	updateOrganizationChatSystemPrompt = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			req,
+		);
+	};
+
 	getChatPersonalModelOverridesAdminSettings =
 		async (): Promise<TypesGen.ChatPersonalModelOverridesAdminSettings> => {
 			const response =

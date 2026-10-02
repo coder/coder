@@ -2749,6 +2749,29 @@ export const updateOrganizationChatModelOverride = (
 	},
 });
 
+const organizationChatSystemPromptKey = (organizationId: string) =>
+	[...chatConfigKey, "organization-system-prompt", organizationId] as const;
+
+export const organizationChatSystemPrompt = (organizationId: string) => ({
+	queryKey: organizationChatSystemPromptKey(organizationId),
+	queryFn: () =>
+		API.experimental.getOrganizationChatSystemPrompt(organizationId),
+});
+
+export const updateOrganizationChatSystemPrompt = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (req: TypesGen.UpdateOrganizationChatSystemPromptRequest) =>
+		API.experimental.updateOrganizationChatSystemPrompt(organizationId, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: organizationChatSystemPromptKey(organizationId),
+			exact: true,
+		});
+	},
+});
+
 // ── MCP Server Configs ───────────────────────────────────────
 
 const mcpServersKey = ["mcp", "servers"] as const;

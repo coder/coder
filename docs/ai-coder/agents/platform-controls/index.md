@@ -66,6 +66,35 @@ commit message formats, preferred libraries, or repository-specific context.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers can't access or interact with it.
 
+Organization administrators can also set organization instructions that apply only to chats in their organization.
+Coder adds them after the deployment system prompt and never uses them in place of it.
+Set them under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
+
+Coder stores both prompts when it creates a chat, in this order:
+
+1. The deployment system prompt.
+1. The organization instructions, when the chat's organization has them.
+
+A change to either prompt applies to chats created afterward.
+Existing chats keep the prompts they started with.
+Subagents receive the current prompts of their parent chat's organization when they start.
+
+The organization instructions are exposed over the chat configuration API:
+
+- `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
+- `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
+
+Coder records each change to the system prompt, the organization instructions, and the [plan mode instructions](#plan-mode-instructions) in the [audit log](../../../admin/security/audit-logs.md).
+Audit logs require a Premium license.
+Each entry shows who made the change and when, along with the previous and new values.
+A save that changes nothing adds no entry.
+Anyone who can view these entries can read the full prompt text.
+
+To find these entries, open **Admin settings** > **Audit logs** and filter by one of these resource types:
+
+- **Chat Instruction Settings** for the system prompt and the plan mode instructions.
+- **Chat Organization System Prompt** for the organization instructions.
+
 ### Plan mode instructions
 
 Administrators can add deployment-wide instructions that apply only when a chat
@@ -160,14 +189,14 @@ These deployment-wide limits apply to every chat.
 The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key.
 Each value must be at least 1, and the server fails to start if a value is 0 or negative:
 
-| Limit                                                         | Default      | Setting                                                                                                                           |
-|---------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| Steps (model responses) per chat turn                         | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
-| Consecutive retries after a failed model generation           | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
-| Queued messages per chat                                      | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
-| Files linked to a chat                                        | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
-| System prompt, plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
-| Concurrent virtual desktop recording uploads per server       | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
+| Limit                                                                          | Default      | Setting                                                                                                                           |
+|--------------------------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Steps (model responses) per chat turn                                          | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
+| Consecutive retries after a failed model generation                            | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
+| Queued messages per chat                                                       | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
+| Files linked to a chat                                                         | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
+| System prompt, organization and plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
+| Concurrent virtual desktop recording uploads per server                        | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
 
 The concurrent agent pools described above are licensing limits, not deployment settings.
 

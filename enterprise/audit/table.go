@@ -41,6 +41,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
+	"ChatOrganizationSystemPrompt":  {codersdk.AuditActionWrite},
 	"ExperimentRule":                {codersdk.AuditActionWrite},
 }
 
@@ -287,6 +288,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.OAuth2ProviderSettings{}: {
 		"id":                                  ActionIgnore,
 		"dynamic_client_registration_enabled": ActionTrack,
+	},
+	&database.ChatOrganizationSystemPrompt{}: {
+		"organization_id": ActionIgnore,
+		"system_prompt":   ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
 	},
 	&database.ChatInstructionSettings{}: {
 		"id":                                ActionIgnore,

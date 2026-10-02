@@ -4,7 +4,10 @@ import escapeRegExp from "lodash/escapeRegExp";
 import type { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { organizationChatModelsKey } from "#/api/queries/chats";
+import {
+	organizationChatModelsKey,
+	organizationChatSystemPrompt,
+} from "#/api/queries/chats";
 import type {
 	ChatModel,
 	OrganizationChatModelsResponse,
@@ -42,11 +45,18 @@ const mockChatModelsResponse: OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const renderSettings = () =>
+const renderSettings = ({
+	canEdit = true,
+	canViewInstructions = false,
+}: {
+	canEdit?: boolean;
+	canViewInstructions?: boolean;
+} = {}) =>
 	render(
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
-			canEdit
+			canEdit={canEdit}
+			canViewInstructions={canViewInstructions}
 			showAdvisor
 		/>,
 	);
@@ -305,5 +315,97 @@ describe("OrganizationAgentSettings", () => {
 		await refetchCatalog(queryClient);
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
+	});
+
+	describe("organization instructions", () => {
+		const mockModelsAndInstructions = (systemPrompt: string) => {
+			vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
+				mockChatModelsResponse,
+			);
+			mockOverridesAndUpdate();
+			vi.spyOn(
+				API.experimental,
+				"getOrganizationChatSystemPrompt",
+			).mockResolvedValue({ system_prompt: systemPrompt });
+			return vi
+				.spyOn(API.experimental, "updateOrganizationChatSystemPrompt")
+				.mockResolvedValue();
+		};
+
+		it("saves the instructions for the selected organization", async () => {
+			const updateSystemPrompt = mockModelsAndInstructions("Old guidance.");
+			const user = userEvent.setup();
+			renderSettings({ canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Old guidance."));
+			await user.clear(textarea);
+			await user.type(textarea, "Use the team templates.");
+			await user.click(within(form).getByRole("button", { name: "Save" }));
+
+			await waitFor(() => {
+				expect(updateSystemPrompt).toHaveBeenCalledWith(
+					MockDefaultOrganization.id,
+					{ system_prompt: "Use the team templates." },
+				);
+			});
+		});
+
+		it("keeps the instructions read-only for viewers", async () => {
+			mockModelsAndInstructions("Org guidance.");
+			const user = userEvent.setup();
+			renderSettings({ canEdit: false, canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
+			await user.type(textarea, " Edited.");
+
+			expect(textarea).toHaveValue("Org guidance.");
+		});
+
+		it("keeps an unsaved edit when a background refetch fails", async () => {
+			const updateSystemPrompt = mockModelsAndInstructions("Org guidance.");
+			const getSystemPrompt = vi.mocked(
+				API.experimental.getOrganizationChatSystemPrompt,
+			);
+			const user = userEvent.setup();
+			const { queryClient } = renderSettings({ canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
+			await user.type(textarea, " Edited.");
+
+			getSystemPrompt.mockRejectedValue(new Error("prompt unavailable"));
+			const { queryKey } = organizationChatSystemPrompt(
+				MockDefaultOrganization.id,
+			);
+			await act(() => queryClient.invalidateQueries({ queryKey }));
+			await waitFor(() =>
+				expect(queryClient.getQueryState(queryKey)?.status).toBe("error"),
+			);
+
+			await user.click(within(form).getByRole("button", { name: "Save" }));
+			await waitFor(() => {
+				expect(updateSystemPrompt).toHaveBeenCalledWith(
+					MockDefaultOrganization.id,
+					{ system_prompt: "Org guidance. Edited." },
+				);
+			});
+		});
 	});
 });

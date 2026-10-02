@@ -4834,6 +4834,124 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get organization chat system prompt
+// @ID get-organization-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {object} codersdk.OrganizationChatSystemPromptResponse
+// @Router /api/v2/organizations/{organization}/chats/config/system-prompt [get]
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	row, err := api.Database.GetChatOrganizationSystemPrompt(ctx, organization.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organization chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationChatSystemPromptResponse{
+		SystemPrompt: row.SystemPrompt,
+	})
+}
+
+// @Summary Update organization chat system prompt
+// @ID update-organization-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.UpdateOrganizationChatSystemPromptRequest true "Request body"
+// @Success 204
+// @Router /api/v2/organizations/{organization}/chats/config/system-prompt [put]
+func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	// As with the deployment prompt, the audit request is initialized before
+	// authorization so denied attempts are recorded without request content.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOrganizationSystemPrompt](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatOrganizationSystemPrompt{OrganizationID: organization.ID}
+	aReq.New = aReq.Old
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateOrganizationChatSystemPromptRequest
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
+		return
+	}
+	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
+		})
+		return
+	}
+
+	var noChange bool
+	// The per-organization lock serializes audit change detection with the
+	// write, like the deployment prompt.
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatOrganizationSystemPrompt(organization.ID)); err != nil {
+			return xerrors.Errorf("acquire organization chat system prompt write lock: %w", err)
+		}
+		// The ActionUpdate check above gates this endpoint. Read the previous
+		// value for the audit diff under a system context so a custom role
+		// that grants update without read can still write.
+		//nolint:gocritic // See above.
+		old, err := tx.GetChatOrganizationSystemPrompt(dbauthz.AsSystemRestricted(ctx), organization.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			aReq.Old = old
+		}
+		updated, err := tx.UpsertChatOrganizationSystemPrompt(ctx, database.UpsertChatOrganizationSystemPromptParams{
+			OrganizationID: organization.ID,
+			SystemPrompt:   sanitizedPrompt,
+		})
+		if err != nil {
+			return err
+		}
+		aReq.New = updated
+		noChange = aReq.New.SystemPrompt == aReq.Old.SystemPrompt
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating organization chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if noChange {
+		commitAudit(false)
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Get chat plan mode instructions
 // @ID get-chat-plan-mode-instructions
 // @Security CoderSessionToken

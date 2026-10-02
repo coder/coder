@@ -3630,6 +3630,15 @@ func (q *querier) GetChatOrganizationModelOverridesByContext(ctx context.Context
 	return q.db.GetChatOrganizationModelOverridesByContext(ctx, argContext)
 }
 
+func (q *querier) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	// Unlike model overrides, regular members cannot read the organization
+	// prompt, matching the deployment prompt.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(organizationID)); err != nil {
+		return database.ChatOrganizationSystemPrompt{}, err
+	}
+	return q.db.GetChatOrganizationSystemPrompt(ctx, organizationID)
+}
+
 func (q *querier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	// The personal model overrides flag is a deployment-wide setting read by
 	// authenticated chat users. We only require that an explicit actor is
@@ -9205,6 +9214,13 @@ func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.UpsertChatOrganizationModelOverride(ctx, arg)
+}
+
+func (q *querier) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg database.UpsertChatOrganizationSystemPromptParams) (database.ChatOrganizationSystemPrompt, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID)); err != nil {
+		return database.ChatOrganizationSystemPrompt{}, err
+	}
+	return q.db.UpsertChatOrganizationSystemPrompt(ctx, arg)
 }
 
 func (q *querier) UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error {
