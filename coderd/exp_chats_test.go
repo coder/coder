@@ -3576,12 +3576,16 @@ func TestListChats_Search(t *testing.T) {
 
 		percent := createChat(t, db, firstUser, modelConfig.ID, "100% done")
 		underscore := createChat(t, db, firstUser, modelConfig.ID, "snake_case")
+		backslash := createChat(t, db, firstUser, modelConfig.ID, `C:\temp`)
 		_ = createChat(t, db, firstUser, modelConfig.ID, "plain")
 
 		for query, want := range map[string]uuid.UUID{
 			"title:%":      percent.ID,
 			"title:_":      underscore.ID,
 			`title:"0% d"`: percent.ID,
+			// Unescaped, a lone backslash would escape the trailing '%'
+			// and match titles containing '%' instead.
+			`title:\`: backslash.ID,
 		} {
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: query})
 			require.NoError(t, err)
