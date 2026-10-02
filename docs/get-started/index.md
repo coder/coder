@@ -342,17 +342,17 @@ Each path starts from the deployment you just built.
 
 ### Hand a task to a coding agent
 
-[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you describe work and an agent provisions a workspace from your template and does it.
-Community deployments can run up to five agents at a time at no cost, so you can try it on this deployment right away.
+[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you first describe the work you want performed, and then an agent provisions a workspace from your templates and does it.
+Community deployments can run up to five agents at a time at no cost, so you can try Coder Agents on this deployment right away.
 You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
 Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
 
-If you don't have a project in mind, ask the agent for something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
+If you don't have a project in mind, ask the agent to generate something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
 
 ### Make the workspace fit how you work
 
 The Quickstart template is a starting point.
-[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories, about 10 minutes each.
+[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories. Each task takes about 10 minutes.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
 
@@ -368,7 +368,7 @@ When you're ready for other people to use it:
 ## Learn more
 
 - [Monitor your Coder deployment](../admin/monitoring/index.md)
-- [Browse the Coder Registry](https://registry.coder.com) for templates and modules you can add to your own
+- [Browse the Coder Registry](https://registry.coder.com) for templates and modules you can add to your own deployment.
 
 ## Troubleshooting
 
