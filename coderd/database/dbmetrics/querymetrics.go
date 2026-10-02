@@ -2192,6 +2192,14 @@ func (m queryMetricsStore) GetDefaultProxyConfig(ctx context.Context) (database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg database.GetDeletedChatMessagesFromLastAssistantParams) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDeletedChatMessagesFromLastAssistant(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetDeletedChatMessagesFromLastAssistant").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeletedChatMessagesFromLastAssistant").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetDeploymentID(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDeploymentID(ctx)

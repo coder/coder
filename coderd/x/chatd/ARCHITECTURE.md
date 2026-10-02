@@ -1042,6 +1042,8 @@ Since the runner doesn't wait for goroutines to finish when it cancels them, and
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Exception: the workspace agent runs `execute`, `edit_files`, and `write_file` calls once, unless it restarts. Future work may include adding a mechanism to ensure at most once semantics.
 
+If a turn starts with a user message and there are deleted assistant messages between it and the previous user message, the goroutine sends the workspace agent a cancel request for each unresolved `execute`, `edit_files`, and `write_file` call in the last deleted assistant message. A failed request does not fail the turn.
+
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
 The generation goroutine supports:
@@ -1164,7 +1166,7 @@ The goroutine does the following in order:
 1. It fetches the generation attempt number from the database.
 2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
-4. It cancels the chat's unresolved `execute`, `edit_files`, and `write_file` calls on the workspace agent, waiting up to 30 seconds for their results.
+4. It sends a cancel request to the workspace agent for each unresolved `execute`, `edit_files`, and `write_file` call, and waits up to 30 seconds for the responses.
 5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 #### Dynamic tools timeout goroutine
