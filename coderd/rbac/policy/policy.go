@@ -78,6 +78,13 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var chatAutomationActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat automation",
+	ActionRead:   "read chat automations",
+	ActionUpdate: "update a chat automation",
+	ActionDelete: "delete a chat automation",
+}
+
 var chatProjectActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new chat project",
 	ActionRead:   "read chat projects",
@@ -132,6 +139,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
+	},
+	"chat_automation": {
+		Actions: chatAutomationActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {

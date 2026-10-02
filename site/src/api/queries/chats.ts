@@ -595,8 +595,9 @@ const diffStatusEqual = (
 };
 
 /**
- * Merges event-scoped chat fields into a cached summary, using updated_at
- * as a stale guard while still adopting the latest DB-backed model config.
+ * Merges event-scoped chat fields into a cached summary. Row fields,
+ * including the model config, are ordered by updated_at. Title fields come
+ * only from title_change events and are ordered by title_updated_at.
  */
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
@@ -614,11 +615,29 @@ export const mergeWatchedChatSummary = (
 		watchedChat.updated_at,
 	);
 	const isFreshEnough = updatedAtComparison <= 0;
+	// A title event's row can be newer than a status_change that has not
+	// arrived yet, so a title event changes only the title fields, ordered
+	// by title_updated_at because title writes do not change updated_at.
+	const adoptsRowFields = !isTitleEvent && isFreshEnough;
 	const nextStatus =
-		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
-	// apply title_change payloads even when the chat summary timestamp is older.
-	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+		adoptsRowFields && isStatusEvent ? watchedChat.status : cachedChat.status;
+	// Servers from before title_updated_at existed omit it; apply their
+	// title events unordered.
+	const hasNewerTitle =
+		isTitleEvent &&
+		(!cachedChat.title_updated_at ||
+			!watchedChat.title_updated_at ||
+			compareUpdatedAtInstants(
+				cachedChat.title_updated_at,
+				watchedChat.title_updated_at,
+			) < 0);
+	const nextTitleFields = hasNewerTitle
+		? {
+				title: watchedChat.title,
+				title_source: watchedChat.title_source,
+				title_updated_at: watchedChat.title_updated_at,
+			}
+		: undefined;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -637,18 +656,19 @@ export const mergeWatchedChatSummary = (
 		isStatusEvent && nextStatus !== "running"
 			? false
 			: (cachedChat.queued_for_capacity ?? false);
-	const nextWorkspaceId = isFreshEnough
+	const nextWorkspaceId = adoptsRowFields
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
 	// Single-chat reads repair agent/build bindings response-only, so watch
 	// events can replay stale DB pairs. Adopting build_id with a mismatched
 	// agent would split the repaired pair because merge never adopts agent_id.
 	const nextBuildId =
-		isFreshEnough && watchedChat.agent_id === cachedChat.agent_id
+		adoptsRowFields && watchedChat.agent_id === cachedChat.agent_id
 			? (watchedChat.build_id ?? cachedChat.build_id)
 			: cachedChat.build_id;
-	// All event types carry the current model config from the DB.
-	const nextLastModelConfigId = isFreshEnough
+	// Every event's row includes the model config, so it is ordered like the
+	// other row fields instead of being scoped to one event kind.
+	const nextLastModelConfigId = adoptsRowFields
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
 	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
@@ -663,18 +683,19 @@ export const mergeWatchedChatSummary = (
 		? watchedChat.summary
 		: cachedChat.summary;
 	const nextHasUnread =
-		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+		adoptsRowFields && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
-	const nextUpdatedAt =
-		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
+	const nextUpdatedAt = adoptsRowFields
+		? watchedChat.updated_at
+		: cachedChat.updated_at;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough
 	// against a timestamp that should already have been superseded.
 	if (
+		!hasNewerTitle &&
 		nextStatus === cachedChat.status &&
-		nextTitle === cachedChat.title &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
@@ -691,8 +712,8 @@ export const mergeWatchedChatSummary = (
 
 	return {
 		...cachedChat,
+		...nextTitleFields,
 		status: nextStatus,
-		title: nextTitle,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
@@ -1134,6 +1155,11 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
+type UpdateChatManageAutomationsVariables = {
+	chatId: string;
+	enabled: boolean;
+};
+
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 const toChatPlanModePayload = (
@@ -1537,12 +1563,17 @@ export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const updateChatPlanMode = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-		API.experimental.updateChat(chatId, {
-			plan_mode: toChatPlanModePayload(planMode),
-		}),
-	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
+
+// The list rollback reads the field from the entity snapshot.
+const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
+	queryClient: QueryClient,
+	field: K,
+) => ({
+	onMutate: async (
+		chatId: string,
+		value: TypesGen.Chat[K],
+	): Promise<OptimisticChatUpdateContext> => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1550,25 +1581,20 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+				chat.id === chatId ? { ...chat, [field]: value } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				plan_mode: planMode,
+				[field]: value,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
-		_error: unknown,
-		{ chatId }: UpdateChatPlanModeVariables,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		chatId: string,
+		context: OptimisticChatUpdateContext | undefined,
 	) => {
 		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
@@ -1577,17 +1603,49 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		}
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId
-					? {
-							...chat,
-							plan_mode: previousChat.plan_mode,
-						}
-					: chat,
+				chat.id === chatId ? { ...chat, [field]: previousChat[field] } : chat,
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
+
+export const updateChatPlanMode = (queryClient: QueryClient) => {
+	const optimistic = optimisticChatFieldUpdate(queryClient, "plan_mode");
+	return {
+		mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+			API.experimental.updateChat(chatId, {
+				plan_mode: toChatPlanModePayload(planMode),
+			}),
+		onMutate: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+			optimistic.onMutate(chatId, planMode),
+		onError: (
+			_error: unknown,
+			{ chatId }: UpdateChatPlanModeVariables,
+			context: OptimisticChatUpdateContext | undefined,
+		) => optimistic.onError(chatId, context),
+	};
+};
+
+export const updateChatManageAutomations = (queryClient: QueryClient) => {
+	const optimistic = optimisticChatFieldUpdate(
+		queryClient,
+		"manage_automations_enabled",
+	);
+	return {
+		mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
+			API.experimental.updateChat(chatId, {
+				manage_automations_enabled: enabled,
+			}),
+		onMutate: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
+			optimistic.onMutate(chatId, enabled),
+		onError: (
+			_error: unknown,
+			{ chatId }: UpdateChatManageAutomationsVariables,
+			context: OptimisticChatUpdateContext | undefined,
+		) => optimistic.onError(chatId, context),
+	};
+};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
@@ -1957,15 +2015,9 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
-		patchChatEntity(queryClient, chatId, (chat) =>
-			chat ? { ...chat, title } : chat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
-		);
-	},
-
+	// Invalidate instead of patching the cache: the server assigns
+	// title_updated_at, and a cached title without it cannot be ordered
+	// against title_change events.
 	onSettled: (
 		_data: unknown,
 		_error: unknown,

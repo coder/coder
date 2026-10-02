@@ -26,6 +26,7 @@ const (
 	AppFamilyJetBrains       AppFamilyName = "jetbrains"
 	AppFamilySSH             AppFamilyName = "ssh"
 	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
+	AppFamilyPortForwarding  AppFamilyName = "port_forwarding"
 	// AppFamilySFTP only comes from history the sftp_mins column recorded.
 	AppFamilySFTP    AppFamilyName = "sftp"
 	AppFamilyUnknown AppFamilyName = "unknown"
@@ -95,6 +96,7 @@ var sessionApps = map[string]sessionApp{
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
 	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
 	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+	"port_forwarding":  {AppFamilyPortForwarding, "Port Forwarding", ""},
 }
 
 // SessionCountApps pairs each count with its presentation, keyed by app name.
