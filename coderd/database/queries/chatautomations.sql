@@ -76,3 +76,43 @@ WHERE
 ORDER BY
     id
 FOR UPDATE;
+
+-- name: GetChatAutomationsByOrganizationID :many
+SELECT
+    *
+FROM
+    chat_automations
+WHERE
+    organization_id = @organization_id::uuid
+ORDER BY
+    created_at DESC,
+    id DESC;
+
+-- name: CountChatAutomationsByOwnerID :one
+-- Counts the automations owner_id owns across all organizations.
+SELECT
+    COUNT(*)
+FROM
+    chat_automations
+WHERE
+    owner_id = @owner_id::uuid;
+
+-- name: UpdateChatAutomationByID :one
+UPDATE
+    chat_automations
+SET
+    name = @name,
+    prompt = @prompt,
+    target_chat_id = @target_chat_id,
+    new_chat_model_config_id = @new_chat_model_config_id,
+    reasoning_effort = @reasoning_effort,
+    when_busy = @when_busy,
+    schedule_cron = @schedule_cron,
+    schedule_time_zone = @schedule_time_zone,
+    schedule_revision = @schedule_revision,
+    schedule_next_run_at = @schedule_next_run_at,
+    updated_at = @updated_at
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
