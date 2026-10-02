@@ -653,7 +653,7 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A1P -> SendMessage(m, interrupt) -> R1P`
 - `P -> SendMessage(m, interrupt) -> P`
 
-When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `FinishInterruption(partial?)` runs after the interrupted suffix is finalized: from `I1` it promotes the queue head, from `I1P` it reaches `paused`.
+When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `FinishInterruption(partial?)` runs after the interrupted suffix is finalized: from `I1` it promotes the queue head, from `I1P` it reaches `paused`. If no worker owns the chat, the same transaction applies `FinishInterruption` instead, so the chat reaches `R0` or `R1` with the queue head promoted, or `P` from `I1P`, without an owner. From `R0` the promoted head is `m` itself, so the response returns it as `message` with `queued` set to false.
 
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 

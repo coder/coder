@@ -587,7 +587,8 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Running or interrupting, with or without a queue. Interrupt
-	// lands in I1; queue keeps the input state.
+	// lands in I1, or I1P behind a blocked head; queue keeps the input
+	// state.
 	case StateR0, StateR1, StateI0, StateI1, StateR1P, StateI1P:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageInterrupt(chat, input)
