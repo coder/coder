@@ -2862,6 +2862,21 @@ func (mr *MockStoreMockRecorder) GetChatAutomationByID(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationByID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationByID), ctx, id)
 }
 
+// GetChatAutomationReferencesByChatID mocks base method.
+func (m *MockStore) GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatAutomationReferencesByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationReferencesByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.GetChatAutomationReferencesByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationReferencesByChatID indicates an expected call of GetChatAutomationReferencesByChatID.
+func (mr *MockStoreMockRecorder) GetChatAutomationReferencesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationReferencesByChatID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationReferencesByChatID), ctx, chatID)
+}
+
 // GetChatAutomationsByIDsForUpdate mocks base method.
 func (m *MockStore) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
 	m.ctrl.T.Helper()

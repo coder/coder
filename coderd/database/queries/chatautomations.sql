@@ -207,3 +207,52 @@ WHERE
     AND enabled
     AND schedule_revision = @schedule_revision::bigint
     AND schedule_next_run_at = @observed_next_run_at::timestamptz;
+
+-- name: GetChatAutomationReferencesByChatID :many
+-- Returns the id, name and kind of each automation that delivered into
+-- the chat: the automation that created the chat, the automations of its
+-- visible non-deleted user messages and the automations of its queued
+-- messages. Only automations in the chat's organization are returned, and
+-- deleted automations are absent.
+WITH referenced AS (
+    SELECT
+        chats.automation_id
+    FROM
+        chats
+    WHERE
+        chats.id = @chat_id::uuid
+        AND chats.automation_id IS NOT NULL
+    UNION
+    -- The role, deleted and visibility predicates match
+    -- idx_chat_messages_user_prompts so the index applies.
+    SELECT
+        chat_messages.automation_id
+    FROM
+        chat_messages
+    WHERE
+        chat_messages.chat_id = @chat_id::uuid
+        AND chat_messages.deleted = false
+        AND chat_messages.role = 'user'
+        AND chat_messages.visibility IN ('user', 'both')
+        AND chat_messages.automation_id IS NOT NULL
+    UNION
+    SELECT
+        chat_queued_messages.automation_id
+    FROM
+        chat_queued_messages
+    WHERE
+        chat_queued_messages.chat_id = @chat_id::uuid
+        AND chat_queued_messages.automation_id IS NOT NULL
+)
+SELECT
+    chat_automations.id,
+    chat_automations.name,
+    chat_automations.kind
+FROM
+    referenced
+    JOIN chat_automations ON chat_automations.id = referenced.automation_id
+    JOIN chats ON chats.id = @chat_id::uuid
+WHERE
+    chat_automations.organization_id = chats.organization_id
+ORDER BY
+    chat_automations.id;

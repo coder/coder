@@ -3256,6 +3256,17 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
 }
 
+func (q *querier) GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatAutomationReferencesByChatIDRow, error) {
+	// Anyone who can read the chat sees the name and kind of each
+	// automation that delivered into it, even without chat_automation
+	// read permission. The rows carry no other automation fields.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationReferencesByChatID(ctx, chatID)
+}
+
 func (q *querier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByIDsForUpdate)(ctx, ids)
 }

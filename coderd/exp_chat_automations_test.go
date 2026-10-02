@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -798,4 +799,90 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 		status, body := rawGet(t, env.member, fmt.Sprintf("/api/v2/organizations/%s/chat-automations", env.orgID))
 		require.Equal(t, http.StatusNotFound, status, body)
 	})
+}
+
+// TestChatAutomationReferences checks that anyone who can read a chat sees
+// the name and kind of the automations that delivered into it, and nothing
+// else about them.
+func TestChatAutomationReferences(t *testing.T) {
+	t.Parallel()
+
+	env := newChatAutomationTestEnv(t, nil, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	viewerRaw, viewer := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID)
+	viewerClient := codersdk.NewExperimentalClient(viewerRaw)
+	strangerRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID)
+	strangerClient := codersdk.NewExperimentalClient(strangerRaw)
+	member, err := env.member.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	// Only the chat owner has the experiment, so the viewer can neither
+	// list automations nor read them.
+	_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+		Mode:      codersdk.ExperimentRuleModeCondition,
+		Condition: fmt.Sprintf("user.username == %q", member.Username),
+	})
+	require.NoError(t, err)
+
+	newAutomation := func(name string, kind database.ChatAutomationKind) database.ChatAutomation {
+		return dbgen.ChatAutomation(t, env.db, database.ChatAutomation{
+			OrganizationID: env.orgID,
+			OwnerID:        env.memberID,
+			Name:           name,
+			Kind:           kind,
+			TargetChatID:   uuid.NullUUID{UUID: env.memberChat.ID, Valid: true},
+		})
+	}
+	history := newAutomation("CI heartbeat", database.ChatAutomationKindSchedule)
+	queued := newAutomation("Deploy hook", database.ChatAutomationKindWebhook)
+	// Targets the chat but never delivered into it.
+	_ = newAutomation("Idle hook", database.ChatAutomationKindWebhook)
+
+	dbgen.ChatMessage(t, env.db, database.ChatMessage{
+		ChatID:       env.memberChat.ID,
+		CreatedBy:    uuid.NullUUID{UUID: env.memberID, Valid: true},
+		AutomationID: uuid.NullUUID{UUID: history.ID, Valid: true},
+		InputID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	})
+	env.queueAutomationMessage(t, env.memberChat.ID, &queued.ID, queued.QueueGeneration)
+
+	err = env.member.UpdateChatACL(ctx, env.memberChat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{viewer.ID.String(): codersdk.ChatRoleRead},
+	})
+	require.NoError(t, err)
+
+	want := []codersdk.ChatAutomationReference{
+		{ID: history.ID, Name: "CI heartbeat", Kind: codersdk.ChatAutomationKindSchedule},
+		{ID: queued.ID, Name: "Deploy hook", Kind: codersdk.ChatAutomationKindWebhook},
+	}
+	if want[0].ID.String() > want[1].ID.String() {
+		want[0], want[1] = want[1], want[0]
+	}
+
+	got, err := env.member.ChatAutomationReferences(ctx, env.memberChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+
+	_, err = viewerClient.ChatAutomations(ctx, env.orgID)
+	requireSDKError(t, err, http.StatusNotFound)
+	got, err = viewerClient.ChatAutomationReferences(ctx, env.memberChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+
+	// The response exposes no prompt, secret, schedule, target or owner.
+	status, body := rawGet(t, viewerClient, fmt.Sprintf("/api/experimental/chats/%s/automations", env.memberChat.ID))
+	require.Equal(t, http.StatusOK, status, body)
+	var raw []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(body), &raw))
+	require.Len(t, raw, len(want))
+	for _, obj := range raw {
+		keys := make([]string, 0, len(obj))
+		for key := range obj {
+			keys = append(keys, key)
+		}
+		require.ElementsMatch(t, []string{"id", "name", "kind"}, keys)
+	}
+
+	_, err = strangerClient.ChatAutomationReferences(ctx, env.memberChat.ID)
+	requireSDKError(t, err, http.StatusNotFound)
 }

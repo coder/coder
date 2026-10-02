@@ -468,6 +468,12 @@ type sqlcQuerier interface {
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	// Returns the id, name and kind of each automation that delivered into
+	// the chat: the automation that created the chat, the automations of its
+	// visible non-deleted user messages and the automations of its queued
+	// messages. Only automations in the chat's organization are returned, and
+	// deleted automations are absent.
+	GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatAutomationReferencesByChatIDRow, error)
 	// Locks the given automations in ascending id order so concurrent
 	// lockers always acquire automation row locks in the same order.
 	// Missing ids are not returned.
