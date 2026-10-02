@@ -142,24 +142,48 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
-	it("shows a used single-use webhook as off and locks its switch", async () => {
-		setup({
-			automations: [
-				{
-					...mockAutomation,
-					kind: "webhook",
-					webhook_use: "single",
-					webhook_consumed_at: "2026-09-29T10:00:00Z",
-					enabled: true,
+	it("does not update a used single-use webhook from its switch", async () => {
+		const user = userEvent.setup();
+		const mockUsedWebhook: ChatAutomation = {
+			...mockAutomation,
+			kind: "webhook",
+			webhook_use: "single",
+			webhook_consumed_at: "2026-09-29T10:00:00Z",
+			enabled: true,
+		};
+		const mockSecondAutomation: ChatAutomation = {
+			...mockAutomation,
+			id: "second-automation",
+			name: "Second automation",
+		};
+		setup({ automations: [mockUsedWebhook, mockSecondAutomation] });
+		const updatedIds: string[] = [];
+		server.use(
+			http.patch<{ automationId: string }>(
+				`${automationsPath(MockDefaultOrganization.id)}/:automationId`,
+				({ params }) => {
+					updatedIds.push(params.automationId);
+					return HttpResponse.json({ ...mockSecondAutomation, enabled: false });
 				},
-			],
-		});
+			),
+		);
 
-		const toggle = await screen.findByRole("switch", {
-			name: `Enable ${mockAutomation.name}`,
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockUsedWebhook.name}`,
+			}),
+		);
+		// The second row's update is sent after the used webhook's click, so
+		// once it arrives any update from the first click would have too.
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockSecondAutomation.name}`,
+			}),
+		);
+		await waitFor(() => {
+			expect(updatedIds).toContain(mockSecondAutomation.id);
 		});
-		expect(toggle).not.toBeChecked();
-		expect(toggle).toBeDisabled();
+		expect(updatedIds).toEqual([mockSecondAutomation.id]);
 	});
 
 	it("shows the error of a failed toggle after another row was toggled", async () => {
