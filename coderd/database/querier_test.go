@@ -2113,7 +2113,6 @@ func TestGetAuthorizedChats(t *testing.T) {
 	})
 }
 
-//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatAutomationsByOrganizationID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2174,6 +2173,7 @@ func TestGetAuthorizedChatAutomationsByOrganizationID(t *testing.T) {
 	}
 }
 
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
