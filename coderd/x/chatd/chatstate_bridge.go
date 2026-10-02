@@ -12,7 +12,7 @@ import (
 // newChatMachine constructs a chat-scoped state machine handle bound to
 // the server's database and pubsub.
 func (p *Server) newChatMachine(chatID uuid.UUID) *chatstate.ChatMachine {
-	return chatstate.NewChatMachine(p.db, p.pubsub, chatID)
+	return chatstate.NewChatMachine(p.db, p.pubsub, chatID).WithMetrics(p.transitionMetrics)
 }
 
 // systemMessage builds a chatstate.Message representing a system

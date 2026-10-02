@@ -259,7 +259,7 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 }
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	var (
 		chat        database.Chat
 		cancelable  []fantasy.ToolCallContent
@@ -392,7 +392,7 @@ func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome i
 }
 
 func (s *taskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	if s.server.disableCallerSuppliedTools {
 		return s.cancelRequiresAction(ctx, machine, input, "Tool execution canceled because caller-supplied tools are disabled")
 	}
@@ -508,7 +508,7 @@ func (s *taskStarter) cancelRequiresAction(
 }
 
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	mismatch := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, input.ChatID)

@@ -1279,6 +1279,7 @@ type AcquireResult struct{}
 // Callers that need to coordinate takeovers with the previous owner
 // must arrange that out-of-band before calling Acquire.
 func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
+	tx.enter(TransitionAcquire)
 	chat, _, err := tx.loadState()
 	if err != nil {
 		return AcquireResult{}, err
@@ -1320,6 +1321,7 @@ type AbandonResult struct{}
 // read the locked row through the transactional store and compare values before
 // invoking Abandon.
 func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
+	tx.enter(TransitionAbandon)
 	chat, from, err := tx.loadState()
 	if err != nil {
 		return AbandonResult{}, err
@@ -1760,6 +1762,7 @@ type ReconcileInvalidStateResult struct {
 // into a valid error state. Queued messages are preserved; pending
 // dynamic-tool calls are closed with synthetic cancellation results.
 func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (ReconcileInvalidStateResult, error) {
+	tx.enter(TransitionReconcileInvalidState)
 	chat, from, err := tx.loadState()
 	if err != nil {
 		return ReconcileInvalidStateResult{}, err
