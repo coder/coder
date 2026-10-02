@@ -28,8 +28,9 @@ const (
 var ErrWorkspaceUploadNameRequired = xerrors.New("workspace upload file name is required")
 
 // SanitizeWorkspaceUploadName extracts a basename, normalizes unsafe
-// whitespace, control characters, and Windows-invalid punctuation to
-// underscores, strips edge dots, and truncates the result to
+// whitespace, control characters, Windows-invalid punctuation, and
+// shell, quote, and bracket characters to underscores, strips edge dots,
+// and truncates the result to
 // MaxWorkspaceUploadFileNameBytes. It returns
 // ErrWorkspaceUploadNameRequired when no safe name remains.
 func SanitizeWorkspaceUploadName(name string) (string, error) {
@@ -70,7 +71,10 @@ func isUnsafeWorkspaceUploadRune(r rune) bool {
 		return true
 	}
 	switch r {
-	case '<', '>', ':', '"', '|', '?', '*':
+	// With the basename step resolving `/` and `\`, this covers the frontend
+	// sanitizeChatFileName set so API callers cannot bypass the UI rewrite.
+	case '<', '>', ':', '"', '|', '?', '*',
+		'(', ')', '[', ']', '{', '}', '\'', '`', ';', ',', '&', '#', '$':
 		return true
 	default:
 		return false

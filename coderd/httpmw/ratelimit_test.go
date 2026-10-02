@@ -102,6 +102,28 @@ func TestRateLimit(t *testing.T) {
 		}
 	})
 
+	t.Run("PerCallerSharesBucketAcrossPaths", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.With(httpmw.RateLimitPerCaller(1, time.Second)).Post("/chats/{chat}/workspace-files", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		remoteAddr := randRemoteAddr()
+		for i, p := range []string{
+			"/chats/00000000-0000-0000-0000-000000000001/workspace-files",
+			"/chats/00000000-0000-0000-0000-000000000002/workspace-files",
+		} {
+			req := httptest.NewRequest("POST", p, nil)
+			req.RemoteAddr = remoteAddr
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, i != 0, resp.StatusCode == http.StatusTooManyRequests, "request %d (%s)", i, p)
+		}
+	})
+
 	t.Run("RandomIPs", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
