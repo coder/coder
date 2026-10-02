@@ -3197,6 +3197,18 @@ const docTemplate = `{
                         "name": "chat",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Remote origin selecting the ref to diff",
+                        "name": "origin",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Git branch selecting the ref to diff",
+                        "name": "branch",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -20131,6 +20143,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChangedDiffStatus": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "$ref": "#/definitions/codersdk.DiffStatusRef"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                }
+            }
+        },
         "codersdk.Chat": {
             "type": "object",
             "properties": {
@@ -20168,7 +20191,18 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "diff_status": {
-                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    "description": "DiffStatus is the primary pull request, picked by the server.\nDeprecated: use DiffStatuses, which lists every pull request\nthe chat tracks.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                        }
+                    ]
+                },
+                "diff_statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    }
                 },
                 "files": {
                     "type": "array",
@@ -20590,6 +20624,9 @@ const docTemplate = `{
                 "deletions": {
                     "type": "integer"
                 },
+                "git_branch": {
+                    "type": "string"
+                },
                 "head_branch": {
                     "type": "string"
                 },
@@ -20608,6 +20645,9 @@ const docTemplate = `{
                 "refreshed_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "remote_origin": {
+                    "type": "string"
                 },
                 "reviewer_count": {
                     "type": "integer"
@@ -22159,6 +22199,9 @@ const docTemplate = `{
         "codersdk.ChatWatchEvent": {
             "type": "object",
             "properties": {
+                "changed_diff_status": {
+                    "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
@@ -24108,6 +24151,17 @@ const docTemplate = `{
                 "DiagnosticSeverityError",
                 "DiagnosticSeverityWarning"
             ]
+        },
+        "codersdk.DiffStatusRef": {
+            "type": "object",
+            "properties": {
+                "git_branch": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.DisplayApp": {
             "type": "string",
