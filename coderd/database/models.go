@@ -530,6 +530,11 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatProject                         APIKeyScope = "chat_project:*"
+	ApiKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +816,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete:
 		return true
 	}
 	return false
@@ -1062,6 +1072,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
 	}
 }
 
@@ -1913,6 +1928,68 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+	}
+}
+
+// Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+type ChatTitleSource string
+
+const (
+	ChatTitleSourceFallback  ChatTitleSource = "fallback"
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	ChatTitleSourceUser      ChatTitleSource = "user"
+)
+
+func (e *ChatTitleSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatTitleSource(s)
+	case string:
+		*e = ChatTitleSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatTitleSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatTitleSource struct {
+	ChatTitleSource ChatTitleSource `json:"chat_title_source"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatTitleSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatTitleSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatTitleSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatTitleSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatTitleSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatTitleSource), nil
+}
+
+func (e ChatTitleSource) Valid() bool {
+	switch e {
+	case ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatTitleSourceValues() []ChatTitleSource {
+	return []ChatTitleSource{
+		ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser,
 	}
 }
 
@@ -3668,6 +3745,7 @@ const (
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
+	ResourceTypeChatProject                 ResourceType = "chat_project"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3747,7 +3825,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
-		ResourceTypeExperimentRule:
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject:
 		return true
 	}
 	return false
@@ -3796,6 +3875,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
 	}
 }
 
@@ -5057,6 +5137,7 @@ type Chat struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -5079,6 +5160,8 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5270,6 +5353,19 @@ type ChatOrganizationModelOverride struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Organization-scoped projects that group agent chats.
+type ChatProject struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// Optional icon URL shown next to the project name.
+	Icon      string    `db:"icon" json:"icon"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5337,6 +5433,12 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Optional project that groups a root chat with related chats.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Rows from before this column existed are fallback regardless of who set their title.
+	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 }
 
 type ChatUsageLimitConfig struct {

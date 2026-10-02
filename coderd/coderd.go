@@ -960,6 +960,7 @@ func New(options *Options) *API {
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
@@ -1368,6 +1369,13 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			api.registerExperimentalOrganizationChatRoutes(r)
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

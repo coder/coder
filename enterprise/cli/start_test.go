@@ -269,10 +269,7 @@ func TestWorkspaceBuildTemplateVersionPermissions(t *testing.T) {
 			if tc.active {
 				target = active
 			}
-			args := []string{tc.command, ws.Name, "--template-version", target.Name}
-			if tc.command != "update" {
-				args = append(args, "-y")
-			}
+			args := []string{tc.command, ws.Name, "--template-version", target.Name, "-y"}
 			inv, root := newCLI(t, args...)
 			clitest.SetupConfig(t, client, root)
 			var output bytes.Buffer

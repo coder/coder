@@ -11,6 +11,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -3571,6 +3573,8 @@ func TestWatchChats(t *testing.T) {
 			database.UpsertChatDiffStatusParams{
 				ChatID:           chat.ID,
 				Url:              sql.NullString{String: "https://github.com/coder/coder/pull/99", Valid: true},
+				GitBranch:        "feature/test",
+				GitRemoteOrigin:  "git@github.com:coder/coder.git",
 				PullRequestState: sql.NullString{String: "open", Valid: true},
 				Additions:        42,
 				Deletions:        7,
@@ -6597,24 +6601,39 @@ func TestPatchChat(t *testing.T) {
 			require.Equal(t, chat.Title, updated.Title)
 		})
 
-		t.Run("RejectsTooLong", func(t *testing.T) {
+		t.Run("RejectedRequestLeavesTitleUnchanged", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModel(t, client)
+			modelConfig := createChatModel(t, client)
+			chat := createStoredChat(ctx, t, db, firstUser.UserID, firstUser.OrganizationID, modelConfig.ID, "stored title")
+			require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original length")
+			invalid := []struct {
+				field string
+				req   codersdk.UpdateChatRequest
+			}{
+				{"labels", codersdk.UpdateChatRequest{Labels: &map[string]string{"": "bad"}}},
+				{"archived", codersdk.UpdateChatRequest{Archived: new(false)}},
+				{"pin_order", codersdk.UpdateChatRequest{PinOrder: new(int32(-1))}},
+				{"workspace_id", codersdk.UpdateChatRequest{WorkspaceID: new(uuid.New())}},
+				{"plan_mode", codersdk.UpdateChatRequest{PlanMode: new(codersdk.ChatPlanMode("invalid"))}},
+			}
+			for _, tc := range invalid {
+				for _, title := range []string{chat.Title, "new title"} {
+					req := tc.req
+					req.Title = &title
+					err := client.UpdateChat(ctx, chat.ID, req)
+					requireSDKError(t, err, http.StatusBadRequest)
 
-			tooLong := strings.Repeat("a", 201)
-			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref(tooLong),
-			})
-			requireSDKError(t, err, http.StatusBadRequest)
-
-			updated := getChat(ctx, t, client, chat.ID)
-			require.Equal(t, chat.Title, updated.Title)
+					stored := getChat(ctx, t, client, chat.ID)
+					require.Equal(t, chat.Title, stored.Title, "invalid %s, title %q", tc.field, title)
+					require.Equal(t, chat.TitleSource, stored.TitleSource, "invalid %s, title %q", tc.field, title)
+					require.True(t, chat.TitleUpdatedAt.Equal(stored.TitleUpdatedAt), "invalid %s, title %q", tc.field, title)
+				}
+			}
 		})
 
 		t.Run("LengthBoundaries", func(t *testing.T) {
@@ -6682,45 +6701,7 @@ func TestPatchChat(t *testing.T) {
 			}
 		})
 
-		t.Run("PreservesUpdatedAt", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-				DeploymentValues:    coderdtest.DeploymentValues(t),
-				Database:            db,
-				Pubsub:              ps,
-				ChatProviderAPIKeys: &providerKeys,
-			})
-			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-			client := codersdk.NewExperimentalClient(clientRaw)
-			firstUser := coderdtest.CreateFirstUser(t, client.Client)
-			_ = createChatModel(t, client)
-
-			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
-			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
-			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET updated_at = $1 WHERE id = $2",
-				past, chat.ID,
-			)
-			require.NoError(t, err)
-
-			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("renamed in place"),
-			})
-			require.NoError(t, err)
-
-			updated := getChat(ctx, t, client, chat.ID)
-			require.Equal(t, "renamed in place", updated.Title)
-			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"rename bumped updated_at; it should be preserved to keep list ordering stable")
-		})
-
-		t.Run("NoOpWhenTitleUnchanged", func(t *testing.T) {
+		t.Run("RecordsUserSourceWithoutChangingUpdatedAt", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -6742,20 +6723,31 @@ func TestPatchChat(t *testing.T) {
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
+				"UPDATE chats SET title = $1, title_source = 'fallback', updated_at = $2 WHERE id = $3",
 				"steady title", past, chat.ID,
 			)
 			require.NoError(t, err)
 
 			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("steady title"),
+				Title: new("steady title"),
 			})
 			require.NoError(t, err)
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, "steady title", updated.Title)
-			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"no-op rename bumped updated_at; it should have been short-circuited before the write")
+			require.Equal(t, codersdk.ChatTitleSourceUser, updated.TitleSource)
+			require.WithinDuration(t, past, updated.UpdatedAt, time.Second)
+
+			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+				Title: new("renamed in place"),
+			})
+			require.NoError(t, err)
+
+			renamed := getChat(ctx, t, client, chat.ID)
+			require.Equal(t, "renamed in place", renamed.Title)
+			require.Equal(t, codersdk.ChatTitleSourceUser, renamed.TitleSource)
+			require.True(t, renamed.TitleUpdatedAt.After(updated.TitleUpdatedAt))
+			require.WithinDuration(t, past, renamed.UpdatedAt, time.Second)
 		})
 
 		t.Run("PublishesWatchEvent", func(t *testing.T) {
@@ -10967,6 +10959,7 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// The create response carries the synchronous fallback title derived from
 	// the message, not the asynchronously generated one.
 	require.Equal(t, "automatic title generation please", chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
 	// The create endpoint kicks off detached title generation; the provider
 	// should receive the title request without any further client action.
@@ -10979,6 +10972,52 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// Drain background work so the detached goroutine finishes before the test
 	// (and its fake provider) tears down.
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+}
+
+func TestPostChats_UserTitle(t *testing.T) {
+	t.Parallel()
+
+	const prompt = "automatic title generation please"
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		if bytes.Contains(req.RawBody, []byte("propose_title")) {
+			t.Error("automatic title generation ran for a chat created with a title")
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+	})
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	// Title text is validated by the same rules as PATCH; see TestPatchChat/Title.
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("   "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Same text as the fallback, so only the source distinguishes them.
+	userTitle := chatprompt.FallbackTitle(prompt)
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("  " + userTitle + "  "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, userTitle, chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
+
+	settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	require.Equal(t, userTitle, settled.Title)
+	require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 }
 
 func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
@@ -11246,8 +11285,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		_, err = db.UpsertChatDiffStatus(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
-				ChatID: cachedStatusChat.ID,
-				Url:    sql.NullString{},
+				ChatID:          cachedStatusChat.ID,
+				GitRemoteOrigin: "git@github.com:coder/coder.git",
+				GitBranch:       "feature/diff-status",
+				Url:             sql.NullString{},
 				PullRequestState: sql.NullString{
 					String: " open ",
 					Valid:  true,
@@ -11389,6 +11430,164 @@ func TestGetChatDiffContents(t *testing.T) {
 		require.Nil(t, diffContents.Branch)
 		require.Nil(t, diffContents.PullRequestURL)
 		require.Empty(t, diffContents.Diff)
+	})
+
+	t.Run("DiscoveryWriteKeysStoredRef", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const gitToken = "test-git-token"
+		var githubServer *httptest.Server
+		githubServer = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The provider accepts only https URLs, so the fake server
+			// uses TLS and every URL string uses the https scheme.
+			host := strings.TrimPrefix(githubServer.URL, "https://")
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/pulls"):
+				_, _ = w.Write([]byte(`[{"html_url": "https://` + host + `/acme/project/pull/7", "number": 7}]`))
+			case strings.HasSuffix(r.URL.Path, "/reviews"):
+				_, _ = w.Write([]byte(`[]`))
+			case strings.Contains(r.URL.Path, "/compare/"):
+				w.Header().Set("Content-Type", "text/plain")
+				_, _ = w.Write([]byte("diff --git a/main.go b/main.go"))
+			default:
+				_, _ = w.Write([]byte(`{"default_branch": "main", "state": "open", "number": 7}`))
+			}
+		}))
+		t.Cleanup(githubServer.Close)
+		// The provider parses the origin against the fake host, so the
+		// stored origin must use it too.
+		host := strings.TrimPrefix(githubServer.URL, "https://")
+		origin := "https://" + host + "/acme/project.git"
+		prURL := "https://" + host + "/acme/project/pull/7"
+
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{
+				{
+					ID:           "github-test",
+					Type:         "github",
+					Regex:        regexp.MustCompile(`^https?://` + regexp.QuoteMeta(host) + `(/.*)?$`),
+					APIBaseURL:   githubServer.URL + "/api/v3",
+					HTTPClient:   githubServer.Client(),
+					RefreshGroup: new(singleflight.Group),
+				},
+			},
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+			ProviderID:       "github-test",
+			UserID:           user.UserID,
+			OAuthAccessToken: gitToken,
+			OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "discovery write keys stored ref",
+		})
+		// A reported ref with no stored PR URL, so the diff GET must
+		// resolve the PR upstream.
+		_, err = db.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				Url:             sql.NullString{},
+				GitBranch:       "feature/keyed-discovery",
+				GitRemoteOrigin: origin,
+				StaleAt:         time.Now().UTC().Add(time.Hour),
+			},
+		)
+		require.NoError(t, err)
+
+		diffContents, err := client.GetChatDiffContents(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotNil(t, diffContents.Provider)
+		require.NotNil(t, diffContents.PullRequestURL)
+		require.Equal(t, prURL, *diffContents.PullRequestURL)
+
+		statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
+		require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
+		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
+		require.True(t, statuses[0].Url.Valid)
+		require.Equal(t, prURL, statuses[0].Url.String)
+	})
+
+	t.Run("DiscoveryWriteDoesNotReorderPrimary", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
+		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:        "test-model",
+			ContextLimit: 100000,
+		})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "discovery-write-primary-order",
+		})
+
+		// An old ref, then a newer ref reported later. The newer
+		// report is the primary.
+		_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitBranch:       "old",
+			GitRemoteOrigin: "https://github.com/o/r",
+			StaleAt:         time.Now().Add(-2 * time.Minute),
+			Url:             sql.NullString{},
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitBranch:       "new",
+			GitRemoteOrigin: "https://github.com/o/r",
+			StaleAt:         time.Now().Add(-time.Minute),
+			Url:             sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		before, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, before, 2)
+		require.Equal(t, "new", before[0].GitBranch)
+
+		// A discovery write lands on the old ref after the new one
+		// was reported, as an in-flight diff GET would.
+		err = db.UpdateChatDiffStatusReferenceURL(ctx, database.UpdateChatDiffStatusReferenceURLParams{
+			ChatID:          chat.ID,
+			GitBranch:       "old",
+			GitRemoteOrigin: "https://github.com/o/r",
+			StaleAt:         time.Now().Add(-time.Minute),
+			Url:             "https://github.com/o/r/pull/7",
+		})
+		require.NoError(t, err)
+
+		// The discovery write must not steal the primary position
+		// from the newer report.
+		after, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, after, 2)
+		require.Equal(t, "new", after[0].GitBranch, "discovery must not reorder the primary")
+		require.Equal(t, "https://github.com/o/r/pull/7", after[1].Url.String)
 	})
 
 	t.Run("NotFoundForDifferentUser", func(t *testing.T) {

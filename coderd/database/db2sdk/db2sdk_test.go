@@ -897,6 +897,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID:   uuid.New(),
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		Title:               "all-fields-test",
+		TitleSource:         database.ChatTitleSourceUser,
+		TitleUpdatedAt:      now,
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
@@ -916,6 +918,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 		// Pinned-context columns drive codersdk.Chat.Context. Set all of
 		// them so the converted sub-struct's fields are non-zero too.
+		ProjectID:            uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",

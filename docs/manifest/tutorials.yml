@@ -1,0 +1,73 @@
+title: Tutorials
+description: Step-by-step, employee-written guides and tutorials for deploying and administering Coder.
+path: ./tutorials/index.md
+icon_path: ./images/icons/generic.svg
+children:
+  - title: Quickstart
+    description: Install Coder, build your first template, and launch your first workspace in this quickstart guide.
+    path: ./get-started/index.md
+  - title: Write a template from scratch
+    description: Learn how to write a Coder template from scratch with Terraform, step by step.
+    path: ./tutorials/template-from-scratch.md
+  - title: Use an external database
+    description: Configure Coder to use an external PostgreSQL database for production deployments.
+    path: ./tutorials/external-database.md
+  - title: Image management
+    description: Learn how to build and manage the container images that back your Coder templates.
+    path: ./admin/templates/managing-templates/image-management.md
+  - title: Configure custom claims/scopes with Okta for group/role
+    description: Configure custom Okta claims and scopes to drive Coder group and role sync.
+    path: ./tutorials/configuring-okta.md
+  - title: Persistent shared workspaces
+    description: Set up long-lived shared workspaces with service accounts and workspace sharing
+    path: ./tutorials/persistent-shared-workspaces.md
+    state: [premium]
+  - title: Google Cloud to AWS federation
+    description: Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.
+    path: ./tutorials/gcp-to-aws.md
+  - title: JFrog Artifactory Integration
+    description: Integrate Coder with JFrog Artifactory to secure workspaces and manage packages and tokens.
+    path: ./admin/integrations/jfrog-artifactory.md
+  - title: Istio integration
+    description: Use the Istio service mesh to secure and control your Coder workspace traffic.
+    path: ./admin/integrations/istio.md
+  - title: Island browser integration
+    description: Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.
+    path: ./admin/integrations/island.md
+  - title: Image pull secrets
+    description: Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.
+    path: ./tutorials/image-pull-secret.md
+  - title: PostgreSQL SSL
+    description: Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.
+    path: ./tutorials/postgres-ssl.md
+  - title: Azure federation
+    description: Federate Coder's control plane to Azure so it can authenticate to Azure services.
+    path: ./tutorials/azure-federation.md
+  - title: Deploy Coder on Azure with an Application Gateway
+    description: Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.
+    path: ./install/server/kubernetes/kubernetes-azure-app-gateway.md
+  - title: Cloning Git repositories
+    description: Learn how to automatically clone Git repositories into your Coder workspaces on startup.
+    path: ./tutorials/cloning-git-repositories.md
+  - title: Test templates through CI/CD
+    description: Test and publish your Coder templates automatically through a CI/CD pipeline.
+    path: ./tutorials/testing-templates.md
+  - title: Apache reverse proxy
+    description: Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./tutorials/reverse-proxy-apache.md
+  - title: Caddy
+    description: Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.
+    path: ./tutorials/reverse-proxy-caddy.md
+  - title: NGINX reverse proxy
+    description: Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.
+    path: ./tutorials/reverse-proxy-nginx.md
+  - title: Pre-install JetBrains IDEs
+    description: Pre-install JetBrains IDE backends in your template for faster first-time connections.
+    path: ./admin/templates/extending-templates/jetbrains-preinstall.md
+  - title: JetBrains IDEs in an air-gapped environment
+    description: Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.
+    path: ./admin/templates/extending-templates/jetbrains-airgapped.md
+  - title: FAQs
+    description: Answers to frequently asked questions about Coder OSS and licensed deployments.
+    path: ./tutorials/faqs.md
+  - include: tutorials/best-practices.yml

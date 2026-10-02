@@ -150,4 +150,31 @@ func TestUserShow(t *testing.T) {
 		require.Equal(t, otherUser.Email, newUser.Email)
 		require.Equal(t, otherUser.Name, newUser.Name)
 	})
+
+	t.Run("Column", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		_, otherUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		inv, root := clitest.New(t, "users", "show", otherUser.Username, "-c", "username,email")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		buf := bytes.NewBuffer(nil)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		out := buf.String()
+		require.Contains(t, out, "Username:")
+		require.Contains(t, out, "Email:")
+		require.Contains(t, out, otherUser.Username)
+		require.Contains(t, out, otherUser.Email)
+		require.NotContains(t, out, "ID:")
+		require.NotContains(t, out, "Status:")
+		require.NotContains(t, out, "Created At:")
+		require.NotContains(t, out, "Roles")
+		require.NotContains(t, out, "Organizations")
+	})
 }

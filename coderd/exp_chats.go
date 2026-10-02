@@ -418,6 +418,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
+// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -482,6 +483,22 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	projectID := uuid.NullUUID{}
+	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
+		// Ignoring the filter would return every chat as if it were the
+		// project's contents, so reject it like create and update do.
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
+		}
+		parsedProjectID, err := uuid.Parse(rawProjectID)
+		if err != nil || parsedProjectID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
 		ViewerID:            apiKey.UserID,
@@ -500,6 +517,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		RepoQuery:           searchParams.RepoQuery,
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
+		ProjectID:           projectID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -663,6 +681,9 @@ func (api *API) getChatDiffStatusesByChatID(
 
 	statusesByChatID := make(map[uuid.UUID]database.ChatDiffStatus, len(statuses))
 	for _, status := range statuses {
+		if _, ok := statusesByChatID[status.ChatID]; ok {
+			continue
+		}
 		statusesByChatID[status.ChatID] = status
 	}
 	return statusesByChatID, nil
@@ -1209,6 +1230,7 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Produce json
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
+// @Failure 400 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
@@ -1331,7 +1353,40 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+		return
+	}
+	projectID := uuid.NullUUID{}
+	if req.ProjectID != nil {
+		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching chat project.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// Projects are private to their owner, and a chat in a project reads
+		// and writes its memory, so the chat's owner must own the project.
+		// This matches the unreadable-project response so callers creating
+		// chats for other users cannot probe for project IDs.
+		if project.OwnerID != ownerID {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+			return
+		}
+		if project.OrganizationID != req.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Chat project does not belong to this chat's organization."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+	}
+
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -1343,7 +1398,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := chatprompt.FallbackTitle(titleSource)
+	title := chatprompt.FallbackTitle(titleText)
+	titleSource := database.ChatTitleSourceFallback
+	if req.Title != nil {
+		userTitle, titleError := normalizeChatTitle(*req.Title)
+		if titleError != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *titleError)
+			return
+		}
+		title = userTitle
+		titleSource = database.ChatTitleSourceUser
+	}
 
 	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req)
 	if modelConfigError != nil {
@@ -1471,22 +1536,23 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
-		OrganizationID:          req.OrganizationID,
-		OwnerID:                 ownerID,
-		CreatedBy:               apiKey.UserID,
-		WorkspaceID:             workspaceSelection.WorkspaceID,
-		Title:                   title,
-		TitleDerivedFromContent: true,
-		ModelConfigID:           modelConfigID,
-		ReasoningEffort:         reasoningEffort,
-		PlanMode:                planModeToNullChatPlanMode(req.PlanMode),
-		ClientType:              clientType,
-		SystemPrompt:            req.SystemPrompt,
-		InitialUserContent:      contentBlocks,
-		MCPServerIDs:            mcpServerIDs,
-		InlineMCPServers:        req.InlineMCPServers,
-		Labels:                  labels,
-		DynamicTools:            dynamicToolsJSON,
+		OrganizationID:     req.OrganizationID,
+		OwnerID:            ownerID,
+		CreatedBy:          apiKey.UserID,
+		ProjectID:          projectID,
+		WorkspaceID:        workspaceSelection.WorkspaceID,
+		Title:              title,
+		TitleSource:        titleSource,
+		ModelConfigID:      modelConfigID,
+		ReasoningEffort:    reasoningEffort,
+		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
+		ClientType:         clientType,
+		SystemPrompt:       req.SystemPrompt,
+		InitialUserContent: contentBlocks,
+		MCPServerIDs:       mcpServerIDs,
+		InlineMCPServers:   req.InlineMCPServers,
+		Labels:             labels,
+		DynamicTools:       dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})
@@ -1546,11 +1612,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = chat
 
-	// Kick off best-effort automatic title generation now that the
-	// chat and its initial user message are persisted. It runs
-	// detached so it never blocks the create response, and only acts
-	// on the first user turn. Empty creates title on their first send.
-	if len(contentBlocks) > 0 {
+	// Empty creates title on their first send.
+	if len(contentBlocks) > 0 && chat.TitleSource == database.ChatTitleSourceFallback {
 		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
 	}
 
@@ -1579,15 +1642,15 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// blocks the response for 200-800ms. The background gitsync
 	// worker keeps the cached status fresh.
 	var diffStatus *database.ChatDiffStatus
-	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chat.ID)
-	switch {
-	case err == nil:
-		diffStatus = &status
-	case !xerrors.Is(err, sql.ErrNoRows):
+	diffStatuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		api.Logger.Error(ctx, "failed to get cached chat diff status",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
+	}
+	if len(diffStatuses) > 0 {
+		diffStatus = &diffStatuses[0]
 	}
 
 	// Hydrate file metadata for all files linked to this chat.
@@ -2255,31 +2318,28 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
+// normalizeChatTitle trims and validates a user-supplied title. The
+// response is non-nil when the title is rejected.
+func normalizeChatTitle(rawTitle string) (string, *codersdk.Response) {
+	title := strings.TrimSpace(rawTitle)
+	if title == "" {
+		return "", &codersdk.Response{Message: "Title cannot be empty."}
+	}
+	if utf8.RuneCountInString(title) > codersdk.MaxChatTitleRunes {
+		return "", &codersdk.Response{
+			Message: fmt.Sprintf("Title must be at most %d characters.", codersdk.MaxChatTitleRunes),
+		}
+	}
+	return title, nil
+}
+
 func (api *API) applyChatTitleUpdate(
 	ctx context.Context,
 	rw http.ResponseWriter,
 	chat database.Chat,
-	rawTitle string,
+	title string,
 ) (database.Chat, bool) {
-	trimmedTitle := strings.TrimSpace(rawTitle)
-	if trimmedTitle == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Title cannot be empty.",
-		})
-		return chat, true
-	}
-	const maxChatTitleRunes = 200
-	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
-		})
-		return chat, true
-	}
-	if trimmedTitle == chat.Title {
-		return chat, false
-	}
-
-	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat.ID, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(rw)
@@ -2364,6 +2424,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
+// @Failure 400 {object} codersdk.Response
 // @Router /api/v2/chats/{chat} [patch]
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2393,6 +2454,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every field is validated before the first write, so an invalid
+	// request changes nothing.
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2406,9 +2469,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The read cursor is owner-scoped, so an admin with update
-	// permission must not move another user's unread state. Checked
-	// before any write so a rejected request does not commit the
-	// other fields of a multi-field update.
+	// permission must not move another user's unread state.
 	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner can change its read state.",
@@ -2416,13 +2477,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var title string
 	if req.Title != nil {
-		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
-		if handled {
+		normalized, resp := normalizeChatTitle(*req.Title)
+		if resp != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return
 		}
-		chat = updatedChat
+		title = normalized
 	}
+
+	var labelsJSON []byte
 	if req.Labels != nil {
 		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2431,7 +2496,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		labelsJSON, err := json.Marshal(*req.Labels)
+		var err error
+		labelsJSON, err = json.Marshal(*req.Labels)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to marshal labels.",
@@ -2439,6 +2505,86 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	archived := chat.Archived
+	if req.Archived != nil {
+		// Archive invariant is one-way: parent archived implies
+		// child archived. Archive state changes target the root
+		// chat and cascade atomically across the family; child
+		// chats cannot be archived or unarchived independently.
+		// This check precedes the no-op check so any child attempt
+		// surfaces the root-only error regardless of the chat's
+		// current archived value.
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat archive state can only be changed on the root chat.",
+			})
+			return
+		}
+
+		if *req.Archived == chat.Archived {
+			state := "archived"
+			if !chat.Archived {
+				state = "not archived"
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Chat is already %s.", state),
+			})
+			return
+		}
+		archived = *req.Archived
+	}
+
+	if req.PinOrder != nil {
+		if *req.PinOrder < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Pin order must be non-negative.",
+			})
+			return
+		}
+
+		if *req.PinOrder > 0 && archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
+		if *req.PinOrder > 0 && chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin a child chat.",
+			})
+			return
+		}
+	}
+
+	workspaceID := uuid.NullUUID{}
+	if req.WorkspaceID != nil && *req.WorkspaceID != uuid.Nil {
+		var workspace database.Workspace
+		var status int
+		var resp *codersdk.Response
+		workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
+		if resp != nil {
+			httpapi.Write(ctx, rw, status, *resp)
+			return
+		}
+		if workspace.OrganizationID != chat.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace does not belong to this chat's organization.",
+			})
+			return
+		}
+	}
+
+	if req.Title != nil {
+		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, title)
+		if handled {
+			return
+		}
+		chat = updatedChat
+	}
+	if req.Labels != nil {
 		updatedChat, err := api.Database.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
 			ID:     chat.ID,
 			Labels: labelsJSON,
@@ -2458,35 +2604,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Archived != nil {
-		archived := *req.Archived
-
-		// Archive invariant is one-way: parent archived implies
-		// child archived. Archive state changes target the root
-		// chat and cascade atomically across the family; child
-		// chats cannot be archived or unarchived independently.
-		// This check precedes the no-op check so any child attempt
-		// surfaces the root-only error regardless of the chat's
-		// current archived value.
-		if chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Chat archive state can only be changed on the root chat.",
-			})
-			return
-		}
-
-		if archived == chat.Archived {
-			state := "archived"
-			if !archived {
-				state = "not archived"
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Chat is already %s.", state),
-			})
-			return
-		}
-
 		var err error
-		if archived {
+		if *req.Archived {
 			err = api.chatDaemon.ArchiveChat(ctx, chat)
 		} else {
 			err = api.chatDaemon.UnarchiveChat(ctx, chat)
@@ -2513,7 +2632,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			action := "archive"
-			if !archived {
+			if !*req.Archived {
 				action = "unarchive"
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2526,26 +2645,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	if req.PinOrder != nil {
 		pinOrder := *req.PinOrder
-		if pinOrder < 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Pin order must be non-negative.",
-			})
-			return
-		}
-
-		if pinOrder > 0 && chat.Archived {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot pin an archived chat.",
-			})
-			return
-		}
-
-		if pinOrder > 0 && chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot pin a child chat.",
-			})
-			return
-		}
 
 		// The behavior depends on current pin state:
 		// - pinOrder == 0: unpin.
@@ -2616,24 +2715,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.WorkspaceID != nil {
-		workspaceID := uuid.NullUUID{}
-		workspace := database.Workspace{}
-		if *req.WorkspaceID != uuid.Nil {
-			var status int
-			var resp *codersdk.Response
-			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
-			if resp != nil {
-				httpapi.Write(ctx, rw, status, *resp)
-				return
-			}
-			if workspace.OrganizationID != chat.OrganizationID {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Workspace does not belong to this chat's organization.",
-				})
-				return
-			}
-		}
-
 		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 			ID:          chat.ID,
 			WorkspaceID: workspaceID,
@@ -4071,10 +4152,21 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL) {
-			_, err := api.upsertChatDiffStatusReference(ctx, chat.ID, pullRequestURL, time.Now().UTC().Add(-time.Second))
+		// The agent's report creates the row. Discovery only fills in
+		// the URL, so skip until the ref was reported.
+		if found && (!strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL)) {
+			err := api.Database.UpdateChatDiffStatusReferenceURL(
+				ctx,
+				database.UpdateChatDiffStatusReferenceURLParams{
+					ChatID:          status.ChatID,
+					GitBranch:       status.GitBranch,
+					GitRemoteOrigin: status.GitRemoteOrigin,
+					StaleAt:         time.Now().UTC().Add(-time.Second),
+					Url:             pullRequestURL,
+				},
+			)
 			if err != nil {
-				return result, err
+				return result, xerrors.Errorf("update chat diff status reference url: %w", err)
 			}
 		}
 	}
@@ -4231,48 +4323,21 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 	return repoRef
 }
 
-func (api *API) upsertChatDiffStatusReference(
-	ctx context.Context,
-	chatID uuid.UUID,
-	pullRequestURL string,
-	staleAt time.Time,
-) (database.ChatDiffStatus, error) {
-	status, err := api.Database.UpsertChatDiffStatusReference(
-		ctx,
-		database.UpsertChatDiffStatusReferenceParams{
-			ChatID: chatID,
-			Url: sql.NullString{
-				String: pullRequestURL,
-				Valid:  strings.TrimSpace(pullRequestURL) != "",
-			},
-			// Empty strings preserve existing values via the
-			// CASE expression in the SQL query.
-			GitBranch:       "",
-			GitRemoteOrigin: "",
-			StaleAt:         staleAt,
-		},
-	)
-	if err != nil {
-		return database.ChatDiffStatus{}, xerrors.Errorf("upsert chat diff status reference: %w", err)
-	}
-	return status, nil
-}
-
 func (api *API) getCachedChatDiffStatus(
 	ctx context.Context,
 	chatID uuid.UUID,
 ) (database.ChatDiffStatus, bool, error) {
-	status, err := api.Database.GetChatDiffStatusByChatID(ctx, chatID)
-	if err == nil {
-		return status, true, nil
+	statuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chatID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return database.ChatDiffStatus{}, false, xerrors.Errorf(
+			"get chat diff status: %w",
+			err,
+		)
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if len(statuses) == 0 {
 		return database.ChatDiffStatus{}, false, nil
 	}
-	return database.ChatDiffStatus{}, false, xerrors.Errorf(
-		"get chat diff status: %w",
-		err,
-	)
+	return statuses[0], true, nil
 }
 
 // resolveExternalAuth finds the external auth config matching the
@@ -7189,18 +7254,15 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if inputError != nil {
 		return nil, "", inputError
 	}
-	// Derive titleSource through the same chatprompt.TitleText used at
-	// generation time; auto-titling gates on that equality. Paste blobs
-	// are copied only when text and file-reference parts yield nothing.
-	titleSource := chatprompt.TitleText(content, nil)
-	if titleSource == "" && len(pasteData) > 0 {
+	titleText := chatprompt.TitleText(content, nil)
+	if titleText == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))
 		for id, data := range pasteData {
 			pasteText[id] = chatprompt.TitlePasteText(data)
 		}
-		titleSource = chatprompt.TitleText(content, pasteText)
+		titleText = chatprompt.TitleText(content, pasteText)
 	}
-	return content, titleSource, nil
+	return content, titleText, nil
 }
 
 // createChatInputFromParts validates input parts and converts them to

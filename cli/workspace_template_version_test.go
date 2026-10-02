@@ -80,10 +80,7 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 			require.False(t, workspace.Outdated)
 			before := workspace.LatestBuild.BuildNumber
 
-			args := []string{tc.command, workspace.Name}
-			if tc.command != "update" {
-				args = append(args, "-y")
-			}
+			args := []string{tc.command, workspace.Name, "-y"}
 			startID := version.ID
 			if tc.startPin {
 				name := target.Name
@@ -197,7 +194,7 @@ func TestTemplateVersionClassicParameterContinuity(t *testing.T) {
 				} else {
 					args := []string{
 						"update", workspace.Name, "--stop-template-version", stopTarget.Name,
-						"--use-parameter-defaults",
+						"--use-parameter-defaults", "-y",
 					}
 					if mode == "InterruptedUpdate" {
 						args = append(args, "--parameter", "unknown=value")
@@ -264,7 +261,7 @@ func TestUpdateTemplateVersionApplyFailure(t *testing.T) {
 				req.TemplateID = template.ID
 			})
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, target.ID)
-			args := []string{"update", workspace.Name, "--use-parameter-defaults"}
+			args := []string{"update", workspace.Name, "--use-parameter-defaults", "-y"}
 			if pinned {
 				args = append(args, "--template-version", target.Name)
 			} else {

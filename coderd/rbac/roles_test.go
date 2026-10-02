@@ -265,7 +265,8 @@ func TestAgentsAccessRole(t *testing.T) {
 	require.Empty(t, role.User)
 	require.Empty(t, role.ByOrgID[orgID.String()].Org)
 	require.ElementsMatch(t, rbac.Permissions(map[string][]policy.Action{
-		rbac.ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+		rbac.ResourceChat.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+		rbac.ResourceChatProject.Type: rbac.ResourceChatProject.AvailableActions(),
 	}), role.ByOrgID[orgID.String()].Member)
 
 	// The role is organization scoped only.
@@ -1452,6 +1453,43 @@ func TestRolePermissions(t *testing.T) {
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+			},
+		},
+		{
+			Name:     "ChatProjectRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Another member's project stays private.
+			Name:     "ChatProjectReadOtherOwner",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectManage",
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
