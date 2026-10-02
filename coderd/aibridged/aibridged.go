@@ -264,7 +264,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 
 	// Otherwise, use proxy mode.
 	s.backend.Store(&backend{})
-	s.logger.Warn(ctx, "reverse proxy routing is not yet functional")
+	s.logger.Warn(ctx, "experimental proxy mode records request lifecycle only; model and token accounting are not yet supported")
 	return nil
 }
 

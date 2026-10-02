@@ -41,13 +41,11 @@ var _ http.Handler = (*Router)(nil)
 // NewRouter creates a [*Router] for the given set of providers.
 // Provider names must be valid and unique.
 //
-// Disabled providers serve 503 on every path under their name. Enabled
-// providers proxy passthrough routes upstream. Non-Bedrock bridged routes
-// return 404 after validation succeeds. Bedrock bridged routes return 404
-// without validation regardless of credentials.
-// All routes reuse the same inflight gate across a server's snapshots.
-// Shutdown drains all admitted requests.
-// rec is shared across requests and must read identity from the request context.
+// Disabled providers serve 503 on every path under their name. Passthrough
+// routes use the passthrough handler. Bridged routes forward with the shared
+// recorder and authenticated actor from the request context. Bedrock bridged
+// routes return 404 without validation regardless of credentials. All snapshots
+// must share the server's inflight gate so shutdown drains their requests.
 func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
