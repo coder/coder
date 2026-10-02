@@ -140,6 +140,22 @@ type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
 
+export const LongUsername: Story = {
+	args: {
+		initiator: {
+			...MockSession.initiator,
+			username: "averylongusernamefortheinitiatorofthissession",
+		},
+	},
+};
+
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 // A summary is present only for sessions that passed through Agent Firewall.
 // The panel sits above the threads because its counts are session-scoped
 // rather than tied to any one thread.
