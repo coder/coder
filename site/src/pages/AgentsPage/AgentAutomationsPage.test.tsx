@@ -999,10 +999,17 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		},
 		{
 			// A validation on a field the form does not render has no field to
-			// show on, so the alert lists it.
+			// show on, so the alert lists it under the field's label.
 			failure: "rejected on a field the form does not show",
+			response: () =>
+				validationError("reasoning_effort", "Unsupported reasoning effort."),
+			alertText:
+				"Invalid chat automation.Reasoning effort: Unsupported reasoning effort.",
+		},
+		{
+			failure: "rejected on a field the form has no label for",
 			response: () => validationError("kind", "Kind cannot change."),
-			alertText: "Invalid chat automation.kind: Kind cannot change.",
+			alertText: "Invalid chat automation.Kind cannot change.",
 		},
 	])(
 		"keeps the editor open with the server message when saving is $failure",

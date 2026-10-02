@@ -83,6 +83,8 @@ const AutomationsList: React.FC = () => {
 		...automationChats(chatsAutomation?.id ?? ""),
 		enabled: Boolean(chatsAutomation),
 	});
+	// The list toggle and the editor each own an update mutation, which keeps
+	// their pending and error states apart.
 	const updateMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
@@ -104,7 +106,10 @@ const AutomationsList: React.FC = () => {
 		),
 		onSuccess: ({ automation }) => {
 			toast.success(`Created ${automation.name}.`);
-			setEditor(undefined);
+			// A webhook create closed the editor when its secret arrived.
+			if (automation.kind === "schedule") {
+				setEditor(undefined);
+			}
 		},
 	});
 	const rotateMutation = useMutation(

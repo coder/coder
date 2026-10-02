@@ -12,6 +12,7 @@ import type {
 	ChatAutomationWhenBusy,
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
+	ValidationError,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -29,6 +30,7 @@ import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
@@ -45,18 +47,27 @@ import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
 
-const KIND_FIELDS: readonly string[] = [
-	"schedule_cron",
-	"schedule_time_zone",
-	"webhook_use",
-];
+// Labels for the server's field names, and the choice that hides a field,
+// which makes the field's server error stale when that choice changes.
+const SERVER_FIELDS: Record<
+	string,
+	{ label: string; shownFor?: "kind" | "target_mode" }
+> = {
+	name: { label: "Name" },
+	prompt: { label: "Prompt" },
+	schedule_cron: { label: "Cron expression", shownFor: "kind" },
+	schedule_time_zone: { label: "Time zone", shownFor: "kind" },
+	webhook_use: { label: "Use", shownFor: "kind" },
+	target_chat_id: { label: "Chat", shownFor: "target_mode" },
+	when_busy: { label: "When busy", shownFor: "target_mode" },
+	new_chat_model_config_id: { label: "Model", shownFor: "target_mode" },
+	reasoning_effort: { label: "Reasoning effort", shownFor: "target_mode" },
+};
 
-const TARGET_FIELDS: readonly string[] = [
-	"target_chat_id",
-	"when_busy",
-	"new_chat_model_config_id",
-	"reasoning_effort",
-];
+const formatValidation = ({ field, detail }: ValidationError) => {
+	const label = SERVER_FIELDS[field]?.label;
+	return label ? `${label}: ${detail}` : detail;
+};
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
 type AutomationFormValues = {
@@ -204,12 +215,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	// A user-picked When busy value survives trigger changes.
 	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
 	const modelErrorId = useId();
-	// Radix returns focus to a DialogTrigger on close; this dialog has none.
-	const [opener] = useState(() =>
-		document.activeElement instanceof HTMLElement
-			? document.activeElement
-			: null,
-	);
+	const restoreFocus = useRestoreFocusOnClose();
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
 	const modelsQuery = useQuery(chatModels(organizationId));
@@ -274,26 +280,22 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	// Server errors on kind or target fields go stale once that choice changes.
-	const isStaleField = (field: string) => {
+	// A server error applies while its field, and the choice that shows the
+	// field, still hold the submitted values.
+	const isSubmittedValue = (field: string) => {
 		if (!submittedValues) {
 			return false;
 		}
-		const kindChanged = submittedValues.kind !== form.values.kind;
-		const targetChanged =
-			submittedValues.target_mode !== form.values.target_mode;
-		return (
-			(kindChanged && KIND_FIELDS.includes(field)) ||
-			(targetChanged && TARGET_FIELDS.includes(field))
-		);
+		const shownFor = SERVER_FIELDS[field]?.shownFor;
+		if (shownFor && submittedValues[shownFor] !== form.values[shownFor]) {
+			return false;
+		}
+		const isFormField = (key: string): key is keyof AutomationFormValues =>
+			key in submittedValues;
+		return !isFormField(field) || submittedValues[field] === form.values[field];
 	};
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
-		getFormHelpers(
-			form,
-			submittedValues?.[name] === form.values[name] && !isStaleField(name)
-				? error
-				: undefined,
-		)(name);
+		getFormHelpers(form, isSubmittedValue(name) ? error : undefined)(name);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
@@ -313,7 +315,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) =>
 			!renderedFields.includes(validation.field) &&
-			!isStaleField(validation.field),
+			isSubmittedValue(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
@@ -331,12 +333,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		>
 			<DialogContent
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
-				onCloseAutoFocus={(event) => {
-					if (opener?.isConnected) {
-						event.preventDefault();
-						opener.focus();
-					}
-				}}
+				onCloseAutoFocus={restoreFocus}
 			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
@@ -359,13 +356,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									: "The trigger, webhook use, and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
-					{/* The div scrolls because Chrome does not scroll a flex-sized
-					    fieldset. Radix Select triggers open on pointerdown, which
-					    browsers still dispatch to fieldset-disabled buttons. */}
+					{/* Browser and Radix constraints on this layout:
+					    - Chrome does not scroll a flex-sized fieldset, so the div scrolls.
+					    - The focus trap wraps Tab with preventScroll, so onFocus scrolls
+					      the wrapped-to field into view.
+					    - Radix Select opens on pointerdown, which browsers still send to
+					      fieldset-disabled buttons, so they get pointer-events: none. */}
 					<div
 						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
-						// The focus trap wraps Tab with preventScroll, which would
-						// leave the wrapped-to field out of view.
 						onFocus={(event) => {
 							if (event.target instanceof HTMLElement) {
 								// The parent first keeps a field's label in view too.
@@ -395,7 +393,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											{apiError?.detail}
 											{alertValidations.map((validation) => (
 												<span key={validation.field} className="block">
-													{validation.field}: {validation.detail}
+													{formatValidation(validation)}
 												</span>
 											))}
 										</AlertDescription>

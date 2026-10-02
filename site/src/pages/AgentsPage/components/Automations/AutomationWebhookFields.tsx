@@ -11,6 +11,7 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { formatDate } from "#/utils/time";
 import { RadioOption } from "./RadioOption";
 
@@ -45,6 +46,7 @@ export const AutomationWebhookFields: React.FC<
 	const useHelpId = useId();
 	const rotateButtonRef = useRef<HTMLButtonElement>(null);
 	const [confirmingRotate, setConfirmingRotate] = useState(false);
+	const restoreFocus = useRestoreFocusOnClose(confirmingRotate);
 
 	if (!automation) {
 		return (
@@ -154,10 +156,7 @@ export const AutomationWebhookFields: React.FC<
 					setConfirmingRotate(false);
 					onRotateSecret(rotateButtonRef.current);
 				}}
-				onCloseAutoFocus={(event) => {
-					event.preventDefault();
-					rotateButtonRef.current?.focus();
-				}}
+				onCloseAutoFocus={restoreFocus}
 			/>
 		</>
 	);
