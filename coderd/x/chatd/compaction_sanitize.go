@@ -35,6 +35,7 @@ func sanitizeCompactionPrompt(
 	messages := prompt
 	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
+		messages = dropOpenAIReasoningParts(ctx, logger, messages)
 	}
 	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
 	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, configuredProvider)
@@ -115,6 +116,39 @@ func flattenProviderExecutedToolParts(
 	if flattened > 0 || dropped > 0 {
 		logger.Debug(ctx, "flattened provider-executed tool history in compaction prompt",
 			slog.F("flattened_parts", flattened),
+			slog.F("dropped_parts", dropped),
+		)
+	}
+	return out
+}
+
+// dropOpenAIReasoningParts removes OpenAI reasoning parts from a copy of
+// messages, since the compaction provider cannot resolve another provider's
+// reasoning items. Messages emptied by the drop are removed.
+func dropOpenAIReasoningParts(
+	ctx context.Context,
+	logger slog.Logger,
+	messages []fantasy.Message,
+) []fantasy.Message {
+	dropped := 0
+	out := make([]fantasy.Message, 0, len(messages))
+	for _, msg := range messages {
+		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			if reasoning, ok := part.(fantasy.ReasoningPart); ok && chatsanitize.HasOpenAIReasoningState(reasoning.ProviderOptions) {
+				dropped++
+				continue
+			}
+			parts = append(parts, part)
+		}
+		if len(parts) == 0 && len(msg.Content) > 0 {
+			continue
+		}
+		msg.Content = parts
+		out = append(out, msg)
+	}
+	if dropped > 0 {
+		logger.Debug(ctx, "dropped foreign OpenAI reasoning from compaction prompt",
 			slog.F("dropped_parts", dropped),
 		)
 	}
