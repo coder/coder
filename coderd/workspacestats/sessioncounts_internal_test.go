@@ -94,36 +94,3 @@ func TestCapSessionCounts(t *testing.T) {
 	}
 	require.Equal(t, reported, stored, "capping must not lose counts")
 }
-
-func TestHasSessionCounts(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name  string
-		stats *agentproto.Stats
-		want  bool
-	}{
-		{"Empty", &agentproto.Stats{}, false},
-		{"MapPositive", &agentproto.Stats{SessionCounts: map[string]int64{"cursor": 1}}, true},
-		{"MapZeroOnly", &agentproto.Stats{SessionCounts: map[string]int64{"ssh": 0}}, false},
-		{"DeprecatedFieldPositive", &agentproto.Stats{SessionCountSsh: 2}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, HasSessionCounts(tc.stats))
-		})
-	}
-}
-
-func TestClearSessionCounts(t *testing.T) {
-	t.Parallel()
-
-	st := &agentproto.Stats{
-		SessionCounts:      map[string]int64{"vscode": 1},
-		SessionCountVscode: 1,
-		SessionCountSsh:    2,
-	}
-	ClearSessionCounts(st)
-	require.Empty(t, sessionCountsFromProto(st))
-	require.False(t, HasSessionCounts(st))
-}

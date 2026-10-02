@@ -41,7 +41,6 @@ const seedWorkspaceFamilyQueries = (queryClient: QueryClient) => {
 		offset: 50,
 	});
 	const usageKey = workspaceUsage({
-		usageApp: "reconnecting-pty",
 		connectionStatus: "connected",
 		workspaceId: "workspace-1",
 		agentId: "agent-1",

@@ -186,7 +186,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DisableUserSecretFilePath: api.DeploymentValues.DisableUserSecretFilePath.Value(),
 		DerpMapUpdateFrequency:    api.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
-		Experiments:               api.Experiments,
 		LifecycleMetrics:          api.lifecycleMetrics,
 
 		// Optional:

@@ -8000,13 +8000,13 @@ export interface PostOAuth2ProviderAppRequest {
 }
 
 // From codersdk/workspaces.go
+/**
+ * PostWorkspaceUsageRequest is ignored by the server.
+ *
+ * @deprecated use PostWorkspaceUsage, which sends no body.
+ */
 export interface PostWorkspaceUsageRequest {
 	readonly agent_id: string;
-	/**
-	 * AppName is any name for the app reporting usage. The server normalizes
-	 * it at ingestion, so a new app needs no server change. The UsageAppName
-	 * constants are the well-known names.
-	 */
 	readonly app_name: string;
 }
 

@@ -2576,10 +2576,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                  |
-|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Post workspace usage request |
+| Name        | In   | Type                                                                               | Required | Description            |
+|-------------|------|------------------------------------------------------------------------------------|----------|------------------------|
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID           |
+| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Deprecated and ignored |
 
 ### Responses
 

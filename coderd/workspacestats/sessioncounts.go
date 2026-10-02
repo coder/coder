@@ -81,17 +81,3 @@ func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
 	}
 	return capped, len(overflow)
 }
-
-// HasSessionCounts reports whether the stats contain any active session.
-func HasSessionCounts(st *agentproto.Stats) bool {
-	return len(normalizedSessionCounts(st)) > 0
-}
-
-// ClearSessionCounts zeroes every session count on the given stats.
-func ClearSessionCounts(st *agentproto.Stats) {
-	st.SessionCounts = nil
-	st.SessionCountVscode = 0
-	st.SessionCountJetbrains = 0
-	st.SessionCountReconnectingPty = 0
-	st.SessionCountSsh = 0
-}

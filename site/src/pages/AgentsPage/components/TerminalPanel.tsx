@@ -118,7 +118,6 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 
 	useQuery(
 		workspaceUsage({
-			usageApp: "reconnecting-pty",
 			connectionStatus,
 			workspaceId: shouldMountTerminal ? workspace?.id : undefined,
 			agentId: shouldMountTerminal ? workspaceAgent?.id : undefined,

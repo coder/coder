@@ -136,11 +136,10 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 	return nil
 }
 
-// nolint:revive // usage is a control flag while we have the experiment
-func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, agentID uuid.UUID, agentName string, stats *agentproto.Stats, usage bool) error {
+func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, agentID uuid.UUID, agentName string, stats *agentproto.Stats) error {
 	// update agent stats
 	if !r.opts.DisableDatabaseInserts {
-		r.opts.StatsBatcher.Add(now, agentID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
+		r.opts.StatsBatcher.Add(now, agentID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats)
 	}
 
 	// update prometheus metrics (even if template insights are disabled)
@@ -153,13 +152,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}, stats.Metrics)
 	}
 
-	// workspace activity: if no sessions we do not bump activity
-	if usage && !HasSessionCounts(stats) {
-		return nil
-	}
-
-	// legacy stats: if no active connections we do not bump activity
-	if !usage && stats.ConnectionCount == 0 {
+	// if no active connections we do not bump activity
+	if stats.ConnectionCount == 0 {
 		return nil
 	}
 

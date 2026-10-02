@@ -6638,7 +6638,6 @@ type WorkspaceAgentStat struct {
 	TxPackets                 int64           `db:"tx_packets" json:"tx_packets"`
 	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
 	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	Usage                     bool            `db:"usage" json:"usage"`
 	// Positive session counts keyed by the canonical app name reported by the agent.
 	SessionCounts json.RawMessage `db:"session_counts" json:"session_counts"`
 }

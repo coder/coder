@@ -473,12 +473,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 					stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 					defer stopPolling()
 
-					usageAppName := getUsageAppName(usageApp)
-					if usageAppName != "" {
-						closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-							AgentID: workspaceAgent.ID,
-							AppName: usageAppName,
-						})
+					if usageApp != disableUsageApp {
+						closeUsage := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
 						defer closeUsage()
 					}
 					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack, logger)
@@ -536,12 +532,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
-			usageAppName := getUsageAppName(usageApp)
-			if usageAppName != "" {
-				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-					AgentID: workspaceAgent.ID,
-					AppName: usageAppName,
-				})
+			if usageApp != disableUsageApp {
+				closeUsage := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
 				defer closeUsage()
 			}
 
@@ -876,7 +868,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		},
 		{
 			Flag:        "usage-app",
-			Description: "Specifies the usage app to use for workspace activity tracking.",
+			Description: "Set to \"disable\" to skip reporting workspace activity. Other values are ignored.",
 			Env:         "CODER_SSH_USAGE_APP",
 			Value:       serpent.StringOf(&usageApp),
 			Hidden:      true,
@@ -1555,20 +1547,6 @@ type stdioErrLogReader struct {
 func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
 	return 0, io.EOF
-}
-
-// getUsageAppName returns the app name to report usage under, or the empty
-// string to report none. Any name is valid because the server normalizes it
-// at ingestion.
-func getUsageAppName(usageApp string) string {
-	switch usageApp {
-	case disableUsageApp:
-		return ""
-	case "":
-		return string(codersdk.UsageAppNameSSH)
-	default:
-		return usageApp
-	}
 }
 
 func setStatsCallback(

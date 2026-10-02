@@ -14,7 +14,6 @@ import (
 	"os"
 	"regexp"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -646,32 +645,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
-			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
+		agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent stats: %w", err)
+		}
+		snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
+		for _, stat := range agentStats {
+			converted, err := ConvertWorkspaceAgentStat(stat)
 			if err != nil {
-				return xerrors.Errorf("get workspace agent stats: %w", err)
+				return xerrors.Errorf("convert workspace agent stat: %w", err)
 			}
-			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
-			for _, stat := range agentStats {
-				converted, err := ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat))
-				if err != nil {
-					return xerrors.Errorf("convert workspace agent stat: %w", err)
-				}
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
-			}
-		} else {
-			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
-			if err != nil {
-				return xerrors.Errorf("get workspace agent stats: %w", err)
-			}
-			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
-			for _, stat := range agentStats {
-				converted, err := ConvertWorkspaceAgentStat(stat)
-				if err != nil {
-					return xerrors.Errorf("convert workspace agent stat: %w", err)
-				}
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
-			}
+			snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 		}
 		return nil
 	})

@@ -3755,7 +3755,6 @@ CREATE TABLE workspace_agent_stats (
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
     connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
-    usage boolean DEFAULT false NOT NULL,
     session_counts jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 

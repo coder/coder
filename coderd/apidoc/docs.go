@@ -17095,7 +17095,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Post workspace usage request",
+                        "description": "Deprecated and ignored",
                         "name": "request",
                         "in": "body",
                         "schema": {
@@ -24294,7 +24294,6 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "notifications",
-                "workspace-usage",
                 "mcp-server-http",
                 "mcp-tool-search",
                 "workspace-build-updates",
@@ -24309,7 +24308,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-board",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24329,14 +24329,12 @@ const docTemplate = `{
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
-                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
-                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
+                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit."
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
-                "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
                 "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -24351,13 +24349,13 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Offers the Coder Agents chat board as a per-browser opt-in.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                ""
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
                 "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
@@ -24372,7 +24370,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatBoard",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentWorkspaceUsage"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -27481,7 +27480,6 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "app_name": {
-                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
                     "type": "string"
                 }
             }

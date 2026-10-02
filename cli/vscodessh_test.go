@@ -10,12 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
-	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -25,15 +23,7 @@ import (
 func TestVSCodeSSH(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-	batcher := &workspacestatstest.StatsBatcher{
-		LastStats: &agentproto.Stats{},
-	}
-	admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues: dv,
-		StatsBatcher:     batcher,
-	})
+	admin, store := coderdtest.NewWithDatabase(t, nil)
 	admin.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, admin)
 	client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
@@ -85,7 +75,4 @@ func TestVSCodeSSH(t *testing.T) {
 	if err := waiter.Wait(); err != nil {
 		waiter.RequireIs(context.Canceled)
 	}
-
-	require.EqualValues(t, 1, batcher.Called)
-	require.EqualValues(t, 1, batcher.LastStats.GetSessionCounts()["vscode"])
 }

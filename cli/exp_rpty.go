@@ -166,10 +166,7 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 	}
 	defer conn.Close()
 
-	closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, ws.ID, codersdk.PostWorkspaceUsageRequest{
-		AgentID: agt.ID,
-		AppName: string(codersdk.UsageAppNameReconnectingPty),
-	})
+	closeUsage := client.UpdateWorkspaceUsageContext(ctx, ws.ID)
 	defer closeUsage()
 
 	br := bufio.NewScanner(inv.Stdin)

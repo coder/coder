@@ -55,22 +55,6 @@ func TestNormalizeAppName(t *testing.T) {
 	}
 }
 
-// The usage-app vocabulary is declared independently of the normalized app
-// names because its values are part of the HTTP API. This pins the two
-// together so they cannot drift.
-func TestUsageAppNamesAreNormalized(t *testing.T) {
-	t.Parallel()
-
-	for sdkName, want := range map[codersdk.UsageAppName]string{
-		codersdk.UsageAppNameVscode:          "vscode",
-		codersdk.UsageAppNameJetbrains:       "jetbrains",
-		codersdk.UsageAppNameReconnectingPty: "reconnecting_pty",
-		codersdk.UsageAppNameSSH:             "ssh",
-	} {
-		require.Equal(t, want, codersdk.NormalizeAppName(string(sdkName)))
-	}
-}
-
 func TestAppNameFamily(t *testing.T) {
 	t.Parallel()
 

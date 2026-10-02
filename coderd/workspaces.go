@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -20,7 +19,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1793,7 +1791,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Accept json
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
+// @Param request body codersdk.PostWorkspaceUsageRequest false "Deprecated and ignored"
 // @Success 204
 // @Router /api/v2/workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
@@ -1804,97 +1802,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	api.statsReporter.TrackUsage(workspace.ID)
-
-	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
-		// Continue previous behavior if the experiment is not enabled.
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if r.Body == http.NoBody {
-		// Continue previous behavior if no body is present.
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	ctx := r.Context()
-	var req codersdk.PostWorkspaceUsageRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	// Normalize at the edge so storage and lookup agree on the key, and so a
-	// name that carries no information reads the same as an absent one.
-	appName := normalizeUsageAppName(req.AppName)
-
-	if req.AgentID == uuid.Nil && appName == "" {
-		// Continue previous behavior if body is empty.
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if req.AgentID == uuid.Nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "agent_id",
-				Detail: "must be set when app_name is set",
-			}},
-		})
-		return
-	}
-	if appName == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "app_name",
-				Detail: "must be set when agent_id is set",
-			}},
-		})
-		return
-	}
-
-	stat := &proto.Stats{
-		ConnectionCount: 1,
-		SessionCounts:   map[string]int64{appName: 1},
-	}
-
-	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	// template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	// if err != nil {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
-
-	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent.ID, agent.Name, stat, true)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-// normalizeUsageAppName prepares a client-supplied app name for storage. A
-// name of only whitespace and control characters carries no app, so it
-// returns the empty string and the caller rejects the request rather than
-// counting a session under the unknown family.
-func normalizeUsageAppName(appName string) string {
-	named := strings.ContainsFunc(appName, func(r rune) bool {
-		return !unicode.IsControl(r) && !unicode.IsSpace(r)
-	})
-	if !named {
-		return ""
-	}
-	return codersdk.NormalizeAppName(appName)
 }
 
 // @Summary Favorite workspace by ID.

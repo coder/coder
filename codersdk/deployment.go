@@ -5501,7 +5501,6 @@ const (
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
 	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
@@ -5519,6 +5518,11 @@ const (
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 )
 
+// ExperimentWorkspaceUsage has no effect and is not a known experiment.
+//
+// Deprecated: workspace usage is always tracked the same way.
+const ExperimentWorkspaceUsage Experiment = "workspace-usage"
+
 func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:
@@ -5527,8 +5531,6 @@ func (e Experiment) DisplayName() string {
 		return "Auto-fill Template Parameters"
 	case ExperimentNotifications:
 		return "SMTP and Webhook Notifications"
-	case ExperimentWorkspaceUsage:
-		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentMCPToolSearch:
@@ -5570,7 +5572,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentExample,
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
-	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
 	ExperimentNoNATSPubsub,

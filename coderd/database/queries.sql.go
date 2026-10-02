@@ -36845,78 +36845,6 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, creat
 	return i, err
 }
 
-const getDeploymentWorkspaceAgentUsageStats = `-- name: GetDeploymentWorkspaceAgentUsageStats :one
-WITH agent_stats AS (
-	SELECT
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-	 FROM workspace_agent_stats
-	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-),
-latest_minutes AS (
-	SELECT
-		agent_id,
-		MAX(date_trunc('minute', created_at)) AS minute_bucket
-	FROM
-		workspace_agent_stats
-	WHERE
-		created_at >= $1
-		-- Exclude the current partial minute.
-		AND created_at < date_trunc('minute', now())
-		AND usage
-	GROUP BY
-		agent_id
-),
-latest_agent_stats AS (
-	-- Aggregating the per app name sums separately keeps the byte and latency
-	-- aggregates in agent_stats free of the decomposed rows.
-	SELECT
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM
-			latest_minutes
-		JOIN
-			workspace_agent_stats AS stats
-		ON
-			stats.agent_id = latest_minutes.agent_id
-			AND stats.created_at >= $1
-			AND stats.created_at >= latest_minutes.minute_bucket
-			AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
-			AND stats.usage,
-			jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
-		GROUP BY sess.app_name
-	) AS app_totals
-)
-SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_counts FROM agent_stats, latest_agent_stats
-`
-
-type GetDeploymentWorkspaceAgentUsageStatsRow struct {
-	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
-}
-
-func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats, createdAt)
-	var i GetDeploymentWorkspaceAgentUsageStatsRow
-	err := row.Scan(
-		&i.WorkspaceRxBytes,
-		&i.WorkspaceTxBytes,
-		&i.WorkspaceConnectionLatency50,
-		&i.WorkspaceConnectionLatency95,
-		&i.SessionCounts,
-	)
-	return i, err
-}
-
 const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
 WITH agent_stats AS (
 	SELECT
@@ -36934,7 +36862,7 @@ WITH agent_stats AS (
 	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_stats AS (
-	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 	FROM workspace_agent_stats WHERE created_at > $1
 ), latest_agent_stats AS (
 	-- rn = 1 leaves one row per agent, and that row's session_counts is
@@ -37009,7 +36937,7 @@ WITH agent_stats AS (
 		WHERE workspace_agent_stats.created_at > $1
 		GROUP BY user_id, agent_id, workspace_id
 ), latest_stats AS (
-	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 	FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -37091,215 +37019,6 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 	return items, nil
 }
 
-const getWorkspaceAgentUsageStats = `-- name: GetWorkspaceAgentUsageStats :many
-WITH stats AS (
-	SELECT
-		id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts,
-		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		created_at > $1 AND connection_median_latency_ms > 0 AS reports_latency,
-		usage AND date_trunc('minute', created_at) = MAX(date_trunc('minute', created_at)) FILTER (
-			-- Exclude the current partial minute.
-			WHERE usage AND created_at < date_trunc('minute', now())
-		) OVER (PARTITION BY agent_id) AS in_latest_usage_minute
-	FROM workspace_agent_stats
-	WHERE created_at >= $1
-), latest_sessions AS (
-	-- One row per agent, so joining it below neither multiplies the byte and
-	-- latency aggregates nor adds groups.
-	SELECT
-		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			stats.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
-		WHERE stats.in_latest_usage_minute
-		GROUP BY stats.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-)
-SELECT
-	stats.user_id,
-	stats.agent_id,
-	stats.workspace_id,
-	stats.template_id,
-	MIN(stats.created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
-	coalesce(SUM(stats.rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
-	coalesce(SUM(stats.tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
-	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
-	-- telemetry converts between.
-	stats.agent_id,
-	coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
-FROM stats
-LEFT JOIN latest_sessions ON latest_sessions.agent_id = stats.agent_id
-GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id, latest_sessions.session_counts
-HAVING BOOL_OR(reports_latency)
-`
-
-type GetWorkspaceAgentUsageStatsRow struct {
-	UserID                       uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID                      uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID                  uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID                   uuid.UUID       `db:"template_id" json:"template_id"`
-	AggregatedFrom               time.Time       `db:"aggregated_from" json:"aggregated_from"`
-	WorkspaceRxBytes             int64           `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes             int64           `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-	WorkspaceConnectionLatency50 float64         `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64         `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-	AgentID_2                    uuid.UUID       `db:"agent_id_2" json:"agent_id_2"`
-	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
-}
-
-func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWorkspaceAgentUsageStatsRow
-	for rows.Next() {
-		var i GetWorkspaceAgentUsageStatsRow
-		if err := rows.Scan(
-			&i.UserID,
-			&i.AgentID,
-			&i.WorkspaceID,
-			&i.TemplateID,
-			&i.AggregatedFrom,
-			&i.WorkspaceRxBytes,
-			&i.WorkspaceTxBytes,
-			&i.WorkspaceConnectionLatency50,
-			&i.WorkspaceConnectionLatency95,
-			&i.AgentID_2,
-			&i.SessionCounts,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspaceAgentUsageStatsAndLabels = `-- name: GetWorkspaceAgentUsageStatsAndLabels :many
-WITH agent_stats AS (
-	SELECT
-		user_id,
-		agent_id,
-		workspace_id,
-		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-	FROM workspace_agent_stats
-	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-	GROUP BY user_id, agent_id, workspace_id
-), latest_stats AS (
-	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts
-	FROM workspace_agent_stats
-	-- We only want the latest stats, but those stats might be
-	-- spread across multiple rows.
-	WHERE usage AND created_at > now() - '1 minute'::interval
-), latest_sessions AS (
-	-- Summed per app name here so the connection count below keeps seeing one
-	-- row per agent instead of one row per app name.
-	SELECT
-		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			latest_stats.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM latest_stats, jsonb_each_text(latest_stats.session_counts) AS sess(app_name, sessions)
-		GROUP BY latest_stats.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-), latest_agent_stats AS (
-	SELECT
-		latest_stats.agent_id,
-		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts,
-		coalesce(SUM(latest_stats.connection_count), 0)::bigint AS connection_count
-	FROM latest_stats
-	LEFT JOIN latest_sessions ON latest_sessions.agent_id = latest_stats.agent_id
-	GROUP BY latest_stats.user_id, latest_stats.agent_id, latest_stats.workspace_id, latest_sessions.session_counts
-)
-SELECT
-	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	coalesce(session_counts, '{}'::jsonb)::jsonb AS session_counts,
-	coalesce(connection_count, 0)::bigint AS connection_count,
-	connection_median_latency_ms
-FROM
-	agent_stats
-LEFT JOIN
-	latest_agent_stats
-ON
-	agent_stats.agent_id = latest_agent_stats.agent_id
-JOIN
-	users
-ON
-	users.id = agent_stats.user_id
-JOIN
-	workspace_agents
-ON
-	workspace_agents.id = agent_stats.agent_id
-JOIN
-	workspaces
-ON
-	workspaces.id = agent_stats.workspace_id
-`
-
-type GetWorkspaceAgentUsageStatsAndLabelsRow struct {
-	Username                  string          `db:"username" json:"username"`
-	AgentName                 string          `db:"agent_name" json:"agent_name"`
-	WorkspaceName             string          `db:"workspace_name" json:"workspace_name"`
-	RxBytes                   int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
-	SessionCounts             json.RawMessage `db:"session_counts" json:"session_counts"`
-	ConnectionCount           int64           `db:"connection_count" json:"connection_count"`
-	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-}
-
-func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWorkspaceAgentUsageStatsAndLabelsRow
-	for rows.Next() {
-		var i GetWorkspaceAgentUsageStatsAndLabelsRow
-		if err := rows.Scan(
-			&i.Username,
-			&i.AgentName,
-			&i.WorkspaceName,
-			&i.RxBytes,
-			&i.TxBytes,
-			&i.SessionCounts,
-			&i.ConnectionCount,
-			&i.ConnectionMedianLatencyMS,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertWorkspaceAgentStats = `-- name: InsertWorkspaceAgentStats :exec
 INSERT INTO
 	workspace_agent_stats (
@@ -37316,8 +37035,7 @@ INSERT INTO
 		tx_packets,
 		tx_bytes,
 		session_counts,
-		connection_median_latency_ms,
-		usage
+		connection_median_latency_ms
 	)
 SELECT
 	unnest($1 :: uuid[]) AS id,
@@ -37333,8 +37051,7 @@ SELECT
 	unnest($11 :: bigint[]) AS tx_packets,
 	unnest($12 :: bigint[]) AS tx_bytes,
 	jsonb_array_elements($13 :: jsonb) AS session_counts,
-	unnest($14 :: double precision[]) AS connection_median_latency_ms,
-	unnest($15 :: boolean[]) AS usage
+	unnest($14 :: double precision[]) AS connection_median_latency_ms
 `
 
 type InsertWorkspaceAgentStatsParams struct {
@@ -37352,7 +37069,6 @@ type InsertWorkspaceAgentStatsParams struct {
 	TxBytes                   []int64         `db:"tx_bytes" json:"tx_bytes"`
 	SessionCounts             json.RawMessage `db:"session_counts" json:"session_counts"`
 	ConnectionMedianLatencyMS []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	Usage                     []bool          `db:"usage" json:"usage"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
@@ -37371,7 +37087,6 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.TxBytes),
 		arg.SessionCounts,
 		pq.Array(arg.ConnectionMedianLatencyMS),
-		pq.Array(arg.Usage),
 	)
 	return err
 }
