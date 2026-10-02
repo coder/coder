@@ -2,10 +2,14 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
@@ -92,10 +96,11 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		return nil, nil
 	}
 	if r.ContentLength > routing.MaxRequestBodyBytes {
-		if r.Body != nil {
-			_ = r.Body.Close()
-		}
-		logger.Warn(ctx, "rejecting oversized request body", slog.F("content_length", r.ContentLength))
+		logger.Debug(ctx, "rejecting oversized request body",
+			slog.F("route", strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())),
+			slog.F("client", string(client)),
+			slog.F("content_length", r.ContentLength),
+		)
 		routing.WriteRequestBodyTooLarge(ctx, w)
 		return nil, nil
 	}
@@ -113,8 +118,13 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	}
 	cred, err := h.provider.ResolveCredential(r)
 	if err != nil {
-		logger.Warn(ctx, "rejecting request without an upstream credential", slog.Error(err))
-		http.Error(w, "upstream authentication unavailable", http.StatusBadGateway)
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to resolve credential")
+		logger.Warn(ctx, "failed to resolve credential", slog.Error(err), slog.F("path", r.URL.Path))
+		if errors.Is(err, provider.ErrNoCredential) {
+			http.Error(w, "upstream authentication unavailable: no provider credentials supplied or configured", http.StatusForbidden)
+		} else {
+			http.Error(w, "upstream authentication unavailable", http.StatusInternalServerError)
+		}
 		return nil, nil
 	}
 	switch cred.(type) {
@@ -130,16 +140,21 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		metadata = recorder.Metadata{"Username": actor.Username}
 	}
 	return &recorder.InterceptionRecord{
+		StartedAt:                   time.Now().UTC(),
+		ID:                          uuid.NewString(),
 		InitiatorID:                 actor.ID.String(),
 		Metadata:                    metadata,
 		Provider:                    h.provider.Type(),
 		ProviderName:                h.provider.Name(),
-		Client:                      string(client),
 		UserAgent:                   r.UserAgent(),
+		Client:                      string(client),
 		AgentFirewallSessionID:      firewallID,
 		AgentFirewallSequenceNumber: firewallSequence,
 		CredentialKind:              cred.Kind(),
 		CredentialHint:              cred.Hint(),
+		// Model:                    TODO, depends on extractor
+		// ClientSessionID:          TODO, depends on request buffering
+		// CorrelatingToolCallID:    TODO, depends on extractor
 	}, cred
 }
 

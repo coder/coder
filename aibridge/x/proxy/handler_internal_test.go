@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -86,9 +87,7 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			require.Equal(t, tc.status, response.Code)
 			require.Contains(t, response.Body.String(), tc.message)
 			require.False(t, body.read, "placeholder must not read the request body")
-			if tc.status == http.StatusRequestEntityTooLarge {
-				require.True(t, body.closed)
-			}
+			require.False(t, body.closed, "the transport owns request-body cleanup")
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 			require.NoError(t, gate.Shutdown(ctx), "completed requests must release their admission")
@@ -96,7 +95,7 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 	}
 }
 
-func recordedRequest(t *testing.T, body io.Reader) *http.Request {
+func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 	t.Helper()
 	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{
 		ID:       uuid.New(),
@@ -105,23 +104,23 @@ func recordedRequest(t *testing.T, body io.Reader) *http.Request {
 		Email:    "actor@example.test",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
-	req.Pattern = "/openai/v1/chat/completions"
 	req.Header.Set("Authorization", "Bearer user-secret-key")
 	return req
 }
 
 func TestForwardingHandlerRejectsRequest(t *testing.T) {
 	t.Parallel()
+	resolutionErr := xerrors.New("credential store unavailable")
 	for _, tc := range []struct {
-		name       string
-		prepare    func(*testing.T, *http.Request) *http.Request
-		provider   func(*testing.T) provider.Provider
-		noRecorder bool
-		status     int
-		message    string
-		logLevel   slog.Level
-		logMessage string
-		bodyClosed bool
+		name           string
+		prepare        func(*testing.T, *http.Request) *http.Request
+		provider       func(*testing.T) provider.Provider
+		noRecorder     bool
+		status         int
+		wantBody       string
+		wantLogLevel   slog.Level
+		wantLogMessage string
+		wantLogError   error
 	}{
 		{
 			name: "WebSocket",
@@ -131,8 +130,10 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.Header.Set("Upgrade", "websocket")
 				return r
 			},
-			status: http.StatusNotImplemented, message: "WebSocket transport is not supported, use HTTP\n",
-			logLevel: slog.LevelDebug, logMessage: "rejecting unsupported WebSocket upgrade",
+			status:         http.StatusNotImplemented,
+			wantBody:       "WebSocket transport is not supported, use HTTP\n",
+			wantLogLevel:   slog.LevelDebug,
+			wantLogMessage: "rejecting unsupported WebSocket upgrade",
 		},
 		{
 			name: "MalformedFirewallSessionID",
@@ -141,8 +142,10 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "1")
 				return r
 			},
-			status: http.StatusBadRequest, message: "invalid agent firewall headers\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request with invalid agent firewall headers",
+			status:         http.StatusBadRequest,
+			wantBody:       "invalid agent firewall headers\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "rejecting request with invalid agent firewall headers",
 		},
 		{
 			name: "FirewallMissingSequence",
@@ -150,8 +153,10 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.Header.Set("X-Coder-Agent-Firewall-Session-Id", "e5f6a7b8-1234-5678-9abc-def012345678")
 				return r
 			},
-			status: http.StatusBadRequest, message: "invalid agent firewall headers\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request with invalid agent firewall headers",
+			status:         http.StatusBadRequest,
+			wantBody:       "invalid agent firewall headers\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "rejecting request with invalid agent firewall headers",
 		},
 		{
 			name: "DeclaredOversize",
@@ -159,19 +164,26 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.ContentLength = routing.MaxRequestBodyBytes + 1
 				return r
 			},
-			status: http.StatusRequestEntityTooLarge, message: fmt.Sprintf("Request body too large. The maximum allowed request body size is %dMiB.\n", routing.MaxRequestBodyBytes>>20),
-			logLevel: slog.LevelWarn, logMessage: "rejecting oversized request body", bodyClosed: true,
+			status:         http.StatusRequestEntityTooLarge,
+			wantBody:       fmt.Sprintf("Request body too large. The maximum allowed request body size is %dMiB.\n", routing.MaxRequestBodyBytes>>20),
+			wantLogLevel:   slog.LevelDebug,
+			wantLogMessage: "rejecting oversized request body",
 		},
 		{
-			name:    "MissingActor",
-			prepare: func(t *testing.T, r *http.Request) *http.Request { return r.WithContext(t.Context()) },
-			status:  http.StatusBadRequest, message: "no actor found\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request without an actor",
+			name:           "MissingActor",
+			prepare:        func(t *testing.T, r *http.Request) *http.Request { return r.WithContext(t.Context()) },
+			status:         http.StatusBadRequest,
+			wantBody:       "no actor found\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "rejecting request without an actor",
 		},
 		{
-			name: "MissingRecorder", noRecorder: true,
-			status: http.StatusInternalServerError, message: "recorder unavailable\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request without a recorder",
+			name:           "MissingRecorder",
+			noRecorder:     true,
+			status:         http.StatusInternalServerError,
+			wantBody:       "recorder unavailable\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "rejecting request without a recorder",
 		},
 		{
 			name: "MissingCredential",
@@ -179,8 +191,38 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				r.Header.Del("Authorization")
 				return r
 			},
-			status: http.StatusBadGateway, message: "upstream authentication unavailable\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting request without an upstream credential",
+			status:         http.StatusForbidden,
+			wantBody:       "upstream authentication unavailable: no provider credentials supplied or configured\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "failed to resolve credential",
+		},
+		{
+			name: "MissingCopilotCredential",
+			prepare: func(_ *testing.T, r *http.Request) *http.Request {
+				r.Header.Del("Authorization")
+				return r
+			},
+			provider: func(*testing.T) provider.Provider {
+				return provider.NewCopilot(config.Copilot{BaseURL: "https://upstream.example.test"})
+			},
+			status:         http.StatusForbidden,
+			wantBody:       "upstream authentication unavailable: no provider credentials supplied or configured\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "failed to resolve credential",
+		},
+		{
+			name: "CredentialResolutionError",
+			provider: func(*testing.T) provider.Provider {
+				return credentialErrorProvider{
+					Provider: provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}),
+					err:      resolutionErr,
+				}
+			},
+			status:         http.StatusInternalServerError,
+			wantBody:       "upstream authentication unavailable\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "failed to resolve credential",
+			wantLogError:   resolutionErr,
 		},
 		{
 			name: "UnsupportedSigning",
@@ -193,8 +235,10 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				require.NoError(t, err)
 				return prov
 			},
-			status: http.StatusNotImplemented, message: "upstream authentication is not supported in proxy mode\n",
-			logLevel: slog.LevelWarn, logMessage: "rejecting unsupported upstream credential",
+			status:         http.StatusNotImplemented,
+			wantBody:       "upstream authentication is not supported in proxy mode\n",
+			wantLogLevel:   slog.LevelWarn,
+			wantLogMessage: "rejecting unsupported upstream credential",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -204,7 +248,7 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				rec = nil
 			}
 			body := &unreadBody{}
-			req := recordedRequest(t, body)
+			req := requestWithAuth(t, body)
 			if tc.prepare != nil {
 				req = tc.prepare(t, req)
 			}
@@ -219,53 +263,83 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 			require.Nil(t, record)
 			require.Nil(t, cred)
 			require.Equal(t, tc.status, response.Code)
-			require.Equal(t, tc.message, response.Body.String())
+			require.Equal(t, tc.wantBody, response.Body.String())
 			require.False(t, body.read, "preflight must not read the request body")
-			require.Equal(t, tc.bodyClosed, body.closed)
+			require.False(t, body.closed, "the transport owns request-body cleanup")
 			entries := sink.Entries()
 			require.Len(t, entries, 1)
-			require.Equal(t, tc.logLevel, entries[0].Level)
-			require.Equal(t, tc.logMessage, entries[0].Message)
+			require.Equal(t, tc.wantLogLevel, entries[0].Level)
+			require.Equal(t, tc.wantLogMessage, entries[0].Message)
 			require.Contains(t, entries[0].Fields, slog.F("provider", prov.Name()))
+			if tc.wantLogError != nil {
+				require.Contains(t, entries[0].Fields, slog.Error(tc.wantLogError))
+				require.Contains(t, entries[0].Fields, slog.F("path", req.URL.Path))
+			}
 			require.NotContains(t, fmt.Sprint(entries), "user-secret-key", "rejection logs must not include credentials")
 		})
 	}
 }
 
-func TestForwardingHandlerRequestMetadata(t *testing.T) {
+type credentialErrorProvider struct {
+	provider.Provider
+	err error
+}
+
+func (p credentialErrorProvider) ResolveCredential(*http.Request) (credential.Credential, error) {
+	return nil, p.err
+}
+
+func TestForwardingHandlerInterceptionRecord(t *testing.T) {
 	t.Parallel()
-	for _, pooled := range []bool{false, true} {
-		name := "BYOK"
-		if pooled {
-			name = "Pool"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		useKeyPool bool
+		wantKind   credential.Kind
+		wantHint   string
+	}{
+		{
+			name:     "BYOK",
+			wantKind: credential.KindBYOK,
+			wantHint: utils.MaskSecret("user-secret-key"),
+		},
+		{
+			name:       "KeyPool",
+			useKeyPool: true,
+			wantKind:   credential.KindCentralized,
+			wantHint:   credential.HintFailoverKey,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			body := &unreadBody{}
-			req := recordedRequest(t, body)
+			req := requestWithAuth(t, body)
 			req.Header.Set("User-Agent", "claude-code/1.0")
 			req.Header.Set("X-Coder-Agent-Firewall-Session-Id", "e5f6a7b8-1234-5678-9abc-def012345678")
 			req.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "42")
 			var pool *keypool.Pool
-			kind, hint := credential.KindBYOK, utils.MaskSecret("user-secret-key")
-			if pooled {
+			if tc.useKeyPool {
 				var err error
 				pool, err = keypool.New("openai", []string{"pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
 				req.Header.Del("Authorization")
-				kind, hint = credential.KindCentralized, credential.HintFailoverKey
 			}
 			h := &forwardingHandler{
 				provider: provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test", KeyPool: pool}),
 				recorder: &struct{ recorder.Recorder }{},
 			}
 			response := httptest.NewRecorder()
+			before := time.Now()
 			record, cred := h.checkRequest(response, req)
 			require.NotNil(t, record)
 			require.NotNil(t, cred)
-			require.Equal(t, kind, cred.Kind())
-			require.Equal(t, kind, record.CredentialKind)
-			require.Equal(t, hint, record.CredentialHint)
+			id, err := uuid.Parse(record.ID)
+			require.NoError(t, err)
+			require.NotEqual(t, uuid.Nil, id)
+			require.WithinRange(t, record.StartedAt, before, time.Now())
+			require.Equal(t, time.UTC, record.StartedAt.Location())
+			require.Equal(t, tc.wantKind, cred.Kind())
+			require.Equal(t, tc.wantKind, record.CredentialKind)
+			require.Equal(t, tc.wantHint, record.CredentialHint)
 			require.Equal(t, aibcontext.ActorIDFromContext(req.Context()), record.InitiatorID)
 			require.Equal(t, recorder.Metadata{"Username": t.Name()}, record.Metadata)
 			require.Equal(t, "openai", record.ProviderName)
@@ -274,8 +348,6 @@ func TestForwardingHandlerRequestMetadata(t *testing.T) {
 			require.Equal(t, req.UserAgent(), record.UserAgent)
 			require.Equal(t, new("e5f6a7b8-1234-5678-9abc-def012345678"), record.AgentFirewallSessionID)
 			require.Equal(t, new(int32(42)), record.AgentFirewallSequenceNumber)
-			require.Empty(t, record.Model)
-			require.Empty(t, response.Body.String())
 			require.False(t, body.read)
 			require.False(t, body.closed)
 		})
@@ -300,9 +372,10 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	}))
 
 	for _, tc := range []struct {
-		name      string
-		websocket bool
-		status    int
+		name         string
+		websocket    bool
+		noCredential bool
+		status       int
 	}{
 		{
 			name:   "OpenCircuit",
@@ -313,6 +386,11 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			websocket: true,
 			status:    http.StatusNotImplemented,
 		},
+		{
+			name:         "CredentialBeforeCircuit",
+			noCredential: true,
+			status:       http.StatusForbidden,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -320,6 +398,9 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, prov.RoutePrefix()+"/responses", body)
 			req = req.WithContext(aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
 			req.Header.Set("Authorization", "Bearer user-key")
+			if tc.noCredential {
+				req.Header.Del("Authorization")
+			}
 			if tc.websocket {
 				req.Method = http.MethodGet
 				req.Header.Set("Connection", "Upgrade")
@@ -330,7 +411,7 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			require.Equal(t, tc.status, response.Code)
 			require.False(t, body.read)
 			require.False(t, body.closed)
-			if !tc.websocket {
+			if tc.status == http.StatusServiceUnavailable {
 				require.Contains(t, response.Body.String(), circuitbreaker.ErrCircuitOpen.Error())
 			}
 		})
