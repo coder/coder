@@ -295,7 +295,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget exceeded",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: new(int64(1_000)),
@@ -308,7 +308,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget check failed",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrBudgetCheck,
@@ -320,7 +320,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "pool instance",
 			applyMocksFn: func(client *mock.MockDRPCClient, pool *mock.MockPooler) {
 				// Should pass authorization and budget check.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 				// But fail when acquiring a pool instance.
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
@@ -726,7 +726,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 
@@ -977,6 +977,8 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 
 			// Email is forwarded upstream but never recorded.
 			require.NotNil(t, recorded, "interception should be recorded")
+			require.Equal(t, authResponse.ApiKeyId, recorded.GetApiKeyId())
+			require.Equal(t, testUserID.String(), recorded.GetInitiatorId())
 			require.Contains(t, recorded.GetMetadata(), "Username")
 			require.NotContains(t, recorded.GetMetadata(), "Email")
 		})
@@ -1122,7 +1124,7 @@ func TestServeHTTP_StripInternalHeaders(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 

@@ -315,8 +315,8 @@ func TestAIGatewayStartE2E(t *testing.T) {
 // TestAIGatewayStartE2E_ReverseProxyExperiment covers the startup mode
 // selection of the standalone gateway. The gateway process reads the
 // experiment from its own environment, and the selected mode decides which
-// handler serves LLM traffic: the reverse proxy router, whose provider routes
-// are not registered yet, or the interception pool.
+// handler serves LLM traffic: the reverse proxy router, whose bridged routes
+// return 404, or the interception pool.
 func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -331,12 +331,11 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 		wantSessions       int
 	}{
 		{
-			// Proxy mode is selected, and an enabled provider has no routes
-			// yet, so its requests fall through to the router's catch-all.
+			// Proxy mode validates bridged requests but does not forward them.
 			name:               "ProxyModeWithoutMCP",
 			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
 			wantStatus:         http.StatusNotFound,
-			wantBody:           "route not supported",
+			wantBody:           "404 page not found",
 			wantUpstreamHits:   0,
 			wantSessions:       0,
 		},
