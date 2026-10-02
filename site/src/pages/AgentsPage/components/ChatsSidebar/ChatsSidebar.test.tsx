@@ -116,6 +116,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelConfigs: [],
+	navigateAfterArchive: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onMarkChatRead: vi.fn(),

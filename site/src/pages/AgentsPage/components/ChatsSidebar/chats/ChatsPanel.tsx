@@ -83,6 +83,7 @@ type ChatsPanelProps = {
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
@@ -114,6 +115,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	modelConfigs,
 	isLoadingModelConfigs,
 	onArchiveSuccess,
+	navigateAfterArchive,
 	onPinAgent,
 	onUnpinAgent,
 	onMarkChatRead,
@@ -320,6 +322,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		currentUserId,
 		toggleExpanded,
 		onArchiveSuccess,
+		navigateAfterArchive,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,

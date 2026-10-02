@@ -18,6 +18,7 @@ type ChatsSidebarProps = {
 	modelConfigs: readonly ChatModel[];
 	isLoadingModelConfigs?: boolean;
 	onArchiveSuccess?: (chatId: string) => void;
+	navigateAfterArchive: (chatId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onMarkChatRead: (chatId: string) => void;
@@ -64,6 +65,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		modelConfigs,
 		isLoadingModelConfigs = false,
 		onArchiveSuccess,
+		navigateAfterArchive,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
@@ -129,6 +131,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				modelConfigs={modelConfigs}
 				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveSuccess={onArchiveSuccess}
+				navigateAfterArchive={navigateAfterArchive}
 				onPinAgent={onPinAgent}
 				onUnpinAgent={onUnpinAgent}
 				onMarkChatRead={onMarkChatRead}

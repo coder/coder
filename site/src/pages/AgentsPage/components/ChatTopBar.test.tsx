@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useParams } from "react-router";
+import { Outlet, useParams } from "react-router";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -21,20 +21,25 @@ import {
 import { ChatTopBar } from "./ChatTopBar";
 
 const chat = { ...MockChat, workspace_id: "workspace-1" };
+const navigateAfterArchive = vi.fn();
 
 const renderTopBar = (currentChat = chat, liveChatStatus?: Chat["status"]) =>
-	renderWithAuth(
-		<ChatTopBar
-			chat={currentChat}
-			liveChatStatus={liveChatStatus}
-			panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
-		/>,
-		{
-			route: `/agents/${chat.id}`,
-			path: "/agents/:agentId",
-			extraRoutes: [{ path: "/agents", element: null }],
-		},
-	);
+	renderWithAuth(<Outlet context={{ navigateAfterArchive }} />, {
+		route: `/agents/${chat.id}`,
+		path: "/agents",
+		children: [
+			{
+				path: ":agentId",
+				element: (
+					<ChatTopBar
+						chat={currentChat}
+						liveChatStatus={liveChatStatus}
+						panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+					/>
+				),
+			},
+		],
+	});
 
 const mockArchiveAndDeleteApi = (workspaceCreatedAt: string) => {
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
@@ -64,6 +69,7 @@ const clickArchiveAndDelete = async (
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
+	navigateAfterArchive.mockClear();
 });
 
 describe("ChatTopBar archive state", () => {
@@ -198,10 +204,14 @@ describe("ChatTopBar archive state", () => {
 				/>
 			);
 		};
-		const { router, queryClient } = renderWithAuth(<ChatRoute />, {
-			route: "/agents/chat-alpha",
-			path: "/agents/:agentId",
-		});
+		const { router, queryClient } = renderWithAuth(
+			<Outlet context={{ navigateAfterArchive }} />,
+			{
+				route: "/agents/chat-alpha",
+				path: "/agents",
+				children: [{ path: ":agentId", element: <ChatRoute /> }],
+			},
+		);
 
 		try {
 			for (const id of ["chat-alpha", "chat-beta"]) {
@@ -236,11 +246,11 @@ describe("ChatTopBar archive state", () => {
 });
 
 describe("ChatTopBar archive and delete", () => {
-	it("archives the chat, deletes its workspace, and leaves the chat", async () => {
+	it("archives the chat and notifies the layout after deleting its workspace", async () => {
 		const user = userEvent.setup();
 		mockArchiveAndDeleteApi(chat.created_at);
 
-		const { router } = renderTopBar();
+		renderTopBar();
 		await clickArchiveAndDelete(user);
 
 		await waitFor(() => {
@@ -250,7 +260,7 @@ describe("ChatTopBar archive and delete", () => {
 			archived: true,
 		});
 		await waitFor(() => {
-			expect(router.state.location.pathname).toBe("/agents");
+			expect(navigateAfterArchive).toHaveBeenCalledWith(chat.id);
 		});
 	});
 

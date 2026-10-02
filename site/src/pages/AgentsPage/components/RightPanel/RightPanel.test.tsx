@@ -65,6 +65,7 @@ const RightPanelWithSidebarHarness: React.FC<SidebarHarnessProps> = ({
 		chatErrorReasons: {},
 		setChatErrorReason: () => {},
 		clearChatErrorReason: () => {},
+		navigateAfterArchive: () => {},
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
 		activeChatChildren: undefined,

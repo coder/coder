@@ -2,7 +2,6 @@ import type { Workspace } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 
 type ArchiveAndDeleteWorkspaceDialogProps = {
-	/** The workspace to confirm. The dialog is open while one is set. */
 	readonly workspace: Workspace | undefined;
 	readonly onConfirm: (workspace: Workspace) => void;
 	readonly onCancel: () => void;

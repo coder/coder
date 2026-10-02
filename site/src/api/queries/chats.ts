@@ -21,6 +21,7 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
+import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
@@ -1469,7 +1470,7 @@ export class ArchiveAndDeleteError extends Error {
 
 type ArchiveAndDeleteChatVariables = {
 	chatId: string;
-	workspaceId: string;
+	workspaceId?: string;
 };
 
 type ArchiveAndDeleteChatResult = {
@@ -1498,6 +1499,9 @@ export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
 		} catch (error) {
 			throw new ArchiveAndDeleteError("archive", error);
 		}
+		if (!workspaceId) {
+			return { deleteBuild: null };
+		}
 		try {
 			return { deleteBuild: await API.deleteWorkspace(workspaceId) };
 		} catch (error) {
@@ -1509,11 +1513,14 @@ export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
 	},
 	onSuccess: (
 		_result: ArchiveAndDeleteChatResult,
-		{ chatId }: ArchiveAndDeleteChatVariables,
+		{ chatId, workspaceId }: ArchiveAndDeleteChatVariables,
 	) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 		removeChatFromChatsByWorkspace(queryClient, chatId);
-		void invalidateWorkspaceListQueries(queryClient);
+		if (workspaceId) {
+			void invalidateWorkspaceListQueries(queryClient);
+			void queryClient.invalidateQueries({ queryKey: workspaceQuotaKey });
+		}
 	},
 	// The archive may have committed server-side even when the request
 	// appeared to fail, and on delete failures the chat stays archived, so

@@ -92,6 +92,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
+		navigateAfterArchive: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
 		onMarkChatRead: fn(),

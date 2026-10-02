@@ -15,6 +15,7 @@ export type ChatTreeContextValue = {
 	readonly currentUserId: string;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;

@@ -68,6 +68,7 @@ const AgentChatPageLayout: React.FC = () => {
 							chatErrorReasons: {},
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
+							navigateAfterArchive: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
 							onOpenRenameDialog: () => {},

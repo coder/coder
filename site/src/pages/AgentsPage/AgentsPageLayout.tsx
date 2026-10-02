@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -78,6 +78,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	getAgentSidebarFilters,
 } from "./utils/agentSidebarFilters";
+import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
 
@@ -85,6 +86,7 @@ export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
+	navigateAfterArchive: (chatId: string) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
@@ -280,6 +282,20 @@ const AgentsPageLayout: React.FC = () => {
 	// WebSocket handler can read it without re-subscribing
 	// on every navigation.
 	const activeChatIDRef = useRef(agentId);
+	const locationSearchRef = useRef(location.search);
+	// The initiating row or top bar can unmount before a deletion finishes.
+	const navigateAfterArchive = (chatId: string) => {
+		const activeChatId = activeChatIDRef.current;
+		const activeChat = activeChatId
+			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
+			: undefined;
+		if (
+			shouldNavigateAfterArchive(activeChatId, chatId, activeChat?.root_chat_id)
+		) {
+			navigate({ pathname: "/agents", search: locationSearchRef.current });
+		}
+	};
+
 	const requestPinAgent = (chatId: string) => {
 		pinAgentMutation.mutate(chatId);
 	};
@@ -329,9 +345,13 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		activeChatIDRef.current = agentId;
-	});
+		locationSearchRef.current = location.search;
+		return () => {
+			activeChatIDRef.current = undefined;
+		};
+	}, [agentId, location.search]);
 
 	// Optimistically clear the unread indicator for the active
 	// chat. The server marks chats as read on stream connect
@@ -512,6 +532,7 @@ const AgentsPageLayout: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
+		navigateAfterArchive,
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
@@ -550,6 +571,7 @@ const AgentsPageLayout: React.FC = () => {
 					modelConfigs={organizationModels.models}
 					isLoadingModelConfigs={organizationModels.isLoading}
 					onArchiveSuccess={clearChatErrorReason}
+					navigateAfterArchive={navigateAfterArchive}
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onMarkChatRead={requestMarkChatRead}

@@ -6,6 +6,7 @@ import {
 	organizations,
 	organizationsPermissions,
 } from "#/api/queries/organizations";
+import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
@@ -24,6 +25,7 @@ import {
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
 	MockWorkspaceBuildDelete,
+	MockWorkspaceQuota,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
@@ -1248,6 +1250,30 @@ describe("archiveAndDeleteChat", () => {
 		expect(callOrder).toEqual(["archive", "delete"]);
 	});
 
+	it("archives without deleting when the workspace is already gone", async () => {
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+		const queryClient = createTestQueryClient();
+		const mutation = archiveAndDeleteChat(queryClient);
+		const variables = { chatId: "chat-1" };
+		seedInfiniteChats(queryClient, [makeChat("chat-1"), makeChat("chat-2")]);
+
+		const result = await mutation.mutationFn(variables);
+		expect(result).toEqual({ deleteBuild: null });
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			archived: true,
+		});
+		expect(API.deleteWorkspace).not.toHaveBeenCalled();
+
+		mutation.onSuccess(result, variables);
+		mutation.onSettled(result, undefined, variables);
+		expect(readInfiniteChats(queryClient)?.map((chat) => chat.id)).toEqual([
+			"chat-2",
+		]);
+		expect(queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated).toBe(
+			true,
+		);
+	});
+
 	it("does not delete the workspace when archive fails", async () => {
 		const cause = new Error("Cannot archive an active chat.");
 		vi.mocked(API.experimental.updateChat).mockRejectedValue(cause);
@@ -1288,10 +1314,15 @@ describe("archiveAndDeleteChat", () => {
 		await expect(result).rejects.toMatchObject({ step: "delete", cause });
 	});
 
-	it("removes the archived chat from active lists after success", () => {
+	it("updates chat caches and invalidates workspace quota after success", () => {
 		const queryClient = createTestQueryClient();
+		const quotaKey = getWorkspaceQuotaQueryKey("default", "owner");
 		seedInfiniteChats(queryClient, [makeChat("chat-1"), makeChat("chat-2")], {
 			archived: false,
+		});
+		queryClient.setQueryData(quotaKey, {
+			...MockWorkspaceQuota,
+			credits_consumed: 2,
 		});
 
 		archiveAndDeleteChat(queryClient).onSuccess({ deleteBuild }, variables);
@@ -1299,6 +1330,7 @@ describe("archiveAndDeleteChat", () => {
 		expect(
 			readInfiniteChats(queryClient, { archived: false })?.map((c) => c.id),
 		).toEqual(["chat-2"]);
+		expect(queryClient.getQueryState(quotaKey)?.isInvalidated).toBe(true);
 	});
 });
 

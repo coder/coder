@@ -42,6 +42,7 @@ const chatTopBarOutletContext = {
 	chatErrorReasons: {},
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
+	navigateAfterArchive: fn(),
 	requestPinAgent,
 	requestUnpinAgent,
 	activeChatChildren: undefined,
