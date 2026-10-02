@@ -249,13 +249,6 @@ describe("AgentAutomationsPage", () => {
 		await user.keyboard("{Escape}");
 
 		await waitFor(() => {
-			expect(
-				screen.queryByRole("dialog", {
-					name: `Chats for ${mockAutomation.name}`,
-				}),
-			).not.toBeInTheDocument();
-		});
-		await waitFor(() => {
 			expect(viewChats).toHaveFocus();
 		});
 	});

@@ -1,7 +1,6 @@
 /**
- * Automations are an experiment. Every surface that links to or renders the
- * automations page checks this flag, so the page stays hidden until the
- * deployment enables the chat-automations experiment.
+ * The automations page route and the chat-automations experiment flag that
+ * gates the page and its entry points.
  */
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
