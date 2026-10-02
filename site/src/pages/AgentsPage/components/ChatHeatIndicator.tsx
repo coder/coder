@@ -30,15 +30,16 @@ const EXPIRY_CHECK_INTERVAL_MS = 15_000;
 const CACHE_IDLE_TTL_MINUTES = CACHE_IDLE_TTL_MS / 60_000;
 
 // Blends the low stop to the moderate stop over the first half of the range
-// and the moderate stop to the high stop over the second half. Expects a
-// level in [0, 1].
+// and the moderate stop to the high stop over the second half. The blend
+// follows the oklch hue arc, so the tints between two stops stay as vivid
+// as the stops. Expects a level in [0, 1].
 const heatColor = (level: number): string => {
 	if (level <= 0.5) {
 		const stop = Math.round((level / 0.5) * 100);
-		return `color-mix(in oklab, var(--color-heat-low), var(--color-heat-moderate) ${stop}%)`;
+		return `color-mix(in oklch, var(--color-heat-low), var(--color-heat-moderate) ${stop}%)`;
 	}
 	const stop = Math.round(((level - 0.5) / 0.5) * 100);
-	return `color-mix(in oklab, var(--color-heat-moderate), var(--color-heat-high) ${stop}%)`;
+	return `color-mix(in oklch, var(--color-heat-moderate), var(--color-heat-high) ${stop}%)`;
 };
 
 // The fill carries the hue; the outline is pulled toward the primary text
@@ -49,27 +50,35 @@ const heatOutlineColor = (fill: string): string =>
 
 const formatPercent = (value: number): string => `${Math.round(value * 100)}%`;
 
-// Gauge geometry in a 24x24 viewBox. The pivot sits low so the arc and
-// needle stay clear of the expiry badge in the bottom right corner.
-const GAUGE_CENTER_X = 12;
-const GAUGE_CENTER_Y = 14;
+// Gauge geometry in a 24x24 viewBox: a 225 degree dial that starts at the
+// lower left and sweeps clockwise over the top to 3 o'clock. The empty
+// lower right sector is where the state badge sits, so it never covers the
+// band or the needle.
+const GAUGE_CENTER_X = 11.5;
+const GAUGE_CENTER_Y = 12.5;
 const GAUGE_OUTER_RADIUS = 10.5;
-const GAUGE_INNER_RADIUS = 5;
-const GAUGE_NEEDLE_LENGTH = 8;
+const GAUGE_INNER_RADIUS = 6;
+// Longer than the outer radius so the tip lands on the composer background
+// outside the band.
+const GAUGE_NEEDLE_LENGTH = 11.5;
+const GAUGE_SWEEP_DEGREES = 225;
+const GAUGE_START_DEGREES = 225;
 // Keeps the needle off the flat ends of the band outline at 0 and 1.
 const GAUGE_NEEDLE_MIN_POSITION = 1 / 30;
 const GAUGE_TRACK_OPACITY = 0.2;
 // The needle has its own colour and a halo in the page colour so it stays
 // crisp over the High fill, whose hue it shares. It is drawn over the band
-// outline, so the halo notches the inner arc where the needle crosses it.
+// outline, so the halo notches the arcs where the needle crosses them.
 const GAUGE_NEEDLE_COLOR = "var(--color-heat-needle)";
 const GAUGE_NEEDLE_HALO_COLOR = "var(--color-surface-primary)";
 const GAUGE_NEEDLE_WIDTH = 2;
 const GAUGE_NEEDLE_HALO_WIDTH = 4.5;
 
-// Position 0 is the left end of the arc, 0.5 the top and 1 the right end.
+// Position 0 is the lower left end of the dial and 1 the right end. Angles
+// are counter-clockwise from the positive x axis with y pointing up.
 const gaugePoint = (position: number, radius: number) => {
-	const angle = Math.PI * (1 - position);
+	const angle =
+		((GAUGE_START_DEGREES - GAUGE_SWEEP_DEGREES * position) * Math.PI) / 180;
 	return {
 		x: GAUGE_CENTER_X + radius * Math.cos(angle),
 		y: GAUGE_CENTER_Y - radius * Math.sin(angle),
@@ -81,15 +90,17 @@ const formatGaugePoint = (position: number, radius: number): string => {
 	return `${x.toFixed(2)} ${y.toFixed(2)}`;
 };
 
-// The band of the arc from the left end up to position.
-const gaugeBandPath = (position: number): string =>
-	[
+// The band of the dial from the lower left end up to position.
+const gaugeBandPath = (position: number): string => {
+	const largeArc = GAUGE_SWEEP_DEGREES * position > 180 ? 1 : 0;
+	return [
 		`M ${formatGaugePoint(0, GAUGE_OUTER_RADIUS)}`,
-		`A ${GAUGE_OUTER_RADIUS} ${GAUGE_OUTER_RADIUS} 0 0 1 ${formatGaugePoint(position, GAUGE_OUTER_RADIUS)}`,
+		`A ${GAUGE_OUTER_RADIUS} ${GAUGE_OUTER_RADIUS} 0 ${largeArc} 1 ${formatGaugePoint(position, GAUGE_OUTER_RADIUS)}`,
 		`L ${formatGaugePoint(position, GAUGE_INNER_RADIUS)}`,
-		`A ${GAUGE_INNER_RADIUS} ${GAUGE_INNER_RADIUS} 0 0 0 ${formatGaugePoint(0, GAUGE_INNER_RADIUS)}`,
+		`A ${GAUGE_INNER_RADIUS} ${GAUGE_INNER_RADIUS} 0 ${largeArc} 0 ${formatGaugePoint(0, GAUGE_INNER_RADIUS)}`,
 		"Z",
 	].join(" ");
+};
 
 // The share is the turn's miss rate: missed tokens over the largest
 // cacheable prompt. Missed tokens sum over every request in the turn, so
@@ -139,7 +150,7 @@ const CacheMissGauge: React.FC<CacheMissGaugeProps> = ({ level }) => {
 	return (
 		<svg
 			viewBox="0 0 24 24"
-			className="size-4"
+			className="size-4 overflow-visible"
 			fill="none"
 			strokeLinecap="round"
 			strokeLinejoin="round"
