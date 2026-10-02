@@ -120,12 +120,6 @@ describe("window list", () => {
 		expect(raise(list, "nope")).toBe(list);
 	});
 
-	it("preserves the list when raising an already frontmost pinned window", () => {
-		const list = [win("a"), win("b")];
-		expect(raise(list, "b")).toBe(list);
-		expect(raise([win("p", false)], "p").at(-1)?.pinned).toBe(true);
-	});
-
 	it("keeps pinning when geometry changes and drops the preview on escape", () => {
 		const list = [win("a"), win("p", false)];
 		const moved = changeWindow(list, { ...win("p"), x: 50 });

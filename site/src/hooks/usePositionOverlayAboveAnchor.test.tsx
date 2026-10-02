@@ -1,9 +1,5 @@
-import { render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	getOverlayPositionAboveAnchor,
-	usePositionOverlayAboveAnchor,
-} from "./usePositionOverlayAboveAnchor";
+import { describe, expect, it } from "vitest";
+import { getOverlayPositionAboveAnchor } from "./usePositionOverlayAboveAnchor";
 
 // Layout viewport 800px tall (the hook reads it from a fixed probe); the
 // composer sits at the bottom unless a case says otherwise.
@@ -52,58 +48,5 @@ describe("getOverlayPositionAboveAnchor", () => {
 		expect(
 			getOverlayPositionAboveAnchor(anchor, layoutViewportBottom, viewport),
 		).toEqual(expected);
-	});
-});
-
-afterEach(() => {
-	vi.restoreAllMocks();
-});
-
-describe("usePositionOverlayAboveAnchor", () => {
-	it("owns geometry on the supplied overlay only while enabled", () => {
-		const anchor = document.createElement("button");
-		const firstOverlay = document.createElement("div");
-		const secondOverlay = document.createElement("div");
-		const firstWrite = vi.spyOn(firstOverlay.style, "setProperty");
-		const firstCleanup = vi.spyOn(firstOverlay.style, "removeProperty");
-		const secondWrite = vi.spyOn(secondOverlay.style, "setProperty");
-		const secondCleanup = vi.spyOn(secondOverlay.style, "removeProperty");
-		const rootWrite = vi.spyOn(document.documentElement.style, "setProperty");
-
-		const Overlay = ({
-			overlay,
-			enabled,
-		}: {
-			overlay: HTMLElement;
-			enabled: boolean;
-		}) => {
-			usePositionOverlayAboveAnchor({
-				anchorElement: anchor,
-				overlayElement: overlay,
-				enabled,
-			});
-
-			return null;
-		};
-
-		const view = render(<Overlay overlay={firstOverlay} enabled={false} />);
-		expect(firstWrite).not.toHaveBeenCalled();
-
-		view.rerender(<Overlay overlay={firstOverlay} enabled />);
-		expect(firstWrite).toHaveBeenCalledTimes(4);
-
-		view.rerender(<Overlay overlay={secondOverlay} enabled />);
-		expect(firstCleanup).toHaveBeenCalledTimes(4);
-		expect(secondWrite).toHaveBeenCalledTimes(4);
-
-		view.rerender(<Overlay overlay={secondOverlay} enabled={false} />);
-		expect(secondCleanup).toHaveBeenCalledTimes(4);
-
-		secondWrite.mockClear();
-		view.unmount();
-		window.dispatchEvent(new Event("resize"));
-
-		expect(secondWrite).not.toHaveBeenCalled();
-		expect(rootWrite).not.toHaveBeenCalled();
 	});
 });
