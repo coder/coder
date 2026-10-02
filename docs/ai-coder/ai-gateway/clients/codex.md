@@ -146,20 +146,20 @@ the ChatGPT login.
 
 ### Codex falls back from WebSockets to HTTPS transport
 
-Recent Codex CLI versions default to the WebSocket runtime for the
-Responses API. AI Gateway does not support WebSocket transport, so each
-request attempts a WebSocket connection and retries up to 5 times before
-falling back to HTTPS. When this happens you will see:
+Recent Codex CLI versions use WebSocket mode for the Responses API by default.
+AI Gateway serves WebSocket mode only when an administrator [enables Responses WebSocket mode](../setup.md#enable-responses-websocket-mode) for your user.
+Otherwise, it refuses the upgrade with `501 Not Implemented`, and Codex retries up to 5 times before it falls back to HTTPS.
+When this happens, you see:
 
 ```txt
 Falling back from WebSockets to HTTPS transport.
 ```
 
-The requests still succeed over HTTPS, but every turn waits through the
-five failed WebSocket attempts first.
+The requests still succeed over HTTPS, but every turn waits through the five failed WebSocket attempts first.
+If you reach a gateway socket limit, Codex gets `426 Upgrade Required` and falls back to HTTPS without retries.
 
-To stop Codex from attempting WebSockets, set `supports_websockets = false`
-in your AI Gateway provider block in `~/.codex/config.toml`:
+If your deployment doesn't enable WebSocket mode, stop Codex from attempting WebSockets.
+Set `supports_websockets = false` in your AI Gateway provider block in `~/.codex/config.toml`:
 
 ```toml
 model_provider = "ai_gateway"

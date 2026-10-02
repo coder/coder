@@ -62,6 +62,9 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
 
+Codex CLI tries WebSocket mode for the OpenAI Responses API first, and falls back to HTTPS unless an administrator [enables Responses WebSocket mode](../setup.md#enable-responses-websocket-mode).
+Other clients that use WebSocket mode must retry over HTTPS themselves when the gateway refuses the upgrade.
+
 ## Configure in-workspace tools
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Gateway.
