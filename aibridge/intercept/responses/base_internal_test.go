@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -647,6 +648,41 @@ func TestResponseCopierReleasesUpstreamBeforeRetry(t *testing.T) {
 	resp, err := client.Responses.New(t.Context(), oairesponses.ResponseNewParams{})
 	require.NoError(t, err)
 	require.Equal(t, "resp_retry", resp.ID)
+}
+
+func TestResponseCopierDiscardsPreviousAttempt(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After-Ms", "1")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"message":"retry"}}`))
+			return
+		}
+		// The retry fails without a response.
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if assert.NoError(t, err) {
+			_ = conn.Close()
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	var copier responseCopier
+	t.Cleanup(copier.closeUpstream)
+	client := openai.NewClient(
+		option.WithBaseURL(upstream.URL),
+		option.WithAPIKey("test"),
+		option.WithMaxRetries(1),
+		option.WithMiddleware(copier.copyMiddleware),
+	)
+	_, err := client.Responses.New(t.Context(), oairesponses.ResponseNewParams{})
+	require.Error(t, err)
+	require.EqualValues(t, 2, calls.Load())
+	// Interceptors must send their own error rather than forward the
+	// discarded first response.
+	require.False(t, copier.responseReceived.Load())
 }
 
 func TestMarkKeyOnError(t *testing.T) {

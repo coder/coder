@@ -500,8 +500,11 @@ type responseCopier struct {
 
 func (r *responseCopier) copyMiddleware(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 	// SDK retries and key failover call the middleware again on the same
-	// copier. Release the previous attempt before sending the next one.
+	// copier. Discard the previous attempt before sending the next one so
+	// only the final attempt's response is forwarded.
 	r.closeUpstream()
+	r.responseReceived.Store(false)
+	r.buff.reset()
 	resp, err := next(req)
 	if err != nil || resp == nil {
 		return resp, err
@@ -575,6 +578,12 @@ func (d *deltaBuffer) Write(p []byte) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.buf.Write(p)
+}
+
+func (d *deltaBuffer) reset() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.buf.Reset()
 }
 
 // readDelta returns only the bytes appended
