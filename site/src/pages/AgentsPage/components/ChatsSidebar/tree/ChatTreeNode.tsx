@@ -6,8 +6,13 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router";
-import type { Chat } from "#/api/typesGenerated";
+import { useMutation, useQueryClient } from "react-query";
+import { NavLink, useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { archiveAndDeleteChat } from "#/api/queries/chats";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type { Chat, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	ContextMenu,
@@ -25,6 +30,15 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
+import {
+	type ArchiveAndDeleteAction,
+	fetchArchiveAndDeleteAction,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
+} from "../../../utils/agentWorkspaceUtils";
+import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
+import { ArchiveAndDeleteWorkspaceDialog } from "../../ArchiveAndDeleteWorkspaceDialog";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
@@ -66,8 +80,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		navigateAfterArchive,
 		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
@@ -152,7 +166,68 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		changedFiles === 1 ? "file" : "files"
 	}`;
 	const workspaceId = chat.workspace_id;
-	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const [confirmingWorkspace, setConfirmingWorkspace] = useState<Workspace>();
+	const archiveAndDeleteOptions = archiveAndDeleteChat(queryClient);
+	const archiveAndDeleteMutation = useMutation({
+		...archiveAndDeleteOptions,
+		onSuccess: (result, variables) => {
+			archiveAndDeleteOptions.onSuccess(result, variables);
+			clearPersistedSidebarTabId(variables.chatId);
+			clearPersistedRightPanelState(variables.chatId);
+			if (variables.workspaceId) {
+				notifyDeleteQueueState(
+					queryClient.getQueryData<Workspace>(
+						workspaceByIdKey(variables.workspaceId),
+					),
+					result.deleteBuild,
+				);
+			}
+			navigateAfterArchive(variables.chatId);
+		},
+		onError: (error, variables) => {
+			notifyArchiveAndDeleteFailed(
+				variables.workspaceId
+					? queryClient.getQueryData<Workspace>(
+							workspaceByIdKey(variables.workspaceId),
+						)
+					: undefined,
+				error,
+				navigate,
+			);
+		},
+	});
+	const requestArchiveAndDelete = async () => {
+		if (!workspaceId) {
+			return;
+		}
+		let action: ArchiveAndDeleteAction;
+		try {
+			action = await fetchArchiveAndDeleteAction(
+				queryClient,
+				workspaceId,
+				chat.created_at,
+			);
+		} catch (error) {
+			toast.error(
+				getErrorMessage(error, "Failed to look up workspace for deletion."),
+			);
+			return;
+		}
+		if (action === "confirm") {
+			setConfirmingWorkspace(
+				queryClient.getQueryData<Workspace>(workspaceByIdKey(workspaceId)),
+			);
+		} else if (action === "archive-only") {
+			archiveAndDeleteMutation.mutate({ chatId: chat.id });
+		} else {
+			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
+		}
+	};
+	const isDeleting = archiveAndDeleteMutation.isPending;
+	const isArchivingThisChat =
+		(isArchiving && archivingChatId === chat.id) || isDeleting;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
@@ -166,7 +241,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
-		isArchiving,
+		// Plain archive keeps the layout's shared pending flag; only this
+		// chat's delete disables this chat's menu.
+		isArchiving: isArchiving || isDeleting,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
@@ -179,11 +256,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
-		onArchiveAndDeleteWorkspace: () => {
-			if (workspaceId) {
-				onArchiveAndDeleteWorkspace(chat.id, workspaceId);
-			}
-		},
+		onArchiveAndDeleteWorkspace: requestArchiveAndDelete,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
@@ -424,6 +497,17 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 					/>
 				</ContextMenuContent>
 			</ContextMenu>
+			<ArchiveAndDeleteWorkspaceDialog
+				workspace={confirmingWorkspace}
+				onConfirm={(workspace) => {
+					archiveAndDeleteMutation.mutate({
+						chatId: chat.id,
+						workspaceId: workspace.id,
+					});
+					setConfirmingWorkspace(undefined);
+				}}
+				onCancel={() => setConfirmingWorkspace(undefined)}
+			/>
 
 			{hasChildren && isExpanded && (
 				<div className="relative flex flex-col">

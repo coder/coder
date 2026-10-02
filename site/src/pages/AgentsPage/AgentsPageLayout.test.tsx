@@ -1,17 +1,65 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { useQuery } from "react-query";
+import { useParams } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
+import {
+	chat as chatById,
+	chatEntityKey,
+	readInfiniteChatsCache,
+} from "#/api/queries/chats";
+import type { ChatWatchEvent, WorkspaceBuild } from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
+import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockWorkspace,
+	MockWorkspaceBuildDelete,
+	MockWorkspaceQuota,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	createMockWebSocket,
+	type MockWebSocketServer,
+} from "#/testHelpers/websockets";
+import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { ChatTopBar } from "./components/ChatTopBar";
 
-const renderLayout = () =>
+const ChatPage = () => {
+	const { agentId = "" } = useParams();
+	const { data: chat } = useQuery(chatById(agentId));
+	return (
+		<ChatTopBar
+			key={agentId}
+			chat={chat}
+			panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+		/>
+	);
+};
+
+const renderLayout = (route = "/agents") =>
 	renderWithAuth(<AgentsPageLayout />, {
 		path: "/agents",
-		route: "/agents",
-		children: [{ index: true, element: null }],
+		route,
+		children: [
+			{ index: true, element: null },
+			{ path: ":agentId", element: <ChatPage /> },
+		],
+		extraRoutes: [{ path: "/workspaces", element: null }],
 	});
+
+beforeEach(() => {
+	vi.spyOn(API, "getWorkspaceQuota").mockResolvedValue(MockWorkspaceQuota);
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue([]);
+	vi.spyOn(
+		API.experimental,
+		"getUserChatPersonalModelOverrides",
+	).mockResolvedValue(MockUnsetUserChatPersonalModelOverrides);
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -44,4 +92,256 @@ describe("AgentsPageLayout New chat", () => {
 			expect(localStorage.getItem(emptyInputStorageKey)).toBe(expectedDraft);
 		},
 	);
+});
+
+describe("AgentsPageLayout archive and delete", () => {
+	const chat = {
+		...MockChat,
+		id: "chat-alpha",
+		title: "Alpha agent",
+		workspace_id: "ws-alpha",
+	};
+	const otherChat = {
+		...MockChat,
+		id: "chat-beta",
+		title: "Beta agent",
+		workspace_id: "ws-beta",
+	};
+	const childChat = {
+		...MockChat,
+		id: "chat-child",
+		parent_chat_id: chat.id,
+		root_chat_id: chat.id,
+	};
+	let chatWatchServer: MockWebSocketServer | undefined;
+
+	beforeEach(() => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat, otherChat]);
+		vi.spyOn(API.experimental, "getChat").mockImplementation(async (chatId) => {
+			const result = [chat, otherChat, childChat].find(
+				(chat) => chat.id === chatId,
+			);
+			if (!result) throw new Error(`Unexpected chat: ${chatId}`);
+			return result;
+		});
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
+		vi.spyOn(API, "getWorkspace").mockImplementation(async (workspaceId) => ({
+			...MockWorkspace,
+			id: workspaceId,
+			created_at: chat.created_at,
+		}));
+		vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
+			MockWorkspaceBuildDelete,
+		);
+		chatWatchServer = undefined;
+		vi.spyOn(apiModule, "watchChats").mockImplementation(
+			() =>
+				new OneWayWebSocket<ChatWatchEvent>({
+					apiRoute: "/api/v2/chats/watch",
+					websocketInit: (url, protocol) => {
+						const [socket, server] = createMockWebSocket(url, protocol);
+						chatWatchServer = server;
+						return socket;
+					},
+				}),
+		);
+	});
+
+	it("deletes two workspaces without waiting for the first", async () => {
+		const user = userEvent.setup({ delay: null });
+		const pendingDelete = createDeferred<WorkspaceBuild>();
+		vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
+		const { queryClient } = renderLayout();
+		try {
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Open actions for Alpha agent",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(
+				() => {
+					expect(API.deleteWorkspace).toHaveBeenCalledWith("ws-alpha");
+				},
+				{ timeout: 4000 },
+			);
+			await user.click(
+				await screen.findByRole(
+					"button",
+					{ name: "Open actions for Beta agent" },
+					{ timeout: 4000 },
+				),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(
+				() => {
+					expect(API.deleteWorkspace).toHaveBeenCalledWith("ws-beta");
+				},
+				{ timeout: 4000 },
+			);
+		} finally {
+			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		}
+	});
+
+	describe.each(["top bar", "sidebar"])("from the %s", (surface) => {
+		const clickArchiveAndDelete = async (
+			user: ReturnType<typeof userEvent.setup>,
+		) => {
+			await user.click(
+				await screen.findByRole("button", {
+					name:
+						surface === "top bar"
+							? "Open agent actions"
+							: "Open actions for Alpha agent",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+		};
+
+		it.each([
+			{ name: "the archived chat", chatId: chat.id, expectedPath: "/agents" },
+			{
+				name: "an unrelated chat",
+				chatId: otherChat.id,
+				expectedPath: `/agents/${otherChat.id}`,
+			},
+			{
+				name: "a subagent of the archived chat",
+				chatId: childChat.id,
+				expectedPath: "/agents",
+			},
+			{ name: "another page", chatId: undefined, expectedPath: "/workspaces" },
+		])(
+			"respects the current route when viewing $name after deletion completes",
+			async ({ chatId, expectedPath }) => {
+				const user = userEvent.setup();
+				const pendingDelete = createDeferred<WorkspaceBuild>();
+				vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
+				const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
+				try {
+					await clickArchiveAndDelete(user);
+					await waitFor(() =>
+						expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
+					);
+
+					// Archiving emits this event before the workspace deletion finishes,
+					// removing the sidebar row that started the mutation.
+					vi.mocked(API.experimental.getChats).mockResolvedValue([otherChat]);
+					if (!chatWatchServer)
+						throw new Error("Chat watch connection was not opened");
+					const event: ChatWatchEvent = {
+						kind: "deleted",
+						chat: { ...chat, archived: true },
+					};
+					act(() =>
+						chatWatchServer?.publishMessage(
+							new MessageEvent("message", { data: JSON.stringify(event) }),
+						),
+					);
+					await waitFor(() =>
+						expect(readInfiniteChatsCache(queryClient)).toEqual([otherChat]),
+					);
+
+					const destination = chatId ? `/agents/${chatId}` : "/workspaces";
+					await act(async () => {
+						await router.navigate(`${destination}?group_by=chat_status`);
+					});
+					if (chatId) {
+						await waitFor(() =>
+							expect(
+								queryClient.getQueryData(chatEntityKey(chatId)),
+							).toMatchObject({ id: chatId }),
+						);
+					}
+					await act(async () =>
+						pendingDelete.resolve(MockWorkspaceBuildDelete),
+					);
+					await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+					await waitFor(() =>
+						expect(router.state.location.pathname).toBe(expectedPath),
+					);
+					expect(router.state.location.search).toBe("?group_by=chat_status");
+				} finally {
+					await act(async () =>
+						pendingDelete.resolve(MockWorkspaceBuildDelete),
+					);
+					await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+				}
+			},
+		);
+
+		it.each([404, 410])(
+			"leaves the archived chat when workspace lookup returns %s",
+			async (status) => {
+				const user = userEvent.setup();
+				vi.mocked(API.getWorkspace).mockRejectedValue({
+					isAxiosError: true,
+					response: { status },
+				});
+				const pendingArchive = createDeferred<undefined>();
+				vi.mocked(API.experimental.updateChat).mockReturnValue(
+					pendingArchive.promise,
+				);
+				const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
+				try {
+					await clickArchiveAndDelete(user);
+					await waitFor(() =>
+						expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+							archived: true,
+						}),
+					);
+					expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
+
+					await act(async () => pendingArchive.resolve(undefined));
+					await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+					expect(API.deleteWorkspace).not.toHaveBeenCalled();
+					await waitFor(() =>
+						expect(router.state.location.pathname).toBe("/agents"),
+					);
+				} finally {
+					await act(async () => pendingArchive.resolve(undefined));
+					await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+				}
+			},
+		);
+
+		it("does not leave a missing-workspace chat when archiving fails", async () => {
+			const user = userEvent.setup();
+			vi.mocked(API.getWorkspace).mockRejectedValue({
+				isAxiosError: true,
+				response: { status: 404 },
+			});
+			vi.mocked(API.experimental.updateChat).mockRejectedValue(
+				new Error("Archive failed"),
+			);
+			const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
+			await clickArchiveAndDelete(user);
+			await waitFor(() =>
+				expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+					archived: true,
+				}),
+			);
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+			expect(API.deleteWorkspace).not.toHaveBeenCalled();
+			expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
+		});
+	});
 });

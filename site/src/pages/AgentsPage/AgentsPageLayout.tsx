@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -14,11 +14,10 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { API, watchChats } from "#/api/api";
+import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
-	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
 	archiveChat,
@@ -39,7 +38,6 @@ import {
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
@@ -49,17 +47,10 @@ import {
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import {
-	invalidateWorkspaceMutationQueries,
-	workspaceById,
-	workspaceByIdKey,
-} from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
-	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { canAccessCoderAgentsSettings } from "#/modules/permissions";
@@ -90,13 +81,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	getAgentSidebarFilters,
 } from "./utils/agentSidebarFilters";
-import {
-	archiveChatAndDeleteWorkspace,
-	notifyArchiveAndDeleteFailed,
-	notifyDeleteQueueState,
-	resolveArchiveAndDeleteAction,
-	shouldNavigateAfterArchive,
-} from "./utils/agentWorkspaceUtils";
+import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
@@ -107,11 +92,8 @@ export type AgentsPageOutletContext = {
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	navigateAfterArchive: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
-	requestArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
@@ -180,7 +162,6 @@ const AgentsPageLayout: React.FC = () => {
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organizationName = getDefaultOrganizationName(organizations);
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	// The personal-overrides feature flag is deployment-wide but read through
 	// an organization-scoped endpoint, so fall back to any accessible
@@ -278,63 +259,6 @@ const AgentsPageLayout: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
-	const archiveAndDeleteMutation = useMutation({
-		mutationFn: ({
-			chatId,
-			workspaceId,
-		}: {
-			chatId: string;
-			workspaceId: string;
-		}) =>
-			archiveChatAndDeleteWorkspace(
-				chatId,
-				workspaceId,
-				(id) => API.experimental.updateChat(id, { archived: true }),
-				(id) => API.deleteWorkspace(id),
-			),
-		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
-			applyChatArchiveStateToCaches(queryClient, chatId, true);
-			removeChatFromChatsByWorkspace(queryClient, chatId);
-			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
-			void invalidateChatListQueries(queryClient);
-			void invalidateChatEntity(queryClient, chatId);
-			void invalidateChatsByWorkspace(queryClient);
-			void invalidateChatSearches(queryClient);
-			void invalidateWorkspaceMutationQueries(queryClient, {
-				organizationName,
-				username: user.username,
-			});
-			notifyDeleteQueueState(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(workspaceId),
-				),
-				deleteBuild,
-			);
-		},
-		onError: (error, { chatId, workspaceId }) => {
-			notifyArchiveAndDeleteFailed(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(workspaceId),
-				),
-				error,
-				(path) => navigate(path),
-			);
-			// The archive may have committed server-side even when the
-			// request appeared to fail (transport errors), and on delete
-			// failures the chat stays archived; refetch every chat
-			// collection so all caches converge on the server.
-			void invalidateChatListQueries(queryClient);
-			void invalidateChatEntity(queryClient, chatId);
-			void invalidateChatsByWorkspace(queryClient);
-			void invalidateChatSearches(queryClient);
-		},
-	});
-	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
-		chatId: string;
-		workspaceId: string;
-	} | null>(null);
 	const unarchiveChatBase = unarchiveChat(queryClient);
 	const unarchiveAgentMutation = useMutation({
 		...unarchiveChatBase,
@@ -390,15 +314,10 @@ const AgentsPageLayout: React.FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
-	const isArchiving =
-		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
-	const archivingChatId =
-		(archiveAgentMutation.isPending
-			? archiveAgentMutation.variables
-			: undefined) ??
-		(archiveAndDeleteMutation.isPending
-			? archiveAndDeleteMutation.variables?.chatId
-			: undefined);
+	const isArchiving = archiveAgentMutation.isPending;
+	const archivingChatId = archiveAgentMutation.isPending
+		? archiveAgentMutation.variables
+		: undefined;
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
@@ -410,94 +329,17 @@ const AgentsPageLayout: React.FC = () => {
 	// WebSocket handler can read it without re-subscribing
 	// on every navigation.
 	const activeChatIDRef = useRef(agentId);
-	const navigateAfterArchive = (archivedChatId: string) => {
+	const locationSearchRef = useRef(location.search);
+	// The initiating row or top bar can unmount before a deletion finishes.
+	const navigateAfterArchive = (chatId: string) => {
 		const activeChatId = activeChatIDRef.current;
+		const activeChat = activeChatId
+			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
+			: undefined;
 		if (
-			shouldNavigateAfterArchive(
-				activeChatId,
-				archivedChatId,
-				// Read root_chat_id from the per-chat cache, which
-				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
-				// callback time so it reflects the user's current
-				// location.
-				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
-							?.root_chat_id
-					: undefined,
-			)
+			shouldNavigateAfterArchive(activeChatId, chatId, activeChat?.root_chat_id)
 		) {
-			navigate({ pathname: "/agents", search: location.search });
-		}
-	};
-
-	const requestArchiveAndDeleteWorkspace = async (
-		chatId: string,
-		workspaceId: string,
-	) => {
-		if (isArchiving) {
-			return;
-		}
-		try {
-			const action = await resolveArchiveAndDeleteAction(
-				() => queryClient.fetchQuery(workspaceById(workspaceId)),
-				// We only need build_number 1 and 2 to recognise a
-				// prebuild claim. The default page is newest-first; the
-				// resolver degrades safely ("confirm") if those builds
-				// aren't in the returned slice.
-				() =>
-					queryClient.fetchQuery({
-						queryKey: [
-							"workspaceBuilds",
-							workspaceId,
-							"archive-and-delete-resolver",
-						],
-						queryFn: () => API.getWorkspaceBuilds(workspaceId),
-					}),
-				() =>
-					readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === chatId,
-					)?.created_at,
-			);
-			if (action === "proceed") {
-				archiveAndDeleteMutation.mutate(
-					{ chatId, workspaceId },
-					{
-						onSuccess: () => {
-							navigateAfterArchive(chatId);
-						},
-					},
-				);
-			} else if (action === "archive-only") {
-				// The workspace is already gone (404), so we skip the
-				// running-agent confirmation dialog. That dialog warns
-				// about interrupting a live workspace, which is moot
-				// when the workspace no longer exists.
-				archiveAgentMutation.mutate(chatId, {
-					onSuccess: () => {
-						navigateAfterArchive(chatId);
-					},
-				});
-			} else {
-				setPendingArchiveAndDelete({ chatId, workspaceId });
-			}
-		} catch (error) {
-			toast.error(
-				getErrorMessage(error, "Failed to look up workspace for deletion."),
-			);
-		}
-	};
-	const handleConfirmArchiveAndDelete = () => {
-		if (pendingArchiveAndDelete && !isArchiving) {
-			const { chatId: archivedChatId } = pendingArchiveAndDelete;
-			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
-				onSettled: () => {
-					setPendingArchiveAndDelete(null);
-				},
-				onSuccess: () => {
-					navigateAfterArchive(archivedChatId);
-				},
-			});
+			navigate({ pathname: "/agents", search: locationSearchRef.current });
 		}
 	};
 	const requestUnarchiveAgent = (chatId: string) => {
@@ -552,9 +394,13 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		activeChatIDRef.current = agentId;
-	});
+		locationSearchRef.current = location.search;
+		return () => {
+			activeChatIDRef.current = undefined;
+		};
+	}, [agentId, location.search]);
 
 	// Optimistically clear the unread indicator for the active
 	// chat. The server marks chats as read on stream connect
@@ -707,20 +553,6 @@ const AgentsPageLayout: React.FC = () => {
 		onOpenSettings: handleOpenSettings,
 	});
 
-	// Fetch workspace name for the confirmation dialog. Only
-	// enabled when pendingArchiveAndDelete is set (i.e. the
-	// resolve step determined confirmation is needed). The
-	// workspace data is usually already cached from the
-	// fetchQuery in requestArchiveAndDeleteWorkspace.
-	const pendingWorkspaceQuery = useQuery({
-		...workspaceById(pendingArchiveAndDelete?.workspaceId ?? ""),
-		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
-	});
-	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
-
-	const deleteDialogOpen =
-		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
-
 	// Mobile can't fit the sidebar nav and content side by side,
 	// so we show one or the other depending on the route depth.
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -753,8 +585,8 @@ const AgentsPageLayout: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		requestArchiveAgent,
+		navigateAfterArchive,
 		requestUnarchiveAgent,
-		requestArchiveAndDeleteWorkspace,
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
@@ -769,93 +601,79 @@ const AgentsPageLayout: React.FC = () => {
 	};
 
 	return (
-		<>
-			<div
-				data-testid="agents-page-layout"
-				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+		<div
+			data-testid="agents-page-layout"
+			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+		>
+			<title>{pageTitle("Agents")}</title>
+			<ResizableChatsSidebarFrame
+				className={cn(
+					"sm:h-full sm:min-h-0 sm:border-b-0",
+					agentId
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+						: isFullPageRoute
+							? "hidden sm:block shrink-0"
+							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+					isSidebarCollapsed && "sm:hidden",
+					// The board is a full-width view. The frame stays mounted so the
+					// dialogs and handlers it owns keep working behind it.
+					isBoardRoute && "hidden sm:hidden",
+				)}
 			>
-				<title>{pageTitle("Agents")}</title>
-				<ResizableChatsSidebarFrame
-					className={cn(
-						"sm:h-full sm:min-h-0 sm:border-b-0",
-						agentId
-							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isFullPageRoute
-								? "hidden sm:block shrink-0"
-								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
-						isSidebarCollapsed && "sm:hidden",
-						// The board is a full-width view. The frame stays mounted so the
-						// dialogs and handlers it owns keep working behind it.
-						isBoardRoute && "hidden sm:hidden",
-					)}
-				>
-					<ChatsSidebar
-						chats={chatList}
-						currentUserId={user.id}
-						chatErrorReasons={sidebarChatErrorReasons}
-						modelConfigs={organizationModels.models}
-						isLoadingModelConfigs={organizationModels.isLoading}
-						onArchiveAgent={requestArchiveAgent}
-						onUnarchiveAgent={requestUnarchiveAgent}
-						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-						onPinAgent={requestPinAgent}
-						onUnpinAgent={requestUnpinAgent}
-						onMarkChatRead={requestMarkChatRead}
-						onMarkChatUnread={requestMarkChatUnread}
-						onReorderPinnedAgent={requestReorderPinnedAgent}
-						onRenameTitle={requestRenameTitle}
-						onProposeTitle={requestProposeTitle}
-						chatPendingRename={chatPendingRename}
-						onChatPendingRenameChange={setChatPendingRename}
-						onBeforeNewAgent={handleNewAgent}
-						isSearchDialogOpen={isSearchDialogOpen}
-						onSearchDialogOpenChange={setIsSearchDialogOpen}
-						isCreating={false}
-						isArchiving={isArchiving}
-						archivingChatId={archivingChatId}
-						isLoading={chatsQuery.isLoading}
-						loadError={chatsQuery.error}
-						onRetryLoad={() => void chatsQuery.refetch()}
-						hasNextPage={chatsQuery.hasNextPage}
-						onLoadMore={() => void chatsQuery.fetchNextPage()}
-						isFetchingNextPage={chatsQuery.isFetchingNextPage}
-						sidebarFilters={sidebarFilters}
-						onSidebarFiltersChange={setSidebarFilters}
-						onCollapse={() => setIsSidebarCollapsed(true)}
-						isPersonalModelOverridesEnabled={
-							personalModelOverridesQuery.data?.enabled
-						}
-						isAdmin={isAgentsAdmin}
-						canManageAgentSettings={canManageAgentSettings}
-					/>
-				</ResizableChatsSidebarFrame>
-				<div
-					data-testid="agents-main-panel"
-					className={cn(
-						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-						isSettingsIndex ? "hidden sm:flex" : "flex",
-						!agentId &&
-							!isFullPageRoute &&
-							sidebarView.panel === "chats" &&
-							"contents sm:flex sm:flex-1 sm:flex-col",
-					)}
-				>
-					<Outlet context={outletContextValue} />
-				</div>
+				<ChatsSidebar
+					chats={chatList}
+					currentUserId={user.id}
+					chatErrorReasons={sidebarChatErrorReasons}
+					modelConfigs={organizationModels.models}
+					isLoadingModelConfigs={organizationModels.isLoading}
+					onArchiveAgent={requestArchiveAgent}
+					navigateAfterArchive={navigateAfterArchive}
+					onUnarchiveAgent={requestUnarchiveAgent}
+					onPinAgent={requestPinAgent}
+					onUnpinAgent={requestUnpinAgent}
+					onMarkChatRead={requestMarkChatRead}
+					onMarkChatUnread={requestMarkChatUnread}
+					onReorderPinnedAgent={requestReorderPinnedAgent}
+					onRenameTitle={requestRenameTitle}
+					onProposeTitle={requestProposeTitle}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
+					onBeforeNewAgent={handleNewAgent}
+					isSearchDialogOpen={isSearchDialogOpen}
+					onSearchDialogOpenChange={setIsSearchDialogOpen}
+					isCreating={false}
+					isArchiving={isArchiving}
+					archivingChatId={archivingChatId}
+					isLoading={chatsQuery.isLoading}
+					loadError={chatsQuery.error}
+					onRetryLoad={() => void chatsQuery.refetch()}
+					hasNextPage={chatsQuery.hasNextPage}
+					onLoadMore={() => void chatsQuery.fetchNextPage()}
+					isFetchingNextPage={chatsQuery.isFetchingNextPage}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={setSidebarFilters}
+					onCollapse={() => setIsSidebarCollapsed(true)}
+					isPersonalModelOverridesEnabled={
+						personalModelOverridesQuery.data?.enabled
+					}
+					isAdmin={isAgentsAdmin}
+					canManageAgentSettings={canManageAgentSettings}
+				/>
+			</ResizableChatsSidebarFrame>
+			<div
+				data-testid="agents-main-panel"
+				className={cn(
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					isSettingsIndex ? "hidden sm:flex" : "flex",
+					!agentId &&
+						!isFullPageRoute &&
+						sidebarView.panel === "chats" &&
+						"contents sm:flex sm:flex-1 sm:flex-col",
+				)}
+			>
+				<Outlet context={outletContextValue} />
 			</div>
-			<DeleteDialog
-				key={pendingWorkspaceName}
-				isOpen={deleteDialogOpen}
-				onConfirm={handleConfirmArchiveAndDelete}
-				onCancel={() => setPendingArchiveAndDelete(null)}
-				entity="workspace"
-				name={pendingWorkspaceName}
-				confirmLoading={archiveAndDeleteMutation.isPending}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
-		</>
+		</div>
 	);
 };
 export default AgentsPageLayout;

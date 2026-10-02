@@ -144,6 +144,25 @@ export const getErrorStatus = (error: unknown): number | undefined => {
 	return undefined;
 };
 
+/**
+ * Detects whether an error indicates a missing or deleted workspace.
+ *
+ * The Coder backend returns 404 when a workspace does not exist or
+ * the user lacks access (to avoid leaking resource existence), and
+ * 410 Gone when a workspace has been soft-deleted. Both cases mean
+ * the workspace is unavailable for deletion.
+ *
+ * In the archive-and-delete flow this is acceptable: the workspace
+ * ID comes from the chat's own metadata, so if the user can see the
+ * chat they almost certainly had access to the workspace. Treating
+ * an auth 404 as "already gone" is a safe degradation because the
+ * user cannot delete a workspace they lack access to anyway.
+ */
+export const isWorkspaceNotFound = (error: unknown): boolean => {
+	const status = isAxiosError(error) ? error.response?.status : undefined;
+	return status === 404 || status === 410;
+};
+
 export class DetailedError extends Error {
 	constructor(
 		message: string,

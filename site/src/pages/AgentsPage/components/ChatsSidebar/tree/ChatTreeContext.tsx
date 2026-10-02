@@ -17,11 +17,8 @@ export type ChatTreeContextValue = {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
