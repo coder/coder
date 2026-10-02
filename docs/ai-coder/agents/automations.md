@@ -71,7 +71,7 @@ When the experiment is off for a user:
   An occurrence that came due while the experiment was off can run once, late, if the experiment is back on at a check inside that window.
   This recovery is best effort: lock or hook delays can still push the occurrence past the window.
   Otherwise the occurrence counts as missed and the schedule continues from its next time.
-  To be sure an occurrence runs, turn the experiment back on before its due time.
+  To avoid depending on this recovery, turn the experiment back on before the occurrence is due.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
 - Messages that automations already queued in a chat stay queued and still run.
   To remove them, turn off or delete the automation before you turn the experiment off, or select **Remove from queue** on each message in the chat.
