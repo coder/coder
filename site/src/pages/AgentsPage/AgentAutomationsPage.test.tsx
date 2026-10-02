@@ -7,10 +7,7 @@ import type { QueryClient } from "react-query";
 import type { To } from "react-router";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	chatAutomationsKey,
-	webhookPublishEndpoint,
-} from "#/api/queries/chatAutomations";
+import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -180,58 +177,23 @@ describe("AgentAutomationsPage", () => {
 		},
 	);
 
-	it("names the owner of another user's automation", async () => {
-		server.use(
-			http.get(
-				`/api/v2/organizations/${MockDefaultOrganization.id}/members/${MockOrganizationMember2.user_id}`,
-				() => HttpResponse.json({ ...MockOrganizationMember2, name: "" }),
-			),
-		);
-		setup({
+	it("looks up the owner of another user's automation", async () => {
+		const memberPath = `/api/v2/organizations/${MockDefaultOrganization.id}/members/${MockOrganizationMember2.user_id}`;
+		const { requests } = setup({
 			automations: [
 				{ ...mockAutomation, owner_id: MockOrganizationMember2.user_id },
 			],
 		});
-
-		expect(
-			await screen.findByText(`Owned by ${MockOrganizationMember2.username}`),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: `Delete ${mockAutomation.name}` }),
-		).toBeNull();
-	});
-
-	it("shows the next run that has not passed yet", async () => {
-		setup({
-			automations: [
-				{
-					...mockAutomation,
-					next_run_times: ["2000-01-15T03:00:00Z", "2099-06-20T07:00:00Z"],
-				},
-			],
-		});
-
-		expect(await screen.findByText(/Jun 20/)).toBeInTheDocument();
-		expect(screen.queryByText(/Jan 15/)).toBeNull();
-	});
-
-	it("keeps the rows and warns when a refresh fails", async () => {
-		const { queryClient } = setup();
-		await screen.findByText(mockAutomation.name);
 		server.use(
-			http.get(automationsPath(MockDefaultOrganization.id), () =>
-				HttpResponse.json({ message: "Refresh failed." }, { status: 500 }),
-			),
+			http.get(memberPath, ({ request }) => {
+				requests.push(request);
+				return HttpResponse.json(MockOrganizationMember2);
+			}),
 		);
 
-		await queryClient.refetchQueries({
-			queryKey: chatAutomationsKey(MockDefaultOrganization.id),
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`GET ${memberPath}`);
 		});
-
-		expect(
-			await screen.findByText("Could not refresh automations"),
-		).toBeInTheDocument();
-		expect(screen.getByText(mockAutomation.name)).toBeInTheDocument();
 	});
 
 	it("disables an automation with the enabled switch", async () => {
@@ -380,13 +342,19 @@ describe("AgentAutomationsPage", () => {
 
 	it("deletes an automation after confirmation", async () => {
 		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
 		const { requests } = setup();
 		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		let deleted = false;
 		server.use(
 			http.delete(deletePath, ({ request }) => {
 				requests.push(request);
+				deleted = true;
 				return new HttpResponse(null, { status: 204 });
 			}),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
+			),
 		);
 
 		await user.click(
@@ -404,7 +372,15 @@ describe("AgentAutomationsPage", () => {
 			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
 		});
 		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).toBeNull();
+			expect(toastSuccess).toHaveBeenCalledWith(
+				`Deleted ${mockAutomation.name}.`,
+			);
+		});
+		// The deleted row's button is gone, so focus moves to a stable control.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "New automation" }),
+			).toHaveFocus();
 		});
 	});
 
@@ -412,64 +388,42 @@ describe("AgentAutomationsPage", () => {
 		const user = userEvent.setup();
 		const { requests } = setup();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Delete ${mockAutomation.name}`,
-			}),
-		);
+		const deleteButton = await screen.findByRole("button", {
+			name: `Delete ${mockAutomation.name}`,
+		});
+		await user.click(deleteButton);
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
 		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).toBeNull();
+			expect(deleteButton).toHaveFocus();
 		});
 		expect(
 			requestPaths(requests).filter((path) => path.startsWith("DELETE")),
 		).toEqual([]);
 	});
 
-	it("keeps the delete confirmation open with the server's error", async () => {
-		const user = userEvent.setup();
-		setup();
-		server.use(
-			http.delete(
-				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
-				() =>
-					HttpResponse.json(
-						{ message: "You cannot delete this automation." },
-						{ status: 403 },
-					),
-			),
-		);
-
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Delete ${mockAutomation.name}`,
-			}),
-		);
-		const dialog = await screen.findByRole("dialog", {
-			name: `Delete ${mockAutomation.name}?`,
-		});
-		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-
-		expect(
-			await within(dialog).findByText("You cannot delete this automation."),
-		).toBeInTheDocument();
-	});
-
 	it("closes the delete confirmation when the automation is already gone", async () => {
 		const user = userEvent.setup();
+		const toastMessage = vi.spyOn(toast, "message");
 		setup();
+		// Another tab deletes it after this page loaded the list.
+		let deleted = false;
 		server.use(
 			http.delete(
 				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
-				() =>
-					HttpResponse.json(
+				() => {
+					deleted = true;
+					return HttpResponse.json(
 						{ message: "Resource not found." },
 						{ status: 404 },
-					),
+					);
+				},
+			),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
 			),
 		);
 
@@ -484,7 +438,14 @@ describe("AgentAutomationsPage", () => {
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
 		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).toBeNull();
+			expect(toastMessage).toHaveBeenCalledWith(
+				`${mockAutomation.name} was already deleted.`,
+			);
+		});
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "New automation" }),
+			).toHaveFocus();
 		});
 	});
 

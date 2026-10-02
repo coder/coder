@@ -101,7 +101,6 @@ export const OtherOwner: Story = {
 	args: { currentUserId: "another-user-id" },
 	parameters: {
 		queries: [
-			...(meta.parameters?.queries ?? []),
 			{
 				key: organizationMemberKey(
 					MockChatAutomation.organization_id,

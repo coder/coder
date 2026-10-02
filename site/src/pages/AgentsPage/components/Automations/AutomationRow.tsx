@@ -1,5 +1,5 @@
 import { PlayIcon, Trash2Icon } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
@@ -18,7 +18,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useTime } from "#/hooks/useTime";
 import { formatDate } from "#/utils/time";
 
 type AutomationRowProps = {
@@ -37,19 +36,53 @@ type AutomationRowProps = {
 	onDelete: (automation: ChatAutomation) => void;
 };
 
-const formatNextRun = (automation: ChatAutomation, now: number): string => {
+/** Returns the first run after now, or undefined when none is scheduled. */
+const findNextRun = (
+	automation: ChatAutomation,
+	now: number,
+): Date | undefined => {
 	if (automation.kind !== "schedule") {
-		return "Not scheduled";
+		return undefined;
 	}
 	// The server computed the list when it last loaded, so its first entry
 	// can already be in the past.
-	const date = automation.next_run_times
+	return automation.next_run_times
 		.map((runTime) => new Date(runTime))
 		.find((runTime) => runTime.getTime() > now);
-	if (!date) {
+};
+
+// setTimeout fires at once for delays above this.
+const maxTimeoutDelay = 2 ** 31 - 1;
+
+type NextRunProps = {
+	automation: ChatAutomation;
+};
+
+const NextRun: React.FC<NextRunProps> = ({ automation }) => {
+	const [now, setNow] = useState(Date.now);
+	const nextRun = findNextRun(automation, now);
+	const nextRunTime = nextRun?.getTime();
+	// One timer per row, fired when the shown run starts, instead of polling.
+	useEffect(() => {
+		if (nextRunTime === undefined) {
+			return;
+		}
+		const delay = nextRunTime - Date.now();
+		// Runs this far out need no timer while the page is open.
+		if (delay > maxTimeoutDelay) {
+			return;
+		}
+		// Never earlier than the run, even if the timer fires a little early.
+		const handle = setTimeout(
+			() => setNow(Math.max(Date.now(), nextRunTime)),
+			Math.max(delay, 0),
+		);
+		return () => clearTimeout(handle);
+	}, [nextRunTime]);
+	if (!nextRun) {
 		return "Not scheduled";
 	}
-	return formatDate(date, {
+	return formatDate(nextRun, {
 		locale: "en-US",
 		timeZone: automation.schedule_time_zone || "UTC",
 		timeZoneName: "short",
@@ -59,20 +92,6 @@ const formatNextRun = (automation: ChatAutomation, now: number): string => {
 		hour: "numeric",
 		minute: "2-digit",
 		second: undefined,
-	});
-};
-
-type NextRunProps = {
-	automation: ChatAutomation;
-};
-
-const NextRun: React.FC<NextRunProps> = ({ automation }) => {
-	// Re-checks every second, so a run that just started drops out at once
-	// and an updated automation shows within a second. Re-renders happen
-	// only when the label changes.
-	return useTime(() => formatNextRun(automation, Date.now()), {
-		interval: 1_000,
-		disabled: automation.kind !== "schedule",
 	});
 };
 
@@ -360,8 +379,15 @@ export const AutomationRow = memo<AutomationRowProps>(
 					<TableCell className="align-top">
 						<div className="flex flex-col gap-1 wrap-anywhere">
 							{nameDetails}
-							<TriggerCell automation={automation} />
-							<div>{target}</div>
+							{/* The Trigger and Target headers are hidden in this layout. */}
+							<div>
+								<span className="sr-only">Trigger: </span>
+								<TriggerCell automation={automation} />
+							</div>
+							<div>
+								<span className="sr-only">Target: </span>
+								{target}
+							</div>
 							{automation.kind === "schedule" && (
 								<span>
 									Next run: <NextRun automation={automation} />

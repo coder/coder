@@ -218,7 +218,7 @@ const AutomationsList: React.FC = () => {
 			onError: (error) => {
 				// Someone else deleted it first, so there is nothing to retry.
 				if (getErrorStatus(error) === 404) {
-					toast(`${automation.name} was already deleted.`);
+					toast.message(`${automation.name} was already deleted.`);
 					setDeleteTarget(undefined);
 				}
 			},

@@ -1,5 +1,5 @@
 import { ArchiveIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -178,10 +178,13 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 
 type AutomationDeleteDialogProps = {
 	state: AutomationDeleteDialogState;
+	/** Receives focus when a successful delete removed the opener's row. */
+	fallbackFocusRef: React.RefObject<HTMLButtonElement | null>;
 };
 
 const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
 	state,
+	fallbackFocusRef,
 }) => {
 	// Like the chats dialog, this opens from a row button, so the focused
 	// element at mount is the Delete button to return to on cancel.
@@ -196,9 +199,13 @@ const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
 			onConfirm={state.onConfirm}
 			onClose={state.onClose}
 			onCloseAutoFocus={(event) => {
-				if (opener instanceof HTMLElement && opener.isConnected) {
+				const target =
+					opener instanceof HTMLElement && opener.isConnected
+						? opener
+						: fallbackFocusRef.current;
+				if (target) {
 					event.preventDefault();
-					opener.focus();
+					target.focus();
 				}
 			}}
 			description={
@@ -246,6 +253,7 @@ export const AgentAutomationsPageView: React.FC<
 	webhookSecretDialog,
 }) => {
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
+	const newAutomationRef = useRef<HTMLButtonElement>(null);
 	let rows: React.ReactNode;
 	if (isLoading) {
 		rows = <TableLoader />;
@@ -287,7 +295,11 @@ export const AgentAutomationsPageView: React.FC<
 						action={
 							<div className="flex items-center gap-2">
 								{organizationSelector}
-								<Button size="sm" onClick={onCreateAutomation}>
+								<Button
+									ref={newAutomationRef}
+									size="sm"
+									onClick={onCreateAutomation}
+								>
 									New automation
 								</Button>
 							</div>
@@ -345,7 +357,12 @@ export const AgentAutomationsPageView: React.FC<
 				</div>
 			</div>
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
-			{deleteDialog && <AutomationDeleteDialog state={deleteDialog} />}
+			{deleteDialog && (
+				<AutomationDeleteDialog
+					state={deleteDialog}
+					fallbackFocusRef={newAutomationRef}
+				/>
+			)}
 			{editorDialog}
 			{webhookSecretDialog}
 		</ScrollArea>
