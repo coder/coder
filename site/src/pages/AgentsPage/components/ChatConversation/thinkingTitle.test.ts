@@ -263,10 +263,12 @@ describe("getThinkingDisclosureDisplay", () => {
 		`# Plan ${"step ".repeat(100)}`,
 		`Plan ${"step ".repeat(100)}\n---`,
 	])("previews headings too long to parse on every chunk: %j", (text) => {
-		const { title } = getThinkingDisclosureDisplay(text, {
-			isStreaming: false,
+		const title = `Plan ${"step ".repeat(19).trimEnd()}…`;
+		expect(getThinkingDisclosureDisplay(text, { isStreaming: false })).toEqual({
+			title,
+			ariaLabel: `Thinking: ${title}`,
+			body: text,
 		});
-		expect(title).toMatch(/^Plan step step .*…$/);
 	});
 
 	it("ignores headings inside fenced code blocks", () => {

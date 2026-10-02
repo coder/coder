@@ -81,6 +81,11 @@ const getPlainText = (node: Nodes): string =>
 const markdownToPlainText = (markdown: string): string =>
 	getPlainText(markdownParser.parse(markdown));
 
+const parseHeadingCandidate = (markdown: string) =>
+	markdown.length > PARSED_SOURCE_MAX_LENGTH
+		? undefined
+		: markdownParser.parse(markdown);
+
 const getLines = (text: string): LineRange[] => {
 	const lines: LineRange[] = [];
 	const linePattern = /[^\r\n]*(?:\r\n|\r|\n|$)/g;
@@ -104,23 +109,19 @@ const getLines = (text: string): LineRange[] => {
 };
 
 const getAtxHeadingText = (line: string): string | undefined => {
-	if (
-		line.length > PARSED_SOURCE_MAX_LENGTH ||
-		!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)
-	) {
+	if (!/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
 		return undefined;
 	}
-	return markdownToPlainText(line) || undefined;
+	const root = parseHeadingCandidate(line);
+	return root ? getPlainText(root) || undefined : undefined;
 };
 
 const getSetextHeadingText = (
 	line: string,
 	underline: string,
 ): string | undefined => {
-	if (line.length > PARSED_SOURCE_MAX_LENGTH) {
-		return undefined;
-	}
-	const [block] = markdownParser.parse(`${line}\n${underline}`).children;
+	const [block] =
+		parseHeadingCandidate(`${line}\n${underline}`)?.children ?? [];
 	return block?.type === "heading"
 		? getPlainText(block) || undefined
 		: undefined;
@@ -158,18 +159,18 @@ const hasBodyAfterLine = (
 	index: number,
 ): boolean => lines.slice(index + 1).some(({ line }) => line.trim().length > 0);
 
-const isHeadingLikeParagraph = (
+const getParagraphHeadingText = (
 	lines: readonly LineRange[],
 	index: number,
 	text: string,
 ): string | undefined => {
 	const lineRange = lines[index];
 	const prefix = text.slice(0, lineRange.start);
-	if (prefix.trim() || lineRange.line.length > PARSED_SOURCE_MAX_LENGTH) {
+	if (prefix.trim()) {
 		return undefined;
 	}
 
-	const [paragraph] = markdownParser.parse(lineRange.line).children;
+	const [paragraph] = parseHeadingCandidate(lineRange.line)?.children ?? [];
 	if (paragraph?.type !== "paragraph") {
 		return undefined;
 	}
@@ -232,7 +233,7 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 			};
 		}
 
-		const paragraphHeading = isHeadingLikeParagraph(lines, index, text);
+		const paragraphHeading = getParagraphHeadingText(lines, index, text);
 		if (paragraphHeading) {
 			return {
 				text: paragraphHeading,
