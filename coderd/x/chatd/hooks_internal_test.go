@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -121,7 +122,7 @@ func TestApplySessionStartResponse(t *testing.T) {
 
 	promptRows, err := f.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, "model context", hookMessageTextInternal(t, promptRows[len(promptRows)-1]))
+	require.Equal(t, promptsource.LifecycleHookContext.Wrap("model context"), hookMessageTextInternal(t, promptRows[len(promptRows)-1]))
 	require.Equal(t, database.ChatMessageVisibilityModel, promptRows[len(promptRows)-1].Visibility)
 	allRows, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)

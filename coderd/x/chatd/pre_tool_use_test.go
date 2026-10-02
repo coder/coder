@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -703,7 +704,7 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 	for _, message := range promptMessages {
 		parts, err := chatprompt.ParseContent(message)
 		require.NoError(t, err)
-		if len(parts) == 1 && parts[0].Text == "dynamic context" {
+		if len(parts) == 1 && parts[0].Text == promptsource.LifecycleHookContext.Wrap("dynamic context") {
 			foundContext = true
 		}
 	}
@@ -907,7 +908,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 		require.NoError(t, err)
 		for _, part := range parts {
 			switch part.Text {
-			case "first context":
+			case promptsource.LifecycleHookContext.Wrap("first context"):
 				contextCount++
 			case "first notice":
 				noticeCount++

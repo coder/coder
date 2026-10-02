@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+
 	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 )
 

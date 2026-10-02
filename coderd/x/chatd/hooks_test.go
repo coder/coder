@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -540,7 +541,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.NoError(t, err)
 	var foundContext bool
 	for _, row := range promptRows {
-		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == "clear context" {
+		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == promptsource.LifecycleHookContext.Wrap("clear context") {
 			foundContext = true
 		}
 	}

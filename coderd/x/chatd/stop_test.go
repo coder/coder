@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -117,7 +118,7 @@ func TestStopHookNudgeContinuesOnce(t *testing.T) {
 	for _, message := range promptMessages {
 		parts, err := chatprompt.ParseContent(message)
 		require.NoError(t, err)
-		if len(parts) == 1 && parts[0].Text == "continue please" {
+		if len(parts) == 1 && parts[0].Text == promptsource.LifecycleHookContext.Wrap("continue please") {
 			contextRows++
 			require.Equal(t, database.ChatMessageVisibilityModel, message.Visibility)
 		}

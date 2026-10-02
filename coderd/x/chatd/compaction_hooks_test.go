@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -62,8 +63,8 @@ func TestCompactionHooksHintAndPostCommitResponses(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasMessageText(t, userMessages, "compaction starting", database.ChatMessageVisibilityUser))
 	require.True(t, hasMessageText(t, userMessages, "compaction complete", database.ChatMessageVisibilityUser))
-	require.True(t, hasMessageText(t, promptMessages, "post compact context", database.ChatMessageVisibilityModel))
-	require.False(t, hasMessageText(t, promptMessages, "preserve deployment constraints", database.ChatMessageVisibilityModel))
+	require.True(t, hasMessageText(t, promptMessages, promptsource.LifecycleHookContext.Wrap("post compact context"), database.ChatMessageVisibilityModel))
+	require.False(t, hasMessageText(t, promptMessages, promptsource.LifecycleHookContext.Wrap("preserve deployment constraints"), database.ChatMessageVisibilityModel))
 }
 
 func TestPreCompactHookFailureAbortsCompaction(t *testing.T) {

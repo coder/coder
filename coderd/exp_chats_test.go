@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -13840,12 +13841,14 @@ func TestChatSystemPrompt(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	const workspaceAwareness = `This chat started without an attached workspace. Follow subsequent workspace tool results and context for its current state.
+	const workspaceAwareness = `<coder-agents-workspace-awareness>
+This chat started without an attached workspace. Follow subsequent workspace tool results and context for its current state.
 Use the conversation and available tools, skills, and MCPs when they are sufficient for the request.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. If no workspace is attached, create a suitable workspace with create_workspace when missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed. Use the workspace's available context and capabilities to continue the user's request. Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading. Use capabilities that are actually exposed, and continue with workspace file and shell tools where possible instead of recreating the workspace.
 Requests such as "fix this bug" or "build this app" authorize the workspace setup needed to complete them; the user does not need to request a workspace separately. Do not refuse solely because no workspace is attached. If setup is blocked, explain the specific blocker or required user choice.
 Answer questions and self-contained code examples directly when the conversation and available tools are sufficient.
-If a workspace is needed, use list_templates before create_workspace and follow its next_step. Call read_template only when you need template parameter or preset details.`
+If a workspace is needed, use list_templates before create_workspace and follow its next_step. Call read_template only when you need template parameter or preset details.
+</coder-agents-workspace-awareness>`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()
@@ -14036,7 +14039,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		require.Equal(t, []string{"Legacy custom instructions", workspaceAwareness}, systemTexts)
+		require.Equal(t, []string{promptsource.DeploymentSystemPrompt.Wrap("Legacy custom instructions"), workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("DefaultSystemPromptPreview", func(t *testing.T) {
@@ -14082,7 +14085,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			require.Empty(t, resp.SystemPrompt)
 			require.True(t, resp.IncludeDefaultSystemPrompt)
 			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
-			assertInjectedSystemMessages(t, ctx, chatd.DefaultSystemPrompt)
+			assertInjectedSystemMessages(t, ctx, promptsource.BuiltinSystemPrompt.Wrap(chatd.DefaultSystemPrompt))
 		})
 
 		t.Run("BothWhenToggleOnAndNonEmpty", func(t *testing.T) {
@@ -14097,7 +14100,9 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			require.Equal(t, "Custom instructions", resp.SystemPrompt)
 			require.True(t, resp.IncludeDefaultSystemPrompt)
 			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
-			assertInjectedSystemMessages(t, ctx, chatd.DefaultSystemPrompt+"\n\nCustom instructions")
+			assertInjectedSystemMessages(t, ctx,
+				promptsource.BuiltinSystemPrompt.Wrap(chatd.DefaultSystemPrompt)+"\n\n"+
+					promptsource.DeploymentSystemPrompt.Wrap("Custom instructions"))
 		})
 
 		t.Run("CustomOnlyWhenToggleOff", func(t *testing.T) {
@@ -14112,7 +14117,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			require.Equal(t, "Custom only", resp.SystemPrompt)
 			require.False(t, resp.IncludeDefaultSystemPrompt)
 			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
-			assertInjectedSystemMessages(t, ctx, "Custom only")
+			assertInjectedSystemMessages(t, ctx, promptsource.DeploymentSystemPrompt.Wrap("Custom only"))
 		})
 
 		t.Run("EmptyWhenToggleOffAndEmpty", func(t *testing.T) {
@@ -14177,7 +14182,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
+		require.Equal(t, []string{promptsource.BuiltinSystemPrompt.Wrap(chatd.DefaultSystemPrompt), workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("CreateChatFallbackIgnoresDisabledPreferenceWhenConfigReadFails", func(t *testing.T) {
@@ -14228,7 +14233,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
+		require.Equal(t, []string{promptsource.BuiltinSystemPrompt.Wrap(chatd.DefaultSystemPrompt), workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {
