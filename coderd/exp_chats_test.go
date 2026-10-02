@@ -2962,7 +2962,7 @@ func TestListChats(t *testing.T) {
 			Archived: ptr.Ref(true),
 		}))
 
-		t.Run("MatchesRoot", func(t *testing.T) {
+		t.Run("MatchesRoot", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/1"`,
 			})
@@ -2971,7 +2971,7 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, rootWithPR.ID, chats[0].ID)
 		})
 
-		t.Run("MatchesViaSubAgent", func(t *testing.T) {
+		t.Run("MatchesViaSubAgent", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/2"`,
 			})
@@ -2980,7 +2980,7 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, rootWithChildPR.ID, chats[0].ID)
 		})
 
-		t.Run("CaseInsensitive", func(t *testing.T) {
+		t.Run("CaseInsensitive", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"HTTPS://GITHUB.COM/CODER/CODER/PULL/1"`,
 			})
@@ -2989,7 +2989,7 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, rootWithPR.ID, chats[0].ID)
 		})
 
-		t.Run("NoMatch", func(t *testing.T) {
+		t.Run("NoMatch", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/424242"`,
 			})
@@ -2997,7 +2997,7 @@ func TestListChats(t *testing.T) {
 			require.Empty(t, chats)
 		})
 
-		t.Run("InvalidURL", func(t *testing.T) {
+		t.Run("InvalidURL", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"ftp://example.com/x"`,
 			})
@@ -3006,7 +3006,7 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, "diff_url", sdkErr.Validations[0].Field)
 		})
 
-		t.Run("ArchivedFilteredOut", func(t *testing.T) {
+		t.Run("ArchivedFilteredOut", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			// Default archived filter is false, so an archived chat with
 			// a matching diff URL must not surface.
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
@@ -3016,7 +3016,7 @@ func TestListChats(t *testing.T) {
 			require.Empty(t, chats, "archived chat must not match the default filter")
 		})
 
-		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+		t.Run("ArchivedTrueComposes", func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `archived:true diff_url:"https://github.com/coder/coder/pull/3"`,
 			})
@@ -4088,7 +4088,7 @@ func TestGetChatModel(t *testing.T) {
 			{name: "Patch", method: http.MethodPatch, body: codersdk.UpdateChatModelRequest{DisplayName: "wrong organization"}},
 			{name: "Delete", method: http.MethodDelete},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // parent asserts stored state after subtests
 				res, err := client.Request(ctx, tc.method, fmt.Sprintf(
 					"/api/v2/organizations/%s/chats/models/%s",
 					wrongOrganization.ID,
@@ -4173,7 +4173,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			{"disabled", disabledProvider.ID},
 			{"configured", configuredProvider.ID},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 				contextLimit := int64(4096)
 				_, err := memberClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
 					AIProviderID: &tc.providerID,
@@ -5362,7 +5362,7 @@ func TestUpdateChatModel(t *testing.T) {
 			{name: "user_acl/object", key: "user_acl", value: map[string]any{}},
 			{name: "user_acl/null", key: "user_acl", value: nil},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 				res, err := client.Request(ctx, http.MethodPatch, fmt.Sprintf(
 					"/api/v2/organizations/%s/chats/models/%s",
 					modelConfig.OrganizationID,

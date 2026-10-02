@@ -2611,7 +2611,7 @@ func TestUserThemeMode(t *testing.T) {
 				themeDark: "xss-payload",
 			},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 				_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 					ThemePreference: "dark",
 					ThemeMode:       tc.themeMode,
@@ -2946,7 +2946,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
 			},
 		} {
-			t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 					ShellToolDisplayMode: tt.mode,
 				})
@@ -2976,7 +2976,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
 			},
 		} {
-			t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 					CodeDiffDisplayMode: tt.mode,
 				})

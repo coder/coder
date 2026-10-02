@@ -529,7 +529,7 @@ func TestServer(t *testing.T) {
 				expectGithubDefaultProviderConfigured: true,
 			},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) { //nolint:paralleltest // runGitHubProviderTest calls t.Parallel
 				runGitHubProviderTest(t, tc)
 			})
 		}
