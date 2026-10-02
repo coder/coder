@@ -22,8 +22,10 @@ export type ChatAutomationNames = {
 const labelSeparator = " · ";
 
 type AutomationLabelText = {
-	/** The automation name and kind, its ID, or empty while loading. */
+	/** The automation name, its ID, or empty while loading. */
 	name: string;
+	/** " (<kind>)" when the name is known, otherwise empty. */
+	kindSuffix: string;
 	/** The whole visible label as one line. */
 	text: string;
 	statusText: string;
@@ -47,13 +49,14 @@ const formatAutomationLabel = ({
 	const showNameLoading = !reference && nameStatus === "loading";
 	let name = automationId;
 	if (reference) {
-		name = `${reference.name} (${reference.kind})`;
+		name = reference.name;
 	} else if (showNameLoading) {
 		name = "";
 	}
+	const kindSuffix = reference ? ` (${reference.kind})` : "";
 	let statusText = "Automation name unavailable.";
 	if (reference) {
-		statusText = `Automation: ${name}`;
+		statusText = `Automation: ${name}${kindSuffix}`;
 	} else if (showNameLoading) {
 		statusText = "Loading automation name.";
 	} else if (nameStatus === "error") {
@@ -61,7 +64,8 @@ const formatAutomationLabel = ({
 	}
 	return {
 		name,
-		text: `Automation run${name ? `${labelSeparator}${name}` : ""}`,
+		kindSuffix,
+		text: `Automation run${name ? `${labelSeparator}${name}${kindSuffix}` : ""}`,
 		statusText,
 	};
 };
@@ -82,7 +86,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	nameStatus,
 	variant,
 }) => {
-	const { name, text, statusText } = formatAutomationLabel({
+	const { name, kindSuffix, text, statusText } = formatAutomationLabel({
 		automationId,
 		reference,
 		nameStatus,
@@ -101,7 +105,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 				tabIndex={0}
 				aria-label={text}
 				className={cn(
-					"my-1 flex w-full flex-row items-start gap-3 rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left text-sm text-content-primary",
+					"my-1 flex w-full flex-row items-start gap-3 rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left text-sm font-normal text-content-primary",
 					focusRing,
 				)}
 			>
@@ -111,7 +115,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 				/>
 				<span className="min-w-0 flex-1 break-words">
 					<span className="font-semibold">Automation run</span>
-					{name && `${labelSeparator}${name}`}
+					{name && `${labelSeparator}${name}${kindSuffix}`}
 				</span>
 			</div>
 		) : (
@@ -121,16 +125,35 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 				aria-label={text}
 				size="sm"
 				variant="outline"
-				className={cn("min-w-0 max-w-full", focusRing)}
+				// The right padding moves to the text span, so its clip edge sits
+				// at the badge border. See the name span below.
+				className={cn("min-w-0 max-w-full pr-0", focusRing)}
 			>
-				<span className="min-w-0 overflow-hidden whitespace-pre">
+				<span className="min-w-0 overflow-hidden whitespace-pre pr-1.5">
 					Automation run
 					{name && (
 						<>
 							{labelSeparator}
-							<span className="inline-block max-w-full truncate align-bottom">
+							{/*
+							 * Only the name truncates, so the kind stays visible. Its
+							 * max width reserves room for the text around it:
+							 * "Automation run · " plus " (<kind>)" measure about
+							 * 19.2ch in Geist, and the prefix alone about 11.6ch.
+							 * The reserves are slightly smaller, so a name that fits
+							 * never truncates. The small overflow lands in the right
+							 * padding, which the overflow clip does not cover.
+							 */}
+							<span
+								className={cn(
+									"inline-block truncate align-bottom",
+									kindSuffix
+										? "max-w-[calc(100%-18.5ch)]"
+										: "max-w-[calc(100%-11ch)]",
+								)}
+							>
 								{name}
 							</span>
+							{kindSuffix}
 						</>
 					)}
 				</span>

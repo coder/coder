@@ -67,6 +67,21 @@ export const SeveralMessages: Story = {
 	},
 };
 
+// Returns a range around the first occurrence of text inside root.
+const textRange = (root: HTMLElement, text: string): Range => {
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		const start = node.textContent?.indexOf(text) ?? -1;
+		if (start >= 0) {
+			const range = document.createRange();
+			range.setStart(node, start);
+			range.setEnd(node, start + text.length);
+			return range;
+		}
+	}
+	throw new Error(`text not found: ${text}`);
+};
+
 const mockLongNameAutomation = {
 	...MockChatAutomation,
 	id: "5c4b3a29-1807-4f6e-9d5c-4b3a29180706",
@@ -123,6 +138,14 @@ export const AutomationMessages: Story = {
 		const label = await canvas.findByRole("note", { name: expected });
 		// Copying the badge yields one line, even with a truncated name.
 		expect(copiedText(label)).toBe(expected);
+		// At 390px only the name truncates, and the kind stays inside the badge.
+		const name = within(label).getByText(mockLongNameAutomation.name);
+		expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+		expect(getComputedStyle(name).textOverflow).toBe("ellipsis");
+		const kind = textRange(label, `(${mockLongNameAutomation.kind})`);
+		expect(kind.getBoundingClientRect().right).toBeLessThanOrEqual(
+			label.getBoundingClientRect().right,
+		);
 	},
 };
 
