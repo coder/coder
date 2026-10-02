@@ -39,12 +39,13 @@ type streamLocalState struct {
 	workerID          uuid.NullUUID
 	generationAttempt int64
 	lastPartSeq       int64
-	// attemptRetired is set once the stream observes a retry payload for
-	// the current generation attempt. That attempt has failed, so its
-	// remaining in-flight parts are dropped until a new history version
-	// or generation attempt starts a fresh preview episode. It stays set
-	// when the pending retry is later canceled (interrupt, error), since
-	// the failed attempt does not come back.
+	// attemptRetired is set once the stream observes that the current
+	// generation attempt failed: a retry payload was recorded for it, or
+	// the chat entered the error status. Its remaining in-flight parts
+	// are dropped until a new history version or generation attempt
+	// starts a fresh preview episode. It stays set when a pending retry
+	// is later canceled (interrupt, error), since the failed attempt does
+	// not come back.
 	attemptRetired bool
 
 	afterMessageID         int64
@@ -301,8 +302,12 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	// for the current attempt or that pending retry is cleared, so an
 	// advanced retry_state_version also retires the attempt when the
 	// payload was cleared again before this sync.
+	//
+	// Clients also drop their preview on the error event, and an errored
+	// chat records a new generation attempt before it streams again, so
+	// any later part of the current attempt is from the failed one.
 	retryChangedInEpisode := chat.RetryStateVersion > l.state.retryVersion && !historyChanged && !generationChanged
-	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) {
+	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) || chat.Status == database.ChatStatusError {
 		l.state.attemptRetired = true
 	}
 

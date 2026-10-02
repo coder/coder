@@ -893,6 +893,10 @@ chat:
   # frees up within 90 seconds. Must be at least 1.
   # (default: 25, type: int)
   maxConcurrentRecordingUploads: 25
+  # Maximum number of chat automations one user can own across all organizations.
+  # Creating one more fails with HTTP 409. Must be at least 1.
+  # (default: 50, type: int)
+  maxAutomationsPerOwner: 50
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
