@@ -65,6 +65,7 @@ type AgentAutomationsPageViewProps = {
 	chatsDialog?: AutomationChatsDialogState;
 	editorDialog?: React.ReactNode;
 	webhookSecretDialog?: React.ReactNode;
+	leavePrompt?: React.ReactNode;
 };
 
 type AutomationChatsDialogProps = {
@@ -170,6 +171,7 @@ export const AgentAutomationsPageView: React.FC<
 	chatsDialog,
 	editorDialog,
 	webhookSecretDialog,
+	leavePrompt,
 }) => {
 	let rows: React.ReactNode;
 	if (isLoading) {
@@ -260,6 +262,7 @@ export const AgentAutomationsPageView: React.FC<
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
 			{editorDialog}
 			{webhookSecretDialog}
+			{leavePrompt}
 		</ScrollArea>
 	);
 };
