@@ -393,7 +393,7 @@ CREATE TYPE chat_title_source AS ENUM (
     'user'
 );
 
-COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 CREATE TYPE connection_status AS ENUM (
     'connected',
@@ -2303,7 +2303,7 @@ COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manu
 
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
 
-COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
+COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 
 COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 

@@ -1025,8 +1025,8 @@ FROM inserted
 ORDER BY id;
 
 -- name: UpdateChatTitleByID :one
--- Writes only when the current source is fallback or the incoming source
--- is user.
+-- Writes only when @title_source ranks at or above the current source.
+-- chat_title_source declares its values in rank order.
 WITH updated_chat AS (
 UPDATE
     chats
@@ -1040,10 +1040,7 @@ SET
     title_updated_at = GREATEST(NOW(), title_updated_at + interval '1 microsecond')
 WHERE
     id = @id::uuid
-    AND (
-        title_source = 'fallback'::chat_title_source
-        OR @title_source::chat_title_source = 'user'::chat_title_source
-    )
+    AND title_source <= @title_source::chat_title_source
 RETURNING *
 ),
 chats_expanded AS (

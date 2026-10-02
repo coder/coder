@@ -2351,17 +2351,18 @@ func TestChatTitleSource(t *testing.T) {
 		require.True(t, second.TitleUpdatedAt.After(first.TitleUpdatedAt))
 	})
 
-	t.Run("RefusesUnlessCurrentIsFallbackOrIncomingIsUser", func(t *testing.T) {
+	t.Run("WritesOnlyAtOrAboveCurrentSource", func(t *testing.T) {
 		t.Parallel()
 
+		// Ascending rank.
 		sources := []database.ChatTitleSource{
 			database.ChatTitleSourceFallback,
 			database.ChatTitleSourceGenerated,
 			database.ChatTitleSourceUser,
 		}
-		for _, current := range sources {
-			for _, incoming := range sources {
-				wantWrite := current == database.ChatTitleSourceFallback || incoming == database.ChatTitleSourceUser
+		for currentRank, current := range sources {
+			for incomingRank, incoming := range sources {
+				wantWrite := incomingRank >= currentRank
 				t.Run(string(current)+"_then_"+string(incoming), func(t *testing.T) {
 					t.Parallel()
 					ctx := testutil.Context(t, testutil.WaitMedium)

@@ -140,7 +140,8 @@ const (
 type ChatTitleSource string
 
 const (
-	// ChatTitleSourceFallback is derived from the first prompt.
+	// ChatTitleSourceFallback is derived from the first prompt, or is the
+	// default title of a chat created without one.
 	ChatTitleSourceFallback ChatTitleSource = "fallback"
 	// ChatTitleSourceGenerated is written by automatic title generation.
 	ChatTitleSourceGenerated ChatTitleSource = "generated"
@@ -165,8 +166,9 @@ type Chat struct {
 	LastModelConfigID   uuid.UUID  `json:"last_model_config_id" format:"uuid"`
 	LastReasoningEffort *string    `json:"last_reasoning_effort,omitempty"`
 	Title               string     `json:"title"`
-	// TitleSource is where Title came from. Automatic title generation
-	// replaces only a fallback title; a rename replaces any title.
+	// TitleSource is where Title came from. A title write applies only when
+	// the current source ranks the same as or lower than the incoming one,
+	// in the order fallback, generated, user.
 	TitleSource ChatTitleSource `json:"title_source"`
 	// TitleUpdatedAt orders title changes. Title writes do not change
 	// UpdatedAt.

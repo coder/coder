@@ -2041,8 +2041,9 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	/**
-	 * TitleSource is where Title came from. Automatic title generation
-	 * replaces only a fallback title; a rename replaces any title.
+	 * TitleSource is where Title came from. A title write applies only when
+	 * the current source ranks the same as or lower than the incoming one,
+	 * in the order fallback, generated, user.
 	 */
 	readonly title_source: ChatTitleSource;
 	/**

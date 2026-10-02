@@ -14350,10 +14350,7 @@ SET
     title_updated_at = GREATEST(NOW(), title_updated_at + interval '1 microsecond')
 WHERE
     id = $3::uuid
-    AND (
-        title_source = 'fallback'::chat_title_source
-        OR $2::chat_title_source = 'user'::chat_title_source
-    )
+    AND title_source <= $2::chat_title_source
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id, title_source, title_updated_at
 ),
 chats_expanded AS (
@@ -14423,8 +14420,8 @@ type UpdateChatTitleByIDParams struct {
 	ID          uuid.UUID       `db:"id" json:"id"`
 }
 
-// Writes only when the current source is fallback or the incoming source
-// is user.
+// Writes only when @title_source ranks at or above the current source.
+// chat_title_source declares its values in rank order.
 func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatTitleByID, arg.Title, arg.TitleSource, arg.ID)
 	var i Chat

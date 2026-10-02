@@ -20280,7 +20280,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title_source": {
-                    "description": "TitleSource is where Title came from. Automatic title generation\nreplaces only a fallback title; a rename replaces any title.",
+                    "description": "TitleSource is where Title came from. A title write applies only when\nthe current source ranks the same as or lower than the incoming one,\nin the order fallback, generated, user.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatTitleSource"

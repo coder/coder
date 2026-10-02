@@ -1592,8 +1592,8 @@ type sqlcQuerier interface {
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
-	// Writes only when the current source is fallback or the incoming source
-	// is user.
+	// Writes only when @title_source ranks at or above the current source.
+	// chat_title_source declares its values in rank order.
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
