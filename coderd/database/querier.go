@@ -1603,6 +1603,10 @@ type sqlcQuerier interface {
 	// whenever the chat leaves running. Otherwise an interrupted or failed
 	// chat would keep announcing a retry that will never happen.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
+	// Preserve delegated IDs and credentials when reconciling synthetic key scopes.
+	// User-created tokens with colliding names must never be updated.
+	// The token_name predicate must match chatd.GatewayTokenName.
+	UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg UpdateChatGatewayAPIKeyScopesByIDParams) (APIKey, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
 	// worker. Returns the IDs that were actually updated so the
