@@ -359,6 +359,17 @@ export function sliceAtGraphemeBoundary(
 	return text.slice(0, safeEnd);
 }
 
+/**
+ * Slice a string to its first {@link maxGraphemes} grapheme clusters,
+ * counting codepoints when the `Intl.Segmenter` API is unavailable.
+ */
+export function sliceGraphemes(text: string, maxGraphemes: number): string {
+	const graphemes = graphemeSegmenter
+		? Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment)
+		: Array.from(text);
+	return graphemes.slice(0, maxGraphemes).join("");
+}
+
 export function useSmoothStreamingText(
 	options: UseSmoothStreamingTextOptions,
 ): UseSmoothStreamingTextResult {

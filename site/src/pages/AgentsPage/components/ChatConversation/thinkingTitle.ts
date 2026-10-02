@@ -3,13 +3,13 @@ import remarkParse from "remark-parse";
 import remend from "remend";
 import { defaultRemarkPlugins } from "streamdown";
 import { unified } from "unified";
-import { sliceAtGraphemeBoundary } from "./SmoothText";
+import { sliceAtGraphemeBoundary, sliceGraphemes } from "./SmoothText";
 
 const DEFAULT_THINKING_TITLE = "Thinking";
-const PREVIEW_TITLE_MAX_LENGTH = 100;
+const PREVIEW_TITLE_MAX_GRAPHEMES = 100;
 // Bounds the Markdown parsing, which reruns for every streamed chunk of
 // reasoning that can grow to many kilobytes.
-const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_LENGTH * 4;
+const PARSED_SOURCE_MAX_LENGTH = PREVIEW_TITLE_MAX_GRAPHEMES * 4;
 
 // Parses like the Streamdown body so titles keep exactly the text it renders.
 const markdownParser = unified()
@@ -53,12 +53,18 @@ const getNodeText = (node: Nodes): string => {
 			return node.alt ?? "";
 		case "break":
 			return " ";
+		case "footnoteReference":
+			return `[^${node.label ?? node.identifier}]`;
 		case "list": {
 			const start = node.start ?? 1;
 			return node.children
 				.map((item, index) => {
 					const marker = node.ordered ? `${start + index}.` : "-";
-					return `${marker} ${getNodeText(item)}`;
+					const checkbox =
+						typeof item.checked === "boolean"
+							? `[${item.checked ? "x" : " "}] `
+							: "";
+					return `${marker} ${checkbox}${getNodeText(item)}`;
 				})
 				.join(" ");
 		}
@@ -290,13 +296,11 @@ const getPreviewTitle = (text: string, isStreaming: boolean): string => {
 	const preview = getPlainText(
 		markdownParser.parse(isStreaming || isSourceCut ? remend(source) : source),
 	);
-	if (
-		!preview ||
-		(preview.length <= PREVIEW_TITLE_MAX_LENGTH && !isSourceCut)
-	) {
+	const title = sliceGraphemes(preview, PREVIEW_TITLE_MAX_GRAPHEMES);
+	if (!preview || (title === preview && !isSourceCut)) {
 		return preview;
 	}
-	return `${sliceAtGraphemeBoundary(preview, PREVIEW_TITLE_MAX_LENGTH).trimEnd()}…`;
+	return `${title.trimEnd()}…`;
 };
 
 export const getThinkingDisclosureDisplay = (

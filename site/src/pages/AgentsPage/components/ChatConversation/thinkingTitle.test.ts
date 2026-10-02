@@ -18,14 +18,16 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
-	it("truncates the title at a grapheme boundary", () => {
-		const text = `${"a".repeat(99)}e\u0301 more`;
-		expect(getThinkingDisclosureDisplay(text, { isStreaming: false })).toEqual({
-			title: `${"a".repeat(99)}…`,
-			ariaLabel: `Thinking: ${"a".repeat(99)}…`,
-			body: text,
-		});
-	});
+	it.each(["\u{1F600}", "e\u0301"])(
+		"counts the title length in graphemes: %j",
+		(grapheme) => {
+			const text = grapheme.repeat(101);
+			const title = `${grapheme.repeat(100)}…`;
+			expect(
+				getThinkingDisclosureDisplay(text, { isStreaming: false }),
+			).toEqual({ title, ariaLabel: `Thinking: ${title}`, body: text });
+		},
+	);
 
 	it("ends the title with an ellipsis when the bounded source is cut", () => {
 		// The emoji straddles the 400-character source bound.
@@ -252,6 +254,20 @@ describe("getThinkingDisclosureDisplay", () => {
 		["- Leap years are divisible by 4\n-", "- Leap years are divisible by 4 -"],
 		["1. First step\n\n2. Second step", "1. First step 2. Second step"],
 	])("does not treat list items as headings: %j", (text, title) => {
+		expect(getThinkingDisclosureDisplay(text, { isStreaming: false })).toEqual({
+			title,
+			ariaLabel: `Thinking: ${title}`,
+			body: text,
+		});
+	});
+
+	it.each([
+		[
+			"- [ ] Verify migration\n- [x] Run tests",
+			"- [ ] Verify migration - [x] Run tests",
+		],
+		["Compare A[^1]B first.\n\n[^1]: note", "Compare A[^1]B first. note"],
+	])("keeps task states and footnote references: %j", (text, title) => {
 		expect(getThinkingDisclosureDisplay(text, { isStreaming: false })).toEqual({
 			title,
 			ariaLabel: `Thinking: ${title}`,
