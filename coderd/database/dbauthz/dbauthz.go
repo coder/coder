@@ -3979,6 +3979,15 @@ func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaul
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
+func (q *querier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg database.GetDeletedChatMessagesFromLastAssistantParams) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetDeletedChatMessagesFromLastAssistant(ctx, arg)
+}
+
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)
