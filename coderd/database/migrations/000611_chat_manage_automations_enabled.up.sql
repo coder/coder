@@ -1,11 +1,36 @@
+-- Take the locks this migration needs before changing anything, retrying
+-- short waits so that concurrent chatd traffic cannot deadlock with it. See
+-- 000609_chat_automations.up.sql for the reasoning. When this runs in the
+-- same transaction as 000609, the locks are already held.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			PERFORM set_config('lock_timeout', '100ms', true);
+			DROP VIEW IF EXISTS chats_expanded;
+			LOCK TABLE chats IN ACCESS EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000611 could not lock chats within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
+
 ALTER TABLE chats
     ADD COLUMN manage_automations_enabled boolean NOT NULL DEFAULT false;
 
 COMMENT ON COLUMN chats.manage_automations_enabled IS 'Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.';
 
--- Recreate chats_expanded: its explicit column list hides new columns otherwise.
-DROP VIEW IF EXISTS chats_expanded;
-
+-- Recreate chats_expanded, dropped at the top of this migration: its
+-- explicit column list hides new columns otherwise.
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
