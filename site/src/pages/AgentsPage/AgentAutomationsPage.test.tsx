@@ -253,6 +253,25 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
+	it("returns focus to View chats when the chats dialog closes", async () => {
+		const user = userEvent.setup();
+		setup();
+
+		const viewChats = await screen.findByRole("button", {
+			name: `View chats ${mockAutomation.name}`,
+		});
+		viewChats.focus();
+		await user.keyboard("{Enter}");
+		await screen.findByRole("dialog", {
+			name: `Chats for ${mockAutomation.name}`,
+		});
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => {
+			expect(viewChats).toHaveFocus();
+		});
+	});
+
 	it("loads more of an automation's chats", async () => {
 		const user = userEvent.setup();
 		const { requests } = setup();

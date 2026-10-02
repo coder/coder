@@ -63,16 +63,11 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-const queuedAutomationInput = (
-	id: number,
-	automationId: string,
-	inputId: string,
-): TypesGen.ChatQueuedMessage => ({
+const mockQueuedAutomationInput: TypesGen.ChatQueuedMessage = {
 	...MockChatQueuedMessage,
-	id,
-	automation_id: automationId,
-	input_id: inputId,
-});
+	automation_id: MockChatAutomation.id,
+	input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+};
 
 const mockExperiments = (experiments: TypesGen.Experiment[]) =>
 	server.use(
@@ -141,13 +136,7 @@ describe("ChatPageInput", () => {
 		mockChatAutomationsResponse();
 		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
 		const store = createChatStore();
-		store.setQueuedMessages([
-			queuedAutomationInput(
-				1,
-				MockChatAutomation.id,
-				"0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
-			),
-		]);
+		store.setQueuedMessages([mockQueuedAutomationInput]);
 
 		renderChatPageInput(store, {
 			chat: { ...MockChat, id: "", organization_id: "test-org-id" },
@@ -183,13 +172,7 @@ describe("ChatPageInput", () => {
 			);
 			const store = createChatStore();
 			store.setQueuedMessages([
-				automated
-					? queuedAutomationInput(
-							1,
-							MockChatAutomation.id,
-							"0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
-						)
-					: MockChatQueuedMessage,
+				automated ? mockQueuedAutomationInput : MockChatQueuedMessage,
 			]);
 
 			renderChatPageInput(store, {

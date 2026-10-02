@@ -97,7 +97,7 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	automationName?: string;
-	automationNameStatus?: ChatAutomationNames["status"];
+	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -586,6 +586,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								<ChatMessageItem
 									organizationId={organizationId}
 									renderKey={row.key}
+									automationNameStatus="settled"
 									liveStatus={liveStatus}
 									liveBlocks={liveBlocks}
 									liveTools={liveTools}
@@ -624,10 +625,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										? automationNames.names.get(message.automation_id)
 										: undefined
 								}
-								// Only automation rows read the list status, so other
-								// memoized rows skip re-rendering when it changes.
 								automationNameStatus={
-									message.automation_id ? automationNames.status : undefined
+									// A fixed status keeps rows without an automation from
+									// re-rendering when the automations list status changes.
+									message.automation_id ? automationNames.status : "settled"
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}
