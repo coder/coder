@@ -451,7 +451,7 @@ func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibrid
 	upstream := httptest.NewServer(upstreamHandler)
 	t.Cleanup(upstream.Close)
 	router, err := proxy.NewRouter([]aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate)
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
 	require.NoError(t, err)
 	return router
 }

@@ -70,7 +70,7 @@ type Server struct {
 	// cancelFn closes the lifecycleCtx with the reason it closed.
 	cancelFn context.CancelCauseFunc
 
-	// poolOptions configures the interception pool created at startup.
+	// poolOptions configures the interception pool and recording in both modes.
 	poolOptions PoolOptions
 
 	shutdownOnce sync.Once
@@ -373,7 +373,8 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
-	router, err := proxy.NewRouter(providers, s.logger, s.metrics, s.tracer, s.inflight)
+	rec := newRecorder(s.logger, s.tracer, s.poolOptions.StructuredLogging, s.poolOptions.DisableContentRecording, s.Client)
+	router, err := proxy.NewRouter(providers, s.logger, s.metrics, s.tracer, s.inflight, rec)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}

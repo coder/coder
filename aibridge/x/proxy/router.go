@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 )
 
@@ -42,7 +43,8 @@ var _ http.Handler = (*Router)(nil)
 // providers proxy passthrough routes upstream, bridged routes return 404
 // after validation succeeds. All routes reuse the same inflight gate
 // across a server's snapshots. Shutdown drains all admitted requests.
-func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate) (*Router, error) {
+// rec is shared across requests and must read identity from the request context.
+func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -56,7 +58,7 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 			continue
 		}
 
-		bridged := inflight.Middleware(newForwardingHandler(prov, logger, tracer))
+		bridged := newForwardingHandler(prov, logger, m, tracer, inflight, rec)
 		for _, path := range prov.BridgedRoutes() {
 			pattern, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
