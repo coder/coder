@@ -270,6 +270,12 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 	return automation, secret, nil
 }
 
+// AutomationGuard is an extra check a caller runs on an automation row
+// the service holds locked, inside the service's transaction. store is
+// that transaction's store. An error aborts the operation, which then
+// changes nothing, and is returned unchanged.
+type AutomationGuard func(store database.Store, automation database.ChatAutomation) error
+
 // UpdateAutomation applies the set fields of req to the automation. Only
 // the owner can update an automation, even when actorID has broader
 // permissions, with one exception: anyone allowed to update it may send a
@@ -282,7 +288,10 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 // the automation queued before that cutoff; see
 // deleteStaleAutomationQueuedMessages. Re-enabling a schedule moves its
 // cursor to the next future occurrence, so missed occurrences never run.
-func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest) (database.ChatAutomation, error) {
+//
+// guard, when set, runs after the owner check on the locked stored row
+// and again on the row as the update would leave it, before the write.
+func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (database.ChatAutomation, error) {
 	disabling := req.Enabled != nil && !*req.Enabled
 	var updated database.ChatAutomation
 	err := p.db.InTx(func(tx database.Store) error {
@@ -302,6 +311,11 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
 		if actorID != row.OwnerID && !disableOnly {
 			return ErrAutomationOwnerOnly
+		}
+		if guard != nil {
+			if err := guard(tx, row); err != nil {
+				return err
+			}
 		}
 
 		arg := automationUpdateParams(row, now)
@@ -418,6 +432,11 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			}
 		}
 
+		if guard != nil {
+			if err := guard(tx, automationAfterUpdate(row, arg)); err != nil {
+				return err
+			}
+		}
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)
 		if err != nil {
 			return xerrors.Errorf("update chat automation: %w", err)
@@ -466,6 +485,24 @@ func automationUpdateParams(row database.ChatAutomation, now time.Time) database
 		QueueGeneration:      row.QueueGeneration,
 		UpdatedAt:            now,
 	}
+}
+
+// automationAfterUpdate returns row with the values arg writes.
+func automationAfterUpdate(row database.ChatAutomation, arg database.UpdateChatAutomationByIDParams) database.ChatAutomation {
+	row.Name = arg.Name
+	row.Prompt = arg.Prompt
+	row.TargetChatID = arg.TargetChatID
+	row.NewChatModelConfigID = arg.NewChatModelConfigID
+	row.ReasoningEffort = arg.ReasoningEffort
+	row.WhenBusy = arg.WhenBusy
+	row.ScheduleCron = arg.ScheduleCron
+	row.ScheduleTimeZone = arg.ScheduleTimeZone
+	row.ScheduleRevision = arg.ScheduleRevision
+	row.ScheduleNextRunAt = arg.ScheduleNextRunAt
+	row.Enabled = arg.Enabled
+	row.QueueGeneration = arg.QueueGeneration
+	row.UpdatedAt = arg.UpdatedAt
+	return row
 }
 
 // deleteStaleAutomationQueuedMessages removes the queued messages that
@@ -558,7 +595,10 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UU
 // automation now, through the same admission as a scheduled occurrence
 // but without one: the schedule cursor and revision do not change. Only
 // the owner can run it, even when actorID has broader permissions.
-func (p *Server) RunAutomation(ctx context.Context, actorID, id uuid.UUID) (PublishAutomationResult, error) {
+//
+// guard, when set, runs on the automation read before the send and again
+// at admission on the locked row whose input is accepted.
+func (p *Server) RunAutomation(ctx context.Context, actorID, id uuid.UUID, guard AutomationGuard) (PublishAutomationResult, error) {
 	//nolint:gocritic // The owner check below decides; callers load the row as themselves first.
 	row, err := p.db.GetChatAutomationByID(dbauthz.AsChatd(ctx), id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -583,6 +623,7 @@ func (p *Server) RunAutomation(ctx context.Context, actorID, id uuid.UUID) (Publ
 		content: func(automation database.ChatAutomation) []codersdk.ChatMessagePart {
 			return []codersdk.ChatMessagePart{codersdk.ChatMessageText(automation.Prompt)}
 		},
+		guard: guard,
 	})
 }
 

@@ -202,7 +202,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest)
+	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
@@ -322,7 +322,7 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := api.chatDaemon.RunAutomation(ctx, apiKey.UserID, automation.ID)
+	result, err := api.chatDaemon.RunAutomation(ctx, apiKey.UserID, automation.ID, nil)
 	if err != nil {
 		api.writeChatAutomationRunError(ctx, rw, err)
 		return

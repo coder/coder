@@ -113,6 +113,13 @@ func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Tim
 // newServer returns an unstarted server, one instance of coderd.
 func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 	t.Helper()
+	return f.newServerWithStore(t, limits, nil)
+}
+
+// newServerWithStore is newServer with the server's authorized store
+// passed through wrap, when set, so a test can observe or pace its reads.
+func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap func(database.Store) database.Store) *Server {
+	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
 	require.NoError(t, err)
@@ -120,11 +127,15 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 	var auditor atomic.Pointer[audit.Auditor]
 	var a audit.Auditor = f.auditor
 	auditor.Store(&a)
+	store := dbauthz.New(f.db, authorizer, logger, nil)
+	if wrap != nil {
+		store = wrap(store)
+	}
 	server, err := New(f.ps, Config{
 		Logger: logger,
 		// The server authorizes like coderd does, so the scan's reads and
 		// cursor writes run under the chatd subject's real permissions.
-		Database:                   dbauthz.New(f.db, authorizer, logger, nil),
+		Database:                   store,
 		ReplicaID:                  uuid.New(),
 		Clock:                      f.clock,
 		PendingChatAcquireInterval: testutil.WaitLong,
