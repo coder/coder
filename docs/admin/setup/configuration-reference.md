@@ -441,6 +441,7 @@ Add configured headers identifying the authenticated user to intercepted upstrea
 Use this when a proxy between AI Gateway and an upstream AI provider needs user identity.
 When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values.
 Client headers starting with X-AI-Bridge-Actor are always removed.
+When the ai-gateway-reverse-proxy experiment selects reverse proxy mode, this option has no effect on intercepted routes: AI Gateway adds no actor headers and forwards client-supplied values at configured actor-header destinations unchanged, so upstream systems must not trust those headers as user identity.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`

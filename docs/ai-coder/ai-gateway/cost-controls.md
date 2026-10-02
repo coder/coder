@@ -18,6 +18,21 @@ AI Governance Cost Control requires:
 - Coder v2.36 or later.
 - AI Gateway [enabled and configured](./setup.md) with at least one provider.
 
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment turns off usage accounting for [requests to intercepted routes](./reference.md#supported-apis).
+> Each AI Gateway process selects its mode once, when it first connects to Coder, and uses reverse proxy mode only if the experiment is enabled for that process and no MCP servers are configured for AI Gateway.
+> The embedded gateway reads the experiment from the control plane's experiments, and each standalone AI Gateway reads it from its own experiments setting, such as `CODER_EXPERIMENTS`.
+> A process in reverse proxy mode logs the warning `experimental proxy mode records request lifecycle only` when it selects its mode.
+> In reverse proxy mode, AI Gateway records each request's start before forwarding it to an intercepted route.
+> If start recording fails, the request returns `500 Internal Server Error` without reaching the provider.
+> End recording is asynchronous and best effort, so a request can have a start record without an end record.
+> It doesn't record token usage, model, prompt, tool, or model reasoning data for these requests, and it doesn't accrue spend for them.
+> Coder doesn't backfill usage or spend for that traffic later.
+> Budget checks still include spend recorded from other traffic, but they can't account for requests handled in reverse proxy mode.
+> If you require spend enforcement, leave the experiment off, or remove it from every control plane replica and standalone AI Gateway that enables it and restart those processes.
+
+<!-- break between callouts -->
+
 > [!NOTE]
 > AI Governance Cost Control reports approximate spend rather than billed cost.
 > These figures will not match your provider invoices exactly. For details, visit [How spend is calculated](#how-spend-is-calculated).
