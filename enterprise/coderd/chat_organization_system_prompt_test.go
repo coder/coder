@@ -72,25 +72,27 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 			{name: "OtherOrgAdmin", client: otherOrgAdmin, getStatus: http.StatusNotFound, putStatus: http.StatusNotFound},
 		}
 		for _, tc := range cases {
-			prompt := "Prompt set by " + tc.name
-			err := tc.client.UpdateOrganizationChatSystemPrompt(ctx, orgID, codersdk.UpdateOrganizationChatSystemPromptRequest{
-				SystemPrompt: prompt,
-			})
-			if tc.putStatus == http.StatusNoContent {
-				require.NoError(t, err, tc.name)
-			} else {
-				requireSDKStatus(t, err, tc.putStatus, tc.name)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				prompt := "Prompt set by " + tc.name
+				err := tc.client.UpdateOrganizationChatSystemPrompt(ctx, orgID, codersdk.UpdateOrganizationChatSystemPromptRequest{
+					SystemPrompt: prompt,
+				})
+				if tc.putStatus == http.StatusNoContent {
+					require.NoError(t, err)
+				} else {
+					requireStatusCode(t, err, tc.putStatus)
+				}
 
-			resp, err := tc.client.OrganizationChatSystemPrompt(ctx, orgID)
-			if tc.getStatus != http.StatusOK {
-				requireSDKStatus(t, err, tc.getStatus, tc.name)
-				continue
-			}
-			require.NoError(t, err, tc.name)
-			if tc.putStatus == http.StatusNoContent {
-				require.Equal(t, prompt, resp.SystemPrompt, tc.name)
-			}
+				resp, err := tc.client.OrganizationChatSystemPrompt(ctx, orgID)
+				if tc.getStatus != http.StatusOK {
+					requireStatusCode(t, err, tc.getStatus)
+					return
+				}
+				require.NoError(t, err)
+				if tc.putStatus == http.StatusNoContent {
+					require.Equal(t, prompt, resp.SystemPrompt)
+				}
+			})
 		}
 
 		// Denied writes leave the last successful value in place.
@@ -164,7 +166,7 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 		require.Len(t, logs(t), 2)
 
 		// A denied attempt is audited with its status and no diff.
-		requireSDKStatus(t, update(auditOrgMember, "Denied"), http.StatusForbidden, "member update")
+		requireStatusCode(t, update(auditOrgMember, "Denied"), http.StatusForbidden)
 		got = logs(t)
 		require.Len(t, got, 3)
 		require.EqualValues(t, http.StatusForbidden, got[0].StatusCode)
@@ -230,11 +232,4 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 		require.NoError(t, owner.UpdateOrganizationChatSystemPrompt(ctx, orgID, codersdk.UpdateOrganizationChatSystemPromptRequest{}))
 		require.Equal(t, baseline, systemTexts(orgID, orgModel))
 	})
-}
-
-func requireSDKStatus(t *testing.T, err error, status int, msgAndArgs ...any) {
-	t.Helper()
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr, msgAndArgs...)
-	require.Equal(t, status, sdkErr.StatusCode(), msgAndArgs...)
 }
