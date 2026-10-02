@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -73,14 +74,32 @@ func TestCompactionMetricIdentity(t *testing.T) {
 	require.Equal(t, "gpt-4.1-mini", model)
 }
 
+func TestCompactionStillOverLimitError(t *testing.T) {
+	t.Parallel()
+
+	err := compactionStillOverLimitError(compactionTriggerSourceOrganization, true, 70, 100)
+	require.ErrorIs(t, err, errCompactionStillOverLimit)
+	require.Equal(t, "organization trigger at 70% of 100 tokens: compaction left the chat above the compaction limit", err.Error())
+
+	const (
+		chatMessage     = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
+		overrideMessage = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
+		bothMessage     = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
+	)
+	require.Equal(t, chatMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, false, 70, 100)).Message)
+	require.Equal(t, overrideMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceOrganization, false, 70, 100)).Message)
+	// Neither setting alone clears history that reaches both points.
+	require.Equal(t, bothMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, true, 70, 100)).Message)
+	require.Equal(t, bothMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceOrganization, true, 70, 100)).Message)
+}
+
 func TestGenerationCompactionContextLimit(t *testing.T) {
 	t.Parallel()
 
 	require.EqualValues(t, 0, generationCompactionContextLimit(nil))
 
 	// The decision path must see the prepare-time compaction limit (the
-	// stricter of the chat and override models' limits), not the chat
-	// model's limit.
+	// binding trigger's context limit), not the chat model's limit.
 	compaction := &generationCompaction{
 		Options: chatloop.GenerateCompactionOptions{ContextLimit: 50_000},
 	}

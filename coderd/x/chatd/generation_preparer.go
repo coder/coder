@@ -817,10 +817,10 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
-	// The compaction trigger uses the stricter of the chat and override
-	// models' context limits: the history must also fit the summarizer's
-	// window.
-	compactionContextLimit := modelConfig.ContextLimit
+	chatTrigger := compactionTrigger{
+		thresholdPercent: effectiveThreshold,
+		contextLimit:     modelConfig.ContextLimit,
+	}
 	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
 		context:         compactionOverrideContext,
 		ownerID:         chat.OwnerID,
@@ -832,24 +832,38 @@ func (server *Server) prepareGeneration(
 	if err != nil {
 		return generationPrepared{}, err
 	}
+	binding := chatTrigger
+	bindingSource := compactionTriggerSourceChat
 	var compactionOverride *resolvedModelOverride
+	var otherTrigger compactionTrigger
 	if resolvedCompactionOverride.Set {
-		compactionOverride = &resolvedCompactionOverride
-		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
-			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
-			compactionContextLimit = overrideLimit
+		overrideTrigger := compactionTrigger{
+			thresholdPercent: resolvedCompactionOverride.Config.CompressionThreshold,
+			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
+		}
+		// With its own trigger disabled, nothing bounds the history by the
+		// override's window, so the chat model summarizes instead.
+		if overrideTrigger.enabled() {
+			compactionOverride = &resolvedCompactionOverride
+			otherTrigger = overrideTrigger
+			bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
+			if bindingSource == compactionTriggerSourceOrganization {
+				binding = overrideTrigger
+				otherTrigger = chatTrigger
+			}
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
 		Messages:             compactionPromptMessages,
-		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
+		ThresholdPercent:     binding.thresholdPercent,
+		ContextLimit:         binding.contextLimit,
+		ContextLimitFallback: binding.contextLimit,
+		ChatContextLimit:     modelConfig.ContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
@@ -895,6 +909,8 @@ func (server *Server) prepareGeneration(
 		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
+			TriggerSource:   bindingSource,
+			OtherTrigger:    otherTrigger,
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
@@ -934,8 +950,45 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
+type compactionTrigger struct {
+	thresholdPercent int32
+	contextLimit     int64
+}
+
+func (t compactionTrigger) enabled() bool {
+	return t.thresholdPercent >= 0 && t.thresholdPercent < chatloop.CompactionDisabledThresholdPercent && t.contextLimit > 0
+}
+
+func (t compactionTrigger) point() float64 {
+	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
+}
+
+type compactionTriggerSource string
+
+const (
+	compactionTriggerSourceChat         compactionTriggerSource = "chat"
+	compactionTriggerSourceOrganization compactionTriggerSource = "organization"
+)
+
+// bindingCompactionTriggerSource returns the trigger that fires first on the
+// same prompt usage. A disabled override yields chat, a disabled chat trigger
+// yields organization, and otherwise the lower token point binds, with ties to
+// chat.
+func bindingCompactionTriggerSource(chat, override compactionTrigger) compactionTriggerSource {
+	switch {
+	case !override.enabled():
+		return compactionTriggerSourceChat
+	case !chat.enabled():
+		return compactionTriggerSourceOrganization
+	case override.point() < chat.point():
+		return compactionTriggerSourceOrganization
+	default:
+		return compactionTriggerSourceChat
+	}
+}
+
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
-	if thresholdPercent >= 100 || contextLimit <= 0 {
+	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false
 	}
 	contextTokens := contextTokensFromUsage(usage)

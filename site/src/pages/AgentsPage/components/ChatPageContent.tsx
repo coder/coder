@@ -14,6 +14,7 @@ import {
 } from "#/api/queries/chatAutomations";
 import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
@@ -23,6 +24,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
+import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -37,7 +39,7 @@ import {
 } from "../utils/chatAttachments";
 import {
 	getProviderForModelOption,
-	resolveCompactionThreshold,
+	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -312,7 +314,7 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
@@ -370,7 +372,7 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -429,11 +431,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
 	);
+	const compactionThreshold = modelOverridesQuery.isPending
+		? undefined
+		: resolveChatCompactionThreshold(
+				chat.last_model_config_id,
+				thresholdsQuery.data?.thresholds,
+				modelCatalog?.models,
+				providerInfoByIDFromDescriptors(modelCatalog?.providers),
+				modelOverridesQuery,
+			);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -475,7 +484,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		rawUsage || chatContext
 			? {
 					...(rawUsage ?? {}),
-					compressionThreshold,
+					compactionThreshold,
 					context: chatContext,
 				}
 			: rawUsage;

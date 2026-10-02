@@ -1,5 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	bindingCompactionTriggerSource,
+	compactionDisabledThresholdPercent,
+	isCompactionPointBeyondWindow,
+	modelCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
+} from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
 import {
@@ -73,6 +81,88 @@ const settings: readonly {
 		description: "Used by the advisor for strategic guidance.",
 	},
 ];
+
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
+type CompactionOverrideAlertProps = {
+	selectedModelID: string;
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
+	selectedModelID,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		selectedModelID,
+		enabledModels,
+		providerInfoByID,
+		"organization",
+	);
+	if (!organizationTrigger) {
+		const selectedModel = enabledModels.find(
+			(model) => model.id === selectedModelID,
+		);
+		// chatd ignores an override whose own trigger is off, since nothing then
+		// bounds the history by the override model's window.
+		if (
+			!selectedModel ||
+			selectedModel.compression_threshold < compactionDisabledThresholdPercent
+		) {
+			return null;
+		}
+		return (
+			<Alert severity="info">
+				<AlertDescription>
+					{`${selectedModel.display_name.trim() || selectedModel.model} has compaction disabled (100%), so chats summarize with their own model instead.`}
+				</AlertDescription>
+			</Alert>
+		);
+	}
+
+	const compactionModel = organizationTrigger.model;
+	const compactionModelName =
+		compactionModel.display_name.trim() || compactionModel.model;
+	const undercutModels = enabledModels.filter(
+		(model) =>
+			bindingCompactionTriggerSource(
+				modelCompactionTrigger(model),
+				organizationTrigger.trigger,
+			) === "organization" &&
+			!isCompactionPointBeyondWindow(
+				organizationTrigger.pointTokens,
+				model.context_limit,
+			),
+	);
+	if (undercutModels.length === 0) {
+		return null;
+	}
+	const undercutModelNames = undercutModels.map(
+		(model) => model.display_name.trim() || model.model,
+	);
+	const offModelsNote = undercutModels.some(
+		(model) =>
+			model.compression_threshold >= compactionDisabledThresholdPercent,
+	)
+		? ", including models whose compaction is off,"
+		: "";
+
+	return (
+		<Alert severity="warning">
+			<AlertDescription>
+				{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' thresholds${offModelsNote} because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+			</AlertDescription>
+		</Alert>
+	);
+};
 
 const OrganizationAgentSettingsView: React.FC<
 	OrganizationAgentSettingsViewProps
@@ -151,6 +241,17 @@ const OrganizationAgentSettingsView: React.FC<
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? (selectedModelID) => (
+											<CompactionOverrideAlert
+												selectedModelID={selectedModelID}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
+							}
 							unsetPlaceholder="Use chat model"
 							disabled={!canEdit}
 						/>

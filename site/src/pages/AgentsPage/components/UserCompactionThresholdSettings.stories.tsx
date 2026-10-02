@@ -11,6 +11,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { organizationCompactionTrigger } from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -22,6 +23,26 @@ const organizationWithEmptyDisplayName = {
 	...MockDefaultOrganization,
 	id: MockChatModel.organization_id,
 	display_name: "",
+};
+
+const mockCompactionModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+const mockCompactionTrigger =
+	organizationCompactionTrigger(mockCompactionModel);
+const mockCompactionTriggersByOrganizationID = new Map([
+	[MockChatModel.organization_id, mockCompactionTrigger],
+]);
+// Window smaller than mockCompactionTrigger's 16K point.
+const mockSmallWindowModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	display_name: "GPT-4o",
+	context_limit: 10_000,
 };
 
 const mockModels: TypesGen.ChatModel[] = [
@@ -69,6 +90,7 @@ const meta = {
 			["provider-anthropic", "anthropic"],
 		]),
 		organizations: [modelsOrganization],
+		compactionTriggersByOrganizationID: new Map(),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -82,6 +104,13 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+// The click inside userEvent.type closes the Radix tooltip, and it reopens
+// only on a fresh pointer enter.
+const reopenTooltip = async (element: HTMLElement) => {
+	await userEvent.unhover(element);
+	await userEvent.hover(element);
+};
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
@@ -104,17 +133,6 @@ export const ContextWindowTracksDraft: Story = {
 
 		// 128K window: default 80% compacts at ~102K, the draft moves it to ~64K.
 		await userEvent.type(gpt4oInput, "50");
-	},
-};
-
-export const CompactionOverrideShrinksWindow: Story = {
-	name: "Compaction Override Shrinks Window",
-	args: {
-		// The organization summarizes with the 16K model, so both enabled
-		// models show a 16K compaction window instead of their own.
-		compactionModelIDByOrganization: new Map([
-			[MockChatModel.organization_id, "model-3"],
-		]),
 	},
 };
 
@@ -225,6 +243,96 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
+export const OrganizationCompactionTriggerWarning: Story = {
+	args: {
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				organizationCompactionTrigger({
+					...mockCompactionModel,
+					context_limit: 256_000,
+				}),
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const OrganizationTriggerBeyondModelWindow: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		thresholds: [
+			{ model_config_id: mockSmallWindowModel.id, threshold_percent: 100 },
+		],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const DisableCompactionBeyondOrganizationPoint: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		models: [
+			...mockModels,
+			{
+				...mockModels[0],
+				id: "model-organization-2",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockOrganization2.id,
+				error: new Error("Network Error"),
+			},
+		],
 	},
 };
 
