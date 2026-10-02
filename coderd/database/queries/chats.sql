@@ -55,6 +55,8 @@ chats_expanded AS (
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
+        updated_chats.title_source,
+        updated_chats.title_updated_at,
         updated_chats.automation_id
     FROM
         updated_chats
@@ -123,6 +125,8 @@ chats_expanded AS (
         updated_chats.context_dirty_resources,
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
+        updated_chats.title_source,
+        updated_chats.title_updated_at,
         updated_chats.automation_id
     FROM
         updated_chats
@@ -845,6 +849,7 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
+    title_source,
     mode,
     plan_mode,
     status,
@@ -864,6 +869,7 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
+    COALESCE(sqlc.narg('title_source')::chat_title_source, 'fallback'::chat_title_source),
     sqlc.narg('mode')::chat_mode,
     sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
@@ -924,6 +930,8 @@ chats_expanded AS (
         inserted_chat.context_dirty_resources,
         inserted_chat.context_error,
         inserted_chat.compaction_requested_at,
+        inserted_chat.title_source,
+        inserted_chat.title_updated_at,
         inserted_chat.automation_id
     FROM
         inserted_chat
@@ -1038,77 +1046,9 @@ SELECT *
 FROM inserted
 ORDER BY id;
 
--- name: UpdateChatByID :one
-WITH updated_chat AS (
-UPDATE
-    chats
-SET
-    title = @title::text,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING *
-),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.project_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.summary,
-        updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.automation_id
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
-
 -- name: UpdateChatTitleByID :one
+-- Writes only when @title_source ranks at or above the current source.
+-- chat_title_source declares its values in rank order.
 WITH updated_chat AS (
 UPDATE
     chats
@@ -1116,9 +1056,13 @@ SET
     -- NOTE: updated_at is intentionally NOT touched here to avoid
     -- changing list ordering when a user renames an older chat
     -- out-of-band.
-    title = @title::text
+    title = @title::text,
+    title_source = @title_source::chat_title_source,
+    -- Strictly increasing per row, including across overlapping transactions.
+    title_updated_at = GREATEST(NOW(), title_updated_at + interval '1 microsecond')
 WHERE
     id = @id::uuid
+    AND title_source <= @title_source::chat_title_source
 RETURNING *
 ),
 chats_expanded AS (
@@ -1171,83 +1115,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
-        updated_chat.automation_id
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
-
--- name: UpdateChatTitleByIDIfTitle :one
--- Compare-and-set variant of UpdateChatTitleByID: the title is only
--- written when the stored title still equals @expected_title. Automatic
--- title generation uses it so a rename that lands while the model call
--- runs is not overwritten. Returns no rows when the title changed.
-WITH updated_chat AS (
-UPDATE
-    chats
-SET
-    -- NOTE: updated_at is intentionally NOT touched here to avoid
-    -- changing list ordering when a user renames an older chat
-    -- out-of-band.
-    title = @title::text
-WHERE
-    id = @id::uuid
-    AND title = @expected_title::text
-RETURNING *
-),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.project_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.summary,
-        updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error,
-        updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -1318,6 +1187,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -1388,6 +1259,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -1458,6 +1331,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -1548,6 +1423,8 @@ chats_expanded AS (
         result_chat.context_dirty_resources,
         result_chat.context_error,
         result_chat.compaction_requested_at,
+        result_chat.title_source,
+        result_chat.title_updated_at,
         result_chat.automation_id
     FROM
         result_chat
@@ -1617,6 +1494,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -1725,6 +1604,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -2028,6 +1909,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM
         updated_chat
@@ -2336,6 +2219,8 @@ chats_expanded AS (
         locked_chat.context_dirty_resources,
         locked_chat.context_error,
         locked_chat.compaction_requested_at,
+        locked_chat.title_source,
+        locked_chat.title_updated_at,
         locked_chat.automation_id
     FROM
         locked_chat
@@ -2402,6 +2287,8 @@ chats_expanded AS (
         shared_chat.context_dirty_resources,
         shared_chat.context_error,
         shared_chat.compaction_requested_at,
+        shared_chat.title_source,
+        shared_chat.title_updated_at,
         shared_chat.automation_id
     FROM
         shared_chat
@@ -2847,6 +2734,8 @@ chats_expanded AS (
         bumped_chat.context_dirty_resources,
         bumped_chat.context_error,
         bumped_chat.compaction_requested_at,
+        bumped_chat.title_source,
+        bumped_chat.title_updated_at,
         bumped_chat.automation_id
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
@@ -2940,6 +2829,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -3009,6 +2900,8 @@ chats_expanded AS (
         updated_chat.context_dirty_resources,
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
         updated_chat.automation_id
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)

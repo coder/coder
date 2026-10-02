@@ -183,6 +183,8 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -294,18 +296,21 @@ Status Code **200**
 | `» status`                 | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» title_source`           | [codersdk.ChatTitleSource](schemas.md#codersdkchattitlesource)                     | false    |              | Title source is where Title came from. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order fallback, generated, user.                                                                                        |
+| `» title_updated_at`       | string(date-time)                                                                  | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
 | `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`               | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                                                          |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| Property       | Value(s)                                                                                                                                                                                                                                                          |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                       |
+| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                            |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -376,6 +381,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -518,6 +524,8 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -633,6 +641,8 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -646,6 +656,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 | Status | Meaning                                                                 | Description                  | Schema                                           |
 |--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request                  | [codersdk.Response](schemas.md#codersdkresponse) |
 | 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1502,6 +1513,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -1669,6 +1682,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -1784,6 +1799,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1808,6 +1825,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1837,11 +1855,16 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 | `chat` | path | string(uuid)                                                       | true     | Chat ID             |
 | `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Update chat request |
 
+### Example responses
+
+> 400 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                          | Description | Schema                                           |
+|--------|------------------------------------------------------------------|-------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)  | No Content  |                                                  |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1987,6 +2010,8 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2102,6 +2127,8 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2352,6 +2379,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2467,6 +2496,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -3500,6 +3531,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -3615,6 +3648,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
