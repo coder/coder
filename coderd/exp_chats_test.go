@@ -3051,6 +3051,11 @@ func TestListChats(t *testing.T) {
 
 		created := newMemberChat()
 		markCreatedBy(created)
+		// Archived chats stay in the automation's history when the
+		// caller asks for archived:any.
+		archivedCreated := newMemberChat()
+		markCreatedBy(archivedCreated)
+		require.NoError(t, env.member.UpdateChat(ctx, archivedCreated.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
 		// The automation only sent a message to this existing chat.
 		writtenTo := env.memberChat
 		dbgen.ChatMessage(t, env.db, database.ChatMessage{
@@ -3087,6 +3092,8 @@ func TestListChats(t *testing.T) {
 		}
 
 		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		require.ElementsMatch(t, []uuid.UUID{created.ID, archivedCreated.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:any"}))
+		require.Equal(t, []uuid.UUID{archivedCreated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:true"}))
 		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
 
 		for _, value := range []string{"not-a-uuid", uuid.Nil.String()} {
