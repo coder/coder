@@ -6,12 +6,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 
@@ -23,9 +27,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
-	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
@@ -34,66 +37,43 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestForwardingHandlerPlaceholder(t *testing.T) {
-	t.Parallel()
+// lifecycleRecorder records starts synchronously and ends from the handler's
+// async recorder, which ServeHTTP joins before returning. Embedding a nil
+// Recorder makes any unexpected content recording fail loudly.
+type lifecycleRecorder struct {
+	recorder.Recorder
+	starts           []recorder.InterceptionRecord
+	ends             []recorder.InterceptionRecordEnded
+	startErr, endErr error
+	onEnd            func(context.Context)
+	// startReturned is set as RecordInterception returns, so forwarding can
+	// assert that the start record completed before any upstream attempt.
+	startReturned atomic.Bool
+}
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("placeholder must not call upstream")
-	}))
-	t.Cleanup(upstream.Close)
-	prov := &testutil.MockProvider{
-		NameStr: "test", URL: upstream.URL,
-		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
-			t.Error("placeholder must not create an interceptor")
-			return nil, io.ErrUnexpectedEOF
-		},
+func (r *lifecycleRecorder) RecordInterception(_ context.Context, record *recorder.InterceptionRecord) error {
+	r.starts = append(r.starts, *record)
+	r.startReturned.Store(true)
+	return r.startErr
+}
+
+func (r *lifecycleRecorder) RecordInterceptionEnded(ctx context.Context, record *recorder.InterceptionRecordEnded) error {
+	r.ends = append(r.ends, *record)
+	if r.onEnd != nil {
+		r.onEnd(ctx)
 	}
-	for _, tc := range []struct {
-		name    string
-		prepare func(*http.Request)
-		status  int
-		message string
-	}{
-		{name: "UnparsedBody", status: http.StatusNotImplemented, message: "bridged routes are not yet implemented in proxy mode"},
-		{name: "WebSocket", prepare: func(r *http.Request) {
-			r.Method = http.MethodGet
-			r.Header.Set("Connection", "Upgrade")
-			r.Header.Set("Upgrade", "websocket")
-		}, status: http.StatusNotImplemented, message: "WebSocket transport is not supported, use HTTP"},
-		{name: "InvalidFirewall", prepare: func(r *http.Request) {
-			r.Header.Set("X-Coder-Agent-Firewall-Session-Id", "not-a-uuid")
-			r.Header.Set("X-Coder-Agent-Firewall-Sequence-Number", "1")
-		}, status: http.StatusBadRequest, message: "invalid agent firewall headers"},
-		{name: "DeclaredOversize", prepare: func(r *http.Request) {
-			r.ContentLength = routing.MaxRequestBodyBytes + 1
-		}, status: http.StatusRequestEntityTooLarge, message: "Request body too large"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			body := &unreadBody{}
-			req := httptest.NewRequest(http.MethodPost, "/test/messages", body)
-			req = req.WithContext(aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}))
-			req.Header.Set("Authorization", "Bearer user-key")
-			req.Header.Set("Content-Type", "application/json")
-			if tc.prepare != nil {
-				tc.prepare(req)
-			}
-			logger := slogtest.Make(t, nil)
-			gate := aibridge.NewInflightGate(logger)
-			t.Cleanup(gate.Close)
-			handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{}, http.DefaultTransport)
-			require.NoError(t, err)
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, req)
-			require.Equal(t, tc.status, response.Code)
-			require.Contains(t, response.Body.String(), tc.message)
-			require.False(t, body.read, "placeholder must not read the request body")
-			require.False(t, body.closed, "the transport owns request-body cleanup")
-			ctx, cancel := context.WithCancel(t.Context())
-			cancel()
-			require.NoError(t, gate.Shutdown(ctx), "completed requests must release their admission")
-		})
+	return r.endErr
+}
+
+// serveForwardingRequest applies the router's body limit before serving.
+func serveForwardingRequest(h *forwardingHandler, w http.ResponseWriter, r *http.Request, rec recorder.Recorder) {
+	if r.Body != nil && r.Body != http.NoBody {
+		r.Body = http.MaxBytesReader(w, r.Body, routing.MaxRequestBodyBytes)
+		defer r.Body.Close()
 	}
+	handler := *h
+	handler.recorder = rec
+	handler.ServeHTTP(w, r)
 }
 
 func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
@@ -105,6 +85,7 @@ func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 		Email:    "actor@example.test",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
+	req.Pattern = "/openai/v1/chat/completions"
 	req.Header.Set("Authorization", "Bearer user-secret-key")
 	return req
 }
@@ -408,16 +389,258 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 				req.Header.Set("Connection", "Upgrade")
 				req.Header.Set("Upgrade", "websocket")
 			}
+			captured := &lifecycleRecorder{}
 			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, req)
+			requestHandler := *handler
+			requestHandler.recorder = captured
+			requestHandler.ServeHTTP(response, req)
 			require.Equal(t, tc.status, response.Code)
 			require.False(t, body.read)
 			require.False(t, body.closed)
-			if tc.status == http.StatusServiceUnavailable {
-				require.Contains(t, response.Body.String(), circuitbreaker.ErrCircuitOpen.Error())
+			if tc.status != http.StatusServiceUnavailable {
+				require.Empty(t, captured.starts)
+				require.Empty(t, captured.ends)
+				return
 			}
+			require.Contains(t, response.Body.String(), circuitbreaker.ErrCircuitOpen.Error())
+			require.Len(t, captured.starts, 1)
+			require.Len(t, captured.ends, 1)
+			require.Equal(t, captured.starts[0].ID, captured.ends[0].ID)
+			require.Equal(t, recorder.ErrorTypeServerError, captured.ends[0].ErrorType)
+			require.Equal(t, circuitbreaker.ErrCircuitOpen.Error(), captured.ends[0].ErrorMessage)
 		})
 	}
+}
+
+func TestForwardingHandlerLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		startErr     error
+		endErr       error
+		upstream     func(cancel context.CancelFunc) io.Reader
+		status       int
+		transportErr error
+		wantCode     int
+		wantPanic    any
+		wantErrType  recorder.ErrorType
+		wantFailed   bool
+	}{
+		{
+			name:     "Success",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "StartFailure",
+			startErr: xerrors.New("start unavailable"),
+			wantCode: http.StatusInternalServerError,
+		},
+		{
+			name:     "EndFailure",
+			endErr:   xerrors.New("end unavailable"),
+			wantCode: http.StatusOK,
+		},
+		{
+			name:        "Upstream503",
+			status:      http.StatusServiceUnavailable,
+			wantCode:    http.StatusServiceUnavailable,
+			wantErrType: recorder.ErrorTypeServerError,
+			wantFailed:  true,
+		},
+		{
+			name:         "TransportFailure",
+			transportErr: io.ErrClosedPipe,
+			wantCode:     http.StatusBadGateway,
+			wantFailed:   true,
+		},
+		{
+			name: "TruncatedStream",
+			upstream: func(context.CancelFunc) io.Reader {
+				return io.MultiReader(strings.NewReader("chunk"), readerFunc(func([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }))
+			},
+			wantPanic:  http.ErrAbortHandler,
+			wantFailed: true,
+		},
+		{
+			name: "ClientCancellation",
+			upstream: func(cancel context.CancelFunc) io.Reader {
+				return readerFunc(func([]byte) (int, error) { cancel(); return 0, context.Canceled })
+			},
+			wantPanic:  http.ErrAbortHandler,
+			wantFailed: true,
+		},
+		{
+			name: "Panic",
+			upstream: func(context.CancelFunc) io.Reader {
+				return readerFunc(func([]byte) (int, error) { panic("copy panic") })
+			},
+			wantPanic:  "copy panic",
+			wantFailed: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reads := 0
+			source := strings.NewReader("request")
+			input := &trackedBody{Reader: readerFunc(func(p []byte) (int, error) { reads++; return source.Read(p) })}
+			req := requestWithAuth(t, input)
+			ctx, cancel := context.WithCancel(req.Context())
+			defer cancel()
+			req = req.WithContext(ctx)
+			m := metrics.NewMetrics(prometheus.NewRegistry())
+			h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), m)
+			rec := &lifecycleRecorder{startErr: tc.startErr, endErr: tc.endErr}
+			calls := 0
+			h.transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				require.True(t, rec.startReturned.Load(), "the start record must be written before forwarding")
+				_, err := io.Copy(io.Discard, r.Body)
+				require.NoError(t, err)
+				if tc.transportErr != nil {
+					return nil, tc.transportErr
+				}
+				var upstream io.Reader = strings.NewReader("chunk")
+				if tc.upstream != nil {
+					upstream = tc.upstream(cancel)
+				}
+				status := http.StatusOK
+				if tc.status != 0 {
+					status = tc.status
+				}
+				return &http.Response{StatusCode: status, Header: http.Header{}, Body: io.NopCloser(upstream)}, nil
+			})
+			response := httptest.NewRecorder()
+			serve := func() { serveForwardingRequest(h, response, req, rec) }
+			if tc.wantPanic != nil {
+				require.PanicsWithValue(t, tc.wantPanic, serve)
+			} else {
+				serve()
+				require.Equal(t, tc.wantCode, response.Code)
+			}
+
+			require.Len(t, rec.starts, 1)
+			start := rec.starts[0]
+			require.Equal(t, aibcontext.ActorIDFromContext(req.Context()), start.InitiatorID)
+			require.Equal(t, credential.KindBYOK, start.CredentialKind)
+			require.Equal(t, utils.MaskSecret("user-secret-key"), start.CredentialHint)
+			// Body-derived metadata is not extracted yet.
+			require.Empty(t, start.Model)
+			require.Nil(t, start.ClientSessionID)
+			require.Nil(t, start.CorrelatingToolCallID)
+			if tc.startErr != nil {
+				require.Equal(t, "failed to record interception\n", response.Body.String())
+				require.True(t, rec.startReturned.Load())
+				require.Zero(t, calls, "a failed start must not reach upstream")
+				require.Zero(t, reads, "a failed start must not read the request body")
+				require.Empty(t, rec.ends)
+				require.Zero(t, promtest.CollectAndCount(m.InterceptionCount))
+				return
+			}
+
+			require.Equal(t, 1, calls)
+			require.Len(t, rec.ends, 1)
+			end := rec.ends[0]
+			require.Equal(t, start.ID, end.ID)
+			require.False(t, end.EndedAt.Before(start.StartedAt))
+			metricStatus := metrics.InterceptionCountStatusCompleted
+			if tc.wantFailed {
+				metricStatus = metrics.InterceptionCountStatusFailed
+				require.NotEmpty(t, end.ErrorType)
+				require.NotEmpty(t, end.ErrorMessage)
+				if tc.wantErrType != "" {
+					require.Equal(t, tc.wantErrType, end.ErrorType)
+				}
+			} else {
+				require.Empty(t, end.ErrorType)
+				require.Empty(t, end.ErrorMessage)
+				require.Equal(t, "chunk", response.Body.String())
+			}
+			require.Equal(t, 1.0, promtest.ToFloat64(m.InterceptionCount.WithLabelValues("openai", "", metricStatus, "/v1/chat/completions", http.MethodPost, start.InitiatorID, string(client.Unknown))))
+			require.Zero(t, promtest.CollectAndCount(m.PassthroughCount))
+		})
+	}
+}
+
+func TestForwardingHandlerRecordsKeyFailover(t *testing.T) {
+	t.Parallel()
+	pool, err := keypool.New("openai", []string{"first-key", "second-key"}, quartz.NewMock(t), nil)
+	require.NoError(t, err)
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test", KeyPool: pool}), nil)
+	attempts := 0
+	h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		status := http.StatusUnauthorized
+		if attempts == 2 {
+			status = http.StatusOK
+		}
+		return &http.Response{StatusCode: status, Header: http.Header{}, Body: http.NoBody}, nil
+	})
+	req := requestWithAuth(t, nil)
+	req.Header.Del("Authorization")
+	rec := &lifecycleRecorder{}
+	response := httptest.NewRecorder()
+	serveForwardingRequest(h, response, req, rec)
+
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, 2, attempts)
+	require.Len(t, rec.starts, 1)
+	require.Len(t, rec.ends, 1)
+	require.Equal(t, credential.KindCentralized, rec.starts[0].CredentialKind)
+	require.Equal(t, credential.HintFailoverKey, rec.starts[0].CredentialHint)
+	require.Equal(t, utils.MaskSecret("second-key"), rec.ends[0].CredentialHint, "the end record must report the key that served the final attempt")
+	require.Empty(t, rec.ends[0].ErrorType)
+}
+
+// TestForwardingHandlerWaitsForEnd asserts that the handler stays admitted
+// until the end record is written, and that recording the end is detached
+// from request cancellation but keeps the request's actor.
+func TestForwardingHandlerWaitsForEnd(t *testing.T) {
+	t.Parallel()
+	waitCtx := codertestutil.Context(t, codertestutil.WaitLong)
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
+	h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("response"))}, nil
+	})
+	entered := make(chan context.Context, 1)
+	release := make(chan struct{})
+	releaseEnd := sync.OnceFunc(func() { close(release) })
+	defer releaseEnd()
+	rec := &lifecycleRecorder{onEnd: func(ctx context.Context) {
+		entered <- ctx
+		<-release
+	}}
+	req := requestWithAuth(t, nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	req = req.WithContext(ctx)
+	response := httptest.NewRecorder()
+	served := make(chan struct{})
+	go func() {
+		defer close(served)
+		serveForwardingRequest(h, response, req, rec)
+	}()
+
+	endCtx := codertestutil.RequireReceive(waitCtx, t, entered)
+	select {
+	case <-served:
+		t.Fatal("the handler returned before the end record was written")
+	default:
+	}
+	cancel()
+	require.NoError(t, endCtx.Err(), "recording the end must not follow request cancellation")
+	_, ok := endCtx.Deadline()
+	require.True(t, ok, "recording the end must be bounded")
+	require.Equal(t, aibcontext.ActorFromContext(req.Context()), aibcontext.ActorFromContext(endCtx))
+	shutdownCtx, cancelShutdown := context.WithCancel(waitCtx)
+	cancelShutdown()
+	require.ErrorIs(t, h.inflight.Shutdown(shutdownCtx), context.Canceled, "the request must stay admitted while the end is recorded")
+
+	releaseEnd()
+	codertestutil.TryReceive(waitCtx, t, served)
+	require.NoError(t, h.inflight.Shutdown(waitCtx))
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, "response", response.Body.String())
+	require.Len(t, rec.ends, 1)
 }
 
 type unreadBody struct {
