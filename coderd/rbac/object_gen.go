@@ -159,6 +159,15 @@ var (
 		Type: "chat_project",
 	}
 
+	// ResourceChatProjectMemory
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat project memory
+	//  - "ActionDelete" :: delete a chat project memory
+	//  - "ActionRead" :: read chat project memories
+	ResourceChatProjectMemory = Object{
+		Type: "chat_project_memory",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -546,6 +555,7 @@ func AllResources() []Objecter {
 		ResourceChatAutomation,
 		ResourceChatModelConfig,
 		ResourceChatProject,
+		ResourceChatProjectMemory,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

@@ -540,6 +540,10 @@ const (
 	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
 	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -831,7 +835,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatAutomationCreate,
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
-		ApiKeyScopeChatAutomationDelete:
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1092,6 +1100,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
 		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -3994,6 +4006,7 @@ const (
 	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
 	ResourceTypeChatAutomation              ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4075,7 +4088,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
-		ResourceTypeChatAutomation:
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory:
 		return true
 	}
 	return false
@@ -4126,6 +4140,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
 	}
 }
 
@@ -5655,6 +5670,18 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
+type ChatProjectMemory struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {
