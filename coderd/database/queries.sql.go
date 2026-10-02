@@ -5484,6 +5484,7 @@ UPDATE
     chat_automations
 SET
     schedule_next_run_at = $1::timestamptz,
+    schedule_claimed_until = NULL,
     updated_at = $2::timestamptz
 WHERE
     id = $3::uuid
@@ -5505,7 +5506,8 @@ type AdvanceChatAutomationScheduleCursorParams struct {
 // observed occurrence to next_run_at. It affects no row when the schedule
 // revision or the cursor changed since they were observed, so exactly one
 // caller moves the cursor past each occurrence. A NULL next_run_at means
-// no occurrence is pending.
+// no occurrence is pending. Moving the cursor also drops the claim on the
+// observed occurrence.
 func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, advanceChatAutomationScheduleCursor,
 		arg.NextRunAt,
@@ -5513,6 +5515,47 @@ func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, ar
 		arg.ID,
 		arg.ScheduleRevision,
 		arg.ObservedNextRunAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const claimChatAutomationScheduleOccurrence = `-- name: ClaimChatAutomationScheduleOccurrence :execrows
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = $1::timestamptz
+WHERE
+    id = $2::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = $3::bigint
+    AND schedule_next_run_at = $4::timestamptz
+    AND (schedule_claimed_until IS NULL OR schedule_claimed_until <= $5::timestamptz)
+`
+
+type ClaimChatAutomationScheduleOccurrenceParams struct {
+	ClaimedUntil      time.Time `db:"claimed_until" json:"claimed_until"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	ScheduleRevision  int64     `db:"schedule_revision" json:"schedule_revision"`
+	ObservedNextRunAt time.Time `db:"observed_next_run_at" json:"observed_next_run_at"`
+	Now               time.Time `db:"now" json:"now"`
+}
+
+// Claims the observed occurrence of an enabled schedule automation until
+// claimed_until, so only the claimer runs its prompt hooks and publishes
+// it. It affects no row when the schedule revision or the cursor changed
+// since they were observed, or another caller holds a claim that has not
+// expired at now.
+func (q *sqlQuerier) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimChatAutomationScheduleOccurrence,
+		arg.ClaimedUntil,
+		arg.ID,
+		arg.ScheduleRevision,
+		arg.ObservedNextRunAt,
+		arg.Now,
 	)
 	if err != nil {
 		return 0, err
@@ -5580,7 +5623,7 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5615,13 +5658,14 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }
 
 const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5668,6 +5712,7 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5684,7 +5729,7 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 
 const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5728,6 +5773,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5744,7 +5790,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 
 const getChatAutomationsByOrganizationIDAndOwnerID = `-- name: GetChatAutomationsByOrganizationIDAndOwnerID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5794,6 +5840,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5810,7 +5857,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 
 const getDueChatAutomationSchedules = `-- name: GetDueChatAutomationSchedules :many
 SELECT
-    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at
+    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at, chat_automations.schedule_claimed_until
 FROM
     chat_automations
     JOIN users ON users.id = chat_automations.owner_id
@@ -5820,6 +5867,10 @@ WHERE
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= $1::timestamptz
     AND (chat_automations.schedule_next_run_at, chat_automations.id) > ($2::timestamptz, $3::uuid)
+    AND (
+        chat_automations.schedule_claimed_until IS NULL
+        OR chat_automations.schedule_claimed_until <= $1::timestamptz
+    )
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
@@ -5843,9 +5894,10 @@ type GetDueChatAutomationSchedulesParams struct {
 // Returns enabled schedule automations whose cursor is at or before now,
 // oldest cursor first, starting after the (after_next_run_at, after_id)
 // keyset so callers can page through every due row. Automations of
-// inactive owners and existing_chat automations whose target chat is gone
-// or archived are left out. It takes no locks: publishing rechecks each
-// row under the chat and automation locks.
+// inactive owners, existing_chat automations whose target chat is gone
+// or archived, and occurrences another instance holds an unexpired claim
+// on are left out. It takes no locks: publishing rechecks each row under
+// the chat and automation locks.
 func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error) {
 	rows, err := q.db.QueryContext(ctx, getDueChatAutomationSchedules,
 		arg.Now,
@@ -5885,6 +5937,7 @@ func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetD
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5948,7 +6001,7 @@ INSERT INTO chat_automations (
     $21
 )
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 `
 
 type InsertChatAutomationParams struct {
@@ -6025,8 +6078,44 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
+}
+
+const releaseChatAutomationScheduleClaim = `-- name: ReleaseChatAutomationScheduleClaim :execrows
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = NULL
+WHERE
+    id = $1::uuid
+    AND schedule_revision = $2::bigint
+    AND schedule_next_run_at = $3::timestamptz
+    AND schedule_claimed_until = $4::timestamptz
+`
+
+type ReleaseChatAutomationScheduleClaimParams struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	ScheduleRevision  int64     `db:"schedule_revision" json:"schedule_revision"`
+	ObservedNextRunAt time.Time `db:"observed_next_run_at" json:"observed_next_run_at"`
+	ClaimedUntil      time.Time `db:"claimed_until" json:"claimed_until"`
+}
+
+// Drops the caller's claim on the observed occurrence, so a later scan can
+// retry it. It affects no row when the schedule revision or the cursor
+// changed, or the claim is no longer the one the caller set.
+func (q *sqlQuerier) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseChatAutomationScheduleClaim,
+		arg.ID,
+		arg.ScheduleRevision,
+		arg.ObservedNextRunAt,
+		arg.ClaimedUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatAutomationByID = `-- name: UpdateChatAutomationByID :one
@@ -6043,13 +6132,22 @@ SET
     schedule_time_zone = $8,
     schedule_revision = $9,
     schedule_next_run_at = $10,
+    -- A new schedule revision or cursor drops the claim on the old
+    -- occurrence, so a stale lease never blocks the next one. SET reads
+    -- the old row values.
+    schedule_claimed_until = CASE
+        WHEN schedule_revision IS DISTINCT FROM $9
+            OR schedule_next_run_at IS DISTINCT FROM $10
+        THEN NULL
+        ELSE schedule_claimed_until
+    END,
     enabled = $11,
     queue_generation = $12,
     updated_at = $13
 WHERE
     id = $14::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 `
 
 type UpdateChatAutomationByIDParams struct {
@@ -6112,6 +6210,7 @@ func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateCha
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }
@@ -6126,7 +6225,7 @@ SET
 WHERE
     id = $3::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, schedule_claimed_until
 `
 
 type UpdateChatAutomationWebhookSecretByIDParams struct {
@@ -6165,6 +6264,7 @@ func (q *sqlQuerier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, 
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }

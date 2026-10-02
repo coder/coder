@@ -56,7 +56,8 @@ type sqlcQuerier interface {
 	// observed occurrence to next_run_at. It affects no row when the schedule
 	// revision or the cursor changed since they were observed, so exactly one
 	// caller moves the cursor past each occurrence. A NULL next_run_at means
-	// no occurrence is pending.
+	// no occurrence is pending. Moving the cursor also drops the claim on the
+	// observed occurrence.
 	AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error)
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
@@ -93,6 +94,12 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Claims the observed occurrence of an enabled schedule automation until
+	// claimed_until, so only the claimer runs its prompt hooks and publishes
+	// it. It affects no row when the schedule revision or the cursor changed
+	// since they were observed, or another caller holds a claim that has not
+	// expired at now.
+	ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg ClaimChatAutomationScheduleOccurrenceParams) (int64, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -654,9 +661,10 @@ type sqlcQuerier interface {
 	// Returns enabled schedule automations whose cursor is at or before now,
 	// oldest cursor first, starting after the (after_next_run_at, after_id)
 	// keyset so callers can page through every due row. Automations of
-	// inactive owners and existing_chat automations whose target chat is gone
-	// or archived are left out. It takes no locks: publishing rechecks each
-	// row under the chat and automation locks.
+	// inactive owners, existing_chat automations whose target chat is gone
+	// or archived, and occurrences another instance holds an unexpired claim
+	// on are left out. It takes no locks: publishing rechecks each row under
+	// the chat and automation locks.
 	GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
 	// Providers can be disabled independently of their model configs.
@@ -1451,6 +1459,10 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
+	// Drops the caller's claim on the observed occurrence, so a later scan can
+	// retry it. It affects no row when the schedule revision or the cursor
+	// changed, or the claim is no longer the one the caller set.
+	ReleaseChatAutomationScheduleClaim(ctx context.Context, arg ReleaseChatAutomationScheduleClaimParams) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)

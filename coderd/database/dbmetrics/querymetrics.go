@@ -272,6 +272,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg database.ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimChatAutomationScheduleOccurrence(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimChatAutomationScheduleOccurrence").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimChatAutomationScheduleOccurrence").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -5221,6 +5229,14 @@ func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context
 	r0, r1 := m.s.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
 	m.queryLatencies.WithLabelValues("ReindexStaleChatMessagesSearchTsv").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReindexStaleChatMessagesSearchTsv").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg database.ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ReleaseChatAutomationScheduleClaim(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseChatAutomationScheduleClaim").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseChatAutomationScheduleClaim").Inc()
 	return r0, r1
 }
 

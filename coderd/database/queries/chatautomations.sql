@@ -123,6 +123,15 @@ SET
     schedule_time_zone = @schedule_time_zone,
     schedule_revision = @schedule_revision,
     schedule_next_run_at = @schedule_next_run_at,
+    -- A new schedule revision or cursor drops the claim on the old
+    -- occurrence, so a stale lease never blocks the next one. SET reads
+    -- the old row values.
+    schedule_claimed_until = CASE
+        WHEN schedule_revision IS DISTINCT FROM @schedule_revision
+            OR schedule_next_run_at IS DISTINCT FROM @schedule_next_run_at
+        THEN NULL
+        ELSE schedule_claimed_until
+    END,
     enabled = @enabled,
     queue_generation = @queue_generation,
     updated_at = @updated_at
@@ -164,9 +173,10 @@ WHERE
 -- Returns enabled schedule automations whose cursor is at or before now,
 -- oldest cursor first, starting after the (after_next_run_at, after_id)
 -- keyset so callers can page through every due row. Automations of
--- inactive owners and existing_chat automations whose target chat is gone
--- or archived are left out. It takes no locks: publishing rechecks each
--- row under the chat and automation locks.
+-- inactive owners, existing_chat automations whose target chat is gone
+-- or archived, and occurrences another instance holds an unexpired claim
+-- on are left out. It takes no locks: publishing rechecks each row under
+-- the chat and automation locks.
 SELECT
     chat_automations.*
 FROM
@@ -178,6 +188,10 @@ WHERE
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= @now::timestamptz
     AND (chat_automations.schedule_next_run_at, chat_automations.id) > (@after_next_run_at::timestamptz, @after_id::uuid)
+    AND (
+        chat_automations.schedule_claimed_until IS NULL
+        OR chat_automations.schedule_claimed_until <= @now::timestamptz
+    )
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
@@ -195,11 +209,13 @@ LIMIT
 -- observed occurrence to next_run_at. It affects no row when the schedule
 -- revision or the cursor changed since they were observed, so exactly one
 -- caller moves the cursor past each occurrence. A NULL next_run_at means
--- no occurrence is pending.
+-- no occurrence is pending. Moving the cursor also drops the claim on the
+-- observed occurrence.
 UPDATE
     chat_automations
 SET
     schedule_next_run_at = sqlc.narg('next_run_at')::timestamptz,
+    schedule_claimed_until = NULL,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
@@ -207,3 +223,35 @@ WHERE
     AND enabled
     AND schedule_revision = @schedule_revision::bigint
     AND schedule_next_run_at = @observed_next_run_at::timestamptz;
+
+-- name: ClaimChatAutomationScheduleOccurrence :execrows
+-- Claims the observed occurrence of an enabled schedule automation until
+-- claimed_until, so only the claimer runs its prompt hooks and publishes
+-- it. It affects no row when the schedule revision or the cursor changed
+-- since they were observed, or another caller holds a claim that has not
+-- expired at now.
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = @claimed_until::timestamptz
+WHERE
+    id = @id::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = @schedule_revision::bigint
+    AND schedule_next_run_at = @observed_next_run_at::timestamptz
+    AND (schedule_claimed_until IS NULL OR schedule_claimed_until <= @now::timestamptz);
+
+-- name: ReleaseChatAutomationScheduleClaim :execrows
+-- Drops the caller's claim on the observed occurrence, so a later scan can
+-- retry it. It affects no row when the schedule revision or the cursor
+-- changed, or the claim is no longer the one the caller set.
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = NULL
+WHERE
+    id = @id::uuid
+    AND schedule_revision = @schedule_revision::bigint
+    AND schedule_next_run_at = @observed_next_run_at::timestamptz
+    AND schedule_claimed_until = @claimed_until::timestamptz;

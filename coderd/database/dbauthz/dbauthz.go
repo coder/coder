@@ -1946,6 +1946,17 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg database.ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.ClaimChatAutomationScheduleOccurrence(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -7385,6 +7396,17 @@ func (q *querier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSi
 		return 0, err
 	}
 	return q.db.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
+}
+
+func (q *querier) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg database.ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.ReleaseChatAutomationScheduleClaim(ctx, arg)
 }
 
 func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {

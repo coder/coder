@@ -3,7 +3,10 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -24,8 +27,10 @@ import (
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -73,6 +78,9 @@ type scheduleFixture struct {
 	org        database.Organization
 	model      database.ChatModelConfig
 	chat       database.Chat
+	// hookConsumer, when set, receives the lifecycle hooks of servers
+	// created afterwards.
+	hookConsumer *httptest.Server
 }
 
 func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Time) *scheduleFixture {
@@ -136,6 +144,11 @@ func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap f
 	if wrap != nil {
 		store = wrap(store)
 	}
+	var hookDispatcher *dispatch.Dispatcher
+	if f.hookConsumer != nil {
+		hookDispatcher = dispatch.New(logger, f.hookConsumer.Client(), f.hookConsumer.URL, false,
+			"test-hook-secret-32-bytes-minimum!!", testutil.WaitMedium, "test-deployment", "test-version", prometheus.NewRegistry())
+	}
 	server, err := New(f.ps, Config{
 		Logger: logger,
 		// The server authorizes like coderd does, so the scan's reads and
@@ -149,6 +162,7 @@ func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap f
 		Authorizer:                 authorizer,
 		Auditor:                    &auditor,
 		Limits:                     limits,
+		HookDispatcher:             hookDispatcher,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
@@ -210,6 +224,14 @@ func (f *scheduleFixture) cursor(ctx context.Context, t *testing.T, automationID
 	require.NoError(t, err)
 	require.True(t, automation.ScheduleNextRunAt.Valid)
 	return automation.ScheduleNextRunAt.Time.UTC()
+}
+
+// claimedUntil returns the automation's schedule claim.
+func (f *scheduleFixture) claimedUntil(ctx context.Context, t *testing.T, automationID uuid.UUID) sql.NullTime {
+	t.Helper()
+	automation, err := f.db.GetChatAutomationByID(ctx, automationID)
+	require.NoError(t, err)
+	return automation.ScheduleClaimedUntil
 }
 
 // inputs counts the user messages and queued messages of the fixture chat.
@@ -312,7 +334,7 @@ var scheduleStart = time.Date(2026, time.June, 1, 10, 0, 30, 0, time.UTC)
 func TestAutomationScheduleScan(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ConcurrentInstancesAcceptOnce", func(t *testing.T) {
+	t.Run("ConcurrentInstancesRunHooksOnce", func(t *testing.T) {
 		t.Parallel()
 		for _, targetMode := range []codersdk.ChatAutomationTargetMode{
 			codersdk.ChatAutomationTargetModeExistingChat,
@@ -322,30 +344,57 @@ func TestAutomationScheduleScan(t *testing.T) {
 				t.Parallel()
 				f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
 				ctx := testutil.Context(t, testutil.WaitLong)
+				// The prompt hook holds the instance that runs it until
+				// released, so that instance commits nothing before the
+				// other instance has read the due occurrence.
+				var promptHooks atomic.Int64
+				release := make(chan struct{})
+				var releaseOnce sync.Once
+				releaseHooks := func() { releaseOnce.Do(func() { close(release) }) }
+				f.hookConsumer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var request agenthooks.Request
+					if json.NewDecoder(r.Body).Decode(&request) == nil && request.Type == agenthooks.EventUserPromptSubmit {
+						promptHooks.Add(1)
+						select {
+						case <-release:
+						case <-r.Context().Done():
+						}
+					}
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				t.Cleanup(f.hookConsumer.Close)
+				t.Cleanup(releaseHooks)
 				first, second := f.newServer(t, Limits{}), f.newServer(t, Limits{})
 				var automation database.ChatAutomation
-				var held *sql.Tx
 				if targetMode == codersdk.ChatAutomationTargetModeExistingChat {
 					automation = f.existingChat(ctx, t, first, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
-					held = f.lockRow(ctx, t, lockChatRow, f.chat.ID)
 				} else {
 					automation = f.newChat(ctx, t, first, "* * * * *", "Asia/Tokyo")
-					held = f.lockRow(ctx, t, lockAutomationRow, automation.ID)
 				}
 				f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
 
-				// Both instances read the due occurrence and wait for the same
-				// lock, so both publish it.
-				wait := scanAsync(ctx, first, second)
-				f.waitForLockWaits(ctx, t, 2)
-				require.NoError(t, held.Commit())
-				wait()
+				var finished atomic.Int64
+				var wg sync.WaitGroup
+				for _, server := range []*Server{first, second} {
+					wg.Go(func() {
+						server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+						finished.Add(1)
+					})
+				}
+				// One instance runs the hook while the other finishes its
+				// scan without it. Without the claim, both would run it.
+				testutil.Eventually(ctx, t, func(context.Context) bool {
+					return promptHooks.Load() >= 2 || (promptHooks.Load() == 1 && finished.Load() == 1)
+				}, testutil.IntervalFast, "one instance runs the prompt hook")
+				releaseHooks()
+				wg.Wait()
 
+				require.EqualValues(t, 1, promptHooks.Load(), "the prompt hook runs once per occurrence")
 				if targetMode == codersdk.ChatAutomationTargetModeExistingChat {
 					require.Equal(t, 1, f.inputs(ctx, t))
 				} else {
 					chats := f.createdChats(ctx, t)
-					require.Len(t, chats, 1, "the refused instance's chat is rolled back")
+					require.Len(t, chats, 1)
 					// 10:01 UTC is 19:01 in Tokyo.
 					require.Equal(t, "Standup · 1 Jun 19:01 JST", chats[0].Title)
 					// Like a chat created through the chat API, the chat is
@@ -358,8 +407,37 @@ func TestAutomationScheduleScan(t *testing.T) {
 					require.Equal(t, f.owner.ID, logs[0].UserID)
 				}
 				require.Equal(t, scheduleStart.Add(90*time.Second), f.cursor(ctx, t, automation.ID))
+				require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid, "accepting the occurrence drops the claim")
 			})
 		}
+	})
+
+	t.Run("ClaimHeldElsewhereSkipsUntilExpiry", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "*/5 * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		f.advanceTo(ctx, t, due)
+		claimedUntil := due.Add(automationScheduleClaimLease)
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_claimed_until = $1 WHERE id = $2", claimedUntil, automation.ID)
+		require.NoError(t, err)
+
+		// Another instance holds the claim, so the scan leaves the
+		// occurrence to it.
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+
+		// That instance stopped. Once its claim expires, the occurrence is
+		// past the grace window, so the scan moves the cursor without
+		// publishing and drops the claim.
+		f.advanceTo(ctx, t, claimedUntil)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, nextRun(t, "*/5 * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
 	})
 
 	t.Run("RefusalSkipsOccurrence", func(t *testing.T) {
@@ -616,6 +694,9 @@ WHERE id = $1`, automation.ID, edited)
 		server.runAutomationOccurrence(ctx, row, f.clock.Now())
 		require.Zero(t, f.inputs(ctx, t))
 		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+		// The failed publish releases its claim, so the next scan can
+		// claim the occurrence again.
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
 
 		// Within the grace window, the next scan accepts it once.
 		f.experiment.off.Store(false)
