@@ -44,8 +44,7 @@ func newConnectionReporter(ctx context.Context, logger slog.Logger) *connectionR
 	}
 }
 
-// reportConnectionsLoop reports collected connection events to the API for
-// auditing.
+// reportLoop reports collected connection events to the API for auditing.
 func (r *connectionReporter) reportLoop(ctx context.Context, sink connectionReportSink) error {
 	for {
 		select {
