@@ -103,7 +103,7 @@ Status Code **200**
 | Property     | Value(s)                                          |
 |--------------|---------------------------------------------------|
 | `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
+| `status`     | `active`, `dormant`, `suspended`                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -876,7 +876,7 @@ Status Code **200**
 | Property     | Value(s)                                          |
 |--------------|---------------------------------------------------|
 | `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `suspended`                             |
+| `status`     | `active`, `dormant`, `suspended`                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
