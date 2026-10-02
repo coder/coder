@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -119,8 +119,7 @@ func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
 		return false
 	}
 	options, err := fantasy.UnmarshalProviderOptions(raw)
-	metadata := fantasyopenai.GetReasoningMetadata(options)
-	return err == nil && metadata != nil && metadata.ItemID != ""
+	return err == nil && chatsanitize.HasOpenAIReasoningState(options)
 }
 
 func (server *Server) sanitizeForeignProviderStateRows(
