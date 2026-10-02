@@ -156,7 +156,7 @@ const docTemplate = `{
         },
         "/api/experimental/chat-automations/{automation}/events": {
             "post": {
-                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The event data must also be at most 256 KiB after HTML escaping, which counts each \u003c, \u003e, \u0026, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
                 "consumes": [
                     "application/json"
                 ],
@@ -185,7 +185,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Event data: any JSON value up to 256 KiB",
+                        "description": "Event data: any JSON value up to 256 KiB, also after HTML escaping",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -758,7 +758,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.",
+                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.",
                 "consumes": [
                     "application/json"
                 ],

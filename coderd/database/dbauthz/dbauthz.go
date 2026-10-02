@@ -7668,6 +7668,13 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 // UpdateChatAutomationByID authorizes update on the automation and, like
 // InsertChatAutomation, authorizes a newly referenced target chat (update)
 // or model config (read). Unchanged references are not checked again.
+//
+// This authorizes only RBAC update, which organization admins and site
+// owners also hold. The rule that only the owner can change an automation,
+// other than disabling it, lives only in chatd UpdateAutomation, so every
+// caller (HTTP handlers, the manage_automations tool) must go through that
+// service. The schedule scanner writes only through
+// AdvanceChatAutomationScheduleCursor.
 func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
 	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
 	if err != nil {
@@ -7704,6 +7711,10 @@ func (q *querier) UpdateChatAutomationIDByID(ctx context.Context, arg database.U
 	return q.db.UpdateChatAutomationIDByID(ctx, arg)
 }
 
+// UpdateChatAutomationWebhookSecretByID authorizes only RBAC update, which
+// organization admins and site owners also hold. The rule that only the
+// owner can rotate the webhook secret lives only in chatd
+// RotateAutomationSecret, so every caller must go through that service.
 func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 		return q.db.GetChatAutomationByID(ctx, arg.ID)

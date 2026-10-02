@@ -151,7 +151,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
+// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -202,11 +202,14 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
+	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
+	// The row read under the update's lock is the accurate before-image;
+	// the row read above stays Old only for failed requests.
+	aReq.Old = old
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
@@ -448,14 +451,14 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Deliver chat automation webhook event
-// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
+// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The event data must also be at most 256 KiB after HTML escaping, which counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
 // @ID deliver-chat-automation-event
 // @Accept json
 // @Produce json
 // @Tags Chats
 // @Param automation path string true "Automation ID" format(uuid)
 // @Param Authorization header string true "Bearer followed by the webhook secret"
-// @Param request body interface{} true "Event data: any JSON value up to 256 KiB"
+// @Param request body interface{} true "Event data: any JSON value up to 256 KiB, also after HTML escaping"
 // @Success 202 {object} codersdk.ChatAutomationEventResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 401 {object} codersdk.Response
@@ -640,6 +643,15 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 		})
 	case errors.Is(err, chatstate.ErrMessageQueueFull):
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{Message: "Message queue is full."})
+	case errors.Is(err, chatd.ErrAutomationEventTooLarge):
+		detail := ""
+		if tooLarge, ok := errors.AsType[*chatd.AutomationEventTooLargeError](err); ok {
+			detail = fmt.Sprintf("The escaped event data is %d bytes; the maximum is %d bytes. Escaping counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes.", tooLarge.Size, tooLarge.Max)
+		}
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Event data too large.",
+			Detail:  detail,
+		})
 	case errors.Is(err, chatd.ErrNoDefaultChatModelConfig):
 		// The same response as a person's message gets; it is not a
 		// server error, so senders should not retry it.

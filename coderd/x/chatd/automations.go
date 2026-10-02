@@ -289,12 +289,19 @@ type AutomationGuard func(store database.Store, automation database.ChatAutomati
 // deleteStaleAutomationQueuedMessages. Re-enabling a schedule moves its
 // cursor to the next future occurrence, so missed occurrences never run.
 //
+// A prompt edit does not start a new queue generation: messages the
+// automation already queued keep the prompt they were sent with, and only
+// disabling or deleting the automation removes them.
+//
 // guard, when set, runs after the owner check on the locked stored row
 // and again on the row as the update would leave it, before the write.
-func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (database.ChatAutomation, error) {
+//
+// old is the row as read under the lock before the change. Callers record
+// it as the audit before-image, because a row read before the call can be
+// stale by the time the lock is held.
+func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (old, updated database.ChatAutomation, err error) {
 	disabling := req.Enabled != nil && !*req.Enabled
-	var updated database.ChatAutomation
-	err := p.db.InTx(func(tx database.Store) error {
+	err = p.db.InTx(func(tx database.Store) error {
 		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
 		if err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -303,6 +310,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			return ErrAutomationNotFound
 		}
 		row := rows[0]
+		old = row
 		// Read the time after the lock wait, so a cursor computed below is
 		// never already in the past when the update commits.
 		now := dbtime.Time(p.clock.Now())
@@ -444,12 +452,12 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		return nil
 	}, &database.TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "update_chat_automation"})
 	if err != nil {
-		return database.ChatAutomation{}, err
+		return database.ChatAutomation{}, database.ChatAutomation{}, err
 	}
 	if disabling {
 		p.deleteStaleAutomationQueuedMessages(ctx, updated.ID, updated.QueueGeneration)
 	}
-	return updated, nil
+	return old, updated, nil
 }
 
 // DeleteAutomation deletes an automation and then removes the messages it

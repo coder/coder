@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -155,7 +156,9 @@ func logEntryText(entry slog.SinkEntry) string {
 
 // TestChatAutomationsDeleteWithoutUpdate checks that deleting an
 // automation needs only read and delete permission: disabling it first is
-// part of the deletion, not a separate update.
+// part of the deletion, not a separate update. It also checks that a
+// delete denied to a user with update but no delete permission leaves the
+// automation unchanged, so the deletion never disables it partway.
 func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +198,30 @@ func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	require.NoError(t, err)
 	deleter, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID,
 		rbac.RoleIdentifier{Name: role.Name, OrganizationID: owner.OrganizationID})
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	updaterRole, err := client.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "automation-updater",
+		OrganizationID: owner.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionUpdate},
+		}),
+	})
+	require.NoError(t, err)
+	updater, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID,
+		rbac.RoleIdentifier{Name: updaterRole.Name, OrganizationID: owner.OrganizationID})
+	before, err := db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
+	require.NoError(t, err)
+	require.True(t, before.Enabled)
+	err = codersdk.NewExperimentalClient(updater).DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	after, err := db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
+	require.NoError(t, err)
+	require.True(t, after.Enabled)
+	require.Equal(t, before.QueueGeneration, after.QueueGeneration)
+	require.Equal(t, before.UpdatedAt, after.UpdatedAt)
 
 	require.NoError(t, codersdk.NewExperimentalClient(deleter).DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
 	_, err = db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)

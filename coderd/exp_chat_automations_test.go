@@ -1,12 +1,15 @@
 package coderd_test
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -142,6 +146,43 @@ func rawGet(t *testing.T, client *codersdk.ExperimentalClient, path string) (int
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	return res.StatusCode, string(body)
+}
+
+// chatAutomationReadHookStore runs a hook once, right after the armed
+// automation is read by ID, so a test can change the row between a
+// handler's read and the update's lock.
+type chatAutomationReadHookStore struct {
+	database.Store
+	mu    sync.Mutex
+	id    uuid.UUID
+	hook  func()
+	fired bool
+}
+
+func (s *chatAutomationReadHookStore) arm(id uuid.UUID, hook func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.id, s.hook, s.fired = id, hook, false
+}
+
+func (s *chatAutomationReadHookStore) wasFired() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.fired
+}
+
+func (s *chatAutomationReadHookStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	row, err := s.Store.GetChatAutomationByID(ctx, id)
+	s.mu.Lock()
+	var hook func()
+	if id == s.id && !s.fired {
+		hook, s.fired = s.hook, true
+	}
+	s.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return row, err
 }
 
 func TestChatAutomations(t *testing.T) {
@@ -314,6 +355,68 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, orgAdmin.DeleteChatAutomation(ctx, env.orgID, id))
 		_, err = env.member.ChatAutomation(ctx, env.orgID, id)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// The owner renames the automation after the PATCH handler has read it
+	// and before the update locks it. The disable still succeeds, and its
+	// audit entry diffs against the locked row, so the rename is not
+	// attributed to the disable.
+	t.Run("UpdateAuditsLockedRow", func(t *testing.T) {
+		t.Parallel()
+		rawDB, ps := dbtestutil.NewDB(t)
+		store := &chatAutomationReadHookStore{Store: rawDB}
+		// The default mock records an empty diff, so record the fields this
+		// test compares.
+		auditor := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+			oldRow, oldOK := old.(database.ChatAutomation)
+			newRow, newOK := newVal.(database.ChatAutomation)
+			if !oldOK || !newOK {
+				return audit.Map{}
+			}
+			diff := audit.Map{}
+			if oldRow.Name != newRow.Name {
+				diff["name"] = audit.OldNew{Old: oldRow.Name, New: newRow.Name}
+			}
+			if oldRow.Enabled != newRow.Enabled {
+				diff["enabled"] = audit.OldNew{Old: oldRow.Enabled, New: newRow.Enabled}
+			}
+			return diff
+		})
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) {
+			o.Database = store
+			o.Pubsub = ps
+			o.Auditor = auditor
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
+		require.NoError(t, err)
+		id := created.Automation.ID
+
+		var renameErr error
+		store.arm(id, func() {
+			_, renameErr = env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
+		})
+		auditor.ResetLogs()
+		updated, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		require.True(t, store.wasFired(), "the handler never read the automation")
+		require.NoError(t, renameErr)
+		require.Equal(t, "Renamed", updated.Name)
+		require.False(t, updated.Enabled)
+
+		// The rename commits, and is audited, while the disable waits in
+		// its pre-read, so the disable's entry comes last.
+		var writes []database.AuditLog
+		for _, entry := range auditor.AuditLogs() {
+			if entry.ResourceType == database.ResourceTypeChatAutomation && entry.Action == database.AuditActionWrite {
+				writes = append(writes, entry)
+			}
+		}
+		require.Len(t, writes, 2)
+		var diff audit.Map
+		require.NoError(t, json.Unmarshal(writes[1].Diff, &diff))
+		require.Contains(t, diff, "enabled")
+		require.NotContains(t, diff, "name", "the rename happened before the lock")
 	})
 
 	t.Run("CreateValidation", func(t *testing.T) {

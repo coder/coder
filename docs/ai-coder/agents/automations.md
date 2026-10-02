@@ -162,6 +162,9 @@ Other management requests use the same base path:
 | `PATCH /api/experimental/organizations/{organization}/chat-automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
 | `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation. The dashboard has no delete control.          |
 
+Changing the prompt doesn't change messages that the automation already queued: they keep the prompt they were sent with.
+To remove those messages, turn the automation off or delete it.
+
 ## Send an event to a webhook
 
 Send a `POST` request to the endpoint with the secret as a bearer token and a JSON body:
@@ -177,6 +180,8 @@ The endpoint path carries the `/api/experimental` prefix.
 Experimental API paths can change in a later release, so keep the URL configurable in your senders.
 
 The body must be valid JSON of at most 256&nbsp;KiB.
+The event data must also be at most 256&nbsp;KiB after escaping.
+Coder escapes each `<`, `>`, `&`, U+2028, and U+2029 in a JSON string as a six-byte `\u` sequence, so a body with many of these characters can exceed the limit.
 Any JSON value is accepted.
 A successful delivery returns `202` with the ID of the saved input and the chat that received it:
 
@@ -203,7 +208,7 @@ The message shows an **Automation run** badge with the automation name.
 | `403`  | The automation is turned off, its owner isn't active, its owner can't send messages to the target chat or create chats, or a [chat lifecycle hook](../../admin/setup/chat-lifecycle-hooks.md) denied it. |
 | `404`  | The experiment is off for the automation owner.                                                                                                                                                          |
 | `409`  | A single-use webhook was already used, the target chat is unavailable, the chat is busy and **When busy** is set to **Skip the run**, or the model is unavailable.                                       |
-| `413`  | The body is larger than 256&nbsp;KiB.                                                                                                                                                                    |
+| `413`  | The body is larger than 256&nbsp;KiB, or the event data is larger than 256&nbsp;KiB after escaping.                                                                                                      |
 | `429`  | Automations already fill their share of the chat's queue, the chat's queue is full, or the sender hit the rate limit.                                                                                    |
 | `502`  | Coder couldn't reach a chat lifecycle hook.                                                                                                                                                              |
 
@@ -384,7 +389,7 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 | Automations per owner         | 50 by default, counted across all organizations. Creating one more returns `409`. Set with `--chat-max-automations-per-owner`. |
 | Queued messages per chat      | 20 by default. Set with `--chat-max-queued-messages-per-chat`.                                                                 |
 | Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                        |
-| Webhook body                  | 256&nbsp;KiB of valid JSON.                                                                                                    |
+| Webhook body                  | 256&nbsp;KiB of valid JSON, also after escaping `<`, `>`, `&`, U+2028, and U+2029.                                             |
 | Name                          | 1 to 128 characters.                                                                                                           |
 
 Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the `coder server` options.
