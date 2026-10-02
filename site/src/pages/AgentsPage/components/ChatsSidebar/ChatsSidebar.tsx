@@ -17,8 +17,7 @@ type ChatsSidebarProps = {
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
 	isLoadingModelConfigs?: boolean;
-	onArchiveAgent: (chatId: string) => void;
-	onUnarchiveAgent: (chatId: string) => void;
+	onArchiveSuccess?: (chatId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onMarkChatRead: (chatId: string) => void;
@@ -38,8 +37,6 @@ type ChatsSidebarProps = {
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
-	isArchiving?: boolean;
-	archivingChatId?: string | null;
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -66,8 +63,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelConfigs,
 		isLoadingModelConfigs = false,
-		onArchiveAgent,
-		onUnarchiveAgent,
+		onArchiveSuccess,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
@@ -81,8 +77,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
 		isCreating,
-		isArchiving = false,
-		archivingChatId = null,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -134,8 +128,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
 				isLoadingModelConfigs={isLoadingModelConfigs}
-				onArchiveAgent={onArchiveAgent}
-				onUnarchiveAgent={onUnarchiveAgent}
+				onArchiveSuccess={onArchiveSuccess}
 				onPinAgent={onPinAgent}
 				onUnpinAgent={onUnpinAgent}
 				onMarkChatRead={onMarkChatRead}
@@ -145,8 +138,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}
-				isArchiving={isArchiving}
-				archivingChatId={archivingChatId}
 				isLoading={isLoading}
 				loadError={loadError}
 				onRetryLoad={onRetryLoad}

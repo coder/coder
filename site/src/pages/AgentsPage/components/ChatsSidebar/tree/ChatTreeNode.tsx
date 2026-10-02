@@ -6,11 +6,17 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useMutationState, useQueryClient } from "react-query";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { archiveAndDeleteChat, chatEntityKey } from "#/api/queries/chats";
+import {
+	archiveAndDeleteChat,
+	archiveChat,
+	chatEntityKey,
+	pendingChatArchives,
+	unarchiveChat,
+} from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type { Chat, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -77,11 +83,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
-		onUnarchiveAgent,
+		onArchiveSuccess,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
@@ -168,6 +171,28 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const workspaceId = chat.workspace_id;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			onArchiveSuccess?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 	const [confirmingWorkspace, setConfirmingWorkspace] = useState<Workspace>();
 	const archiveAndDeleteOptions = archiveAndDeleteChat(queryClient);
 	const archiveAndDeleteMutation = useMutation({
@@ -228,14 +253,14 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			);
 		} else if (action === "archive-only") {
 			// The workspace is already gone, so there is nothing to delete.
-			onArchiveAgent(chat.id);
+			archiveMutation.mutate(chat.id);
 		} else {
 			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
 		}
 	};
-	const isDeleting = archiveAndDeleteMutation.isPending;
-	const isArchivingThisChat =
-		(isArchiving && archivingChatId === chat.id) || isDeleting;
+	const isArchivingThisChat = useMutationState(pendingChatArchives).includes(
+		chat.id,
+	);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
@@ -249,9 +274,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
-		// Plain archive keeps the layout's shared pending flag; only this
-		// chat's delete disables this chat's menu.
-		isArchiving: isArchiving || isDeleting,
+		isArchiving: isArchivingThisChat,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
@@ -262,8 +285,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		// immediately for the chat the user is already viewing.
 		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
 		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
-		onArchiveAgent: () => onArchiveAgent(chat.id),
-		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
 		onArchiveAndDeleteWorkspace: requestArchiveAndDelete,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
