@@ -21,6 +21,7 @@ import {
 } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type * as embeddedMetadata from "#/hooks/useEmbeddedMetadata";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
@@ -41,6 +42,7 @@ import {
 	MockEntitlements,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 	mockApiError,
@@ -153,7 +155,12 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 
 const LocationDisplay: React.FC = () => {
 	const location = useLocation();
-	return <output>{location.pathname}</output>;
+	return (
+		<>
+			<output>{location.pathname}</output>
+			<span data-testid="location-search">{location.search}</span>
+		</>
+	);
 };
 
 let navigateBack: (() => void) | undefined;
@@ -192,18 +199,20 @@ const Wrapper: React.FC<WrapperProps> = ({
 					canViewOrganizationSettings: false,
 				}}
 			>
-				<MemoryRouter
-					initialEntries={initialEntries ?? [initialEntry]}
-					initialIndex={initialIndex}
-				>
-					<Routes>
-						<Route path="/agents" element={children} />
-						<Route path="/agents/projects/:projectId" element={children} />
-						<Route path="/agents/:agentId" element={<div />} />
-					</Routes>
-					<LocationDisplay />
-					<NavigationBack />
-				</MemoryRouter>
+				<TooltipProvider>
+					<MemoryRouter
+						initialEntries={initialEntries ?? [initialEntry]}
+						initialIndex={initialIndex}
+					>
+						<Routes>
+							<Route path="/agents" element={children} />
+							<Route path="/agents/projects/:projectId" element={children} />
+							<Route path="/agents/:agentId" element={<div />} />
+						</Routes>
+						<LocationDisplay />
+						<NavigationBack />
+					</MemoryRouter>
+				</TooltipProvider>
 			</DashboardContext.Provider>
 		</QueryClientProvider>
 	);
@@ -256,6 +265,16 @@ const renderPage = (route = deepLink) =>
 		route,
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
+
+const openProjectAction = async (
+	user: ReturnType<typeof userEvent.setup>,
+	action: "Edit project" | "Delete project",
+) => {
+	await user.click(
+		await screen.findByRole("button", { name: "Project actions" }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: action }));
+};
 
 const findEnabledSendButton = async () => {
 	const sendButton = await screen.findByRole("button", { name: "Send" });
@@ -523,13 +542,9 @@ describe("AgentCreatePage project frame", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		act(() => navigateBack?.());
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -542,7 +557,7 @@ describe("AgentCreatePage project frame", () => {
 		});
 	});
 
-	it("edits the project from the composer", async () => {
+	it("edits the project from the actions menu", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		server.use(
@@ -564,9 +579,7 @@ describe("AgentCreatePage project frame", () => {
 			</Wrapper>,
 		);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
+		await openProjectAction(user, "Edit project");
 		const dialog = await screen.findByRole("dialog", {
 			name: "Edit project",
 		});
@@ -578,6 +591,93 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
+	});
+
+	it("deletes the project and returns to the new chat page with the sidebar filters", async () => {
+		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
+		let deletedProjectId: string | undefined;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.delete(
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId`,
+				({ params }) => {
+					deletedProjectId = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}?archived=archived`}
+			>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await openProjectAction(user, "Delete project");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Delete project",
+		});
+		await user.type(
+			within(dialog).getByRole("textbox", {
+				name: "Name of the project to delete",
+			}),
+			MockChatProject.name,
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toHaveTextContent(/^\/agents$/);
+		});
+		expect(screen.getByTestId("location-search")).toHaveTextContent(
+			"?archived=archived",
+		);
+		expect(deletedProjectId).toBe(MockChatProject.id);
+		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
+	});
+
+	it("looks up the owner of a project owned by someone else", async () => {
+		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([
+					{ ...MockChatProject, owner_id: MockUserMember.id },
+				]),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await waitFor(() => {
+			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
+		});
+	});
+
+	it("does not look up the owner of the user's own project", async () => {
+		const getUser = vi.spyOn(API, "getUser");
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await screen.findByRole("button", { name: "Project actions" });
+		expect(getUser).not.toHaveBeenCalled();
 	});
 });
 

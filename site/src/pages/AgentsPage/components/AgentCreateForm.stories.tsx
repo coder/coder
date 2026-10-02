@@ -32,7 +32,6 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
-	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspace,
 	MockOrganization2,
@@ -57,7 +56,6 @@ import {
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
 import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
-import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -338,21 +336,6 @@ const mockPermittedOrganizations = (
 };
 
 export const Default: Story = {};
-
-export const ProjectComposer: Story = {
-	render: (args) => (
-		<div className="flex flex-col gap-2">
-			<ProjectComposerHeader
-				project={{
-					...MockChatProject,
-					name: "N".repeat(64),
-					description: "d".repeat(1024),
-				}}
-			/>
-			<AgentCreateForm {...args} />
-		</div>
-	),
-};
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const canvas = within(canvasElement);
