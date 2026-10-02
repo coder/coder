@@ -1873,10 +1873,6 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}
 
 	// I1: promote the queue head into history.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
-	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
-	}
 	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
@@ -1970,10 +1966,6 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		return FinishTurnResult{Chat: updated}, nil
 	}
 	// R1: promote the queue head into history.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)
-	}
 	updated, promoted, err := tx.promoteQueuedRow(chat, head)
 	if err != nil {
 		return FinishTurnResult{}, err

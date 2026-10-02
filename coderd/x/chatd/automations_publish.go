@@ -532,7 +532,7 @@ func (p *Server) checkAdmission(
 		}
 	}
 	// Idle chats take the message directly; every other state queues it.
-	state := chatstate.ClassifyExecutionState(chat, promotable > 0, true)
+	state := chatstate.ClassifyExecutionState(chat, chatstate.QueueState{HasRows: promotable > 0}, true)
 	if state == chatstate.StateW || state == chatstate.StateE0 {
 		return nil
 	}
