@@ -55,7 +55,7 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 			body := fmt.Sprintf("queued-editing-%s-%d", from, i)
 			var sm chatstate.SendMessageResult
 			if from == chatstate.StateI1 && i == rows-1 {
-				sm = sendInterruptMessage(t, f, m, body)
+				sm = sendInterruptMessage(t, f, m, created.Chat.ID, body)
 			} else {
 				sm = sendQueuedMessage(t, f, m, body)
 			}
