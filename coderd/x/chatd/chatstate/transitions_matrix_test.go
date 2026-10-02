@@ -2203,7 +2203,7 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 // the interruption inline and have their own tests.
 func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
 	t.Helper()
-	if from != chatstate.StateR0 && from != chatstate.StateR1 {
+	if from != chatstate.StateR0 && from != chatstate.StateR1 && from != chatstate.StateR1P {
 		return nil
 	}
 	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
