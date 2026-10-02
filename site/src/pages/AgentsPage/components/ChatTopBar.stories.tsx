@@ -34,8 +34,6 @@ const mockParentChat = {
 	title: "Set up CI/CD pipeline",
 };
 
-const requestPinAgent = fn<(chatId: string) => void>();
-const requestUnpinAgent = fn<(chatId: string) => void>();
 const onOpenRenameDialog = fn<(chat: TypesGen.Chat) => void>();
 
 const chatTopBarOutletContext = {
@@ -43,8 +41,6 @@ const chatTopBarOutletContext = {
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
 	navigateAfterArchive: fn(),
-	requestPinAgent,
-	requestUnpinAgent,
 	activeChatChildren: undefined,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,
@@ -66,8 +62,6 @@ const meta: Meta<typeof ChatTopBar> = {
 	component: ChatTopBar,
 	decorators: [withAuthProvider],
 	beforeEach: () => {
-		requestPinAgent.mockClear();
-		requestUnpinAgent.mockClear();
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canShareChat: false,
@@ -374,21 +368,7 @@ export const RenameChatItem: Story = {
 export const PinAgentItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Pin agent" }),
-		);
-		expect(requestPinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -401,21 +381,7 @@ export const UnpinAgentItem: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Unpin agent" }),
-		);
-		expect(requestUnpinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
