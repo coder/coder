@@ -18,5 +18,11 @@ export const timeZones = Object.keys(tzData.zones)
 	.filter((it) => it !== "Factory" && it !== "null")
 	.sort();
 
-export const getPreferredTimezone = () =>
-	Intl.DateTimeFormat().resolvedOptions().timeZone;
+/**
+ * Returns the browser's time zone, or UTC when the browser reports a zone
+ * outside `timeZones`, such as `Etc/Unknown`.
+ */
+export const getPreferredTimezone = (): string => {
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	return timeZones.includes(timeZone) ? timeZone : "UTC";
+};

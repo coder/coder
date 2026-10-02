@@ -438,7 +438,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								{isSchedule && (
 									<AutomationScheduleFields
 										organizationId={organizationId}
-										isCreate={isCreate}
 										cronField={getFieldHelpers("schedule_cron")}
 										timeZoneField={getFieldHelpers("schedule_time_zone")}
 										onCronChange={(cron) =>
