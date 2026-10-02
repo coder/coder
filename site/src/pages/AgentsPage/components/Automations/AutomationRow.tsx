@@ -250,7 +250,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 
 		const nameDetails = (
 			<>
-				<span className="font-medium text-content-primary">
+				<span className="font-medium text-content-primary wrap-anywhere">
 					{automation.name}
 				</span>
 				{!isOwner && (
@@ -358,7 +358,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 			return (
 				<TableRow>
 					<TableCell className="align-top">
-						<div className="flex flex-col gap-1 break-words">
+						<div className="flex flex-col gap-1 wrap-anywhere">
 							{nameDetails}
 							<TriggerCell automation={automation} />
 							<div>{target}</div>
