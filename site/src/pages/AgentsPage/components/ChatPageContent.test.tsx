@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import type * as ChatAutomationQueries from "#/api/queries/chatAutomations";
 import { chatAutomationNameMap } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -21,8 +22,7 @@ import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 // until the component has rendered. The dashboard renders children only after
 // it loads the experiments, so by then any automations request has started.
 vi.mock("#/api/queries/chatAutomations", async (importOriginal) => {
-	const actual =
-		await importOriginal<typeof import("#/api/queries/chatAutomations")>();
+	const actual = await importOriginal<typeof ChatAutomationQueries>();
 	return {
 		...actual,
 		chatAutomationNameMap: vi.fn(actual.chatAutomationNameMap),
