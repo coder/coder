@@ -2152,8 +2152,9 @@ func (p *Server) DeleteQueued(
 	}
 
 	var (
-		after         database.Chat
-		statusChanged bool
+		after            database.Chat
+		statusChanged    bool
+		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2161,11 +2162,13 @@ func (p *Server) DeleteQueued(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+		deleted, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
+		promotedQueuedAt = deleted.PromotedQueuedAt
 		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, before)
 		return err
 	})
@@ -2175,6 +2178,7 @@ func (p *Server) DeleteQueued(
 	if statusChanged {
 		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
+	p.recordQueueWait(ctx, after, promotedQueuedAt)
 	return nil
 }
 
@@ -2273,8 +2277,9 @@ func (p *Server) EditQueuedMessage(
 	}
 
 	var (
-		after         database.Chat
-		statusChanged bool
+		after            database.Chat
+		statusChanged    bool
+		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2291,9 +2296,11 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-		if _, err := tx.EditQueuedMessage(input); err != nil {
+		edited, err := tx.EditQueuedMessage(input)
+		if err != nil {
 			return err
 		}
+		promotedQueuedAt = edited.PromotedQueuedAt
 		if len(contentParts) > 0 {
 			// File-link errors must roll back the edit.
 			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -2309,6 +2316,7 @@ func (p *Server) EditQueuedMessage(
 	if statusChanged {
 		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
+	p.recordQueueWait(ctx, after, promotedQueuedAt)
 	return nil
 }
 
