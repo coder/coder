@@ -2424,6 +2424,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
+// @Failure 400 {object} codersdk.Response
 // @Router /api/v2/chats/{chat} [patch]
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
