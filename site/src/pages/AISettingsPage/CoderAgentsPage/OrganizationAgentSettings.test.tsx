@@ -4,7 +4,10 @@ import escapeRegExp from "lodash/escapeRegExp";
 import type { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { organizationChatModelsKey } from "#/api/queries/chats";
+import {
+	organizationChatModelsKey,
+	organizationChatSystemPrompt,
+} from "#/api/queries/chats";
 import type {
 	ChatModel,
 	OrganizationChatModelsResponse,
@@ -368,9 +371,41 @@ describe("OrganizationAgentSettings", () => {
 			await user.type(textarea, " Edited.");
 
 			expect(textarea).toHaveValue("Org guidance.");
-			expect(
-				within(form).queryByRole("button", { name: "Save" }),
-			).not.toBeInTheDocument();
+		});
+
+		it("keeps an unsaved edit when a background refetch fails", async () => {
+			const updateSystemPrompt = mockModelsAndInstructions("Org guidance.");
+			const getSystemPrompt = vi.mocked(
+				API.experimental.getOrganizationChatSystemPrompt,
+			);
+			const user = userEvent.setup();
+			const { queryClient } = renderSettings({ canViewInstructions: true });
+
+			const form = await screen.findByRole("form", {
+				name: "Organization instructions",
+			});
+			const textarea = within(form).getByRole("textbox", {
+				name: "Organization instructions",
+			});
+			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
+			await user.type(textarea, " Edited.");
+
+			getSystemPrompt.mockRejectedValue(new Error("prompt unavailable"));
+			const { queryKey } = organizationChatSystemPrompt(
+				MockDefaultOrganization.id,
+			);
+			await act(() => queryClient.invalidateQueries({ queryKey }));
+			await waitFor(() =>
+				expect(queryClient.getQueryState(queryKey)?.status).toBe("error"),
+			);
+
+			await user.click(within(form).getByRole("button", { name: "Save" }));
+			await waitFor(() => {
+				expect(updateSystemPrompt).toHaveBeenCalledWith(
+					MockDefaultOrganization.id,
+					{ system_prompt: "Org guidance. Edited." },
+				);
+			});
 		});
 	});
 });

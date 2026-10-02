@@ -37,7 +37,8 @@ type OrganizationAgentSettingsViewProps = {
 	canViewInstructions: boolean;
 	systemPrompt: string | undefined;
 	isSystemPromptLoading: boolean;
-	systemPromptError: unknown;
+	systemPromptLoadError: unknown;
+	systemPromptRefetchError: unknown;
 	onSaveSystemPrompt: (
 		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
 		options: MutationCallbacks,
@@ -109,7 +110,8 @@ const OrganizationAgentSettingsView: React.FC<
 	canViewInstructions,
 	systemPrompt,
 	isSystemPromptLoading,
-	systemPromptError,
+	systemPromptLoadError,
+	systemPromptRefetchError,
 	onSaveSystemPrompt,
 	isSavingSystemPrompt,
 	saveSystemPromptError,
@@ -181,7 +183,8 @@ const OrganizationAgentSettingsView: React.FC<
 				<OrganizationInstructionsSettings
 					systemPrompt={systemPrompt}
 					isLoading={isSystemPromptLoading}
-					loadError={systemPromptError}
+					loadError={systemPromptLoadError}
+					refetchError={systemPromptRefetchError}
 					canEdit={canEdit}
 					onSave={onSaveSystemPrompt}
 					isSaving={isSavingSystemPrompt}

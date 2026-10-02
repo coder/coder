@@ -116,6 +116,7 @@ const OrganizationAgentSettingsContent: React.FC<
 	// catalog fails, the rows must stay rendered with the error inline so a
 	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
+	const systemPromptErrors = splitModelQueryErrors(systemPromptQuery);
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
 	for (const [index, context] of contexts.entries()) {
 		const mutation = mutations[index];
@@ -161,7 +162,8 @@ const OrganizationAgentSettingsContent: React.FC<
 			canViewInstructions={canViewInstructions}
 			systemPrompt={systemPromptQuery.data?.system_prompt}
 			isSystemPromptLoading={systemPromptQuery.isLoading}
-			systemPromptError={systemPromptQuery.error}
+			systemPromptLoadError={systemPromptErrors.loadError}
+			systemPromptRefetchError={systemPromptErrors.refetchError}
 			onSaveSystemPrompt={systemPromptMutation.mutate}
 			isSavingSystemPrompt={systemPromptMutation.isPending}
 			saveSystemPromptError={systemPromptMutation.error}

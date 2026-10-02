@@ -15,6 +15,7 @@ type OrganizationInstructionsSettingsProps = {
 	systemPrompt: string | undefined;
 	isLoading: boolean;
 	loadError: unknown;
+	refetchError: unknown;
 	canEdit: boolean;
 	onSave: (
 		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
@@ -31,6 +32,7 @@ export const OrganizationInstructionsSettings: React.FC<
 	systemPrompt,
 	isLoading,
 	loadError,
+	refetchError,
 	canEdit,
 	onSave,
 	isSaving,
@@ -45,11 +47,6 @@ export const OrganizationInstructionsSettings: React.FC<
 	const value = draft ?? savedPrompt;
 	const isDirty = draft !== undefined && draft !== savedPrompt;
 	const invisibleCharCount = countInvisibleCharacters(value);
-	const isDisabled = isLoading || isSaving;
-	// Treat an error as a load failure only when we have no cached data.
-	// A background refetch failure with valid cached data should not hide
-	// the form (FE5: keep showing valid data on refetch errors).
-	const isLoadError = loadError != null && systemPrompt === undefined;
 
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -81,12 +78,15 @@ export const OrganizationInstructionsSettings: React.FC<
 				Added after the deployment instructions when a new chat is created in
 				this organization. Existing chats are not affected.
 			</p>
-			{isLoadError ? (
+			{loadError != null ? (
 				<ErrorAlert error={loadError} className="mt-4" />
 			) : isLoading ? (
 				<Loader label="Loading organization instructions" />
 			) : (
 				<>
+					{refetchError != null && (
+						<ErrorAlert error={refetchError} className="mt-4" />
+					)}
 					<TextareaAutosize
 						aria-labelledby={titleId}
 						className="mt-4 w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
@@ -97,7 +97,7 @@ export const OrganizationInstructionsSettings: React.FC<
 						}
 						value={value}
 						onChange={(event) => setDraft(event.target.value)}
-						disabled={isDisabled}
+						disabled={isSaving}
 						readOnly={!canEdit}
 						minRows={4}
 						maxRows={9}
@@ -131,11 +131,11 @@ export const OrganizationInstructionsSettings: React.FC<
 									onResetSave();
 									setDraft(undefined);
 								}}
-								disabled={isDisabled || (!isDirty && saveError == null)}
+								disabled={isSaving || (!isDirty && saveError == null)}
 							>
 								Cancel
 							</Button>
-							<Button type="submit" disabled={isDisabled || !isDirty}>
+							<Button type="submit" disabled={isSaving || !isDirty}>
 								{isSaving && <Spinner loading className="size-4" />}
 								Save
 							</Button>

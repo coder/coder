@@ -66,19 +66,18 @@ commit message formats, preferred libraries, or repository-specific context.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers can't access or interact with it.
 
-Organization administrators can also set organization instructions that apply
-only to chats in their organization. Coder adds them after the deployment
-system prompt and never uses them in place of it. Set them under
-**Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
+Organization administrators can also set organization instructions that apply only to chats in their organization.
+Coder adds them after the deployment system prompt and never uses them in place of it.
+Set them under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
 
 Coder stores both prompts when it creates a chat, in this order:
 
 1. The deployment system prompt.
 1. The organization instructions, when the chat's organization has them.
 
-A change to either prompt applies to chats created afterward. Existing chats
-keep the prompts they started with. Subagents receive the current prompts of
-their parent chat's organization when they start.
+A change to either prompt applies to chats created afterward.
+Existing chats keep the prompts they started with.
+Subagents receive the current prompts of their parent chat's organization when they start.
 
 The organization instructions are exposed over the chat configuration API:
 
