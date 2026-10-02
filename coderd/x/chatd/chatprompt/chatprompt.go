@@ -1481,7 +1481,9 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" &&
+				!chatsanitize.HasAnthropicSignedReasoningOptions(opts) &&
+				!chatsanitize.HasOpenAIReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
