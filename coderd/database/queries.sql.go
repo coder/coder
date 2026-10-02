@@ -12036,7 +12036,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getDeletedChatMessagesFromLastAssistant = `-- name: GetDeletedChatMessagesFromLastAssistant :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -12104,6 +12104,8 @@ func (q *sqlQuerier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
 			&i.QueuedMessageID,
+			&i.AutomationID,
+			&i.InputID,
 		); err != nil {
 			return nil, err
 		}
