@@ -23,30 +23,15 @@ import {
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
+import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
+	return useAutomationsEnabled() ? <AutomationsList /> : <NotFoundPage />;
+};
+
+const AutomationsList: React.FC = () => {
 	const { organizations, showOrganizations } = useDashboard();
-	return useAutomationsEnabled() ? (
-		<AutomationsList
-			organizations={organizations}
-			showOrganizations={showOrganizations}
-		/>
-	) : (
-		<NotFoundPage />
-	);
-};
-
-type AutomationsListProps = {
-	organizations: readonly Organization[];
-	showOrganizations: boolean;
-};
-
-const AutomationsList: React.FC<AutomationsListProps> = ({
-	organizations,
-	showOrganizations,
-}) => {
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
