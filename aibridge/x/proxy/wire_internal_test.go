@@ -84,7 +84,7 @@ func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, 
 	if body != nil {
 		t.Cleanup(func() { _ = body.Close() })
 	}
-	_ = h.forwardPrepared(rw, outbound, body, state, logger)
+	_ = h.forward(rw, outbound, body, state, logger)
 	if body != nil {
 		require.NoError(t, body.Close())
 		_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
