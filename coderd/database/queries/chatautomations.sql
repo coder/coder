@@ -147,3 +147,51 @@ WHERE
     AND kind = 'webhook'
     AND webhook_use = 'single'
     AND webhook_consumed_at IS NULL;
+
+-- name: GetDueChatAutomationSchedules :many
+-- Returns enabled schedule automations whose cursor is at or before now,
+-- oldest cursor first, starting after the (after_next_run_at, after_id)
+-- keyset so callers can page through every due row. Automations of
+-- inactive owners and existing_chat automations whose target chat is gone
+-- or archived are left out. It takes no locks: publishing rechecks each
+-- row under the chat and automation locks.
+SELECT
+    chat_automations.*
+FROM
+    chat_automations
+    JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.kind = 'schedule'
+    AND chat_automations.enabled
+    AND chat_automations.schedule_next_run_at <= @now::timestamptz
+    AND (chat_automations.schedule_next_run_at, chat_automations.id) > (@after_next_run_at::timestamptz, @after_id::uuid)
+    AND users.status = 'active'
+    AND NOT users.deleted
+    AND (
+        chat_automations.target_mode = 'new_chat'
+        OR (chats.id IS NOT NULL AND NOT chats.archived)
+    )
+ORDER BY
+    chat_automations.schedule_next_run_at,
+    chat_automations.id
+LIMIT
+    @limit_count::int;
+
+-- name: AdvanceChatAutomationScheduleCursor :execrows
+-- Moves the schedule cursor of an enabled schedule automation from the
+-- observed occurrence to next_run_at. It affects no row when the schedule
+-- revision or the cursor changed since they were observed, so exactly one
+-- caller moves the cursor past each occurrence. A NULL next_run_at means
+-- no occurrence is pending.
+UPDATE
+    chat_automations
+SET
+    schedule_next_run_at = sqlc.narg('next_run_at')::timestamptz,
+    updated_at = @updated_at::timestamptz
+WHERE
+    id = @id::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = @schedule_revision::bigint
+    AND schedule_next_run_at = @observed_next_run_at::timestamptz;

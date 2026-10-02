@@ -132,6 +132,21 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
 }
 
+// AdvanceChatAutomationScheduleCursor mocks base method.
+func (m *MockStore) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdvanceChatAutomationScheduleCursor", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdvanceChatAutomationScheduleCursor indicates an expected call of AdvanceChatAutomationScheduleCursor.
+func (mr *MockStoreMockRecorder) AdvanceChatAutomationScheduleCursor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatAutomationScheduleCursor", reflect.TypeOf((*MockStore)(nil).AdvanceChatAutomationScheduleCursor), ctx, arg)
+}
+
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -4045,6 +4060,21 @@ func (m *MockStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.G
 func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), ctx)
+}
+
+// GetDueChatAutomationSchedules mocks base method.
+func (m *MockStore) GetDueChatAutomationSchedules(ctx context.Context, arg database.GetDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDueChatAutomationSchedules", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDueChatAutomationSchedules indicates an expected call of GetDueChatAutomationSchedules.
+func (mr *MockStoreMockRecorder) GetDueChatAutomationSchedules(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDueChatAutomationSchedules", reflect.TypeOf((*MockStore)(nil).GetDueChatAutomationSchedules), ctx, arg)
 }
 
 // GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.

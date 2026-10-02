@@ -34,6 +34,10 @@ const (
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
+
+	// defaultAutomationScheduleBatchSize is how many due automations a
+	// schedule scan reads per page.
+	defaultAutomationScheduleBatchSize = int32(500)
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -244,15 +248,17 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval      time.Duration
-	CapacityMetricsInterval  time.Duration
-	AcquisitionBatchSize     int32
-	ArchiveInterval          time.Duration
-	ArchiveBatchSize         int32
-	RunnerSyncInterval       time.Duration
-	HeartbeatInterval        time.Duration
-	HeartbeatCleanupInterval time.Duration
-	HeartbeatStaleSeconds    int32
+	AcquisitionInterval         time.Duration
+	CapacityMetricsInterval     time.Duration
+	AcquisitionBatchSize        int32
+	ArchiveInterval             time.Duration
+	ArchiveBatchSize            int32
+	AutomationScheduleInterval  time.Duration
+	AutomationScheduleBatchSize int32
+	RunnerSyncInterval          time.Duration
+	HeartbeatInterval           time.Duration
+	HeartbeatCleanupInterval    time.Duration
+	HeartbeatStaleSeconds       int32
 	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
 	// stay well below the stale threshold so a slow tick fails and
 	// retries instead of letting every lease go stale.
@@ -297,6 +303,12 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.ArchiveBatchSize <= 0 {
 		o.ArchiveBatchSize = defaultArchiveBatchSize
+	}
+	if o.AutomationScheduleInterval <= 0 {
+		o.AutomationScheduleInterval = automationScheduleInterval
+	}
+	if o.AutomationScheduleBatchSize <= 0 {
+		o.AutomationScheduleBatchSize = defaultAutomationScheduleBatchSize
 	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()

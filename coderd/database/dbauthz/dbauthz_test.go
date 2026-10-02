@@ -1566,6 +1566,26 @@ func (s *MethodTestSuite) TestChats() {
 		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
 		check.Args(automation.OrganizationID).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
 	}))
+	s.Run("GetDueChatAutomationSchedules", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.GetDueChatAutomationSchedulesParams{Now: dbtime.Now(), LimitCount: 10}
+		dbm.EXPECT().GetDueChatAutomationSchedules(gomock.Any(), arg).Return([]database.ChatAutomation{automation}, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args(arg).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
+	}))
+	s.Run("AdvanceChatAutomationScheduleCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		arg := database.AdvanceChatAutomationScheduleCursorParams{
+			ID:                automation.ID,
+			ScheduleRevision:  2,
+			ObservedNextRunAt: dbtime.Now(),
+			NextRunAt:         sql.NullTime{Time: dbtime.Now().Add(time.Hour), Valid: true},
+			UpdatedAt:         dbtime.Now(),
+		}
+		dbm.EXPECT().AdvanceChatAutomationScheduleCursor(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
@@ -8069,6 +8089,19 @@ func TestAsChatd(t *testing.T) {
 		// Chatd resolves organization model configs during background work.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(uuid.New()))
 		require.NoError(t, err, "chat model config read should be allowed")
+
+		// Pin the complete ResourceChatAutomation action set: the schedule
+		// loop reads automations and moves their cursors, but chatd never
+		// creates or deletes them.
+		automation := rbac.ResourceChatAutomation.WithOwner(uuid.NewString()).InOrg(uuid.New())
+		for _, action := range rbac.ResourceChatAutomation.AvailableActions() {
+			err := auth.Authorize(ctx, actor, action, automation)
+			if action == policy.ActionRead || action == policy.ActionUpdate {
+				require.NoError(t, err, "chat automation %s should be allowed", action)
+			} else {
+				require.Error(t, err, "chat automation %s should be denied", action)
+			}
+		}
 
 		// Pin the complete ResourceUser action set: read_personal only.
 		// Token refresh persistence uses the per-user AsChatdTokenOwner subject.

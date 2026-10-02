@@ -92,6 +92,9 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
+	w.wg.Go(func() {
+		w.automationScheduleLoop(workerCtx)
+	})
 	if w.opts.CapacityMetrics != nil {
 		w.wg.Go(func() {
 			w.capacityMetricsLoop(workerCtx)

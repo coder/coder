@@ -5479,6 +5479,47 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const advanceChatAutomationScheduleCursor = `-- name: AdvanceChatAutomationScheduleCursor :execrows
+UPDATE
+    chat_automations
+SET
+    schedule_next_run_at = $1::timestamptz,
+    updated_at = $2::timestamptz
+WHERE
+    id = $3::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = $4::bigint
+    AND schedule_next_run_at = $5::timestamptz
+`
+
+type AdvanceChatAutomationScheduleCursorParams struct {
+	NextRunAt         sql.NullTime `db:"next_run_at" json:"next_run_at"`
+	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
+	ID                uuid.UUID    `db:"id" json:"id"`
+	ScheduleRevision  int64        `db:"schedule_revision" json:"schedule_revision"`
+	ObservedNextRunAt time.Time    `db:"observed_next_run_at" json:"observed_next_run_at"`
+}
+
+// Moves the schedule cursor of an enabled schedule automation from the
+// observed occurrence to next_run_at. It affects no row when the schedule
+// revision or the cursor changed since they were observed, so exactly one
+// caller moves the cursor past each occurrence. A NULL next_run_at means
+// no occurrence is pending.
+func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, advanceChatAutomationScheduleCursor,
+		arg.NextRunAt,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ScheduleRevision,
+		arg.ObservedNextRunAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const consumeChatAutomationWebhookByID = `-- name: ConsumeChatAutomationWebhookByID :execrows
 UPDATE
     chat_automations
@@ -5655,6 +5696,97 @@ ORDER BY
 
 func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatAutomation, error) {
 	rows, err := q.db.QueryContext(ctx, getChatAutomationsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.WhenBusy,
+			&i.WebhookUse,
+			&i.WebhookSecretHash,
+			&i.WebhookSecretVersion,
+			&i.WebhookConsumedAt,
+			&i.Prompt,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleRevision,
+			&i.ScheduleNextRunAt,
+			&i.QueueGeneration,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDueChatAutomationSchedules = `-- name: GetDueChatAutomationSchedules :many
+SELECT
+    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at
+FROM
+    chat_automations
+    JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.kind = 'schedule'
+    AND chat_automations.enabled
+    AND chat_automations.schedule_next_run_at <= $1::timestamptz
+    AND (chat_automations.schedule_next_run_at, chat_automations.id) > ($2::timestamptz, $3::uuid)
+    AND users.status = 'active'
+    AND NOT users.deleted
+    AND (
+        chat_automations.target_mode = 'new_chat'
+        OR (chats.id IS NOT NULL AND NOT chats.archived)
+    )
+ORDER BY
+    chat_automations.schedule_next_run_at,
+    chat_automations.id
+LIMIT
+    $4::int
+`
+
+type GetDueChatAutomationSchedulesParams struct {
+	Now            time.Time `db:"now" json:"now"`
+	AfterNextRunAt time.Time `db:"after_next_run_at" json:"after_next_run_at"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount     int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Returns enabled schedule automations whose cursor is at or before now,
+// oldest cursor first, starting after the (after_next_run_at, after_id)
+// keyset so callers can page through every due row. Automations of
+// inactive owners and existing_chat automations whose target chat is gone
+// or archived are left out. It takes no locks: publishing rechecks each
+// row under the chat and automation locks.
+func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getDueChatAutomationSchedules,
+		arg.Now,
+		arg.AfterNextRunAt,
+		arg.AfterID,
+		arg.LimitCount,
+	)
 	if err != nil {
 		return nil, err
 	}

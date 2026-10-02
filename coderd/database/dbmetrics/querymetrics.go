@@ -152,6 +152,14 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.AdvanceChatAutomationScheduleCursor(ctx, arg)
+	m.queryLatencies.WithLabelValues("AdvanceChatAutomationScheduleCursor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AdvanceChatAutomationScheduleCursor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
@@ -2157,6 +2165,14 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	r0, r1 := m.s.GetDeploymentWorkspaceStats(ctx)
 	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceStats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDueChatAutomationSchedules(ctx context.Context, arg database.GetDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDueChatAutomationSchedules(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetDueChatAutomationSchedules").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDueChatAutomationSchedules").Inc()
 	return r0, r1
 }
 
