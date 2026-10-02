@@ -1146,6 +1146,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
@@ -1563,6 +1564,10 @@ helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/tes
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/mcp/*_test.go)
+	TZ=UTC go test ./coderd/mcp -run="Test.*Golden$$" -update
 	touch "$@"
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
