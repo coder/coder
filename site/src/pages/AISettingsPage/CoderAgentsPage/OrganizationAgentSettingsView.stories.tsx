@@ -63,7 +63,8 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		systemPrompt:
 			"Use the platform team's templates and run make lint before opening a pull request.",
 		isSystemPromptLoading: false,
-		systemPromptError: null,
+		systemPromptLoadError: null,
+		systemPromptRefetchError: null,
 		onSaveSystemPrompt: fn(),
 		isSavingSystemPrompt: false,
 		saveSystemPromptError: null,
@@ -294,8 +295,16 @@ export const InstructionsLoading: Story = {
 export const InstructionsLoadError: Story = {
 	args: {
 		systemPrompt: undefined,
-		systemPromptError: mockApiError({
+		systemPromptLoadError: mockApiError({
 			message: "Failed to load organization instructions.",
+		}),
+	},
+};
+
+export const InstructionsRefetchError: Story = {
+	args: {
+		systemPromptRefetchError: mockApiError({
+			message: "Internal error fetching organization chat system prompt.",
 		}),
 	},
 };
