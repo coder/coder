@@ -1533,8 +1533,9 @@ func (p *Server) SendMessage(
 	requestedMCPServerIDs := opts.MCPServerIDs
 
 	var (
-		result           SendMessageResult
-		promotedQueuedAt time.Time
+		result               SendMessageResult
+		promotedQueuedAt     time.Time
+		finishedInterruption bool
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -1624,6 +1625,7 @@ func (p *Server) SendMessage(
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 		promotedQueuedAt = sendResult.PromotedQueuedAt
+		finishedInterruption = sendResult.FinishedInterruption
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -1669,6 +1671,9 @@ func (p *Server) SendMessage(
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
 	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
+	if finishedInterruption {
+		p.afterInlineInterruption(ctx, result.Chat)
+	}
 	return result, nil
 }
 
@@ -2429,12 +2434,17 @@ func (p *Server) InterruptChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	var refreshed database.Chat
+	var (
+		refreshed database.Chat
+		result    chatstate.InterruptResult
+	)
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.Interrupt(chatstate.InterruptInput{
+		var err error
+		result, err = tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 		// Capture the post-interrupt chat inside the transaction so
@@ -2452,7 +2462,25 @@ func (p *Server) InterruptChat(
 	}
 
 	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.recordQueueWait(ctx, refreshed, result.PromotedQueuedAt)
+	if result.FinishedInterruption {
+		p.afterInlineInterruption(ctx, refreshed)
+	}
 	return refreshed, nil
+}
+
+// afterInlineInterruption applies the side effects a worker applies
+// after it finishes an interruption, for an interruption that a
+// transition finished inline because no worker owned the chat. The
+// transition already committed, so a failure is logged.
+func (p *Server) afterInlineInterruption(ctx context.Context, chat database.Chat) {
+	if err := p.afterInterruptionOutcome(ctx, interruptionOutcome{
+		Chat: chat,
+		Kind: runnerActionKindFinishInterruption,
+	}); err != nil {
+		p.logger.Warn(ctx, "interruption post-outcome side effects failed",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
 }
 
 // CompactChat records a manual compaction request through the
