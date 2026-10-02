@@ -35,7 +35,7 @@ type catalogTool struct {
 // assert on the count and identity of the live tool set.
 func (m *Manager) connectedTools() []catalogTool {
 	var out []catalogTool
-	for _, s := range m.Catalog() {
+	for _, s := range m.Report().Servers {
 		if !s.Connected {
 			continue
 		}

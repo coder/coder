@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -150,6 +151,15 @@ func TestParseConfig(t *testing.T) {
 			content: mustJSON(t, map[string]any{
 				"mcpServers": map[string]any{
 					"_server": map[string]any{"command": "run"},
+				},
+			}),
+			expectError: true,
+		},
+		{
+			name: "ServerNameOverCoderdSourceCap",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					strings.Repeat("n", 1025): map[string]any{"command": "run"},
 				},
 			}),
 			expectError: true,
