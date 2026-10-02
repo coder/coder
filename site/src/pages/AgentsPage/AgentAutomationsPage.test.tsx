@@ -459,6 +459,35 @@ describe("AgentAutomationsPage", () => {
 		).toBeInTheDocument();
 	});
 
+	it("closes the delete confirmation when the automation is already gone", async () => {
+		const user = userEvent.setup();
+		setup();
+		server.use(
+			http.delete(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				() =>
+					HttpResponse.json(
+						{ message: "Resource not found." },
+						{ status: 404 },
+					),
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).toBeNull();
+		});
+	});
+
 	it("does not show a run failure on the organization picked after Run now", async () => {
 		const user = userEvent.setup();
 		setup();

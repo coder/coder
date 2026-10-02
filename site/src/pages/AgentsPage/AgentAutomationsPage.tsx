@@ -7,7 +7,7 @@ import {
 } from "react-query";
 import { useLocation } from "react-router";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	automationChats,
 	chatAutomations,
@@ -214,6 +214,13 @@ const AutomationsList: React.FC = () => {
 			onSuccess: () => {
 				toast.success(`Deleted ${automation.name}.`);
 				setDeleteTarget(undefined);
+			},
+			onError: (error) => {
+				// Someone else deleted it first, so there is nothing to retry.
+				if (getErrorStatus(error) === 404) {
+					toast(`${automation.name} was already deleted.`);
+					setDeleteTarget(undefined);
+				}
 			},
 		});
 	};

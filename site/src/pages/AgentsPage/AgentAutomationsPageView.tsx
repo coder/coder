@@ -164,7 +164,8 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 						Chats this automation created or sent messages to.
 					</DialogDescription>
 				</DialogHeader>
-				{body}
+				{/* Keeps Close in view when many chats are loaded. */}
+				<div className="max-h-[60vh] overflow-y-auto">{body}</div>
 				<DialogFooter>
 					<Button variant="outline" onClick={state.onClose}>
 						Close

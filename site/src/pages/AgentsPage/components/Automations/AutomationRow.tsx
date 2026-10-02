@@ -1,4 +1,4 @@
-import { PlayIcon } from "lucide-react";
+import { PlayIcon, Trash2Icon } from "lucide-react";
 import { memo } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -13,6 +13,11 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { formatDate } from "#/utils/time";
 
@@ -62,8 +67,11 @@ type NextRunProps = {
 };
 
 const NextRun: React.FC<NextRunProps> = ({ automation }) => {
+	// Re-checks every second, so a run that just started drops out at once
+	// and an updated automation shows within a second. Re-renders happen
+	// only when the label changes.
 	return useTime(() => formatNextRun(automation, Date.now()), {
-		interval: 15_000,
+		interval: 1_000,
 		disabled: automation.kind !== "schedule",
 	});
 };
@@ -72,6 +80,7 @@ type ChatTitleLinkProps = {
 	chatId: string;
 	title: string | undefined;
 	size?: LinkProps["size"];
+	className?: string;
 };
 
 /** Links to a chat by its title, falling back to "Untitled". */
@@ -79,9 +88,10 @@ export const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
 	chatId,
 	title,
 	size = "lg",
+	className,
 }) => {
 	return (
-		<Link asChild showExternalIcon={false} size={size}>
+		<Link asChild showExternalIcon={false} size={size} className={className}>
 			<RouterLink to={`/agents/${chatId}`}>{title || "Untitled"}</RouterLink>
 		</Link>
 	);
@@ -93,6 +103,7 @@ type ChatTitleProps = {
 	isLoading: boolean;
 	error: unknown;
 	size?: LinkProps["size"];
+	className?: string;
 };
 
 const ChatTitle: React.FC<ChatTitleProps> = ({
@@ -101,6 +112,7 @@ const ChatTitle: React.FC<ChatTitleProps> = ({
 	isLoading,
 	error,
 	size,
+	className,
 }) => {
 	if (isLoading) {
 		return <Skeleton className="inline-block h-4 w-32 align-middle" />;
@@ -112,7 +124,14 @@ const ChatTitle: React.FC<ChatTitleProps> = ({
 			</span>
 		);
 	}
-	return <ChatTitleLink chatId={chatId} title={chat?.title} size={size} />;
+	return (
+		<ChatTitleLink
+			chatId={chatId}
+			title={chat?.title}
+			size={size}
+			className={className}
+		/>
+	);
 };
 
 type CreatingChatProps = {
@@ -134,6 +153,7 @@ const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 					isLoading={chatQuery.isLoading}
 					error={chatQuery.error}
 					size="sm"
+					className="inline"
 				/>
 			)}
 		</span>
@@ -317,14 +337,19 @@ export const AutomationRow = memo<AutomationRowProps>(
 					Edit
 				</Button>
 				{isOwner && (
-					<Button
-						size="sm"
-						variant="outline"
-						aria-label={`Delete ${automation.name}`}
-						onClick={() => onDelete(automation)}
-					>
-						Delete
-					</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="outline"
+								aria-label={`Delete ${automation.name}`}
+								onClick={() => onDelete(automation)}
+							>
+								<Trash2Icon />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete</TooltipContent>
+					</Tooltip>
 				)}
 			</div>
 		);
