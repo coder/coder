@@ -630,19 +630,24 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 	it("asks the server for chats from the automation's organization", async () => {
 		const user = userEvent.setup();
+		// A non-default organization, so the term cannot come from a default.
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
 		const { requests } = setupEditor();
 		const dialog = await openCreateDialog(user);
 
 		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
 		await screen.findByRole("option", { name: mockOtherChat.title });
-		expect(
-			requests
-				.map((request) => new URL(request.url))
-				.filter((url) => url.pathname === "/api/v2/chats")
-				.map((url) => url.searchParams.get("q")),
-		).toContain(
-			`archived:false source:created_by_me organization:${MockDefaultOrganization.id}`,
+		const chatQueries = requests
+			.map((request) => new URL(request.url))
+			.filter((url) => url.pathname === "/api/v2/chats")
+			.map((url) => url.searchParams.get("q"));
+		expect(chatQueries).toContain(
+			`archived:false source:created_by_me organization:${MockOrganization2.id}`,
 		);
+		expect(chatQueries.join("\n")).not.toContain(MockDefaultOrganization.id);
 	});
 
 	it("saves a name of 128 code points that spans more UTF-16 units", async () => {
