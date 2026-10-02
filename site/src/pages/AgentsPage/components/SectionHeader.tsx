@@ -26,7 +26,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 	return (
 		<div className="flex items-start justify-between gap-4">
 			<div className="min-w-0 flex-1">
-				<div className="flex w-full items-center gap-2">
+				<div className="flex w-full flex-wrap items-center gap-2">
 					<Heading className={headingClass}>{label}</Heading>
 					{badge}
 				</div>
