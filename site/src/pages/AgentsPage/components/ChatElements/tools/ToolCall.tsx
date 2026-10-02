@@ -102,7 +102,7 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	status: ToolStatus;
 	isError?: boolean;
 	errorMessage?: string;
-	hasContent?: boolean;
+	hasContent: boolean;
 	defaultExpanded?: boolean;
 	defaultView?: ToolCallView;
 	expanded?: boolean;
@@ -124,7 +124,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 	status,
 	isError = false,
 	errorMessage,
-	hasContent = true,
+	hasContent,
 	defaultExpanded = false,
 	defaultView,
 	expanded: expandedProp,

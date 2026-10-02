@@ -16,6 +16,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import { buildLiveStatus } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -431,7 +432,15 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	organizationId: "organization-id",
+	streamTools: [],
+	liveStatus: buildLiveStatus(),
+	subagentStatusOverrides: new Map(),
 	subagentTitles: new Map(),
+	subagentVariants: new Map(),
+	isChatCompleted: true,
+	showDesktopPreviews: false,
+	hasActiveStream: false,
+	isAwaitingFirstStreamChunk: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
