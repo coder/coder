@@ -201,7 +201,7 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if err != nil {
 		return PublishAutomationResult{}, xerrors.Errorf("get queued messages: %w", err)
 	}
-	queuedAutomations, err := readQueuedAutomations(ctx, p.db, automation, queued)
+	queuedAutomations, err := readQueuedAutomations(ctx, p.db, queued, automation)
 	if err != nil {
 		return PublishAutomationResult{}, err
 	}
@@ -567,11 +567,14 @@ func queuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UU
 }
 
 // readQueuedAutomations reads, without locking, the automations of the
-// queued rows, keyed by id, starting from the already loaded automation.
-// Deleted automations are left out. The chat queue is capped, so the
-// reads are bounded.
-func readQueuedAutomations(ctx context.Context, store database.Store, automation database.ChatAutomation, queued []database.ChatQueuedMessage) (map[uuid.UUID]database.ChatAutomation, error) {
-	automations := map[uuid.UUID]database.ChatAutomation{automation.ID: automation}
+// queued rows, keyed by id, starting from the already loaded automations
+// in known. Deleted automations are left out. The chat queue is capped,
+// so the reads are bounded.
+func readQueuedAutomations(ctx context.Context, store database.Store, queued []database.ChatQueuedMessage, known ...database.ChatAutomation) (map[uuid.UUID]database.ChatAutomation, error) {
+	automations := make(map[uuid.UUID]database.ChatAutomation, len(known))
+	for _, automation := range known {
+		automations[automation.ID] = automation
+	}
 	for _, row := range queued {
 		if !row.AutomationID.Valid {
 			continue

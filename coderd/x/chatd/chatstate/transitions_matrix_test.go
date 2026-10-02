@@ -949,6 +949,8 @@ func matrixCases() []transitionCaseSpec {
 		promoteStaleCase(chatstate.StateA1, chatstate.StateA1, staleThenOrdinary),
 		finishStaleQueueCase(chatstate.TransitionFinishTurn, chatstate.StateR1),
 		finishStaleQueueCase(chatstate.TransitionFinishInterruption, chatstate.StateI1),
+		deleteStaleArchivedCase(chatstate.StateXE0, staleOnly),
+		deleteStaleArchivedCase(chatstate.StateXE1, staleThenOrdinary),
 	}
 }
 

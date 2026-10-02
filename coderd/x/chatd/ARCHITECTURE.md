@@ -123,7 +123,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
-- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
+- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `XE1`, it removes `qid` only if `qid` fails the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), and the chat stays archived.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state. If `qid` fails the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), it deletes `qid` instead and changes nothing else.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When the chat is `running` or `interrupting` and no worker owns it, nothing is generating, so the same transaction also applies `FinishInterruption` after inserting synthetic cancellation results for any outstanding tool calls, and it promotes the queue head through the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) like any other `FinishInterruption`.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
@@ -161,9 +161,11 @@ Automations (rows in `chat_automations`) deliver messages to chats through the s
 
 Deleting a stale queued message is an ordinary queue change: it advances `queue_version`, and the queue sub-state (`0` or `1`) follows the messages that remain. Any transition that promotes queued messages must run the guard on every message it promotes, including a transition that promotes several queued messages at once.
 
+**Queue cap.** The per-chat queue cap counts only queued messages that pass the guard. A transition that queues a message first counts the queued rows. Below the cap it queues the message with no other queries. At the cap, it runs the guard on the whole queue under the chat lock, deletes every stale message, and refuses the new message as queue full only if the messages that remain still fill the queue. This applies to messages from people and from automations alike, so stale rows that a cleanup missed can't block a chat. If the transition still refuses the message, the transaction rolls back and the stale messages stay until a later transition deletes them.
+
 **Lock order.** Every transition locks the chat row first. A transaction that also locks automations takes those locks after the chat row, in ascending automation ID order. All automation locks go through `chatstate.LockAutomations`, which sorts and deduplicates the IDs and locks the rows in one query. The order holds only within one call. An admission callback that locks automations must pass its own automation and the automation of every queued message of the chat in a single `LockAutomations` call. When head promotion finds a head with an `automation_id`, it locks the automations of every queued message up front, so deleting several stale heads never takes automation locks out of order. `LockAutomations` runs with chatd's own authorization, so the guard sees every automation no matter who triggered the transition.
 
-A transaction that takes automation locks out of this order can deadlock. For example, a callback might lock only its own automation X on a chat whose queue head belongs to automation A, where A has the lower ID. On the `E1` path, `SendMessage` runs the callback before it locks the queue's automations in a second `LockAutomations` call, so the transaction takes X and then A. PostgreSQL aborts one of the deadlocked transactions. `ChatMachine.Update` treats that abort as retryable: if the aborted attempt locked automations, it reruns the whole transaction, including the callback, for at most three attempts in total. Each attempt has its own publish buffer, so an aborted attempt publishes nothing. An attempt that locked no automations is never retried, and neither is an `Update` nested inside another `Update`, because the outer transaction owns the retry. Callbacks passed to `Update` must therefore be safe to rerun.
+A transaction that takes automation locks out of this order can deadlock. For example, a callback might lock only its own automation X on a chat whose queue head belongs to automation A, where A has the lower ID. On the `E1` path, `SendMessage` runs the callback before it locks the queue's automations in a second `LockAutomations` call, so the transaction takes X and then A. The queue cap check does the same from any state when the queue is at the cap. PostgreSQL aborts one of the deadlocked transactions. `ChatMachine.Update` treats that abort as retryable: if the aborted attempt locked automations, it reruns the whole transaction, including the callback, for at most three attempts in total. Each attempt has its own publish buffer, so an aborted attempt publishes nothing. An attempt that locked no automations is never retried, and neither is an `Update` nested inside another `Update`, because the outer transaction owns the retry. Callbacks passed to `Update` must therefore be safe to rerun.
 
 ### Execution state transition diagram
 
@@ -270,6 +272,8 @@ stateDiagram-v2
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
     XE1 --> E1: SetArchived(false)
+    XE1 --> XE0: DeleteQueuedMessage / removed last stale automation row
+    XE1 --> XE1: DeleteQueuedMessage / stale automation row removed, queue still non-empty
 
     [Invalid] --> E0: ReconcileInvalidState / no queued messages
     [Invalid] --> E1: ReconcileInvalidState / queued messages
@@ -514,6 +518,8 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
+An archived chat allows no execution-state transition other than `SetArchived(false)`, except that `DeleteQueuedMessage(qid)` from `XE1` removes a stale automation row, as described in [`DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`](#delete-apiv2chatschatqueuequeuedmessage).
+
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
 `manage_automations_enabled` updates write the switch directly and emit no state transition. Only the chat owner may change the switch: any other caller who may update the chat, such as an administrator, gets 403. The endpoint checks this, and the rules for turning the switch on, before it writes any field of the request. Turning the switch on returns 400 for a sub-agent chat or when the `chat-automations` experiment is off for the chat owner. Turning it off is always accepted, even with the experiment off. The audit entry of the update tracks the switch.
@@ -552,6 +558,8 @@ When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted l
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
 From `E1`, the promoted head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), with either busy behavior. If the guard deletes every older queued message, the new message is promoted itself and the chat lands in `R0` instead of `R1`. The new message then goes straight into history, and the result reports no queued message.
+
+The queue cap counts only queued messages that pass the guard, as described in [Queue cap](#automation-admission-and-the-queue-promotion-guard). When the queue is at the cap, the transition deletes stale automation messages under the chat lock before it enforces the cap. When lifecycle hooks are enabled, `SendMessage` checks the cap on unlocked reads before it calls the `user_prompt_submit` hooks, and that early check also ignores stale messages.
 
 This endpoint never sets an admission callback. Automations send messages with the same `SendMessage` transition and a callback.
 
@@ -599,10 +607,14 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 - `I1 -> DeleteQueuedMessage(qid) -> I1` if the queue remains non-empty
 - `A1 -> DeleteQueuedMessage(qid) -> A0` if removing the last queued message
 - `A1 -> DeleteQueuedMessage(qid) -> A1` if the queue remains non-empty
+- `XE1 -> DeleteQueuedMessage(qid) -> XE0` if `qid` is stale and was the last queued message
+- `XE1 -> DeleteQueuedMessage(qid) -> XE1` if `qid` is stale and the queue remains non-empty
+
+From `XE1`, only a queued message that fails the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) can be deleted, and the chat stays archived. For any other queued message of an archived chat, the transition fails, nothing is deleted, and the endpoint returns 409.
 
 No other input states are supported.
 
-Disabling or deleting an automation also removes its queued messages through `DeleteQueuedMessage`, one row per chat transaction, as chatd. Chatd runs this cleanup because an organization admin can disable or delete a member's automation without being allowed to write that member's chats. Disabling first commits an automation-only update that increments the automation's `queue_generation` and touches no chat row, then deletes each of the automation's queued rows whose `queue_generation` is below the new value. Disabling an already disabled automation increments the generation again, so a retry also removes rows that an earlier attempt missed. Deleting removes the automation row first, which needs only delete permission on the automation, and then deletes every queued row that carries its `automation_id`. Each row goes through the transition above, so queue versions and clients update as for a manual delete, and running turns are not interrupted. A row that was already promoted or deleted is skipped. The cleanup runs after the automation change commits and only logs its failures: the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) discards any row left behind, because its automation is disabled with a newer generation or no longer exists.
+Disabling or deleting an automation also removes its queued messages through `DeleteQueuedMessage`, one row per chat transaction, as chatd. Chatd runs this cleanup because an organization admin can disable or delete a member's automation without being allowed to write that member's chats. Disabling first commits an automation-only update that increments the automation's `queue_generation` and touches no chat row, then deletes each of the automation's queued rows whose `queue_generation` is below the new value. Disabling an already disabled automation increments the generation again, so a retry also removes rows that an earlier attempt missed. Deleting removes the automation row first, which needs only delete permission on the automation, and then deletes every queued row that carries its `automation_id`. Each row goes through the transition above, so queue versions and clients update as for a manual delete, and running turns are not interrupted. This includes target chats that are archived: the row is stale once the automation change commits, so `XE1` allows the delete, and the chat stays archived. A row that was already promoted or deleted is skipped. The cleanup runs after the automation change commits and only logs its failures: the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) discards any row left behind, because its automation is disabled with a newer generation or no longer exists.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 

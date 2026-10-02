@@ -328,10 +328,16 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 }
 
 // requireQueueCapacity rejects the call when the chat already has
-// maxQueueSize queued messages with a *MessageQueueFullError that wraps
-// [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
-// inside the transaction immediately before inserting a new queued
-// message so the check is atomic with the insert.
+// maxQueueSize queued messages that pass the queue promotion guard, with
+// a *MessageQueueFullError that wraps [ErrMessageQueueFull].
+// Queue-appending transitions invoke this helper inside the transaction
+// immediately before inserting a new queued message so the check is
+// atomic with the insert.
+//
+// Below the cap it only counts rows. At the cap it applies the guard to
+// the whole queue first: rows that fail it never run, so they are
+// deleted instead of filling the queue. That locks the automations of
+// the queued rows in one ascending call.
 func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
 	if maxQueueSize <= 0 {
 		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
@@ -340,7 +346,18 @@ func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
 	if err != nil {
 		return xerrors.Errorf("count queued messages: %w", err)
 	}
-	if count >= int64(maxQueueSize) {
+	if count < int64(maxQueueSize) {
+		return nil
+	}
+	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	if err != nil {
+		return xerrors.Errorf("get queued messages: %w", err)
+	}
+	passing, err := tx.guardQueuedRows(queue)
+	if err != nil {
+		return err
+	}
+	if len(passing) >= maxQueueSize {
 		return &MessageQueueFullError{Max: int64(maxQueueSize)}
 	}
 	return nil
@@ -989,9 +1006,13 @@ type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
 }
 
-// DeleteQueuedMessage removes a single queued user message.
+// DeleteQueuedMessage removes a single queued user message. From XE1 it
+// removes only a row that fails the queue promotion guard, such as a row
+// left behind by a disabled or deleted automation, and the chat stays
+// archived. Any other row of an archived chat is refused with a
+// *TransitionError and nothing is deleted.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
-	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	_, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -1004,6 +1025,21 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	}
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
+	}
+	if from == StateXE1 {
+		// The guard deletes the target when it fails, which is the only
+		// delete an archived chat allows.
+		passing, err := tx.guardQueuedRows([]database.ChatQueuedMessage{target})
+		if err != nil {
+			return DeleteQueuedMessageResult{}, err
+		}
+		if len(passing) != 0 {
+			return DeleteQueuedMessageResult{}, newTransitionError(
+				TransitionDeleteQueuedMessage, from,
+				"archived chats only drop queued messages that fail the queue promotion guard",
+			)
+		}
+		return DeleteQueuedMessageResult{DeletedQueuedMessage: target}, nil
 	}
 	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     input.QueuedMessageID,

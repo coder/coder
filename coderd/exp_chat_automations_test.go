@@ -582,6 +582,55 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, []int64{ordinary.ID}, env.queuedMessageIDs(t, chat.ID))
 	})
 
+	t.Run("DisableAndDeleteRemoveQueuedMessagesOfArchivedChat", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           env.memberID,
+			LastModelConfigID: env.modelConfig.ID,
+			Status:            database.ChatStatusError,
+		})
+		req := env.webhookRequest()
+		req.TargetChatID = &chat.ID
+		disabled, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		deleted, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		disabledID, deletedID := disabled.Automation.ID, deleted.Automation.ID
+		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), disabledID)
+		require.NoError(t, err)
+		env.queueAutomationMessage(t, chat.ID, &disabledID, stored.QueueGeneration)
+		ordinary := env.queueAutomationMessage(t, chat.ID, nil, 0)
+		other := env.queueAutomationMessage(t, chat.ID, &deletedID, stored.QueueGeneration)
+		require.NoError(t, env.member.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+
+		requireArchived := func() {
+			t.Helper()
+			stored, err := env.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			require.NoError(t, err)
+			require.True(t, stored.Archived, "the cleanup keeps the chat archived")
+			require.Equal(t, database.ChatStatusError, stored.Status)
+		}
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, disabledID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
+		requireArchived()
+
+		require.NoError(t, env.member.DeleteChatAutomation(ctx, env.orgID, deletedID))
+		require.Equal(t, []int64{ordinary.ID}, env.queuedMessageIDs(t, chat.ID))
+		requireArchived()
+
+		// An archived chat keeps queued messages that would still run.
+		res, err := env.member.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, ordinary.ID), nil)
+		require.NoError(t, err)
+		requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusConflict)
+		_ = res.Body.Close()
+		require.Equal(t, []int64{ordinary.ID}, env.queuedMessageIDs(t, chat.ID))
+		requireArchived()
+	})
+
 	t.Run("ReenableScheduleSkipsMissedRuns", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
