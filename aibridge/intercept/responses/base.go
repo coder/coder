@@ -487,6 +487,11 @@ type responseCopier struct {
 	// this closer to makes sure whole response body is in the buffer.
 	responseBody io.ReadCloser
 
+	// upstreamBody is the real response body hidden behind responseBody's
+	// NopCloser, so readAll still works after the SDK closes its view.
+	// Owners must call closeUpstream to release the connection.
+	upstreamBody io.Closer
+
 	// responseReceived flag is used to determine if AI Gateway needs to write custom error:
 	// - If responseReceived is true, the upstream response is forwarded as-is.
 	// - If responseReceived is false, no response was returned and there is nothing to forward (eg. connection/client error). Custom error will be returned.
@@ -502,9 +507,20 @@ func (r *responseCopier) copyMiddleware(req *http.Request, next option.Middlewar
 	r.responseReceived.Store(true)
 	r.responseStatus = resp.StatusCode
 	r.responseHeaders = resp.Header
+	// SDK retries call the middleware again on the same copier.
+	r.closeUpstream()
+	r.upstreamBody = resp.Body
 	resp.Body = io.NopCloser(io.TeeReader(resp.Body, &r.buff))
 	r.responseBody = resp.Body
 	return resp, nil
+}
+
+func (r *responseCopier) closeUpstream() {
+	if r.upstreamBody == nil {
+		return
+	}
+	_ = r.upstreamBody.Close()
+	r.upstreamBody = nil
 }
 
 // readAll reads all data from resp.Body returned by so TeeReader
