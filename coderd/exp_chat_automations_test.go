@@ -802,6 +802,17 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, utcPreview.NextRunTimes, 5)
 		require.Empty(t, utcPreview.ClockChangeNote)
+		require.Empty(t, utcPreview.IntervalWarning)
+
+		// A schedule below the minimum still previews, with a warning,
+		// because automations saved under a lower minimum keep it.
+		tooOften, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{
+			ScheduleCron:     "*/2 * * * *",
+			ScheduleTimeZone: "UTC",
+		})
+		require.NoError(t, err)
+		require.Len(t, tooOften.NextRunTimes, 5)
+		require.Equal(t, "Runs as often as every 2 minutes, but this deployment allows at most one run every 5 minutes. Saving a new or changed schedule like this fails.", tooOften.IntervalWarning)
 
 		for _, tc := range []struct {
 			name  string
@@ -811,7 +822,6 @@ func TestChatAutomations(t *testing.T) {
 			{"BadCron", "schedule_cron", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 25 * * *", ScheduleTimeZone: "UTC"}},
 			{"BadTimeZone", "schedule_time_zone", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 9 * * *", ScheduleTimeZone: "Mars/Olympus"}},
 			{"NeverRuns", "schedule_cron", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 0 30 2 *", ScheduleTimeZone: "UTC"}},
-			{"BelowMinimumInterval", "schedule_cron", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "*/2 * * * *", ScheduleTimeZone: "UTC"}},
 		} {
 			_, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, tc.req)
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)

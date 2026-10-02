@@ -2259,6 +2259,13 @@ export interface ChatAutomationSchedulePreviewResponse {
 	 * UTC offset within a year.
 	 */
 	readonly clock_change_note?: string;
+	/**
+	 * IntervalWarning is set when the schedule runs more often than the
+	 * deployment's minimum interval. Creating such a schedule, or changing
+	 * an automation's schedule to it, fails, but an automation that
+	 * already has it keeps running.
+	 */
+	readonly interval_warning?: string;
 }
 
 // From codersdk/chatautomations.go

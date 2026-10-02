@@ -374,6 +374,7 @@ func (api *API) postChatAutomationSchedulePreview(rw http.ResponseWriter, r *htt
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{
 		NextRunTimes:    preview.NextRuns,
 		ClockChangeNote: preview.ClockChangeNote,
+		IntervalWarning: preview.IntervalWarning,
 	})
 }
 

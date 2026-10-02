@@ -163,6 +163,40 @@ export const Edit: Story = {
 	},
 };
 
+export const EditBelowMinimumInterval: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			schedule_cron: "*/2 * * * *",
+			schedule_interval_below_minimum: true,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "*/2 * * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: {
+					next_run_times: [
+						"2026-10-01T09:00:00Z",
+						"2026-10-01T09:02:00Z",
+						"2026-10-01T09:04:00Z",
+					],
+					interval_warning:
+						"Runs as often as every 2 minutes, but this deployment allows at most one run every 5 minutes. Saving a new or changed schedule like this fails.",
+				},
+			},
+		],
+	},
+};
+
 export const TargetChatNotFound: Story = {
 	args: { automation: mockAutomation },
 	parameters: {

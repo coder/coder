@@ -148,6 +148,11 @@ type ChatAutomationSchedulePreviewResponse struct {
 	// saving changes. It is set when the schedule's time zone changes its
 	// UTC offset within a year.
 	ClockChangeNote string `json:"clock_change_note,omitempty"`
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval. Creating such a schedule, or changing
+	// an automation's schedule to it, fails, but an automation that
+	// already has it keeps running.
+	IntervalWarning string `json:"interval_warning,omitempty"`
 }
 
 // ChatAutomationEventResponse is returned when a webhook automation

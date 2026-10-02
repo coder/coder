@@ -18976,6 +18976,10 @@
 					"description": "ClockChangeNote explains how the schedule runs across daylight\nsaving changes. It is set when the schedule's time zone changes its\nUTC offset within a year.",
 					"type": "string"
 				},
+				"interval_warning": {
+					"description": "IntervalWarning is set when the schedule runs more often than the\ndeployment's minimum interval. Creating such a schedule, or changing\nan automation's schedule to it, fails, but an automation that\nalready has it keeps running.",
+					"type": "string"
+				},
 				"next_run_times": {
 					"type": "array",
 					"items": {

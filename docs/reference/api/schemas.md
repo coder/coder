@@ -2729,6 +2729,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "clock_change_note": "string",
+  "interval_warning": "string",
   "next_run_times": [
     "2019-08-24T14:15:22Z"
   ]
@@ -2737,10 +2738,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                | Type            | Required | Restrictions | Description                                                                                                                                                    |
-|---------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `clock_change_note` | string          | false    |              | Clock change note explains how the schedule runs across daylight saving changes. It is set when the schedule's time zone changes its UTC offset within a year. |
-| `next_run_times`    | array of string | false    |              |                                                                                                                                                                |
+| Name                | Type            | Required | Restrictions | Description                                                                                                                                                                                                                         |
+|---------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clock_change_note` | string          | false    |              | Clock change note explains how the schedule runs across daylight saving changes. It is set when the schedule's time zone changes its UTC offset within a year.                                                                      |
+| `interval_warning`  | string          | false    |              | Interval warning is set when the schedule runs more often than the deployment's minimum interval. Creating such a schedule, or changing an automation's schedule to it, fails, but an automation that already has it keeps running. |
+| `next_run_times`    | array of string | false    |              |                                                                                                                                                                                                                                     |
 
 ## codersdk.ChatAutomationTargetMode
 

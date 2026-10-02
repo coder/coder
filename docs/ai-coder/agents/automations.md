@@ -280,6 +280,8 @@ Coder rejects a new or changed schedule that runs more often with a `400` error 
 Administrators set the minimum with `--chat-min-automation-schedule-interval`.
 Schedules that already run more often keep running, and their responses include `"schedule_interval_below_minimum": true`.
 To change the cron expression or time zone of such a schedule, the new schedule must meet the minimum.
+Coder measures the interval on the wall clock of the schedule's time zone.
+On the night clocks go forward, two runs can be closer together than the minimum, because a skipped time runs at the end of the change.
 
 ### Check upcoming runs
 
@@ -291,6 +293,8 @@ The control plane computes the next runs of a schedule:
   Send `schedule_cron` and `schedule_time_zone`, and the response contains `next_run_times`.
   When the time zone changes its clocks within a year, the response also contains `clock_change_note`, which explains how the schedule runs across the change.
   The editor shows the note under **Upcoming runs**.
+  When the schedule runs more often than the minimum interval, the response still lists its runs and also contains `interval_warning`.
+  The editor shows the warning under **Upcoming runs**, and saving a new or changed schedule like this fails.
 
 ### When a schedule runs
 
@@ -321,7 +325,7 @@ Messages to an existing chat use that chat's own model and tools.
 A new chat target starts a chat for every run with the model you pick.
 You can also set a reasoning effort.
 Each new chat is titled with the automation name and the run time, for example `Nightly report · 16 Sep 09:00 CEST`.
-Schedules use the schedule's time zone, and webhooks use UTC.
+Scheduled runs and **Run now** use the schedule's time zone, and webhooks use UTC.
 When the time zone has no abbreviation, the title shows its UTC offset, such as `UTC-03`.
 New chats get only the MCP servers with the `force_on` [availability policy](./platform-controls/mcp-servers.md#availability-policies) that the owner can access.
 

@@ -186,6 +186,11 @@ export const AutomationScheduleFields: React.FC<
 						{previewQuery.data.clock_change_note}
 					</p>
 				)}
+				{previewQuery.data.interval_warning && (
+					<p className="m-0 mt-2 text-xs text-content-warning">
+						{previewQuery.data.interval_warning}
+					</p>
+				)}
 			</>
 		);
 	}

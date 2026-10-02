@@ -671,6 +671,11 @@ type AutomationSchedulePreview struct {
 	// ClockChangeNote explains the daylight saving rules when the
 	// schedule's time zone changes its UTC offset within a year.
 	ClockChangeNote string
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval, so creating it, or changing a
+	// schedule to it, fails. An automation that already has it keeps
+	// running.
+	IntervalWarning string
 }
 
 // automationClockChangeNote is the preview text for schedules whose time
@@ -678,17 +683,24 @@ type AutomationSchedulePreview struct {
 const automationClockChangeNote = "When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change."
 
 // PreviewAutomationSchedule validates a schedule like CreateAutomation
-// does, including the minimum interval between runs, and returns its next
-// n runs after now.
+// does and returns its next n runs after now. A schedule that runs more
+// often than minimum is not an error here: the preview carries a warning
+// instead, because an automation saved under a lower minimum keeps its
+// schedule.
 func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int, minimum time.Duration) (AutomationSchedulePreview, error) {
 	sched, err := validateAutomationSchedule(spec, timeZone, now)
 	if err != nil {
 		return AutomationSchedulePreview{}, err
 	}
-	if err := validateAutomationScheduleInterval(sched, now, minimum); err != nil {
-		return AutomationSchedulePreview{}, err
-	}
 	preview := AutomationSchedulePreview{NextRuns: scheduleNextRuns(sched, now, n)}
+	// The preview still lists the runs of a schedule below the minimum,
+	// because an automation saved under an earlier, lower minimum keeps
+	// that schedule and keeps running.
+	if interval, ok := sched.ShortestInterval(now); ok && interval < minimum {
+		preview.IntervalWarning = fmt.Sprintf(
+			"Runs as often as every %s, but this deployment allows at most one run every %s. Saving a new or changed schedule like this fails.",
+			formatAutomationInterval(interval), formatAutomationInterval(minimum))
+	}
 	if offsetChangesWithinYear(sched.Location(), now) {
 		preview.ClockChangeNote = automationClockChangeNote
 	}
@@ -771,18 +783,28 @@ func validateAutomationScheduleInterval(sched *cron.Schedule, now time.Time, min
 }
 
 // formatAutomationInterval writes d in whole hours when it is a multiple
-// of an hour and in whole minutes otherwise.
+// of an hour, and otherwise in minutes and, when present, seconds.
 func formatAutomationInterval(d time.Duration) string {
 	if d >= time.Hour && d%time.Hour == 0 {
-		if hours := int64(d / time.Hour); hours != 1 {
-			return fmt.Sprintf("%d hours", hours)
-		}
-		return "1 hour"
+		return pluralAutomationUnit(int64(d/time.Hour), "hour")
 	}
-	if minutes := int64(d / time.Minute); minutes != 1 {
-		return fmt.Sprintf("%d minutes", minutes)
+	minutes := pluralAutomationUnit(int64(d/time.Minute), "minute")
+	seconds := int64((d % time.Minute) / time.Second)
+	switch {
+	case seconds == 0:
+		return minutes
+	case d < time.Minute:
+		return pluralAutomationUnit(seconds, "second")
+	default:
+		return minutes + " " + pluralAutomationUnit(seconds, "second")
 	}
-	return "1 minute"
+}
+
+func pluralAutomationUnit(n int64, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 func validateAutomationWhenBusy(value codersdk.ChatAutomationWhenBusy) (database.ChatAutomationWhenBusy, error) {
