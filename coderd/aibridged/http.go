@@ -161,6 +161,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ctx = agplaibridge.WithAttribution(ctx, attribution)
+	// coderd decides the user-scoped experiment for the key owner, because
+	// the gateway cannot evaluate per-user experiment rules itself.
+	ctx = agplaibridge.WithResponsesWebSocketEnabled(ctx, resp.GetResponsesWebsocketEnabled())
 
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 		UserId: id.String(),

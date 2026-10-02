@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -116,6 +117,28 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 		}
 		return false
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+// TestAIGatewayServeOlderMinorVersion verifies that a gateway built against
+// the previous minor API version can still connect and authorize requests.
+func TestAIGatewayServeOlderMinorVersion(t *testing.T) {
+	t.Parallel()
+
+	client, firstUser := coderdenttest.New(t, aibridgeOpts(t))
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-older-minor"})
+	require.NoError(t, err)
+
+	require.Positive(t, aibridgedproto.CurrentMinor, "no older minor version exists")
+	version := apiversion.New(aibridgedproto.CurrentMajor, aibridgedproto.CurrentMinor-1).String()
+	dc, err := dialAIGatewayServeWithVersion(ctx, t, client, created.Key, &version)
+	require.NoError(t, err)
+
+	resp, err := dc.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: client.SessionToken()})
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
 }
 
 func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {

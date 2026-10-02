@@ -189,6 +189,9 @@ message IsAuthorizedResponse {
   string username = 3;
   string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
   string email = 5;
+  // responses_websocket_enabled reports whether the user-scoped
+  // ai-gateway-responses-websocket experiment is enabled for the key owner.
+  bool responses_websocket_enabled = 6;
 }
 
 message IsBudgetExceededRequest {

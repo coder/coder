@@ -24302,6 +24302,7 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
+                "ai-gateway-responses-websocket",
                 "chat-projects",
                 "chat-advisor",
                 "chat-virtual-desktop",
@@ -24312,6 +24313,7 @@ const docTemplate = `{
                 "chat-stage-metrics"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayResponsesWebSocket": "Enables OpenAI Responses WebSocket mode in AI Gateway.",
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
@@ -24344,6 +24346,7 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "Enables OpenAI Responses WebSocket mode in AI Gateway.",
                 "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
@@ -24365,6 +24368,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
+                "ExperimentAIGatewayResponsesWebSocket",
                 "ExperimentChatProjects",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",

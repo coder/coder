@@ -143,6 +143,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		GatewayCfg:            api.DeploymentValues.AI.BridgeConfig,
 		ExternalAuthConfigs:   api.ExternalAuthConfigs,
 		Experiments:           api.AGPL.Experiments,
+		ExperimentEvaluator:   api.AGPL.ExperimentEvaluator,
 		OAuth2ProviderEnabled: api.DeploymentValues.OAuth2.Provider.Enable.Value(),
 		Logger:                logger,
 		Clock:                 api.AGPL.Clock,

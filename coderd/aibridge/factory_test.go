@@ -62,3 +62,12 @@ func TestAttributionContext(t *testing.T) {
 		require.Equal(t, child, gotChild)
 	})
 }
+
+// TestResponsesWebSocketEnabledDefault guards the fail-closed default: a
+// context that never passed through the gateway must not enable Responses
+// WebSocket mode.
+func TestResponsesWebSocketEnabledDefault(t *testing.T) {
+	t.Parallel()
+
+	require.False(t, aibridge.ResponsesWebSocketEnabled(context.Background()))
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -115,6 +116,8 @@ type Server struct {
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
 	experiments       codersdk.Experiments
+	// experimentEvaluator decides user-scoped experiments for the key owner.
+	experimentEvaluator *experimentrules.Evaluator
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
@@ -140,6 +143,9 @@ type Options struct {
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
+	// ExperimentEvaluator decides user-scoped experiments per user. It is
+	// required.
+	ExperimentEvaluator *experimentrules.Evaluator
 	// OAuth2ProviderEnabled gates the internal MCP server, which is
 	// unavailable when it is off.
 	OAuth2ProviderEnabled bool
@@ -150,6 +156,9 @@ type Options struct {
 }
 
 func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
+	if opts.ExperimentEvaluator == nil {
+		return nil, xerrors.New("aibridgedserver: experiment evaluator is required")
+	}
 	enqueuer := opts.Enqueuer
 	if enqueuer == nil {
 		enqueuer = notifications.NewNoopEnqueuer()
@@ -174,6 +183,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		structuredLogging:   opts.GatewayCfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceCoderd),
 		aiSeatTracker:       opts.AISeatTracker,
 		experiments:         opts.Experiments,
+		experimentEvaluator: opts.ExperimentEvaluator,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
 		clock:               opts.Clock,
@@ -853,6 +863,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		ApiKeyId: key.ID,
 		Username: user.Username,
 		Email:    user.Email,
+		// The Evaluator fails closed: read or condition errors decide off.
+		ResponsesWebsocketEnabled: s.experimentEvaluator.Enabled(ctx, key.UserID, codersdk.ExperimentAIGatewayResponsesWebSocket),
 	}
 	if !delegated {
 		workspaceID, ok, err := workspaceAttribution(key)
