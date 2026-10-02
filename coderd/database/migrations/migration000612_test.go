@@ -51,13 +51,17 @@ func seedMigration000612(t *testing.T, sqlDB *sql.DB) migration000612Fixture {
 			VALUES ($1, $2, 'model-612', 1000, 50, true)`, []any{modelID, orgID}},
 		{`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title)
 			VALUES ($1, $3, $4, $5, 'chat-a'), ($2, $3, $4, $5, 'chat-b')`, []any{f.chatA, f.chatB, userID, orgID, modelID}},
-		{`INSERT INTO chat_automations (id, organization_id, owner_id, name, kind, target_mode, target_chat_id, when_busy, webhook_use, prompt)
+		{
+			`INSERT INTO chat_automations (id, organization_id, owner_id, name, kind, target_mode, target_chat_id, when_busy, webhook_use, prompt)
 			VALUES ($1, $3, $4, 'x', 'webhook', 'existing_chat', $5, 'queue', 'multi', 'prompt'),
 			       ($2, $3, $4, 'y', 'webhook', 'existing_chat', $6, 'queue', 'multi', 'prompt')`,
-			[]any{f.x, f.y, orgID, userID, f.chatB, f.chatA}},
-		{`INSERT INTO chat_automations (id, organization_id, owner_id, name, kind, target_mode, new_chat_model_config_id, prompt, schedule_cron, schedule_time_zone)
+			[]any{f.x, f.y, orgID, userID, f.chatB, f.chatA},
+		},
+		{
+			`INSERT INTO chat_automations (id, organization_id, owner_id, name, kind, target_mode, new_chat_model_config_id, prompt, schedule_cron, schedule_time_zone)
 			VALUES ($1, $2, $3, 'schedule', 'schedule', 'new_chat', $4, 'prompt', '0 9 * * *', 'UTC')`,
-			[]any{f.schedule, orgID, userID, modelID}},
+			[]any{f.schedule, orgID, userID, modelID},
+		},
 	} {
 		_, err := sqlDB.ExecContext(ctx, q.sql, q.args...)
 		require.NoError(t, err)
