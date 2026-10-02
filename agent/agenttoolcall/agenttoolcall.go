@@ -92,7 +92,7 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		if !found {
-			run(e, next, r)
+			run(e, next, rw, r)
 		}
 		select {
 		case <-e.done:
@@ -107,7 +107,7 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 
 // run runs next and saves its response in e. If next panics, run saves a
 // 500 so that waiters are released.
-func run(e *entry, next http.Handler, r *http.Request) {
+func run(e *entry, next http.Handler, rw http.ResponseWriter, r *http.Request) {
 	rec := httptest.NewRecorder()
 	defer func() {
 		if e.resp.Status == 0 {
@@ -119,8 +119,19 @@ func run(e *entry, next http.Handler, r *http.Request) {
 		}
 		close(e.done)
 	}()
-	next.ServeHTTP(rec, r)
+	next.ServeHTTP(&responseRecorder{ResponseRecorder: rec, controller: http.NewResponseController(rw)}, r)
 	e.resp = savedResponse(rec)
+}
+
+// responseRecorder lets handlers adjust the connection's write deadline while
+// recording their response for replay.
+type responseRecorder struct {
+	*httptest.ResponseRecorder
+	controller *http.ResponseController
+}
+
+func (r *responseRecorder) SetWriteDeadline(deadline time.Time) error {
+	return r.controller.SetWriteDeadline(deadline)
 }
 
 func savedResponse(rec *httptest.ResponseRecorder) workspacesdk.CancelToolCallResponse {
