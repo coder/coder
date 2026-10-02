@@ -19,6 +19,8 @@ export const MockChat: Chat = {
 	owner_name: MockUserOwner.name,
 	last_model_config_id: "model-config-1",
 	title: "Agent",
+	title_source: "generated",
+	title_updated_at: MOCK_TIMESTAMP,
 	status: "waiting",
 	last_turn_summary: null,
 	summary: null,
