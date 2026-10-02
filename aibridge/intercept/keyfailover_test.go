@@ -359,6 +359,9 @@ func TestInterception_KeyFailover(t *testing.T) {
 					}
 
 					assert.Equal(t, tc.expectedStatus, w.Code, "response status code")
+					if !streaming && tc.expectedStatus == http.StatusOK {
+						assert.True(t, json.Valid(w.Body.Bytes()), "response body is one JSON document: %s", w.Body.String())
+					}
 					assert.Equal(t, tc.expectedRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
 					if pool != nil {
 						assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
