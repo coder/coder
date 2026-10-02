@@ -67,7 +67,6 @@ const RightPanelWithSidebarHarness: React.FC<SidebarHarnessProps> = ({
 		clearChatErrorReason: () => {},
 		requestArchiveAgent: () => {},
 		requestUnarchiveAgent: () => {},
-		requestArchiveAndDeleteWorkspace: () => {},
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
 		isArchiving: false,

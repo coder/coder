@@ -2,6 +2,11 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockWorkspace,
+	MockWorkspaceBuildDelete,
+} from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -44,4 +49,81 @@ describe("AgentsPageLayout New chat", () => {
 			expect(localStorage.getItem(emptyInputStorageKey)).toBe(expectedDraft);
 		},
 	);
+});
+
+describe("AgentsPageLayout archive and delete", () => {
+	it("deletes two workspaces without waiting for the first", async () => {
+		const user = userEvent.setup({ delay: null });
+		const createdAt = "2024-06-01T00:00:00.000Z";
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			{
+				...MockChat,
+				id: "chat-alpha",
+				title: "Alpha agent",
+				workspace_id: "ws-alpha",
+				created_at: createdAt,
+			},
+			{
+				...MockChat,
+				id: "chat-beta",
+				title: "Beta agent",
+				workspace_id: "ws-beta",
+				created_at: createdAt,
+			},
+		]);
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		vi.spyOn(API, "getWorkspace").mockImplementation(async (workspaceId) => ({
+			...MockWorkspace,
+			id: workspaceId,
+			created_at: createdAt,
+		}));
+		vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		let releaseDelete = () => {};
+		const pendingDelete = new Promise<typeof MockWorkspaceBuildDelete>(
+			(resolve) => {
+				releaseDelete = () => resolve(MockWorkspaceBuildDelete);
+			},
+		);
+		vi.spyOn(API, "deleteWorkspace").mockImplementation(() => pendingDelete);
+
+		try {
+			renderLayout();
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Open actions for Alpha agent",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(
+				() => {
+					expect(API.deleteWorkspace).toHaveBeenCalledWith("ws-alpha");
+				},
+				{ timeout: 4000 },
+			);
+			await user.click(
+				await screen.findByRole(
+					"button",
+					{ name: "Open actions for Beta agent" },
+					{ timeout: 4000 },
+				),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(
+				() => {
+					expect(API.deleteWorkspace).toHaveBeenCalledWith("ws-beta");
+				},
+				{ timeout: 4000 },
+			);
+		} finally {
+			releaseDelete();
+		}
+	});
 });

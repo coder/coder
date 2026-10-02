@@ -92,7 +92,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
-		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
 		onMarkChatRead: fn(),

@@ -23,13 +23,16 @@ import {
 	MockChatModelACLAvailable,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
+	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
+	ArchiveAndDeleteError,
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	archiveAndDeleteChat,
 	archiveChat,
 	type ChatListInput,
 	cancelChatEntity,
@@ -126,6 +129,7 @@ import {
 
 vi.mock("#/api/api", () => ({
 	API: {
+		deleteWorkspace: vi.fn(),
 		experimental: {
 			updateChat: vi.fn(),
 			createChat: vi.fn(),
@@ -1213,6 +1217,88 @@ describe("unarchiveChat optimistic update", () => {
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
+	});
+});
+
+describe("archiveAndDeleteChat", () => {
+	const variables = { chatId: "chat-1", workspaceId: "workspace-1" };
+	const deleteBuild = MockWorkspaceBuildDelete;
+	const notFound = (status: 404 | 410) => ({
+		isAxiosError: true,
+		response: { status, data: { message: "Workspace gone" } },
+	});
+
+	it("archives first, then deletes, and returns the delete build", async () => {
+		const callOrder: string[] = [];
+		vi.mocked(API.experimental.updateChat).mockImplementation(async () => {
+			callOrder.push("archive");
+		});
+		vi.mocked(API.deleteWorkspace).mockImplementation(async () => {
+			callOrder.push("delete");
+			return deleteBuild;
+		});
+
+		await expect(
+			archiveAndDeleteChat(createTestQueryClient()).mutationFn(variables),
+		).resolves.toEqual({ deleteBuild });
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			archived: true,
+		});
+		expect(API.deleteWorkspace).toHaveBeenCalledWith("workspace-1");
+		expect(callOrder).toEqual(["archive", "delete"]);
+	});
+
+	it("does not delete the workspace when archive fails", async () => {
+		const cause = new Error("Cannot archive an active chat.");
+		vi.mocked(API.experimental.updateChat).mockRejectedValue(cause);
+		vi.mocked(API.deleteWorkspace).mockResolvedValue(deleteBuild);
+
+		const result = archiveAndDeleteChat(createTestQueryClient()).mutationFn(
+			variables,
+		);
+		await expect(result).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(result).rejects.toMatchObject({ step: "archive", cause });
+		expect(API.deleteWorkspace).not.toHaveBeenCalled();
+	});
+
+	it.each([404, 410] as const)(
+		"keeps the archive when delete returns %i, with null deleteBuild",
+		async (status) => {
+			vi.mocked(API.experimental.updateChat).mockResolvedValue();
+			vi.mocked(API.deleteWorkspace).mockRejectedValue(notFound(status));
+
+			await expect(
+				archiveAndDeleteChat(createTestQueryClient()).mutationFn(variables),
+			).resolves.toEqual({ deleteBuild: null });
+		},
+	);
+
+	it("keeps the chat archived and rethrows when the delete enqueue fails", async () => {
+		const cause = {
+			isAxiosError: true,
+			response: { status: 500, data: { message: "Internal server error" } },
+		};
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+		vi.mocked(API.deleteWorkspace).mockRejectedValue(cause);
+
+		const result = archiveAndDeleteChat(createTestQueryClient()).mutationFn(
+			variables,
+		);
+		await expect(result).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(result).rejects.toMatchObject({ step: "delete", cause });
+	});
+
+	it("removes the archived chat from active lists after success", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1"), makeChat("chat-2")], {
+			archived: false,
+		});
+
+		archiveAndDeleteChat(queryClient).onSuccess({ deleteBuild }, variables);
+
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.map((c) => c.id),
+		).toEqual(["chat-2"]);
 	});
 });
 

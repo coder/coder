@@ -118,7 +118,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	modelConfigs: [],
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
-	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onMarkChatRead: vi.fn(),

@@ -35,8 +35,6 @@ const mockParentChat = {
 };
 
 const requestArchiveAgent = fn<(chatId: string) => void>();
-const requestArchiveAndDeleteWorkspace =
-	fn<(chatId: string, workspaceId: string) => void>();
 const requestUnarchiveAgent = fn<(chatId: string) => void>();
 const requestPinAgent = fn<(chatId: string) => void>();
 const requestUnpinAgent = fn<(chatId: string) => void>();
@@ -47,7 +45,6 @@ const chatTopBarOutletContext = {
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
 	requestArchiveAgent,
-	requestArchiveAndDeleteWorkspace,
 	requestUnarchiveAgent,
 	requestPinAgent,
 	requestUnpinAgent,
@@ -75,7 +72,6 @@ const meta: Meta<typeof ChatTopBar> = {
 	decorators: [withAuthProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
-		requestArchiveAndDeleteWorkspace.mockClear();
 		requestUnarchiveAgent.mockClear();
 		requestPinAgent.mockClear();
 		requestUnpinAgent.mockClear();
@@ -487,15 +483,6 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", {
-				name: "Archive & delete workspace",
-			}),
-		);
-		expect(requestArchiveAndDeleteWorkspace).toHaveBeenCalledWith(
-			MockChat.id,
-			"workspace-1",
-		);
 	},
 };
 

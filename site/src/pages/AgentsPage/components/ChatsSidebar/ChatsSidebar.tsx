@@ -19,7 +19,6 @@ type ChatsSidebarProps = {
 	isLoadingModelConfigs?: boolean;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
-	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onMarkChatRead: (chatId: string) => void;
@@ -69,7 +68,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		isLoadingModelConfigs = false,
 		onArchiveAgent,
 		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
@@ -138,7 +136,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveAgent={onArchiveAgent}
 				onUnarchiveAgent={onUnarchiveAgent}
-				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
 				onPinAgent={onPinAgent}
 				onUnpinAgent={onUnpinAgent}
 				onMarkChatRead={onMarkChatRead}

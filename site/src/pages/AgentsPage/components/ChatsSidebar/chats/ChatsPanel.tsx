@@ -84,10 +84,6 @@ type ChatsPanelProps = {
 	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
@@ -122,7 +118,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	isLoadingModelConfigs,
 	onArchiveAgent,
 	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
 	onMarkChatRead,
@@ -334,7 +329,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
 		onMarkChatRead,
