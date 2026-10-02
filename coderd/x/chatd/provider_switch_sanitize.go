@@ -2,20 +2,24 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// providerSwitchStripStats counts provider-executed tool history removed
-// during a provider switch.
+// providerSwitchStripStats counts provider-specific history removed during a
+// provider switch.
 type providerSwitchStripStats struct {
 	RemovedToolCalls   int
 	RemovedToolResults int
+	RemovedReasoning   int
 	DroppedMessages    int
 }
 
@@ -32,14 +36,16 @@ func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalize
 	return normalizedProvider
 }
 
-// stripForeignProviderExecutedToolRows drops provider-executed tool blocks
-// (calls and results) from assistant rows whose producing provider differs
-// from targetIdentity. Rows with an unknown origin are treated as foreign
-// (fail closed). Rows emptied by stripping are dropped; rows that fail to parse
-// or re-marshal are kept unchanged.
+// stripForeignProviderStateRows drops provider-executed tool blocks (calls and
+// results) and OpenAI reasoning state from assistant rows whose producing
+// provider differs from targetIdentity. Reasoning item IDs and encrypted
+// content only resolve on the provider instance that issued them. Rows with an
+// unknown origin are treated as foreign (fail closed). Rows emptied by
+// stripping are dropped; rows that fail to parse or re-marshal are kept
+// unchanged.
 //
 // See modelConfigProviderIdentity for how identity is derived.
-func stripForeignProviderExecutedToolRows(
+func stripForeignProviderStateRows(
 	rows []database.ChatMessage,
 	targetIdentity string,
 	originProvider func(uuid.NullUUID) (string, bool),
@@ -67,23 +73,26 @@ func stripForeignProviderExecutedToolRows(
 		}
 
 		kept := make([]codersdk.ChatMessagePart, 0, len(parts))
-		var removedCalls, removedResults int
+		var removedCalls, removedResults, removedReasoning int
 		for _, part := range parts {
 			switch {
 			case part.Type == codersdk.ChatMessagePartTypeToolCall && part.ProviderExecuted:
 				removedCalls++
 			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
 				removedResults++
+			case part.Type == codersdk.ChatMessagePartTypeReasoning && hasOpenAIReasoningState(part):
+				removedReasoning++
 			default:
 				kept = append(kept, part)
 			}
 		}
-		if removedCalls == 0 && removedResults == 0 {
+		if removedCalls == 0 && removedResults == 0 && removedReasoning == 0 {
 			out = append(out, row)
 			continue
 		}
 		stats.RemovedToolCalls += removedCalls
 		stats.RemovedToolResults += removedResults
+		stats.RemovedReasoning += removedReasoning
 		if len(kept) == 0 {
 			stats.DroppedMessages++
 			continue
@@ -101,7 +110,19 @@ func stripForeignProviderExecutedToolRows(
 	return out, stats
 }
 
-func (server *Server) sanitizeForeignProviderExecutedToolRows(
+func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
+	if len(part.ProviderMetadata) == 0 {
+		return false
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(part.ProviderMetadata, &raw); err != nil {
+		return false
+	}
+	options, err := fantasy.UnmarshalProviderOptions(raw)
+	return err == nil && chatsanitize.HasOpenAIReasoningOptions(options)
+}
+
+func (server *Server) sanitizeForeignProviderStateRows(
 	ctx context.Context,
 	logger slog.Logger,
 	rows []database.ChatMessage,
@@ -140,13 +161,14 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 		return identity, identity != ""
 	}
 
-	sanitized, stats := stripForeignProviderExecutedToolRows(rows, targetIdentity, originProvider)
+	sanitized, stats := stripForeignProviderStateRows(rows, targetIdentity, originProvider)
 	if stats != (providerSwitchStripStats{}) {
-		logger.Debug(ctx, "stripped foreign provider-executed tool history",
+		logger.Debug(ctx, "stripped foreign provider state from history",
 			slog.F("phase", "provider_switch"),
 			slog.F("target_provider_identity", targetIdentity),
 			slog.F("removed_tool_calls", stats.RemovedToolCalls),
 			slog.F("removed_tool_results", stats.RemovedToolResults),
+			slog.F("removed_reasoning", stats.RemovedReasoning),
 			slog.F("dropped_messages", stats.DroppedMessages),
 		)
 	}

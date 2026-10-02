@@ -11,6 +11,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasygoogle "charm.land/fantasy/providers/google"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -39,42 +40,89 @@ func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.
 	}
 }
 
-func TestConvertMessagesWithFilesPreservesEmptyRedactedReasoning(t *testing.T) {
+func TestConvertMessagesWithFilesPreservesEmptyReplayableReasoning(t *testing.T) {
 	t.Parallel()
 
-	metadata, err := json.Marshal(fantasy.ProviderMetadata{
-		fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
-			RedactedData: "redacted-payload",
-		},
-	})
-	require.NoError(t, err)
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+	encrypted := "encrypted-blob"
+	tests := []struct {
+		name     string
+		metadata fantasy.ProviderMetadata
+		kept     bool
+	}{
 		{
-			Type:             codersdk.ChatMessagePartTypeReasoning,
-			ProviderMetadata: metadata,
+			name: "AnthropicRedacted",
+			metadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+					RedactedData: "redacted-payload",
+				},
+			},
+			kept: true,
 		},
-		codersdk.ChatMessageText("done"),
-	})
-	require.NoError(t, err)
-
-	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{
 		{
-			Role:           database.ChatMessageRoleAssistant,
-			Visibility:     database.ChatMessageVisibilityBoth,
-			Content:        content,
-			ContentVersion: chatprompt.CurrentContentVersion,
+			name: "OpenAIFinalized",
+			metadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:           "rs_1",
+					EncryptedContent: &encrypted,
+					Summary:          []string{},
+					Finalized:        true,
+				},
+			},
+			kept: true,
 		},
-	}, nil, slogtest.Make(t, nil), nil)
-	require.NoError(t, err)
-	require.Len(t, prompt, 1)
-	require.Len(t, prompt[0].Content, 2)
+		{
+			name: "OpenAIItemReference",
+			metadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID: "rs_1",
+				},
+			},
+			kept: true,
+		},
+		{
+			name: "OpenAIWithoutItemID",
+			metadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					EncryptedContent: &encrypted,
+					Finalized:        true,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
-	require.True(t, ok)
-	require.Empty(t, reasoning.Text)
-	reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
-	require.NotNil(t, reasoningMetadata)
-	require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				chatprompt.PartFromContent(fantasy.ReasoningContent{ProviderMetadata: tt.metadata}),
+				codersdk.ChatMessageText("done"),
+			})
+			require.NoError(t, err)
+
+			prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{
+				{
+					Role:           database.ChatMessageRoleAssistant,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					Content:        content,
+					ContentVersion: chatprompt.CurrentContentVersion,
+				},
+			}, nil, slogtest.Make(t, nil), nil)
+			require.NoError(t, err)
+			require.Len(t, prompt, 1)
+			if !tt.kept {
+				require.Len(t, prompt[0].Content, 1)
+				_, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+				require.True(t, ok)
+				return
+			}
+			require.Len(t, prompt[0].Content, 2)
+
+			reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+			require.True(t, ok)
+			require.Empty(t, reasoning.Text)
+			require.Equal(t, fantasy.ProviderOptions(tt.metadata), reasoning.ProviderOptions)
+		})
+	}
 }
 
 func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *testing.T) {
