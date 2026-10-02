@@ -8,6 +8,7 @@ import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "../../components/AgentCreateForm";
+import { AgentCreateFormFrame } from "../../components/AgentCreateFormFrame";
 
 type DraftChatProps = {
 	/** Labels that place the chat on the board, sent with the create request. */
@@ -74,17 +75,19 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 	};
 
 	return (
-		<AgentCreateForm
-			onCreateChat={handleCreateChat}
-			isCreating={createMutation.isPending}
-			createError={createMutation.error}
-			canCreateChat={permissions.createChat}
-			canConfigureAgentSetup={permissions.editDeploymentConfig}
-			aiGatewayDisabled={aiGatewayDisabled}
-			workspaceCount={workspacesQuery.data?.count}
-			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-			workspacesError={workspacesQuery.error}
-			isWorkspacesLoading={workspacesQuery.isLoading}
-		/>
+		<AgentCreateFormFrame>
+			<AgentCreateForm
+				onCreateChat={handleCreateChat}
+				isCreating={createMutation.isPending}
+				createError={createMutation.error}
+				canCreateChat={permissions.createChat}
+				canConfigureAgentSetup={permissions.editDeploymentConfig}
+				aiGatewayDisabled={aiGatewayDisabled}
+				workspaceCount={workspacesQuery.data?.count}
+				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+				workspacesError={workspacesQuery.error}
+				isWorkspacesLoading={workspacesQuery.isLoading}
+			/>
+		</AgentCreateFormFrame>
 	);
 };

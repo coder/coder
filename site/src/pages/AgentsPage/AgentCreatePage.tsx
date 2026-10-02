@@ -37,6 +37,7 @@ import {
 	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
+import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
@@ -389,6 +390,30 @@ const AgentCreatePage: React.FC = () => {
 		}
 	};
 
+	const form = (
+		<AgentCreateForm
+			key={
+				debugPrefill
+					? debugBuildId
+					: linkPrompt
+						? `prompt:${linkPrompt}`
+						: "draft"
+			}
+			lockedOrganizationId={selectedProject?.organization_id}
+			onCreateChat={handleCreateChat}
+			isCreating={createMutation.isPending}
+			createError={createError}
+			canCreateChat={permissions.createChat}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			aiGatewayDisabled={aiGatewayDisabled}
+			workspaceCount={workspacesQuery.data?.count}
+			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspacesError={workspacesQuery.error}
+			isWorkspacesLoading={workspacesQuery.isLoading}
+			prefill={prefill}
+		/>
+	);
+
 	return (
 		<>
 			<AgentPageHeader
@@ -422,40 +447,20 @@ const AgentCreatePage: React.FC = () => {
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
-				<AgentCreateForm
-					key={
-						debugPrefill
-							? debugBuildId
-							: linkPrompt
-								? `prompt:${linkPrompt}`
-								: "draft"
-					}
-					lockedOrganizationId={selectedProject?.organization_id}
-					header={
-						selectedProject && (
+				<AgentCreateFormFrame>
+					{selectedProject ? (
+						<div className="flex flex-col gap-2">
 							<ProjectComposerHeader project={selectedProject} />
-						)
-					}
-					footer={
-						selectedProject && (
+							{form}
 							<ProjectComposerFooter
 								key={selectedProject.id}
 								project={selectedProject}
 							/>
-						)
-					}
-					onCreateChat={handleCreateChat}
-					isCreating={createMutation.isPending}
-					createError={createError}
-					canCreateChat={permissions.createChat}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					aiGatewayDisabled={aiGatewayDisabled}
-					workspaceCount={workspacesQuery.data?.count}
-					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-					workspacesError={workspacesQuery.error}
-					isWorkspacesLoading={workspacesQuery.isLoading}
-					prefill={prefill}
-				/>
+						</div>
+					) : (
+						form
+					)}
+				</AgentCreateFormFrame>
 			)}
 		</>
 	);
