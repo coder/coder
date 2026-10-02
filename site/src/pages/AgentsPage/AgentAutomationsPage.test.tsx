@@ -146,6 +146,26 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
+	it("shows a used single-use webhook as off and locks its switch", async () => {
+		setup({
+			automations: [
+				{
+					...mockAutomation,
+					kind: "webhook",
+					webhook_use: "single",
+					webhook_consumed_at: "2026-09-29T10:00:00Z",
+					enabled: true,
+				},
+			],
+		});
+
+		const toggle = await screen.findByRole("switch", {
+			name: `Enable ${mockAutomation.name}`,
+		});
+		expect(toggle).not.toBeChecked();
+		expect(toggle).toBeDisabled();
+	});
+
 	it("shows the error of a failed toggle after another row was toggled", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");
