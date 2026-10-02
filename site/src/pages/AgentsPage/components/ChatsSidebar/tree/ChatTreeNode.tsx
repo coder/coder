@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,6 +24,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -33,6 +39,8 @@ import {
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
+import { ChatNodePRIcon } from "./ChatNodePRIcon";
+import { ChatPRMenuItems } from "./ChatPRMenuItems";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -139,14 +147,16 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
-		prIcon,
-		diffStatus,
+		prStatuses,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
+	// The sole PR's line stats can differ from the primary row's,
+	// which may be a newer branch-only ref with zeroed counts.
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+	const hasLinkedDiffStatus = Boolean(solePR?.url);
+
+	const changedFiles = solePR?.changed_files ?? 0;
+	const additions = solePR?.additions ?? 0;
+	const deletions = solePR?.deletions ?? 0;
 	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
@@ -156,10 +166,15 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
+	const hasChatActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,
 	});
+	const prStatusesWithURL = prStatuses.filter((status) => status.url);
+	const hasPRs = prStatusesWithURL.length > 0;
+	// PR links need no permission, so viewers of a shared chat get
+	// the menu when the chat has PRs.
+	const hasMenuActions = hasChatActions || hasPRs;
 	const trailing = renderTrailing?.(chat);
 
 	const sharedMenuItemProps = {
@@ -270,13 +285,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
+										<ChatNodePRIcon prStatuses={prStatuses} />
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
@@ -395,7 +404,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className="max-w-72 [&_[role=menuitem]]:text-[13px]"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -407,6 +416,17 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
+											pullRequestItems={
+												hasPRs && (
+													<ChatPRMenuItems
+														prStatuses={prStatusesWithURL}
+														Item={DropdownMenuItem}
+														Sub={DropdownMenuSub}
+														SubTrigger={DropdownMenuSubTrigger}
+														SubContent={DropdownMenuSubContent}
+													/>
+												)
+											}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
 										/>
@@ -416,9 +436,20 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="max-w-72 [&_[role=menuitem]]:text-[13px]">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
+						pullRequestItems={
+							hasPRs && (
+								<ChatPRMenuItems
+									prStatuses={prStatusesWithURL}
+									Item={ContextMenuItem}
+									Sub={ContextMenuSub}
+									SubTrigger={ContextMenuSubTrigger}
+									SubContent={ContextMenuSubContent}
+								/>
+							)
+						}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 					/>
