@@ -159,6 +159,74 @@ export const Edit: Story = {
 	},
 };
 
+export const EditWeekdaySchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "30 9 * * 1-5" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "30 9 * * 1-5",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditHourlySchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "15 * * * *" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "15 * * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const SearchTimeZone: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Time zone" }),
+		);
+		await userEvent.type(
+			await screen.findByPlaceholderText("Search time zones"),
+			"berl",
+		);
+	},
+};
+
 export const TargetChatNotFound: Story = {
 	args: { automation: mockAutomation },
 	parameters: {

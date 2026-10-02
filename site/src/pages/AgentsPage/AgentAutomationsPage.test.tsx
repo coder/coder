@@ -499,6 +499,14 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				schedule_time_zone: browserTimeZone,
 			});
 		});
+		await user.click(within(dialog).getByRole("button", { name: "Time zone" }));
+		await user.type(
+			await screen.findByPlaceholderText("Search time zones"),
+			"berl",
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Europe/Berlin" }),
+		);
 
 		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
 		await user.type(await screen.findByPlaceholderText("Search chats"), "Rele");
@@ -520,7 +528,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					target_mode: "existing_chat",
 					prompt: "Summarize yesterday.",
 					schedule_cron: "30 9 * * 1-5",
-					schedule_time_zone: browserTimeZone,
+					schedule_time_zone: "Europe/Berlin",
 					target_chat_id: mockOtherChat.id,
 					when_busy: "skip",
 				},
@@ -681,7 +689,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 		await waitFor(() => {
 			expect(
-				within(dialog).getByRole("combobox", { name: "Time zone" }),
+				within(dialog).getByRole("button", { name: "Time zone" }),
 			).toHaveAccessibleDescription("Unknown time zone.");
 		});
 		expect(
@@ -713,6 +721,71 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				name: "Model, No Models Configured",
 			}),
 		).toBeDisabled();
+	});
+
+	it("edits a stored schedule through the shortcut that wrote it", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		expect(repeat).toHaveTextContent("Weekdays");
+		expect(within(dialog).getByLabelText("Time")).toHaveValue("09:30");
+
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		await user.clear(cron);
+		await user.type(cron, "0 8 * * 1");
+		expect(repeat).toHaveTextContent("Weekly on Monday");
+		expect(within(dialog).getByLabelText("Time")).toHaveValue("08:00");
+		await user.type(cron, ",3");
+		expect(repeat).toHaveTextContent("Custom");
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		expect(minute).toHaveValue(0);
+		await user.clear(minute);
+		await user.type(minute, "15");
+		expect(cron).toHaveValue("15 * * * *");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "15 * * * *" }]);
+		});
+	});
+
+	it("defaults to UTC when the browser reports an unknown zone", async () => {
+		const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+		vi.spyOn(
+			Intl.DateTimeFormat.prototype,
+			"resolvedOptions",
+		).mockImplementation(function (this: Intl.DateTimeFormat) {
+			return { ...resolvedOptions.call(this), timeZone: "Etc/Unknown" };
+		});
+		const user = userEvent.setup();
+		const { previewBodies, createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await waitFor(() => {
+			expect(previewBodies).toEqual([
+				{ schedule_cron: "0 9 * * *", schedule_time_zone: "UTC" },
+			]);
+		});
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({ schedule_time_zone: "UTC" }),
+			]);
+		});
 	});
 
 	it("shows upcoming runs in UTC when the browser does not know the zone", async () => {

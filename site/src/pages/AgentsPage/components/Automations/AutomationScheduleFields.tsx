@@ -6,6 +6,17 @@ import {
 	isApiValidationError,
 } from "#/api/errors";
 import { chatAutomationSchedulePreview } from "#/api/queries/chatAutomations";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -15,7 +26,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 import type { FormHelpers } from "#/utils/formUtils";
@@ -71,6 +81,68 @@ const parseTime = (value: string): Time | undefined => {
 	return { hour, minute };
 };
 
+const formatTime = ({ hour, minute }: Time): string =>
+	`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+
+// Accepts only the digits a shortcut writes, so "09" or "1-5" do not match.
+const parseCronNumber = (field: string | undefined, max: number) => {
+	if (!field || !/^(0|[1-9]\d*)$/.test(field)) {
+		return undefined;
+	}
+	const value = Number(field);
+	return value <= max ? value : undefined;
+};
+
+type RepeatShortcut = {
+	repeat: (typeof repeatOptions)[number]["value"];
+	/** Set when the shortcut fixes the hour. */
+	hour?: number;
+	/** Set when the shortcut fixes the minute. */
+	minute?: number;
+};
+
+/**
+ * Finds the Repeat shortcut that writes exactly this cron string. It compares
+ * strings and never evaluates the schedule, so equivalent forms are Custom.
+ */
+export const matchRepeatShortcut = (
+	cron: string,
+): RepeatShortcut | undefined => {
+	const trimmed = cron.trim();
+	const [minuteField, hourField] = trimmed.split(" ");
+	const minute = parseCronNumber(minuteField, 59);
+	const hour = parseCronNumber(hourField, 23);
+	for (const option of repeatOptions) {
+		if (!option.usesTime) {
+			if (option.cron() === trimmed) {
+				return { repeat: option.value };
+			}
+			continue;
+		}
+		if (minute === undefined) {
+			continue;
+		}
+		// Hourly has no hour field, so any hour regenerates the same string.
+		if (option.cron({ hour: hour ?? 0, minute }) === trimmed) {
+			return option.value === "hourly"
+				? { repeat: option.value, minute }
+				: { repeat: option.value, hour, minute };
+		}
+	}
+	return undefined;
+};
+
+// Keeps the current hour when the shortcut fixes only the minute.
+const mergeTime = (time: string, next: Partial<Time> | undefined) => {
+	if (next?.minute === undefined) {
+		return time;
+	}
+	return formatTime({
+		hour: next.hour ?? parseTime(time)?.hour ?? 9,
+		minute: next.minute,
+	});
+};
+
 const formatRunTimeIn = (value: string, timeZone: string): string =>
 	formatDate(new Date(value), {
 		locale: "en-US",
@@ -99,7 +171,6 @@ const formatRunTime = (value: string, timeZone: string): string => {
 
 type AutomationScheduleFieldsProps = {
 	organizationId: string;
-	isCreate: boolean;
 	cronField: FormHelpers;
 	timeZoneField: FormHelpers;
 	onCronChange: (cron: string) => void;
@@ -111,7 +182,6 @@ export const AutomationScheduleFields: React.FC<
 	AutomationScheduleFieldsProps
 > = ({
 	organizationId,
-	isCreate,
 	cronField,
 	timeZoneField,
 	onCronChange,
@@ -122,8 +192,16 @@ export const AutomationScheduleFields: React.FC<
 	const cronId = useId();
 	const cronDescriptionId = useId();
 	const cronErrorId = useId();
-	const [repeat, setRepeat] = useState<string>(isCreate ? "daily" : "");
-	const [time, setTime] = useState("09:00");
+	const minuteId = useId();
+	const [initialShortcut] = useState(() =>
+		matchRepeatShortcut(String(cronField.value ?? "")),
+	);
+	const [repeat, setRepeat] = useState<string>(initialShortcut?.repeat ?? "");
+	const [time, setTime] = useState(() => mergeTime("09:00", initialShortcut));
+	// Separate text lets the user clear the minute while typing a new one.
+	const [minuteText, setMinuteText] = useState(() =>
+		String(parseTime(time)?.minute ?? 0),
+	);
 
 	const cron = String(cronField.value ?? "").trim();
 	const timeZone = String(timeZoneField.value ?? "");
@@ -159,6 +237,16 @@ export const AutomationScheduleFields: React.FC<
 		}
 	};
 
+	const updateTime = (nextTime: string) => {
+		setTime(nextTime);
+		const minute = parseTime(nextTime)?.minute;
+		if (minute !== undefined) {
+			setMinuteText(String(minute));
+		}
+	};
+
+	const repeatOption = repeatOptions.find((option) => option.value === repeat);
+
 	let preview: React.ReactNode;
 	if (!debouncedCron) {
 		preview = "Enter a cron expression to see upcoming runs.";
@@ -192,6 +280,7 @@ export const AutomationScheduleFields: React.FC<
 						value={repeat}
 						onValueChange={(value) => {
 							setRepeat(value);
+							updateTime(time);
 							applyShortcut(value, time);
 						}}
 					>
@@ -207,21 +296,42 @@ export const AutomationScheduleFields: React.FC<
 						</SelectContent>
 					</Select>
 				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor={timeId}>Time</Label>
-					<Input
-						id={timeId}
-						type="time"
-						value={time}
-						disabled={
-							!repeatOptions.find((option) => option.value === repeat)?.usesTime
-						}
-						onChange={(event) => {
-							setTime(event.target.value);
-							applyShortcut(repeat, event.target.value);
-						}}
-					/>
-				</div>
+				{repeat === "hourly" ? (
+					<div className="flex flex-col gap-2">
+						<Label htmlFor={minuteId}>Minute</Label>
+						<Input
+							id={minuteId}
+							type="number"
+							min={0}
+							max={59}
+							step={1}
+							value={minuteText}
+							onChange={(event) => {
+								setMinuteText(event.target.value);
+								const minute = parseCronNumber(event.target.value, 59);
+								if (minute !== undefined) {
+									const nextTime = mergeTime(time, { minute });
+									setTime(nextTime);
+									applyShortcut(repeat, nextTime);
+								}
+							}}
+						/>
+					</div>
+				) : (
+					<div className="flex flex-col gap-2">
+						<Label htmlFor={timeId}>Time</Label>
+						<Input
+							id={timeId}
+							type="time"
+							value={time}
+							disabled={!repeatOption?.usesTime}
+							onChange={(event) => {
+								updateTime(event.target.value);
+								applyShortcut(repeat, event.target.value);
+							}}
+						/>
+					</div>
+				)}
 			</div>
 			<div className="flex flex-col gap-2">
 				<Label htmlFor={cronId}>
@@ -239,7 +349,9 @@ export const AutomationScheduleFields: React.FC<
 						onBlur={cronField.onBlur}
 						onChange={(event) => {
 							cronField.onChange(event);
-							setRepeat("");
+							const shortcut = matchRepeatShortcut(event.target.value);
+							setRepeat(shortcut?.repeat ?? "");
+							updateTime(mergeTime(time, shortcut));
 						}}
 						required
 						aria-invalid={Boolean(cronError)}
@@ -263,22 +375,21 @@ export const AutomationScheduleFields: React.FC<
 					</div>
 				</div>
 			</div>
-			<SelectField
+			<FormField
 				field={{
 					...timeZoneField,
 					error: Boolean(timeZoneError),
 					helperText: timeZoneError,
 				}}
 				label="Time zone"
-				placeholder="Select a time zone"
-				onValueChange={onTimeZoneChange}
-			>
-				{timeZones.map((zone) => (
-					<SelectItem key={zone} value={zone}>
-						{zone}
-					</SelectItem>
-				))}
-			</SelectField>
+				control={(props) => (
+					<TimeZoneCombobox
+						{...props}
+						value={timeZone}
+						onChange={onTimeZoneChange}
+					/>
+				)}
+			/>
 			<section aria-label="Upcoming runs" className="flex flex-col gap-2">
 				<h3 className="m-0 text-sm font-medium text-content-primary">
 					Upcoming runs
@@ -286,5 +397,69 @@ export const AutomationScheduleFields: React.FC<
 				<div className="text-sm text-content-secondary">{preview}</div>
 			</section>
 		</div>
+	);
+};
+
+type TimeZoneComboboxProps = Pick<
+	React.ComponentProps<"button">,
+	"id" | "aria-invalid" | "aria-describedby"
+> & {
+	value: string;
+	onChange: (timeZone: string) => void;
+};
+
+const TimeZoneCombobox: React.FC<TimeZoneComboboxProps> = ({
+	value,
+	onChange,
+	...buttonProps
+}) => {
+	const [open, setOpen] = useState(false);
+	const [search, setSearch] = useState("");
+	const query = search.trim().toLowerCase();
+	const matches = query
+		? timeZones.filter((zone) => zone.toLowerCase().includes(query))
+		: timeZones;
+	return (
+		<Combobox
+			value={value}
+			onValueChange={(zone) => {
+				if (zone) {
+					onChange(zone);
+				}
+			}}
+			open={open}
+			onOpenChange={(nextOpen) => {
+				setOpen(nextOpen);
+				if (!nextOpen) {
+					setSearch("");
+				}
+			}}
+		>
+			<ComboboxTrigger asChild>
+				<ComboboxButton
+					{...buttonProps}
+					selectedOption={value ? { label: value, value } : undefined}
+					placeholder="Select a time zone"
+				/>
+			</ComboboxTrigger>
+			<ComboboxContent
+				shouldFilter={false}
+				className="max-h-80 w-(--radix-popover-trigger-width)"
+			>
+				<ComboboxInput
+					placeholder="Search time zones"
+					value={search}
+					onValueChange={setSearch}
+				/>
+				<ComboboxList>
+					<ComboboxEmpty>No time zones found.</ComboboxEmpty>
+					{matches.map((zone) => (
+						<ComboboxItem key={zone} value={zone}>
+							<span className="flex-1 truncate">{zone}</span>
+						</ComboboxItem>
+					))}
+				</ComboboxList>
+			</ComboboxContent>
+		</Combobox>
 	);
 };
