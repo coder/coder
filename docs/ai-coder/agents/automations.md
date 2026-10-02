@@ -23,7 +23,7 @@ The chat's agent, tools, and workspace do the work, the same way they handle a m
 ## Enable automations
 
 Automations are behind the `chat-automations` experiment.
-To turn it on for every user at startup, start the server with the flag:
+To turn it on for every user at startup, run `coder server` with the flag:
 
 ```sh
 coder server --experiments=chat-automations
@@ -174,7 +174,7 @@ curl -X POST "$CODER_URL/api/experimental/chat-automations/$AUTOMATION_ID/events
 ```
 
 The endpoint path carries the `/api/experimental` prefix.
-Experimental API paths can change in a later release, so keep the URL easy to update in your senders.
+Experimental API paths can change in a later release, so keep the URL configurable in your senders.
 
 The body must be valid JSON of at most 256&nbsp;KiB.
 Any JSON value is accepted.
@@ -272,7 +272,7 @@ Schedules follow wall-clock time in their time zone, so a `0 9 * * *` schedule r
 
 ### Check upcoming runs
 
-The server computes the next runs of a schedule:
+The control plane computes the next runs of a schedule:
 
 - The editor lists them under **Upcoming runs** while you type.
 - Responses for turned-on schedules include `next_run_times`, up to five times in UTC.
@@ -387,7 +387,7 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 | Webhook body                  | 256&nbsp;KiB of valid JSON.                                                                                                    |
 | Name                          | 1 to 128 characters.                                                                                                           |
 
-Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the server options.
+Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the `coder server` options.
 
 ## Known risks and limitations
 
@@ -406,10 +406,10 @@ To cap each user's AI spend, refer to [Spend management](./platform-controls/spe
 
 ### Silent failures
 
-Skipped and missed schedule runs appear only in the server logs, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
-A schedule whose target chat is archived or deleted, or whose owner isn't active, doesn't run and logs nothing.
+Skipped and missed schedule runs appear only in the logs of `coderd`, the process that runs the control plane, as `chat automation schedule occurrence skipped` and `chat automation schedule occurrence missed` messages.
+A schedule doesn't run or produce logs when its target chat is archived or deleted, or when its owner isn't active.
 A refused webhook delivery appears in the HTTP response the sender receives.
-Refusals that depend on the target chat, such as a busy chat, a full queue, or a hook denial, also appear in the server logs as `chat automation input refused` messages.
+Refusals that depend on the target chat, such as a busy chat, a full queue, or a hook denial, also appear in the `coderd` logs as `chat automation input refused` messages.
 Coder keeps no run history for automations.
 
 ### Prompt injection
