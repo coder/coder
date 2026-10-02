@@ -76,7 +76,7 @@ func TestConnectionReporter(t *testing.T) {
 
 			connReporter := reporter.Connect(tc.report)
 
-			req0 := <-sink.report
+			req0 := testutil.RequireReceive(ctx, t, sink.report)
 			require.Equal(t, tc.report.Type, req0.GetConnection().GetType())
 			require.Equal(t, tc.expectedIP, req0.GetConnection().Ip)
 			require.Equal(t, tc.report.ID[:], req0.GetConnection().GetId())
@@ -88,7 +88,7 @@ func TestConnectionReporter(t *testing.T) {
 				Reason: "because",
 			})
 
-			req1 := <-sink.report
+			req1 := testutil.RequireReceive(ctx, t, sink.report)
 			require.Equal(t, tc.report.Type, req1.GetConnection().GetType())
 			require.Equal(t, tc.expectedIP, req1.GetConnection().Ip)
 			require.Equal(t, tc.report.ID[:], req1.GetConnection().GetId())
