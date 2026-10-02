@@ -54,7 +54,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
+import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,

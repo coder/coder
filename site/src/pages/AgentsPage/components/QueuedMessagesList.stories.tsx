@@ -19,6 +19,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
+		automationNames: { names: new Map(), status: "settled" },
 		onDelete: fn(),
 		onPromote: fn(),
 	},

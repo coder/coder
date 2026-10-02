@@ -41,7 +41,7 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
-import { useAutomationsEnabled } from "./Automations/AutomationsNavItem";
+import { useAutomationsEnabled } from "./Automations/automationsFlag";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
