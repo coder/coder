@@ -5529,14 +5529,6 @@ func (m queryMetricsStore) UpdateChatTitleByID(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatTitleByIDIfTitle(ctx context.Context, arg database.UpdateChatTitleByIDIfTitleParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatTitleByIDIfTitle(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatTitleByIDIfTitle").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTitleByIDIfTitle").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatWorkspaceBinding(ctx, arg)

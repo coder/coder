@@ -1594,11 +1594,6 @@ type sqlcQuerier interface {
 	// updates while losing to newer message history.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
-	// Compare-and-set variant of UpdateChatTitleByID: the title is only
-	// written when the stored title still equals @expected_title. Automatic
-	// title generation uses it so a rename that lands while the model call
-	// runs is not overwritten. Returns no rows when the title changed.
-	UpdateChatTitleByIDIfTitle(ctx context.Context, arg UpdateChatTitleByIDIfTitleParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

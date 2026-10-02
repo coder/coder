@@ -614,87 +614,6 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	require.Equal(t, wantTitle, gotTitle)
 }
 
-// TestMaybeGenerateChatTitleKeepsRenameDuringGeneration verifies that a
-// rename landing while the title model call runs is not overwritten by
-// the generated title. The fake model renames the chat before answering,
-// which reproduces the interleaving deterministically.
-func TestMaybeGenerateChatTitleKeepsRenameDuringGeneration(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	owner := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         owner.ID,
-		OrganizationID: org.ID,
-	})
-	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model: "test-model",
-	})
-
-	userPrompt := "summarize failed workspace build logs"
-	// The send path persists the fallback title before it schedules
-	// automatic generation, so generation starts from this snapshot.
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           owner.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             chatprompt.FallbackTitle(userPrompt),
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-	})
-
-	server := &Server{db: db, pubsub: dbpubsub.NewInMemory(), chatLimits: Limits{}.withDefaults()}
-
-	const userTitle = "My hand-picked title"
-	var renames atomic.Int32
-	model := &chattest.FakeModel{
-		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			require.Equal(t, "propose_title", call.SchemaName)
-			_, wrote, err := server.RenameChatTitle(ctx, chat, userTitle)
-			require.NoError(t, err)
-			require.True(t, wrote)
-			renames.Add(1)
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": "Failed workspace logs"},
-			}, nil
-		},
-	}
-
-	message := mustChatMessage(
-		t,
-		database.ChatMessageRoleUser,
-		database.ChatMessageVisibilityBoth,
-		codersdk.ChatMessageText(userPrompt),
-	)
-	message.ID = 1
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	generated := &generatedChatTitle{}
-	server.maybeGenerateChatTitle(
-		ctx,
-		chat,
-		[]database.ChatMessage{message},
-		nil,
-		resolvedModelCall{
-			model:    chatprovider.NewModel(model, nil),
-			dbConfig: database.ChatModelConfig{Model: "test-model"},
-		},
-		generated,
-		logger,
-		nil,
-	)
-	require.Equal(t, int32(1), renames.Load(), "rename must happen during generation")
-
-	fetched, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, userTitle, fetched.Title,
-		"automatic title generation overwrote the user's rename")
-	_, ok := generated.Load()
-	require.False(t, ok, "a discarded generated title must not be recorded")
-}
-
 // TestQuickgenFollowsConfiguredRetries verifies that title and summary
 // generation stop retrying at the server's configured retry limit. The
 // unconfigured default is not exercised because 25 real backoffs take minutes.
@@ -849,10 +768,9 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().UpdateChatTitleByIDIfTitle(gomock.Any(), database.UpdateChatTitleByIDIfTitleParams{
-		ID:            chat.ID,
-		Title:         "Reasoning title",
-		ExpectedTitle: chat.Title,
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: "Reasoning title",
 	}).Return(chatWithTitle(chat, "Reasoning title"), nil)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

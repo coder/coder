@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -513,19 +512,10 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	// Only replace the title this generation was based on. A rename that
-	// landed while the model call ran must win over the generated title.
-	_, err = p.db.UpdateChatTitleByIDIfTitle(ctx, database.UpdateChatTitleByIDIfTitleParams{
-		ID:            chat.ID,
-		Title:         title,
-		ExpectedTitle: chat.Title,
+	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: title,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		logger.Debug(ctx, "chat title changed during automatic title generation, keeping it",
-			slog.F("chat_id", chat.ID),
-		)
-		return
-	}
 	if err != nil {
 		logger.Warn(ctx, "failed to update generated chat title",
 			slog.F("chat_id", chat.ID),
