@@ -538,7 +538,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<ChatTreeContext value={chatTreeCtx}>
 								<div className="pb-2">
 									{isShowingEmptyState ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">{emptyStateMessage}</p>
 											{hasAppliedResultFilters && (
 												<button

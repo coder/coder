@@ -118,7 +118,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Compact PR sub-header */}
 			{pullRequestUrl && (
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
 							<>
@@ -153,7 +153,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 							href={pullRequestUrl}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
+							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
 						>
 							View PR
 							<ExternalLinkIcon className="size-3" />

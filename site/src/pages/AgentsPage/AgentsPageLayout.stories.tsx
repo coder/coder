@@ -213,7 +213,7 @@ const ChatPaneMinimumRouteElement = () => (
 		<div className="mt-auto px-4 pb-3">
 			<div
 				data-testid="chat-composer"
-				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+				className="flex items-center justify-between rounded-2xl border border-border/80 bg-surface-secondary/45 p-2"
 			>
 				<span className="truncate text-xs text-content-secondary">
 					Chat message
