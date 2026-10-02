@@ -649,7 +649,8 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 		return SendMessageResult{}, xerrors.Errorf("queued message %d is not promotable", queued.ID)
 	}
 	if queuePaused(head) {
-		// Paused head: append to tail, no promotion, stay in error.
+		// The guard dropped every row ahead of a paused one: append to
+		// the tail without promoting and stay in error, as from E1P.
 		return SendMessageResult{QueuedMessage: &queued}, nil
 	}
 	_, promoted, err := tx.promoteQueuedRow(chat, head)
@@ -1143,13 +1144,16 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 }
 
 // leavePaused moves a chat out of P once the head has no pause
-// condition: it promotes the head and the chat runs, or sets W when the
-// queue is empty. A head that is still paused keeps the chat in P. It
-// returns the promoted head's queued time, or zero when nothing was
-// promoted.
+// condition: it promotes the next head that passes the queue promotion
+// guard and the chat runs, or sets W when no queued row is left. A head
+// that is still paused keeps the chat in P. It returns the promoted
+// head's queued time, or zero when nothing was promoted.
 func (tx *Tx) leavePaused(chat database.Chat) (time.Time, error) {
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
-	if errors.Is(err, sql.ErrNoRows) {
+	head, ok, err := tx.nextPromotableQueueHead()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !ok {
 		_, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,
 			Archived:                 false,
@@ -1162,9 +1166,6 @@ func (tx *Tx) leavePaused(chat database.Chat) (time.Time, error) {
 			return time.Time{}, xerrors.Errorf("set waiting: %w", err)
 		}
 		return time.Time{}, nil
-	}
-	if err != nil {
-		return time.Time{}, xerrors.Errorf("get queue head: %w", err)
 	}
 	if queuePaused(head) {
 		return time.Time{}, nil
@@ -1236,12 +1237,15 @@ type PromoteQueuedMessageResult struct {
 	CancellationMessages []database.ChatMessage
 	// Rejected reports that the target failed the queue promotion
 	// guard. The target was deleted and nothing else changed: no
-	// reorder, no history insert, and no status change. The transition
-	// returns a nil error so the delete commits; callers report the
-	// target as not found.
+	// reorder, no history insert, and no status change, except from
+	// P, where the chat leaves paused as it does when
+	// DeleteQueuedMessage removes the head. The transition returns a
+	// nil error so the delete commits; callers report the target as
+	// not found.
 	Rejected bool
-	// PromotedQueuedAt is zero when the row only moved to the queue head
-	// or was rejected.
+	// PromotedQueuedAt is zero when the row only moved to the queue
+	// head, or when the target was rejected and no other row was
+	// promoted in its place.
 	PromotedQueuedAt time.Time
 }
 
@@ -1270,7 +1274,14 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		return PromoteQueuedMessageResult{}, err
 	}
 	if len(passing) == 0 {
-		return PromoteQueuedMessageResult{QueuedMessage: target, Rejected: true}, nil
+		var promotedQueuedAt time.Time
+		if from == StateP {
+			promotedQueuedAt, err = tx.leavePaused(chat)
+			if err != nil {
+				return PromoteQueuedMessageResult{}, err
+			}
+		}
+		return PromoteQueuedMessageResult{QueuedMessage: target, Rejected: true, PromotedQueuedAt: promotedQueuedAt}, nil
 	}
 	if target.EditingSince.Valid {
 		target, err = tx.store.UpdateChatQueuedMessageEditing(tx.ctx, database.UpdateChatQueuedMessageEditingParams{

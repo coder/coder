@@ -2370,6 +2370,7 @@ func (p *Server) PromoteQueued(
 	var (
 		result           PromoteQueuedResult
 		refreshChat      database.Chat
+		statusChanged    bool
 		promotedQueuedAt time.Time
 	)
 	rejected := false
@@ -2378,6 +2379,7 @@ func (p *Server) PromoteQueued(
 		// Update may rerun this callback after a deadlock abort.
 		result = PromoteQueuedResult{}
 		rejected = false
+		statusChanged = false
 		promotedQueuedAt = time.Time{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -2395,9 +2397,13 @@ func (p *Server) PromoteQueued(
 		}
 		if promoteResult.Rejected {
 			// Commit the guard's delete of the stale row, then
-			// report it as not found. The status is unchanged.
+			// report it as not found. The status is unchanged,
+			// except that a paused chat whose head was rejected
+			// leaves paused and may have promoted the next row.
 			rejected = true
-			return nil
+			promotedQueuedAt = promoteResult.PromotedQueuedAt
+			refreshChat, statusChanged, err = reloadChatAndStatusChanged(ctx, store, lockedChat)
+			return err
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
@@ -2417,6 +2423,10 @@ func (p *Server) PromoteQueued(
 		return PromoteQueuedResult{}, updateErr
 	}
 	if rejected {
+		if statusChanged {
+			p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		}
+		p.recordQueueWait(ctx, refreshChat, promotedQueuedAt)
 		return PromoteQueuedResult{}, chatstate.ErrQueuedMessageNotFound
 	}
 

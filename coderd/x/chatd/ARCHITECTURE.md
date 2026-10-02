@@ -168,6 +168,8 @@ Automations (rows in `chat_automations`) deliver messages to chats through the s
 
 Deleting a stale queued message is an ordinary queue change: it advances `queue_version`, and the queue sub-state (`0` or `1`) follows the messages that remain. Any transition that promotes queued messages must run the guard on every message it promotes, including a transition that promotes several queued messages at once.
 
+TODO: document how the guard meets a message under edit: head promotion stops at it without judging it and takes the blocked-head outcome (`R1` and `I1` reach `P`, `E1` queues and keeps the error as `E1P`); leaving `P` promotes through the guard; and an explicit promotion rejected from `P` leaves paused as deleting the head does.
+
 **Lock order.** Every transition locks the chat row first. A transaction that also locks automations takes those locks after the chat row, in ascending automation ID order. All automation locks go through `chatstate.LockAutomations`, which sorts and deduplicates the IDs and locks the rows in one query. The order holds only within one call. An admission callback that locks automations must pass its own automation and the automation of every queued message of the chat in a single `LockAutomations` call. When head promotion finds a head with an `automation_id`, it locks the automations of every queued message up front, so deleting several stale heads never takes automation locks out of order. `LockAutomations` runs with chatd's own authorization, so the guard sees every automation no matter who triggered the transition.
 
 A transaction that takes automation locks out of this order can deadlock. For example, a callback might lock only its own automation X on a chat whose queue head belongs to automation A, where A has the lower ID. On the `E1` path, `SendMessage` runs the callback before it locks the queue's automations in a second `LockAutomations` call, so the transaction takes X and then A. PostgreSQL aborts one of the deadlocked transactions. `ChatMachine.Update` treats that abort as retryable: if the aborted attempt locked automations, it reruns the whole transaction, including the callback, for at most three attempts in total. Each attempt has its own publish buffer, so an aborted attempt publishes nothing. An attempt that locked no automations is never retried, and neither is an `Update` nested inside another `Update`, because the outer transaction owns the retry. Callbacks passed to `Update` must therefore be safe to rerun.
@@ -659,6 +661,8 @@ The promoted head in `messages` carries the old head's queue ID in `queued_messa
 
 From `E1`, the promoted head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), with either busy behavior. If the guard deletes every older queued message, the new message is promoted itself and the chat lands in `R0` instead of `R1`. The new message then goes straight into history, and the result reports no queued message.
 
+TODO: document `E1 -> SendMessage -> E1P` when the guard deletes every older queued message ahead of a message under edit.
+
 This endpoint never sets an admission callback. Automations send messages with the same `SendMessage` transition and a callback.
 
 Other input states are not supported.
@@ -722,6 +726,8 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 - `P -> DeleteQueuedMessage(qid) -> R0 | R1` if removing the head: the message behind it is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
 - `P -> DeleteQueuedMessage(qid) -> P` if removing a message behind the head
 
+TODO: document that promoting the message behind a removed `P` head goes through the queue promotion guard, so `P` reaches `W` when every remaining message is stale.
+
 The endpoint is owner-only because removing the head from `P` promotes the message behind it, which runs LLM inference with the owner's delegated credentials.
 
 No other input states are supported.
@@ -761,6 +767,8 @@ Before reordering, `PromoteQueuedMessage` runs the [queue promotion guard](#auto
 - `I1 -> PromoteQueuedMessage(qid) -> I0` if the stale `qid` was the last queued message, or `I1` otherwise
 - `A1 -> PromoteQueuedMessage(qid) -> A0` if the stale `qid` was the last queued message, or `A1` otherwise
 
+TODO: add the rejection outputs with a message under edit: `E1`, `R1`, `I1`, `A1` reach their `1P` sibling when the message behind the stale head is under edit; `E1P`, `R1P`, `I1P`, `A1P` reach their `0` or `1` sibling when the stale `qid` was the head under edit and stay when it was behind the head; `P` reaches `W`, `R0`, or `R1` like `DeleteQueuedMessage` of the head when the stale `qid` was the head, and stays in `P` otherwise.
+
 No other input states are supported.
 
 ### `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
@@ -778,6 +786,8 @@ This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-onl
 - `P -> EditQueuedMessage(qid, content?, editing=false) -> R0 | R1` when the head's edit ends: the head is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
 - `P -> EditQueuedMessage(qid, content) -> P` for content edits
 - From `P`, beginning an edit on a message other than the head is refused with `409`: it would end the head's edit and promote the head.
+
+TODO: document that ending the edit of a stale head from `P` deletes it through the queue promotion guard, so `P` reaches `W`, or `R0` or `R1` with the next passing message.
 
 Clients begin an edit with `{"editing": true}`, save with `{"content": ..., "editing": false}`, and cancel with `{"editing": false}`. A `404` means the queued message no longer exists: it was promoted into history or removed. `editing_since` is set on the head while it is under edit; once a turn ends at it, the chat status is `paused`.
 

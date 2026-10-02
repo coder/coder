@@ -87,6 +87,9 @@ const (
 	// scenarioRefused marks the EditQueuedMessage case P rejects with
 	// ErrPausedQueuedHeadUnderEdit.
 	scenarioRefused scenario = "refused"
+	// scenarioStaleBehindEdit marks cases seeded with a stale
+	// automation row queued behind a head under edit.
+	scenarioStaleBehindEdit scenario = "stale_behind_edit"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -1048,7 +1051,8 @@ func matrixCases() []transitionCaseSpec {
 			deleteQueuedCaseAt(ready, blocked, scenarioEditBehindHead, multiEditingBehind, 0),
 		)
 	}
-	return append(cases, editingQueueMatrixCases()...)
+	cases = append(cases, editingQueueMatrixCases()...)
+	return append(cases, guardEditMatrixCases()...)
 }
 
 // emptyQueueSibling maps each ready-head state to the sibling with the
