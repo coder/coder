@@ -148,7 +148,12 @@ export const AutomationScheduleFields: React.FC<
 				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 			: undefined;
 	const cronError = cronField.error ? cronField.helperText : cronPreviewError;
-	const intervalWarning = previewQuery.data?.interval_warning;
+	// Only the run list renders the warning, so the cron input refers to it
+	// only when that list is shown.
+	const intervalWarning =
+		!previewQuery.isError && previewQuery.data?.next_run_times.length
+			? previewQuery.data.interval_warning
+			: undefined;
 	const timeZoneError = timeZoneField.error
 		? timeZoneField.helperText
 		: timeZonePreviewError;
