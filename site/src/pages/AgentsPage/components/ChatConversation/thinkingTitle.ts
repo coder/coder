@@ -190,6 +190,8 @@ const getParagraphHeadingText = (
 	return heading;
 };
 
+// A first heading too long to parse ends the scan, so a later heading cannot
+// stand in for it.
 const getFirstHeading = (text: string): HeadingMatch | undefined => {
 	let activeFence: { character: "`" | "~"; length: number } | undefined;
 	let setextCandidate: LineRange | undefined;
@@ -213,8 +215,6 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 
 		if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) {
 			const root = parseHeadingCandidate(line);
-			// A first heading too long to parse ends the scan, so a later
-			// heading cannot stand in for it.
 			if (!root) {
 				return undefined;
 			}
@@ -238,18 +238,26 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 		}
 
 		if (setextCandidate && /^ {0,3}(=+|-+)[ \t]*$/.test(line)) {
-			const root = parseHeadingCandidate(`${setextCandidate.line}\n${line}`);
-			if (!root) {
-				return undefined;
-			}
-			const [block] = root.children;
-			const heading = block?.type === "heading" ? getPlainText(block) : "";
-			if (heading) {
-				return {
-					text: heading,
-					start: setextCandidate.start,
-					end: lineRange.nextStart,
-				};
+			// A line's start decides whether an underline makes it a heading, so
+			// a line too long to parse is cut to classify the pair.
+			const candidate = sliceAtGraphemeBoundary(
+				setextCandidate.line,
+				PARSED_SOURCE_MAX_LENGTH - line.length - 1,
+			);
+			const [block] =
+				parseHeadingCandidate(`${candidate}\n${line}`)?.children ?? [];
+			if (block?.type === "heading") {
+				if (candidate !== setextCandidate.line) {
+					return undefined;
+				}
+				const heading = getPlainText(block);
+				if (heading) {
+					return {
+						text: heading,
+						start: setextCandidate.start,
+						end: lineRange.nextStart,
+					};
+				}
 			}
 		}
 

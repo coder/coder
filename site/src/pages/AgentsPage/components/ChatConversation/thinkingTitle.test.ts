@@ -287,6 +287,16 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it.each(["- ", "> "])(
+		"scans past a long %j line that is not a heading",
+		(marker) => {
+			const body = `${marker}${"step ".repeat(100)}\n---\n\n`;
+			expect(
+				getThinkingDisclosureDisplay(`${body}## Next`, { isStreaming: false }),
+			).toEqual({ title: "Thinking about next", body });
+		},
+	);
+
 	it("ignores headings inside fenced code blocks", () => {
 		expect(
 			getThinkingDisclosureDisplay(
