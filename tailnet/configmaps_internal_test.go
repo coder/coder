@@ -21,6 +21,7 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -362,6 +363,76 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
 	// require the right number of peers.
 	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.TryReceive(ctx, t, done)
+}
+
+// TestConfigMaps_updatePeers_logsNodeSnapshot verifies that log entries do not
+// alias the live peer node. A flight recorder formats entries when it flushes,
+// possibly from another goroutine without c.L, so a logged node that is later
+// mutated in place under c.L is a data race.
+func TestConfigMaps_updatePeers_logsNodeSnapshot(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelInfo).FlightRecorder(1000)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), CoderDNSSuffixFQDN)
+	defer uut.close()
+
+	p1ID := uuid.UUID{1}
+	p1n, err := NodeToProto(newTestNode(1))
+	require.NoError(t, err)
+	uut.setTunnelDestination(p1ID)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+	uut.updatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+		Id:   p1ID[:],
+		Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+		Node: p1n,
+	}})
+
+	// READY_FOR_HANDSHAKE mutates the stored node's KeepAlive in place.
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+	uut.updatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+		Id:   p1ID[:],
+		Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+	}})
+	_ = testutil.TryReceive(ctx, t, fEng.setNetworkMap)
+	_ = testutil.TryReceive(ctx, t, fEng.reconfig)
+
+	uut.L.Lock()
+	live := uut.peers[p1ID].node
+	uut.L.Unlock()
+	require.True(t, live.KeepAlive)
+
+	logger.Flush(ctx)
+	var logged []*tailcfg.Node
+	for _, e := range sink.Entries() {
+		for _, f := range e.Fields {
+			if n, ok := f.Value.(*tailcfg.Node); ok && f.Name == "node" {
+				logged = append(logged, n)
+			}
+		}
+	}
+	require.NotEmpty(t, logged, "expected a recorded entry with the peer node")
+	for _, n := range logged {
+		require.NotSame(t, live, n, "logged node must be a snapshot, not the live peer node")
+	}
 
 	done := make(chan struct{})
 	go func() {
