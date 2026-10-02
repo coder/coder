@@ -341,8 +341,6 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			if err := validateAutomationPrompt(*req.Prompt); err != nil {
 				return err
 			}
-			// The queue generation stays the same, so messages already
-			// queued keep the prompt they were sent with.
 			invalidatesPendingRuns = invalidatesPendingRuns || *req.Prompt != row.Prompt
 			arg.Prompt = *req.Prompt
 		}
