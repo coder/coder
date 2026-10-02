@@ -166,9 +166,6 @@ importers:
       react:
         specifier: 19.2.8
         version: 19.2.8
-      react-color:
-        specifier: 2.19.3
-        version: 2.19.3(react@19.2.8)
       react-confetti:
         specifier: 6.4.0
         version: 6.4.0(react@19.2.8)
@@ -317,9 +314,6 @@ importers:
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
-      '@types/react-color':
-        specifier: 3.0.13
-        version: 3.0.13(@types/react@19.2.18)
       '@types/react-dom':
         specifier: 19.2.5
         version: 19.2.5(@types/react@19.2.18)
@@ -908,11 +902,6 @@ packages:
 
   '@iconify/utils@3.1.7':
     resolution: {integrity: sha512-JZHlwdID+dy+lTgbYC8NEC4zeugqeYsc6jewvzb4c58kHauJn+X7rNwQjxz5p2qSjqaEeQoLkCIQ9v/H4PK0/w==, tarball: https://registry.npmjs.org/@iconify/utils/-/utils-3.1.7.tgz}
-
-  '@icons/material@0.2.4':
-    resolution: {integrity: sha512-QPcGmICAPbGLGb6F/yNf/KzKqvFx8z5qx3D1yFqVAjoFmXK35EgyW+cJ57Te3CNsmzblwtzakLGFqHPqrfb4Tw==, tarball: https://registry.npmjs.org/@icons/material/-/material-0.2.4.tgz}
-    peerDependencies:
-      react: '*'
 
   '@inquirer/confirm@3.2.0':
     resolution: {integrity: sha512-oOIwPs0Dvq5220Z8lGL/6LHRTEr9TgLHmiI99Rj1PJ1p1czTys+olrgBqZk4E2qC0YTzeHprxSQmoHioVdJ7Lw==, tarball: https://registry.npmjs.org/@inquirer/confirm/-/confirm-3.2.0.tgz}
@@ -3364,11 +3353,6 @@ packages:
   '@types/range-parser@1.2.4':
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==, tarball: https://registry.npmjs.org/@types/range-parser/-/range-parser-1.2.4.tgz}
 
-  '@types/react-color@3.0.13':
-    resolution: {integrity: sha512-2c/9FZ4ixC5T3JzN0LP5Cke2Mf0MKOP2Eh0NPDPWmuVH3NjPyhEjqNMQpN1Phr5m74egAy+p2lYNAFrX1z9Yrg==, tarball: https://registry.npmjs.org/@types/react-color/-/react-color-3.0.13.tgz}
-    peerDependencies:
-      '@types/react': '*'
-
   '@types/react-dom@18.3.7':
     resolution: {integrity: sha512-MEe3UeoENYVFXzoXEWsvcpg6ZvlrFNlOQ7EOsvhI3CfAXwzPfO8Qwuxd40nepsYKqyyVQnTdEfv68q91yLcKrQ==, tarball: https://registry.npmjs.org/@types/react-dom/-/react-dom-18.3.7.tgz}
     peerDependencies:
@@ -3391,11 +3375,6 @@ packages:
 
   '@types/react@19.2.18':
     resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==, tarball: https://registry.npmjs.org/@types/react/-/react-19.2.18.tgz}
-
-  '@types/reactcss@1.2.13':
-    resolution: {integrity: sha512-gi3S+aUi6kpkF5vdhUsnkwbiSEIU/BEJyD7kBy2SudWBUuKmJk8AQKE0OVcQQeEy40Azh0lV6uynxlikYIJuwg==, tarball: https://registry.npmjs.org/@types/reactcss/-/reactcss-1.2.13.tgz}
-    peerDependencies:
-      '@types/react': '*'
 
   '@types/resolve@1.20.6':
     resolution: {integrity: sha512-A4STmOXPhMUtHH+S6ymgE2GiBSMqf4oTvcQZMcHzokuTLVYzXTB8ttjcgxOVaAp2lGwEdzZ0J+cRbbeevQj1UQ==, tarball: https://registry.npmjs.org/@types/resolve/-/resolve-1.20.6.tgz}
@@ -5139,9 +5118,6 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  material-colors@1.2.6:
-    resolution: {integrity: sha512-6qE4B9deFBIa9YSpOc9O0Sgc43zTeVYbgDT5veRKSlB2+ZuHNoVVxA1L/ckMUayV9Ay9y7Z/SZCLcGteW9i7bg==, tarball: https://registry.npmjs.org/material-colors/-/material-colors-1.2.6.tgz}
-
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==, tarball: https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz}
     engines: {node: '>= 0.4'}
@@ -5729,11 +5705,6 @@ packages:
     resolution: {integrity: sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==, tarball: https://registry.npmjs.org/raw-body/-/raw-body-2.5.3.tgz}
     engines: {node: '>= 0.8'}
 
-  react-color@2.19.3:
-    resolution: {integrity: sha512-LEeGE/ZzNLIsFWa1TMe8y5VYqr7bibneWmvJwm1pCn/eNmrabWDh659JSPn9BuaMpEfU83WTOJfnCcjDZwNQTA==, tarball: https://registry.npmjs.org/react-color/-/react-color-2.19.3.tgz}
-    peerDependencies:
-      react: '*'
-
   react-confetti@6.4.0:
     resolution: {integrity: sha512-5MdGUcqxrTU26I2EU7ltkWPwxvucQTuqMm8dUz72z2YMqTD6s9vMcDUysk7n9jnC+lXuCPeJJ7Knf98VEYE9Rg==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.4.0.tgz}
     engines: {node: '>=16'}
@@ -5877,11 +5848,6 @@ packages:
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==, tarball: https://registry.npmjs.org/react/-/react-19.2.8.tgz}
     engines: {node: '>=0.10.0'}
-
-  reactcss@1.2.3:
-    resolution: {integrity: sha512-KiwVUcFu1RErkI97ywr8nvx8dNOpT03rbnma0SSalTYjkrPYaEajR4a/MRt6DZ46K6arDRbWMNHF+xH7G7n/8A==, tarball: https://registry.npmjs.org/reactcss/-/reactcss-1.2.3.tgz}
-    peerDependencies:
-      react: '*'
 
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==, tarball: https://registry.npmjs.org/readable-stream/-/readable-stream-2.3.8.tgz}
@@ -6300,9 +6266,6 @@ packages:
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==, tarball: https://registry.npmjs.org/tinybench/-/tinybench-2.9.0.tgz}
-
-  tinycolor2@1.6.0:
-    resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==, tarball: https://registry.npmjs.org/tinycolor2/-/tinycolor2-1.6.0.tgz}
 
   tinyexec@1.3.0:
     resolution: {integrity: sha512-QKAl9m8gWWGHV8jZcPeym6j+XULi6tOf1mT83WYJ4Lk2ytW/uwAWkrP0uFsdoYMdueVJ0qs26wZ+23xeB4ibNQ==, tarball: https://registry.npmjs.org/tinyexec/-/tinyexec-1.3.0.tgz}
@@ -7295,10 +7258,6 @@ snapshots:
       '@antfu/install-pkg': 2.0.1
       '@iconify/types': 2.0.0
       import-meta-resolve: 4.2.0
-
-  '@icons/material@0.2.4(react@19.2.8)':
-    dependencies:
-      react: 19.2.8
 
   '@inquirer/confirm@3.2.0':
     dependencies:
@@ -9579,11 +9538,6 @@ snapshots:
 
   '@types/range-parser@1.2.4': {}
 
-  '@types/react-color@3.0.13(@types/react@19.2.18)':
-    dependencies:
-      '@types/react': 19.2.18
-      '@types/reactcss': 1.2.13(@types/react@19.2.18)
-
   '@types/react-dom@18.3.7(@types/react@19.2.18)':
     dependencies:
       '@types/react': 19.2.18
@@ -9610,10 +9564,6 @@ snapshots:
   '@types/react@19.2.18':
     dependencies:
       csstype: 3.2.3
-
-  '@types/reactcss@1.2.13(@types/react@19.2.18)':
-    dependencies:
-      '@types/react': 19.2.18
 
   '@types/resolve@1.20.6': {}
 
@@ -11426,8 +11376,6 @@ snapshots:
 
   marked@17.0.5: {}
 
-  material-colors@1.2.6: {}
-
   math-intrinsics@1.1.0: {}
 
   mdast-util-find-and-replace@3.0.2:
@@ -12373,17 +12321,6 @@ snapshots:
       iconv-lite: 0.4.24
       unpipe: 1.0.0
 
-  react-color@2.19.3(react@19.2.8):
-    dependencies:
-      '@icons/material': 0.2.4(react@19.2.8)
-      lodash: 4.18.1
-      lodash-es: 4.18.1
-      material-colors: 1.2.6
-      prop-types: 15.8.1
-      react: 19.2.8
-      reactcss: 1.2.3(react@19.2.8)
-      tinycolor2: 1.6.0
-
   react-confetti@6.4.0(react@19.2.8):
     dependencies:
       react: 19.2.8
@@ -12550,11 +12487,6 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
 
   react@19.2.8: {}
-
-  reactcss@1.2.3(react@19.2.8):
-    dependencies:
-      lodash: 4.18.1
-      react: 19.2.8
 
   readable-stream@2.3.8:
     dependencies:
@@ -13072,8 +13004,6 @@ snapshots:
   tiny-warning@1.0.3: {}
 
   tinybench@2.9.0: {}
-
-  tinycolor2@1.6.0: {}
 
   tinyexec@1.3.0: {}
 
