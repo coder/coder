@@ -61,6 +61,7 @@ type Manager struct {
 	mu            sync.Mutex
 	closed        bool
 	sessions      map[workspacesdk.ACPSessionID]*SessionFSM
+	initializing  map[workspacesdk.ACPSessionID]*initialization
 	configs       map[string]harnessConfig
 	retryAfter    map[string]time.Time
 	configDir     string
@@ -77,7 +78,7 @@ type Manager struct {
 // EnvOverrides is optional and is copied before use.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
+	return &Manager{ctx: ctx, cancel: cancel, logger: opts.Logger, clock: opts.Clock, execer: opts.Execer, fs: opts.Filesystem, envInfo: opts.EnvInfo, envOverrides: maps.Clone(opts.EnvOverrides), workingDir: opts.WorkingDir, sessions: make(map[workspacesdk.ACPSessionID]*SessionFSM), closedDone: make(chan struct{}), reloadTrigger: make(chan struct{}, 1), initializing: make(map[workspacesdk.ACPSessionID]*initialization), configs: make(map[string]harnessConfig), configHashes: make(map[string][32]byte)}
 }
 
 // SetEnvOverrides replaces the environment overrides for future harnesses.
@@ -134,11 +135,12 @@ func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionR
 }
 
 // Message submits a prompt to an existing idle session.
+// If the session failed, Message attempts to recover it before submitting the prompt.
 func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
 	if req.ID == uuid.Nil || strings.TrimSpace(req.Text) == "" {
 		return workspacesdk.ACPMessageResponse{}, ErrInvalid
 	}
-	s, err := m.get(ctx, id)
+	s, err := m.recover(ctx, id)
 	if err != nil {
 		return workspacesdk.ACPMessageResponse{}, err
 	}
