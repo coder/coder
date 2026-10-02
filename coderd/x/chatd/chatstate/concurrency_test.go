@@ -171,9 +171,10 @@ func TestLockRollsBackCallbackError(t *testing.T) {
 	sentinel := xerrors.New("lock callback error")
 	err := m.Lock(ctx, func(store database.Store) error {
 		// Try a write that should be rolled back.
-		_, werr := store.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-			ID:    created.Chat.ID,
-			Title: "rollback-me",
+		_, werr := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:          created.Chat.ID,
+			Title:       "rollback-me",
+			TitleSource: database.ChatTitleSourceUser,
 		})
 		require.NoError(t, werr)
 		return sentinel

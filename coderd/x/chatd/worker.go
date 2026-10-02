@@ -92,6 +92,9 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
+	w.wg.Go(func() {
+		w.automationScheduleLoop(workerCtx)
+	})
 	if w.opts.CapacityMetrics != nil {
 		w.wg.Go(func() {
 			w.capacityMetricsLoop(workerCtx)
@@ -206,11 +209,10 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		if acquired >= w.opts.AcquisitionBatchSize {
 			return
 		}
-		// Interrupting and requires-action chats bypass capacity so their runners
-		// can finish work or enforce the action deadline.
+		// Every runnable status needs admission, so a refusal applies to
+		// the rest of the pool's candidates in this batch.
 		isSubagent := row.ParentChatID.Valid
-		if row.Status == database.ChatStatusRunning &&
-			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
+		if (isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused) {
 			continue
 		}
 		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
@@ -301,6 +303,18 @@ func (w *chatWorker) acquireCandidate(
 			// worker into an immediate retry of this unowned chat.
 			return errCapacityRefused
 		}
+		if takenOver {
+			// The lease was read before the admission lock, which heartbeat
+			// renewal also takes. A renewal that held the lock may have
+			// extended the lease since, so recheck it under the lock.
+			stillStale, err := w.leaseStaleUnderAdmissionLock(ctx, store, chat)
+			if err != nil {
+				return err
+			}
+			if !stillStale {
+				return errSkipAcquire
+			}
+		}
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
@@ -320,6 +334,28 @@ func (w *chatWorker) acquireCandidate(
 		return false, err
 	}
 	return true, nil
+}
+
+// leaseStaleUnderAdmissionLock rechecks a takeover candidate's lease while
+// holding the capacity admission lock. Admit already holds the lock when
+// capacity is capped; advisory locks are reentrant, so taking it again is
+// harmless and also covers uncapped deployments.
+func (w *chatWorker) leaseStaleUnderAdmissionLock(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
+	if err := store.SetTransactionLockTimeout(ctx, admissionLockTimeout.Milliseconds()); err != nil {
+		return false, xerrors.Errorf("set lock timeout: %w", err)
+	}
+	if err := store.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+		return false, xerrors.Errorf("acquire capacity admission lock: %w", err)
+	}
+	stale, err := store.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
+		ChatID:       chat.ID,
+		RunnerID:     chat.RunnerID.UUID,
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+	})
+	if err != nil {
+		return false, xerrors.Errorf("recheck heartbeat stale: %w", err)
+	}
+	return stale, nil
 }
 
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {

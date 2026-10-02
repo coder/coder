@@ -65,7 +65,7 @@ var (
 	//  - "ActionCreate" :: create an api key
 	//  - "ActionDelete" :: delete an api key
 	//  - "ActionRead" :: read api key details (secrets are not stored)
-	//  - "ActionUpdate" :: update an api key, eg expires
+	//  - "ActionUpdate" :: update an api key, for example its expiry
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
@@ -128,6 +128,16 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat automation
+	//  - "ActionDelete" :: delete a chat automation
+	//  - "ActionRead" :: read chat automations
+	//  - "ActionUpdate" :: update a chat automation
+	ResourceChatAutomation = Object{
+		Type: "chat_automation",
+	}
+
 	// ResourceChatModelConfig
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat model config
@@ -137,6 +147,16 @@ var (
 	//  - "ActionUpdate" :: update a chat model config
 	ResourceChatModelConfig = Object{
 		Type: "chat_model_config",
+	}
+
+	// ResourceChatProject
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat project
+	//  - "ActionDelete" :: delete a chat project
+	//  - "ActionRead" :: read chat projects
+	//  - "ActionUpdate" :: update a chat project
+	ResourceChatProject = Object{
+		Type: "chat_project",
 	}
 
 	// ResourceConnectionLog
@@ -445,8 +465,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspace = Object{
@@ -489,8 +509,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspaceDormant = Object{
@@ -523,7 +543,9 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatAutomation,
 		ResourceChatModelConfig,
+		ResourceChatProject,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

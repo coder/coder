@@ -963,6 +963,34 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
+	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
+	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
+}
+
+func TestCreateChildSubagentChatDoesNotInheritManageAutomations(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:           org.ID,
+		OwnerID:                  user.ID,
+		Title:                    "automations-parent",
+		ModelConfigID:            model.ID,
+		InitialUserContent:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		ManageAutomationsEnabled: true,
+	})
+	require.NoError(t, err)
+	require.True(t, parent.ManageAutomationsEnabled)
+
+	child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect", "", childSubagentChatOptions{})
+	require.NoError(t, err)
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.False(t, childChat.ManageAutomationsEnabled, "sub-agents must never inherit the manage_automations switch")
 }
 
 func createInternalParentChat(
@@ -2387,6 +2415,8 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
+	require.Equal(t, "explore-snapshot", childChat.Title)
+	require.Equal(t, database.ChatTitleSourceUser, childChat.TitleSource)
 }
 
 func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
