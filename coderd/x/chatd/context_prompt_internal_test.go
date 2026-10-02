@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -58,6 +60,37 @@ func skillResource(t *testing.T, source, name, description string, status databa
 	}
 }
 
+// pluginSkillResource is an OK skill row attributed to the named plugin.
+func pluginSkillResource(t *testing.T, source, pluginName, name, description string) database.ChatContextResource {
+	t.Helper()
+	return database.ChatContextResource{
+		Source:   source,
+		BodyKind: database.WorkspaceAgentContextBodyKindSkill,
+		Body: mustMarshalContextBody(t, &agentproto.SkillMetaBody{
+			Meta:        []byte("# " + name),
+			Name:        name,
+			Description: description,
+			PluginName:  pluginName,
+		}),
+		Status: database.WorkspaceAgentContextResourceStatusOk,
+	}
+}
+
+// pluginResource is a plugin manifest row.
+func pluginResource(t *testing.T, source, name string, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
+	t.Helper()
+	return database.ChatContextResource{
+		Source:   source,
+		BodyKind: database.WorkspaceAgentContextBodyKindPlugin,
+		Body: mustMarshalContextBody(t, &agentproto.PluginBody{
+			Name:        name,
+			Version:     "1.0.0",
+			Description: "A plugin",
+		}),
+		Status: status,
+	}
+}
+
 func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
 	t.Helper()
 	return database.ChatContextResource{
@@ -84,7 +117,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, skills)
 		require.Contains(t, instruction, "<workspace-context>")
@@ -101,7 +134,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		// Skill-only pins emit no instruction header.
 		require.Empty(t, instruction)
@@ -121,7 +154,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusInvalid),
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOversize),
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -144,7 +177,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 				Status:   database.WorkspaceAgentContextResourceStatusOk,
 			},
 		}
-		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, _, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -162,7 +195,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			},
 			instructionResource(t, "/home/coder/CLAUDE.md", "good content", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, skills)
 		require.Equal(t, 1, malformed)
@@ -183,7 +216,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			},
 			skillResource(t, "/home/coder/.coder/skills/deploy", "deploy", "Deploy the app", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, instruction)
 		require.Equal(t, 1, malformed)
@@ -199,7 +232,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			skillResource(t, "/home/coder/.coder/skills/nameless", "", "no name", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -215,7 +248,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "  \n\t  ", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, skills, malformed := contextResourcesToPrompt(resources, "linux", "/home/coder")
+		instruction, skills, malformed, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -225,7 +258,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 	t.Run("EmptyInput", func(t *testing.T) {
 		t.Parallel()
 
-		instruction, skills, _ := contextResourcesToPrompt(nil, "linux", "/home/coder")
+		instruction, skills, _, _ := contextResourcesToPrompt(nil, "linux", "/home/coder")
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
 	})
@@ -236,7 +269,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 		}
-		instruction, _, _ := contextResourcesToPrompt(resources, "", "")
+		instruction, _, _, _ := contextResourcesToPrompt(resources, "", "")
 
 		require.Contains(t, instruction, "<workspace-context>")
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
@@ -244,6 +277,104 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.NotContains(t, instruction, "Operating System:")
 		require.NotContains(t, instruction, "Working Directory:")
 	})
+
+	t.Run("PluginSkillsCarryAttribution", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			pluginResource(t, "/home/coder/.coder/plugins/acme", "acme", database.WorkspaceAgentContextResourceStatusOk),
+			pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/deploy", "acme", "deploy", "Deploy via acme"),
+			skillResource(t, "/home/coder/.coder/skills/review", "review", "Review code", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		instruction, skills, malformed, invalid := contextResourcesToPrompt(resources, "linux", "/home/coder")
+
+		// The plugin manifest row itself is not a prompt input.
+		require.Empty(t, instruction)
+		require.Zero(t, malformed)
+		require.Zero(t, invalid)
+		require.Len(t, skills, 2)
+		require.Equal(t, "deploy", skills[0].Name)
+		require.Equal(t, "acme", skills[0].PluginName)
+		require.Equal(t, "/home/coder/.coder/plugins/acme/skills/deploy", skills[0].Dir)
+		require.Equal(t, []byte("# deploy"), skills[0].Meta)
+		require.Equal(t, "review", skills[1].Name)
+		require.Empty(t, skills[1].PluginName)
+	})
+
+	t.Run("SkipsInvalidPluginName", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			pluginSkillResource(t, "/p/bad-dots/skills/deploy", "bad..dots", "deploy", ""),
+			pluginSkillResource(t, "/p/Upper/skills/deploy", "Upper", "deploy", ""),
+			pluginSkillResource(t, "/p/dash/skills/deploy", "-dash", "deploy", ""),
+			pluginSkillResource(t, "/p/ok/skills/deploy", "ok.plugin-1", "deploy", ""),
+		}
+		_, skills, malformed, invalid := contextResourcesToPrompt(resources, "linux", "/home/coder")
+
+		require.Zero(t, malformed)
+		require.Equal(t, 3, invalid)
+		require.Len(t, skills, 1)
+		require.Equal(t, "ok.plugin-1", skills[0].PluginName)
+	})
+
+	t.Run("SkipsInvalidSkillName", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			skillResource(t, "/home/coder/.coder/skills/bad", "Bad Name", "", database.WorkspaceAgentContextResourceStatusOk),
+			skillResource(t, "/home/coder/.coder/skills/slash", "a/b", "", database.WorkspaceAgentContextResourceStatusOk),
+			skillResource(t, "/home/coder/.coder/skills/good", "good-name", "", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		_, skills, malformed, invalid := contextResourcesToPrompt(resources, "linux", "/home/coder")
+
+		require.Zero(t, malformed)
+		require.Equal(t, 2, invalid)
+		require.Len(t, skills, 1)
+		require.Equal(t, "good-name", skills[0].Name)
+	})
+}
+
+// TestMergeTurnSkillsPluginIndex checks that pinned plugin skills reach the
+// prompt index as SourcePlugin skills: a unique name keeps its bare alias
+// with the plugin label, and a name shared with a workspace skill is
+// qualified for every holder.
+func TestMergeTurnSkillsPluginIndex(t *testing.T) {
+	t.Parallel()
+
+	resolved := mergeTurnSkills(nil, []chattool.SkillMeta{
+		{Name: "deploy", Description: "Workspace deploy"},
+		{Name: "deploy", Description: "Acme deploy", PluginName: "acme"},
+		{Name: "lint", Description: "Acme lint", PluginName: "acme"},
+	})
+	idx := chattool.FormatResolvedSkillIndex(resolved)
+	require.Contains(t, idx, "- workspace/deploy: Workspace deploy\n")
+	require.Contains(t, idx, "- plugin/acme/deploy (plugin: acme): Acme deploy\n")
+	require.Contains(t, idx, "- lint (plugin: acme): Acme lint\n")
+
+	skill, err := skillspkg.Lookup(resolved, "plugin/acme/deploy")
+	require.NoError(t, err)
+	require.Equal(t, skillspkg.SourcePlugin, skill.Source)
+	require.Equal(t, "acme", skill.Plugin)
+}
+
+func TestPinnedWorkspaceContextPluginSkills(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).Return([]database.ChatContextResource{
+		pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/deploy", "acme", "deploy", "Deploy via acme"),
+		skillResource(t, "/home/coder/.coder/skills/review", "review", "Review code", database.WorkspaceAgentContextResourceStatusOk),
+	}, nil)
+	server := newPinServer(t, db)
+
+	_, skills, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
+	require.NoError(t, err)
+	require.Len(t, skills, 2)
+	require.Equal(t, "acme", skills[0].PluginName)
+	require.Equal(t, "review", skills[1].Name)
 }
 
 func newPinServer(t *testing.T, db database.Store) *Server {
@@ -584,6 +715,59 @@ func TestPinnedContextResources(t *testing.T) {
 		}, out)
 	})
 
+	t.Run("NonOKRowsKeepPluginAttribution", func(t *testing.T) {
+		t.Parallel()
+
+		escapedSkill := pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/badmd", "acme", "badmd", "")
+		escapedSkill.Status = database.WorkspaceAgentContextResourceStatusInvalid
+		escapedSkill.Error = "symlink target escapes scan root"
+		collision := mcpServerResource(t, "acme/tools", &agentproto.MCPServerBody{
+			ServerName: "tools",
+			PluginName: "acme",
+		}, database.WorkspaceAgentContextResourceStatusUnreadable)
+		collision.Error = "server name already in use by an earlier config"
+		badName := mcpServerResource(t, "Bad_Name/tools", &agentproto.MCPServerBody{
+			ServerName: "tools",
+			PluginName: "Bad_Name",
+		}, database.WorkspaceAgentContextResourceStatusUnreadable)
+		badName.Error = "failed to connect"
+		brokenManifest := pluginResource(t, "/home/coder/.coder/plugins/broken", "broken", database.WorkspaceAgentContextResourceStatusInvalid)
+		brokenManifest.Error = "unsupported schema version"
+		resources := []database.ChatContextResource{escapedSkill, collision, badName, brokenManifest}
+
+		// Attribution survives a non-OK status for skill and mcp_server
+		// rows; a plugin name that fails validation is omitted while the
+		// row itself is kept, and manifest rows are never attributed here.
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source:     "/home/coder/.coder/plugins/acme/skills/badmd",
+				Kind:       codersdk.ChatContextResourceKindSkill,
+				Status:     codersdk.ChatContextResourceStatusInvalid,
+				Error:      "symlink target escapes scan root",
+				PluginName: "acme",
+			},
+			{
+				Source:     "acme/tools",
+				Kind:       codersdk.ChatContextResourceKindMCPServer,
+				Status:     codersdk.ChatContextResourceStatusUnreadable,
+				Error:      "server name already in use by an earlier config",
+				PluginName: "acme",
+			},
+			{
+				Source: "Bad_Name/tools",
+				Kind:   codersdk.ChatContextResourceKindMCPServer,
+				Status: codersdk.ChatContextResourceStatusUnreadable,
+				Error:  "failed to connect",
+			},
+			{
+				Source: "/home/coder/.coder/plugins/broken",
+				Kind:   codersdk.ChatContextResourceKindPlugin,
+				Status: codersdk.ChatContextResourceStatusInvalid,
+				Error:  "unsupported schema version",
+			},
+		}, pinnedContextResources(resources))
+	})
+
 	t.Run("IncludesMCPConfigAndServer", func(t *testing.T) {
 		t.Parallel()
 
@@ -629,6 +813,101 @@ func TestPinnedContextResources(t *testing.T) {
 				},
 			},
 		}, out)
+	})
+
+	t.Run("OKRowsKeepWarnings", func(t *testing.T) {
+		t.Parallel()
+
+		plugin := pluginResource(t, "/home/coder/.coder/plugins/extras", "extras", database.WorkspaceAgentContextResourceStatusOk)
+		plugin.Error = `extensions must be an object; ignored; unknown field "displayName" ignored`
+		skill := skillResource(t, "/home/coder/.coder/skills/review", "review", "Review code", database.WorkspaceAgentContextResourceStatusOk)
+		skill.Error = "description truncated"
+		resources := []database.ChatContextResource{plugin, skill}
+
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source:     "/home/coder/.coder/plugins/extras",
+				Kind:       codersdk.ChatContextResourceKindPlugin,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				Error:      `extensions must be an object; ignored; unknown field "displayName" ignored`,
+				PluginName: "extras",
+			},
+			{
+				Source:           "/home/coder/.coder/skills/review",
+				Kind:             codersdk.ChatContextResourceKindSkill,
+				Status:           codersdk.ChatContextResourceStatusOK,
+				Error:            "description truncated",
+				SkillName:        "review",
+				SkillDescription: "Review code",
+			},
+		}, pinnedContextResources(resources))
+	})
+
+	t.Run("PluginRowsCarryPluginName", func(t *testing.T) {
+		t.Parallel()
+
+		invalidPlugin := pluginResource(t, "/home/coder/.coder/plugins/broken", "", database.WorkspaceAgentContextResourceStatusInvalid)
+		invalidPlugin.Error = "unsupported schema version"
+		resources := []database.ChatContextResource{
+			pluginResource(t, "/home/coder/.coder/plugins/acme", "acme", database.WorkspaceAgentContextResourceStatusOk),
+			invalidPlugin,
+			pluginSkillResource(t, "/home/coder/.coder/plugins/acme/skills/deploy", "acme", "deploy", "Deploy via acme"),
+			mcpServerResource(t, "acme-tools", &agentproto.MCPServerBody{
+				ServerName: "acme-tools",
+				PluginName: "acme",
+				Tools:      []*agentproto.MCPTool{{Name: "acme-tools__ping"}},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+			skillResource(t, "/home/coder/.coder/skills/review", "review", "Review code", database.WorkspaceAgentContextResourceStatusOk),
+		}
+
+		// The manifest and attributed rows carry the plugin name.
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source:     "/home/coder/.coder/plugins/acme",
+				Kind:       codersdk.ChatContextResourceKindPlugin,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				PluginName: "acme",
+			},
+			{
+				Source: "/home/coder/.coder/plugins/broken",
+				Kind:   codersdk.ChatContextResourceKindPlugin,
+				Status: codersdk.ChatContextResourceStatusInvalid,
+				Error:  "unsupported schema version",
+			},
+			{
+				Source:           "/home/coder/.coder/plugins/acme/skills/deploy",
+				Kind:             codersdk.ChatContextResourceKindSkill,
+				Status:           codersdk.ChatContextResourceStatusOK,
+				SkillName:        "deploy",
+				SkillDescription: "Deploy via acme",
+				PluginName:       "acme",
+			},
+			{
+				Source:     "acme-tools",
+				Kind:       codersdk.ChatContextResourceKindMCPServer,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				PluginName: "acme",
+				Tools:      []codersdk.ChatContextTool{{Name: "ping"}},
+			},
+			{
+				Source:           "/home/coder/.coder/skills/review",
+				Kind:             codersdk.ChatContextResourceKindSkill,
+				Status:           codersdk.ChatContextResourceStatusOK,
+				SkillName:        "review",
+				SkillDescription: "Review code",
+			},
+		}, pinnedContextResources(resources))
+	})
+
+	t.Run("SkipsInvalidNames", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			pluginResource(t, "/p/bad", "Bad Plugin", database.WorkspaceAgentContextResourceStatusOk),
+			pluginSkillResource(t, "/p/bad/skills/deploy", "Bad Plugin", "deploy", ""),
+			skillResource(t, "/s/bad", "Bad Skill", "", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		require.Empty(t, pinnedContextResources(resources))
 	})
 }
 
@@ -765,6 +1044,27 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 		}
 		require.Empty(t, workspaceMCPToolInfosFromResources(resources))
+	})
+
+	t.Run("PluginServersIncluded", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+				ServerName: "github",
+				Tools:      []*agentproto.MCPTool{{Name: "create_issue"}},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+			mcpServerResource(t, "acme-tools", &agentproto.MCPServerBody{
+				ServerName: "acme-tools",
+				PluginName: "acme",
+				Tools:      []*agentproto.MCPTool{{Name: "ping"}},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+		}
+
+		infos := workspaceMCPToolInfosFromResources(resources)
+		require.Len(t, infos, 2)
+		require.Equal(t, "github__create_issue", infos[0].Name)
+		require.Equal(t, "acme-tools__ping", infos[1].Name)
 	})
 }
 
