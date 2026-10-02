@@ -922,8 +922,12 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			// Return authorization response with user ID, username, and email.
-			authResponse := &proto.IsAuthorizedResponse{OwnerId: testUserID.String(), Username: testUsername}
+			// Return authorization response with user ID, API key ID, username, and email.
+			authResponse := &proto.IsAuthorizedResponse{
+				OwnerId:  testUserID.String(),
+				ApiKeyId: uuid.NewString(),
+				Username: testUsername,
+			}
 			if !tc.legacy {
 				authResponse.Email = testEmail
 			}
@@ -1037,7 +1041,10 @@ func TestRouting(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+				OwnerId:  uuid.NewString(),
+				ApiKeyId: uuid.NewString(),
+			}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
 			// This is the only recording we really care about in this test. This is called before the provider-specific logic processes
