@@ -727,9 +727,9 @@ func TestChatAutomations(t *testing.T) {
 			Enabled:        true,
 		})
 
-		// requireStatus checks that list, get, and patch agree on the
-		// paused reasons of id as seen by client, and that a paused
-		// schedule lists no upcoming runs.
+		// requireStatus checks that list and get agree on the paused
+		// reasons of id as seen by client, and that a paused schedule
+		// lists no upcoming runs.
 		requireStatus := func(t *testing.T, client *codersdk.ExperimentalClient, id uuid.UUID, want ...codersdk.ChatAutomationPausedReason) {
 			t.Helper()
 			list, err := client.ChatAutomations(ctx, env.orgID)
