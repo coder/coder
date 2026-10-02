@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -721,4 +722,98 @@ func setOwnerStatus(ctx context.Context, t *testing.T, f publishFixture, status 
 		UpdatedAt: dbtestutil.NowInDefaultTimezone(),
 	})
 	require.NoError(t, err)
+}
+
+func TestRotateAutomationSecret(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Rotates", func(t *testing.T) {
+		t.Parallel()
+		for _, use := range []codersdk.ChatAutomationWebhookUse{
+			codersdk.ChatAutomationWebhookUseSingle,
+			codersdk.ChatAutomationWebhookUseMulti,
+		} {
+			t.Run(string(use), func(t *testing.T) {
+				t.Parallel()
+				f := newPublishFixture(t, database.ChatStatusWaiting)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.webhook(ctx, t, use, codersdk.ChatAutomationWhenBusyQueue)
+
+				rotated, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, secret)
+				require.Equal(t, automation.WebhookSecretVersion+1, rotated.WebhookSecretVersion)
+			})
+		}
+	})
+
+	t.Run("UsedSingleUse", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.singleUseWebhook(ctx, t, codersdk.ChatAutomationTargetModeExistingChat)
+		count, err := f.db.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+			ID:  automation.ID,
+			Now: time.Now(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		consumed, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+
+		_, secret, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+		require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
+		require.Empty(t, secret)
+		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, consumed.WebhookSecretHash, stored.WebhookSecretHash)
+		require.Equal(t, consumed.WebhookSecretVersion, stored.WebhookSecretVersion)
+	})
+
+	t.Run("UsedWhileWaitingForLock", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.singleUseWebhook(ctx, t, codersdk.ChatAutomationTargetModeExistingChat)
+
+		// Consume the webhook in a transaction that stays open until the
+		// rotation waits for the row lock.
+		consumed := make(chan struct{})
+		release := make(chan struct{})
+		consumeErr := make(chan error, 1)
+		go func() {
+			consumeErr <- f.db.InTx(func(tx database.Store) error {
+				count, err := tx.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+					ID:  automation.ID,
+					Now: time.Now(),
+				})
+				if err != nil {
+					return err
+				}
+				if count != 1 {
+					return xerrors.New("webhook was not consumed")
+				}
+				close(consumed)
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.TryReceive(ctx, t, consumed)
+
+		rotateErr := make(chan error, 1)
+		go func() {
+			_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+			rotateErr <- err
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var waits int
+			err := f.sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+			return err == nil && waits >= 1
+		}, testutil.IntervalFast, "wait for the rotation to wait for the row lock")
+		close(release)
+
+		require.NoError(t, testutil.TryReceive(ctx, t, consumeErr))
+		require.ErrorIs(t, testutil.TryReceive(ctx, t, rotateErr), chatd.ErrAutomationWebhookConsumed)
+	})
 }

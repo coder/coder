@@ -183,3 +183,15 @@ export const MockChatAutomation: ChatAutomation = {
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };
+
+export const MockWebhookChatAutomation: ChatAutomation = {
+	...MockChatAutomation,
+	id: "2b8e4f6a-1c3d-4e5f-8a9b-0c1d2e3f4a5b",
+	name: "Deploy notifier",
+	kind: "webhook",
+	webhook_use: "multi",
+	webhook_secret_version: 1,
+	prompt: "Summarize the deploy event.",
+	schedule_cron: undefined,
+	schedule_time_zone: undefined,
+};

@@ -6,7 +6,9 @@ import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
+	ChatAutomationKind,
 	ChatAutomationTargetMode,
+	ChatAutomationWebhookUse,
 	ChatAutomationWhenBusy,
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
@@ -22,8 +24,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
-import { Label } from "#/components/Label/Label";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -40,8 +41,16 @@ import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
+import { AutomationWebhookFields } from "./AutomationWebhookFields";
+import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
+
+const KIND_FIELDS: readonly string[] = [
+	"schedule_cron",
+	"schedule_time_zone",
+	"webhook_use",
+];
 
 const TARGET_FIELDS: readonly string[] = [
 	"target_chat_id",
@@ -54,6 +63,8 @@ const TARGET_FIELDS: readonly string[] = [
 type AutomationFormValues = {
 	name: string;
 	prompt: string;
+	kind: ChatAutomationKind;
+	webhook_use: ChatAutomationWebhookUse;
 	schedule_cron: string;
 	schedule_time_zone: string;
 	target_mode: ChatAutomationTargetMode;
@@ -63,11 +74,16 @@ type AutomationFormValues = {
 	reasoning_effort: string;
 };
 
+const defaultWhenBusy = (kind: ChatAutomationKind): ChatAutomationWhenBusy =>
+	kind === "webhook" ? "queue" : "skip";
+
 const initialFormValues = (
 	automation: ChatAutomation | undefined,
 ): AutomationFormValues => ({
 	name: automation?.name ?? "",
 	prompt: automation?.prompt ?? "",
+	kind: automation?.kind ?? "schedule",
+	webhook_use: automation?.webhook_use ?? "multi",
 	schedule_cron: automation ? (automation.schedule_cron ?? "") : "0 9 * * *",
 	schedule_time_zone: automation
 		? (automation.schedule_time_zone ?? "")
@@ -90,12 +106,16 @@ const buildCreateRequest = (
 ): CreateChatAutomationRequest => {
 	const shared = {
 		name: values.name,
-		kind: "schedule",
 		target_mode: values.target_mode,
 		prompt: values.prompt,
-		schedule_cron: values.schedule_cron,
-		schedule_time_zone: values.schedule_time_zone,
-	} as const;
+		kind: values.kind,
+		...(values.kind === "schedule"
+			? {
+					schedule_cron: values.schedule_cron,
+					schedule_time_zone: values.schedule_time_zone,
+				}
+			: { webhook_use: values.webhook_use }),
+	};
 	if (values.target_mode === "existing_chat") {
 		return {
 			...shared,
@@ -151,10 +171,16 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
+	/** Origin of the webhook publish endpoint. */
+	origin: string;
 	error: unknown;
 	isSubmitting: boolean;
+	rotateSecretError: unknown;
+	isRotatingSecret: boolean;
 	onCreate: (req: CreateChatAutomationRequest) => void;
 	onUpdate: (req: UpdateChatAutomationRequest) => void;
+	/** Receives the Rotate secret button so focus can return to it later. */
+	onRotateSecret: (rotateButton: HTMLButtonElement | null) => void;
 	onClose: () => void;
 };
 
@@ -162,16 +188,20 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	organizationId,
 	automation,
 	currentUserId,
+	origin,
 	error,
 	isSubmitting,
+	rotateSecretError,
+	isRotatingSecret,
 	onCreate,
 	onUpdate,
+	onRotateSecret,
 	onClose,
 }) => {
 	const isCreate = !automation;
-	const isSchedule = !automation || automation.kind === "schedule";
-	const existingChatId = useId();
-	const newChatId = useId();
+	const triggerLabelId = useId();
+	// A user-picked When busy value survives trigger changes.
+	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
 	const modelErrorId = useId();
 	// Radix returns focus to a DialogTrigger on close; this dialog has none.
 	const [opener] = useState(() =>
@@ -198,6 +228,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const initialValues = initialFormValues(automation);
 	const form = useFormik<AutomationFormValues>({
 		initialValues,
+		// A blur error would shift the fields below it between pointerdown and
+		// pointerup, so the click on a radio below would not register.
+		validateOnBlur: false,
 		validationSchema: Yup.object({
 			name: Yup.string()
 				.trim()
@@ -209,9 +242,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					(value = "") => [...value].length <= NAME_MAX_LENGTH,
 				),
 			prompt: Yup.string().trim().required("Prompt is required."),
-			schedule_cron: isSchedule
-				? Yup.string().trim().required("Cron expression is required.")
-				: Yup.string(),
+			schedule_cron: Yup.string().when("kind", {
+				is: "schedule",
+				then: (schema) =>
+					schema.trim().required("Cron expression is required."),
+			}),
 			target_chat_id: Yup.string().when("target_mode", {
 				is: "existing_chat",
 				then: (schema) => schema.required("Choose a chat."),
@@ -236,19 +271,28 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	// Server errors on target fields go stale once the target mode changes.
-	const isStaleTargetField = (field: string) =>
-		submittedValues !== undefined &&
-		submittedValues.target_mode !== form.values.target_mode &&
-		TARGET_FIELDS.includes(field);
+	// Server errors on kind or target fields go stale once that choice changes.
+	const isStaleField = (field: string) => {
+		if (!submittedValues) {
+			return false;
+		}
+		const kindChanged = submittedValues.kind !== form.values.kind;
+		const targetChanged =
+			submittedValues.target_mode !== form.values.target_mode;
+		return (
+			(kindChanged && KIND_FIELDS.includes(field)) ||
+			(targetChanged && TARGET_FIELDS.includes(field))
+		);
+	};
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
 		getFormHelpers(
 			form,
-			submittedValues?.[name] === form.values[name] && !isStaleTargetField(name)
+			submittedValues?.[name] === form.values[name] && !isStaleField(name)
 				? error
 				: undefined,
 		)(name);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
+	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
@@ -266,8 +310,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) =>
 			!renderedFields.includes(validation.field) &&
-			!isStaleTargetField(validation.field),
+			!isStaleField(validation.field),
 	);
+	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
 		Boolean(error) &&
 		(!apiError?.validations?.length || alertValidations.length > 0);
@@ -276,7 +321,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		<Dialog
 			open
 			onOpenChange={(open) => {
-				if (!open && !isSubmitting) {
+				if (!open && !isPending) {
 					onClose();
 				}
 			}}
@@ -301,8 +346,10 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						</DialogTitle>
 						<DialogDescription>
 							{isCreate
-								? "Send a prompt to an agent on a schedule."
-								: "The trigger and target type cannot change after creation."}
+								? "Create a schedule or webhook that sends a prompt to an agent."
+								: isSchedule
+									? "The trigger and target type cannot change after creation."
+									: "The trigger, webhook use, and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
 					{/* The div scrolls because Chrome does not scroll a flex-sized
@@ -315,7 +362,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						>
 							{automation && automation.owner_id !== currentUserId && (
 								<p className="m-0 text-sm text-content-secondary">
-									Only the owner of this automation can save changes.
+									Only the owner of this automation can change it.
 								</p>
 							)}
 							{showAlert && (
@@ -353,12 +400,41 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								)}
 							/>
 							<section className="flex flex-col gap-4">
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Trigger:{" "}
-									<span className="font-normal text-content-secondary">
-										{isSchedule ? "Schedule" : "Webhook"}
-									</span>
-								</h3>
+								{isCreate ? (
+									<>
+										<h3
+											id={triggerLabelId}
+											className="m-0 text-sm font-medium text-content-primary"
+										>
+											Trigger
+										</h3>
+										<RadioGroup
+											aria-labelledby={triggerLabelId}
+											value={form.values.kind}
+											onValueChange={(kind) => {
+												if (kind === "schedule" || kind === "webhook") {
+													if (!whenBusyChosen) {
+														form.setFieldValue(
+															"when_busy",
+															defaultWhenBusy(kind),
+														);
+													}
+													form.setFieldValue("kind", kind);
+												}
+											}}
+										>
+											<RadioOption value="schedule" label="Schedule" />
+											<RadioOption value="webhook" label="Webhook" />
+										</RadioGroup>
+									</>
+								) : (
+									<h3 className="m-0 text-sm font-medium text-content-primary">
+										Trigger:{" "}
+										<span className="font-normal text-content-secondary">
+											{isSchedule ? "Schedule" : "Webhook"}
+										</span>
+									</h3>
+								)}
 								{isSchedule && (
 									<AutomationScheduleFields
 										organizationId={organizationId}
@@ -371,6 +447,20 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										onTimeZoneChange={(timeZone) =>
 											form.setFieldValue("schedule_time_zone", timeZone)
 										}
+									/>
+								)}
+								{!isSchedule && (
+									<AutomationWebhookFields
+										automation={automation}
+										origin={origin}
+										webhookUse={form.values.webhook_use}
+										onWebhookUseChange={(webhookUse) =>
+											form.setFieldValue("webhook_use", webhookUse)
+										}
+										rotateSecretError={rotateSecretError}
+										isRotatingSecret={isRotatingSecret}
+										isSubmitting={isSubmitting}
+										onRotateSecret={onRotateSecret}
 									/>
 								)}
 							</section>
@@ -393,21 +483,8 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											}
 										}}
 									>
-										<div className="flex items-center gap-2">
-											<RadioGroupItem
-												id={existingChatId}
-												value="existing_chat"
-											/>
-											<Label htmlFor={existingChatId} className="font-normal">
-												Existing chat
-											</Label>
-										</div>
-										<div className="flex items-center gap-2">
-											<RadioGroupItem id={newChatId} value="new_chat" />
-											<Label htmlFor={newChatId} className="font-normal">
-												New chat each run
-											</Label>
-										</div>
+										<RadioOption value="existing_chat" label="Existing chat" />
+										<RadioOption value="new_chat" label="New chat each run" />
 									</RadioGroup>
 								) : (
 									<p className="m-0 text-sm text-content-secondary">
@@ -435,6 +512,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											label="When busy"
 											onValueChange={(value) => {
 												if (value === "skip" || value === "queue") {
+													setWhenBusyChosen(true);
 													form.setFieldValue("when_busy", value);
 												}
 											}}
@@ -518,12 +596,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						<Button
 							type="button"
 							variant="outline"
-							disabled={isSubmitting}
+							disabled={isPending}
 							onClick={onClose}
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isSubmitting}>
+						<Button type="submit" disabled={isPending}>
 							<Spinner loading={isSubmitting} />
 							Save
 						</Button>

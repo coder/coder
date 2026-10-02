@@ -8,7 +8,11 @@ import type {
 	ChatModel,
 	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
-import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatAutomation,
+	MockWebhookChatAutomation,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -29,6 +33,12 @@ const mockModel: ChatModel = {
 
 const mockAutomation: ChatAutomation = {
 	...MockChatAutomation,
+	organization_id: organizationId,
+	target_chat_id: MockChat.id,
+};
+
+const mockWebhookAutomation: ChatAutomation = {
+	...MockWebhookChatAutomation,
 	organization_id: organizationId,
 	target_chat_id: MockChat.id,
 };
@@ -71,10 +81,14 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 	args: {
 		organizationId,
 		currentUserId: MockUserOwner.id,
+		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
+		rotateSecretError: undefined,
+		isRotatingSecret: false,
 		onCreate: fn(),
 		onUpdate: fn(),
+		onRotateSecret: fn(),
 		onClose: fn(),
 	},
 };
@@ -256,6 +270,147 @@ export const SaveForbidden: Story = {
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
+		],
+	},
+};
+
+export const CreateWebhook: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Webhook" }),
+		);
+	},
+};
+
+export const EditWebhook: Story = {
+	args: { automation: mockWebhookAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const RotatingSecret: Story = {
+	args: { automation: mockWebhookAutomation, isRotatingSecret: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const EditUsedSingleUseWebhook: Story = {
+	args: {
+		automation: {
+			...mockWebhookAutomation,
+			webhook_use: "single",
+			webhook_consumed_at: "2026-09-30T10:15:00Z",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+	// formatDate renders in the browser's zone, which resolvedOptions does not
+	// control. Pin it so "Used on" renders the same on every host.
+	beforeEach: () => {
+		const toLocaleDateString = Date.prototype.toLocaleDateString;
+		spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
+			this: Date,
+			locales?: Intl.LocalesArgument,
+			options?: Intl.DateTimeFormatOptions,
+		) {
+			return toLocaleDateString.call(this, locales, {
+				...options,
+				timeZone: options?.timeZone ?? storyTimeZone,
+			});
+		});
+	},
+};
+
+export const ConfirmRotateSecret: Story = {
+	args: { automation: mockWebhookAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Rotate secret" }),
+		);
+	},
+};
+
+export const RotateSecretForbidden: Story = {
+	args: {
+		automation: mockWebhookAutomation,
+		currentUserId: "another-user",
+		rotateSecretError: mockApiError({
+			message: "Only the owner of a chat automation can change it.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const RotateSecretConflict: Story = {
+	args: {
+		// The editor still shows the webhook as unused while the server has
+		// already consumed it.
+		automation: { ...mockWebhookAutomation, webhook_use: "single" },
+		rotateSecretError: mockApiError({
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
 	},
 };

@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -674,6 +675,21 @@ func TestChatAutomations(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
 		require.Equal(t, "kind", sdkErr.Validations[0].Field)
+
+		singleUse := env.webhookRequest()
+		singleUse.WebhookUse = ptr.Ref(codersdk.ChatAutomationWebhookUseSingle)
+		used, err := env.member.CreateChatAutomation(ctx, env.orgID, singleUse)
+		require.NoError(t, err)
+		count, err := env.db.ConsumeChatAutomationWebhookByID(dbauthz.AsChatd(ctx), database.ConsumeChatAutomationWebhookByIDParams{
+			ID:  used.Automation.ID,
+			Now: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		_, err = env.member.RotateChatAutomationSecret(ctx, env.orgID, used.Automation.ID)
+		sdkErr = requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "This single-use webhook was already used.", sdkErr.Message)
+		require.Equal(t, "Its secret can no longer be rotated.", sdkErr.Detail)
 	})
 
 	t.Run("SchedulePreview", func(t *testing.T) {

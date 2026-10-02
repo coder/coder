@@ -64,6 +64,7 @@ type AgentAutomationsPageViewProps = {
 	onEditAutomation: (automation: ChatAutomation) => void;
 	chatsDialog?: AutomationChatsDialogState;
 	editorDialog?: React.ReactNode;
+	webhookSecretDialog?: React.ReactNode;
 };
 
 type AutomationChatsDialogProps = {
@@ -168,6 +169,7 @@ export const AgentAutomationsPageView: React.FC<
 	onEditAutomation,
 	chatsDialog,
 	editorDialog,
+	webhookSecretDialog,
 }) => {
 	let rows: React.ReactNode;
 	if (isLoading) {
@@ -176,7 +178,7 @@ export const AgentAutomationsPageView: React.FC<
 		rows = (
 			<TableEmpty
 				message="No automations yet"
-				description="Create a schedule to send a prompt to an agent."
+				description="Create a schedule or webhook that sends a prompt to an agent."
 			/>
 		);
 	} else {
@@ -257,6 +259,7 @@ export const AgentAutomationsPageView: React.FC<
 			</div>
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
 			{editorDialog}
+			{webhookSecretDialog}
 		</ScrollArea>
 	);
 };
