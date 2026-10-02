@@ -109,9 +109,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    tool-result batches contiguous before attaching user media.
 // 12) coder/fantasy mike/openai-encrypted-reasoning (unmerged), capture
 //    finalized OpenAI Responses reasoning (item ID, encrypted content,
-//    summary) and replay it in full regardless of store.
-// See: https://github.com/coder/fantasy/commits/fc95e4377dd1
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261002104043-fc95e4377dd1
+//    summary) and replay it in full regardless of store. Skip hosted search
+//    references from unstored source responses.
+// See: https://github.com/coder/fantasy/commits/f8a25c79b3ad
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261002142535-f8a25c79b3ad
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
