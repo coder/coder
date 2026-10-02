@@ -91,13 +91,17 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+// Rows without an automation get a fixed status, so memoized rows skip
+// re-rendering when the automations list status changes.
+const NO_AUTOMATION_NAME_STATUS: ChatAutomationNames["status"] = "settled";
+
 const ChatMessageItem = memo<{
 	organizationId: string | undefined;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	automationName?: string;
-	automationNameStatus?: ChatAutomationNames["status"];
+	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -586,6 +590,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								<ChatMessageItem
 									organizationId={organizationId}
 									renderKey={row.key}
+									automationNameStatus={NO_AUTOMATION_NAME_STATUS}
 									liveStatus={liveStatus}
 									liveBlocks={liveBlocks}
 									liveTools={liveTools}
@@ -624,10 +629,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										? automationNames.names.get(message.automation_id)
 										: undefined
 								}
-								// Only automation rows read the list status, so other
-								// memoized rows skip re-rendering when it changes.
 								automationNameStatus={
-									message.automation_id ? automationNames.status : undefined
+									message.automation_id
+										? automationNames.status
+										: NO_AUTOMATION_NAME_STATUS
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}

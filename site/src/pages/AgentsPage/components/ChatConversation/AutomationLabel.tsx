@@ -17,14 +17,14 @@ type AutomationLabelProps = {
 	automationId: string;
 	inputId?: string;
 	automationName?: string;
-	nameStatus?: ChatAutomationNames["status"];
+	nameStatus: ChatAutomationNames["status"];
 };
 
 export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	automationId,
 	inputId,
 	automationName,
-	nameStatus = "settled",
+	nameStatus,
 }) => {
 	const inputPart = inputId ? ` · input ${inputId.slice(0, 8)}` : "";
 	// Hide the ID while the name may still resolve so the label does not
