@@ -269,6 +269,17 @@ Coder also rejects a schedule that never runs.
 
 When you restrict both the day of month and the day of week, the schedule runs on days that match either field.
 Schedules follow wall-clock time in their time zone, so a `0 9 * * *` schedule runs at 9:00 AM local time before and after a daylight saving time change.
+When clocks go back, a time that occurs twice runs once, at its first occurrence.
+For example, in `America/New_York` a `30 1 * * *` schedule runs once on the night clocks go back, at the first 1:30 AM.
+When clocks go forward, a time that the change skips runs at the first valid time after the change.
+For example, in `America/New_York` a `30 2 * * *` schedule runs at 3:00 AM on the night clocks go forward.
+Several skipped times in one change run once, together with a run scheduled at the end of the change.
+
+A schedule must leave at least the deployment's minimum interval between two runs, 5&nbsp;minutes by default.
+Coder rejects a new or changed schedule that runs more often with a `400` error on `schedule_cron`.
+Administrators set the minimum with `--chat-min-automation-schedule-interval`.
+Schedules that already run more often keep running, and their responses include `"schedule_interval_below_minimum": true`.
+To change the cron expression or time zone of such a schedule, the new schedule must meet the minimum.
 
 ### Check upcoming runs
 
@@ -278,11 +289,14 @@ The control plane computes the next runs of a schedule:
 - Responses for turned-on schedules include `next_run_times`, up to five times in UTC.
 - `POST /api/experimental/organizations/{organization}/chat-automations/schedule-preview` evaluates an unsaved schedule.
   Send `schedule_cron` and `schedule_time_zone`, and the response contains `next_run_times`.
+  When the time zone changes its clocks within a year, the response also contains `clock_change_note`, which explains how the schedule runs across the change.
+  The editor shows the note under **Upcoming runs**.
 
 ### When a schedule runs
 
 Coder checks for due schedules every 30&nbsp;seconds and accepts an occurrence up to 60&nbsp;seconds late.
 An occurrence that is older than that is missed and never replayed.
+When a check finds a missed occurrence, it still runs the next occurrence that is less than 60&nbsp;seconds late.
 After a server outage, schedules continue from their next time and don't catch up on missed runs.
 
 When you turn a schedule back on, it continues from its next future time.
@@ -306,8 +320,9 @@ Messages to an existing chat use that chat's own model and tools.
 
 A new chat target starts a chat for every run with the model you pick.
 You can also set a reasoning effort.
-Each new chat is titled with the automation name and the run time.
+Each new chat is titled with the automation name and the run time, for example `Nightly report · 16 Sep 09:00 CEST`.
 Schedules use the schedule's time zone, and webhooks use UTC.
+When the time zone has no abbreviation, the title shows its UTC offset, such as `UTC-03`.
 New chats get only the MCP servers with the `force_on` [availability policy](./platform-controls/mcp-servers.md#availability-policies) that the owner can access.
 
 To find the chats an automation created or sent messages to, select **View chats** on its row.
@@ -382,6 +397,7 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 | Limit                         | Value                                                                                                                          |
 |-------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | Automations per owner         | 50 by default, counted across all organizations. Creating one more returns `409`. Set with `--chat-max-automations-per-owner`. |
+| Time between schedule runs    | At least 5&nbsp;minutes by default. Set with `--chat-min-automation-schedule-interval`.                                        |
 | Queued messages per chat      | 20 by default. Set with `--chat-max-queued-messages-per-chat`.                                                                 |
 | Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                        |
 | Webhook body                  | 256&nbsp;KiB of valid JSON.                                                                                                    |
@@ -397,7 +413,7 @@ Review these risks before you turn the experiment on for many users.
 ### Spend
 
 The per-owner limit caps how many automations exist, not how many turns or chats they start.
-Coder doesn't limit how often a schedule runs, so a schedule that runs every minute can start a turn every minute.
+A schedule that runs as often as the minimum interval allows can start a turn every 5&nbsp;minutes by default.
 A leaked multi-use secret for a new chat target lets anyone with the secret start chats as the owner until you act.
 
 To stop the spend, rotate the secret or turn the automation off.
