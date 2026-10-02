@@ -107,7 +107,9 @@ func TestUpWithFSChatTableLocks(t *testing.T) {
 	})
 
 	// The view lock must leave chats_expanded unchanged, whatever its
-	// options.
+	// options. The lock step must also restore lock_timeout, or every
+	// later migration in the transaction gives up on a lock after the short
+	// wait the lock step uses.
 	for _, tc := range []struct {
 		name    string
 		options string
@@ -141,7 +143,14 @@ func TestUpWithFSChatTableLocks(t *testing.T) {
 			}
 
 			migs := migrationsFS(t, 0)
-			migs["999999_noop.up.sql"] = &fstest.MapFile{Data: []byte(`SELECT 1;`)}
+			migs["999999_noop.up.sql"] = &fstest.MapFile{Data: []byte(`
+DO $$
+BEGIN
+	IF (SELECT setting <> reset_val FROM pg_settings WHERE name = 'lock_timeout') THEN
+		RAISE EXCEPTION 'lock_timeout is % after the chat table locks', current_setting('lock_timeout');
+	END IF;
+END;
+$$;`)}
 			migs["999999_noop.down.sql"] = &fstest.MapFile{Data: []byte(`SELECT 1;`)}
 			require.NoError(t, migrations.UpWithFS(db, migs))
 
