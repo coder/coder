@@ -238,14 +238,17 @@ const getFirstHeading = (text: string): HeadingMatch | undefined => {
 		}
 
 		if (setextCandidate && /^ {0,3}(=+|-+)[ \t]*$/.test(line)) {
-			// A line's start decides whether an underline makes it a heading, so
-			// a line too long to parse is cut to classify the pair.
+			// A line's start decides whether an underline makes it a heading, and
+			// a long underline reads the same as its first three characters, so
+			// both are cut to keep the pair within the parse bound.
+			const underline = line.trim().slice(0, 3);
 			const candidate = sliceAtGraphemeBoundary(
 				setextCandidate.line,
-				PARSED_SOURCE_MAX_LENGTH - line.length - 1,
+				PARSED_SOURCE_MAX_LENGTH - underline.length - 1,
 			);
-			const [block] =
-				parseHeadingCandidate(`${candidate}\n${line}`)?.children ?? [];
+			const [block] = markdownParser.parse(
+				`${candidate}\n${underline}`,
+			).children;
 			if (block?.type === "heading") {
 				if (candidate !== setextCandidate.line) {
 					return undefined;

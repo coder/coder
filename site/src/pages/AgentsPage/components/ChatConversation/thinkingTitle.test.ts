@@ -248,6 +248,14 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it("uses a setext heading with an underline too long to parse", () => {
+		expect(
+			getThinkingDisclosureDisplay(`Title\n${"-".repeat(399)}\n\n## Next`, {
+				isStreaming: false,
+			}),
+		).toEqual({ title: "Thinking about title", body: "## Next" });
+	});
+
 	it.each([
 		// A stream can pause on the next item's marker, which looks like a
 		// setext underline.
