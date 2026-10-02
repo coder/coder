@@ -185,6 +185,7 @@ type AgentChatInputProps = {
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
+	// Composers without a queue have no automation inputs to label.
 	automationNames?: ChatAutomationNames;
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -248,6 +249,11 @@ export type AttachedWorkspaceInfo = {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 };
+const NO_AUTOMATION_NAMES: ChatAutomationNames = {
+	names: new Map(),
+	status: "settled",
+};
+
 // Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
 // it), grow expands into free row space, and max-w-max caps at the
 // label's natural width. Below the floor the +N overflow takes over.
@@ -525,7 +531,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
-	automationNames,
+	automationNames = NO_AUTOMATION_NAMES,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	warning,
