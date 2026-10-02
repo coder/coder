@@ -19,8 +19,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -177,13 +179,14 @@ func blockingHandler() (h http.Handler, started <-chan struct{}, release func())
 	return h, startedCh, func() { close(releaseCh) }
 }
 
-// serveAsync invokes an acquired handler and reports the response status.
+// serveAsync invokes an acquired handler on a passthrough route and reports
+// the response status.
 func serveAsync(handler http.Handler) <-chan int {
 	done := make(chan int, 1)
 	go func() {
 		defer close(done)
 		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/openai/v1/models", nil))
 		done <- rec.Code
 	}()
 	return done
@@ -213,7 +216,8 @@ func TestServerProxy_Shutdown(t *testing.T) {
 		wantErr    error
 	}{
 		{name: "Graceful", wantStatus: http.StatusNoContent},
-		{name: "Canceled", cancel: true, wantStatus: http.StatusServiceUnavailable, wantErr: context.Canceled},
+		// Canceling the request aborts the upstream round trip.
+		{name: "Canceled", cancel: true, wantStatus: http.StatusBadGateway, wantErr: context.Canceled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -307,8 +311,8 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tracker.Close() })
 	handler, started, release := blockingHandler()
+	tracker.backend.Store(&backend{proxyRouter: newProxyTestRouter(t, handler, tracker.inflight)})
 	t.Cleanup(release)
-	tracker.backend.Store(&backend{proxyRouter: tracker.inflight.Middleware(handler)})
 	acquired, err := tracker.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
 	done := serveAsync(acquired)
@@ -316,7 +320,7 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	testutil.RequireReceive(testCtx, t, started)
 
 	cancel()
-	require.Equal(t, http.StatusServiceUnavailable, testutil.RequireReceive(testCtx, t, done))
+	require.Equal(t, http.StatusBadGateway, testutil.RequireReceive(testCtx, t, done))
 	require.ErrorIs(t, tracker.Err(), context.Canceled)
 	refused, err := tracker.GetRequestHandler(testCtx, Request{})
 	require.NoError(t, err)
@@ -328,41 +332,68 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	}
 }
 
+// blockingWriter blocks the first response write until release is closed,
+// ignoring request cancellation.
+type blockingWriter struct {
+	*httptest.ResponseRecorder
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (w *blockingWriter) Write(p []byte) (int, error) {
+	w.once.Do(func() { close(w.started) })
+	<-w.release
+	return w.ResponseRecorder.Write(p)
+}
+
 // TestServerProxy_DeadlineDoesNotWaitForHandler ensures shutdown returns
 // even if an admitted handler cannot observe cancellation, such as a blocked
 // response write.
 func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	t.Parallel()
 
-	started := make(chan context.Context, 1)
+	upstreamCanceled := make(chan struct{})
+	upstreamDone := make(chan struct{})
 	release := make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
-	tracker := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		started <- r.Context()
-		<-release
-		w.WriteHeader(http.StatusNoContent)
+	testSrv := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("chunk"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			close(upstreamCanceled)
+		case <-upstreamDone:
+		}
 	}))
-	handler, err := tracker.GetRequestHandler(t.Context(), Request{})
+	handler, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
-	inflightReqDone := serveAsync(handler)
+	writer := &blockingWriter{ResponseRecorder: httptest.NewRecorder(), started: make(chan struct{}), release: release}
+	inflightReqDone := make(chan int, 1)
+	go func() {
+		defer close(inflightReqDone)
+		handler.ServeHTTP(writer, httptest.NewRequest(http.MethodPost, "/openai/v1/models", nil))
+		inflightReqDone <- writer.Code
+	}()
 	t.Cleanup(func() {
 		unblock()
+		close(upstreamDone)
 		select {
 		case <-inflightReqDone:
-		case <-time.After(testutil.WaitLong):
+		case <-time.After(testutil.WaitShort):
 			t.Error("handler did not finish after release")
 		}
 	})
-	testCtx := testutil.Context(t, testutil.WaitLong)
-	requestCtx := testutil.RequireReceive(testCtx, t, started)
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, writer.started)
 
 	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	shutdownDone := make(chan error, 1)
-	go func() { shutdownDone <- tracker.Shutdown(ctx) }()
+	go func() { shutdownDone <- testSrv.Shutdown(ctx) }()
 	require.ErrorIs(t, testutil.RequireReceive(testCtx, t, shutdownDone), context.DeadlineExceeded)
-	testutil.TryReceive(testCtx, t, requestCtx.Done())
-	require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+	// Forced shutdown cancels the request, which aborts the upstream connection.
+	testutil.TryReceive(testCtx, t, upstreamCanceled)
 
 	select {
 	case <-inflightReqDone:
@@ -372,10 +403,10 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 
 	// Release the test handler so incorrect re-admission fails rather than hangs.
 	unblock()
-	require.Equal(t, http.StatusNoContent, testutil.RequireReceive(testCtx, t, inflightReqDone))
-	refused, err := tracker.GetRequestHandler(testCtx, Request{})
+	require.Equal(t, http.StatusOK, testutil.RequireReceive(testCtx, t, inflightReqDone))
+	afterShutdownHandler, err := testSrv.GetRequestHandler(testCtx, Request{})
 	require.NoError(t, err)
-	for _, h := range []http.Handler{handler, refused} {
+	for _, h := range []http.Handler{handler, afterShutdownHandler} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 		require.Equal(t, http.StatusServiceUnavailable, rec.Code)
@@ -388,11 +419,11 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 	t.Parallel()
 
-	tracker := newProxyTestServer(t, http.NotFoundHandler())
-	acquired, err := tracker.GetRequestHandler(t.Context(), Request{})
+	testSrv := newProxyTestServer(t, http.NotFoundHandler())
+	acquired, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
-	require.NoError(t, tracker.Shutdown(t.Context()))
-	refused, err := tracker.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, testSrv.Shutdown(t.Context()))
+	afterShutdownHandler, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -400,7 +431,7 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 		handler http.Handler
 	}{
 		{name: "Retained", handler: acquired},
-		{name: "AcquiredAfterShutdown", handler: refused},
+		{name: "AcquiredAfterShutdown", handler: afterShutdownHandler},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -413,18 +444,32 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 	}
 }
 
-// newProxyTestServer publishes a test handler behind the proxy admission gate.
-// It registers cleanup but leaves DRPC setup and the connection loop to the test.
-func newProxyTestServer(t *testing.T, handler http.Handler) *Server {
+// newProxyTestRouter creates an OpenAI proxy router admitting requests through
+// gate and forwarding to an httptest upstream served by upstreamHandler.
+func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibridge.InflightGate) *proxy.Router {
+	t.Helper()
+	upstream := httptest.NewServer(upstreamHandler)
+	t.Cleanup(upstream.Close)
+	router, err := proxy.NewRouter([]aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
+	require.NoError(t, err)
+	return router
+}
+
+// newProxyTestServer publishes a proxy router sharing the server's inflight
+// gate. It registers cleanup but leaves DRPC setup and the connection loop to
+// the test.
+func newProxyTestServer(t *testing.T, upstreamHandler http.Handler) *Server {
 	t.Helper()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	s := &Server{
 		lifecycleCtx: ctx,
 		cancelFn:     cancel,
 		logger:       slogtest.Make(t, nil),
+		tracer:       noop.NewTracerProvider().Tracer(t.Name()),
 		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
 	}
-	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(handler)})
+	s.backend.Store(&backend{proxyRouter: newProxyTestRouter(t, upstreamHandler, s.inflight)})
 	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
