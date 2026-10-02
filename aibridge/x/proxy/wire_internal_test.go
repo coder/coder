@@ -78,7 +78,7 @@ func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, 
 	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
 	outbound, body := replaybody.NewRequest(r.WithContext(context.WithValue(r.Context(), observationContextKey{}, state)))
 	t.Cleanup(func() { _ = body.Close() })
-	_ = h.forwardPrepared(w, outbound, cred, body, state, logger)
+	_ = h.forward(w, outbound, cred, body, state, logger)
 	require.NoError(t, body.Close())
 	_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
 	require.NoError(t, err)

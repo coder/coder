@@ -118,7 +118,7 @@ func (c *forwardingCall) forward(w http.ResponseWriter) {
 		outbound, body := replaybody.NewRequest(c.request)
 		c.request, c.body = outbound, body
 		c.cleanups = append(c.cleanups, func() { _ = body.Close() })
-		return c.handler.forwardPrepared(rw, outbound, c.cred, body, c.state, c.logger)
+		return c.handler.forward(rw, outbound, c.cred, body, c.state, c.logger)
 	})
 }
 
