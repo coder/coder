@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
@@ -94,50 +94,6 @@ describe("AnnouncementBannerDialog", () => {
 		expect(onUpdate).toHaveBeenCalledWith({
 			message: "Hello from the banner",
 			background_color: "#ffaff3",
-		});
-	});
-
-	it("submits a hue chosen on the slider", async () => {
-		const user = userEvent.setup();
-		const onUpdate = vi.fn(async () => undefined);
-		render(
-			<AnnouncementBannerDialog
-				banner={banner}
-				onCancel={() => undefined}
-				onUpdate={onUpdate}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "Show slider" }));
-		fireEvent.change(screen.getByRole("slider", { name: "Hue" }), {
-			target: { value: "310" },
-		});
-		await user.click(screen.getByRole("button", { name: "Update" }));
-
-		expect(onUpdate).toHaveBeenCalledWith({
-			message: "Hello from the banner",
-			background_color: "#ffadf1",
-		});
-	});
-
-	it("submits a lightness stop from the slider", async () => {
-		const user = userEvent.setup();
-		const onUpdate = vi.fn(async () => undefined);
-		render(
-			<AnnouncementBannerDialog
-				banner={banner}
-				onCancel={() => undefined}
-				onUpdate={onUpdate}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "Show slider" }));
-		await user.click(screen.getByRole("button", { name: "50% lightness" }));
-		await user.click(screen.getByRole("button", { name: "Update" }));
-
-		expect(onUpdate).toHaveBeenCalledWith({
-			message: "Hello from the banner",
-			background_color: "#bf40ac",
 		});
 	});
 

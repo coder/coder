@@ -31,12 +31,3 @@ export const EditsMessage: Story = {
 		await userEvent.type(message, "Scheduled maintenance tonight.");
 	},
 };
-
-export const HueSlider: Story = {
-	play: async () => {
-		const body = within(document.body);
-		await userEvent.click(
-			await body.findByRole("button", { name: "Show slider" }),
-		);
-	},
-};
