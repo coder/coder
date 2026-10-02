@@ -45,7 +45,7 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 	className,
 }) => {
 	const display = getChatDisplayConfig(chat);
-	const pr = display.diffStatus;
+	const pr = chat.diff_status;
 	const settled = !isActiveChatStatus(chat.status);
 	if (!chat.last_turn_summary && !pr?.url && !settled) return null;
 	const visible = pr?.pr_number ? `#${pr.pr_number}` : "PR";
