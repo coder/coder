@@ -83,6 +83,26 @@ const settingsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+// The layout owns the rename dialog state in production; mirror that so
+// opening "Rename chat" from the menu shows the dialog.
+const ChatsSidebarWithRenameState = (
+	args: React.ComponentProps<typeof ChatsSidebar>,
+) => {
+	const [chatPendingRename, setChatPendingRename] = useState(
+		args.chatPendingRename,
+	);
+	return (
+		<ChatsSidebar
+			{...args}
+			chatPendingRename={chatPendingRename}
+			onChatPendingRenameChange={(chat) => {
+				setChatPendingRename(chat);
+				args.onChatPendingRenameChange(chat);
+			}}
+		/>
+	);
+};
+
 const meta: Meta<typeof ChatsSidebar> = {
 	title: "pages/AgentsPage/ChatsSidebar",
 	component: ChatsSidebar,
@@ -90,6 +110,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
+		isLoadingModelConfigs: false,
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
@@ -97,16 +118,29 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onUnpinAgent: fn(),
 		onMarkChatRead: fn(),
 		onMarkChatUnread: fn(),
+		onReorderPinnedAgent: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
+		onProposeTitle: fn(async () => "Generated title"),
+		chatPendingRename: null,
+		onChatPendingRenameChange: fn(),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
+		isArchiving: false,
+		isLoading: false,
+		onRetryLoad: fn(),
+		hasNextPage: false,
+		onLoadMore: fn(),
+		isFetchingNextPage: false,
+		onCollapse: fn(),
+		canManageAgentSettings: false,
 		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
 	},
+	render: (args) => <ChatsSidebarWithRenameState {...args} />,
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -132,12 +166,12 @@ const ChatsSidebarWithKeybindings = (
 	};
 
 	useAgentsPageKeybindings({
-		onNewAgent: args.onBeforeNewAgent ?? (() => {}),
+		onNewAgent: args.onBeforeNewAgent,
 		onToggleSearch: () => handleSearchDialogOpenChange(!isSearchDialogOpen),
 	});
 
 	return (
-		<ChatsSidebar
+		<ChatsSidebarWithRenameState
 			{...args}
 			isSearchDialogOpen={isSearchDialogOpen}
 			onSearchDialogOpenChange={handleSearchDialogOpenChange}

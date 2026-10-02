@@ -2,12 +2,12 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 export const LoadMoreSentinel: React.FC<{
-	onLoadMore?: () => void;
-	isFetchingNextPage?: boolean;
+	onLoadMore: () => void;
+	isFetchingNextPage: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const onLoadMoreEvent = useEffectEvent(() => {
-		onLoadMore?.();
+		onLoadMore();
 	});
 
 	useEffect(() => {
