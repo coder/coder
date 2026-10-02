@@ -11,8 +11,8 @@ full-text search.
 
 | Key            | Values                                                           | Description                                                                                                           |
 |----------------|------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `title`        | substring                                                        | Case-insensitive substring match. Quote multi-word values.                                                            |
-| `organization` | organization name or ID                                          | Exact match on the conversation's organization.                                                                       |
+| `title`        | substring                                                        | Case-insensitive substring match. `%` and `_` match literally. Quote multi-word values.                               |
+| `organization` | organization name or ID                                          | Conversations in that organization. Names are case-insensitive.                                                       |
 | `archived`     | `true`, `false`, `any`                                           | Filter by archived state. `any` matches archived and active conversations. Default: `false` hides archived ones.      |
 | `has_unread`   | `true`, `false`                                                  | Conversations with unread assistant messages.                                                                         |
 | `status`       | `waiting`, `running`, `error`, `requires_action`, `interrupting` | Conversation state. Comma-separated or repeated values match any of them.                                             |
@@ -105,6 +105,8 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 - `status:requires_action` means the agent needs you before it can continue, and `status:error` means the turn failed.
 - `title:` matches `%` and `_` literally.
   `repo:` and `pr_title:` use ILIKE matching, so `%` and `_` act as wildcards.
+- `organization:` with an unknown name returns HTTP 400.
+  An organization ID that you can't see returns no conversations.
 - `pr_status:draft` means the PR is open **and** marked as a draft.
   `pr_status:open` means the PR is open and not a draft.
 - `pr_status:none` matches conversations with no pull request, including those whose linked PR was cleared.

@@ -519,7 +519,7 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 //     both)
 //   - search: full-text search over chat content; mutually exclusive
 //     with title, pr_title, and pr
-//   - organization: organization name or ID (exact match)
+//   - organization: organization ID, or name (case-insensitive)
 func Chats(ctx context.Context, db database.Store, query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats and chats not owned by the caller.
@@ -579,7 +579,16 @@ func Chats(ctx context.Context, db database.Store, query string) (database.GetCh
 		}
 	}
 
+	orgErrCount := len(parser.Errors)
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	// The query treats the nil UUID as "no filter", so reject it instead of
+	// returning chats from every organization.
+	if values.Has("organization") && len(parser.Errors) == orgErrCount && filter.OrganizationID == uuid.Nil {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "organization",
+			Detail: `Query param "organization" must not be the nil UUID.`,
+		})
+	}
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")

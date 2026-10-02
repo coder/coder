@@ -1667,6 +1667,14 @@ func TestSearchChats(t *testing.T) {
 			ExpectedErrorContains: `organization: Query param "organization" has invalid value: organization "does-not-exist" either does not exist`,
 		},
 		{
+			// The query treats the nil UUID as "no filter", so it must not
+			// be accepted as an organization.
+			Name:                  "OrganizationNilUUID",
+			Query:                 "organization:00000000-0000-0000-0000-000000000000",
+			ExpectedErrorContains: `organization: Query param "organization" must not be the nil UUID.`,
+			ExpectedErrorCount:    1,
+		},
+		{
 			Name:                  "SearchConflictsWithMultiple",
 			Query:                 "search:foo title:bar pr:12",
 			ExpectedErrorContains: `search: "search" cannot be combined with "title", "pr"`,
