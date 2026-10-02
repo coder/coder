@@ -22,7 +22,11 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { reorderPinnedChat } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -88,11 +92,8 @@ type ChatsPanelProps = {
 	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveSuccess?: (chatId: string) => void;
 	readonly navigateAfterArchive: (chatId: string) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
 	readonly onMarkChatUnread: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
@@ -120,11 +121,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	isLoadingModelConfigs,
 	onArchiveSuccess,
 	navigateAfterArchive,
-	onPinAgent,
-	onUnpinAgent,
 	onMarkChatRead,
 	onMarkChatUnread,
-	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
@@ -199,6 +197,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+	const queryClient = useQueryClient();
+	const reorderMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 
 	// Clear the local override when fresh data arrives from
 	// the server (the mutation's onSettled invalidates queries).
@@ -266,7 +271,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		reorderMutation.mutate({ chatId: activeId, pinOrder: newIndex + 1 });
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -327,8 +332,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		toggleExpanded,
 		onArchiveSuccess,
 		navigateAfterArchive,
-		onPinAgent,
-		onUnpinAgent,
 		onMarkChatRead,
 		onMarkChatUnread,
 		onOpenRenameDialog,

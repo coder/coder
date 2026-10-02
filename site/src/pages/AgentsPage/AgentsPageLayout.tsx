@@ -33,14 +33,11 @@ import {
 	markChatRead,
 	markChatUnread,
 	mergeWatchedChatIntoCaches,
-	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	reorderPinnedChat,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
-	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
@@ -88,9 +85,6 @@ export type AgentsPageOutletContext = {
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	navigateAfterArchive: (chatId: string) => void;
-	requestPinAgent: (chatId: string) => void;
-	requestUnpinAgent: (chatId: string) => void;
-	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	/**
 	 * The active chat's children from the chat list cache, which watch
 	 * events keep fresh. The entity cache's embedded children are only a
@@ -237,22 +231,6 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	const pinChatBase = pinChat(queryClient);
-	const pinAgentMutation = useMutation({
-		...pinChatBase,
-		onError: (error, chatId, context) => {
-			pinChatBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to pin agent."));
-		},
-	});
-	const unpinChatBase = unpinChat(queryClient);
-	const unpinAgentMutation = useMutation({
-		...unpinChatBase,
-		onError: (error, chatId, context) => {
-			unpinChatBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unpin agent."));
-		},
-	});
 	const markChatReadBase = markChatRead(queryClient);
 	const markChatReadMutation = useMutation({
 		...markChatReadBase,
@@ -267,12 +245,6 @@ const AgentsPageLayout: React.FC = () => {
 		onError: (error, chatId, context) => {
 			markChatUnreadBase.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
-		},
-	});
-	const reorderPinnedChatMutation = useMutation({
-		...reorderPinnedChat(queryClient),
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
 		},
 	});
 	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
@@ -303,20 +275,11 @@ const AgentsPageLayout: React.FC = () => {
 		}
 	};
 
-	const requestPinAgent = (chatId: string) => {
-		pinAgentMutation.mutate(chatId);
-	};
-	const requestUnpinAgent = (chatId: string) => {
-		unpinAgentMutation.mutate(chatId);
-	};
 	const requestMarkChatRead = (chatId: string) => {
 		markChatReadMutation.mutate(chatId);
 	};
 	const requestMarkChatUnread = (chatId: string) => {
 		markChatUnreadMutation.mutate(chatId);
-	};
-	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
-		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
@@ -543,9 +506,6 @@ const AgentsPageLayout: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		navigateAfterArchive,
-		requestPinAgent,
-		requestUnpinAgent,
-		requestReorderPinnedAgent,
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
@@ -582,11 +542,8 @@ const AgentsPageLayout: React.FC = () => {
 					isLoadingModelConfigs={organizationModels.isLoading}
 					onArchiveSuccess={clearChatErrorReason}
 					navigateAfterArchive={navigateAfterArchive}
-					onPinAgent={requestPinAgent}
-					onUnpinAgent={requestUnpinAgent}
 					onMarkChatRead={requestMarkChatRead}
 					onMarkChatUnread={requestMarkChatUnread}
-					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={requestRenameTitle}
 					onProposeTitle={requestProposeTitle}
 					chatPendingRename={chatPendingRename}
