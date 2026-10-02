@@ -49,6 +49,25 @@ const formatNextRun = (automation: ChatAutomation): string => {
 };
 
 type ChatTitleLinkProps = {
+	chatId: string;
+	title: string | undefined;
+	size?: LinkProps["size"];
+};
+
+/** Links to a chat by its title, falling back to "Untitled". */
+export const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
+	chatId,
+	title,
+	size = "lg",
+}) => {
+	return (
+		<Link asChild showExternalIcon={false} size={size}>
+			<RouterLink to={`/agents/${chatId}`}>{title || "Untitled"}</RouterLink>
+		</Link>
+	);
+};
+
+type ChatTitleProps = {
 	chat: Chat | undefined;
 	chatId: string;
 	isLoading: boolean;
@@ -56,12 +75,12 @@ type ChatTitleLinkProps = {
 	size?: LinkProps["size"];
 };
 
-const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
+const ChatTitle: React.FC<ChatTitleProps> = ({
 	chat,
 	chatId,
 	isLoading,
 	error,
-	size = "lg",
+	size,
 }) => {
 	if (isLoading) {
 		return <Skeleton className="h-4 w-32" />;
@@ -73,13 +92,7 @@ const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
 			</span>
 		);
 	}
-	return (
-		<Link asChild showExternalIcon={false} size={size}>
-			<RouterLink to={`/agents/${chatId}`}>
-				{chat?.title || "Untitled"}
-			</RouterLink>
-		</Link>
-	);
+	return <ChatTitleLink chatId={chatId} title={chat?.title} size={size} />;
 };
 
 type CreatingChatProps = {
@@ -94,7 +107,7 @@ const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 			{getErrorStatus(chatQuery.error) === 404 ? (
 				" a deleted chat"
 			) : (
-				<ChatTitleLink
+				<ChatTitle
 					chat={chatQuery.data}
 					chatId={chatId}
 					isLoading={chatQuery.isLoading}
@@ -199,7 +212,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 					) : !isOwner ? (
 						<span className="text-content-secondary">Existing chat</span>
 					) : (
-						<ChatTitleLink
+						<ChatTitle
 							chat={targetQuery.data}
 							chatId={targetChatId}
 							isLoading={targetQuery.isLoading}

@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -11,7 +11,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -24,7 +23,10 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { AutomationRow } from "./components/Automations/AutomationRow";
+import {
+	AutomationRow,
+	ChatTitleLink,
+} from "./components/Automations/AutomationRow";
 import { SectionHeader } from "./components/SectionHeader";
 
 export type AutomationRunError = {
@@ -71,6 +73,10 @@ type AutomationChatsDialogProps = {
 const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 	state,
 }) => {
+	// The dialog opens from a row button rather than a DialogTrigger, so Radix
+	// has no trigger to return focus to on close. It mounts right after the
+	// View chats button is activated, so the focused element is the opener.
+	const [opener] = useState(() => document.activeElement);
 	let body: React.ReactNode;
 	if (state.isLoading) {
 		body = <Loader />;
@@ -88,11 +94,7 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 			<ul className="m-0 flex list-none flex-col gap-2 p-0">
 				{state.chats.map((chat) => (
 					<li key={chat.id}>
-						<Link asChild showExternalIcon={false}>
-							<RouterLink to={`/agents/${chat.id}`}>
-								{chat.title || "Untitled"}
-							</RouterLink>
-						</Link>
+						<ChatTitleLink chatId={chat.id} title={chat.title} />
 					</li>
 				))}
 				{Boolean(state.error) && (
@@ -125,7 +127,14 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 				}
 			}}
 		>
-			<DialogContent>
+			<DialogContent
+				onCloseAutoFocus={(event) => {
+					if (opener instanceof HTMLElement && opener.isConnected) {
+						event.preventDefault();
+						opener.focus();
+					}
+				}}
+			>
 				<DialogHeader>
 					<DialogTitle>Chats for {state.automation.name}</DialogTitle>
 					<DialogDescription>
