@@ -81,7 +81,7 @@ The agent looks for skill directories in the immediate children of these contain
 
 Because `~/.coder/skills` is itself a scan root, skills placed directly under it are discovered too.
 
-Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
+Each discovered skill contributes its name and description to the `<coder-agents-available-skills>` block in the agent's system prompt.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
 A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
 

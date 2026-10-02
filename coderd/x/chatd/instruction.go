@@ -3,10 +3,11 @@ package chatd
 import (
 	"strings"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// formatSystemInstructions builds the <workspace-context> block from
+// formatSystemInstructions builds the workspace context block from
 // agent metadata and zero or more context-file parts. Non-context-file
 // parts in the slice are silently skipped.
 func formatSystemInstructions(
@@ -25,7 +26,7 @@ func formatSystemInstructions(
 	}
 
 	var b strings.Builder
-	_, _ = b.WriteString("<workspace-context>\n")
+	_, _ = b.WriteString(promptsource.WorkspaceContext.Open() + "\n")
 	if operatingSystem != "" {
 		_, _ = b.WriteString("Operating System: ")
 		_, _ = b.WriteString(operatingSystem)
@@ -49,6 +50,6 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(part.ContextFileContent)
 		_, _ = b.WriteString("\n")
 	}
-	_, _ = b.WriteString("</workspace-context>")
+	_, _ = b.WriteString(promptsource.WorkspaceContext.Close())
 	return b.String()
 }

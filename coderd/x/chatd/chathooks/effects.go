@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -23,7 +24,7 @@ import (
 func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message, error) {
 	messages := make([]chatstate.Message, 0, 2)
 	if strings.TrimSpace(result.GetModelContext()) != "" {
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.ModelContext)})
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(promptsource.LifecycleHookContext.Wrap(result.ModelContext))})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook model context: %w", err)
 		}

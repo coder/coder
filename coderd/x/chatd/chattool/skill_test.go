@@ -83,12 +83,12 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 			Alias: "deep-review",
 		}}
 		assert.Equal(t,
-			"<available-skills>\n"+
+			"<coder-agents-available-skills>\n"+
 				"Use read_skill to load a skill's full instructions before following them.\n"+
 				"Use read_skill_file to read supporting files referenced by a workspace skill.\n"+
 				"\n"+
 				"- deep-review: Review\n"+
-				"</available-skills>",
+				"</coder-agents-available-skills>",
 			chattool.FormatResolvedSkillIndex(resolved),
 		)
 	})

@@ -217,7 +217,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, parts, 2, "the prompt and the event data are separate parts")
 		require.Equal(t, codersdk.ChatMessageText("A deploy finished."), parts[0])
-		require.Contains(t, parts[1].Text, "<automation_event_data>\n{\"service\":\"api\"}\n</automation_event_data>")
+		require.Contains(t, parts[1].Text, "<coder-agents-automation-event-data>\n{\"service\":\"api\"}\n</coder-agents-automation-event-data>")
 
 		chat, err := f.db.GetChatByID(ctx, f.chat.ID)
 		require.NoError(t, err)
@@ -582,7 +582,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, parts, 2)
 		require.Equal(t, codersdk.ChatMessageText("A deploy finished."), parts[0])
-		require.Contains(t, parts[1].Text, "<automation_event_data>\n{\"service\":\"api\"}\n</automation_event_data>")
+		require.Contains(t, parts[1].Text, "<coder-agents-automation-event-data>\n{\"service\":\"api\"}\n</coder-agents-automation-event-data>")
 	})
 
 	t.Run("NewChatModelUnavailable", func(t *testing.T) {

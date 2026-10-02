@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 )
 
 const (
@@ -84,7 +85,7 @@ func BuildAdvisorMessages(
 	}
 	slices.Reverse(inheritedSystem)
 	messages = append(messages, inheritedSystem...)
-	messages = append(messages, textMessage(fantasy.MessageRoleSystem, AdvisorSystemPrompt))
+	messages = append(messages, textMessage(fantasy.MessageRoleSystem, promptsource.AdvisorSystemPrompt.Wrap(AdvisorSystemPrompt)))
 
 	recent := make([]fantasy.Message, 0, min(len(conversationSnapshot), advisorRecentMessageLimit))
 	remainingBudget := advisorConversationJSONByteBudget

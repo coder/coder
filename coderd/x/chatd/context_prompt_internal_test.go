@@ -87,12 +87,12 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		instruction, skills, _ := contextResourcesToPrompt(resources, "linux", "/home/coder")
 
 		require.Empty(t, skills)
-		require.Contains(t, instruction, "<workspace-context>")
+		require.Contains(t, instruction, "<coder-agents-workspace-context>")
 		require.Contains(t, instruction, "Operating System: linux")
 		require.Contains(t, instruction, "Working Directory: /home/coder")
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Contains(t, instruction, "be helpful")
-		require.Contains(t, instruction, "</workspace-context>")
+		require.Contains(t, instruction, "</coder-agents-workspace-context>")
 	})
 
 	t.Run("SkillsBuildMeta", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		}
 		instruction, _, _ := contextResourcesToPrompt(resources, "", "")
 
-		require.Contains(t, instruction, "<workspace-context>")
+		require.Contains(t, instruction, "<coder-agents-workspace-context>")
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Contains(t, instruction, "be helpful")
 		require.NotContains(t, instruction, "Operating System:")

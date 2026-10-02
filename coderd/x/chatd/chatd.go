@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -1377,13 +1378,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
+	userPrompt := promptsource.ChatSystemPrompt.Wrap(codersdk.SanitizePromptText(opts.SystemPrompt))
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
 	}
 	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(workspaceAwareness),
+		codersdk.ChatMessageText(promptsource.WorkspaceAwareness.Wrap(workspaceAwareness)),
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
@@ -3707,8 +3708,9 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, user prompt,
-// then mode overlay prompts.
+// order: prompt-source guide, subagent instruction, chat instruction,
+// skill index, user prompt, then mode overlay prompts. Every block is
+// wrapped in its promptsource tag.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
@@ -3717,8 +3719,9 @@ func buildSystemPrompt(
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
+	prompt = chatprompt.InsertSystem(prompt, promptsource.GuideBlock)
 	if subagentInstruction != "" {
-		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
+		prompt = chatprompt.InsertSystem(prompt, promptsource.SubagentInstruction.Wrap(subagentInstruction))
 	}
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
@@ -3730,18 +3733,18 @@ func buildSystemPrompt(
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
 	}
 	if isExploreSubagentMode(behaviorContext.chatMode) {
-		prompt = chatprompt.InsertSystem(prompt, ExploreSubagentOverlayPrompt)
+		prompt = chatprompt.InsertSystem(prompt, promptsource.ExploreModeSubagent.Wrap(ExploreSubagentOverlayPrompt))
 		return prompt
 	}
 	isPlanModeTurn := behaviorContext.planMode.Valid && behaviorContext.planMode.ChatPlanMode == database.ChatPlanModePlan
 	if isPlanModeTurn {
 		if behaviorContext.isRootChat {
-			prompt = chatprompt.InsertSystem(prompt, PlanningOverlayPrompt())
-			if behaviorContext.planModeInstructions != "" {
-				prompt = chatprompt.InsertSystem(prompt, behaviorContext.planModeInstructions)
+			prompt = chatprompt.InsertSystem(prompt, promptsource.PlanMode.Wrap(PlanningOverlayPrompt()))
+			if planInstructions := promptsource.DeploymentPlanModeInstructions.Wrap(behaviorContext.planModeInstructions); planInstructions != "" {
+				prompt = chatprompt.InsertSystem(prompt, planInstructions)
 			}
 		} else {
-			prompt = chatprompt.InsertSystem(prompt, PlanningSubagentOverlayPrompt)
+			prompt = chatprompt.InsertSystem(prompt, promptsource.PlanModeSubagent.Wrap(PlanningSubagentOverlayPrompt))
 		}
 	}
 	return prompt
@@ -4355,7 +4358,7 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 		// Fail open: use the built-in default so chats always have
 		// some system guidance.
 		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
-		return DefaultSystemPrompt
+		return promptsource.BuiltinSystemPrompt.Wrap(DefaultSystemPrompt)
 	}
 
 	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
@@ -4365,10 +4368,10 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 
 	var parts []string
 	if config.IncludeDefaultSystemPrompt {
-		parts = append(parts, DefaultSystemPrompt)
+		parts = append(parts, promptsource.BuiltinSystemPrompt.Wrap(DefaultSystemPrompt))
 	}
 	if sanitizedCustom != "" {
-		parts = append(parts, sanitizedCustom)
+		parts = append(parts, promptsource.DeploymentSystemPrompt.Wrap(sanitizedCustom))
 	}
 	result := strings.Join(parts, "\n\n")
 	if result == "" {
@@ -4378,19 +4381,15 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the
-// database and wraps it in <user-instructions> tags. Returns empty
-// string if no prompt is set.
+// database and wraps it in its provenance tags. Returns empty string if
+// no prompt is set.
 func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
 	raw, err := p.configCache.UserPrompt(ctx, userID)
 	if err != nil {
 		// sql.ErrNoRows is the normal "not set" case.
 		return ""
 	}
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+	return promptsource.UserInstructions.Wrap(raw)
 }
 
 // renderPlanPathPrompt fills the plan-path placeholder when it is
@@ -4464,16 +4463,8 @@ func formatPlanPathBlock(chatPath, home string) string {
 		avoidPlanPath = strings.TrimRight(home, "/") + "/PLAN.md"
 	}
 
-	var b strings.Builder
-	_, _ = b.WriteString("<plan-file-path>\n")
-	_, _ = b.WriteString("Your plan file path for this chat is: ")
-	_, _ = b.WriteString(chatPath)
-	_, _ = b.WriteString("\n")
-	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
-	_, _ = b.WriteString(avoidPlanPath)
-	_, _ = b.WriteString(".\n")
-	_, _ = b.WriteString("</plan-file-path>")
-	return b.String()
+	return promptsource.PlanFilePath.Wrap("Your plan file path for this chat is: " + chatPath + "\n" +
+		"Always use this exact path when creating or proposing plan files. Do not use " + avoidPlanPath + ".")
 }
 
 // parseDynamicToolNames unmarshals the dynamic tools JSON column

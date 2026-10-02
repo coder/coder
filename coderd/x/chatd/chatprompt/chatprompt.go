@@ -17,10 +17,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/shellparse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -1587,7 +1589,7 @@ func partsToMessageParts(
 				continue
 			}
 			var sb strings.Builder
-			_, _ = sb.WriteString("<workspace-context>\n")
+			_, _ = sb.WriteString(promptsource.WorkspaceContext.Open() + "\n")
 			if part.ContextFileOS != "" {
 				_, _ = sb.WriteString("Operating System: ")
 				_, _ = sb.WriteString(part.ContextFileOS)
@@ -1606,7 +1608,7 @@ func partsToMessageParts(
 			_, _ = sb.WriteString(source)
 			_, _ = sb.WriteString("\n")
 			_, _ = sb.WriteString(part.ContextFileContent)
-			_, _ = sb.WriteString("\n</workspace-context>")
+			_, _ = sb.WriteString("\n" + promptsource.WorkspaceContext.Close())
 			result = append(result, fantasy.TextPart{Text: sb.String()})
 		case codersdk.ChatMessagePartTypeHookContext:
 			// Lifecycle hook model context rides inside the user
@@ -1614,7 +1616,7 @@ func partsToMessageParts(
 			if strings.TrimSpace(part.Text) == "" {
 				continue
 			}
-			result = append(result, fantasy.TextPart{Text: part.Text})
+			result = append(result, fantasy.TextPart{Text: promptsource.LifecycleHookContext.Wrap(part.Text)})
 		case codersdk.ChatMessagePartTypeHookNotice:
 			// Client-only hook notice, never sent to the model.
 			continue

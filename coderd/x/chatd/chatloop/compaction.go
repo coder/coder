@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -222,7 +223,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	}
 
 	result := CompactionResult{
-		SystemSummary: strings.TrimSpace(
+		SystemSummary: promptsource.CompactionSummary.Wrap(
 			config.SystemSummaryPrefix + "\n\n" + summary,
 		),
 		SummaryReport:      summary,

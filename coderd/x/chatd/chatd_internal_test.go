@@ -1956,7 +1956,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 	)
 
 	text := systemPromptText(t, prompt)
-	require.Contains(t, text, "<available-skills>")
+	require.Contains(t, text, "<coder-agents-available-skills>")
 	require.Contains(t, text, "- personal-review: Personal review process")
 	require.NotContains(t, text, `"skill"`)
 }
@@ -1986,7 +1986,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	)
 
 	text := systemPromptText(t, prompt)
-	require.Contains(t, text, "<available-skills>")
+	require.Contains(t, text, "<coder-agents-available-skills>")
 	require.Contains(t, text, "- personal/deploy: Personal deployment process")
 	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
 	require.NotContains(t, text, "\n- deploy: ")

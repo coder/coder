@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -977,15 +978,17 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 				Clock: quartz.NewMock(t),
 			})
 			require.NoError(t, err)
-			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
-			require.Equal(t, int64(3), result.EstimatedContextTokens)
+			require.Equal(t, promptsource.CompactionSummary.Wrap(prefix+"\n\n界x"), result.SystemSummary)
+			// The 69-byte tag wrapper is a multiple of bytesPerTokenEstimate,
+			// so the prefixes still cover each ceil remainder.
+			require.Equal(t, int64(26), result.EstimatedContextTokens)
 			require.Equal(t, int64(800), result.ContextTokens)
 			require.Len(t, parts, 2)
 			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
 			require.False(t, parts[1].IsError)
 			var metadata map[string]any
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
-			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(26), metadata["estimated_context_tokens"])
 			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
 		})
 	}

@@ -10,6 +10,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/promptsource"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -19,9 +20,9 @@ const (
 	maxSkillFileBytes = 512 * 1024
 
 	// AvailableSkillsOpenTag is the XML start tag for the skill index block.
-	AvailableSkillsOpenTag = "<available-skills>"
+	AvailableSkillsOpenTag = "<" + promptsource.TagPrefix + "available-skills>"
 	// AvailableSkillsCloseTag is the XML end tag for the skill index block.
-	AvailableSkillsCloseTag = "</available-skills>"
+	AvailableSkillsCloseTag = "</" + promptsource.TagPrefix + "available-skills>"
 )
 
 // SkillMeta is the frontmatter from a skill meta file discovered in a

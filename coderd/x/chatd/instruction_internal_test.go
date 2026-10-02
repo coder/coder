@@ -109,7 +109,7 @@ func TestRenderPlanPathPrompt(t *testing.T) {
 		require.Len(t, got, len(prompt))
 		text := messageText(t, got[0])
 		require.NotContains(t, text, defaultSystemPromptPlanPathBlockPlaceholder)
-		require.NotContains(t, text, "<plan-file-path>")
+		require.NotContains(t, text, "<coder-agents-plan-file-path>")
 	})
 }
 
@@ -316,8 +316,8 @@ func TestFormatSystemInstructions(t *testing.T) {
 		require.Contains(t, got, "home rules")
 		require.Contains(t, got, "Source: /home/coder/project/AGENTS.md")
 		require.Contains(t, got, "project rules")
-		require.True(t, strings.HasPrefix(got, "<workspace-context>"))
-		require.True(t, strings.HasSuffix(got, "</workspace-context>"))
+		require.True(t, strings.HasPrefix(got, "<coder-agents-workspace-context>"))
+		require.True(t, strings.HasSuffix(got, "</coder-agents-workspace-context>"))
 	})
 
 	t.Run("OnlyPwdFile", func(t *testing.T) {
@@ -336,8 +336,8 @@ func TestFormatSystemInstructions(t *testing.T) {
 		require.Contains(t, got, "Operating System: darwin")
 		require.Contains(t, got, "Working Directory: /Users/dev/repo")
 		require.NotContains(t, got, "Source:")
-		require.True(t, strings.HasPrefix(got, "<workspace-context>"))
-		require.True(t, strings.HasSuffix(got, "</workspace-context>"))
+		require.True(t, strings.HasPrefix(got, "<coder-agents-workspace-context>"))
+		require.True(t, strings.HasSuffix(got, "</coder-agents-workspace-context>"))
 	})
 
 	t.Run("OnlyHomeFile", func(t *testing.T) {

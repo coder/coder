@@ -5055,9 +5055,9 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 			require.NotContains(t, call.Tools, mcpToolName)
 			continue
 		}
-		require.Contains(t, systemContent, "<workspace-context>")
+		require.Contains(t, systemContent, "<coder-agents-workspace-context>")
 		require.Contains(t, systemContent, instruction)
-		require.Contains(t, systemContent, "<available-skills>")
+		require.Contains(t, systemContent, "<coder-agents-available-skills>")
 		require.Contains(t, systemContent, skillName)
 		require.Contains(t, systemContent, skillDescription)
 		require.Contains(t, call.Tools, mcpToolName)
@@ -13857,8 +13857,8 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 // TestAgentContextFilesAndSkillsLoadedIntoChat verifies the full
 // end-to-end path: the workspace agent reads instruction files and
 // discovers skills from the filesystem, chatd fetches them via a
-// real tailnet agent connection, and both the <workspace-context>
-// block and <available-skills> index appear in the LLM prompt.
+// real tailnet agent connection, and both the <coder-agents-workspace-context>
+// block and <coder-agents-available-skills> index appear in the LLM prompt.
 //
 // This test is NOT parallel because it sets process-wide environment
 // variables via t.Setenv to configure the agent's context config.
@@ -13990,7 +13990,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		}
 	}
 
-	require.Contains(t, allSystemContent, "<workspace-context>",
+	require.Contains(t, allSystemContent, "<coder-agents-workspace-context>",
 		"system prompt should contain workspace-context block")
 	require.Contains(t, allSystemContent, "Always write tests.",
 		"system prompt should contain AGENTS.md content")
@@ -14005,22 +14005,22 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		}
 		planBlockCount += strings.Count(
 			msg.Content,
-			"<plan-file-path>\nYour plan file path for this chat is:",
+			"<coder-agents-plan-file-path>\nYour plan file path for this chat is:",
 		)
 		trimmed := strings.TrimSpace(msg.Content)
-		if strings.HasPrefix(trimmed, "<plan-file-path>") &&
-			strings.HasSuffix(trimmed, "</plan-file-path>") {
+		if strings.HasPrefix(trimmed, "<coder-agents-plan-file-path>") &&
+			strings.HasSuffix(trimmed, "</coder-agents-plan-file-path>") {
 			standalonePlanBlockCount++
 		}
 	}
 
-	require.Contains(t, allSystemContent, "<available-skills>",
+	require.Contains(t, allSystemContent, "<coder-agents-available-skills>",
 		"system prompt should contain available-skills block")
 	require.Contains(t, allSystemContent, "my-cool-skill",
 		"system prompt should list the discovered skill")
 	require.Contains(t, allSystemContent, "A test skill",
 		"system prompt should include the skill description")
-	require.Contains(t, allSystemContent, "<plan-file-path>",
+	require.Contains(t, allSystemContent, "<coder-agents-plan-file-path>",
 		"system prompt should contain the plan-file-path block")
 	require.Contains(t, allSystemContent, "PLAN-"+chat.ID.String()+".md",
 		"system prompt should use the chat-specific plan path")
