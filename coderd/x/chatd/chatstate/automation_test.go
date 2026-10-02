@@ -3,6 +3,7 @@ package chatstate_test
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -98,12 +99,11 @@ func queueAutomationMessage(
 	return *send.QueuedMessage
 }
 
-// insertStaleHeadRow inserts a queued row from an automation, moves it to
-// the queue head, and deletes the automation so the row is stale.
-func insertStaleHeadRow(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) database.ChatQueuedMessage {
+// insertAutomationQueuedRow inserts a queued row from automation directly
+// into the store, bypassing the state machine, at the queue tail.
+func insertAutomationQueuedRow(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, automation database.ChatAutomation, body string) database.ChatQueuedMessage {
 	t.Helper()
-	automation := f.newAutomation(t)
-	message := userTextMessage("stale", f.User.ID, f.Model.ID)
+	message := userTextMessage(body, f.User.ID, f.Model.ID)
 	row, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          chatID,
 		Content:         message.Content.RawMessage,
@@ -114,7 +114,16 @@ func insertStaleHeadRow(ctx context.Context, t *testing.T, f *testFixture, chatI
 		QueueGeneration: sql.NullInt64{Int64: automation.QueueGeneration, Valid: true},
 	})
 	require.NoError(t, err)
-	_, err = f.DB.ReorderChatQueuedMessageToHead(ctx, database.ReorderChatQueuedMessageToHeadParams{
+	return row
+}
+
+// insertStaleHeadRow inserts a queued row from an automation, moves it to
+// the queue head, and deletes the automation so the row is stale.
+func insertStaleHeadRow(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) database.ChatQueuedMessage {
+	t.Helper()
+	automation := f.newAutomation(t)
+	row := insertAutomationQueuedRow(ctx, t, f, chatID, automation, "stale")
+	_, err := f.DB.ReorderChatQueuedMessageToHead(ctx, database.ReorderChatQueuedMessageToHeadParams{
 		ID:     row.ID,
 		ChatID: chatID,
 	})
@@ -236,6 +245,202 @@ func finishStaleQueueCase(tr chatstate.Transition, from chatstate.ExecutionState
 			require.Nil(t, result.finishTurn.PromotedMessage)
 			require.Nil(t, result.finishInterruption.PromotedMessage)
 		},
+	}
+}
+
+// deleteStaleArchivedCase covers XE1 -> DeleteQueuedMessage of a stale
+// automation row: the row is deleted and the chat stays archived.
+func deleteStaleArchivedCase(want chatstate.ExecutionState, shape staleQueueShape) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionDeleteQueuedMessage,
+		from:       chatstate.StateXE1,
+		want:       want,
+		scenario:   scenarioStaleAutomation,
+		seed:       staleHeadSeed(shape),
+		apply: func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+			t.Helper()
+			var err error
+			result.deleteQueuedMessage, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+				QueuedMessageID: seeded.staleQueuedMessageID,
+			})
+			return err
+		},
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			require.Equal(t, seeded.staleQueuedMessageID, result.deleteQueuedMessage.DeletedQueuedMessage.ID)
+			requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, seeded.staleQueuedMessageID)
+			require.Equal(t, base.queueIDs[1:], queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"only the stale row is deleted")
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
+				"deleting a queued row inserts no history")
+			after := f.readChat(ctx, t, seeded.chatID)
+			require.True(t, after.Archived, "the chat stays archived")
+			require.Equal(t, database.ChatStatusError, after.Status)
+			require.Equal(t, base.chat.LastError, after.LastError)
+		},
+	}
+}
+
+// TestDeleteQueuedMessage_ArchivedKeepsPromotableRows covers the refusal
+// half of DeleteQueuedMessage from XE1: a row that passes the queue
+// promotion guard is not deleted from an archived chat.
+func TestDeleteQueuedMessage_ArchivedKeepsPromotableRows(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		// target returns the queued row to delete.
+		target func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat) int64
+	}{
+		{name: "Ordinary", target: func(_ context.Context, t *testing.T, _ *testFixture, seeded seededChat) int64 {
+			require.NotEmpty(t, seeded.queuedMessageIDs)
+			return seeded.queuedMessageIDs[0]
+		}},
+		{name: "LiveAutomation", target: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat) int64 {
+			return insertAutomationQueuedRow(ctx, t, f, seeded.chatID, f.newAutomation(t), "live").ID
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeded := seedState(t, f, chatstate.StateXE1)
+			target := tc.target(ctx, t, f, seeded)
+			base := captureBaseline(ctx, t, f, seeded)
+
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{QueuedMessageID: target})
+				return err
+			})
+			var te *chatstate.TransitionError
+			require.ErrorAs(t, err, &te)
+			require.Equal(t, chatstate.TransitionDeleteQueuedMessage, te.Transition)
+			require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+			require.Equal(t, chatstate.StateXE1, f.classify(ctx, t, seeded.chatID))
+		})
+	}
+}
+
+// TestSendMessage_QueueCapIgnoresStaleRows covers the queue cap: rows that
+// fail the queue promotion guard do not fill the queue. At the cap they
+// are deleted and the new message is admitted, while a queue full of
+// passing rows still refuses it.
+func TestSendMessage_QueueCapIgnoresStaleRows(t *testing.T) {
+	t.Parallel()
+	const maxQueueSize = 3
+
+	// fill queues maxQueueSize rows on the running chat and returns the
+	// ids of the rows that are stale after it returns.
+	type fillFn func(ctx context.Context, t *testing.T, f *testFixture, m *chatstate.ChatMachine) (stale []int64)
+	staleFill := func(reason staleReason) fillFn {
+		return func(ctx context.Context, t *testing.T, f *testFixture, m *chatstate.ChatMachine) []int64 {
+			automations := []database.ChatAutomation{f.newAutomation(t), f.newAutomation(t)}
+			var stale []int64
+			for i := range maxQueueSize {
+				stale = append(stale, queueAutomationMessage(t, f, m, "stale", provenanceFor(automations[i%2])).ID)
+			}
+			for _, a := range automations {
+				reason.apply(ctx, t, f, a.ID)
+			}
+			return stale
+		}
+	}
+	type capCase struct {
+		name string
+		from chatstate.ExecutionState
+		fill fillFn
+		full bool
+	}
+	var cases []capCase
+	for _, from := range []chatstate.ExecutionState{chatstate.StateR1, chatstate.StateE1} {
+		for _, reason := range staleReasons {
+			cases = append(cases, capCase{name: string(from) + "/" + reason.name, from: from, fill: staleFill(reason)})
+		}
+	}
+	cases = append(cases,
+		capCase{name: "MixedKeepsPassingRows", from: chatstate.StateR1, fill: func(ctx context.Context, t *testing.T, f *testFixture, m *chatstate.ChatMachine) []int64 {
+			stale := f.newAutomation(t)
+			staleRow := queueAutomationMessage(t, f, m, "stale", provenanceFor(stale))
+			sendQueuedMessage(t, f, m, "ordinary")
+			queueAutomationMessage(t, f, m, "live", provenanceFor(f.newAutomation(t)))
+			require.NoError(t, f.DB.DeleteChatAutomationByID(ctx, stale.ID))
+			return []int64{staleRow.ID}
+		}},
+		capCase{name: "FullOrdinary", from: chatstate.StateR1, full: true, fill: func(_ context.Context, t *testing.T, f *testFixture, m *chatstate.ChatMachine) []int64 {
+			for range maxQueueSize {
+				sendQueuedMessage(t, f, m, "ordinary")
+			}
+			return nil
+		}},
+		capCase{name: "FullLiveAutomation", from: chatstate.StateR1, full: true, fill: func(_ context.Context, t *testing.T, f *testFixture, m *chatstate.ChatMachine) []int64 {
+			live := f.newAutomation(t)
+			for range maxQueueSize {
+				queueAutomationMessage(t, f, m, "live", provenanceFor(live))
+			}
+			return nil
+		}},
+	)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			chat := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, chat.Chat.ID)
+			stale := tc.fill(ctx, t, f, m)
+			if tc.from == chatstate.StateE1 {
+				require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.FinishError(chatstate.FinishErrorInput{})
+					return err
+				}))
+			}
+			require.Equal(t, tc.from, f.classify(ctx, t, chat.Chat.ID))
+			before := queuedIDsByPosition(ctx, t, f, chat.Chat.ID)
+			require.Len(t, before, maxQueueSize)
+
+			var result chatstate.SendMessageResult
+			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				result, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("new", f.User.ID, f.Model.ID),
+					BusyBehavior: chatstate.BusyBehaviorQueue,
+					MaxQueueSize: maxQueueSize,
+				})
+				return err
+			})
+			if tc.full {
+				var full *chatstate.MessageQueueFullError
+				require.ErrorAs(t, err, &full)
+				require.EqualValues(t, maxQueueSize, full.Max)
+				require.Equal(t, before, queuedIDsByPosition(ctx, t, f, chat.Chat.ID), "a refused message deletes nothing")
+				return
+			}
+			require.NoError(t, err)
+			for _, id := range stale {
+				requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, id)
+			}
+			var want []int64
+			for _, id := range before {
+				if !slices.Contains(stale, id) {
+					want = append(want, id)
+				}
+			}
+			if result.QueuedMessage != nil {
+				want = append(want, result.QueuedMessage.ID)
+			}
+			after := queuedIDsByPosition(ctx, t, f, chat.Chat.ID)
+			if tc.from == chatstate.StateE1 {
+				// Every older row was stale, so E1 promotes the new
+				// message straight into history.
+				require.Nil(t, result.QueuedMessage)
+				require.Empty(t, after)
+				require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chat.Chat.ID))
+				return
+			}
+			require.NotNil(t, result.QueuedMessage)
+			require.Equal(t, want, after, "only the stale rows are deleted and the new message is queued")
+		})
 	}
 }
 
@@ -814,6 +1019,40 @@ func TestChatMachine_Update_RetriesAutomationDeadlocks(t *testing.T) {
 	})
 }
 
+var errNotAdmitted = xerrors.New("automation not admitted")
+
+// admitLockingQueue admits a message from own the way production
+// admission does: it locks own together with every automation already
+// queued on the chat in one LockAutomations call, and refuses with
+// errNotAdmitted when own is missing or disabled.
+func admitLockingQueue(own database.ChatAutomation) chatstate.AdmitFunc {
+	return func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
+		queue, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
+		if err != nil {
+			return chatstate.AutomationProvenance{}, err
+		}
+		ids := []uuid.UUID{own.ID}
+		for _, row := range queue {
+			if row.AutomationID.Valid {
+				ids = append(ids, row.AutomationID.UUID)
+			}
+		}
+		locked, err := chatstate.LockAutomations(ctx, store, ids)
+		if err != nil {
+			return chatstate.AutomationProvenance{}, err
+		}
+		current, ok := locked[own.ID]
+		if !ok || !current.Enabled {
+			return chatstate.AutomationProvenance{}, errNotAdmitted
+		}
+		return chatstate.AutomationProvenance{
+			AutomationID:    own.ID,
+			InputID:         uuid.New(),
+			QueueGeneration: current.QueueGeneration,
+		}, nil
+	}
+}
+
 // TestQueuePromotionGuard_Concurrency runs admissions, promotions, and
 // disables against chats whose queues mix rows from several automations
 // in no particular id order. Every transaction takes the chat lock first
@@ -847,36 +1086,6 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 		}
 	}
 
-	errNotAdmitted := xerrors.New("automation not admitted")
-	// admit locks the sending automation together with every automation
-	// already queued on the chat.
-	admit := func(own database.ChatAutomation) chatstate.AdmitFunc {
-		return func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
-			queue, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
-			if err != nil {
-				return chatstate.AutomationProvenance{}, err
-			}
-			ids := []uuid.UUID{own.ID}
-			for _, row := range queue {
-				if row.AutomationID.Valid {
-					ids = append(ids, row.AutomationID.UUID)
-				}
-			}
-			locked, err := chatstate.LockAutomations(ctx, store, ids)
-			if err != nil {
-				return chatstate.AutomationProvenance{}, err
-			}
-			current, ok := locked[own.ID]
-			if !ok || !current.Enabled {
-				return chatstate.AutomationProvenance{}, errNotAdmitted
-			}
-			return chatstate.AutomationProvenance{
-				AutomationID:    own.ID,
-				InputID:         uuid.New(),
-				QueueGeneration: current.QueueGeneration,
-			}, nil
-		}
-	}
 	// tolerated reports errors that are legitimate outcomes of the race,
 	// such as a promotion after the queue drained.
 	tolerated := func(err error) bool {
@@ -913,7 +1122,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 						Message:      userTextMessage("admitted", f.User.ID, f.Model.ID),
 						BusyBehavior: chatstate.BusyBehaviorQueue,
 						MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-						AdmitInTx:    admit(own),
+						AdmitInTx:    admitLockingQueue(own),
 					})
 					return err
 				}))
@@ -959,4 +1168,90 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 	for _, chatID := range chatIDs {
 		require.NotEqual(t, chatstate.StateInvalid, f.classify(ctx, t, chatID))
 	}
+}
+
+// TestSendMessage_QueueCapPurgeRace covers concurrent sends to a chat
+// whose queue is full of stale automation rows. People and live
+// automations race for the freed capacity: exactly the cap is admitted,
+// the rest are refused as queue full, and no stale row survives. The
+// purge locks the queue's automations under the chat lock, so the test
+// also counts deadlock aborts below Update, whose retry would hide them.
+func TestSendMessage_QueueCapPurgeRace(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		maxQueueSize = 4
+		senders      = maxQueueSize + 4
+	)
+	chat := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chat.Chat.ID)
+	stale := make([]int64, 0, maxQueueSize)
+	for _, reason := range staleReasons {
+		automation := f.newAutomation(t)
+		stale = append(stale, queueAutomationMessage(t, f, m, "stale", provenanceFor(automation)).ID)
+		reason.apply(ctx, t, f, automation.ID)
+	}
+	require.Len(t, stale, maxQueueSize, "one stale row per reason fills the queue")
+	live := []database.ChatAutomation{f.newAutomation(t), f.newAutomation(t)}
+
+	counting := newDeadlockStore(f.DB, 0)
+	racing := chatstate.NewChatMachine(counting, f.Pub, chat.Chat.ID)
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		admitted []int64
+		full     int
+		errs     []error
+	)
+	start := make(chan struct{})
+	for i := range senders {
+		var admit chatstate.AdmitFunc
+		if i%2 == 1 {
+			admit = admitLockingQueue(live[(i/2)%len(live)])
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			var result chatstate.SendMessageResult
+			err := racing.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				var err error
+				result, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("racer", f.User.ID, f.Model.ID),
+					BusyBehavior: chatstate.BusyBehaviorQueue,
+					MaxQueueSize: maxQueueSize,
+					AdmitInTx:    admit,
+				})
+				return err
+			})
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil && result.QueuedMessage != nil:
+				admitted = append(admitted, result.QueuedMessage.ID)
+			case xerrors.Is(err, chatstate.ErrMessageQueueFull):
+				full++
+			case err == nil:
+				errs = append(errs, xerrors.New("a send to a running chat was not queued"))
+			default:
+				errs = append(errs, err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	require.Empty(t, errs)
+	require.Zero(t, counting.deadlocks.Load(), "the purge must lock automations in order")
+	require.Len(t, admitted, maxQueueSize, "the freed queue takes exactly the cap")
+	require.Equal(t, senders-maxQueueSize, full)
+	slices.Sort(admitted)
+	require.Equal(t, admitted, queuedIDsByPosition(ctx, t, f, chat.Chat.ID),
+		"the queue holds the admitted rows in order and no stale row")
+	for _, id := range stale {
+		requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, id)
+	}
+	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chat.Chat.ID))
 }

@@ -51,7 +51,8 @@ func (p AutomationProvenance) validate() error {
 // own automation and the automation of every queued row of the chat in a
 // single [LockAutomations] call. Otherwise it can take locks out of
 // order: from E1, SendMessage locks the queue's automations in a second
-// call after the callback returns.
+// call after the callback returns, and when the queue is at its cap, the
+// capacity check does the same before it queues the message.
 type AdmitFunc func(ctx context.Context, store database.Store, chatID uuid.UUID) (AutomationProvenance, error)
 
 // admit runs fn and validates the provenance it returns.

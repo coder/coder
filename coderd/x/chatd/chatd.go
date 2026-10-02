@@ -1469,6 +1469,40 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	return chat, nil
 }
 
+// checkQueueCapacity rejects a message on unlocked reads when the chat
+// queue is full, so a refused message never reaches the prompt hooks.
+// Rows that fail the queue promotion guard never run and do not count;
+// the transaction deletes them under the chat lock before it rechecks
+// the cap. Below the cap it only counts rows.
+func (p *Server) checkQueueCapacity(ctx context.Context, chatID uuid.UUID) error {
+	maxQueued := int64(p.chatLimits.MaxQueuedMessagesPerChat)
+	queuedCount, err := p.db.CountChatQueuedMessages(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("count queued messages: %w", err)
+	}
+	if queuedCount < maxQueued {
+		return nil
+	}
+	queued, err := p.db.GetChatQueuedMessagesByPosition(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get queued messages: %w", err)
+	}
+	automations, err := readQueuedAutomations(ctx, p.db, queued)
+	if err != nil {
+		return err
+	}
+	var promotable int64
+	for _, row := range queued {
+		if queuedRowPromotable(row, automations) {
+			promotable++
+		}
+	}
+	if promotable >= maxQueued {
+		return &chatstate.MessageQueueFullError{Max: maxQueued}
+	}
+	return nil
+}
+
 // SendMessage admits a user message through the chatstate.SendMessage
 // transition. Pre-transition admission policy (usage limit, plan-mode
 // metadata update, MCP server ID update, model-config resolution, queue
@@ -1511,12 +1545,8 @@ func (p *Server) SendMessage(
 		}
 		// Check queue capacity before dispatch; the transaction
 		// rechecks it under lock.
-		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
-		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
-		}
-		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
+		if err := p.checkQueueCapacity(ctx, opts.ChatID); err != nil {
+			return SendMessageResult{}, err
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {

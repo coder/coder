@@ -443,6 +443,81 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.Equal(t, f.chat.ID, result.ChatID)
 	})
 
+	t.Run("QueueFullOfStaleRowsAcceptsMessages", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			hooks bool
+			// person sends as a person; otherwise a webhook publishes.
+			person bool
+		}{
+			{name: "Person", person: true},
+			{name: "PersonWithHooks", person: true, hooks: true},
+			{name: "Webhook"},
+			{name: "WebhookWithHooks", hooks: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				const maxQueued = 2
+				var hookCalls *atomic.Int64
+				f := newPublishFixture(t, database.ChatStatusError, func(cfg *chatd.Config) {
+					cfg.Limits = chatd.Limits{MaxQueuedMessagesPerChat: maxQueued}
+					if tc.hooks {
+						var consumer *httptest.Server
+						consumer, hookCalls = newHookConsumer(t, hookNoDecision, nil)
+						cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+					}
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				// A cleanup that failed leaves the rows of a disabled
+				// automation behind, filling the errored chat's queue.
+				filler := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+				content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("stale")})
+				require.NoError(t, err)
+				for range maxQueued {
+					_, err := f.db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+						ChatID:          f.chat.ID,
+						Content:         content.RawMessage,
+						CreatedBy:       f.owner.ID,
+						AutomationID:    uuid.NullUUID{UUID: filler.ID, Valid: true},
+						InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+						QueueGeneration: sql.NullInt64{Int64: filler.QueueGeneration, Valid: true},
+					})
+					require.NoError(t, err)
+				}
+				_, err = f.sqlDB.ExecContext(ctx,
+					"UPDATE chat_automations SET enabled = false, queue_generation = queue_generation + 1 WHERE id = $1", filler.ID)
+				require.NoError(t, err)
+
+				// wantAutomation is the automation of the delivered
+				// message; a person's message has none.
+				var wantAutomation uuid.NullUUID
+				if tc.person {
+					_, err = f.server.SendMessage(ctx, chatd.SendMessageOptions{
+						ChatID:    f.chat.ID,
+						CreatedBy: f.owner.ID,
+						Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
+					})
+				} else {
+					automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+					wantAutomation = uuid.NullUUID{UUID: automation.ID, Valid: true}
+					_, err = f.publish(ctx, automation)
+				}
+				require.NoError(t, err)
+				if tc.hooks {
+					require.EqualValues(t, 1, hookCalls.Load(), "the message passes the hook pre-check")
+				}
+				queued, err := f.db.GetChatQueuedMessages(ctx, f.chat.ID)
+				require.NoError(t, err)
+				require.Empty(t, queued, "the stale rows are deleted and the message is promoted")
+				messages := chatMessages(ctx, t, f.db, f.chat.ID)
+				require.Len(t, messages, 1)
+				require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+				require.Equal(t, wantAutomation, messages[0].AutomationID)
+			})
+		}
+	})
+
 	t.Run("RefusedOwner", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
