@@ -90,20 +90,28 @@ func (d *pgTxnDriver) Unlock() error {
 //     check, and an application transaction waits at most one lock_timeout
 //     for it. A wait that times out rolls back the subtransaction, which
 //     releases every lock the attempt took, and the attempt starts again.
-//   - The chats_expanded view is locked before the tables, as readers of the
-//     view do. ALTER VIEW with the view's current options is a no-op that
-//     locks only the view. LOCK TABLE on the view would also lock chats,
+//   - Attempts alternate between locking the chats_expanded view before and
+//     after the tables. Readers of the view lock it before chats, while
+//     transactions that lock a chat row and then read the view lock chats
+//     first. Under sustained traffic of one kind, every attempt in the
+//     opposite order times out, so a fixed order can fail to get the locks
+//     at all.
+//   - ALTER VIEW with the view's current options is a no-op that locks only
+//     the view. LOCK TABLE on the view would also lock chats,
 //     visible_users and users in ACCESS EXCLUSIVE mode, which blocks all API
 //     authentication until the migrations commit. No migration sets
 //     check_option or security_barrier on chats_expanded, so the RESET form
 //     runs today. The SET form keeps any future options unchanged.
-//   - The tables that 000609 locks for its foreign keys (organizations,
-//     users and chat_model_configs) are not locked here: locking users for
-//     every upgrade would block all user writes until the migrations commit.
-//     An application transaction that writes one of those tables and then
-//     touches a chat table can still deadlock with a later migration that
-//     locks them, and PostgreSQL can then abort either side. If it aborts
-//     the migrations, UpWithFS retries them.
+//   - Only the chat relations are locked here. Later migrations still wait
+//     for their other locks without a timeout, while this transaction holds
+//     the chat locks. An application transaction that holds a lock on a
+//     table a later migration alters, and then touches a chat table, can
+//     deadlock with it. If the application touches the chat table less than
+//     deadlock_timeout after the migration started waiting, PostgreSQL
+//     aborts the migrations and UpWithFS retries them. Otherwise it aborts
+//     the application transaction. Locking more tables here, such as users
+//     for the foreign keys of 000609, would block all their writes until
+//     the migrations commit.
 //
 // The locks are held until the migration transaction commits, so chat traffic
 // waits for the whole migration run, even when no pending migration touches
@@ -122,6 +130,8 @@ DECLARE
 		least(interval '100ms', current_setting('deadlock_timeout')::interval / 2)) * 1000))::bigint || 'ms';
 	tables text;
 	view_options text[];
+	lock_view text;
+	view_first boolean := false;
 BEGIN
 	IF to_regclass('chats') IS NULL THEN
 		RETURN;
@@ -129,18 +139,25 @@ BEGIN
 	SELECT string_agg(quote_ident(t), ', ') INTO tables
 	FROM unnest(ARRAY['chats', 'chat_messages', 'chat_queued_messages']) AS t
 	WHERE to_regclass(t) IS NOT NULL;
+	IF to_regclass('chats_expanded') IS NOT NULL THEN
+		SELECT reloptions INTO view_options FROM pg_class WHERE oid = to_regclass('chats_expanded');
+		IF view_options IS NULL THEN
+			lock_view := 'ALTER VIEW chats_expanded RESET (check_option)';
+		ELSE
+			lock_view := format('ALTER VIEW chats_expanded SET (%s)', array_to_string(view_options, ', '));
+		END IF;
+	END IF;
 	LOOP
+		view_first := NOT view_first;
 		BEGIN
 			PERFORM set_config('lock_timeout', attempt_lock_timeout, true);
-			IF to_regclass('chats_expanded') IS NOT NULL THEN
-				SELECT reloptions INTO view_options FROM pg_class WHERE oid = to_regclass('chats_expanded');
-				IF view_options IS NULL THEN
-					ALTER VIEW chats_expanded RESET (check_option);
-				ELSE
-					EXECUTE format('ALTER VIEW chats_expanded SET (%s)', array_to_string(view_options, ', '));
-				END IF;
+			IF view_first AND lock_view IS NOT NULL THEN
+				EXECUTE lock_view;
 			END IF;
 			EXECUTE 'LOCK TABLE ' || tables || ' IN ACCESS EXCLUSIVE MODE';
+			IF NOT view_first AND lock_view IS NOT NULL THEN
+				EXECUTE lock_view;
+			END IF;
 			EXIT;
 		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 			IF clock_timestamp() > deadline THEN
@@ -163,9 +180,10 @@ func (d *pgTxnDriver) Run(migration io.Reader) error {
 	// are taken only when there is work, and before the first migration
 	// body of the transaction.
 	if !d.chatTablesLocked {
-		err = d.runStatement([]byte(lockChatTablesQuery))
-		if err != nil {
-			return xerrors.Errorf("lock chat tables: %w", err)
+		// Not runStatement: its error repeats the whole query, which hides
+		// the message.
+		if _, err := d.tx.ExecContext(d.ctx, lockChatTablesQuery); err != nil {
+			return xerrors.Errorf("lock chat tables before running migrations: %w", err)
 		}
 		d.chatTablesLocked = true
 	}
