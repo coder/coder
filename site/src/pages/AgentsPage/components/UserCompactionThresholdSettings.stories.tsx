@@ -392,6 +392,24 @@ export const ErrorState: Story = {
 	},
 };
 
+export const ModelLoadErrorWhileLoading: Story = {
+	args: {
+		models: [],
+		isLoadingModels: true,
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+};
+
+export const ModelLoadError: Story = {
+	args: {
+		models: [],
+		isLoadingModels: false,
+		modelsError: new globalThis.Error("Failed to load models"),
+	},
+};
+
 export const PartialModelLoadError: Story = {
 	args: {
 		modelsError: new globalThis.Error(

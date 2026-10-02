@@ -274,7 +274,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	// only for a successful load with no enabled models.
 	const blockingError =
 		thresholdsError != null ||
-		(modelsError != null && enabledModels.length === 0);
+		(!isLoadingModels && modelsError != null && enabledModels.length === 0);
 
 	return (
 		<div className="flex flex-col gap-4">
