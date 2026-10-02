@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatAutomationNameMap } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -15,6 +16,18 @@ import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
+
+// Wraps the real query options so tests without a rendered outcome can wait
+// until the component has rendered. The dashboard renders children only after
+// it loads the experiments, so by then any automations request has started.
+vi.mock("#/api/queries/chatAutomations", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("#/api/queries/chatAutomations")>();
+	return {
+		...actual,
+		chatAutomationNameMap: vi.fn(actual.chatAutomationNameMap),
+	};
+});
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
@@ -179,7 +192,7 @@ describe("ChatPageInput", () => {
 				chat: { ...MockChat, id: "", organization_id: "test-org-id" },
 			});
 
-			await screen.findByRole("button", { name: "Send now" });
+			await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
 			expect(getChatAutomations).not.toHaveBeenCalled();
 		},
 	);
@@ -227,15 +240,13 @@ describe("ChatPageTimeline", () => {
 		);
 	});
 
-	it("shows the automation ID without requesting the list when the chat-automations experiment is off", async () => {
+	it("does not request the automations list when the chat-automations experiment is off", async () => {
 		mockExperiments([]);
 		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
 
 		renderChatPageTimelineWithAutomationInput();
 
-		await screen.findByRole("button", {
-			name: "Automation run · 7f1c2b9e-4d3a-4c1f-9b2e-5a6d7e8f9a0b · input 0b6c4e2a",
-		});
+		await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
 		expect(getChatAutomations).not.toHaveBeenCalled();
 	});
 });
