@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useBlocker } from "react-router";
+import { useRestoreFocusOnClose } from "./useRestoreFocusOnClose";
 
 type UnsavedChangesPromptState = {
 	isOpen: boolean;
@@ -10,16 +11,6 @@ type UnsavedChangesPromptState = {
 	 * that had it when the navigation was blocked.
 	 */
 	onCloseAutoFocus: (event: Event) => void;
-};
-
-const getFocusedElement = (): HTMLElement | null => {
-	const active = document.activeElement;
-	if (active instanceof HTMLElement && active !== document.body) {
-		return active;
-	}
-	// Chrome moves focus to the body when a focused control becomes disabled.
-	const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
-	return dialogs[dialogs.length - 1] ?? null;
 };
 
 /**
@@ -54,22 +45,17 @@ export const useUnsavedChangesPrompt = (
 			enabled && currentLocation.pathname !== nextLocation.pathname,
 	);
 	const isBlocked = blocker.state === "blocked";
-	// Captured in the render that opens the prompt, before the prompt takes
-	// focus, and kept until the next one so the closing prompt can read it.
+	const onCloseAutoFocus = useRestoreFocusOnClose(isBlocked);
+	// The reason the open prompt was opened for.
+	const [blockedReason, setBlockedReason] = useState<string>();
 	const [wasBlocked, setWasBlocked] = useState(false);
-	const [blockedState, setBlockedState] = useState<{
-		reason: string | undefined;
-		returnFocus: HTMLElement | null;
-	}>();
 	if (isBlocked !== wasBlocked) {
 		setWasBlocked(isBlocked);
-		if (isBlocked) {
-			setBlockedState({ reason, returnFocus: getFocusedElement() });
-		}
+		setBlockedReason(reason);
 	}
 	// A prompt opened while enabled must not outlive the reason for it.
 	const resetBlocker = blocker.reset;
-	const isStale = isBlocked && (!enabled || blockedState?.reason !== reason);
+	const isStale = isBlocked && (!enabled || blockedReason !== reason);
 	useEffect(() => {
 		if (isStale) {
 			resetBlocker?.();
@@ -80,19 +66,6 @@ export const useUnsavedChangesPrompt = (
 		isOpen: isBlocked,
 		onCancel: () => blocker.reset?.(),
 		onConfirm: () => blocker.proceed?.(),
-		onCloseAutoFocus: (event) => {
-			const element = blockedState?.returnFocus;
-			if (!element?.isConnected) {
-				return;
-			}
-			// A control disabled since then cannot take focus; its dialog can.
-			const target = element.matches(":disabled")
-				? element.closest<HTMLElement>('[role="dialog"]')
-				: element;
-			if (target) {
-				event.preventDefault();
-				target.focus();
-			}
-		},
+		onCloseAutoFocus,
 	};
 };
