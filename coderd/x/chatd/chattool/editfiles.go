@@ -95,11 +95,11 @@ func executeEditFilesTool(
 		}
 	}
 
-	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-		Files:       args.Files,
-		IncludeDiff: true,
-	})
-	return editFilesResponse(resp, err), nil
+	result, err := workspacetools.EditFiles(ctx, conn, args.Files)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err)), nil
+	}
+	return marshalToolResponse(result), nil
 }
 
 func editFilesResponse(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {

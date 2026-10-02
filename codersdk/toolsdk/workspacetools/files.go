@@ -2,7 +2,6 @@ package workspacetools
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -12,11 +11,13 @@ import (
 )
 
 // ReadFileResult is the structured response from the read file tool.
+// Keep fields in alphabetical order: Coder Agents tool responses use
+// sorted JSON keys.
 type ReadFileResult struct {
 	Content    string `json:"content"`
 	FileSize   int64  `json:"file_size"`
-	TotalLines int    `json:"total_lines"`
 	LinesRead  int    `json:"lines_read"`
+	TotalLines int    `json:"total_lines"`
 }
 
 // ReadFile reads line-numbered content from a workspace file. offset is
@@ -58,24 +59,25 @@ func ValidateFileEdits(files []workspacesdk.FileEdits) error {
 	for i := range files {
 		files[i].Path = strings.TrimSpace(files[i].Path)
 		if files[i].Path == "" {
-			return xerrors.New(fmt.Sprintf(
+			return xerrors.Errorf(
 				"files[%d].path is required; provide the absolute path of the file to edit; no files in this batch were applied", i,
-			))
+			)
 		}
 		if len(files[i].Edits) == 0 {
-			return xerrors.New(fmt.Sprintf(
+			return xerrors.Errorf(
 				"files[%d].edits must contain at least one edit; no files in this batch were applied", i,
-			))
+			)
 		}
 	}
 	return nil
 }
 
 // EditFilesResult is the structured success response from the edit
-// files tool.
+// files tool. Keep fields in alphabetical order: Coder Agents tool
+// responses use sorted JSON keys.
 type EditFilesResult struct {
-	OK    bool                          `json:"ok"`
 	Files []workspacesdk.FileEditResult `json:"files"`
+	OK    bool                          `json:"ok"`
 }
 
 // EditFiles applies validated edits and returns a per-file diff.

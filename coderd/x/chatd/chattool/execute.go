@@ -22,7 +22,6 @@ var toolNames = workspacetools.ToolNames{
 	ProcessOutput: "process_output",
 	ProcessList:   "process_list",
 	ReadFile:      "read_file",
-	EditFiles:     EditFilesToolName,
 }
 
 // ExecuteResult is the structured response from the execute
@@ -151,7 +150,10 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			result, err := workspacetools.ProcessOutput(ctx, conn, args.ProcessID, args.WaitTimeout)
+			result, err := workspacetools.ProcessOutput(ctx, conn, workspacetools.ProcessOutputRequest{
+				ProcessID:   args.ProcessID,
+				WaitTimeout: args.WaitTimeout,
+			})
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

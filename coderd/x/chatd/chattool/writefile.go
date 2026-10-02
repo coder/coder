@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -91,5 +92,5 @@ func writeFileResponse(err error) fantasy.ToolResponse {
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return toolResponse(map[string]any{"ok": true})
+	return marshalToolResponse(workspacetools.OKResult{OK: true})
 }

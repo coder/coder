@@ -212,10 +212,16 @@ current list, since the available tools can change between releases.
 
 The workspace file and command tools (`coder_workspace_read_file`,
 `coder_workspace_write_file`, `coder_workspace_edit_files`,
-`coder_workspace_execute`, and the `coder_workspace_process_*` tools) accept
-the same arguments and return the same results as the matching
-[Coder Agents](./agents/index.md) tools. They also take a `workspace` argument
-that selects the workspace to act on.
+`coder_workspace_execute`, and the `coder_workspace_process_*` tools) share
+their arguments and result formats with the matching
+[Coder Agents](./agents/index.md) tools, with these differences:
+
+- Each tool takes a `workspace` argument that selects the workspace to act on.
+- Invalid arguments and workspace agent errors are returned as MCP tool errors.
+- A single call waits at most 5 minutes. Run longer commands with
+  `run_in_background` and check on them with `coder_workspace_process_output`.
+- Commands started through MCP are separate from Coder Agents chat processes,
+  but anyone with SSH access to the workspace can list and signal them.
 
 ## Available Prompts
 

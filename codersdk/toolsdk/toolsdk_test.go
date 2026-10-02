@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -159,6 +160,38 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			readOnlyHint:    true,
 			destructiveHint: false,
 			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ExecuteIsDestructive",
+			toolName:        toolsdk.ToolNameWorkspaceExecute,
+			readOnlyHint:    false,
+			destructiveHint: true,
+			idempotentHint:  false,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ProcessOutputIsReadOnly",
+			toolName:        toolsdk.ToolNameWorkspaceProcessOutput,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ProcessListIsReadOnly",
+			toolName:        toolsdk.ToolNameWorkspaceProcessList,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ProcessSignalIsDestructive",
+			toolName:        toolsdk.ToolNameWorkspaceProcessSignal,
+			readOnlyHint:    false,
+			destructiveHint: true,
+			idempotentHint:  false,
 			openWorldHint:   false,
 		},
 	}
@@ -1343,16 +1376,36 @@ func TestTools(t *testing.T) {
 		})
 		require.ErrorContains(t, err, `invalid timeout "soon"`)
 
-		// A foreground command that outlives its timeout keeps running
-		// and can be followed up with the process tools.
+		_, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
+			Workspace: workspace.Name,
+			Command:   "echo hi",
+			Timeout:   ptr.Ref("1h"),
+		})
+		require.ErrorContains(t, err, "exceeds the maximum of 5m0s")
+
+		// The workdir argument sets the command's working directory.
+		workDir := t.TempDir()
 		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
 			Workspace: workspace.Name,
-			Command:   "echo started; sleep 600",
-			Timeout:   ptr.Ref("1s"),
+			Command:   "pwd",
+			WorkDir:   ptr.Ref(workDir),
 		})
 		require.NoError(t, err)
-		require.False(t, result.Success)
-		require.Contains(t, result.Error, "command timed out after 1s")
+		require.Equal(t, 0, result.ExitCode)
+		gotDir, err := filepath.EvalSymlinks(strings.TrimSpace(result.Output))
+		require.NoError(t, err)
+		wantDir, err := filepath.EvalSymlinks(workDir)
+		require.NoError(t, err)
+		require.Equal(t, wantDir, gotDir)
+
+		// A long-running background command can be listed and stopped.
+		result, err = testTool(t, toolsdk.WorkspaceExecute, tb, toolsdk.WorkspaceExecuteArgs{
+			Workspace:       workspace.Name,
+			Command:         "echo started; sleep 600",
+			RunInBackground: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, result.Backgrounded)
 		require.NotEmpty(t, result.BackgroundProcessID)
 		slowID := result.BackgroundProcessID
 
@@ -1387,7 +1440,7 @@ func TestTools(t *testing.T) {
 			running[p.ID] = p.Running
 		}
 		require.Contains(t, running, backgroundID)
-		require.True(t, running[slowID], "timed-out process should still be running")
+		require.True(t, running[slowID], "long-running process should still be running")
 
 		_, err = testTool(t, toolsdk.WorkspaceProcessSignal, tb, toolsdk.WorkspaceProcessSignalArgs{
 			Workspace: workspace.Name,

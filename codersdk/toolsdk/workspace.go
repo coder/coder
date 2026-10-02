@@ -3,6 +3,7 @@ package toolsdk
 import (
 	"context"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -14,8 +15,9 @@ import (
 // The workspace file and process tools share their arguments, behavior,
 // and results with the Coder Agents tools (see workspacetools). The MCP
 // versions add a workspace argument because an MCP session is not bound
-// to a single workspace. A parity test in coderd/mcp keeps the schemas
-// aligned.
+// to a single workspace, and they report invalid arguments and agent API
+// failures as MCP tool errors. A parity test in coderd/mcp keeps the
+// schemas aligned.
 
 // workspaceToolNames are the MCP names of the workspace tools, used in
 // shared descriptions and follow-up hints.
@@ -24,8 +26,13 @@ var workspaceToolNames = workspacetools.ToolNames{
 	ProcessOutput: ToolNameWorkspaceProcessOutput,
 	ProcessList:   ToolNameWorkspaceProcessList,
 	ReadFile:      ToolNameWorkspaceReadFile,
-	EditFiles:     ToolNameWorkspaceEditFiles,
 }
+
+// maxWorkspaceToolWait bounds how long an MCP call blocks on a command.
+// Each MCP request must return before the client gives up, otherwise the
+// background_process_id needed to follow up is lost. It matches the
+// agent's maximum blocking wait for process output.
+const maxWorkspaceToolWait = 5 * time.Minute
 
 func workspaceProperty() map[string]any {
 	return map[string]any{
@@ -40,6 +47,7 @@ func workspaceToolError(err error) error {
 	return xerrors.New(workspacetools.AgentAPIErrorMessage(err))
 }
 
+// WorkspaceReadFileArgs are the arguments of WorkspaceReadFile.
 type WorkspaceReadFileArgs struct {
 	Workspace string `json:"workspace"`
 	Path      string `json:"path"`
@@ -47,6 +55,7 @@ type WorkspaceReadFileArgs struct {
 	Limit     *int64 `json:"limit,omitempty"`
 }
 
+// WorkspaceReadFile reads line-numbered content from a workspace file.
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, workspacetools.ReadFileResult]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceReadFile,
@@ -69,16 +78,22 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, workspacetools.ReadFileResul
 			return workspacetools.ReadFileResult{}, err
 		}
 		defer conn.Close()
-		return workspacetools.ReadFile(ctx, conn, args.Path, args.Offset, args.Limit)
+		res, err := workspacetools.ReadFile(ctx, conn, args.Path, args.Offset, args.Limit)
+		if err != nil {
+			return workspacetools.ReadFileResult{}, workspaceToolError(err)
+		}
+		return res, nil
 	},
 }
 
+// WorkspaceWriteFileArgs are the arguments of WorkspaceWriteFile.
 type WorkspaceWriteFileArgs struct {
 	Workspace string `json:"workspace"`
 	Path      string `json:"path"`
 	Content   string `json:"content"`
 }
 
+// WorkspaceWriteFile creates or replaces a workspace file.
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, workspacetools.OKResult]{
 	Tool: aisdk.Tool{
 		Name: ToolNameWorkspaceWriteFile,
@@ -118,11 +133,13 @@ var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, workspacetools.OKResult]{
 	},
 }
 
+// WorkspaceEditFilesArgs are the arguments of WorkspaceEditFiles.
 type WorkspaceEditFilesArgs struct {
 	Workspace string                   `json:"workspace"`
 	Files     []workspacesdk.FileEdits `json:"files"`
 }
 
+// WorkspaceEditFiles applies text replacements to workspace files.
 var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, workspacetools.EditFilesResult]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceEditFiles,
@@ -189,6 +206,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, workspacetools.EditFilesRe
 	},
 }
 
+// WorkspaceExecuteArgs are the arguments of WorkspaceExecute.
 type WorkspaceExecuteArgs struct {
 	Workspace       string  `json:"workspace"`
 	Command         string  `json:"command"`
@@ -197,6 +215,7 @@ type WorkspaceExecuteArgs struct {
 	RunInBackground *bool   `json:"run_in_background,omitempty"`
 }
 
+// WorkspaceExecute runs a shell command in a workspace.
 var WorkspaceExecute = Tool[WorkspaceExecuteArgs, workspacetools.ExecuteResult]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceExecute,
@@ -238,6 +257,7 @@ var WorkspaceExecute = Tool[WorkspaceExecuteArgs, workspacetools.ExecuteResult]{
 			Command:         args.Command,
 			Timeout:         args.Timeout,
 			RunInBackground: args.RunInBackground != nil && *args.RunInBackground,
+			MaxTimeout:      maxWorkspaceToolWait,
 			Names:           workspaceToolNames,
 		}
 		if args.WorkDir != nil {
@@ -247,12 +267,14 @@ var WorkspaceExecute = Tool[WorkspaceExecuteArgs, workspacetools.ExecuteResult]{
 	},
 }
 
+// WorkspaceProcessOutputArgs are the arguments of WorkspaceProcessOutput.
 type WorkspaceProcessOutputArgs struct {
 	Workspace   string  `json:"workspace"`
 	ProcessID   string  `json:"process_id"`
 	WaitTimeout *string `json:"wait_timeout,omitempty"`
 }
 
+// WorkspaceProcessOutput retrieves the output of a workspace process.
 var WorkspaceProcessOutput = Tool[WorkspaceProcessOutputArgs, workspacetools.ExecuteResult]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceProcessOutput,
@@ -279,14 +301,21 @@ var WorkspaceProcessOutput = Tool[WorkspaceProcessOutputArgs, workspacetools.Exe
 			return workspacetools.ExecuteResult{}, err
 		}
 		defer conn.Close()
-		return workspacetools.ProcessOutput(ctx, conn, args.ProcessID, args.WaitTimeout)
+		return workspacetools.ProcessOutput(ctx, conn, workspacetools.ProcessOutputRequest{
+			ProcessID:   args.ProcessID,
+			WaitTimeout: args.WaitTimeout,
+			MaxWait:     maxWorkspaceToolWait,
+		})
 	},
 }
 
+// WorkspaceProcessListArgs are the arguments of WorkspaceProcessList.
 type WorkspaceProcessListArgs struct {
 	Workspace string `json:"workspace"`
 }
 
+// WorkspaceProcessList lists processes started outside a chat in a
+// workspace.
 var WorkspaceProcessList = Tool[WorkspaceProcessListArgs, workspacesdk.ListProcessesResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceProcessList,
@@ -313,12 +342,14 @@ var WorkspaceProcessList = Tool[WorkspaceProcessListArgs, workspacesdk.ListProce
 	},
 }
 
+// WorkspaceProcessSignalArgs are the arguments of WorkspaceProcessSignal.
 type WorkspaceProcessSignalArgs struct {
 	Workspace string `json:"workspace"`
 	ProcessID string `json:"process_id"`
 	Signal    string `json:"signal"`
 }
 
+// WorkspaceProcessSignal terminates or kills a workspace process.
 var WorkspaceProcessSignal = Tool[WorkspaceProcessSignalArgs, workspacetools.SignalResult]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceProcessSignal,

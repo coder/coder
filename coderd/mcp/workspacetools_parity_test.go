@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -24,6 +25,11 @@ func TestWorkspaceToolsMatchCoderAgents(t *testing.T) {
 	for _, tool := range toolsdk.All {
 		mcpTools[tool.Name] = tool
 	}
+
+	// MCP text must reference MCP tool names. A bare Coder Agents name
+	// would point the model at a tool that does not exist on MCP. The
+	// word boundaries skip the coder_workspace_ prefixed names.
+	bareAgentsName := regexp.MustCompile(`\b(process_output|process_list|process_signal|read_file|write_file|edit_files)\b`)
 
 	// Replacing MCP names with Coder Agents names lets descriptions that
 	// reference follow-up tools compare equal.
@@ -79,6 +85,11 @@ func TestWorkspaceToolsMatchCoderAgents(t *testing.T) {
 			require.True(t, ok, "tool %q is not registered in toolsdk.All", tt.mcpName)
 			info := tt.agents.Info()
 
+			mcpSchema, err := json.Marshal(mcpTool.Schema.Properties)
+			require.NoError(t, err)
+			require.Empty(t, bareAgentsName.FindAllString(mcpTool.Description+string(mcpSchema), -1),
+				"MCP tool text references Coder Agents tool names")
+
 			mcpDescription := renamer.Replace(mcpTool.Description)
 			if tt.descriptionPrefix {
 				require.True(t, strings.HasPrefix(info.Description, strings.TrimSuffix(mcpDescription, ".")),
@@ -95,8 +106,11 @@ func TestWorkspaceToolsMatchCoderAgents(t *testing.T) {
 				delete(agentsArgs, name)
 			}
 			for _, name := range tt.ignoreArgDescriptions {
-				delete(mcpArgs[name].(map[string]any), "description")
-				delete(agentsArgs[name].(map[string]any), "description")
+				for _, args := range []map[string]any{mcpArgs, agentsArgs} {
+					arg, ok := args[name].(map[string]any)
+					require.True(t, ok, "argument %q is missing", name)
+					delete(arg, "description")
+				}
 			}
 			require.Equal(t, agentsArgs, mcpArgs)
 

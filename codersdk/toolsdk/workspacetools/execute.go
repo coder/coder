@@ -1,8 +1,3 @@
-// Package workspacetools implements the workspace tool behavior shared by
-// Coder Agents (coderd/x/chatd/chattool) and the Coder MCP server
-// (codersdk/toolsdk). It talks to the workspace agent through
-// workspacesdk.AgentConn and has no dependency on either tool framework,
-// so both surfaces run the same commands and return the same results.
 package workspacetools
 
 import (
@@ -35,9 +30,9 @@ const (
 	snapshotTimeout = 30 * time.Second
 )
 
-// NonInteractiveEnv is set on every process to prevent interactive
+// nonInteractiveEnv is set on every process to prevent interactive
 // prompts that would hang a headless execution.
-var NonInteractiveEnv = map[string]string{
+var nonInteractiveEnv = map[string]string{
 	"GIT_EDITOR":          "true",
 	"GIT_SEQUENCE_EDITOR": "true",
 	"EDITOR":              "true",
@@ -66,7 +61,7 @@ const (
 	// the user. Keep the docs anchor in sync with
 	// docs/ai-coder/agents/architecture.md.
 	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
-		"Coder Agents run commands with \"sh -c\". On Windows, install sh " +
+		"Workspace commands run with \"sh -c\". On Windows, install sh " +
 		"via Git Bash, MSYS2, or WSL, then restart the workspace to pick " +
 		"up the updated PATH. See " +
 		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
@@ -80,7 +75,6 @@ type ToolNames struct {
 	ProcessOutput string
 	ProcessList   string
 	ReadFile      string
-	EditFiles     string
 }
 
 // ExecuteResult is the structured response from the execute and
@@ -110,7 +104,10 @@ type ExecuteRequest struct {
 	RunInBackground bool
 	// DefaultTimeout overrides DefaultExecuteTimeout when positive.
 	DefaultTimeout time.Duration
-	// Env is merged over NonInteractiveEnv.
+	// MaxTimeout, when positive, rejects longer foreground timeouts.
+	MaxTimeout time.Duration
+	// Env holds extra environment variables. The non-interactive
+	// defaults take precedence over it.
 	Env map[string]string
 	// Names supplies the tool names used in follow-up hints.
 	Names ToolNames
@@ -125,11 +122,11 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 		return ExecuteResult{}, xerrors.New("command is required")
 	}
 
-	env := make(map[string]string, len(NonInteractiveEnv)+len(req.Env))
+	env := make(map[string]string, len(nonInteractiveEnv)+len(req.Env))
 	for k, v := range req.Env {
 		env[k] = v
 	}
-	for k, v := range NonInteractiveEnv {
+	for k, v := range nonInteractiveEnv {
 		env[k] = v
 	}
 
@@ -169,9 +166,15 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 	if req.Timeout != nil {
 		parsed, err := time.ParseDuration(*req.Timeout)
 		if err != nil {
-			return ExecuteResult{}, xerrors.Errorf("invalid timeout %q: %v", *req.Timeout, err)
+			return ExecuteResult{}, xerrors.Errorf("invalid timeout %q: %w", *req.Timeout, err)
 		}
 		timeout = parsed
+	}
+	if req.MaxTimeout > 0 && timeout > req.MaxTimeout {
+		return ExecuteResult{}, xerrors.Errorf(
+			"timeout %s exceeds the maximum of %s; use run_in_background=true and %s for longer commands",
+			timeout, req.MaxTimeout, req.Names.ProcessOutput,
+		)
 	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -207,20 +210,34 @@ func StartErrorResult(action string, err error) ExecuteResult {
 	return ExecuteResult{Success: false, Error: msg}
 }
 
-// ProcessOutput retrieves a tracked process's output. A nil waitTimeout
-// blocks for up to DefaultProcessOutputWait; "0s" returns a snapshot
-// without waiting. A returned error means the request is invalid.
-func ProcessOutput(ctx context.Context, conn workspacesdk.AgentConn, processID string, waitTimeout *string) (ExecuteResult, error) {
-	if processID == "" {
+// ProcessOutputRequest describes a process output lookup.
+type ProcessOutputRequest struct {
+	ProcessID string
+	// WaitTimeout is the caller-supplied wait duration, such as "30s".
+	// Nil blocks for up to DefaultProcessOutputWait; "0s" returns a
+	// snapshot without waiting.
+	WaitTimeout *string
+	// MaxWait, when positive, rejects longer wait timeouts.
+	MaxWait time.Duration
+}
+
+// ProcessOutput retrieves a tracked process's output. A returned error
+// means the request is invalid.
+func ProcessOutput(ctx context.Context, conn workspacesdk.AgentConn, req ProcessOutputRequest) (ExecuteResult, error) {
+	if req.ProcessID == "" {
 		return ExecuteResult{}, xerrors.New("process_id is required")
 	}
+	processID := req.ProcessID
 	timeout := DefaultProcessOutputWait
-	if waitTimeout != nil {
-		parsed, err := time.ParseDuration(*waitTimeout)
+	if req.WaitTimeout != nil {
+		parsed, err := time.ParseDuration(*req.WaitTimeout)
 		if err != nil {
-			return ExecuteResult{}, xerrors.Errorf("invalid wait_timeout %q: %v", *waitTimeout, err)
+			return ExecuteResult{}, xerrors.Errorf("invalid wait_timeout %q: %w", *req.WaitTimeout, err)
 		}
 		timeout = parsed
+	}
+	if req.MaxWait > 0 && timeout > req.MaxWait {
+		return ExecuteResult{}, xerrors.Errorf("wait_timeout %s exceeds the maximum of %s", timeout, req.MaxWait)
 	}
 
 	var opts *workspacesdk.ProcessOutputOptions
@@ -253,7 +270,7 @@ func ProcessOutput(ctx context.Context, conn workspacesdk.AgentConn, processID s
 	}
 	result := ExecuteResult{
 		Success:   !resp.Running && exitCode == 0,
-		Output:    TruncateOutput(resp.Output),
+		Output:    truncateOutput(resp.Output),
 		ExitCode:  exitCode,
 		Truncated: resp.Truncated,
 		Command:   resp.Command,
@@ -276,10 +293,11 @@ func ValidateSignal(signal string) error {
 }
 
 // SignalResult is the structured success response from the process
-// signal tool.
+// signal tool. Keep fields in alphabetical order: Coder Agents tool
+// responses use sorted JSON keys.
 type SignalResult struct {
-	Success bool   `json:"success"`
 	Message string `json:"message"`
+	Success bool   `json:"success"`
 }
 
 // SignalSent reports that signal was delivered to processID.
@@ -290,9 +308,9 @@ func SignalSent(processID, signal string) SignalResult {
 	}
 }
 
-// TruncateOutput truncates output to MaxOutputBytes, keeping the result
+// truncateOutput truncates output to MaxOutputBytes, keeping the result
 // valid UTF-8 even if the cut falls inside a multi-byte character.
-func TruncateOutput(output string) string {
+func truncateOutput(output string) string {
 	if len(output) > MaxOutputBytes {
 		output = strings.ToValidUTF8(output[:MaxOutputBytes], "")
 	}
@@ -307,7 +325,7 @@ func ExitedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
 	}
 	return ExecuteResult{
 		Success:   exitCode == 0,
-		Output:    TruncateOutput(resp.Output),
+		Output:    truncateOutput(resp.Output),
 		ExitCode:  exitCode,
 		Truncated: resp.Truncated,
 	}
@@ -362,7 +380,7 @@ func waitForProcess(
 		}
 		return ExecuteResult{
 			Success:             false,
-			Output:              TruncateOutput(resp.Output),
+			Output:              truncateOutput(resp.Output),
 			ExitCode:            -1,
 			Error:               errMsg,
 			Truncated:           resp.Truncated,
@@ -380,7 +398,7 @@ func waitForProcess(
 		}
 		return ExecuteResult{
 			Success:             false,
-			Output:              TruncateOutput(resp.Output),
+			Output:              truncateOutput(resp.Output),
 			ExitCode:            -1,
 			Error:               fmt.Sprintf("command timed out after %s", timeout),
 			Truncated:           resp.Truncated,
