@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -115,6 +116,7 @@ func Test_Runner(t *testing.T) {
 		// Since the runner creates the workspace on it's own, we have to keep
 		// listing workspaces until we find it, then wait for the build to
 		// finish, then start the agents.
+		agents := make(chan []io.Closer, 1)
 		go func() {
 			var workspace codersdk.Workspace
 			if !assert.Eventually(t, func() bool {
@@ -134,6 +136,7 @@ func Test_Runner(t *testing.T) {
 			}
 
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			var agentClosers []io.Closer
 			// Start the three agents.
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
 				i := i + 1
@@ -145,12 +148,14 @@ func Test_Runner(t *testing.T) {
 						Named(fmt.Sprintf("agent%d", i)).
 						Leveled(slog.LevelWarn),
 				})
+				agentClosers = append(agentClosers, agentCloser)
 				t.Cleanup(func() {
 					_ = agentCloser.Close()
 				})
 			}
 
 			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+			agents <- agentClosers
 		}()
 
 		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
@@ -183,6 +188,11 @@ func Test_Runner(t *testing.T) {
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaces[0].LatestBuild.ID)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
+
+		// Agents must report their final lifecycle state before deletion.
+		for _, agentCloser := range testutil.RequireReceive(ctx, t, agents) {
+			require.NoError(t, agentCloser.Close())
+		}
 
 		cleanupLogs := bytes.NewBuffer(nil)
 		err = runner.Cleanup(ctx, "1", cleanupLogs)
