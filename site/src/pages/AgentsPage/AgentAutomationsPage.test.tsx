@@ -604,12 +604,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			within(dialog).getByRole("combobox", { name: /^Project/ }),
 		);
+		const option = await screen.findByRole("option", {
+			name: mockProject.name,
+		});
 		expect(
 			screen.queryByRole("option", { name: mockOtherOrgProject.name }),
 		).toBeNull();
-		await user.click(
-			await screen.findByRole("option", { name: mockProject.name }),
-		);
+		await user.click(option);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {

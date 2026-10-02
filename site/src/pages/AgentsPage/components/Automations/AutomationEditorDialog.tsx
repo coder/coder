@@ -3,7 +3,6 @@ import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatProjects } from "#/api/queries/chatProjects";
 import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
@@ -36,11 +35,13 @@ import { getPreferredTimezone } from "#/utils/timeZones";
 import {
 	getModelSelectorPlaceholder,
 	hasUserFixableProviders,
+	NIL_UUID,
 	resolveModelSelector,
 } from "../../utils/modelOptions";
 import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
+import { AutomationProjectField, NO_PROJECT } from "./AutomationProjectField";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
 import { AutomationWebhookFields } from "./AutomationWebhookFields";
 import { RadioOption } from "./RadioOption";
@@ -60,12 +61,6 @@ const TARGET_FIELDS: readonly string[] = [
 	"reasoning_effort",
 	"project_id",
 ];
-
-/** The Project select value for no project. Project IDs are UUIDs. */
-const NO_PROJECT = "none";
-
-/** The update request value that removes the project. */
-const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
 type AutomationFormValues = {
@@ -187,7 +182,7 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
-	/** Shows the Project field for new chats (the chat-projects experiment). */
+	/** Shows the Project field for new chat targets. */
 	projectsEnabled: boolean;
 	/** Origin of the webhook publish endpoint. */
 	origin: string;
@@ -317,18 +312,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
 	const showProjectField = projectsEnabled && !isExistingChat;
-	const projectsQuery = useQuery({
-		...chatProjects(),
-		enabled: showProjectField,
-	});
-	const projects = (projectsQuery.data ?? []).filter(
-		(project) => project.organization_id === organizationId,
-	);
-	// A stored project the viewer cannot list stays selectable, so saving
-	// the form does not silently remove it.
-	const isUnlistedProject =
-		form.values.project_id !== NO_PROJECT &&
-		!projects.some((project) => project.id === form.values.project_id);
 
 	const renderedFields: readonly string[] = [
 		"name",
@@ -623,28 +606,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									</div>
 								)}
 								{showProjectField && (
-									<SelectField
+									<AutomationProjectField
+										organizationId={organizationId}
 										field={getFieldHelpers("project_id")}
-										label="Project"
-										description="Chats this automation creates join the project."
+										value={form.values.project_id}
 										onValueChange={(value) =>
 											form.setFieldValue("project_id", value)
 										}
-									>
-										<SelectItem value={NO_PROJECT}>No project</SelectItem>
-										{projects.map((project) => (
-											<SelectItem key={project.id} value={project.id}>
-												{project.name}
-											</SelectItem>
-										))}
-										{isUnlistedProject && (
-											<SelectItem value={form.values.project_id}>
-												{projectsQuery.isSuccess
-													? "Unknown project"
-													: "Loading…"}
-											</SelectItem>
-										)}
-									</SelectField>
+									/>
 								)}
 							</section>
 						</fieldset>
