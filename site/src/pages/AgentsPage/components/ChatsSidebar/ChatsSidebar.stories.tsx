@@ -93,8 +93,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
 		navigateAfterArchive: fn(),
-		onMarkChatRead: fn(),
-		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -2306,6 +2304,37 @@ export const ReadStateContextMenu: Story = {
 			await canvas.findByLabelText("Open actions for Unread agent"),
 		);
 		await within(document.body).findByText("Mark as read");
+	},
+};
+
+export const ReadStateUpdatePending: Story = {
+	...ReadStateContextMenu,
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Mark as read",
+			}),
+		);
+		await waitFor(() => {
+			if (getComputedStyle(document.body).pointerEvents === "none") {
+				throw new Error("Waiting for the actions menu to finish closing.");
+			}
+		});
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Mark as read",
+		});
 	},
 };
 

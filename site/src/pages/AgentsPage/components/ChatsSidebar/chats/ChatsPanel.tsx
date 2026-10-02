@@ -92,8 +92,6 @@ type ChatsPanelProps = {
 	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveSuccess?: (chatId: string) => void;
 	readonly navigateAfterArchive: (chatId: string) => void;
-	readonly onMarkChatRead: (chatId: string) => void;
-	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
@@ -121,8 +119,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	isLoadingModelConfigs,
 	onArchiveSuccess,
 	navigateAfterArchive,
-	onMarkChatRead,
-	onMarkChatUnread,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
@@ -332,8 +328,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		toggleExpanded,
 		onArchiveSuccess,
 		navigateAfterArchive,
-		onMarkChatRead,
-		onMarkChatUnread,
 		onOpenRenameDialog,
 		renderTrailing: boardGroups
 			? (chat) => <BoardColumnTag chat={chat} groups={boardGroups} />

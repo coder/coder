@@ -119,8 +119,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chatErrorReasons: {},
 	modelConfigs: [],
 	navigateAfterArchive: vi.fn(),
-	onMarkChatRead: vi.fn(),
-	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -987,63 +985,52 @@ describe("ChatsSidebar subtitles", () => {
 });
 
 describe("ChatsSidebar read state actions", () => {
-	const openActionsMenu = async (title: string) => {
-		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", { name: `Open actions for ${title}` }),
-		);
-		return user;
-	};
+	afterEach(() => vi.restoreAllMocks());
 
-	it("marks a read chat as unread", async () => {
-		const onMarkChatUnread = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "read-chat",
-							title: "Read chat",
-							has_unread: false,
-						}),
-					]}
-					onMarkChatUnread={onMarkChatUnread}
-				/>
-			</Wrapper>,
-		);
-
-		const user = await openActionsMenu("Read chat");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as unread" }),
-		);
-
-		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
-	});
-
-	it("marks an unread chat as read", async () => {
-		const onMarkChatRead = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
-						}),
-					]}
-					onMarkChatRead={onMarkChatRead}
-				/>
-			</Wrapper>,
-		);
-
-		const user = await openActionsMenu("Unread chat");
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Mark as read" }),
-		);
-
-		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
-	});
+	it.each([
+		{ action: "Mark as read", read: true, fails: false },
+		{ action: "Mark as unread", read: false, fails: false },
+		{ action: "Mark as read", read: true, fails: true },
+		{ action: "Mark as unread", read: false, fails: true },
+	])(
+		"$action persists the read state (failure: $fails)",
+		async ({ action, read, fails }) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Read state rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "read-state-chat",
+								title: "Read state chat",
+								has_unread: read,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", {
+					name: "Open actions for Read state chat",
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("read-state-chat", { read }),
+			);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Read state rejected"),
+				);
+			}
+		},
+	);
 });
