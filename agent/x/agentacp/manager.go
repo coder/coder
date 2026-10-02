@@ -1,10 +1,12 @@
-// Package agentacp manages workspace-local ACP harnesses.
+// Package agentacp manages workspace-local ACP harnesses and sessions.
 package agentacp
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,14 @@ import (
 // ErrManagerClosed is returned when the manager has been closed.
 var ErrManagerClosed = xerrors.New("ACP manager closed")
 
+// Errors classify agent API failures.
+var (
+	ErrInvalid     = xerrors.New("invalid ACP request")
+	ErrNotFound    = xerrors.New("ACP session not found")
+	ErrConflict    = xerrors.New("ACP request conflict")
+	ErrUnavailable = xerrors.New("ACP harness unavailable")
+)
+
 const setupTimeout = 30 * time.Second
 
 // Options supplies the workspace execution environment and lifecycle.
@@ -33,12 +43,14 @@ type Options struct {
 	EnvInfo    usershell.EnvInfoer
 	// UpdateEnv optionally enriches the inherited environment with workspace
 	// variables and secrets. Discovery calls it once per reload and uses the
-	// result for both cache invalidation and harness subprocesses.
+	// result for both cache invalidation and harness subprocesses. Session
+	// creation calls it again to use the current environment.
 	UpdateEnv  func([]string) ([]string, error)
 	WorkingDir func() string
 }
 
-// Manager owns discovery subprocesses and catalog snapshots.
+// Manager owns harness discovery and the session registry.
+// Each SessionFSM owns its process, tasks, operations, status, and transcript.
 type Manager struct {
 	configHashes map[string][32]byte
 	closedDone   chan struct{}
@@ -53,6 +65,7 @@ type Manager struct {
 	workingDir   func() string
 	mu           sync.Mutex
 	closed       bool
+	sessions     map[workspacesdk.ACPSessionID]*SessionFSM
 	configs      map[string]harnessConfig
 	configDir    string
 	discoveryDir string
@@ -66,7 +79,7 @@ type Manager struct {
 
 // NewManager creates a manager; RunDiscovery starts filesystem discovery.
 // Clock, Execer, Filesystem, EnvInfo, and WorkingDir must be supplied.
-// UpdateEnv is optional and runs once per discovery reload.
+// UpdateEnv is optional and runs once per discovery reload or session launch.
 func NewManager(ctx context.Context, opts Options) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
@@ -79,6 +92,7 @@ func NewManager(ctx context.Context, opts Options) *Manager {
 		envInfo:      opts.EnvInfo,
 		updateEnv:    opts.UpdateEnv,
 		workingDir:   opts.WorkingDir,
+		sessions:     make(map[workspacesdk.ACPSessionID]*SessionFSM),
 		closedDone:   make(chan struct{}),
 		configs:      make(map[string]harnessConfig),
 		configHashes: make(map[string][32]byte),
@@ -124,7 +138,51 @@ func (m *Manager) validate(directory string) error {
 	return nil
 }
 
-// Close stops discovery subprocesses and all manager-owned goroutines.
+// Create initializes a dedicated idle adapter.
+func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionRequest) (workspacesdk.ACPSession, error) {
+	s, err := m.createSession(ctx, req)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	r, err := s.Read(ctx, nil)
+	if err != nil {
+		m.discardSession(s)
+		return workspacesdk.ACPSession{}, err
+	}
+	return r.Session, nil
+}
+
+// Message submits a prompt to an existing idle session.
+func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
+	if strings.TrimSpace(req.Text) == "" {
+		return workspacesdk.ACPMessageResponse{}, ErrInvalid
+	}
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPMessageResponse{}, err
+	}
+	return s.Message(ctx, req)
+}
+
+// Interrupt obtains a session without recovering failures, then writes cancel.
+func (m *Manager) Interrupt(ctx context.Context, id workspacesdk.ACPSessionID) (workspacesdk.ACPSession, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSession{}, err
+	}
+	return s.Interrupt(ctx)
+}
+
+// Read preserves failed instances and their partial output.
+func (m *Manager) Read(ctx context.Context, id workspacesdk.ACPSessionID, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, error) {
+	s, err := m.get(ctx, id)
+	if err != nil {
+		return workspacesdk.ACPSessionResponse{}, err
+	}
+	return s.Read(ctx, after)
+}
+
+// Close prevents initialization and stops all session runtimes.
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -134,7 +192,11 @@ func (m *Manager) Close() error {
 	}
 	m.closed = true
 	m.cancel()
+	sessions := slices.Collect(maps.Values(m.sessions))
 	m.mu.Unlock()
+	for _, s := range sessions {
+		s.Close()
+	}
 	m.wg.Wait()
 	close(m.closedDone)
 	return nil
@@ -203,6 +265,17 @@ func configOptions(options []acp.SessionConfigOption) []workspacesdk.ACPConfigOp
 		out = append(out, opt)
 	}
 	return out
+}
+
+func cloneEvent(e workspacesdk.ACPEvent) workspacesdk.ACPEvent {
+	e.Update = slices.Clone(e.Update)
+	if e.Session != nil {
+		info := *e.Session
+		info.Config = maps.Clone(info.Config)
+		info.Harness = cloneHarness(info.Harness)
+		e.Session = &info
+	}
+	return e
 }
 
 func cloneHarness(h workspacesdk.ACPHarness) workspacesdk.ACPHarness {
