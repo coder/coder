@@ -161,7 +161,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Type: proto.Connection_SSH},
-				proto.DisconnectEvent{},
+				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 			)
 		})
 	}
@@ -372,7 +372,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_VSCODE},
-			proto.DisconnectEvent{},
+			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 		)
 	})
 
@@ -448,7 +448,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_JETBRAINS},
-			proto.DisconnectEvent{},
+			proto.DisconnectEvent{Reason: "normal close"},
 		)
 	})
 }
@@ -1528,7 +1528,7 @@ func TestAgent_SCP(t *testing.T) {
 	scpClient.Close()
 	assertConnectionReport(t, agentClient,
 		proto.ConnectEvent{Type: proto.Connection_SSH},
-		proto.DisconnectEvent{},
+		proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 	)
 }
 
@@ -1566,7 +1566,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{Code: agentssh.BlockedFileTransferErrorCode},
+			proto.DisconnectEvent{
+				Code:   agentssh.BlockedFileTransferErrorCode,
+				Reason: "file transfer blocked",
+			},
 		)
 	})
 
@@ -1593,7 +1596,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{Code: agentssh.BlockedFileTransferErrorCode},
+			proto.DisconnectEvent{
+				Code:   agentssh.BlockedFileTransferErrorCode,
+				Reason: "file transfer blocked",
+			},
 		)
 	})
 
@@ -1633,7 +1639,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 
 				assertConnectionReport(t, agentClient,
 					proto.ConnectEvent{Type: proto.Connection_SSH},
-					proto.DisconnectEvent{Code: agentssh.BlockedFileTransferErrorCode},
+					proto.DisconnectEvent{
+						Code:   agentssh.BlockedFileTransferErrorCode,
+						Reason: "file transfer blocked",
+					},
 				)
 			})
 		}
@@ -2342,7 +2351,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Type: proto.Connection_RECONNECTING_PTY},
-				proto.DisconnectEvent{},
+				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 			)
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
@@ -4489,7 +4498,7 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	if disconnect.Reason != "" {
 		assert.Contains(t, reports[1].GetConnection().GetReason(), disconnect.Reason, "disconnect reason should contain %s", disconnect.Reason)
 	} else {
-		assert.Equal(t, "", disconnect.Reason, "disconnect reason should be empty")
+		assert.Equal(t, "", reports[1].GetConnection().GetReason(), "disconnect reason should be empty")
 	}
 	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
 	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
