@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -92,6 +93,49 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 		Input:            `{"query":"coder"}`,
 		ProviderExecuted: true,
 	}, prompt[1].Content[1])
+}
+
+func TestSanitizeCompactionPrompt_OpenAIReasoning(t *testing.T) {
+	t.Parallel()
+
+	encrypted := "encrypted-blob"
+	finalized := fantasy.ReasoningPart{ProviderOptions: fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs_final", EncryptedContent: &encrypted, Finalized: true},
+	}}
+	legacy := fantasy.ReasoningPart{Text: "summary", ProviderOptions: fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs_legacy", Summary: []string{"summary"}},
+	}}
+	prompt := []fantasy.Message{
+		{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
+		{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{finalized, fantasy.TextPart{Text: "answer"}}},
+		{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{legacy}},
+	}
+	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-5-mini"}, nil)
+
+	t.Run("ForeignProviderDropsReasoning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		// Reasoning IDs and encrypted content only resolve on the provider
+		// instance that issued them.
+		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+
+		require.Len(t, sanitized, 2)
+		require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{Text: "answer"}}, sanitized[1].Content)
+		require.Equal(t, finalized, prompt[1].Content[0])
+	})
+
+	t.Run("SameProviderKeepsReasoning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		sharedProviderID := uuid.New()
+
+		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+
+		require.Equal(t, prompt, sanitized)
+	})
 }
 
 func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *testing.T) {
