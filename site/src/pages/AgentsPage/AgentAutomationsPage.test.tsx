@@ -7,7 +7,12 @@ import type { QueryClient } from "react-query";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
-import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatAutomation,
+	ChatModel,
+	ChatProject,
+} from "#/api/typesGenerated";
 import {
 	MockChat,
 	MockChatAutomation,
@@ -373,6 +378,24 @@ const mockModel: ChatModel = {
 	reasoning_efforts: ["low", "high"],
 };
 
+const mockProject: ChatProject = {
+	id: "project-1",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockChat.owner_id,
+	name: "Release work",
+	description: "",
+	icon: "",
+	created_at: "2026-01-01T00:00:00Z",
+	updated_at: "2026-01-01T00:00:00Z",
+};
+
+const mockOtherOrgProject: ChatProject = {
+	...mockProject,
+	id: "project-2",
+	organization_id: MockOrganization2.id,
+	name: "Other organization project",
+};
+
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const validationError = (field: string, detail: string) =>
@@ -560,6 +583,82 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					new_chat_model_config_id: mockModel.id,
 					...effort,
 				},
+			]);
+		});
+	});
+
+	it("creates a new chat schedule in a project of the automation's organization", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor({
+			experiments: ["chat-automations", "chat-projects"],
+		});
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockProject, mockOtherOrgProject]),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await pickNewChatModel(user, dialog);
+		await user.keyboard("{Escape}");
+		await user.click(
+			within(dialog).getByRole("combobox", { name: /^Project/ }),
+		);
+		expect(
+			screen.queryByRole("option", { name: mockOtherOrgProject.name }),
+		).toBeNull();
+		await user.click(
+			await screen.findByRole("option", { name: mockProject.name }),
+		);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({
+					target_mode: "new_chat",
+					project_id: mockProject.id,
+				}),
+			]);
+		});
+	});
+
+	it("removes the project with the all-zero UUID", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			experiments: ["chat-automations", "chat-projects"],
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					project_id: mockProject.id,
+				},
+			],
+		});
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockProject]),
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
+		await waitFor(() => {
+			expect(project).toHaveTextContent(mockProject.name);
+		});
+		await user.click(project);
+		await user.click(await screen.findByRole("option", { name: "No project" }));
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([
+				{ project_id: "00000000-0000-0000-0000-000000000000" },
 			]);
 		});
 	});

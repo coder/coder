@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProjects } from "#/api/queries/chatProjects";
 import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
@@ -57,7 +58,14 @@ const TARGET_FIELDS: readonly string[] = [
 	"when_busy",
 	"new_chat_model_config_id",
 	"reasoning_effort",
+	"project_id",
 ];
+
+/** The Project select value for no project. Project IDs are UUIDs. */
+const NO_PROJECT = "none";
+
+/** The update request value that removes the project. */
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
 type AutomationFormValues = {
@@ -72,6 +80,7 @@ type AutomationFormValues = {
 	when_busy: ChatAutomationWhenBusy;
 	new_chat_model_config_id: string;
 	reasoning_effort: string;
+	project_id: string;
 };
 
 const defaultWhenBusy = (kind: ChatAutomationKind): ChatAutomationWhenBusy =>
@@ -93,6 +102,7 @@ const initialFormValues = (
 	when_busy: automation?.when_busy ?? "skip",
 	new_chat_model_config_id: automation?.new_chat_model_config_id ?? "",
 	reasoning_effort: automation?.reasoning_effort ?? "",
+	project_id: automation?.project_id ?? NO_PROJECT,
 });
 
 const normalize = (values: AutomationFormValues): AutomationFormValues => ({
@@ -129,6 +139,7 @@ const buildCreateRequest = (
 		...(values.reasoning_effort && {
 			reasoning_effort: values.reasoning_effort,
 		}),
+		...(values.project_id !== NO_PROJECT && { project_id: values.project_id }),
 	};
 };
 
@@ -163,6 +174,11 @@ const buildUpdateRequest = (
 			changed("reasoning_effort") && {
 				reasoning_effort: values.reasoning_effort,
 			}),
+		...(!isExistingChat &&
+			changed("project_id") && {
+				project_id:
+					values.project_id === NO_PROJECT ? NIL_UUID : values.project_id,
+			}),
 	};
 };
 
@@ -171,6 +187,8 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
+	/** Shows the Project field for new chats (the chat-projects experiment). */
+	projectsEnabled: boolean;
 	/** Origin of the webhook publish endpoint. */
 	origin: string;
 	error: unknown;
@@ -188,6 +206,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	organizationId,
 	automation,
 	currentUserId,
+	projectsEnabled,
 	origin,
 	error,
 	isSubmitting,
@@ -297,6 +316,19 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
+	const showProjectField = projectsEnabled && !isExistingChat;
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		enabled: showProjectField,
+	});
+	const projects = (projectsQuery.data ?? []).filter(
+		(project) => project.organization_id === organizationId,
+	);
+	// A stored project the viewer cannot list stays selectable, so saving
+	// the form does not silently remove it.
+	const isUnlistedProject =
+		form.values.project_id !== NO_PROJECT &&
+		!projects.some((project) => project.id === form.values.project_id);
 
 	const renderedFields: readonly string[] = [
 		"name",
@@ -305,6 +337,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		...(isExistingChat
 			? ["target_chat_id", "when_busy"]
 			: ["new_chat_model_config_id"]),
+		...(showProjectField ? ["project_id"] : []),
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
@@ -588,6 +621,30 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											</span>
 										)}
 									</div>
+								)}
+								{showProjectField && (
+									<SelectField
+										field={getFieldHelpers("project_id")}
+										label="Project"
+										description="Chats this automation creates join the project."
+										onValueChange={(value) =>
+											form.setFieldValue("project_id", value)
+										}
+									>
+										<SelectItem value={NO_PROJECT}>No project</SelectItem>
+										{projects.map((project) => (
+											<SelectItem key={project.id} value={project.id}>
+												{project.name}
+											</SelectItem>
+										))}
+										{isUnlistedProject && (
+											<SelectItem value={form.values.project_id}>
+												{projectsQuery.isSuccess
+													? "Unknown project"
+													: "Loading…"}
+											</SelectItem>
+										)}
+									</SelectField>
 								)}
 							</section>
 						</fieldset>

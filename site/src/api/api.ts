@@ -3885,6 +3885,14 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	/** Lists the chat projects the viewer owns, in every organization. */
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
 	getChatAutomations = async (
 		organizationId: string,
 	): Promise<TypesGen.ChatAutomation[]> => {

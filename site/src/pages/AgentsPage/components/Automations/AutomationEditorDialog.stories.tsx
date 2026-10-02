@@ -81,6 +81,7 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 	args: {
 		organizationId,
 		currentUserId: MockUserOwner.id,
+		projectsEnabled: false,
 		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
