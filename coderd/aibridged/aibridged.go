@@ -440,9 +440,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// They end before the lifecycle does: canceling it closes the coderd
 		// connection, and a closing socket still records its last usage and
 		// interception ends through Client.
-		if drainErr := s.sockets.Shutdown(ctx); drainErr != nil {
-			s.logger.Debug(ctx, "shutdown deadline passed with Responses WebSockets open", slog.Error(drainErr))
+		// They get a bounded share of the deadline, so the rest of shutdown
+		// keeps its time when a socket is slow to close.
+		socketCtx, cancelSockets := socketShutdownContext(ctx)
+		if drainErr := s.sockets.Shutdown(socketCtx); drainErr != nil {
+			s.logger.Debug(ctx, "socket shutdown deadline passed with Responses WebSockets open", slog.Error(drainErr))
 		}
+		cancelSockets()
 
 		s.cancelFn(ErrShutdown)
 		if err != nil {
@@ -481,6 +485,22 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.Info(ctx, "gracefully shutdown")
 	})
 	return err
+}
+
+// socketShutdownShare divides the remaining shutdown deadline: ending
+// Responses WebSockets may take 1/socketShutdownShare of it. Closing a
+// socket sends a going-away close to both of its sides and records the end
+// of its open interceptions.
+const socketShutdownShare = 2
+
+// socketShutdownContext returns the context that bounds ending Responses
+// WebSockets in a shutdown bounded by ctx.
+func socketShutdownContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, time.Until(deadline)/socketShutdownShare)
 }
 
 // Close shuts down the server with a timeout of 5s.

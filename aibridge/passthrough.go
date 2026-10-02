@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -73,6 +74,15 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 		ctx, span := startSpan(r, tracer)
 		defer span.End()
+
+		// A reverse proxy would tunnel the upgrade, with a centralized key
+		// injected for clients without their own, and record nothing.
+		if aibheaders.IsWebSocketUpgrade(r) {
+			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade", slog.F("path", r.URL.Path))
+			span.SetStatus(codes.Error, "WebSocket upgrade on a passthrough route")
+			http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
+			return
+		}
 
 		proxy.ServeHTTP(w, r.WithContext(ctx))
 	}

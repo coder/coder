@@ -106,10 +106,11 @@ func RateLimitConsumerFromContext(ctx context.Context) RateLimitConsumer {
 // optional, and calls after the first do nothing. It is safe for concurrent
 // use.
 //
-// A Responses WebSocket handler calls it once the socket holds a lease from
-// the socket registry: the handshake, authorization and budget check stay
-// bounded by the concurrency limit, while the open socket, which can last
-// up to its maximum lifetime, is bounded by the socket caps instead.
+// A Responses WebSocket handler calls it once both the upstream and the
+// client handshakes completed: the handshakes, authorization and budget
+// check stay bounded by the concurrency limit, while the open socket, which
+// can last up to its maximum lifetime, is bounded by the socket caps
+// instead.
 type ConcurrencySlotRelease func()
 
 type concurrencySlotReleaseCtxKey struct{}

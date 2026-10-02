@@ -47,6 +47,8 @@ func TestPassthroughRoutes(t *testing.T) {
 		expectHeaders     http.Header
 		expectRespStatus  int
 		expectRespBody    string
+		// expectNoUpstream fails the case if the request reaches upstream.
+		expectNoUpstream bool
 	}{
 		{
 			name:              "passthrough_route_no_path",
@@ -97,6 +99,19 @@ func TestPassthroughRoutes(t *testing.T) {
 			},
 		},
 		{
+			// A tunneled upgrade would carry the centralized key and be
+			// recorded nowhere.
+			name:    "websocket_upgrade_is_rejected",
+			reqPath: "/v1/responses/resp_1",
+			reqHeaders: http.Header{
+				"Connection": {"Upgrade"},
+				"Upgrade":    {"websocket"},
+			},
+			expectRespStatus: http.StatusNotImplemented,
+			expectRespBody:   "WebSocket transport is not supported",
+			expectNoUpstream: true,
+		},
+		{
 			name:              "query_string_is_preserved",
 			reqPath:           "/v1/models?search=gpt&limit=10",
 			expectRequestPath: "/v1/models",
@@ -113,6 +128,7 @@ func TestPassthroughRoutes(t *testing.T) {
 			logger := slogtest.Make(t, nil)
 
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.False(t, tc.expectNoUpstream, "request reached upstream")
 				assert.Equal(t, tc.expectRequestPath, r.URL.Path)
 				assert.Equal(t, tc.expectQuery, r.URL.RawQuery)
 				if tc.expectHeaders != nil {

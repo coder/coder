@@ -24,7 +24,14 @@ import (
 //   - every terminal response's usage is recorded exactly once,
 //   - every started interception is ended exactly once,
 //   - no response is recorded on a create whose write had not succeeded
-//     when the server announced the response.
+//     when the server announced the response, except the response
+//     answering a create whose write was in flight.
+//
+// The scenarios follow the protocol: upstream answers only creates, and the
+// only response no create explains is a steer's continuation, announced
+// with the steered response as its previous_response_id after a
+// response.steer.accepted. A failed write closes the connection in
+// production, so the server never answers that create.
 func TestRecordingInvariants(t *testing.T) {
 	t.Parallel()
 	rng := rand.New(rand.NewPCG(1, 2)) //nolint:gosec // Deterministic test input.
@@ -63,7 +70,13 @@ type scenario struct {
 	received map[string][]string
 	// inFlight lists announced responses without a terminal event.
 	inFlight []string
-	lanes    map[string]string
+	// steered lists responses with an accepted steer whose continuation was
+	// not announced yet.
+	steered []string
+	// writing is set while a create's write is blocked: its lane and model.
+	writing                   bool
+	writingLane, writingModel string
+	lanes                     map[string]string
 	// allowed holds, per announced response, the create models it may be
 	// recorded on: those written when the server announced it.
 	allowed   map[string]map[string]bool
@@ -182,13 +195,17 @@ func (s *scenario) send(frame string, received func()) error {
 func (s *scenario) create() {
 	lane, model := s.lane(), fmt.Sprintf("create-%d", s.creates)
 	s.creates++
+	s.writing, s.writingLane, s.writingModel = true, lane, model
 	err := s.send(create(lane, model, "hi"), func() {
 		s.received[lane] = append(s.received[lane], model)
 	})
+	s.writing = false
 	if err == nil {
 		s.written[model] = true
 	} else {
 		require.ErrorIs(s.t, err, errWrite)
+		// The connection broke, so the server never answers it.
+		s.received[lane] = slices.DeleteFunc(s.received[lane], func(m string) bool { return m == model })
 	}
 }
 
@@ -200,7 +217,12 @@ func (s *scenario) steer() {
 	err := s.send(fmt.Sprintf(`{"type":"response.steer"%s,"previous_response_id":%q,"input":"more"}`, lane(s.lanes[id]), id), func() {})
 	if err != nil {
 		require.ErrorIs(s.t, err, errWrite)
+		return
 	}
+	if !slices.Contains(s.steered, id) {
+		s.steered = append(s.steered, id)
+	}
+	s.relay(fmt.Sprintf(`{"type":"response.steer.accepted"%s,"steer":{"id":"steer_%s","previous_response_id":%q}}`, lane(s.lanes[id]), id, id))
 }
 
 func (s *scenario) serverEvent() {
@@ -209,15 +231,36 @@ func (s *scenario) serverEvent() {
 		// Announce a response: the answer to the oldest received create on
 		// a lane, or an unexplained response.
 		lane := s.lane()
+		answer := ""
 		if q := s.received[lane]; len(q) > 0 && s.rng.IntN(4) > 0 {
+			answer = q[0]
 			s.received[lane] = q[1:]
+		}
+		inFlight := s.writing && s.writingLane == lane
+		previous := ""
+		switch {
+		case answer != "":
+		case len(s.steered) > 0 && (inFlight || len(s.received[lane]) > 0 || s.rng.IntN(2) == 0):
+			previous = s.steered[0]
+			s.steered = s.steered[1:]
+		case inFlight || len(s.received[lane]) > 0:
+			// Upstream answers only creates, so while one awaits its
+			// answer, the only other response is a continuation.
+			return
 		}
 		id := fmt.Sprintf("resp_%d", s.responses)
 		s.responses++
 		s.allowed[id] = maps.Clone(s.written)
+		if inFlight && answer == s.writingModel {
+			s.allowed[id][answer] = true
+		}
 		s.lanes[id] = lane
 		s.inFlight = append(s.inFlight, id)
-		s.relay(created(lane, id, "srv-"+id))
+		frame := created(lane, id, "srv-"+id)
+		if previous != "" {
+			frame = continuationCreated(lane, id, "srv-"+id, previous)
+		}
+		s.relay(frame)
 	case 2:
 		s.finish()
 	default:
@@ -277,4 +320,9 @@ func (s *scenario) check() {
 			require.Equal(s.t, "srv-"+id, model)
 		}
 	}
+}
+
+// continuationCreated is the response.created of a steer's continuation.
+func continuationCreated(streamID, id, model, previousID string) string {
+	return fmt.Sprintf(`{"type":"response.created"%s,"response":{"id":%q,"model":%q,"status":"in_progress","previous_response_id":%q}}`, lane(streamID), id, model, previousID)
 }

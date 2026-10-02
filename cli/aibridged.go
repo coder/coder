@@ -330,6 +330,8 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			ActorHeaderNames: actorHeaderNames,
+			// Only OpenAI's own API serves Responses WebSocket mode.
+			ResponsesWebSocket: spec.Type == database.AIProviderTypeOpenai,
 		}), nil
 
 	case database.AIProviderTypeAnthropic:

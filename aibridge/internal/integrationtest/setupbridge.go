@@ -63,6 +63,9 @@ type bridgeConfig struct {
 	// recorderMiddleware is inserted below the logging middleware, as the
 	// bridge pool does for deployment record policy.
 	recorderMiddleware []recorder.Middleware
+	// requestContext, when set, adds gateway values to every request
+	// context, as aibridged does after authorizing a request.
+	requestContext func(context.Context) context.Context
 }
 
 // bridgeTestServer wraps an httptest.Server running a RequestBridge.
@@ -130,6 +133,11 @@ func withMCP(p mcp.ServerProxier) bridgeOption {
 	return func(c *bridgeConfig) { c.mcpProxy = p }
 }
 
+// withRequestContext adds the values fn sets to every request context.
+func withRequestContext(fn func(context.Context) context.Context) bridgeOption {
+	return func(c *bridgeConfig) { c.requestContext = fn }
+}
+
 // withActor sets the actor ID and metadata for the BaseContext.
 func withActor(id string, md recorder.Metadata) bridgeOption {
 	return func(c *bridgeConfig) { c.userID = id; c.metadata = md }
@@ -187,10 +195,14 @@ func newBridgeTestServer(
 	)
 	require.NoError(t, err)
 
-	actorID, md := cfg.userID, cfg.metadata
+	actorID, md, requestContext := cfg.userID, cfg.metadata, cfg.requestContext
 	srv := httptest.NewUnstartedServer(bridge)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		return aibcontext.AsActor(ctx, actorID, "", md)
+		base := aibcontext.AsActor(ctx, actorID, "", md)
+		if requestContext != nil {
+			base = requestContext(base)
+		}
+		return base
 	}
 	srv.Start()
 	t.Cleanup(srv.Close)

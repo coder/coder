@@ -13,6 +13,7 @@ func StateSizes(s *Session) map[string]int {
 		"active":     len(s.active),
 		"responses":  len(s.responses),
 		"overloaded": len(s.overloaded),
+		"toolCalls":  len(s.toolCalls),
 	}
 	for name, n := range sizes {
 		if n == 0 {

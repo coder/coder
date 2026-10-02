@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
+	"github.com/coder/coder/v2/aibridge/extract"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -921,59 +922,201 @@ func usagesByResponse(h *harness) map[string][]string {
 }
 
 // TestResponseDuringBlockedWrite covers a response.created that the reader
-// handles while a create's upstream write has not returned. The response
-// never binds to the unwritten create: it gets its own interception, and its
-// usage is recorded whatever the write's outcome.
+// handles while a create's upstream write has not returned, as when the
+// upstream answers before Send marks the write done.
+//
+// Before the session marked creates in flight, such a response never bound
+// to the create: it got its own interception without a prompt, and the
+// create ended without its response. Under load that lost the prompt of a
+// first turn answered at once. Upstream answers only creates, and creates
+// on a lane are written one at a time, so the response answers the create
+// being written, and binds to it.
 func TestResponseDuringBlockedWrite(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name     string
-		writeErr error
-	}{
-		{"WriteFails", xerrors.New("broken pipe")},
-		{"WriteSucceeds", nil},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := codertestutil.Context(t, codertestutil.WaitShort)
-			h := newHarness(ctx, t, nil)
-			entered, release := make(chan struct{}), make(chan struct{})
-			write := func(ctx context.Context) error {
-				close(entered)
-				select {
-				case <-release:
-					return tc.writeErr
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+	// blockWrite makes the next upstream write wait until the returned
+	// release receives its result, and returns once the write started.
+	blockWrite := func(ctx context.Context, t *testing.T, h *harness, frame string) (chan<- error, <-chan error) {
+		t.Helper()
+		entered, release := make(chan struct{}), make(chan error, 1)
+		write := func(ctx context.Context) error {
+			close(entered)
+			select {
+			case err := <-release:
+				return err
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			h.conn.onWrite.Store(&write)
-			sent := make(chan error, 1)
-			go func() { sent <- h.sess.Send(ctx, []byte(create("", "model-create", "hi"))) }()
-			_ = codertestutil.TryReceive(ctx, t, entered)
-
-			h.relay(created("", "resp_1", "model-server"))
-			own := h.interceptionFor("model-server")
-			close(release)
-			err := codertestutil.TryReceive(ctx, t, sent)
-			h.conn.onWrite.Store(nil)
-			if tc.writeErr != nil {
-				require.ErrorIs(t, err, tc.writeErr)
-			} else {
-				require.NoError(t, err)
-				// The create that raced resp_1 is retired, so it cannot
-				// claim the next create's response.
-				require.NotNil(t, h.send(create("", "model-next", "next")))
-				h.relay(created("", "resp_2", "model-server-2"), completed("", "resp_2"))
-				require.Equal(t, []string{h.interceptionFor("model-next").ID}, usagesByResponse(h)["resp_2"])
-			}
-			h.relay(completed("", "resp_1"))
-			require.Equal(t, []string{own.ID}, usagesByResponse(h)["resp_1"])
-			require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-create").ID))
-			require.NoError(t, h.sess.Close(nil))
-			h.rec.VerifyAllInterceptionsEnded(t)
-		})
+		}
+		h.conn.onWrite.Store(&write)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(frame)) }()
+		_ = codertestutil.TryReceive(ctx, t, entered)
+		return release, sent
 	}
+
+	t.Run("WriteSucceeds", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.relay(created("", "resp_1", "model-create"))
+		release <- nil
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		h.conn.onWrite.Store(nil)
+
+		h.relay(completed("", "resp_1"))
+		own := h.interceptionFor("model-create")
+		require.Len(t, h.rec.RecordedInterceptions(), 1)
+		require.Equal(t, map[string][]string{"resp_1": {own.ID}}, usagesByResponse(h))
+		prompts := h.rec.RecordedPromptUsages()
+		require.Len(t, prompts, 1)
+		require.Equal(t, "first turn", prompts[0].Prompt)
+		require.Equal(t, own.ID, prompts[0].InterceptionID)
+		require.Empty(t, h.rec.RecordedInterceptionEnd(own.ID).ErrorType)
+
+		// The next create binds the next response.
+		require.NotNil(t, h.send(create("", "model-next", "next")))
+		h.relay(created("", "resp_2", "model-next"), completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-next").ID}, usagesByResponse(h)["resp_2"])
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+	// A write that fails after its create bound a response ends the create
+	// with the write error. The response's events queued before keep their
+	// records on the create; later ones open their own interception. The
+	// usage is recorded exactly once either way.
+	t.Run("WriteFailsBeforeTerminal", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.relay(created("", "resp_1", "model-create"))
+		release <- errWrite
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), errWrite)
+		h.conn.onWrite.Store(nil)
+		h.relay(completed("", "resp_1"))
+
+		own := h.interceptionFor("model-create")
+		end := h.rec.RecordedInterceptionEnd(own.ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, errWrite.Error())
+		usages := usagesByResponse(h)["resp_1"]
+		require.Len(t, usages, 1)
+		require.NotEqual(t, own.ID, usages[0])
+		require.Len(t, h.rec.RecordedPromptUsages(), 1)
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+	t.Run("WriteFailsAfterTerminal", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		// The accountant blocks on another lane, so resp_1's jobs are still
+		// queued when the write fails.
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(created("z", "resp_0", "model-z"), completed("z", "resp_0"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		release, sent := blockWrite(ctx, t, h, create("", "model-create", "first turn"))
+		h.forward(created("", "resp_1", "model-create"), completed("", "resp_1"))
+		release <- errWrite
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), errWrite)
+		close(gate)
+		require.NoError(t, responsesws.Drain(ctx, h.sess))
+
+		own := h.interceptionFor("model-create")
+		require.Equal(t, []string{own.ID}, usagesByResponse(h)["resp_1"])
+		end := h.rec.RecordedInterceptionEnd(own.ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, errWrite.Error())
+		require.Equal(t, 1, h.rec.endCount(own.ID))
+		require.NoError(t, h.sess.Close(nil))
+		h.rec.VerifyAllInterceptionsEnded(t)
+	})
+}
+
+// TestContinuationNeverBindsToCreate requires that a steer's automatic
+// continuation, which answers no create, never binds to a create, so the
+// create keeps its own answer, also while the create is being written.
+func TestContinuationNeverBindsToCreate(t *testing.T) {
+	t.Parallel()
+	const steerAccepted = `{"type":"response.steer.accepted","steer":{"id":"steer_1","previous_response_id":"resp_1"}}`
+	// steered opens a session with resp_1 in flight on create "model-a" and
+	// a steer of resp_1 accepted.
+	steered := func(ctx context.Context, t *testing.T) *harness {
+		t.Helper()
+		h := newHarness(ctx, t, nil)
+		require.NotNil(t, h.send(create("", "model-a", "draft a plan")))
+		h.relay(created("", "resp_1", "model-a"))
+		require.NotNil(t, h.send(`{"type":"response.steer","previous_response_id":"resp_1","input":"shorter"}`))
+		h.relay(steerAccepted, terminal("", "response.incomplete", "resp_1", `,"status":"incomplete","incomplete_details":{"reason":"steered"}`))
+		return h
+	}
+	// writeDuring sends frame with its upstream write blocked while frames
+	// arrive from upstream.
+	writeDuring := func(ctx context.Context, t *testing.T, h *harness, frame string, frames ...string) {
+		t.Helper()
+		entered, release := make(chan struct{}), make(chan struct{})
+		write := func(context.Context) error {
+			close(entered)
+			<-release
+			return nil
+		}
+		h.conn.onWrite.Store(&write)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(frame)) }()
+		_ = codertestutil.TryReceive(ctx, t, entered)
+		h.relay(frames...)
+		close(release)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		h.conn.onWrite.Store(nil)
+	}
+
+	t.Run("WhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, create("", "model-b", "next"), continuationCreated("", "resp_2", "model-cont", "resp_1"))
+		h.relay(created("", "resp_3", "model-b"), completed("", "resp_2"), completed("", "resp_3"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.Equal(t, []string{h.interceptionFor("model-b").ID}, usagesByResponse(h)["resp_3"])
+	})
+	t.Run("Written", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		require.NotNil(t, h.send(create("", "model-b", "next")))
+		h.relay(continuationCreated("", "resp_2", "model-cont", "resp_1"), created("", "resp_3", "model-b"),
+			completed("", "resp_2"), completed("", "resp_3"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.Equal(t, []string{h.interceptionFor("model-b").ID}, usagesByResponse(h)["resp_3"])
+	})
+	// Without a previous_response_id, a response arriving while a steer
+	// awaits its continuation may be either, so it does not bind to the
+	// create being written, which ends without a response.
+	t.Run("UnmarkedWhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, create("", "model-b", "next"), created("", "resp_2", "model-cont"))
+		h.relay(completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID))
+	})
+	// A create continuing the steered response could be answered by the
+	// response, which is then either its answer or the continuation. It
+	// does not bind to the create being written, which ends without a
+	// response.
+	t.Run("AmbiguousWhileWriting", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := steered(ctx, t)
+		writeDuring(ctx, t, h, `{"type":"response.create","model":"model-b","previous_response_id":"resp_1","input":"next"}`,
+			continuationCreated("", "resp_2", "model-cont", "resp_1"))
+		h.relay(completed("", "resp_2"))
+		require.Equal(t, []string{h.interceptionFor("model-cont").ID}, usagesByResponse(h)["resp_2"])
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID))
+	})
 }
 
 // TestTerminalForUnknownResponseRecordsUsage requires that a terminal
@@ -1003,6 +1146,206 @@ func TestCreateRecordsCorrelatingToolCallID(t *testing.T) {
 	require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
 	require.Nil(t, h.interceptionFor("tool-then-user").CorrelatingToolCallID)
 	require.Nil(t, h.interceptionFor("plain").CorrelatingToolCallID)
+}
+
+// TestToolResultCreateAwaitsToolCallRecord requires that a create answering
+// a tool call is recorded only after the tool call, which the client
+// received in an earlier response: the interception's parent is found
+// through the tool call record, so a client answering at once must not
+// overtake the accountant.
+func TestToolResultCreateAwaitsToolCallRecord(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	require.NotNil(t, h.send(create("", "gpt-6", "hi")))
+	h.relay(created("", "resp_1", "gpt-6"))
+
+	// The accountant records the tool call after the token usage, which
+	// blocks.
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(terminal("", "response.completed", "resp_1", `,"status":"completed","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"f","arguments":"{}"}]`))
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+	sent := make(chan error, 1)
+	go func() {
+		sent <- h.sess.Send(ctx, []byte(`{"type":"response.create","model":"tool-result","input":[{"type":"function_call_output","call_id":"call_1","output":"42"}]}`))
+	}()
+	select {
+	case err := <-sent:
+		t.Fatalf("create recorded before the tool call it answers: %v", err)
+	case <-time.After(codertestutil.IntervalMedium):
+	}
+	close(gate)
+	require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+	require.Len(t, h.rec.RecordedToolUsages(), 1)
+	require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
+}
+
+// toolCallCompleted is a response.completed for response id that announces
+// the tool call callID.
+func toolCallCompleted(streamID, id, callID string) string {
+	return terminal(streamID, "response.completed", id, fmt.Sprintf(`,"status":"completed","output":[{"type":"function_call","id":"fc_%s","call_id":%q,"name":"f","arguments":"{}"}]`, callID, callID))
+}
+
+// toolResult is a create answering the tool call callID.
+func toolResult(model, callID string) string {
+	return fmt.Sprintf(`{"type":"response.create","model":%q,"input":[{"type":"function_call_output","call_id":%q,"output":"42"}]}`, model, callID)
+}
+
+const toolResultTimeoutLog = "recording a tool result before the tool call it answers"
+
+// TestToolResultCreateWaitIsBounded requires that a create waiting for the
+// record of the tool call it answers never waits longer than one record
+// timeout, and stops waiting as soon as its caller or the session ends.
+func TestToolResultCreateWaitIsBounded(t *testing.T) {
+	t.Parallel()
+	t.Run("RecordTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitMedium)
+		h := newHarness(ctx, t, nil)
+		require.NotNil(t, h.send(create("a", "model-a", "hi")))
+		require.NotNil(t, h.send(create("b", "model-b", "hi")))
+		h.relay(created("a", "resp_a", "model-a"), created("b", "resp_b", "model-b"))
+		gate := make(chan struct{})
+		t.Cleanup(func() { close(gate) })
+		h.rec.usageGate.Store(&gate)
+		// Each usage record blocks for a full record timeout, and the tool
+		// call is recorded after resp_b's usage, which is queued behind
+		// resp_a's: about two record timeouts from now.
+		h.forward(completed("a", "resp_a"), toolCallCompleted("b", "resp_b", "call_1"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+		require.NoError(t, h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))))
+		require.Empty(t, h.rec.RecordedToolUsages(), "create waited for the tool call record past the record timeout")
+		require.Equal(t, 1, h.logs.count(toolResultTimeoutLog))
+		require.Equal(t, ptr("call_1"), h.interceptionFor("tool-result").CorrelatingToolCallID)
+	})
+	// blockedToolCall announces call_1 in a response whose accounting
+	// blocks until the returned gate is closed.
+	blockedToolCall := func(ctx context.Context, t *testing.T, h *harness) chan struct{} {
+		t.Helper()
+		require.NotNil(t, h.send(create("", "gpt-6", "hi")))
+		h.relay(created("", "resp_1", "gpt-6"))
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(toolCallCompleted("", "resp_1", "call_1"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		return gate
+	}
+	t.Run("CallerCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		gate := blockedToolCall(ctx, t, h)
+		defer close(gate)
+		sendCtx, cancel := context.WithCancel(ctx)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(sendCtx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the tool call record: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		cancel()
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), context.Canceled)
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+	t.Run("SessionClosed", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		gate := blockedToolCall(ctx, t, h)
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the tool call record: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		start := time.Now()
+		closed := make(chan error, 1)
+		go func() { closed <- h.sess.Close(nil) }()
+		require.ErrorIs(t, codertestutil.TryReceive(ctx, t, sent), responsesws.ErrClosed)
+		require.Less(t, time.Since(start), recorder.DefaultAsyncTimeout)
+		close(gate)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, closed))
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+}
+
+// TestToolResultCreateWaitsOnlyForAccountedToolCalls requires that a create
+// waits only for a tool call this session is still accounting for. A call
+// ID the session never saw, or one whose interception ended, recorded or
+// not, never delays a create, and an interception that loses its terminal
+// job to overload still releases the creates waiting for it.
+func TestToolResultCreateWaitsOnlyForAccountedToolCalls(t *testing.T) {
+	t.Parallel()
+	t.Run("NotAccounted", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		// call_done was recorded and its interception ended.
+		require.NotNil(t, h.send(create("a", "model-a", "hi")))
+		h.relay(created("a", "resp_a", "model-a"), toolCallCompleted("a", "resp_a", "call_done"))
+		// call_lost belongs to a response whose interception could never
+		// be recorded, so its tool call never will be.
+		h.rec.failStart.Store(true)
+		h.relay(created("z", "resp_z", "model-z"), toolCallCompleted("z", "resp_z", "call_lost"))
+		h.rec.failStart.Store(false)
+		require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
+
+		// The accountant blocks on an unrelated response from here on.
+		require.NotNil(t, h.send(create("b", "model-b", "hi")))
+		h.relay(created("b", "resp_b", "model-b"))
+		gate := make(chan struct{})
+		defer close(gate)
+		h.rec.usageGate.Store(&gate)
+		h.forward(completed("b", "resp_b"))
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+		// The blocked usage record gives up after one record timeout, so a
+		// create that waited for the accountant would take about that long.
+		start := time.Now()
+		for _, callID := range []string{"call_unknown", "call_done", "call_lost"} {
+			require.NotNil(t, h.send(toolResult("tool-result-"+callID, callID)), callID)
+		}
+		require.Less(t, time.Since(start), recorder.DefaultAsyncTimeout/2)
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+	})
+	t.Run("Overloaded", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		responsesws.SetQueueBounds(h.sess, 4, extract.MaxEventBytes)
+		gate := make(chan struct{})
+		h.rec.usageGate.Store(&gate)
+		h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+		// The accountant is blocked on resp_0's usage with an empty queue.
+		_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+		// The start and created jobs of two responses fill the queue, so
+		// resp_1's terminal job is dropped and its interception is handed
+		// off.
+		h.forward(created("y", "resp_1", "model-1"), created("x", "resp_2", "model-2"))
+		h.forward(toolCallCompleted("y", "resp_1", "call_1"))
+		require.Equal(t, 1, h.logs.count("accounting queue full: dropped event"))
+
+		sent := make(chan error, 1)
+		go func() { sent <- h.sess.Send(ctx, []byte(toolResult("tool-result", "call_1"))) }()
+		select {
+		case err := <-sent:
+			t.Fatalf("create did not wait for the handed-off interception: %v", err)
+		case <-time.After(codertestutil.IntervalMedium):
+		}
+		close(gate)
+		require.NoError(t, codertestutil.TryReceive(ctx, t, sent))
+		require.Zero(t, h.logs.count(toolResultTimeoutLog))
+		require.NoError(t, responsesws.Drain(ctx, h.sess))
+		require.NotContains(t, responsesws.StateSizes(h.sess), "toolCalls")
+		end := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-1").ID)
+		require.NotNil(t, end)
+		require.Contains(t, end.ErrorMessage, "accounting queue overloaded")
+	})
 }
 
 // TestCloseBoundedWhenRecorderBlocks requires that shutdown shares one
