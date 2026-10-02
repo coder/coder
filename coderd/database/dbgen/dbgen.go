@@ -184,6 +184,7 @@ func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomatio
 		Prompt:               takeFirst(seed.Prompt, "Summarize the latest activity."),
 		ScheduleCron:         scheduleCron,
 		ScheduleTimeZone:     scheduleTimeZone,
+		ProjectID:            seed.ProjectID,
 		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
 		CreatedAt:            takeFirst(seed.CreatedAt, dbtime.Now()),
 		UpdatedAt:            takeFirst(seed.UpdatedAt, dbtime.Now()),

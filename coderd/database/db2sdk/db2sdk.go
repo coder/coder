@@ -1803,6 +1803,7 @@ func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.
 		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
 		TargetChatID:         nullUUIDPtr(row.TargetChatID),
 		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		ProjectID:            nullUUIDPtr(row.ProjectID),
 		WebhookSecretVersion: row.WebhookSecretVersion,
 		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
 		Prompt:               row.Prompt,

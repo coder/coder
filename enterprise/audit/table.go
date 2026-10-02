@@ -510,6 +510,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"new_chat_model_config_id": ActionTrack,
 		"reasoning_effort":         ActionTrack,
 		"when_busy":                ActionTrack,
+		"project_id":               ActionTrack,
 		"webhook_use":              ActionTrack,
 		"webhook_secret_hash":      ActionSecret,
 		"webhook_secret_version":   ActionTrack,

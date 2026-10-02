@@ -45,7 +45,8 @@ const (
 
 // ChatAutomation is a webhook or scheduled automation that delivers a
 // prompt to an agent chat. It never carries the webhook secret or its
-// hash.
+// hash. ProjectID is the project of the chats a new_chat automation
+// creates; it is cleared when the project is deleted.
 type ChatAutomation struct {
 	ID                   uuid.UUID                 `json:"id" format:"uuid"`
 	OrganizationID       uuid.UUID                 `json:"organization_id" format:"uuid"`
@@ -59,6 +60,7 @@ type ChatAutomation struct {
 	NewChatModelConfigID *uuid.UUID                `json:"new_chat_model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort      *string                   `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`
+	ProjectID            *uuid.UUID                `json:"project_id,omitempty" format:"uuid"`
 	WebhookUse           *ChatAutomationWebhookUse `json:"webhook_use,omitempty" enums:"single,multi"`
 	WebhookSecretVersion int64                     `json:"webhook_secret_version"`
 	WebhookConsumedAt    *time.Time                `json:"webhook_consumed_at,omitempty" format:"date-time"`
@@ -74,7 +76,9 @@ type ChatAutomation struct {
 }
 
 // CreateChatAutomationRequest creates a chat automation owned by the
-// caller.
+// caller. ProjectID applies to new_chat automations only, requires the
+// chat-projects experiment, and puts the chats the automation creates into
+// that project.
 type CreateChatAutomationRequest struct {
 	Name                 string                    `json:"name"`
 	Kind                 ChatAutomationKind        `json:"kind" enums:"webhook,schedule"`
@@ -83,6 +87,7 @@ type CreateChatAutomationRequest struct {
 	NewChatModelConfigID *uuid.UUID                `json:"new_chat_model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort      *string                   `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`
+	ProjectID            *uuid.UUID                `json:"project_id,omitempty" format:"uuid"`
 	WebhookUse           *ChatAutomationWebhookUse `json:"webhook_use,omitempty" enums:"single,multi"`
 	Prompt               string                    `json:"prompt"`
 	// ScheduleCron is a standard five-field cron expression. As in standard
@@ -118,6 +123,11 @@ type UpdateChatAutomationRequest struct {
 	WhenBusy             *ChatAutomationWhenBusy `json:"when_busy,omitempty" enums:"queue,skip"`
 	TargetChatID         *uuid.UUID              `json:"target_chat_id,omitempty" format:"uuid"`
 	NewChatModelConfigID *uuid.UUID              `json:"new_chat_model_config_id,omitempty" format:"uuid"`
+	// ProjectID applies to new_chat automations only. A project ID moves the
+	// chats the automation creates later into that project. The all-zero
+	// UUID removes the project. Omitted or null leaves it unchanged. Chats
+	// created earlier keep their project.
+	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 }
 
 // RotateChatAutomationSecretResponse is returned when a webhook

@@ -518,6 +518,93 @@ func TestChatAutomations(t *testing.T) {
 		require.Nil(t, cleared.ReasoningEffort)
 	})
 
+	t.Run("Project", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, []string{
+			string(codersdk.ExperimentChatAutomations),
+			string(codersdk.ExperimentChatProjects),
+		}, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		admin, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		project := dbgen.ChatProject(t, env.db, database.ChatProject{OrganizationID: env.orgID, OwnerID: env.memberID})
+		adminProject := dbgen.ChatProject(t, env.db, database.ChatProject{OrganizationID: env.orgID, OwnerID: admin.ID})
+		otherOrg := dbgen.Organization(t, env.db, database.Organization{})
+		foreignProject := dbgen.ChatProject(t, env.db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: admin.ID})
+
+		req := env.scheduleRequest()
+		req.ProjectID = &project.ID
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		require.Equal(t, &project.ID, created.Automation.ProjectID)
+
+		for _, tc := range []struct {
+			name   string
+			client *codersdk.ExperimentalClient
+			req    codersdk.CreateChatAutomationRequest
+			detail string
+		}{
+			{"ExistingChat", env.member, func() codersdk.CreateChatAutomationRequest {
+				r := env.webhookRequest()
+				r.ProjectID = &project.ID
+				return r
+			}(), "must be omitted"},
+			// The member cannot read the admin's project.
+			{"UnreadableProject", env.member, func() codersdk.CreateChatAutomationRequest {
+				r := env.scheduleRequest()
+				r.ProjectID = &adminProject.ID
+				return r
+			}(), "project not found"},
+			// The admin can read the member's project, but a project is
+			// private to its owner, so it reads as missing.
+			{"OtherOwnersProject", env.owner, func() codersdk.CreateChatAutomationRequest {
+				r := env.scheduleRequest()
+				r.ProjectID = &project.ID
+				return r
+			}(), "project not found"},
+			{"OtherOrganization", env.owner, func() codersdk.CreateChatAutomationRequest {
+				r := env.scheduleRequest()
+				r.ProjectID = &foreignProject.ID
+				return r
+			}(), "not in the automation's organization"},
+		} {
+			_, err := tc.client.CreateChatAutomation(ctx, env.orgID, tc.req)
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Len(t, sdkErr.Validations, 1, tc.name)
+			require.Equal(t, "project_id", sdkErr.Validations[0].Field, tc.name)
+			require.Contains(t, sdkErr.Validations[0].Detail, tc.detail, tc.name)
+		}
+
+		// The all-zero UUID removes the project, and a project ID sets it.
+		cleared, err := env.member.UpdateChatAutomation(ctx, env.orgID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: ptr.Ref(uuid.Nil)})
+		require.NoError(t, err)
+		require.Nil(t, cleared.ProjectID)
+		set, err := env.member.UpdateChatAutomation(ctx, env.orgID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID})
+		require.NoError(t, err)
+		require.Equal(t, &project.ID, set.ProjectID)
+
+		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, webhook.Automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "project_id", sdkErr.Validations[0].Field)
+	})
+
+	t.Run("ProjectNeedsExperiment", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, env.db, database.ChatProject{OrganizationID: env.orgID, OwnerID: env.memberID})
+		req := env.scheduleRequest()
+		req.ProjectID = &project.ID
+		_, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "project_id", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "experiment")
+	})
+
 	t.Run("DisableAndDeleteRemoveQueuedMessages", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)

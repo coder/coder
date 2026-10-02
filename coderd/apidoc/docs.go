@@ -20928,6 +20928,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "prompt": {
                     "type": "string"
                 },
@@ -23285,6 +23289,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -31476,6 +31484,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "description": "ProjectID applies to new_chat automations only. A project ID moves the\nchats the automation creates later into that project. The all-zero\nUUID removes the project. Omitted or null leaves it unchanged. Chats\ncreated earlier keep their project.",
                     "type": "string",
                     "format": "uuid"
                 },

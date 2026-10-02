@@ -41,6 +41,7 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"target_mode existing_chat, a prompt, schedule_cron, and schedule_time_zone, and omit target_chat_id. " +
 	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
 	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
+	"A new_chat automation puts its chats into this chat's project, if this chat has one, unless project_id is empty; it cannot use another project. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
 	"Webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
 	"When the current turn was started by an automation, create, update, enable, and run_now are refused; " +
@@ -72,6 +73,7 @@ type manageAutomationsArgs struct {
 	TargetChatID         *string `json:"target_chat_id,omitempty" description:"existing_chat only: must be this chat's ID. Defaults to this chat on create."`
 	NewChatModelConfigID *string `json:"new_chat_model_config_id,omitempty" description:"new_chat only: model config UUID for new chats. Defaults to this chat's model config on create."`
 	ReasoningEffort      *string `json:"reasoning_effort,omitempty" description:"new_chat only: reasoning effort for new chats. On update, an empty value clears it."`
+	ProjectID            *string `json:"project_id,omitempty" description:"new_chat only: project for new chats. Must be this chat's project. Defaults to this chat's project on create. An empty value means no project; on update it removes the project."`
 	WhenBusy             *string `json:"when_busy,omitempty" enum:"queue,skip" description:"existing_chat only: queue or skip a run while the chat is busy. Schedules default to skip, webhooks to queue."`
 	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single-use or multi-use secret. Defaults to multi."`
 	Prompt               *string `json:"prompt,omitempty" description:"create (required) and update: the prompt each run sends."`
@@ -93,6 +95,7 @@ func (a manageAutomationsArgs) setFields() []string {
 		{"target_chat_id", a.TargetChatID},
 		{"new_chat_model_config_id", a.NewChatModelConfigID},
 		{"reasoning_effort", a.ReasoningEffort},
+		{"project_id", a.ProjectID},
 		{"when_busy", a.WhenBusy},
 		{"webhook_use", a.WebhookUse},
 		{"prompt", a.Prompt},
@@ -334,7 +337,8 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 
 // manageAutomationsCreate creates an automation owned by the chat owner in
 // the chat's organization and records the calling chat as its creator.
-// Omitted targets default to this chat and this chat's model config.
+// Omitted targets default to this chat, this chat's model config, and,
+// with the chat-projects experiment, this chat's project.
 func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat database.Chat, trigger automationTurnTrigger, args manageAutomationsArgs) (map[string]any, error) {
 	targetChatID, err := parseManageAutomationsUUID("target_chat_id", args.TargetChatID)
 	if err != nil {
@@ -344,6 +348,15 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	if err != nil {
 		return nil, err
 	}
+	projectID, err := parseManageAutomationsProjectID(args.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	// On create, an empty project_id means no project, which is what an
+	// omitted project means to the service.
+	if projectID != nil && *projectID == uuid.Nil {
+		projectID = nil
+	}
 	req := codersdk.CreateChatAutomationRequest{
 		Name:                 ptr.NilToEmpty(args.Name),
 		Kind:                 codersdk.ChatAutomationKind(ptr.NilToEmpty(args.Kind)),
@@ -351,6 +364,7 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		TargetChatID:         targetChatID,
 		NewChatModelConfigID: modelConfigID,
 		ReasoningEffort:      args.ReasoningEffort,
+		ProjectID:            projectID,
 		Prompt:               ptr.NilToEmpty(args.Prompt),
 		ScheduleCron:         args.ScheduleCron,
 		ScheduleTimeZone:     args.ScheduleTimeZone,
@@ -370,9 +384,13 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		if req.NewChatModelConfigID == nil {
 			req.NewChatModelConfigID = &chat.LastModelConfigID
 		}
+		if args.ProjectID == nil && chat.ProjectID.Valid &&
+			p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentChatProjects) {
+			req.ProjectID = &chat.ProjectID.UUID
+		}
 	}
 	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}.
-		with(req.TargetChatID, req.NewChatModelConfigID)
+		with(req.TargetChatID, req.NewChatModelConfigID, req.ProjectID)
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, target); err != nil {
 		return nil, err
 	}
@@ -408,6 +426,12 @@ func (a manageAutomationsArgs) updateRequest() (codersdk.UpdateChatAutomationReq
 	if err != nil {
 		return codersdk.UpdateChatAutomationRequest{}, err
 	}
+	// An empty project_id becomes the all-zero UUID, which removes the
+	// project.
+	projectID, err := parseManageAutomationsProjectID(a.ProjectID)
+	if err != nil {
+		return codersdk.UpdateChatAutomationRequest{}, err
+	}
 	req := codersdk.UpdateChatAutomationRequest{
 		Name:                 a.Name,
 		Prompt:               a.Prompt,
@@ -416,6 +440,7 @@ func (a manageAutomationsArgs) updateRequest() (codersdk.UpdateChatAutomationReq
 		ReasoningEffort:      a.ReasoningEffort,
 		TargetChatID:         targetChatID,
 		NewChatModelConfigID: modelConfigID,
+		ProjectID:            projectID,
 	}
 	if a.WhenBusy != nil {
 		req.WhenBusy = ptr.Ref(codersdk.ChatAutomationWhenBusy(*a.WhenBusy))
@@ -433,7 +458,7 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, before); err != nil {
 		return nil, err
 	}
-	after := before.with(req.TargetChatID, req.NewChatModelConfigID)
+	after := before.with(req.TargetChatID, req.NewChatModelConfigID, req.ProjectID)
 	if err := p.manageAutomationsContained(ownerCtx, p.db, chat, after); err != nil {
 		return nil, err
 	}
@@ -471,19 +496,24 @@ type automationTarget struct {
 	mode          database.ChatAutomationTargetMode
 	chatID        uuid.NullUUID
 	modelConfigID uuid.NullUUID
+	projectID     uuid.NullUUID
 }
 
 func automationTargetOf(row database.ChatAutomation) automationTarget {
-	return automationTarget{mode: row.TargetMode, chatID: row.TargetChatID, modelConfigID: row.NewChatModelConfigID}
+	return automationTarget{mode: row.TargetMode, chatID: row.TargetChatID, modelConfigID: row.NewChatModelConfigID, projectID: row.ProjectID}
 }
 
-// with returns t with the target fields that are set replaced.
-func (t automationTarget) with(chatID, modelConfigID *uuid.UUID) automationTarget {
+// with returns t with the target fields that are set replaced. A project
+// set to the all-zero UUID is removed, as the update request defines.
+func (t automationTarget) with(chatID, modelConfigID, projectID *uuid.UUID) automationTarget {
 	if chatID != nil {
 		t.chatID = uuid.NullUUID{UUID: *chatID, Valid: true}
 	}
 	if modelConfigID != nil {
 		t.modelConfigID = uuid.NullUUID{UUID: *modelConfigID, Valid: true}
+	}
+	if projectID != nil {
+		t.projectID = uuid.NullUUID{UUID: *projectID, Valid: *projectID != uuid.Nil}
 	}
 	return t
 }
@@ -511,9 +541,10 @@ func (p *Server) manageAutomationsGuard(ownerCtx context.Context, chat database.
 
 // manageAutomationsContained reports whether the tool may send runs to
 // target: an existing_chat target must be the calling chat, and a new_chat
-// target must not get more tools than the calling chat has. Only the model
-// config's provider tools can differ, so the config must be the calling
-// chat's or have no provider tools. The model config is read through store.
+// target must use the calling chat's project or no project and must not
+// get more tools than the calling chat has. Only the model config's
+// provider tools can differ, so the config must be the calling chat's or
+// have no provider tools. The model config is read through store.
 func (*Server) manageAutomationsContained(ownerCtx context.Context, store database.Store, chat database.Chat, target automationTarget) error {
 	switch target.mode {
 	case database.ChatAutomationTargetModeExistingChat:
@@ -522,6 +553,11 @@ func (*Server) manageAutomationsContained(ownerCtx context.Context, store databa
 		}
 		return nil
 	case database.ChatAutomationTargetModeNewChat:
+		// Chats in a project read and write its memory, so the tool cannot
+		// send new chats into a project the calling chat is not in.
+		if target.projectID.Valid && target.projectID != chat.ProjectID {
+			return xerrors.New("a new_chat automation managed by this tool must use this chat's project or no project")
+		}
 		if !target.modelConfigID.Valid {
 			return automationFieldError("new_chat_model_config_id", "is required for new_chat automations")
 		}
@@ -554,6 +590,16 @@ func parseManageAutomationsUUID(field string, value *string) (*uuid.UUID, error)
 		return nil, xerrors.Errorf("%s must be a valid UUID", field)
 	}
 	return &id, nil
+}
+
+// parseManageAutomationsProjectID parses project_id. An empty value
+// returns the all-zero UUID, which means no project.
+func parseManageAutomationsProjectID(value *string) (*uuid.UUID, error) {
+	if value != nil && strings.TrimSpace(*value) == "" {
+		none := uuid.Nil
+		return &none, nil
+	}
+	return parseManageAutomationsUUID("project_id", value)
 }
 
 // manageAutomationsVisible reports whether the tool may see row. Rows of
