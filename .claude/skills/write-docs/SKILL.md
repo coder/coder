@@ -146,8 +146,8 @@ application notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
-- Keep the redirect PR in `coder/coder.com` in sync with the rename PR so the
-  old public path never 404s between merges.
+- Add the redirect to `docs/redirects.json` in the same PR as the rename so
+  the old public path never 404s between merges.
 
 ## Keep PRs reviewable
 
@@ -198,7 +198,7 @@ the whole series as a single review.
       not as conformance: tooling covers a small subset of the guide, and Vale
       never fails a build. The count lives in
       [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
-- [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
+- [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into

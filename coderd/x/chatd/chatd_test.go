@@ -15,9 +15,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -55,6 +57,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -2060,7 +2063,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	const text = "investigate the flaky workspace upload tests today"
 
-	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+	setup := func(t *testing.T, title string, source database.ChatTitleSource) (context.Context, database.Store, *chatd.Server, database.Chat) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		server := newTestServer(t, db, ps, uuid.New())
@@ -2070,6 +2073,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
 			Title:          title,
+			TitleSource:    source,
 			ModelConfigID:  model.ID,
 		})
 		require.NoError(t, err)
@@ -2088,7 +2092,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("PlaceholderTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		result := send(ctx, t, server, chat.ID)
 		require.True(t, result.FirstUserTurn)
@@ -2101,7 +2105,7 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 
 	t.Run("ExistingTitle", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, "custom title")
+		ctx, db, server, chat := setup(t, "custom title", database.ChatTitleSourceUser)
 
 		result := send(ctx, t, server, chat.ID)
 		require.False(t, result.FirstUserTurn)
@@ -2109,18 +2113,20 @@ func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
 		stored, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "custom title", stored.Title)
+		require.Equal(t, database.ChatTitleSourceUser, stored.TitleSource)
 	})
 
 	t.Run("PriorVisibleMessage", func(t *testing.T) {
 		t.Parallel()
-		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle, database.ChatTitleSourceFallback)
 
 		send(ctx, t, server, chat.ID)
 		// Reset to an idle chat that still carries the placeholder
 		// title but already has a user-visible message.
 		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-			ID:    chat.ID,
-			Title: chatprompt.DefaultChatTitle,
+			ID:          chat.ID,
+			Title:       chatprompt.DefaultChatTitle,
+			TitleSource: database.ChatTitleSourceFallback,
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -5499,6 +5505,9 @@ func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.S
 		evaluator, err := experimentrules.New(cfg.Logger, experimentstest.Store{}, cfg.Experiments)
 		require.NoError(t, err)
 		cfg.ExperimentEvaluator = evaluator
+	}
+	if cfg.Authorizer == nil {
+		cfg.Authorizer = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	}
 	server, err := chatd.New(ps, cfg)
 	require.NoError(t, err)
@@ -14126,6 +14135,177 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	executeResult := results["execute"]
 	require.False(t, executeResult.IsError, "execute result: %s", executeResult.Result)
 	require.JSONEq(t, `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"success":false}`, string(executeResult.Result))
+}
+
+// TestEditMessageCancelsToolCallsOnAgent checks that editing a user message
+// kills the agent process of the running execute call the edit deletes, before
+// the replacement turn calls the model.
+func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	type modelRequest struct {
+		body       string
+		processErr error
+	}
+	// The fake model routes each request to the case whose prompt it
+	// contains, so the cases share one coderd, workspace, and agent.
+	type editCase struct {
+		name string
+		// dynamicTools are declared on the chat. The model step drops a
+		// dynamic tool named like an active built-in, so the built-in runs.
+		dynamicTools      []string
+		prompt            string
+		editedPrompt      string
+		pidPath           string
+		executeChunk      chattest.OpenAIChunk
+		editedTurnRequest chan modelRequest
+	}
+	cases := []*editCase{
+		{name: "Baseline"},
+		{name: "DynamicToolNamedExecute", dynamicTools: []string{"execute"}},
+	}
+	for _, tc := range cases {
+		tc.prompt = "Run the command for " + tc.name + "."
+		tc.editedPrompt = "Say done for " + tc.name + "."
+		dir := t.TempDir()
+		tc.pidPath = filepath.Join(dir, "pid")
+		// exec keeps the PID the shell wrote. The default timeout would end
+		// execute's wait before the edit.
+		executeArgs, err := json.Marshal(map[string]string{
+			"command": "echo $$ > pid && exec sleep 300",
+			"workdir": dir,
+			"timeout": "10m",
+		})
+		require.NoError(t, err)
+		tc.executeChunk = chattest.OpenAIToolCallChunk("execute", string(executeArgs))
+		tc.editedTurnRequest = make(chan modelRequest, 1)
+	}
+
+	// probeProcess sends signal 0 to the PID in pidPath. It returns
+	// os.ErrProcessDone once the process is gone. The agent reaps the
+	// process before it reports the exit, so a gone process is not a zombie.
+	probeProcess := func(pidPath string) error {
+		data, err := os.ReadFile(pidPath)
+		if err != nil {
+			return err
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err != nil {
+			return err
+		}
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			return err
+		}
+		defer proc.Release()
+		return proc.Signal(syscall.Signal(0))
+	}
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		body := string(req.RawBody)
+		for _, tc := range cases {
+			switch {
+			case strings.Contains(body, tc.editedPrompt):
+				// The edited turn cancels deleted tool calls before it calls
+				// the model, and the cancel waits for the process to exit.
+				select {
+				case tc.editedTurnRequest <- modelRequest{body: body, processErr: probeProcess(tc.pidPath)}:
+				default:
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			case strings.Contains(body, tc.prompt):
+				return chattest.OpenAIStreamingResponse(tc.executeChunk)
+			}
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("unexpected request")...)
+	})
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+			var dynamicTools []codersdk.DynamicTool
+			for _, name := range tc.dynamicTools {
+				dynamicTools = append(dynamicTools, codersdk.DynamicTool{
+					Name:        name,
+					Description: "client-executed " + name,
+					InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+				})
+			}
+			workspaceID := workspace.ID
+			chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID:     user.OrganizationID,
+				WorkspaceID:        &workspaceID,
+				UnsafeDynamicTools: dynamicTools,
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: tc.prompt,
+				}},
+			})
+			require.NoError(t, err)
+
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return probeProcess(tc.pidPath) == nil
+			}, testutil.IntervalFast, "execute should start the process on the agent")
+
+			messages, err := expClient.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			var userMessageID int64
+			for _, message := range messages.Messages {
+				if message.Role == codersdk.ChatMessageRoleUser {
+					userMessageID = message.ID
+					break
+				}
+			}
+			require.NotZero(t, userMessageID)
+			_, err = expClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: tc.editedPrompt,
+				}},
+			})
+			require.NoError(t, err)
+
+			edited := testutil.RequireReceive(ctx, t, tc.editedTurnRequest)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				got, err := expClient.GetChat(ctx, chat.ID)
+				return err == nil && got.Status == codersdk.ChatStatusWaiting
+			}, testutil.IntervalFast, "chat should wait after the edited turn")
+
+			require.ErrorIs(t, edited.processErr, os.ErrProcessDone,
+				"the deleted execute call's process should be gone when the edited turn calls the model")
+			require.NotContains(t, edited.body, tc.prompt)
+			require.NotContains(t, edited.body, tc.executeChunk.Choices[0].ToolCalls[0].ID,
+				"the edited turn's history should not contain the deleted execute call")
+		})
+	}
 }
 
 // TestEditMessageWithModelConfigOverride verifies that callers can

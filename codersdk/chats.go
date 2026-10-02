@@ -50,6 +50,9 @@ const (
 	// number of virtual desktop recordings that each Coder server stores
 	// at the same time.
 	DefaultChatMaxConcurrentRecordingUploads = 25
+	// DefaultChatMaxAutomationsPerOwner is the default maximum number of
+	// chat automations one user can own across all organizations.
+	DefaultChatMaxAutomationsPerOwner = 50
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
@@ -136,26 +139,47 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatTitleSource is where a chat's title came from.
+type ChatTitleSource string
+
+const (
+	// ChatTitleSourceFallback is derived from the first prompt, or is the
+	// default title of a chat created without one.
+	ChatTitleSourceFallback ChatTitleSource = "fallback"
+	// ChatTitleSourceGenerated is written by automatic title generation.
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	// ChatTitleSourceUser is supplied by the caller at creation or by
+	// rename.
+	ChatTitleSourceUser ChatTitleSource = "user"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	ProjectID           *uuid.UUID   `json:"project_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
-	Title               string       `json:"title"`
-	Status              ChatStatus   `json:"status"`
-	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
-	LastError           *ChatError   `json:"last_error,omitempty"`
-	LastTurnSummary     *string      `json:"last_turn_summary"`
+	ID                  uuid.UUID  `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID  `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID  `json:"owner_id" format:"uuid"`
+	OwnerUsername       string     `json:"owner_username,omitempty"`
+	OwnerName           string     `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID           *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID  `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string    `json:"last_reasoning_effort,omitempty"`
+	Title               string     `json:"title"`
+	// TitleSource is where Title came from. A title write applies only when
+	// the current source ranks the same as or lower than the incoming one,
+	// in the order fallback, generated, user.
+	TitleSource ChatTitleSource `json:"title_source"`
+	// TitleUpdatedAt orders title changes. Title writes do not change
+	// UpdatedAt.
+	TitleUpdatedAt  time.Time    `json:"title_updated_at" format:"date-time"`
+	Status          ChatStatus   `json:"status"`
+	PlanMode        ChatPlanMode `json:"plan_mode,omitempty"`
+	LastError       *ChatError   `json:"last_error,omitempty"`
+	LastTurnSummary *string      `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
@@ -186,6 +210,9 @@ type Chat struct {
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
 	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
+	// ManageAutomationsEnabled offers the manage_automations tool to this
+	// chat's agent. Experimental.
+	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -331,6 +358,13 @@ type ChatMessage struct {
 	// the queue (edits create a new message without it) or when a server
 	// version that did not record the link created it.
 	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
+	// AutomationID is the chat automation that delivered this message,
+	// if any. The automation may since have been deleted.
+	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
+	// InputID identifies the automation input that produced this
+	// message: a webhook delivery or a schedule occurrence. It is set
+	// only when AutomationID is set.
+	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -680,6 +714,10 @@ type ToolResult struct {
 	IsError    bool            `json:"is_error"`
 }
 
+// MaxChatTitleRunes is the longest title accepted at creation or rename,
+// counted in Unicode code points after trimming.
+const MaxChatTitleRunes = 200
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
@@ -691,7 +729,13 @@ type CreateChatRequest struct {
 	// empty, the chat is created idle with no initial user message
 	// and generation starts with the first message POSTed to
 	// /chats/{chat}/messages.
-	Content         []ChatInputPart   `json:"content"`
+	Content []ChatInputPart `json:"content"`
+	// Title, when set, is stored as the user title and automatic title
+	// generation does not run. It is trimmed and must then be non-empty
+	// and at most 200 Unicode code points (MaxChatTitleRunes), else the
+	// request fails with 400. When omitted, the title is derived from the
+	// first prompt and may later be replaced by a generated title.
+	Title           *string           `json:"title,omitempty"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
 	ProjectID       *uuid.UUID        `json:"project_id,omitempty" format:"uuid"`
@@ -708,6 +752,10 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
+	// ManageAutomationsEnabled offers the manage_automations tool to the
+	// chat's agent. Enabling it requires the chat-automations experiment
+	// for the chat owner. Experimental.
+	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -740,6 +788,9 @@ type InlineMCPServer struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
+	// Title, when set, is stored as the user title even when its text is
+	// unchanged, so a generated title never replaces it afterwards. It is
+	// validated like CreateChatRequest.Title.
 	Title       *string    `json:"title,omitempty"`
 	Archived    *bool      `json:"archived,omitempty"`
 	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
@@ -766,6 +817,11 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ManageAutomationsEnabled turns the manage_automations tool on or
+	// off for a root chat. Only the chat owner may set it. Enabling it
+	// requires the chat-automations experiment for the owner; disabling
+	// is always accepted. Experimental.
+	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
@@ -1848,6 +1904,13 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// AutomationID is the chat automation that queued this message, if
+	// any. The automation may since have been deleted.
+	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
+	// InputID identifies the automation input that produced this
+	// message: a webhook delivery or a schedule occurrence. It is set
+	// only when AutomationID is set.
+	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -2031,11 +2094,14 @@ const (
 	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
 	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
-	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindTitleChange is published after each title write.
+	// Take only the title fields from it, ordered by title_updated_at,
+	// because a title write does not change updated_at.
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn
@@ -2144,6 +2210,10 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
+	// AutomationID filters to chats the automation created or sent
+	// messages to. The server ignores it unless the chat-automations
+	// experiment is enabled for the caller.
+	AutomationID uuid.UUID
 	Pagination
 }
 
@@ -2179,6 +2249,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
 				}
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.AutomationID != uuid.Nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("automation_id", opts.AutomationID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}
