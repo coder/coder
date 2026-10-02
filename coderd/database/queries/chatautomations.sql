@@ -132,3 +132,18 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
+
+-- name: ConsumeChatAutomationWebhookByID :execrows
+-- Marks an unconsumed single-use webhook as consumed. It affects no row
+-- when the automation is not a single-use webhook or was already
+-- consumed, so callers can refuse the delivery.
+UPDATE
+    chat_automations
+SET
+    webhook_consumed_at = @now::timestamptz,
+    updated_at = @now::timestamptz
+WHERE
+    id = @id::uuid
+    AND kind = 'webhook'
+    AND webhook_use = 'single'
+    AND webhook_consumed_at IS NULL;
