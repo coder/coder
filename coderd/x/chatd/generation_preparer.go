@@ -142,6 +142,7 @@ func (server *Server) prepareGeneration(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
+	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -323,11 +324,11 @@ func (server *Server) prepareGeneration(
 		planPathBlock      string
 	)
 
-	// Drop provider-executed tool history produced by a different provider
-	// before building the prompt. A provider that shares another's wire format
-	// (e.g. Bedrock and Anthropic) can still reject the other's
-	// provider-executed blocks, so a mid-chat provider switch must not replay
-	// them.
+	// Drop provider-executed tool history and OpenAI reasoning state produced
+	// by a different provider before building the prompt. A provider that
+	// shares another's wire format (e.g. Bedrock and Anthropic) can still
+	// reject the other's provider-specific blocks, so a mid-chat provider
+	// switch must not replay them.
 	//
 	// The pending-user segment (trailing user rows the assistant has not
 	// answered yet) is handled separately from here through prompt
@@ -340,7 +341,7 @@ func (server *Server) prepareGeneration(
 	// sanitizing everything, since the tail is user-only and the
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
-	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	sanitizedHead := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
@@ -883,6 +884,7 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		ProviderIdentity:     providerIdentity,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),

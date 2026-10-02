@@ -21797,6 +21797,10 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
+                "provider_identity": {
+                    "description": "ProviderIdentity records the provider that produced a reasoning\npart, because a model config's provider can change after the\nmessage was written. Internal only: stripped before API responses.",
+                    "type": "string"
+                },
                 "provider_metadata": {
                     "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
                     "type": "array",

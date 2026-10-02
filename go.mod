@@ -107,8 +107,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 10) coder/fantasy#58, keep media tool results in the Gemini prompt.
 // 11) coder/fantasy mike/mcp-tool-media-batch-order (unmerged), keep OpenAI
 //    tool-result batches contiguous before attaching user media.
-// See: https://github.com/coder/fantasy/commits/9a3598480a71
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260917071228-9a3598480a71
+// 12) coder/fantasy mike/openai-encrypted-reasoning (unmerged), capture
+//    finalized OpenAI Responses reasoning (item ID, encrypted content,
+//    summary) and replay it in full regardless of store. Skip hosted search
+//    references from unstored source responses.
+// See: https://github.com/coder/fantasy/commits/f8a25c79b3ad
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261002142535-f8a25c79b3ad
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
