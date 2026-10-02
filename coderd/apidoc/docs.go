@@ -20937,6 +20937,10 @@ const docTemplate = `{
                 "schedule_cron": {
                     "type": "string"
                 },
+                "schedule_interval_below_minimum": {
+                    "description": "ScheduleIntervalBelowMinimum is true when the schedule runs more\noften than the deployment's minimum interval between runs. Such\nautomations keep running, but a change to their schedule must meet\nthe minimum.",
+                    "type": "boolean"
+                },
                 "schedule_next_run_at": {
                     "type": "string",
                     "format": "date-time"
@@ -21045,6 +21049,10 @@ const docTemplate = `{
         "codersdk.ChatAutomationSchedulePreviewResponse": {
             "type": "object",
             "properties": {
+                "clock_change_note": {
+                    "description": "ClockChangeNote explains how the schedule runs across daylight\nsaving changes. It is set when the schedule's time zone changes its\nUTC offset within a year.",
+                    "type": "string"
+                },
                 "next_run_times": {
                     "type": "array",
                     "items": {
@@ -21159,6 +21167,10 @@ const docTemplate = `{
                 },
                 "max_steps_per_turn": {
                     "description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+                    "type": "integer"
+                },
+                "min_automation_schedule_interval": {
+                    "description": "MinAutomationScheduleInterval is the minimum time between two runs\nof a chat schedule automation. Creating or changing a schedule that\nruns more often fails; existing schedules keep running.",
                     "type": "integer"
                 },
                 "stream_silence_timeout": {

@@ -160,6 +160,7 @@ export const AutomationScheduleFields: React.FC<
 	};
 
 	let preview: React.ReactNode;
+	let clockChangeNote: string | undefined;
 	if (!debouncedCron) {
 		preview = "Enter a cron expression to see upcoming runs.";
 	} else if (previewQuery.isLoading) {
@@ -174,6 +175,7 @@ export const AutomationScheduleFields: React.FC<
 	} else if (!previewQuery.data?.next_run_times.length) {
 		preview = "No upcoming runs.";
 	} else {
+		clockChangeNote = previewQuery.data.clock_change_note;
 		preview = (
 			<ul className="m-0 flex list-none flex-col gap-1 p-0">
 				{previewQuery.data.next_run_times.map((runTime) => (
@@ -284,6 +286,11 @@ export const AutomationScheduleFields: React.FC<
 					Upcoming runs
 				</h3>
 				<div className="text-sm text-content-secondary">{preview}</div>
+				{clockChangeNote && (
+					<p className="m-0 text-xs text-content-secondary">
+						{clockChangeNote}
+					</p>
+				)}
 			</section>
 		</div>
 	);

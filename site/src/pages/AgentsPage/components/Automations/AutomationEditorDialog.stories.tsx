@@ -108,7 +108,11 @@ export const CreateSchedule: Story = {
 					schedule_cron: "0 9 * * *",
 					schedule_time_zone: storyTimeZone,
 				}),
-				data: { next_run_times: nextRunTimes },
+				data: {
+					next_run_times: nextRunTimes,
+					clock_change_note:
+						"When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change.",
+				},
 			},
 		],
 	},
