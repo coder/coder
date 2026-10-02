@@ -3894,6 +3894,32 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	createChatAutomation = async (
+		organizationId: string,
+		req: TypesGen.CreateChatAutomationRequest,
+	): Promise<TypesGen.CreateChatAutomationResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatAutomationResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+				req,
+			);
+		return response.data;
+	};
+
+	previewChatAutomationSchedule = async (
+		organizationId: string,
+		req: TypesGen.ChatAutomationSchedulePreviewRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatAutomationSchedulePreviewResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ChatAutomationSchedulePreviewResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/schedule-preview`,
+				req,
+				{ signal },
+			);
+		return response.data;
+	};
+
 	updateChatAutomation = async (
 		organizationId: string,
 		automationId: string,

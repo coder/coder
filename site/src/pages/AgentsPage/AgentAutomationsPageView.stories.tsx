@@ -74,6 +74,8 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 		onToggleEnabled: fn(),
 		onRunNow: fn(),
 		onViewChats: fn(),
+		onCreateAutomation: fn(),
+		onEditAutomation: fn(),
 	},
 	parameters: {
 		queries: [

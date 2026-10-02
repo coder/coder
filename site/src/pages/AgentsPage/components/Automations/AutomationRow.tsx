@@ -23,6 +23,7 @@ type AutomationRowProps = {
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
+	onEdit: (automation: ChatAutomation) => void;
 };
 
 const formatNextRun = (automation: ChatAutomation): string => {
@@ -161,6 +162,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
+		onEdit,
 	}) => {
 		const isConsumed = Boolean(automation.webhook_consumed_at);
 		const targetChatId =
@@ -261,6 +263,14 @@ export const AutomationRow = memo<AutomationRowProps>(
 								View chats
 							</Button>
 						)}
+						<Button
+							size="sm"
+							variant="outline"
+							aria-label={`Edit ${automation.name}`}
+							onClick={() => onEdit(automation)}
+						>
+							Edit
+						</Button>
 					</div>
 				</TableCell>
 			</TableRow>

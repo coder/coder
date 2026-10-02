@@ -1,0 +1,261 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
+import { API } from "#/api/api";
+import { chatAutomationSchedulePreviewKey } from "#/api/queries/chatAutomations";
+import { chatEntityKey, organizationChatModelsKey } from "#/api/queries/chats";
+import type {
+	ChatAutomation,
+	ChatModel,
+	OrganizationChatModelsResponse,
+} from "#/api/typesGenerated";
+import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
+import {
+	MockDefaultOrganization,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import { AutomationEditorDialog } from "./AutomationEditorDialog";
+
+const organizationId = MockDefaultOrganization.id;
+
+const mockModel: ChatModel = {
+	...MockChatModel,
+	organization_id: organizationId,
+};
+
+const mockAutomation: ChatAutomation = {
+	...MockChatAutomation,
+	organization_id: organizationId,
+	target_chat_id: MockChat.id,
+};
+
+const nextRunTimes = [
+	"2026-10-01T09:00:00Z",
+	"2026-10-02T09:00:00Z",
+	"2026-10-03T09:00:00Z",
+];
+
+const mockModelCatalog: OrganizationChatModelsResponse = {
+	models: [mockModel],
+	providers: [MockChatModelProviderDescriptor],
+	unsupported_providers: [],
+};
+
+// New automations default to the browser's zone. Pin it so the time zone
+// select and the upcoming runs render the same on every host.
+const storyTimeZone = "America/New_York";
+
+const pinBrowserTimeZone = () => {
+	const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+	spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(
+		function (this: Intl.DateTimeFormat) {
+			return { ...resolvedOptions.call(this), timeZone: storyTimeZone };
+		},
+	);
+};
+
+const rejectChat = (status: number) => () => {
+	spyOn(API.experimental, "getChat").mockRejectedValue({
+		...mockApiError({ message: "Chat error." }),
+		status,
+	});
+};
+
+const meta: Meta<typeof AutomationEditorDialog> = {
+	title: "pages/AgentsPage/Automations/AutomationEditorDialog",
+	component: AutomationEditorDialog,
+	args: {
+		organizationId,
+		currentUserId: MockUserOwner.id,
+		error: undefined,
+		isSubmitting: false,
+		onCreate: fn(),
+		onUpdate: fn(),
+		onClose: fn(),
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof AutomationEditorDialog>;
+
+export const CreateSchedule: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+};
+
+export const NewChatTarget: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "New chat each run" }),
+		);
+	},
+};
+
+export const Edit: Story = {
+	args: { automation: mockAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const TargetChatNotFound: Story = {
+	args: { automation: mockAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: rejectChat(404),
+};
+
+export const TargetChatLoadError: Story = {
+	args: { automation: mockAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: rejectChat(500),
+};
+
+// The server's tzdata can know zones that this browser rejects, so the
+// upcoming runs fall back to UTC.
+export const UnknownTimeZonePreview: Story = {
+	args: {
+		automation: { ...mockAutomation, schedule_time_zone: "Mars/Olympus" },
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "Mars/Olympus",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const PreviewError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "previewChatAutomationSchedule").mockRejectedValue({
+			...mockApiError({
+				message: "Invalid chat automation.",
+				validations: [
+					{
+						field: "schedule_cron",
+						detail: "Expected exactly five fields.",
+					},
+				],
+			}),
+			status: 400,
+		});
+	},
+};
+
+export const SaveForbidden: Story = {
+	args: {
+		automation: mockAutomation,
+		currentUserId: "another-user",
+		error: mockApiError({
+			message: "Only the owner of a chat automation can change it.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
