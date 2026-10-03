@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent, {
 	PointerEventsCheckLevel,
 } from "@testing-library/user-event";
@@ -767,6 +767,51 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ schedule_cron: "15 * * * *" }]);
+		});
+	});
+
+	it("never saves a cron that differs from an invalid Minute or Time", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		await user.clear(minute);
+		await user.type(minute, "60");
+		expect(cron).toHaveValue("");
+		expect(minute).toHaveAccessibleDescription("Enter a minute from 0 to 59.");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		expect(
+			await within(dialog).findByText("Cron expression is required."),
+		).toBeInTheDocument();
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Daily" }));
+		const time = within(dialog).getByLabelText("Time");
+		fireEvent.change(time, { target: { value: "" } });
+		expect(cron).toHaveValue("");
+		expect(time).toHaveAccessibleDescription("Enter a time.");
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
+		expect(cron).toHaveValue("");
+
+		fireEvent.change(time, { target: { value: "07:45" } });
+		expect(cron).toHaveValue("45 7 * * 1-5");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "45 7 * * 1-5" }]);
 		});
 	});
 
