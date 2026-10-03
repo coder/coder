@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent, {
 	PointerEventsCheckLevel,
 } from "@testing-library/user-event";
@@ -745,16 +745,20 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 		const dialog = await screen.findByRole("dialog");
 		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
-		expect(repeat).toHaveTextContent("Weekdays");
-		expect(within(dialog).getByLabelText("Time")).toHaveValue("09:30");
-
+		const time = within(dialog).getByLabelText("Time");
 		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		// A new time keeps the days of the shortcut that wrote the stored cron.
+		await user.clear(time);
+		await user.type(time, "10:15");
+		expect(cron).toHaveValue("15 10 * * 1-5");
+
 		await user.clear(cron);
 		await user.type(cron, "0 8 * * 1");
-		expect(repeat).toHaveTextContent("Weekly on Monday");
-		expect(within(dialog).getByLabelText("Time")).toHaveValue("08:00");
+		await user.clear(time);
+		await user.type(time, "07:00");
+		expect(cron).toHaveValue("0 7 * * 1");
 		await user.type(cron, ",3");
-		expect(repeat).toHaveTextContent("Custom");
+		expect(time).toBeDisabled();
 
 		await user.click(repeat);
 		await user.click(await screen.findByRole("option", { name: "Hourly" }));
@@ -802,14 +806,14 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(repeat);
 		await user.click(await screen.findByRole("option", { name: "Daily" }));
 		const time = within(dialog).getByLabelText("Time");
-		fireEvent.change(time, { target: { value: "" } });
+		await user.clear(time);
 		expect(cron).toHaveValue("");
 		expect(time).toHaveAccessibleDescription("Enter a time.");
 		await user.click(repeat);
 		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
 		expect(cron).toHaveValue("");
 
-		fireEvent.change(time, { target: { value: "07:45" } });
+		await user.type(time, "07:45");
 		expect(cron).toHaveValue("45 7 * * 1-5");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 		await waitFor(() => {
