@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -16,6 +17,30 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestClampWaitTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		in     time.Duration
+		want   time.Duration
+		capped bool
+	}{
+		{name: "Below", in: time.Minute, want: time.Minute},
+		{name: "Equal", in: MaxWaitTimeout, want: MaxWaitTimeout},
+		{name: "Above", in: 10 * time.Minute, want: MaxWaitTimeout, capped: true},
+		{name: "Zero", in: 0, want: 0},
+		{name: "Negative", in: -time.Second, want: -time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, capped := ClampWaitTimeout(tc.in)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.capped, capped)
+		})
+	}
+}
 
 func TestTruncateOutput(t *testing.T) {
 	t.Parallel()

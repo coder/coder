@@ -13,6 +13,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+// MaxWaitTimeout is the longest a single tool call may block waiting on a
+// process or a subagent. Longer requested waits are reduced to this value;
+// the waited-on work keeps running.
+const MaxWaitTimeout = 4 * time.Minute
+
 const (
 	// defaultTimeout is the default timeout for command
 	// execution.
@@ -26,6 +31,27 @@ const (
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
 )
+
+// ClampWaitTimeout reduces d to MaxWaitTimeout when it is larger and
+// reports whether it did so. Zero and negative values pass through.
+func ClampWaitTimeout(d time.Duration) (time.Duration, bool) {
+	if d > MaxWaitTimeout {
+		return MaxWaitTimeout, true
+	}
+	return d, false
+}
+
+// appendNote joins two notes with "; ", skipping empty ones.
+func appendNote(existing, note string) string {
+	switch {
+	case existing == "":
+		return note
+	case note == "":
+		return existing
+	default:
+		return existing + "; " + note
+	}
+}
 
 // nonInteractiveEnvVars are set on every process to prevent
 // interactive prompts that would hang a headless execution.
@@ -112,7 +138,7 @@ type ProcessToolOptions struct {
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute. Runs under \"sh -c\" (POSIX)."`
 	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command, with backgrounded commands framed as \"<intent> in the background using <command>\", so do not include the word \"background\" or restate the command or a duration. Use plain English with no underscores or technical jargon. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
-	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
+	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '4m'). Default is 10s, maximum 4m; longer values are capped. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Use this parameter instead of shell '&', which leaves an untracked process that process_output cannot read."`
 }
@@ -125,7 +151,7 @@ const ExecuteToolName = "execute"
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
-		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
+		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, maximum 4m, override with the timeout parameter e.g. '30s', '4m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -236,6 +262,7 @@ func executeForeground(
 		}
 		timeout = parsed
 	}
+	timeout, capped := ClampWaitTimeout(timeout)
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -256,10 +283,11 @@ func executeForeground(
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
-	// Add an advisory note for file-dump commands.
-	if note := detectFileDump(args.Command); note != "" {
-		result.Note = note
+	if capped && result.BackgroundProcessID != "" {
+		result.Note = fmt.Sprintf("timeout capped at %s; use process_output with background_process_id to keep waiting", MaxWaitTimeout)
 	}
+	// Add an advisory note for file-dump commands.
+	result.Note = appendNote(result.Note, detectFileDump(args.Command))
 
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -422,7 +450,7 @@ const (
 // process_output tool.
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
-	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
+	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration (maximum 4m; longer values are capped). The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
 	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are checking this process. This is shown as the user's primary label for the action, so make it self-sufficient: the command itself is not displayed alongside it. Use plain English with no underscores or technical jargon. Do not restate the command or include a duration. Keep it under 100 characters. Good examples: \"Waiting for the dev server to be ready\", \"Confirming the tests still pass\"."`
 }
 
@@ -439,8 +467,8 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			"output and exit_code. If still running after "+
 			"the timeout, returns the output so far. Use "+
 			"wait_timeout to override the default 10s wait "+
-			"(e.g. '30s', or '0s' for an immediate snapshot "+
-			"without waiting).",
+			"(e.g. '30s', up to a maximum of 4m, or '0s' for "+
+			"an immediate snapshot without waiting).",
 		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -463,6 +491,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				timeout = parsed
 			}
+			timeout, capped := ClampWaitTimeout(timeout)
 			var opts *workspacesdk.ProcessOutputOptions
 			// Save parent context before applying timeout.
 			parentCtx := ctx
@@ -509,6 +538,9 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				result.Success = true
 				result.Running = true
 				result.Note = "process is still running"
+				if capped {
+					result.Note = fmt.Sprintf("wait_timeout capped at %s; %s", MaxWaitTimeout, result.Note)
+				}
 			}
 			data, err := json.Marshal(result)
 			if err != nil {

@@ -46,6 +46,30 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestWaitAgentTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		seconds *int
+		want    time.Duration
+		capped  bool
+	}{
+		{name: "Default", seconds: nil, want: chattool.MaxWaitTimeout},
+		{name: "Below", seconds: ptr.Ref(60), want: time.Minute},
+		{name: "Equal", seconds: ptr.Ref(240), want: chattool.MaxWaitTimeout},
+		{name: "Above", seconds: ptr.Ref(600), want: chattool.MaxWaitTimeout, capped: true},
+		{name: "Zero", seconds: ptr.Ref(0), want: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, capped := waitAgentTimeout(waitAgentArgs{TimeoutSeconds: tc.seconds})
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.capped, capped)
+		})
+	}
+}
+
 func TestSubagentFallbackChatTitle(t *testing.T) {
 	t.Parallel()
 
@@ -4088,7 +4112,7 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	timeoutSeconds, ok := tool.Info().Parameters["timeout_seconds"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "integer", timeoutSeconds["type"])
-	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
+	assert.Equal(t, "Seconds to wait. Omitted, 0, or negative uses the default of 240 (4 minutes), which is also the maximum; larger values are capped. Use list_agents for a non-blocking status check.", timeoutSeconds["description"])
 }
 
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
@@ -4136,6 +4160,56 @@ func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
 	require.Equal(t, child.ID.String(), m["chat_id"])
 	require.Equal(t, string(database.ChatStatusRunning), m["status"])
 	require.Equal(t, subagentTypeGeneral, m["type"])
+	require.NotContains(t, m, "note")
+}
+
+func TestWaitAgentTimeoutCappedAtMaxWait(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	mClock := quartz.NewMock(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	WaitUntilIdleForTest(server)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+	resultCh := make(chan fantasy.ToolResponse, 1)
+	tenMinutes := 600
+	go func() {
+		resultCh <- runSubagentTool(
+			ctx,
+			t,
+			server,
+			parent,
+			parent.LastModelConfigID,
+			"wait_agent",
+			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &tenMinutes},
+		)
+	}()
+
+	// The timer must fire at the cap, not at the requested 10 minutes.
+	// Release before asserting so a failure does not leave the tool
+	// goroutine parked on the trap.
+	call := timerTrap.MustWait(ctx)
+	timerDuration := call.Duration
+	call.MustRelease(ctx)
+	timerTrap.Close()
+	require.Equal(t, chattool.MaxWaitTimeout, timerDuration)
+	// Other tickers fire before the wait timer, so step through them.
+	deadline := mClock.Now().Add(chattool.MaxWaitTimeout)
+	for mClock.Now().Before(deadline) {
+		_, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+	}
+
+	m := requireToolResponseMap(t, testutil.RequireReceive(ctx, t, resultCh), false)
+	require.Equal(t, true, m["timed_out"])
+	require.Equal(t, "timeout_seconds capped at 240; call wait_agent again to keep waiting", m["note"])
 }
 
 func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {

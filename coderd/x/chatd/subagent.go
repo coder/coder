@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -60,7 +61,7 @@ func (e *subagentStatusError) Error() string { return e.reason }
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
-	defaultSubagentWaitTimeout = 5 * time.Minute
+	defaultSubagentWaitTimeout = chattool.MaxWaitTimeout
 
 	defaultListAgentsLimit       = 10
 	maxListAgentsLimit           = 50
@@ -85,7 +86,32 @@ Guidelines:
 
 type waitAgentArgs struct {
 	ChatID         string `json:"chat_id"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty" description:"Defaults to 5 minutes."`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty" description:"Seconds to wait. Omitted, 0, or negative uses the default of 240 (4 minutes), which is also the maximum; larger values are capped. Use list_agents for a non-blocking status check."`
+}
+
+// waitAgentTimeout resolves the wait duration for a wait_agent call and
+// reports whether the requested value was reduced to the maximum. A nil
+// value uses the default; zero and negative values pass through.
+func waitAgentTimeout(args waitAgentArgs) (time.Duration, bool) {
+	if args.TimeoutSeconds == nil {
+		return defaultSubagentWaitTimeout, false
+	}
+	return chattool.ClampWaitTimeout(time.Duration(*args.TimeoutSeconds) * time.Second)
+}
+
+// waitAgentTimedOutResponse builds the wait_agent result for a child that
+// is still running when the wait expires.
+func waitAgentTimedOutResponse(targetChatID uuid.UUID, chat database.Chat, note string) fantasy.ToolResponse {
+	payload := map[string]any{
+		"chat_id":   targetChatID.String(),
+		"title":     chat.Title,
+		"status":    string(chat.Status),
+		"timed_out": true,
+	}
+	if note != "" {
+		payload["note"] = note
+	}
+	return toolJSONResponse(withSubagentType(payload, chat))
 }
 
 type messageAgentArgs struct {
@@ -587,7 +613,8 @@ func (p *Server) subagentTools(
 			"wait_agent",
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
-				"a longer timeout is set. A timeout does not stop the child; it "+
+				"a longer timeout is set. Waits at most 4 minutes per call. A "+
+				"timeout does not stop the child; it "+
 				"still owns its task. Wait again or check its status with "+
 				"list_agents; do not take over its work without an acknowledged "+
 				"handoff.",
@@ -601,9 +628,10 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				timeout := defaultSubagentWaitTimeout
-				if args.TimeoutSeconds != nil {
-					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+				timeout, capped := waitAgentTimeout(args)
+				var timeoutNote string
+				if capped {
+					timeoutNote = fmt.Sprintf("timeout_seconds capped at %d; call wait_agent again to keep waiting", int(chattool.MaxWaitTimeout.Seconds()))
 				}
 
 				parent := currentChat()
@@ -683,12 +711,7 @@ func (p *Server) subagentTools(
 							return subagentErrorResponse(checkErr, targetChatInfo), nil
 						}
 						if !done {
-							return toolJSONResponse(withSubagentType(map[string]any{
-								"chat_id":   targetChatID.String(),
-								"title":     checkedChat.Title,
-								"status":    string(checkedChat.Status),
-								"timed_out": true,
-							}, checkedChat)), nil
+							return waitAgentTimedOutResponse(targetChatID, checkedChat, timeoutNote), nil
 						}
 						// The agent completed in the gap. Classify through
 						// the same handler as the normal poll path. If the

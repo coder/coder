@@ -440,12 +440,83 @@ func TestExecuteTool(t *testing.T) {
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
-				if executeTimeout == 10*time.Minute && opts != nil && opts.TimeoutFromStartProcess {
+				if executeTimeout == 3*time.Minute && opts != nil && opts.TimeoutFromStartProcess {
 					return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
 				}
 				<-ctx.Done()
 				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
 			})
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"make test","timeout":"3m"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.Equal(t, "command timed out after 3m0s", result.Error)
+		assert.Equal(t, "partial output", result.Output)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Empty(t, result.Note)
+	})
+
+	t.Run("TimeoutCappedAtMaxWait", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// A 10m timeout is reduced to MaxWaitTimeout both for the
+		// agent-side execute timeout and for chatd's own wait.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, chattool.MaxWaitTimeout.Milliseconds(), req.TimeoutMs)
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok)
+				assert.InDelta(t, chattool.MaxWaitTimeout, time.Until(deadline), float64(5*time.Second))
+				return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		// A cancel-only context so the deadline seen by the mock
+		// comes from the clamp, not from the test context.
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"make test","timeout":"10m"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.Equal(t, "command timed out after 4m0s", result.Error)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Equal(t, "timeout capped at 4m0s; use process_output with background_process_id to keep waiting", result.Note)
+	})
+
+	t.Run("TimeoutCappedNoNoteOnExit", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		exitCode := 0
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, nil)
 
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -458,9 +529,9 @@ func TestExecuteTool(t *testing.T) {
 
 		var result chattool.ExecuteResult
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		assert.Equal(t, "command timed out after 10m0s", result.Error)
-		assert.Equal(t, "partial output", result.Output)
-		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.True(t, result.Success)
+		assert.Empty(t, result.BackgroundProcessID)
+		assert.Empty(t, result.Note)
 	})
 
 	t.Run("StartProcessError", func(t *testing.T) {
@@ -614,6 +685,45 @@ func TestExecuteTool(t *testing.T) {
 		assert.True(t, result.Running)
 		assert.Equal(t, "process is still running", result.Note)
 		assert.Equal(t, "npm start", result.Command)
+	})
+
+	t.Run("ProcessOutputWaitTimeoutCapped", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				require.NotNil(t, opts)
+				assert.True(t, opts.Wait)
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok)
+				assert.InDelta(t, chattool.MaxWaitTimeout, time.Until(deadline), float64(5*time.Second))
+				return workspacesdk.ProcessOutputResponse{Running: true, Output: "still going"}, nil
+			})
+
+		tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+		// A cancel-only context so the deadline seen by the mock
+		// comes from the clamp, not from the test context.
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "process_output",
+			Input: `{"process_id":"proc-1","wait_timeout":"10m"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Running)
+		assert.Equal(t, "wait_timeout capped at 4m0s; process is still running", result.Note)
 	})
 
 	t.Run("ProcessOutputCommandPropagated", func(t *testing.T) {
