@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import type {
@@ -189,6 +189,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	onClose,
 }) => {
 	const isCreate = !automation;
+	const pointerFocusRef = useRef(false);
 	const isReadOnly = Boolean(
 		automation && automation.owner_id !== currentUserId,
 	);
@@ -327,12 +328,24 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					{/* Browser and Radix constraints on this layout:
 					    - Chrome does not scroll a flex-sized fieldset, so the div scrolls.
 					    - The focus trap wraps Tab with preventScroll, so onFocus scrolls
-					      the wrapped-to field into view.
+					      the wrapped-to field into view. Pointer focus does not scroll:
+					      moving the control between pointerdown and pointerup would
+					      lose the click.
 					    - Radix Select opens on pointerdown, which browsers still send to
 					      fieldset-disabled buttons, so they get pointer-events: none. */}
 					<div
 						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
+						onPointerDown={() => {
+							pointerFocusRef.current = true;
+						}}
+						onPointerUp={() => {
+							pointerFocusRef.current = false;
+						}}
 						onFocus={(event) => {
+							if (pointerFocusRef.current) {
+								pointerFocusRef.current = false;
+								return;
+							}
 							if (event.target instanceof HTMLElement) {
 								// The parent first keeps a field's label in view too.
 								event.target.parentElement?.scrollIntoView({
