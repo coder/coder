@@ -1349,12 +1349,12 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 	it("follows a list refetch without resetting the user's input", async () => {
 		const user = userEvent.setup();
-		const unused: ChatAutomation = {
+		const mockUnusedWebhook: ChatAutomation = {
 			...mockWebhookAutomation,
 			webhook_use: "single",
 		};
 		const { queryClient, updateBodies } = setupEditor({
-			automations: [unused],
+			automations: [mockUnusedWebhook],
 		});
 		const dialog = await openWebhookEditor(user);
 		const name = within(dialog).getByLabelText(/^Name/);
@@ -1365,7 +1365,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 			http.get(automationsPath(":organizationId"), () =>
 				HttpResponse.json([
 					{
-						...unused,
+						...mockUnusedWebhook,
 						prompt: "Changed in another tab.",
 						webhook_consumed_at: "2026-09-30T10:15:00Z",
 					},

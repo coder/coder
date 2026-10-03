@@ -144,6 +144,8 @@ export const updateChatAutomation = (
 		req: UpdateChatAutomationRequest;
 	}) =>
 		API.experimental.updateChatAutomation(organizationId, automationId, req),
+	// Awaited, unlike create and rotate: the list's enabled switch stays
+	// pending until the refetched list shows the new state.
 	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),

@@ -369,10 +369,10 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						onFocus={(event) => {
 							if (event.target instanceof HTMLElement) {
 								// The parent first keeps a field's label in view too.
-								event.target.parentElement?.scrollIntoView?.({
+								event.target.parentElement?.scrollIntoView({
 									block: "nearest",
 								});
-								event.target.scrollIntoView?.({ block: "nearest" });
+								event.target.scrollIntoView({ block: "nearest" });
 							}
 						}}
 					>
