@@ -682,6 +682,13 @@ func TestManageAutomationsTool(t *testing.T) {
 		content, isError := f.callArgs(ctx, t, f.chat.ID, newChatArgs(ptr.Ref(otherProject.ID.String())))
 		require.True(t, isError, content)
 		require.Contains(t, content, errNotContained)
+		// An existing_chat target has no project, so even an empty value
+		// is rejected rather than dropped.
+		heartbeat := heartbeatArgs()
+		heartbeat.ProjectID = ptr.Ref("")
+		content, isError = f.callArgs(ctx, t, f.chat.ID, heartbeat)
+		require.True(t, isError, content)
+		require.Contains(t, content, "project_id")
 		require.Len(t, f.ownerAutomations(ctx, t), 2)
 
 		// Created through the management API, so it already uses another

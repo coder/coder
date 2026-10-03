@@ -352,9 +352,10 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	if err != nil {
 		return nil, err
 	}
-	// On create, an empty project_id means no project, which is what an
-	// omitted project means to the service.
-	if projectID != nil && *projectID == uuid.Nil {
+	// On create, an empty project_id means no project for a new_chat
+	// target, which is what an omitted project means to the service. Other
+	// targets keep it so the service rejects the field.
+	if projectID != nil && *projectID == uuid.Nil && ptr.NilToEmpty(args.TargetMode) == string(codersdk.ChatAutomationTargetModeNewChat) {
 		projectID = nil
 	}
 	req := codersdk.CreateChatAutomationRequest{
