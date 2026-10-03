@@ -410,7 +410,7 @@ type CompactionNextPrompt struct {
 // message. That prompt is mostly system messages and tool definitions,
 // like the prompt after compaction. Later prompts are dominated by
 // history whose tokenization differs: calibrating on the last prompt
-// overestimated by 30% to 50% after large tool results, against 1% for
+// overestimated by 30% to 48% after large tool results, against 1% for
 // the first step. A first prompt with media is not used, because the
 // media's tokens have no matching text bytes. System messages or tools
 // added after the first step, for example when a workspace attaches,
