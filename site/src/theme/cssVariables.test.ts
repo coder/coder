@@ -45,6 +45,7 @@ const REQUIRED_VARIABLES = [
 	"--heat-moderate",
 	"--heat-high",
 	"--heat-needle",
+	"--heat-at-stake",
 	"--syntax-key",
 	"--syntax-string",
 	"--syntax-number",

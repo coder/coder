@@ -2,45 +2,59 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { findContextBoundaryPart } from "./chatHelpers";
 
 /**
- * Chat heat measures how much of the context window recent user turns sent
- * again instead of reading it from the prompt cache. Each request can reuse
- * the previous request's prompt; the part of that prompt it did not read
- * from the cache is its missed prefix. New tokens (tool output, the user's
- * message) are not misses. The first request after the chat starts or after
- * a compaction or clear boundary has no previous prompt, so it misses
- * nothing. A turn is every model request between two user messages, and its
- * sample is its summed missed prefix divided by a reference size: the usable
- * context (context limit times the compaction threshold), capped at
- * HEAT_REFERENCE_TOKENS so that re-sending a mid-size context in a large
- * window still reads high. Samples are weighted toward the newest turn and
- * shaped by a logistic curve into a displayed heat in [0, 1]. No prices are
- * involved.
+ * Chat heat looks forward: it estimates what the user's next message will
+ * cost in prompt-cache terms. Each request can reuse the previous request's
+ * prompt from the cache. While the cache is warm the next message reads that
+ * prompt at a fraction of the write price; once it expires, or when a
+ * different model is selected, the whole prompt is written again. The
+ * reading is that prompt size, scaled by CACHE_READ_TO_WRITE_RATIO while
+ * warm, mapped onto a fixed 150K-token scale by a logistic curve. No prices
+ * are involved; the ratio is a list-price multiplier, not a currency amount.
  */
 export type ChatHeat = {
-	readonly heat: number;
-	readonly label: ChatHeatLabel;
-	readonly missRate: number;
-	readonly lastTurnRequestCount: number;
-	readonly lastTurnMissedTokens: number;
-	readonly lastTurnReusableTokens: number;
-	readonly lastTurnHasSegmentStart: boolean;
-	// True when the latest turn is the only loaded turn and older messages
-	// are not loaded, so its first loaded request has no known previous
-	// prompt and the heat understates any misses before it.
-	readonly lastTurnIsPartial: boolean;
+	// Prompt tokens (input, cache writes and cache reads) of the latest
+	// counted request; 0 when a compaction or clear followed it.
 	readonly lastPromptTokens: number;
 	readonly lastRequestAt: string;
 	readonly lastModelConfigId: string | undefined;
+	// Set when a compaction or clear boundary follows the latest counted
+	// request, so that request no longer describes the next prompt.
+	readonly boundary: ChatContextBoundary | undefined;
+	// Undefined when no turn since the segment start could be scored.
+	readonly lastTurn: ChatHeatTurn | undefined;
+};
+
+type ChatContextBoundary = "compacted" | "cleared";
+
+export type ChatHeatTurn = {
+	readonly requestCount: number;
+	readonly missedTokens: number;
+	// The largest prefix any request in the turn could have read from the
+	// cache; 0 for a segment's first request.
+	readonly reusableTokens: number;
+	readonly hasSegmentStart: boolean;
+	// True when older messages are not loaded and this is the only loaded
+	// turn, so its first loaded request has no known previous prompt.
+	readonly isPartial: boolean;
 };
 
 type ChatHeatLabel = "low" | "moderate" | "high";
 
-const HEAT_WINDOW_SIZE = 6;
-const HEAT_WINDOW_DECAY = 0.25;
-// Tuning constants: x is the weighted missed share of the reference size.
-export const HEAT_REFERENCE_TOKENS = 70_000;
-export const HEAT_CURVE_MIDPOINT = 0.3;
-const HEAT_CURVE_STEEPNESS = 8;
+export type NextMessageProjection = {
+	// Tokens the next message is expected to cost in cache-write terms.
+	readonly tokens: number;
+	readonly heat: number;
+	readonly label: ChatHeatLabel;
+};
+
+// Anthropic list multipliers: a cache read bills at 0.1x the base input
+// price and a 5-minute cache write at 1.25x, so a warm read costs 0.08 of
+// the re-write it avoids. One guess for every model.
+export const CACHE_READ_TO_WRITE_RATIO = 0.1 / 1.25;
+// Tuning constants: x is the projected tokens over the reference size.
+export const HEAT_REFERENCE_TOKENS = 150_000;
+export const HEAT_CURVE_MIDPOINT = 0.5;
+const HEAT_CURVE_STEEPNESS = 4;
 // A single idle threshold for all providers. Anthropic's default ephemeral
 // cache lives 5 minutes; automatic caches elsewhere are similar or longer.
 export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
@@ -49,7 +63,6 @@ type HeatRequest = {
 	readonly promptTokens: number;
 	readonly cacheReadTokens: number;
 	readonly usesCache: boolean;
-	readonly contextLimit: number;
 	readonly createdAt: string;
 	readonly modelConfigId: string | undefined;
 };
@@ -57,20 +70,9 @@ type HeatRequest = {
 const toTokenCount = (value: number | undefined): number =>
 	value !== undefined && Number.isFinite(value) && value > 0 ? value : 0;
 
-const toHeatRequest = (
-	message: TypesGen.ChatMessage,
-	activeContextLimit: number | undefined,
-): HeatRequest | null => {
+const toHeatRequest = (message: TypesGen.ChatMessage): HeatRequest | null => {
 	const usage = message.usage;
 	if (message.role !== "assistant" || !usage) {
-		return null;
-	}
-	const contextLimit = usage.context_limit ?? activeContextLimit;
-	if (
-		contextLimit === undefined ||
-		!Number.isFinite(contextLimit) ||
-		contextLimit <= 0
-	) {
 		return null;
 	}
 	const cacheCreationTokens = toTokenCount(usage.cache_creation_tokens);
@@ -84,7 +86,6 @@ const toHeatRequest = (
 		promptTokens,
 		cacheReadTokens,
 		usesCache: cacheReadTokens > 0 || cacheCreationTokens > 0,
-		contextLimit,
 		createdAt: message.created_at,
 		modelConfigId: message.model_config_id,
 	};
@@ -93,7 +94,7 @@ const toHeatRequest = (
 const logistic = (x: number): number =>
 	1 / (1 + Math.exp(-HEAT_CURVE_STEEPNESS * (x - HEAT_CURVE_MIDPOINT)));
 
-/** Maps a normalized missed share onto a displayed heat with heatCurve(0) = 0. */
+/** Maps projected tokens over the reference size onto [0, 1] with heatCurve(0) = 0. */
 export const heatCurve = (x: number): number => {
 	if (!Number.isFinite(x) || x <= 0) {
 		return 0;
@@ -112,26 +113,52 @@ export const getChatHeatLabel = (heat: number): ChatHeatLabel => {
 	return "high";
 };
 
+/**
+ * Projects the next message from the latest prompt. Cold means the cache
+ * cannot be read: it has expired or the selected model differs.
+ */
+export const projectNextMessage = (
+	lastPromptTokens: number,
+	isCold: boolean,
+): NextMessageProjection => {
+	const tokens = isCold
+		? lastPromptTokens
+		: lastPromptTokens * CACHE_READ_TO_WRITE_RATIO;
+	const heat = heatCurve(tokens / HEAT_REFERENCE_TOKENS);
+	return { tokens, heat, label: getChatHeatLabel(heat) };
+};
+
 type ScoredRequest = HeatRequest & {
 	readonly reusableTokens: number;
 	readonly missedTokens: number;
 	readonly isSegmentStart: boolean;
 };
 
-type ScoredTurns = {
+type ScoredSegment = {
 	// Newest first; requests within a turn are oldest first.
 	readonly turns: readonly (readonly ScoredRequest[])[];
 	readonly latestIsPartial: boolean;
+	readonly boundary: ChatContextBoundary | undefined;
 };
 
-const scoreTurns = (
+const toBoundary = (
+	message: TypesGen.ChatMessage,
+): ChatContextBoundary | undefined => {
+	const part = findContextBoundaryPart(message);
+	if (!part || (part.type !== "tool-call" && part.type !== "tool-result")) {
+		return undefined;
+	}
+	return part.tool_name === "chat_cleared" ? "cleared" : "compacted";
+};
+
+const scoreSegment = (
 	messages: readonly TypesGen.ChatMessage[],
-	activeContextLimit: number | undefined,
 	historyComplete: boolean,
-): ScoredTurns => {
+): ScoredSegment => {
 	const boundaryIndex = messages.findLastIndex((message) =>
 		findContextBoundaryPart(message),
 	);
+	const boundaryMessage = messages[boundaryIndex];
 	const reachedSegmentStart = historyComplete || boundaryIndex >= 0;
 	const turns: ScoredRequest[][] = [];
 	let current: ScoredRequest[] = [];
@@ -144,7 +171,7 @@ const scoreTurns = (
 			}
 			continue;
 		}
-		const request = toHeatRequest(message, activeContextLimit);
+		const request = toHeatRequest(message);
 		if (!request) {
 			continue;
 		}
@@ -167,104 +194,84 @@ const scoreTurns = (
 	if (!reachedSegmentStart && turns.length > 1) {
 		turns.shift();
 	}
-	return { turns: turns.reverse(), latestIsPartial };
+	return {
+		turns: turns.reverse(),
+		latestIsPartial,
+		boundary: boundaryMessage ? toBoundary(boundaryMessage) : undefined,
+	};
 };
 
 const sumMissedTokens = (requests: readonly ScoredRequest[]): number =>
 	requests.reduce((total, request) => total + request.missedTokens, 0);
 
-// The largest prefix any request in the turn could have read from the cache.
 const maxReusableTokens = (requests: readonly ScoredRequest[]): number =>
 	Math.max(0, ...requests.map((request) => request.reusableTokens));
 
 export const getChatHeat = (
 	messages: readonly TypesGen.ChatMessage[],
-	compressionThreshold: number | undefined,
-	activeContextLimit?: number,
 	// False when older messages are not loaded, so the oldest loaded turn
 	// may not be the first of its segment.
 	historyComplete = true,
 ): ChatHeat | null => {
-	const scored = scoreTurns(messages, activeContextLimit, historyComplete);
-	const turns = scored.turns.slice(0, HEAT_WINDOW_SIZE);
-	const latestTurn = turns[0];
+	const segment = scoreSegment(messages, historyComplete);
+	const latestTurn = segment.turns[0];
 	const latest = latestTurn?.at(-1);
-	// A window with no cache reads or writes means the route does not use
-	// prompt caching, so the meter would read high with nothing to act on.
-	if (
-		!latestTurn ||
-		!latest ||
-		!turns.some((turn) => turn.some((request) => request.usesCache))
-	) {
+	if (!latestTurn || !latest) {
+		// A boundary with nothing counted after it: the next message starts
+		// a fresh cache whose size is not known yet.
+		if (segment.boundary) {
+			return {
+				lastPromptTokens: 0,
+				lastRequestAt: "",
+				lastModelConfigId: undefined,
+				boundary: segment.boundary,
+				lastTurn: undefined,
+			};
+		}
 		return null;
 	}
-
-	const thresholdPercent =
-		compressionThreshold !== undefined &&
-		Number.isFinite(compressionThreshold) &&
-		compressionThreshold > 0
-			? Math.min(compressionThreshold, 100)
-			: 100;
-
-	let weightTotal = 0;
-	let weightedSample = 0;
-	let missRateWeightTotal = 0;
-	let weightedMissRate = 0;
-	for (const [index, turn] of turns.entries()) {
-		const missedTokens = sumMissedTokens(turn);
-		const reusableTokens = maxReusableTokens(turn);
-		const referenceTokens = Math.min(
-			(turn.at(-1)?.contextLimit ?? 1) * (thresholdPercent / 100),
-			HEAT_REFERENCE_TOKENS,
-		);
-		const weight = HEAT_WINDOW_DECAY ** index;
-		weightTotal += weight;
-		weightedSample += weight * (missedTokens / referenceTokens);
-		if (reusableTokens > 0) {
-			missRateWeightTotal += weight;
-			weightedMissRate += weight * Math.min(1, missedTokens / reusableTokens);
-		}
+	// A segment with no cache reads or writes means the route does not use
+	// prompt caching, so there is nothing to project.
+	if (!segment.turns.some((turn) => turn.some((r) => r.usesCache))) {
+		return null;
 	}
-
-	const heat = heatCurve(weightedSample / weightTotal);
-
 	return {
-		heat,
-		label: getChatHeatLabel(heat),
-		missRate:
-			missRateWeightTotal > 0 ? weightedMissRate / missRateWeightTotal : 0,
-		lastTurnRequestCount: latestTurn.length,
-		lastTurnMissedTokens: sumMissedTokens(latestTurn),
-		lastTurnReusableTokens: maxReusableTokens(latestTurn),
-		lastTurnHasSegmentStart: latestTurn.some(
-			(request) => request.isSegmentStart,
-		),
-		lastTurnIsPartial: scored.latestIsPartial,
 		lastPromptTokens: latest.promptTokens,
 		lastRequestAt: latest.createdAt,
 		lastModelConfigId: latest.modelConfigId,
+		boundary: undefined,
+		lastTurn: {
+			requestCount: latestTurn.length,
+			missedTokens: sumMissedTokens(latestTurn),
+			reusableTokens: maxReusableTokens(latestTurn),
+			hasSegmentStart: latestTurn.some((request) => request.isSegmentStart),
+			isPartial: segment.latestIsPartial,
+		},
 	};
 };
 
 /**
- * Reports whether the provider cache has likely expired. Idle time runs from
- * the later of the last counted request (server clock) and the moment the
- * client last saw the chat stop generating, which covers turns that ended
- * without a counted request and limits the effect of clock skew.
+ * When the provider cache is expected to expire. Idle time runs from the
+ * later of the last counted request (server clock) and the moment the client
+ * last saw the chat stop generating, which covers turns that ended without a
+ * counted request and limits the effect of clock skew. Undefined when
+ * neither is known.
  */
-export const isCacheLikelyExpired = (
+export const getCacheExpiresAtMs = (
 	lastRequestAt: string,
 	lastStreamEndedAtMs: number | undefined,
-	nowMs: number,
-	isStreaming: boolean,
-): boolean => {
-	if (isStreaming) {
-		return false;
-	}
+): number | undefined => {
 	const lastRequestMs = Date.parse(lastRequestAt);
 	const lastActivityMs = Math.max(
 		Number.isFinite(lastRequestMs) ? lastRequestMs : 0,
 		lastStreamEndedAtMs ?? 0,
 	);
-	return lastActivityMs > 0 && nowMs - lastActivityMs > CACHE_IDLE_TTL_MS;
+	return lastActivityMs > 0 ? lastActivityMs + CACHE_IDLE_TTL_MS : undefined;
 };
+
+/** Whole minutes left, rounded up, so the last minute reads 1 and never 0. */
+export const getRemainingMinutes = (remainingMs: number): number =>
+	Math.min(
+		Math.ceil(CACHE_IDLE_TTL_MS / 60_000),
+		Math.max(1, Math.ceil(remainingMs / 60_000)),
+	);

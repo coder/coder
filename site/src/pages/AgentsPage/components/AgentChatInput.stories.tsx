@@ -1497,21 +1497,21 @@ export const ContextNearLimit: Story = {
 };
 
 const highChatHeat: ChatHeat = {
-	heat: 0.9,
-	label: "high",
-	missRate: 0.95,
-	lastTurnRequestCount: 3,
-	lastTurnMissedTokens: 40_000,
-	lastTurnReusableTokens: 42_000,
-	lastTurnHasSegmentStart: false,
-	lastTurnIsPartial: false,
-	lastPromptTokens: 44_000,
+	lastPromptTokens: 165_000,
 	// Far in the past, so the live indicator always renders its expired marker.
 	lastRequestAt: "2026-01-01T00:00:00Z",
 	lastModelConfigId: undefined,
+	boundary: undefined,
+	lastTurn: {
+		requestCount: 3,
+		missedTokens: 40_000,
+		reusableTokens: 42_000,
+		hasSegmentStart: false,
+		isPartial: false,
+	},
 };
 
-/** The cache misses button beside the context ring on a crowded phone toolbar. */
+/** The next-message button beside the context ring on a crowded phone toolbar. */
 export const WithCacheMissesMobile: Story = {
 	args: {
 		contextUsage: baseContextUsage,

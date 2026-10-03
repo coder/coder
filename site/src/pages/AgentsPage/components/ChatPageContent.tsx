@@ -437,14 +437,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		(option) => option.id === selectedModel,
 	)?.contextLimit;
 	const rawUsage = getLatestContextUsage(messages, activeContextLimit);
-	const historyComplete = !hasMoreMessages;
 	const chatHeat = experiments.includes("chat-heat-meter")
-		? getChatHeat(
-				messages,
-				compressionThreshold,
-				activeContextLimit,
-				historyComplete,
-			)
+		? getChatHeat(messages, !hasMoreMessages)
 		: null;
 	const latestContextUsage =
 		rawUsage || chatContext

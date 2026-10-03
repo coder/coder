@@ -5,15 +5,16 @@ import {
 } from "#/testHelpers/chatEntities";
 import {
 	CACHE_IDLE_TTL_MS,
+	CACHE_READ_TO_WRITE_RATIO,
+	getCacheExpiresAtMs,
 	getChatHeat,
 	getChatHeatLabel,
+	getRemainingMinutes,
 	HEAT_CURVE_MIDPOINT,
 	HEAT_REFERENCE_TOKENS,
 	heatCurve,
-	isCacheLikelyExpired,
+	projectNextMessage,
 } from "./chatHeat";
-
-const CONTEXT_LIMIT = 50_000;
 
 let nextId = 100;
 const request = (
@@ -24,15 +25,12 @@ const request = (
 	id: nextId++,
 	role: "assistant",
 	created_at: createdAt,
-	usage: { context_limit: CONTEXT_LIMIT, ...usage },
+	usage,
 });
 
 // Builds consecutive requests. Each one reads the previous prompt from the
 // cache except for `missed` tokens, and adds `added` new tokens.
-const requestChain = (
-	initialPromptTokens = 0,
-	contextLimit = CONTEXT_LIMIT,
-) => {
+const requestChain = (initialPromptTokens = 0) => {
 	let promptTokens = initialPromptTokens;
 	return (missed = 0, added = 100): TypesGen.ChatMessage => {
 		const cacheRead = Math.max(0, promptTokens - missed);
@@ -41,7 +39,6 @@ const requestChain = (
 		return request({
 			cache_read_tokens: cacheRead,
 			cache_creation_tokens: cacheCreation,
-			context_limit: contextLimit,
 		});
 	};
 };
@@ -58,6 +55,13 @@ const turn = (...requests: TypesGen.ChatMessage[]) => [
 	...requests,
 ];
 
+const clearedMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: nextId++,
+	role: "tool",
+	content: [{ type: "tool-call", tool_name: "chat_cleared" }],
+};
+
 describe("heatCurve", () => {
 	it("maps zero and negative input to zero", () => {
 		expect(heatCurve(0)).toBe(0);
@@ -66,372 +70,208 @@ describe("heatCurve", () => {
 	});
 
 	it("is monotonic", () => {
-		let previous = heatCurve(0);
-		for (let x = 0.02; x <= 1.5; x += 0.02) {
+		let previous = 0;
+		for (let x = 0.05; x <= 3; x += 0.05) {
 			const value = heatCurve(x);
-			expect(value).toBeGreaterThan(previous);
+			expect(value).toBeGreaterThanOrEqual(previous);
 			previous = value;
 		}
 	});
 
 	it("passes about halfway at the midpoint", () => {
-		expect(heatCurve(HEAT_CURVE_MIDPOINT)).toBeCloseTo(0.455, 2);
+		expect(heatCurve(HEAT_CURVE_MIDPOINT)).toBeCloseTo(0.43, 2);
 	});
 
-	it("saturates before the compaction threshold", () => {
-		expect(heatCurve(0.7)).toBeGreaterThan(0.95);
-		expect(heatCurve(10)).toBeLessThanOrEqual(1);
-	});
-
-	it("stays low for small fresh shares", () => {
-		expect(heatCurve(0.05)).toBeLessThan(0.05);
+	it("matches the agreed sample points on the 150K scale", () => {
+		const at = (tokens: number) =>
+			Math.round(heatCurve(tokens / HEAT_REFERENCE_TOKENS) * 100) / 100;
+		expect(HEAT_REFERENCE_TOKENS).toBe(150_000);
+		expect(at(25_000)).toBe(0.1);
+		expect(at(50_000)).toBe(0.25);
+		expect(at(75_000)).toBe(0.43);
+		expect(at(100_000)).toBe(0.61);
+		expect(at(150_000)).toBe(0.86);
+		expect(at(200_000)).toBe(0.96);
+		expect(at(300_000)).toBe(1);
 	});
 });
 
 describe("getChatHeatLabel", () => {
 	it("derives labels from displayed heat", () => {
 		expect(getChatHeatLabel(0)).toBe("low");
-		expect(getChatHeatLabel(0.5)).toBe("moderate");
+		expect(getChatHeatLabel(0.4)).toBe("moderate");
 		expect(getChatHeatLabel(0.9)).toBe("high");
 	});
 });
 
-describe("getChatHeat", () => {
-	// Most cases load a partial history, so the oldest loaded turn only
-	// seeds the previous prompt and is not scored.
-	const partial = (
-		messages: TypesGen.ChatMessage[],
-		threshold: number | undefined = 100,
-	) => getChatHeat(messages, threshold, undefined, false);
-
-	// A seed turn followed by one turn per missed share of the context limit.
-	const turnsMissing = (...shares: number[]) => {
-		const next = requestChain(40_000);
-		return [
-			...turn(next()),
-			...shares.flatMap((share) => turn(next(share * CONTEXT_LIMIT))),
-		];
-	};
-
-	it("returns null without usable requests", () => {
-		expect(getChatHeat([], 70)).toBeNull();
-		expect(getChatHeat([MockChatMessage], 70)).toBeNull();
-		expect(
-			getChatHeat(
-				[{ ...request({ input_tokens: 10 }), usage: { input_tokens: 10 } }],
-				70,
-			),
-		).toBeNull();
+describe("projectNextMessage", () => {
+	it("re-writes the whole prompt when cold", () => {
+		const cold = projectNextMessage(165_000, true);
+		expect(cold.tokens).toBe(165_000);
+		expect(cold.heat).toBeCloseTo(0.91, 2);
+		expect(cold.label).toBe("high");
 	});
 
-	it("uses the active context limit when the message has none", () => {
-		const withoutLimit = (usage: TypesGen.ChatMessageUsage) => ({
-			...request({}),
-			usage,
-		});
+	it("scales the prompt by the read to write ratio when warm", () => {
+		expect(CACHE_READ_TO_WRITE_RATIO).toBeCloseTo(0.08);
+		const warm = projectNextMessage(165_000, false);
+		expect(warm.tokens).toBeCloseTo(13_200);
+		expect(warm.heat).toBeCloseTo(0.048, 2);
+		expect(warm.label).toBe("low");
+		expect(projectNextMessage(1_000_000, false).label).toBe("moderate");
+	});
+
+	it("places the band edges near 62K and 108K", () => {
+		expect(projectNextMessage(61_000, true).label).toBe("low");
+		expect(projectNextMessage(63_000, true).label).toBe("moderate");
+		expect(projectNextMessage(107_000, true).label).toBe("moderate");
+		expect(projectNextMessage(109_000, true).label).toBe("high");
+	});
+});
+
+describe("getChatHeat", () => {
+	it("returns null without usable requests", () => {
+		expect(getChatHeat([])).toBeNull();
+		expect(getChatHeat([MockChatMessage])).toBeNull();
+		expect(getChatHeat([request({ output_tokens: 10 })])).toBeNull();
+	});
+
+	it("returns null when no request in the segment uses the prompt cache", () => {
+		const uncached = () => request({ input_tokens: 20_000 });
+		expect(getChatHeat([...turn(uncached()), ...turn(uncached())])).toBeNull();
+	});
+
+	it("reports the latest request's prompt, time and model", () => {
+		const next = requestChain(40_000);
 		const messages = [
-			...turn(withoutLimit({ cache_creation_tokens: 20_000 })),
-			...turn(
-				withoutLimit({
-					cache_read_tokens: 5_000,
-					cache_creation_tokens: 15_000,
-				}),
-			),
+			...turn(next()),
+			...turn(next(0), {
+				...next(0, 500),
+				created_at: "2026-01-01T00:05:00Z",
+				model_config_id: "model-b",
+			}),
 		];
-		expect(getChatHeat(messages, 100, CONTEXT_LIMIT, false)?.heat).toBeCloseTo(
-			heatCurve(15_000 / CONTEXT_LIMIT),
-		);
+		const heat = getChatHeat(messages);
+		expect(heat?.lastPromptTokens).toBe(40_000 + 100 + 100 + 500);
+		expect(heat?.lastRequestAt).toBe("2026-01-01T00:05:00Z");
+		expect(heat?.lastModelConfigId).toBe("model-b");
+		expect(heat?.boundary).toBeUndefined();
 	});
 
 	it("sums the missed prefix over the requests of a turn", () => {
-		const heat = getChatHeat(
-			[
-				...turn(request({ cache_creation_tokens: 20_000 })),
-				...turn(
-					request({ cache_read_tokens: 5_000, cache_creation_tokens: 16_000 }),
-					request({ cache_read_tokens: 21_000, input_tokens: 2_000 }),
-					request({ cache_read_tokens: 20_000, input_tokens: 4_000 }),
-				),
-			],
-			100,
-		);
-		// The newest turn misses 15K + 0 + 3K and weighs 0.8; the first turn
-		// misses nothing.
-		expect(heat?.heat).toBeCloseTo(heatCurve((18_000 / CONTEXT_LIMIT) * 0.8));
-		expect(heat?.missRate).toBeCloseTo(18_000 / 23_000);
-		expect(heat?.lastTurnRequestCount).toBe(3);
-		expect(heat?.lastTurnMissedTokens).toBe(18_000);
-		expect(heat?.lastTurnReusableTokens).toBe(23_000);
-		expect(heat?.lastTurnHasSegmentStart).toBe(false);
-		expect(heat?.lastPromptTokens).toBe(24_000);
-	});
-
-	it("does not count new tokens in a warm tool loop as misses", () => {
 		const next = requestChain(10_000);
-		const seed = turn(next());
-		const loop = turn(...Array.from({ length: 20 }, () => next(0, 3_000)));
-		const heat = partial([...seed, ...loop]);
-		expect(heat?.heat).toBe(0);
-		expect(heat?.missRate).toBe(0);
+		const heat = getChatHeat([
+			...turn(next()),
+			...turn(next(4_000), next(0), next(2_000)),
+		]);
+		expect(heat?.lastTurn).toMatchObject({
+			requestCount: 3,
+			missedTokens: 6_000,
+			reusableTokens: 10_300,
+			hasSegmentStart: false,
+			isPartial: false,
+		});
 	});
 
-	it("keeps a cold first request high despite cached tool steps", () => {
-		const next = requestChain(40_000);
-		const seed = turn(next());
-		const coldTurn = turn(
-			next(Number.POSITIVE_INFINITY),
-			next(),
-			next(),
-			next(),
-		);
-		expect(partial([...seed, ...coldTurn], 70)?.label).toBe("high");
-	});
-
-	it("weights the newest turn most", () => {
-		// Weights 1 and 0.25 normalize to 0.8 and 0.2.
-		expect(partial(turnsMissing(0.4, 0))?.heat).toBeCloseTo(
-			heatCurve(0.4 * 0.2),
-		);
-		expect(partial(turnsMissing(0, 0.4))?.heat).toBeCloseTo(
-			heatCurve(0.4 * 0.8),
-		);
-	});
-
-	it("ignores turns beyond the newest six", () => {
-		expect(
-			partial(turnsMissing(0.8, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1))?.heat,
-		).toBeCloseTo(heatCurve(0.1));
-	});
-
-	it("does not count the first request of the chat", () => {
-		const next = requestChain();
-		const heat = getChatHeat(turn(next(0, 40_000), next(0, 1_000)), 100);
-		expect(heat?.heat).toBe(0);
-		expect(heat?.lastTurnHasSegmentStart).toBe(true);
-		expect(heat?.lastTurnReusableTokens).toBe(40_000);
+	it("does not count the first request of the chat as a miss", () => {
+		const heat = getChatHeat([
+			...turn(request({ cache_creation_tokens: 30_000 })),
+		]);
+		expect(heat?.lastTurn).toMatchObject({
+			missedTokens: 0,
+			reusableTokens: 0,
+			hasSegmentStart: true,
+		});
 	});
 
 	it("drops the oldest loaded turn when older history is unloaded", () => {
-		const messages = turnsMissing(0.8);
-		const heat = partial(messages);
-		expect(heat?.heat).toBeCloseTo(heatCurve(0.8));
-		expect(heat?.lastTurnIsPartial).toBe(false);
-		// With the full history, the seed turn is the segment's first.
-		expect(getChatHeat(messages, 100)?.heat).toBeCloseTo(heatCurve(0.8 * 0.8));
+		const next = requestChain(10_000);
+		const heat = getChatHeat(
+			[...turn(next(Number.POSITIVE_INFINITY)), ...turn(next(5_000))],
+			false,
+		);
+		expect(heat?.lastTurn).toMatchObject({
+			missedTokens: 5_000,
+			isPartial: false,
+		});
 	});
 
 	it("marks the latest turn partial when it is the only loaded turn", () => {
-		const next = requestChain(40_000);
-		const heat = partial(turn(next(Number.POSITIVE_INFINITY), next(5_000)));
-		expect(heat?.heat).toBeCloseTo(heatCurve(5_000 / CONTEXT_LIMIT));
-		expect(heat?.lastTurnHasSegmentStart).toBe(false);
-		expect(heat?.lastTurnIsPartial).toBe(true);
-		// The tail of a long turn with no user message loaded is partial too,
-		// but a complete history makes the same turn the segment's first.
-		const tail = [next(0), next(0)];
-		expect(partial(tail)?.lastTurnIsPartial).toBe(true);
-		expect(getChatHeat(tail, 100)?.lastTurnIsPartial).toBe(false);
+		const next = requestChain(10_000);
+		const heat = getChatHeat([next(), next(3_000)], false);
+		expect(heat?.lastTurn?.isPartial).toBe(true);
+		expect(heat?.lastPromptTokens).toBe(10_200);
 	});
 
-	it("reports the model of the latest request", () => {
-		const next = requestChain(40_000);
-		const messages = turn(
-			{ ...next(), model_config_id: "model-a" },
-			{ ...next(), model_config_id: "model-b" },
-		);
-		expect(getChatHeat(messages, 100)?.lastModelConfigId).toBe("model-b");
-	});
-
-	it("restarts the window at a compaction or clear boundary", () => {
-		const cleared: TypesGen.ChatMessage = {
-			...MockChatMessage,
-			id: nextId++,
-			role: "tool",
-			content: [{ type: "tool-call", tool_name: "chat_cleared" }],
-		};
-		for (const boundary of [MockChatCompactionMessage, cleared]) {
+	it("starts a new segment at a compaction or clear boundary", () => {
+		for (const boundary of [MockChatCompactionMessage, clearedMessage]) {
 			const next = requestChain(10_000);
-			const heat = partial([
-				...turnsMissing(0.9),
-				boundary,
-				...turn(next(Number.POSITIVE_INFINITY)),
-				...turn(next(0.1 * CONTEXT_LIMIT)),
-			]);
-			// The request after the boundary starts its segment and misses
-			// nothing.
-			expect(heat?.heat).toBeCloseTo(heatCurve(0.1 * 0.8));
-			expect(partial([...turnsMissing(0.9), boundary])).toBeNull();
-		}
-	});
-
-	it("returns null when no request in the window uses the prompt cache", () => {
-		const uncached = () => request({ input_tokens: 20_000 });
-		expect(
-			partial([...turn(uncached()), ...turn(uncached()), ...turn(uncached())]),
-		).toBeNull();
-		expect(
-			partial([...turnsMissing(0.1), ...turn(uncached())])?.heat,
-		).toBeGreaterThan(0);
-	});
-
-	it("normalizes by the compaction threshold", () => {
-		const messages = turnsMissing(0.15);
-		expect(partial(messages, 50)?.heat).toBeCloseTo(heatCurve(0.3));
-		expect(partial(messages, undefined)?.heat).toBeCloseTo(heatCurve(0.15));
-		expect(partial(messages, 0)?.heat).toBeCloseTo(heatCurve(0.15));
-	});
-
-	it("caps the reference size for large context windows", () => {
-		const next = requestChain(40_000, 1_000_000);
-		const messages = [...turn(next()), ...turn(next(21_000))];
-		expect(partial(messages, 30)?.heat).toBeCloseTo(
-			heatCurve(21_000 / HEAT_REFERENCE_TOKENS),
-		);
-	});
-
-	it("reports the newest request's timestamp", () => {
-		const heat = partial(
-			turn(
-				request({ cache_read_tokens: 1 }, "2026-01-01T00:00:00Z"),
-				request({ cache_read_tokens: 1 }, "2026-01-01T00:10:00Z"),
-			),
-		);
-		expect(heat?.lastRequestAt).toBe("2026-01-01T00:10:00Z");
-	});
-});
-
-// Chats observed during user testing, on a 200K window with the default
-// compaction threshold of 70%.
-describe("getChatHeat scenarios", () => {
-	const heatOf = (messages: TypesGen.ChatMessage[]) =>
-		getChatHeat(messages, 70)?.label;
-	const toolSteps = (next: ReturnType<typeof requestChain>, count: number) =>
-		Array.from({ length: count }, () => next(0, 1_000));
-
-	it("reads high when each slow turn re-writes an 83K context", () => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, 80_000), ...toolSteps(next, 3))];
-		for (let i = 0; i < 5; i++) {
-			messages.push(
-				...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
+			const heat = getChatHeat(
+				[
+					...turn(next(), next(9_000)),
+					boundary,
+					...turn(next(Number.POSITIVE_INFINITY)),
+				],
+				false,
 			);
+			expect(heat?.lastTurn).toMatchObject({
+				missedTokens: 0,
+				hasSegmentStart: true,
+			});
+			expect(heat?.boundary).toBeUndefined();
 		}
-		expect(heatOf(messages)).toBe("high");
-		// The miss rate agrees with the meter despite the cached tool steps.
-		expect(getChatHeat(messages, 70)?.missRate).toBeGreaterThan(0.95);
 	});
 
-	it("reads low for a cache-warm 30-step tool loop", () => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, 20_000))];
-		messages.push(...turn(...Array.from({ length: 30 }, () => next(0, 3_000))));
-		expect(heatOf(messages)).toBe("low");
-	});
-
-	it("reads low on the first turn of a chat", () => {
-		const next = requestChain(0, 200_000);
-		expect(heatOf(turn(next(0, 83_000), ...toolSteps(next, 3)))).toBe("low");
-	});
-
-	it("reads high when slow turns miss most of a 46K context", () => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, 46_000), ...toolSteps(next, 2))];
-		for (let i = 0; i < 5; i++) {
-			messages.push(...turn(next(39_000, 500), ...toolSteps(next, 2)));
-		}
-		expect(heatOf(messages)).toBe("high");
-	});
-
-	// A first turn at the given context, then five slow turns that each miss
-	// `missed` tokens.
-	const slowTurns = (contextTokens: number, missed: number) => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, contextTokens))];
-		for (let i = 0; i < 5; i++) {
-			messages.push(...turn(next(missed, 500)));
-		}
-		return messages;
-	};
-
-	it("reads high when slow turns miss 36K", () => {
-		expect(heatOf(slowTurns(46_000, 36_000))).toBe("high");
-	});
-
-	it("reads moderate when slow turns miss 20K", () => {
-		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe(
-			"moderate",
-		);
-	});
-
-	it("reads low when slow turns miss 10K", () => {
-		expect(heatOf(slowTurns(10_000, Number.POSITIVE_INFINITY))).toBe("low");
-	});
-
-	it("drops to low within two fast turns after a break", () => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, 120_000), ...toolSteps(next, 3))];
-		messages.push(
-			...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
-		);
-		expect(heatOf(messages)).toBe("high");
-		for (let i = 0; i < 2; i++) {
-			messages.push(...turn(next(0, 500), ...toolSteps(next, 3)));
-		}
-		expect(heatOf(messages)).toBe("low");
-	});
-
-	it("reads low for a rapid back-and-forth", () => {
-		const next = requestChain(0, 200_000);
-		const messages = [...turn(next(0, 20_000))];
-		for (let i = 0; i < 10; i++) {
-			messages.push(...turn(next(0, 2_000)));
-		}
-		expect(heatOf(messages)).toBe("low");
+	it("reports a boundary with no request after it", () => {
+		const next = requestChain(10_000);
+		const before = turn(next(), next(9_000));
+		expect(getChatHeat([...before, MockChatCompactionMessage])).toEqual({
+			lastPromptTokens: 0,
+			lastRequestAt: "",
+			lastModelConfigId: undefined,
+			boundary: "compacted",
+			lastTurn: undefined,
+		});
+		expect(getChatHeat([...before, clearedMessage])?.boundary).toBe("cleared");
 	});
 });
 
-describe("isCacheLikelyExpired", () => {
-	const last = "2026-01-01T00:00:00Z";
-	const lastMs = Date.parse(last);
+describe("getCacheExpiresAtMs", () => {
+	const requestAt = "2026-01-01T00:00:00Z";
+	const requestMs = Date.parse(requestAt);
 
-	it("expires after the idle lifetime", () => {
-		expect(
-			isCacheLikelyExpired(last, undefined, lastMs + CACHE_IDLE_TTL_MS, false),
-		).toBe(false);
-		expect(
-			isCacheLikelyExpired(
-				last,
-				undefined,
-				lastMs + CACHE_IDLE_TTL_MS + 1,
-				false,
-			),
-		).toBe(true);
-	});
-
-	it("measures idle time from the later of request and stream end", () => {
-		const streamEndedMs = lastMs + 10 * 60 * 1000;
-		expect(
-			isCacheLikelyExpired(last, streamEndedMs, streamEndedMs + 1_000, false),
-		).toBe(false);
-		expect(
-			isCacheLikelyExpired(
-				last,
-				streamEndedMs,
-				streamEndedMs + CACHE_IDLE_TTL_MS + 1,
-				false,
-			),
-		).toBe(true);
-	});
-
-	it("treats a request timestamp ahead of the client clock as recent", () => {
-		expect(isCacheLikelyExpired(last, undefined, lastMs - 60_000, false)).toBe(
-			false,
+	it("expires one lifetime after the request", () => {
+		expect(getCacheExpiresAtMs(requestAt, undefined)).toBe(
+			requestMs + CACHE_IDLE_TTL_MS,
 		);
 	});
 
-	it("never expires while streaming", () => {
-		expect(
-			isCacheLikelyExpired(last, undefined, lastMs + 60 * 60 * 1000, true),
-		).toBe(false);
+	it("measures from the later of request and stream end", () => {
+		expect(getCacheExpiresAtMs(requestAt, requestMs + 30_000)).toBe(
+			requestMs + 30_000 + CACHE_IDLE_TTL_MS,
+		);
+		expect(getCacheExpiresAtMs(requestAt, requestMs - 30_000)).toBe(
+			requestMs + CACHE_IDLE_TTL_MS,
+		);
+	});
+
+	it("is unknown without any timing", () => {
+		expect(getCacheExpiresAtMs("", undefined)).toBeUndefined();
+		expect(getCacheExpiresAtMs("not a date", undefined)).toBeUndefined();
+		expect(getCacheExpiresAtMs("", 1_000)).toBe(1_000 + CACHE_IDLE_TTL_MS);
+	});
+});
+
+describe("getRemainingMinutes", () => {
+	it("rounds up and never reads zero", () => {
+		expect(getRemainingMinutes(CACHE_IDLE_TTL_MS)).toBe(5);
+		expect(getRemainingMinutes(4 * 60_000 + 1)).toBe(5);
+		expect(getRemainingMinutes(4 * 60_000)).toBe(4);
+		expect(getRemainingMinutes(60_000)).toBe(1);
+		expect(getRemainingMinutes(1)).toBe(1);
+	});
+
+	it("clamps a clock ahead of the request to the full lifetime", () => {
+		expect(getRemainingMinutes(CACHE_IDLE_TTL_MS + 90_000)).toBe(5);
 	});
 });

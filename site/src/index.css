@@ -100,6 +100,7 @@
 	--color-heat-moderate: hsl(var(--heat-moderate));
 	--color-heat-high: hsl(var(--heat-high));
 	--color-heat-needle: hsl(var(--heat-needle));
+	--color-heat-at-stake: hsl(var(--heat-at-stake));
 
 	--color-syntax-key: hsl(var(--syntax-key));
 	--color-syntax-string: hsl(var(--syntax-string));
@@ -482,11 +483,14 @@
 		   yellow and red is the hue axis that survives red/green colour
 		   blindness, and yellow against red separates by luminance. The
 		   fill blends between stops in oklch, so the in-between tints keep
-		   their chroma. */
+		   their chroma. The at-stake segment is a neutral grey, the only
+		   colour left that stays distinct from the fills and the needle under
+		   red/green colour blindness. */
 		--heat-low: 217 91% 60%;
 		--heat-moderate: 48 96% 53%;
 		--heat-high: 0 72% 51%;
 		--heat-needle: 0 84% 60%;
+		--heat-at-stake: 218 11% 65%;
 		--syntax-key: 211 95% 33%;
 		--syntax-string: 0 77% 36%;
 		--syntax-number: 158 88% 28%;
@@ -564,6 +568,7 @@
 		--heat-moderate: 48 96% 53%;
 		--heat-high: 0 72% 51%;
 		--heat-needle: 0 91% 71%;
+		--heat-at-stake: 220 9% 46%;
 		--syntax-key: 201 98% 80%;
 		--syntax-string: 18 47% 64%;
 		--syntax-number: 100 28% 73%;
