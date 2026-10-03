@@ -282,6 +282,8 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,
+	APIKeyScopeInboxNotificationRead,
+	APIKeyScopeInboxNotificationUpdate,
 	APIKeyScopeOrganizationAll,
 	APIKeyScopeOrganizationDelete,
 	APIKeyScopeOrganizationRead,
