@@ -949,7 +949,18 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 
 func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 	t.Parallel()
-	for _, prefix := range []string{"P", "Pr", "Pre"} {
+	// A zero NextPrompt estimates the summary alone, rounding its bytes
+	// up at nextPromptBytesPerTokenFallback bytes per token. "界" is
+	// three bytes, so the summaries are 7, 8 and 9 bytes long.
+	for _, tc := range []struct {
+		prefix string
+		want   int64
+	}{
+		{prefix: "P", want: 2},
+		{prefix: "Pr", want: 2},
+		{prefix: "Pre", want: 3},
+	} {
+		prefix := tc.prefix
 		t.Run(prefix, func(t *testing.T) {
 			t.Parallel()
 			var parts []codersdk.ChatMessagePart
@@ -978,14 +989,14 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
-			require.Equal(t, int64(3), result.EstimatedContextTokens)
+			require.Equal(t, tc.want, result.EstimatedContextTokens)
 			require.Equal(t, int64(800), result.ContextTokens)
 			require.Len(t, parts, 2)
 			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
 			require.False(t, parts[1].IsError)
 			var metadata map[string]any
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
-			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(tc.want), metadata["estimated_context_tokens"])
 			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
 		})
 	}
@@ -1044,23 +1055,24 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 		Role: fantasy.MessageRoleTool,
 		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
 			ToolCallID: "call",
-			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("r", 20000)},
+			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("r", 2000)},
 		}},
 	}
 	history := []fantasy.Message{system, firstUser, assistant, toolResult}
 	pending := []fantasy.Message{textMessage(fantasy.MessageRoleUser, strings.Repeat("p", 100))}
+	// The first step's prompt is the system message, the first user
+	// message, and the tools: 3000 + 83 + 917 = 4000 bytes.
+	firstStepUsage := fantasy.Usage{InputTokens: 200, CacheReadTokens: 600}
 
 	t.Run("CalibratesOnFirstStep", func(t *testing.T) {
 		t.Parallel()
-		// The first step's prompt is the system message, the first user
-		// message, and the tools: 3000 + 83 + 917 = 4000 bytes over 1000
-		// tokens. Later history, such as the large tool result, does not
-		// shift the ratio.
-		next := NewCompactionNextPrompt(history, pending, []fantasy.Tool{tool},
-			fantasy.Usage{InputTokens: 200, CacheReadTokens: 800})
+		// 4000 bytes over 800 tokens. The whole history would give
+		// (4000 + 500 + 2000) / 800, so the ratio shows which prompt
+		// was measured.
+		next := NewCompactionNextPrompt(history, pending, []fantasy.Tool{tool}, firstStepUsage)
 		require.Equal(t, 3000+toolBytes+100, next.RetainedBytes)
-		require.InDelta(t, 4.0, next.BytesPerToken, 1e-9)
-		require.Equal(t, int64((3000+toolBytes+100+83)/4), next.estimateTokens(83))
+		require.InDelta(t, 5.0, next.BytesPerToken, 1e-9)
+		require.Equal(t, int64((3000+toolBytes+100+83)/5), next.estimateTokens(83))
 	})
 
 	t.Run("FallsBackWithoutFirstStepUsage", func(t *testing.T) {
@@ -1073,6 +1085,19 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 	t.Run("FallsBackOnImplausibleRatio", func(t *testing.T) {
 		t.Parallel()
 		next := NewCompactionNextPrompt(history, nil, []fantasy.Tool{tool}, fantasy.Usage{InputTokens: 10})
+		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+	})
+
+	t.Run("FallsBackWhenFirstPromptHasMedia", func(t *testing.T) {
+		t.Parallel()
+		withImage := fantasy.Message{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: strings.Repeat("u", 83)},
+				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
+			},
+		}
+		next := NewCompactionNextPrompt([]fantasy.Message{system, withImage, assistant}, nil, []fantasy.Tool{tool}, firstStepUsage)
 		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
 	})
 
@@ -1100,9 +1125,9 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 		require.Equal(t, len("web_search")+len(`{"max_uses":5}`), next.RetainedBytes)
 	})
 
-	t.Run("ZeroValueKeepsSummaryEstimate", func(t *testing.T) {
+	t.Run("ZeroValueUsesFallbackRatio", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, int64(4), CompactionNextPrompt{}.estimateTokens(10))
+		require.Equal(t, int64(3), CompactionNextPrompt{}.estimateTokens(10))
 	})
 }
 

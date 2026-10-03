@@ -137,8 +137,9 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
-	// EstimatedContextTokens estimates the prompt of the next request:
-	// SystemSummary plus GenerateCompactionOptions.NextPrompt.
+	// EstimatedContextTokens estimates the prompt of the next request
+	// from SystemSummary and GenerateCompactionOptions.NextPrompt. Hook
+	// messages committed after the boundary are not included.
 	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
@@ -393,7 +394,7 @@ type CompactionNextPrompt struct {
 	// pending user messages replayed after the boundary.
 	RetainedBytes int
 	// BytesPerToken converts text bytes to tokens. Zero uses
-	// bytesPerTokenEstimate.
+	// nextPromptBytesPerTokenFallback.
 	BytesPerToken float64
 }
 
@@ -408,6 +409,8 @@ type CompactionNextPrompt struct {
 // prompt after compaction. Later prompts are dominated by history whose
 // tokenization differs: calibrating on the last prompt overestimated by
 // 30% to 50% after large tool results, against 1% for the first step.
+// A first prompt with media is not used, because the media's tokens
+// have no matching text bytes.
 func NewCompactionNextPrompt(
 	history []fantasy.Message,
 	pending []fantasy.Message,
@@ -415,11 +418,13 @@ func NewCompactionNextPrompt(
 	firstStepUsage fantasy.Usage,
 ) CompactionNextPrompt {
 	toolBytes := toolDefinitionBytes(tools)
-	retained := toolBytes + promptTextBytes(pending)
+	pendingBytes, _ := promptTextBytes(pending)
+	retained := toolBytes + pendingBytes
 	firstAssistant := -1
 	for i, msg := range history {
 		if msg.Role == fantasy.MessageRoleSystem {
-			retained += messageTextBytes(msg)
+			systemBytes, _ := messageTextBytes(msg)
+			retained += systemBytes
 		}
 		if firstAssistant < 0 && msg.Role == fantasy.MessageRoleAssistant {
 			firstAssistant = i
@@ -428,8 +433,9 @@ func NewCompactionNextPrompt(
 
 	bytesPerToken := nextPromptBytesPerTokenFallback
 	if tokens := contextTokensFromUsage(firstStepUsage); tokens > 0 && firstAssistant > 0 {
-		ratio := float64(toolBytes+promptTextBytes(history[:firstAssistant])) / float64(tokens)
-		if ratio >= minNextPromptBytesPerToken && ratio <= maxNextPromptBytesPerToken {
+		firstPromptBytes, hasMedia := promptTextBytes(history[:firstAssistant])
+		ratio := float64(toolBytes+firstPromptBytes) / float64(tokens)
+		if !hasMedia && ratio >= minNextPromptBytesPerToken && ratio <= maxNextPromptBytesPerToken {
 			bytesPerToken = ratio
 		}
 	}
@@ -439,35 +445,43 @@ func NewCompactionNextPrompt(
 func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
 	bytesPerToken := p.BytesPerToken
 	if bytesPerToken <= 0 {
-		bytesPerToken = bytesPerTokenEstimate
+		bytesPerToken = nextPromptBytesPerTokenFallback
 	}
 	return int64(math.Ceil(float64(p.RetainedBytes+summaryBytes) / bytesPerToken))
 }
 
-// promptTextBytes sums the text the provider tokenizes as text. Media
-// is skipped because its token count does not follow its byte size.
-func promptTextBytes(messages []fantasy.Message) int {
+// promptTextBytes sums the text the provider tokenizes as text and
+// reports whether any message also carries media, whose token count
+// does not follow its byte size.
+func promptTextBytes(messages []fantasy.Message) (int, bool) {
 	total := 0
+	hasMedia := false
 	for _, msg := range messages {
-		total += messageTextBytes(msg)
+		size, media := messageTextBytes(msg)
+		total += size
+		hasMedia = hasMedia || media
 	}
-	return total
+	return total, hasMedia
 }
 
-func messageTextBytes(msg fantasy.Message) int {
+func messageTextBytes(msg fantasy.Message) (int, bool) {
 	total := 0
+	hasMedia := false
 	for _, part := range msg.Content {
 		switch p := part.(type) {
 		case fantasy.FilePart:
+			hasMedia = true
 		case fantasy.ToolResultPart:
-			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); !media {
-				total += ContentPartSize(p)
+			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); media {
+				hasMedia = true
+				continue
 			}
+			total += ContentPartSize(p)
 		default:
 			total += ContentPartSize(part)
 		}
 	}
-	return total
+	return total, hasMedia
 }
 
 // toolDefinitionBytes sums each tool's name, description, and JSON

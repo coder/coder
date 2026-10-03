@@ -104,6 +104,8 @@ describe("extractContextUsageFromMessage", () => {
 			});
 			expect(result?.usedTokens).toBe(usedTokens);
 			expect(result?.reasoningTokens).toBe(usage.reasoning_tokens);
+			expect(result?.cacheReadTokens).toBe(usage.cache_read_tokens);
+			expect(result?.cacheCreationTokens).toBe(usage.cache_creation_tokens);
 		},
 	);
 
