@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent, {
 	PointerEventsCheckLevel,
 } from "@testing-library/user-event";
@@ -1405,6 +1405,33 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ name: "Renamed" }]);
+		});
+	});
+
+	it("returns focus to Rotate secret when a click did not focus it", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([mockWebhookAutomation]),
+			),
+		);
+		const dialog = await openWebhookEditor(user);
+		within(dialog).getByLabelText(/^Name/).focus();
+
+		// Safari on macOS does not focus a button on click.
+		fireEvent.click(
+			within(dialog).getByRole("button", { name: "Rotate secret" }),
+		);
+		const confirm = await screen.findByRole("dialog", {
+			name: "Rotate the webhook secret?",
+		});
+		await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Rotate secret" }),
+			).toHaveFocus();
 		});
 	});
 
