@@ -165,12 +165,17 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 									triggerAriaDescribedBy={
 										modelField.error ? modelErrorId : undefined
 									}
-									placeholder={getModelSelectorPlaceholder(
-										modelOptions,
-										isModelCatalogLoading,
-										hasConfiguredModels,
-										modelCatalog,
-									)}
+									// The viewer's catalog can lack the owner's model.
+									placeholder={
+										isReadOnly
+											? "Set by the owner"
+											: getModelSelectorPlaceholder(
+													modelOptions,
+													isModelCatalogLoading,
+													hasConfiguredModels,
+													modelCatalog,
+												)
+									}
 									options={modelOptions}
 									value={form.values.new_chat_model_config_id}
 									onValueChange={(modelId) => {
