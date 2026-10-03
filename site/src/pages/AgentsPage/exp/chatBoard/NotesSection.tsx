@@ -127,15 +127,17 @@ const Note: React.FC<NoteProps> = ({
 		);
 	}
 
-	// Age on the right; hover swaps it for the actions without moving text.
-	// The actions hide by opacity, not display: a display:none button cannot
-	// take focus, so Tab could never reveal them.
+	// The age sits on the right and takes only its own width. The actions
+	// float over the end of the note on hover or focus instead of reserving
+	// a column, and the age turns invisible (not hidden) under them so the
+	// text does not rewrap. The actions hide by opacity, not display: a
+	// display:none button cannot take focus, so Tab could never reveal them.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
 			ref={setRefs}
 			className={cn(
-				"group/note flex items-start gap-2.5 py-[3px]",
+				"group/note relative flex items-start gap-2.5 py-[3px]",
 				isDragging && "opacity-40",
 				dropSide === "before" &&
 					"shadow-[inset_0_2px_0_0_var(--color-content-link)]",
@@ -146,34 +148,34 @@ const Note: React.FC<NoteProps> = ({
 			<CompactMarkdown className="min-w-0 flex-1 text-xs leading-[17px] text-content-primary/80">
 				{note.text}
 			</CompactMarkdown>
-			<span className="relative h-[17px] w-12 shrink-0">
-				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-focus-within/note:hidden group-has-[[data-state=open]]/note:hidden">
-					{note.timestamp ? <RelativeAge date={note.timestamp} /> : null}
+			{note.timestamp ? (
+				<span className="flex h-[17px] shrink-0 items-center text-[11px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible">
+					<RelativeAge date={note.timestamp} />
 				</span>
-				<span className="-mr-1 absolute inset-0 flex items-center justify-end opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
-					<Button
-						variant="subtle"
-						size="icon"
-						ref={setActivatorNodeRef}
-						{...dragHandleListeners(listeners)}
-						{...attributes}
-						aria-label="Drag note"
-						title="Drag to reorder or move to another card"
-						className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
-					>
-						<GripVerticalIcon />
-					</Button>
-					<Button
-						variant="subtle"
-						size="icon"
-						aria-label="Edit note"
-						className="size-4 text-content-secondary [&>svg]:size-3! [&>svg]:p-0"
-						onClick={() => setEditing(true)}
-					>
-						<PencilIcon />
-					</Button>
-					<DeleteNoteButton onConfirm={onRemove} />
-				</span>
+			) : null}
+			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center rounded bg-surface-primary pl-1 opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
+				<Button
+					variant="subtle"
+					size="icon"
+					ref={setActivatorNodeRef}
+					{...dragHandleListeners(listeners)}
+					{...attributes}
+					aria-label="Drag note"
+					title="Drag to reorder or move to another card"
+					className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
+				>
+					<GripVerticalIcon />
+				</Button>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Edit note"
+					className="size-4 text-content-secondary [&>svg]:size-3! [&>svg]:p-0"
+					onClick={() => setEditing(true)}
+				>
+					<PencilIcon />
+				</Button>
+				<DeleteNoteButton onConfirm={onRemove} />
 			</span>
 		</div>
 	);
