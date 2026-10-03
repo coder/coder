@@ -48,7 +48,7 @@ export const AutomationWebhookFields: React.FC<
 	const [confirmingRotate, setConfirmingRotate] = useState(false);
 	const restoreFocus = useRestoreFocusOnClose(confirmingRotate);
 
-	const useField = (
+	const webhookUseField = (
 		<div className="flex flex-col gap-2">
 			<span
 				id={useLabelId}
@@ -59,7 +59,7 @@ export const AutomationWebhookFields: React.FC<
 			<RadioGroup
 				aria-labelledby={useLabelId}
 				aria-describedby={useHelpId}
-				value={automation?.webhook_use ?? webhookUse}
+				value={webhookUse}
 				disabled={Boolean(automation)}
 				onValueChange={(value) => {
 					if (value === "single" || value === "multi") {
@@ -76,19 +76,20 @@ export const AutomationWebhookFields: React.FC<
 		</div>
 	);
 	if (!automation) {
-		return useField;
+		return webhookUseField;
 	}
 
-	const isSingleUse = automation.webhook_use === "single";
 	// A used single-use webhook rejects every event, so a new secret is useless.
-	const isUsedUp = isSingleUse && Boolean(automation.webhook_consumed_at);
+	const isUsedUp =
+		automation.webhook_use === "single" &&
+		Boolean(automation.webhook_consumed_at);
 	// getErrorDetail would add a developer-console hint the server never sent.
 	const rotateErrorDetail = isApiError(rotateSecretError)
 		? rotateSecretError.response.data.detail
 		: undefined;
 	return (
 		<>
-			{useField}
+			{webhookUseField}
 			{automation.webhook_consumed_at && (
 				<p className="m-0 text-sm text-content-secondary">
 					Used on{" "}

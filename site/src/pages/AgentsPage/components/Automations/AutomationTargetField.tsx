@@ -66,7 +66,6 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 	});
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const effortField = getFieldHelpers("reasoning_effort");
-	const isExistingChat = form.values.target_mode === "existing_chat";
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
@@ -110,7 +109,7 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 					tooltip="Each run starts a new chat with the model below."
 				/>
 			</RadioGroup>
-			{isExistingChat ? (
+			{form.values.target_mode === "existing_chat" ? (
 				<div className="grid grid-cols-2 gap-4">
 					<FormField
 						field={getFieldHelpers("target_chat_id")}

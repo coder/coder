@@ -14,7 +14,6 @@ type AutomationTriggerFieldProps = {
 	webhookFieldsProps: React.ComponentProps<typeof AutomationWebhookFields>;
 };
 
-/** The trigger kind and the fields of the chosen kind. */
 export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 	isCreate,
 	kind,
@@ -24,7 +23,6 @@ export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 }) => {
 	const triggerLabelId = useId();
 	const triggerDescriptionId = useId();
-	const isSchedule = kind === "schedule";
 	return (
 		<section className="flex flex-col gap-4">
 			<div className="flex items-start justify-between gap-2">
@@ -58,7 +56,7 @@ export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 				<RadioOption value="schedule" label="Schedule" />
 				<RadioOption value="webhook" label="Webhook" />
 			</RadioGroup>
-			{isSchedule ? (
+			{kind === "schedule" ? (
 				<AutomationScheduleFields {...scheduleFieldsProps} />
 			) : (
 				<AutomationWebhookFields {...webhookFieldsProps} />
