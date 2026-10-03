@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
-import { QueryClient } from "react-query";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
 import {
@@ -23,6 +24,8 @@ import {
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -37,12 +40,16 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
 	emptyInputStorageKey,
+	selectedOrganizationIdStorageKey,
+	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
 
 const dashboard = vi.hoisted(
@@ -467,6 +474,43 @@ describe("AgentCreateForm workspace file uploads", () => {
 	});
 });
 
+type WrapperProps = React.PropsWithChildren<{
+	queryClient?: ReturnType<typeof createTestQueryClient>;
+}>;
+
+const Wrapper: React.FC<WrapperProps> = ({
+	children,
+	queryClient = createTestQueryClient(),
+}) => {
+	return (
+		<QueryClientProvider client={queryClient}>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider>
+					<MemoryRouter>{children}</MemoryRouter>
+				</TooltipProvider>
+			</ThemeOverride>
+		</QueryClientProvider>
+	);
+};
+
+const formProps = {
+	onCreateChat: vi.fn(),
+	isCreating: false,
+	createError: undefined,
+	canCreateChat: true,
+	canConfigureAgentSetup: false,
+	aiGatewayDisabled: false,
+	workspaceCount: 0,
+	workspaceOptions: [],
+	workspacesError: undefined,
+	isWorkspacesLoading: false,
+};
+
+const chatCreatePermission = {
+	object: { resource_type: "chat", owner_id: "me" },
+	action: "create",
+} as const;
+
 const userDraftAttachments = JSON.stringify([
 	{
 		fileId: "user-draft-file",
@@ -480,6 +524,195 @@ const userDraftAttachments = JSON.stringify([
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
+	dashboard.showOrganizations = false;
+});
+
+describe("AgentCreateForm", () => {
+	beforeEach(() => {
+		dashboard.showOrganizations = true;
+	});
+
+	it("keeps the remembered organization and workspace while a project locks another", async () => {
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockDefaultOrganization.id,
+		);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-default-org");
+		const mcpRequests: string[] = [];
+		server.use(
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+				);
+			}),
+			http.get(
+				"/api/v2/organizations/:organization/mcp-servers",
+				({ params }) => {
+					mcpRequests.push(String(params.organization));
+					return HttpResponse.json([]);
+				},
+			),
+		);
+
+		const { rerender } = render(
+			<Wrapper>
+				<AgentCreateForm {...formProps} />
+			</Wrapper>,
+		);
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockDefaultOrganization.id);
+		});
+		// The same form instance survives navigating between the plain composer
+		// and a cached project page, as it does under the router.
+		rerender(
+			<Wrapper>
+				<AgentCreateForm
+					{...formProps}
+					lockedOrganizationId={MockOrganization2.id}
+				/>
+			</Wrapper>,
+		);
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockOrganization2.id);
+		});
+		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+			"ws-default-org",
+		);
+
+		mcpRequests.length = 0;
+		rerender(
+			<Wrapper>
+				<AgentCreateForm {...formProps} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockDefaultOrganization.id);
+		});
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			MockDefaultOrganization.id,
+		);
+		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+			"ws-default-org",
+		);
+	});
+
+	it("clears a revoked workspace after leaving a lock on the same organization", async () => {
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-org2");
+		let permittedOrganizationIds = new Set([
+			MockDefaultOrganization.id,
+			MockOrganization2.id,
+		]);
+		server.use(
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(
+						Object.keys(checks).map((key) => [
+							key,
+							permittedOrganizationIds.has(key),
+						]),
+					),
+				);
+			}),
+		);
+		const queryClient = createTestQueryClient();
+		const { rerender } = render(
+			<Wrapper queryClient={queryClient}>
+				<AgentCreateForm
+					{...formProps}
+					lockedOrganizationId={MockOrganization2.id}
+				/>
+			</Wrapper>,
+		);
+		await waitFor(() => {
+			expect(
+				queryClient.getQueryData(
+					permittedOrganizationsKey(chatCreatePermission),
+				),
+			).toBeDefined();
+		});
+
+		rerender(
+			<Wrapper queryClient={queryClient}>
+				<AgentCreateForm {...formProps} />
+			</Wrapper>,
+		);
+		permittedOrganizationIds = new Set([MockDefaultOrganization.id]);
+		await queryClient.invalidateQueries({
+			queryKey: permittedOrganizationsKey(chatCreatePermission),
+		});
+
+		await waitFor(() => {
+			expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBeNull();
+		});
+	});
+
+	it("denies access when the locked organization is not permitted", async () => {
+		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-default-org");
+		const persistedAttachments = JSON.stringify([
+			{
+				fileId: "persisted-file",
+				fileName: "notes.txt",
+				fileType: "text/plain",
+				lastModified: 1000,
+				organizationId: MockDefaultOrganization.id,
+			},
+		]);
+		localStorage.setItem(persistedAttachmentsStorageKey, persistedAttachments);
+		server.use(
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(
+						Object.keys(checks).map((key) => [
+							key,
+							key === MockDefaultOrganization.id,
+						]),
+					),
+				);
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<AgentCreateForm
+					{...formProps}
+					lockedOrganizationId={MockOrganization2.id}
+				/>
+			</Wrapper>,
+		);
+
+		await screen.findByText(
+			"You don't have permission to create chats in this project's organization.",
+		);
+		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+			"ws-default-org",
+		);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
+			persistedAttachments,
+		);
+	});
 });
 
 describe("AgentCreateForm manage automations toggle", () => {

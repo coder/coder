@@ -56,7 +56,8 @@ export const emptyInputStorageKey = "agents.empty-input";
 /** @internal Exported for testing. */
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+/** @internal Exported for testing. */
+export const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 // Deferred uploads need a selected workspace with a connected agent;
 // the same copy covers attaching without one and submitting after a
 // same-workspace status flap.
@@ -175,6 +176,61 @@ export function useEmptyStateDraft(prefilledText?: string) {
 	};
 }
 
+type OrganizationResolution = {
+	effectiveOrg: TypesGen.Organization | null;
+	selectedOrgIsPermitted: boolean;
+	isLocked: boolean;
+	/** The locked organization is not among the permitted ones. */
+	isLockedOrgUnavailable: boolean;
+	isOrgAccessDenied: boolean;
+	/** Whether the user's own organization choice may be adopted and saved. */
+	canPersistSelection: boolean;
+};
+
+/**
+ * Resolves the organization the form acts in. A lock overrides the effective
+ * organization without touching the user's own selection, so leaving the
+ * lock restores their choice.
+ */
+const resolveOrganization = ({
+	lockedOrganizationId,
+	selectedOrg,
+	permittedOrgs,
+	orgSelectionSettled,
+	noPermittedOrgs,
+}: {
+	lockedOrganizationId: string | undefined;
+	selectedOrg: TypesGen.Organization | null;
+	permittedOrgs: readonly TypesGen.Organization[];
+	orgSelectionSettled: boolean;
+	noPermittedOrgs: boolean;
+}): OrganizationResolution => {
+	const isLocked = Boolean(lockedOrganizationId);
+	const lockedOrg = isLocked
+		? (permittedOrgs.find((org) => org.id === lockedOrganizationId) ?? null)
+		: null;
+	const isLockedOrgUnavailable = isLocked && !lockedOrg;
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	const effectiveOrg = isLocked
+		? lockedOrg
+		: selectedOrg && selectedOrgIsPermitted
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				null);
+	return {
+		effectiveOrg,
+		selectedOrgIsPermitted,
+		isLocked,
+		isLockedOrgUnavailable,
+		isOrgAccessDenied:
+			noPermittedOrgs || (orgSelectionSettled && isLockedOrgUnavailable),
+		canPersistSelection: orgSelectionSettled && !isLocked,
+	};
+};
+
 type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
@@ -186,6 +242,14 @@ type AgentCreateFormProps = {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	/**
+	 * Pins the form to one organization: the selector is hidden and every
+	 * organization-dependent choice (workspace, model, MCP servers,
+	 * attachments) resolves against it.
+	 */
+	lockedOrganizationId?: string;
+	header?: React.ReactNode;
+	footer?: React.ReactNode;
 	prefill?: AgentCreatePrefill;
 };
 
@@ -200,6 +264,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	lockedOrganizationId,
+	header,
+	footer,
 	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
@@ -253,12 +320,21 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
-	// Keep an authoritative empty permission set distinct from pending data.
-	const noPermittedOrgs =
-		showOrganizations && permittedOrgsQuery.data?.length === 0;
-	const selectedOrgIsPermitted =
-		selectedOrg !== null &&
-		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	const {
+		effectiveOrg,
+		isLocked,
+		isLockedOrgUnavailable,
+		isOrgAccessDenied,
+		canPersistSelection,
+		selectedOrgIsPermitted,
+	} = resolveOrganization({
+		lockedOrganizationId,
+		selectedOrg,
+		permittedOrgs,
+		orgSelectionSettled,
+		// Keep an authoritative empty permission set distinct from pending data.
+		noPermittedOrgs: showOrganizations && permittedOrgsQuery.data?.length === 0,
+	});
 	// Clear invalid selections during render so re-permission cannot silently
 	// restore them and switch attachment state. effectiveOrg already ignores
 	// the invalid selection in this render.
@@ -274,12 +350,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
-	const effectiveOrg =
-		selectedOrg && selectedOrgIsPermitted
-			? selectedOrg
-			: (permittedOrgs.find((org) => org.is_default) ??
-				permittedOrgs[0] ??
-				null);
 	const organizationId = effectiveOrg?.id ?? "";
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(organizationId),
@@ -294,7 +364,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
-		orgSelectionSettled &&
+		canPersistSelection &&
 		!selectedOrg &&
 		effectiveOrg &&
 		permittedOrgs.some((org) => org.id === effectiveOrg.id)
@@ -303,21 +373,31 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
 	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted.
-	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	// preserve the workspace until its org is re-permitted. A lock only hides
+	// the remembered workspace while active, so entering or leaving one must not
+	// discard it.
+	const [lastSettledOrg, setLastSettledOrg] = useState<{
+		id: string;
+		locked: boolean;
+	} | null>(null);
 	if (
 		orgSelectionSettled &&
-		!noPermittedOrgs &&
-		organizationId !== lastSettledOrgId
+		!isOrgAccessDenied &&
+		(organizationId !== lastSettledOrg?.id ||
+			isLocked !== lastSettledOrg?.locked)
 	) {
-		setLastSettledOrgId(organizationId);
-		if (lastSettledOrgId !== null) {
-			setSelectedWorkspaceId(null);
+		setLastSettledOrg({ id: organizationId, locked: isLocked });
+		if (lastSettledOrg !== null && organizationId !== lastSettledOrg.id) {
 			setUserMCPServerIds(null);
+			if (!isLocked && !lastSettledOrg.locked) {
+				setSelectedWorkspaceId(null);
+			}
 		}
 	}
 	useEffect(() => {
-		if (!orgSelectionSettled) {
+		// A locked organization is not the user's choice, so it must not
+		// replace their remembered default.
+		if (!canPersistSelection) {
 			return;
 		}
 		if (selectedOrg) {
@@ -325,7 +405,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, selectedOrg]);
+	}, [canPersistSelection, selectedOrg]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
@@ -442,7 +522,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// keeps its loading state instead of flashing the provisional organization's
 	// catalog before permissions resolve.
 	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
-	const isForbidden = !canCreateChat || noPermittedOrgs;
+	const isForbidden = !canCreateChat || isOrgAccessDenied;
 	// A forbidden user may have no organization to read models from, and the
 	// catalog-based placeholder would then wrongly report that none exist.
 	const modelSelectorPlaceholder = isForbidden
@@ -541,9 +621,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		handleRemoveAttachment,
 		resetAttachments,
 	} = useFileAttachments(
-		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
-		// that would prune attachments persisted for other orgs.
-		orgSelectionSettled && !noPermittedOrgs
+		// Leave attachments unowned until the organization is authorized, so
+		// restored drafts never bind to an organization the user cannot use.
+		orgSelectionSettled && !isOrgAccessDenied
 			? organizationId || undefined
 			: undefined,
 		{
@@ -744,8 +824,15 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+					{header}
 					{isForbidden ? (
-						<ChatAccessDeniedAlert />
+						<ChatAccessDeniedAlert
+							description={
+								isLockedOrgUnavailable
+									? "You don't have permission to create chats in this project's organization."
+									: undefined
+							}
+						/>
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response.status === 502 &&
@@ -790,7 +877,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
 					{showOrganizations &&
-						orgSelectionSettled &&
+						canPersistSelection &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}
@@ -889,7 +976,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
+							orgSelectionSettled && !isOrgAccessDenied && !isSubmitPending
 								? handleWorkspaceChange
 								: undefined
 						}
@@ -905,6 +992,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
+					{footer}
 				</div>
 			</div>
 			<ConfirmDialog

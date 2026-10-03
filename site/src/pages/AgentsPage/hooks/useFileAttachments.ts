@@ -38,15 +38,15 @@ type PersistedAttachment = {
  * Creates synthetic File objects (empty blobs with correct metadata)
  * and populates the corresponding Maps so the UI can render them.
  *
- * Only attachments matching `currentOrgId` are returned. Entries
- * belonging to a different organization are pruned from storage.
+ * Only attachments matching `currentOrgId` are returned; entries for other
+ * organizations stay in storage and are restored when that organization is
+ * active again.
  */
 function restorePersistedAttachments(currentOrgId: string): {
 	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
-	// An unknown org must not prune entries persisted for the eventual org.
 	if (!currentOrgId) {
 		return {
 			attachments: [],
@@ -64,18 +64,11 @@ function restorePersistedAttachments(currentOrgId: string): {
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
-
-		if (matched.length !== persisted.length) {
-			if (matched.length > 0) {
-				localStorage.setItem(
-					persistedAttachmentsStorageKey,
-					JSON.stringify(matched),
-				);
-			} else {
-				localStorage.removeItem(persistedAttachmentsStorageKey);
-			}
+		// Entries from before organization scoping can never be restored.
+		if (persisted.some((p) => !p.organizationId)) {
+			removePersistedAttachments((p) => !p.organizationId);
 		}
+		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
 
 		const attachments: File[] = [];
 		const uploadStates = new Map<File, UploadState>();
@@ -130,18 +123,20 @@ function addPersistedAttachment(
 	);
 }
 
-function removePersistedAttachment(fileId: string) {
+function removePersistedAttachments(
+	shouldRemove: (attachment: PersistedAttachment) => boolean,
+) {
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	if (!stored) {
 		return;
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const filtered = persisted.filter((p) => p.fileId !== fileId);
-		if (filtered.length > 0) {
+		const remaining = persisted.filter((p) => !shouldRemove(p));
+		if (remaining.length > 0) {
 			localStorage.setItem(
 				persistedAttachmentsStorageKey,
-				JSON.stringify(filtered),
+				JSON.stringify(remaining),
 			);
 		} else {
 			localStorage.removeItem(persistedAttachmentsStorageKey);
@@ -151,8 +146,12 @@ function removePersistedAttachment(fileId: string) {
 	}
 }
 
-function clearPersistedAttachments() {
-	localStorage.removeItem(persistedAttachmentsStorageKey);
+function removePersistedAttachment(fileId: string) {
+	removePersistedAttachments((p) => p.fileId === fileId);
+}
+
+function clearPersistedAttachments(organizationId: string) {
+	removePersistedAttachments((p) => p.organizationId === organizationId);
 }
 
 type UseFileAttachmentsReturn = {
@@ -199,8 +198,8 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
-	// Persisted state remains unowned until post-commit org adoption; restoring
-	// against a provisional org would prune entries for the eventual org.
+	// Null until the post-commit adoption effect assigns attachment state to an
+	// organization.
 	const [stateOrgId, setStateOrgId] = useState<string | null>(null);
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
@@ -540,8 +539,9 @@ export function useFileAttachments(
 		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
-		if (persist) {
-			clearPersistedAttachments();
+		if (persist && stateOrgId !== null) {
+			// Nothing was adopted when the organization scope was unknown.
+			clearPersistedAttachments(stateOrgId);
 		}
 	};
 

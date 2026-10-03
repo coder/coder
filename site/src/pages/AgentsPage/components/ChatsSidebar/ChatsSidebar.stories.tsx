@@ -10,11 +10,16 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -66,6 +71,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/projects/:projectId", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -2512,6 +2518,49 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
+const projectChats = [
+	buildChat({ id: "loose-chat", title: "Loose chat" }),
+	buildChat({
+		id: "project-chat",
+		title: "Project chat",
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+];
+
+export const ProjectFolderCollapsed: Story = {
+	args: { chats: projectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const ProjectFolderExpanded: Story = {
+	args: { chats: projectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
 export const MobileWithAutomations: Story = {
 	args: {
 		chats: sectionHeaderChats,
@@ -2543,5 +2592,26 @@ export const AutomationsActive: Story = {
 			location: { path: "/agents/automations" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const ProjectChatWithoutLoadedProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "other-org-project-chat",
+				title: "Other org project chat",
+				project_id: "project-in-another-organization",
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
 	},
 };

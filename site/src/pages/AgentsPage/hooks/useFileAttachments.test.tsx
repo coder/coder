@@ -78,7 +78,7 @@ describe("useFileAttachments org scoping", () => {
 		);
 	});
 
-	it("drops another org's attachments when the org changes", async () => {
+	it("keeps another org's attachments in storage when the org changes", async () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
@@ -89,9 +89,34 @@ describe("useFileAttachments org scoping", () => {
 		await waitFor(() => {
 			expect(uploadedFileIds(result.current)).toStrictEqual([]);
 		});
-		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
-		).not.toContain("file-a");
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-a",
+		);
+		rerender({ orgId: "org-a" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
+		});
+	});
+
+	it("resets only the adopted org's persisted attachments", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				persistEntry("file-a", "a.txt", "org-a"),
+				persistEntry("file-b", "b.txt", "org-b"),
+			]),
+		);
+		const { result } = renderAttachments({ orgId: "org-b" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-b"]);
+		});
+		act(() => {
+			result.current.resetAttachments();
+		});
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		const stored = localStorage.getItem(persistedAttachmentsStorageKey) ?? "";
+		expect(stored).toContain("file-a");
+		expect(stored).not.toContain("file-b");
 	});
 
 	it("never exposes the previous org's file IDs in any render", async () => {
