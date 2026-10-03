@@ -364,7 +364,9 @@ const HOVER_CLOSE_DELAY_MS = 150;
 
 // Dimmed header shown above a group of context resources: the parent
 // directory, or "plugin: <name>" for resources shipped by an Agent Plugin.
-const ContextGroupHeader: React.FC<{ label: ContextGroupLabel }> = ({ label }) => {
+const ContextGroupHeader: React.FC<{ label: ContextGroupLabel }> = ({
+	label,
+}) => {
 	const text = label.kind === "plugin" ? `plugin: ${label.name}` : label.name;
 	return (
 		<span
