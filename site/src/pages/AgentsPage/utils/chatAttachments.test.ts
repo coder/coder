@@ -249,6 +249,19 @@ describe("handleAttachmentDownloadClick", () => {
 });
 
 describe("isChatAttachmentFile", () => {
+	it.each([
+		["export.json", "application/json"],
+		["export", "application/json"],
+		["export.json", ""],
+		["export.JSON", "application/octet-stream"],
+		["export.json", "text/plain"],
+	])("routes JSON file %s (%s) to the workspace", (name, type) => {
+		const file = new File(['{"scope":"chat"}'], name, { type });
+
+		expect(isChatAttachmentFile(file)).toBe(false);
+		expect(shouldRouteFileToWorkspace(file)).toBe(true);
+	});
+
 	it("accepts allowlisted MIME types", () => {
 		const file = new File(["png"], "image.png", { type: "image/png" });
 
