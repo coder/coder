@@ -46,7 +46,8 @@ type EditorState =
 	| { mode: "edit"; automation: ChatAutomation };
 
 const AutomationsList: React.FC = () => {
-	const { buildInfo, organizations, showOrganizations } = useDashboard();
+	const { buildInfo, experiments, organizations, showOrganizations } =
+		useDashboard();
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
 	// Senders must reach the configured URL, not the address this tab uses.
@@ -235,6 +236,7 @@ const AutomationsList: React.FC = () => {
 						organizationId={organizationId}
 						automation={editor.mode === "edit" ? editor.automation : undefined}
 						currentUserId={user.id}
+						projectsEnabled={experiments.includes("chat-projects")}
 						origin={webhookOrigin}
 						error={
 							editor.mode === "edit" ? editMutation.error : createMutation.error

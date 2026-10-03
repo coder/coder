@@ -35,11 +35,13 @@ import { getPreferredTimezone } from "#/utils/timeZones";
 import {
 	getModelSelectorPlaceholder,
 	hasUserFixableProviders,
+	NIL_UUID,
 	resolveModelSelector,
 } from "../../utils/modelOptions";
 import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
+import { AutomationProjectField, NO_PROJECT } from "./AutomationProjectField";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
 import { AutomationWebhookFields } from "./AutomationWebhookFields";
 import { RadioOption } from "./RadioOption";
@@ -57,6 +59,7 @@ const TARGET_FIELDS: readonly string[] = [
 	"when_busy",
 	"new_chat_model_config_id",
 	"reasoning_effort",
+	"project_id",
 ];
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
@@ -72,6 +75,7 @@ type AutomationFormValues = {
 	when_busy: ChatAutomationWhenBusy;
 	new_chat_model_config_id: string;
 	reasoning_effort: string;
+	project_id: string;
 };
 
 const defaultWhenBusy = (kind: ChatAutomationKind): ChatAutomationWhenBusy =>
@@ -93,6 +97,7 @@ const initialFormValues = (
 	when_busy: automation?.when_busy ?? "skip",
 	new_chat_model_config_id: automation?.new_chat_model_config_id ?? "",
 	reasoning_effort: automation?.reasoning_effort ?? "",
+	project_id: automation?.project_id ?? NO_PROJECT,
 });
 
 const normalize = (values: AutomationFormValues): AutomationFormValues => ({
@@ -129,6 +134,7 @@ const buildCreateRequest = (
 		...(values.reasoning_effort && {
 			reasoning_effort: values.reasoning_effort,
 		}),
+		...(values.project_id !== NO_PROJECT && { project_id: values.project_id }),
 	};
 };
 
@@ -163,6 +169,11 @@ const buildUpdateRequest = (
 			changed("reasoning_effort") && {
 				reasoning_effort: values.reasoning_effort,
 			}),
+		...(!isExistingChat &&
+			changed("project_id") && {
+				project_id:
+					values.project_id === NO_PROJECT ? NIL_UUID : values.project_id,
+			}),
 	};
 };
 
@@ -171,6 +182,8 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
+	/** Shows the Project field for new chat targets. */
+	projectsEnabled: boolean;
 	/** Origin of the webhook publish endpoint. */
 	origin: string;
 	error: unknown;
@@ -188,6 +201,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	organizationId,
 	automation,
 	currentUserId,
+	projectsEnabled,
 	origin,
 	error,
 	isSubmitting,
@@ -258,7 +272,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		}),
 		onSubmit: (rawValues) => {
 			setSubmittedValues(rawValues);
-			const values = normalize(rawValues);
+			const values = {
+				...normalize(rawValues),
+				// The field unmounts if the experiment turns off while the
+				// dialog is open; never send its hidden value.
+				...(!projectsEnabled && { project_id: initialValues.project_id }),
+			};
 			if (!automation) {
 				onCreate(buildCreateRequest(values));
 				return;
@@ -297,6 +316,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
+	const showProjectField = projectsEnabled && !isExistingChat;
 
 	const renderedFields: readonly string[] = [
 		"name",
@@ -305,6 +325,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		...(isExistingChat
 			? ["target_chat_id", "when_busy"]
 			: ["new_chat_model_config_id"]),
+		...(showProjectField ? ["project_id"] : []),
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
@@ -588,6 +609,15 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											</span>
 										)}
 									</div>
+								)}
+								{showProjectField && (
+									<AutomationProjectField
+										organizationId={organizationId}
+										field={getFieldHelpers("project_id")}
+										onValueChange={(value) =>
+											form.setFieldValue("project_id", value)
+										}
+									/>
 								)}
 							</section>
 						</fieldset>

@@ -103,6 +103,7 @@ You can create an automation on the **Automations** page or with the API.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
+1. For a new chat, optionally select a **Project**.
 1. Select **Save**.
 
 The **Copy the webhook secret** dialog shows the **Publish endpoint**, the **Secret**, and an **Example request**.
@@ -255,6 +256,7 @@ Create a new automation instead.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
+1. For a new chat, optionally select a **Project**.
 1. Select **Save**.
 
 With the API, send `"kind": "schedule"` with `schedule_cron` and `schedule_time_zone` in the create request.
@@ -313,9 +315,9 @@ New chats get only the MCP servers with the `force_on` [availability policy](./p
 
 A new chat target can also put its chats into a project.
 This requires the `chat-projects` experiment.
-Set `project_id` in the create or update request.
+Select the project in the **Project** field of the editor, or set `project_id` in the API.
 The project must be one of yours, in the automation's organization.
-To remove the project, send `project_id` as `00000000-0000-0000-0000-000000000000` in a `PATCH` request.
+To remove the project, select **No project**, or send `project_id` as `00000000-0000-0000-0000-000000000000` in a `PATCH` request.
 A `PATCH` request that omits `project_id` or sends `null` leaves the project unchanged.
 A change applies to the chats that later runs create.
 

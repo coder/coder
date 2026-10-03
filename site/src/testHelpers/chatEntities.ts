@@ -5,6 +5,7 @@ import type {
 	ChatContextResource,
 	ChatFileMetadata,
 	ChatMessage,
+	ChatProject,
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
@@ -194,4 +195,15 @@ export const MockWebhookChatAutomation: ChatAutomation = {
 	prompt: "Summarize the deploy event.",
 	schedule_cron: undefined,
 	schedule_time_zone: undefined,
+};
+
+export const MockChatProject: ChatProject = {
+	id: "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+	organization_id: "test-org-id",
+	owner_id: MockUserOwner.id,
+	name: "Release work",
+	description: "",
+	icon: "",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
 };

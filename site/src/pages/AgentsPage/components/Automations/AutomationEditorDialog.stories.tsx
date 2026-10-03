@@ -2,15 +2,18 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import { chatAutomationSchedulePreviewKey } from "#/api/queries/chatAutomations";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey, organizationChatModelsKey } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
 	ChatModel,
+	ChatProject,
 	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
 import {
 	MockChat,
 	MockChatAutomation,
+	MockChatProject,
 	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
 import {
@@ -41,6 +44,28 @@ const mockWebhookAutomation: ChatAutomation = {
 	...MockWebhookChatAutomation,
 	organization_id: organizationId,
 	target_chat_id: MockChat.id,
+};
+
+const mockProject: ChatProject = {
+	...MockChatProject,
+	organization_id: organizationId,
+};
+
+// Listed by the API but in another organization, so the field hides it.
+const mockOtherOrgProject: ChatProject = {
+	...MockChatProject,
+	id: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+	organization_id: "other-org-id",
+	name: "Other organization project",
+};
+
+const mockNewChatAutomation: ChatAutomation = {
+	...mockAutomation,
+	target_mode: "new_chat",
+	target_chat_id: undefined,
+	when_busy: undefined,
+	new_chat_model_config_id: mockModel.id,
+	project_id: mockProject.id,
 };
 
 const nextRunTimes = [
@@ -81,6 +106,7 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 	args: {
 		organizationId,
 		currentUserId: MockUserOwner.id,
+		projectsEnabled: false,
 		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
@@ -156,6 +182,149 @@ export const Edit: Story = {
 				data: { next_run_times: nextRunTimes },
 			},
 		],
+	},
+};
+
+export const CreateNewChatProject: Story = {
+	args: { projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject, mockOtherOrgProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "New chat each run" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: /^Project/ }),
+		);
+	},
+};
+
+export const EditNewChatProject: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditNewChatUnknownProject: Story = {
+	args: {
+		automation: { ...mockNewChatAutomation, project_id: "project-gone" },
+		projectsEnabled: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const NoProjects: Story = {
+	args: {
+		automation: { ...mockNewChatAutomation, project_id: undefined },
+		projectsEnabled: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Projects error." }),
+		);
 	},
 };
 
