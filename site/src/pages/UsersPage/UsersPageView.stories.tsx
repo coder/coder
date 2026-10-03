@@ -1,28 +1,29 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { expect, fn, within } from "storybook/test";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { EPOCH } from "./filter/lastSeenRange";
 import { UsersPageView } from "./UsersPageView";
 
 type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
 
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: "owner:me",
-	menus: {
-		status: MockMenu,
+const defaultFilterProps: FilterProps = {
+	...getDefaultFilterProps<FilterProps>({
+		query: "status:active",
+		values: { status: "active" },
+	}),
+	lastSeen: {
+		start: EPOCH,
+		end: new Date("2026-03-12T12:00:00Z"),
+		preset: "all_time",
 	},
-	values: {
-		status: "active",
-	},
-});
+	onLastSeenChange: fn(),
+};
 
 const meta: Meta<typeof UsersPageView> = {
 	title: "pages/UsersPageView",
@@ -63,6 +64,31 @@ export const SmallViewport: Story = {
 
 export const Member: Story = {
 	args: { canEditUsers: false },
+};
+
+export const FilteredByStatusRoleAndType: Story = {
+	args: {
+		filterProps: {
+			...defaultFilterProps,
+			filter: {
+				...defaultFilterProps.filter,
+				query: "status:active role:owner service_account:true",
+			},
+		},
+	},
+};
+
+export const LastSeenRange: Story = {
+	args: {
+		filterProps: {
+			...defaultFilterProps,
+			lastSeen: {
+				start: new Date("2026-03-05T12:00:00Z"),
+				end: new Date("2026-03-12T12:00:00Z"),
+				preset: "last_7d",
+			},
+		},
+	},
 };
 
 export const Empty: Story = {
