@@ -521,19 +521,31 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
 	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// must never fail the binding. The row is re-read after the re-pin so the
+	// turn sees the new pin state: the binding row still carries the previous
+	// agent's hash, which would read a cleared pin as a snapshot without files.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
 	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
 		repinCtx := dbauthz.AsChatd(ctx)
+		var repinned database.Chat
 		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
+			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+				return err
+			}
+			var err error
+			repinned, err = tx.GetChatByID(repinCtx, chatSnapshot.ID)
+			if err != nil {
+				return xerrors.Errorf("get chat after re-pin: %w", err)
+			}
+			return nil
 		}); repinErr != nil {
 			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
 				slog.F("chat_id", chatSnapshot.ID),
 				slog.F("agent_id", agentID),
 				slog.Error(repinErr))
+		} else {
+			updatedChat = repinned
 		}
 	}
 
