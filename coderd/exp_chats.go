@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -7255,7 +7256,32 @@ func writeWorkspaceAgentUploadError(ctx context.Context, rw http.ResponseWriter,
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
+		// Workspace code can impersonate the agent API, so only statuses
+		// the upload handler returns for client errors pass through.
+		// Relaying a 401 would make the frontend sign the user out.
+		detail := stringutil.Truncate(sdkErr.Message, 512, stringutil.TruncateWithEllipsis)
+		switch sdkErr.StatusCode() {
+		case http.StatusBadRequest:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "The workspace agent rejected the upload request.",
+				Detail:  detail,
+			})
+		case http.StatusForbidden:
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "The workspace agent was denied permission to write the uploaded file.",
+				Detail:  detail,
+			})
+		case http.StatusConflict:
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "The uploaded file conflicts with existing files in the workspace.",
+				Detail:  detail,
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to upload file to workspace agent.",
+				Detail:  fmt.Sprintf("The workspace agent responded with status %d: %s", sdkErr.StatusCode(), detail),
+			})
+		}
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
