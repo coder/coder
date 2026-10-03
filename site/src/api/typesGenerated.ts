@@ -2168,7 +2168,8 @@ export interface ChatAutoArchiveDaysResponse {
 /**
  * ChatAutomation is a webhook or scheduled automation that delivers a
  * prompt to an agent chat. It never carries the webhook secret or its
- * hash.
+ * hash. ProjectID is the project of the chats a new_chat automation
+ * creates; it is cleared when the project is deleted.
  */
 export interface ChatAutomation {
 	readonly id: string;
@@ -2183,6 +2184,7 @@ export interface ChatAutomation {
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
 	readonly webhook_use?: ChatAutomationWebhookUse;
 	readonly webhook_secret_version: number;
 	readonly webhook_consumed_at?: string;
@@ -4223,7 +4225,9 @@ export interface CreateAIProviderRequest {
 // From codersdk/chatautomations.go
 /**
  * CreateChatAutomationRequest creates a chat automation owned by the
- * caller.
+ * caller. ProjectID applies to new_chat automations only, requires the
+ * chat-projects experiment, and puts the chats the automation creates into
+ * that project.
  */
 export interface CreateChatAutomationRequest {
 	readonly name: string;
@@ -4233,6 +4237,7 @@ export interface CreateChatAutomationRequest {
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
 	readonly webhook_use?: ChatAutomationWebhookUse;
 	readonly prompt: string;
 	/**
@@ -10664,6 +10669,13 @@ export interface UpdateChatAutomationRequest {
 	readonly when_busy?: ChatAutomationWhenBusy;
 	readonly target_chat_id?: string;
 	readonly new_chat_model_config_id?: string;
+	/**
+	 * ProjectID applies to new_chat automations only. A project ID moves the
+	 * chats the automation creates later into that project. The all-zero
+	 * UUID removes the project. Omitted or null leaves it unchanged. Chats
+	 * created earlier keep their project.
+	 */
+	readonly project_id?: string;
 }
 
 // From codersdk/chats.go

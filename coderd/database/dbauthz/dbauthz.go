@@ -6310,12 +6310,13 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
-// InsertChatAutomation also authorizes the chats and model the automation
-// references: it delivers prompts into the target chat, so the caller must
-// be able to update it; it records the creating chat, so the caller must be
-// able to read it; and new chats use the model config, so the caller must
-// be able to read it. The automation check runs first so an unauthorized
-// caller learns nothing about the referenced rows.
+// InsertChatAutomation also authorizes the chats, model, and project the
+// automation references: it delivers prompts into the target chat, so the
+// caller must be able to update it; it records the creating chat, so the
+// caller must be able to read it; and new chats use the model config and
+// join the project, so the caller must be able to read both. The
+// automation check runs first so an unauthorized caller learns nothing
+// about the referenced rows.
 func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
 	obj := rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
@@ -6344,6 +6345,11 @@ func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertC
 		// config's user and group ACL, the same read check chat creation
 		// applies when it looks the model up.
 		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.ProjectID.Valid {
+		if _, err := q.GetChatProjectByID(ctx, arg.ProjectID.UUID); err != nil {
 			return database.ChatAutomation{}, err
 		}
 	}
@@ -7667,7 +7673,8 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 
 // UpdateChatAutomationByID authorizes update on the automation and, like
 // InsertChatAutomation, authorizes a newly referenced target chat (update)
-// or model config (read). Unchanged references are not checked again.
+// or model config or project (read). Unchanged references are not checked
+// again.
 func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
 	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
 	if err != nil {
@@ -7687,6 +7694,11 @@ func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.Upd
 	}
 	if arg.NewChatModelConfigID.Valid && arg.NewChatModelConfigID != automation.NewChatModelConfigID {
 		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.ProjectID.Valid && arg.ProjectID != automation.ProjectID {
+		if _, err := q.GetChatProjectByID(ctx, arg.ProjectID.UUID); err != nil {
 			return database.ChatAutomation{}, err
 		}
 	}

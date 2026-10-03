@@ -19,6 +19,7 @@ INSERT INTO chat_automations (
     schedule_cron,
     schedule_time_zone,
     schedule_next_run_at,
+    project_id,
     created_at,
     updated_at
 ) VALUES (
@@ -43,6 +44,7 @@ INSERT INTO chat_automations (
     @schedule_cron,
     @schedule_time_zone,
     @schedule_next_run_at,
+    @project_id,
     @created_at,
     @updated_at
 )
@@ -125,6 +127,7 @@ SET
     schedule_next_run_at = @schedule_next_run_at,
     enabled = @enabled,
     queue_generation = @queue_generation,
+    project_id = @project_id,
     updated_at = @updated_at
 WHERE
     id = @id::uuid

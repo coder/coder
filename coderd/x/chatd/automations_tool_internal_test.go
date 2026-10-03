@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -654,6 +655,103 @@ func TestManageAutomationsTool(t *testing.T) {
 			require.Equal(t, heartbeat.ID, log.ResourceID)
 			requireAuditFields(t, log, map[string]string{"chat_id": f.chat.ID.String()})
 		}
+	})
+
+	t.Run("ProjectContainment", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		otherProject := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, f.chat.ID)
+		require.NoError(t, err)
+		newChatArgs := func(projectID *string) manageAutomationsArgs {
+			args := heartbeatArgs()
+			args.TargetMode = ptr.Ref("new_chat")
+			args.ProjectID = projectID
+			return args
+		}
+
+		// New chats default to this chat's project, and an empty value
+		// means no project.
+		defaulted, _ := f.mustCreate(ctx, t, f.chat.ID, newChatArgs(nil))
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, defaulted.ProjectID)
+		withoutProject, _ := f.mustCreate(ctx, t, f.chat.ID, newChatArgs(ptr.Ref("")))
+		require.False(t, withoutProject.ProjectID.Valid)
+
+		content, isError := f.callArgs(ctx, t, f.chat.ID, newChatArgs(ptr.Ref(otherProject.ID.String())))
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
+		// An existing_chat target has no project, so even an empty value
+		// is rejected rather than dropped.
+		heartbeat := heartbeatArgs()
+		heartbeat.ProjectID = ptr.Ref("")
+		content, isError = f.callArgs(ctx, t, f.chat.ID, heartbeat)
+		require.True(t, isError, content)
+		require.Contains(t, content, "project_id")
+		require.Len(t, f.ownerAutomations(ctx, t), 2)
+
+		// Created through the management API, so it already uses another
+		// project.
+		elsewhere, _, err := f.server.CreateAutomation(f.asOwner(ctx, t), CreateAutomationParams{
+			OrganizationID: f.org.ID,
+			OwnerID:        f.owner.ID,
+			Request: codersdk.CreateChatAutomationRequest{
+				Name:                 "Elsewhere",
+				Kind:                 codersdk.ChatAutomationKindSchedule,
+				TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+				NewChatModelConfigID: &f.model.ID,
+				ProjectID:            &otherProject.ID,
+				Prompt:               "Report.",
+				ScheduleCron:         ptr.Ref("0 9 * * *"),
+				ScheduleTimeZone:     ptr.Ref("UTC"),
+			},
+		})
+		require.NoError(t, err)
+		for _, tc := range []struct {
+			name string
+			args manageAutomationsArgs
+			row  database.ChatAutomation
+		}{
+			{"MovesToOtherProject", manageAutomationsArgs{AutomationID: defaulted.ID.String(), ProjectID: ptr.Ref(otherProject.ID.String())}, defaulted},
+			{"StoredInOtherProject", manageAutomationsArgs{AutomationID: elsewhere.ID.String(), Prompt: ptr.Ref("Changed.")}, elsewhere},
+		} {
+			tc.args.Action = "update"
+			content, isError := f.callArgs(ctx, t, f.chat.ID, tc.args)
+			require.True(t, isError, "%s: %s", tc.name, content)
+			require.Contains(t, content, errNotContained, tc.name)
+			f.requireUnchanged(ctx, t, tc.row)
+		}
+		content, isError = f.call(ctx, t, f.chat.ID, "run_now", elsewhere.ID)
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
+
+		content, isError = f.callArgs(ctx, t, f.chat.ID, manageAutomationsArgs{
+			Action: "update", AutomationID: defaulted.ID.String(), ProjectID: ptr.Ref(""),
+		})
+		require.False(t, isError, content)
+		cleared, err := f.db.GetChatAutomationByID(ctx, defaulted.ID)
+		require.NoError(t, err)
+		require.False(t, cleared.ProjectID.Valid)
+	})
+
+	t.Run("ProjectDefaultNeedsExperiment", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+		f.experiments = slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(e codersdk.Experiment) bool {
+			return e == codersdk.ExperimentChatProjects
+		})
+		f.setSwitch(t, f.chat.ID, true)
+		mf := manageAutomationsFixture{scheduleFixture: f, server: f.newServer(t, Limits{})}
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, f.chat.ID)
+		require.NoError(t, err)
+
+		args := heartbeatArgs()
+		args.TargetMode = ptr.Ref("new_chat")
+		row, _ := mf.mustCreate(ctx, t, f.chat.ID, args)
+		require.False(t, row.ProjectID.Valid)
 	})
 
 	t.Run("RunNowContainment", func(t *testing.T) {

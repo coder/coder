@@ -86,9 +86,9 @@ type CreateAutomationParams struct {
 }
 
 // CreateAutomation validates and inserts an enabled automation. ctx must
-// carry the caller's authorization: referenced chats and model configs are
-// loaded as the caller. For webhook automations it returns the plaintext
-// webhook secret, which is not stored and cannot be read again.
+// carry the caller's authorization: referenced chats, model configs, and
+// projects are loaded as the caller. For webhook automations it returns the
+// plaintext webhook secret, which is not stored and cannot be read again.
 func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationParams) (database.ChatAutomation, string, error) {
 	if params.OrganizationID == uuid.Nil || params.OwnerID == uuid.Nil {
 		return database.ChatAutomation{}, "", xerrors.New("create automation: organization and owner are required")
@@ -135,6 +135,7 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		ScheduleCron:         sql.NullString{},
 		ScheduleTimeZone:     sql.NullString{},
 		ScheduleNextRunAt:    sql.NullTime{},
+		ProjectID:            uuid.NullUUID{},
 	}
 
 	var (
@@ -190,6 +191,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		if req.ReasoningEffort != nil {
 			return database.ChatAutomation{}, "", automationFieldError("reasoning_effort", "must be omitted for existing_chat automations")
 		}
+		if req.ProjectID != nil {
+			return database.ChatAutomation{}, "", automationFieldError("project_id", "must be omitted for existing_chat automations")
+		}
 		if req.TargetChatID == nil {
 			return database.ChatAutomation{}, "", automationFieldError("target_chat_id", "is required for existing_chat automations")
 		}
@@ -231,6 +235,16 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 			}
 			arg.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: effort, Valid: true}
 		}
+		if req.ProjectID != nil {
+			// Only an update clears the project with the all-zero UUID.
+			if *req.ProjectID == uuid.Nil {
+				return database.ChatAutomation{}, "", automationFieldError("project_id", "must be a project ID or omitted")
+			}
+			if err := p.validateAutomationProject(ctx, p.db, params.OrganizationID, params.OwnerID, *req.ProjectID); err != nil {
+				return database.ChatAutomation{}, "", err
+			}
+			arg.ProjectID = uuid.NullUUID{UUID: *req.ProjectID, Valid: true}
+		}
 	}
 
 	limit := p.chatLimits.MaxAutomationsPerOwner
@@ -260,6 +274,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		automation, err = tx.InsertChatAutomation(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("insert chat automation: %w", err)
 		}
 		return nil
@@ -408,6 +425,22 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			}
 			arg.NewChatModelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
 		}
+		if req.ProjectID != nil {
+			if row.TargetMode != database.ChatAutomationTargetModeNewChat {
+				return automationFieldError("project_id", "applies only to new_chat automations")
+			}
+			// The all-zero UUID removes the project. Removing it needs no
+			// experiment, so an owner can always undo the setting. A
+			// changed project only affects chats created later, so pending
+			// runs stay valid.
+			arg.ProjectID = uuid.NullUUID{}
+			if *req.ProjectID != uuid.Nil {
+				if err := p.validateAutomationProject(ctx, tx, row.OrganizationID, row.OwnerID, *req.ProjectID); err != nil {
+					return err
+				}
+				arg.ProjectID = uuid.NullUUID{UUID: *req.ProjectID, Valid: true}
+			}
+		}
 		if invalidatesPendingRuns && row.Kind == database.ChatAutomationKindSchedule {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
@@ -439,6 +472,9 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		}
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("update chat automation: %w", err)
 		}
 		return nil
@@ -483,6 +519,7 @@ func automationUpdateParams(row database.ChatAutomation, now time.Time) database
 		ScheduleNextRunAt:    row.ScheduleNextRunAt,
 		Enabled:              row.Enabled,
 		QueueGeneration:      row.QueueGeneration,
+		ProjectID:            row.ProjectID,
 		UpdatedAt:            now,
 	}
 }
@@ -501,6 +538,7 @@ func automationAfterUpdate(row database.ChatAutomation, arg database.UpdateChatA
 	row.ScheduleNextRunAt = arg.ScheduleNextRunAt
 	row.Enabled = arg.Enabled
 	row.QueueGeneration = arg.QueueGeneration
+	row.ProjectID = arg.ProjectID
 	row.UpdatedAt = arg.UpdatedAt
 	return row
 }
@@ -752,6 +790,43 @@ func validateAutomationModelConfig(ctx context.Context, store database.Store, or
 		return automationFieldError("new_chat_model_config_id", "model config is disabled")
 	}
 	return nil
+}
+
+// validateAutomationProject requires the chat-projects experiment for the
+// automation owner and the project to be readable by the caller, owned by
+// the automation owner, and in the automation's organization. Projects are
+// private to their owner, so a project of another user is reported like a
+// missing one and callers cannot probe for project IDs.
+func (p *Server) validateAutomationProject(ctx context.Context, store database.Store, organizationID, ownerID, projectID uuid.UUID) error {
+	if !p.experimentEvaluator.Enabled(ctx, ownerID, codersdk.ExperimentChatProjects) {
+		return automationFieldError("project_id", "chat projects experiment is not enabled")
+	}
+	project, err := store.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return automationFieldError("project_id", "project not found")
+		}
+		return xerrors.Errorf("get project: %w", err)
+	}
+	if project.OwnerID != ownerID {
+		return automationFieldError("project_id", "project not found")
+	}
+	if project.OrganizationID != organizationID {
+		return automationFieldError("project_id", "project is not in the automation's organization")
+	}
+	return nil
+}
+
+// automationProjectOrganizationCheck is raised by the
+// enforce_chat_automation_chat_organization trigger, which runs before the
+// foreign key and also fails when the project row is gone.
+const automationProjectOrganizationCheck database.CheckConstraint = "chat_automations_project_organization"
+
+// isAutomationProjectDeleted reports whether a write failed because the
+// project was deleted after validation read it.
+func isAutomationProjectDeleted(err error) bool {
+	return database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsProjectID) ||
+		database.IsCheckViolation(err, automationProjectOrganizationCheck)
 }
 
 // newAutomationWebhookSecret returns a new webhook secret and the SHA-256

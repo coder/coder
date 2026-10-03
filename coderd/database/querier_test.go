@@ -1577,6 +1577,18 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 		TargetChatID:    uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
 		CreatedByChatID: uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
 	})
+	// The project must also be in the automation's organization.
+	const projectOrganization database.CheckConstraint = "chat_automations_project_organization"
+	sameOrgProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherOrgProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
+	newChatInProject := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:       org.ID,
+		OwnerID:              owner.ID,
+		Kind:                 database.ChatAutomationKindSchedule,
+		TargetMode:           database.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		ProjectID:            uuid.NullUUID{UUID: sameOrgProject.ID, Valid: true},
+	})
 
 	valid := func() database.InsertChatAutomationParams {
 		return database.InsertChatAutomationParams{
@@ -1660,6 +1672,23 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			},
 			check: chatOrganization,
 		},
+		{
+			name: "ExistingChatWithProject",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ProjectID = uuid.NullUUID{UUID: sameOrgProject.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsProjectTargetMode,
+		},
+		{
+			name: "ProjectFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+				p.ProjectID = uuid.NullUUID{UUID: otherOrgProject.ID, Valid: true}
+			},
+			check: projectOrganization,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1675,6 +1704,33 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("MoveToOtherOrgProject", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET project_id = $1 WHERE id = $2`, otherOrgProject.ID, newChatInProject.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, projectOrganization), "got %v", err)
+	})
+
+	// Deleting the project keeps the automation and removes its reference.
+	t.Run("DeleteProject", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:       org.ID,
+			OwnerID:              owner.ID,
+			Kind:                 database.ChatAutomationKindSchedule,
+			TargetMode:           database.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			ProjectID:            uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		require.NoError(t, db.DeleteChatProjectByID(ctx, project.ID))
+		got, err := db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.False(t, got.ProjectID.Valid)
+	})
 
 	t.Run("RetargetToOtherOrgChat", func(t *testing.T) {
 		t.Parallel()

@@ -73,6 +73,10 @@ type scheduleFixture struct {
 	org        database.Organization
 	model      database.ChatModelConfig
 	chat       database.Chat
+
+	// experiments are the deployment experiments of new servers,
+	// ExperimentsKnown when nil.
+	experiments codersdk.Experiments
 }
 
 func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Time) *scheduleFixture {
@@ -121,7 +125,11 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap func(database.Store) database.Store) *Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
+	static := f.experiments
+	if static == nil {
+		static = codersdk.ExperimentsKnown
+	}
+	evaluator, err := experiments.New(logger, f.experiment, static)
 	require.NoError(t, err)
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	var auditor atomic.Pointer[audit.Auditor]
@@ -139,7 +147,7 @@ func (f *scheduleFixture) newServerWithStore(t *testing.T, limits Limits, wrap f
 		ReplicaID:                  uuid.New(),
 		Clock:                      f.clock,
 		PendingChatAcquireInterval: testutil.WaitLong,
-		Experiments:                codersdk.ExperimentsKnown,
+		Experiments:                static,
 		ExperimentEvaluator:        evaluator,
 		Authorizer:                 authorizer,
 		Auditor:                    &auditor,

@@ -2608,6 +2608,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "prompt": "string",
   "reasoning_effort": "string",
   "schedule_cron": "string",
@@ -2637,6 +2638,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `next_run_times`           | array of string                                                        | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks and disabled schedules. |
 | `organization_id`          | string                                                                 | false    |              |                                                                                                                        |
 | `owner_id`                 | string                                                                 | false    |              |                                                                                                                        |
+| `project_id`               | string                                                                 | false    |              |                                                                                                                        |
 | `prompt`                   | string                                                                 | false    |              |                                                                                                                        |
 | `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                        |
 | `schedule_cron`            | string                                                                 | false    |              |                                                                                                                        |
@@ -6164,6 +6166,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "kind": "webhook",
   "name": "string",
   "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "prompt": "string",
   "reasoning_effort": "string",
   "schedule_cron": "string",
@@ -6182,6 +6185,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                                                                             |
 | `name`                     | string                                                                 | false    |              |                                                                                                                                                                             |
 | `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                                                                             |
+| `project_id`               | string                                                                 | false    |              |                                                                                                                                                                             |
 | `prompt`                   | string                                                                 | false    |              |                                                                                                                                                                             |
 | `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                                                                             |
 | `schedule_cron`            | string                                                                 | false    |              | Schedule cron is a standard five-field cron expression. As in standard cron, when both day of month and day of week are restricted, a time matches if either field matches. |
@@ -6217,6 +6221,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "prompt": "string",
     "reasoning_effort": "string",
     "schedule_cron": "string",
@@ -16347,6 +16352,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "enabled": true,
   "name": "string",
   "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "prompt": "string",
   "reasoning_effort": "string",
   "schedule_cron": "string",
@@ -16358,17 +16364,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                       | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                   |
-|----------------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `enabled`                  | boolean                                                            | false    |              | Enabled disables or re-enables the automation. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence; occurrences missed while it was disabled do not run. |
-| `name`                     | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `new_chat_model_config_id` | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `prompt`                   | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `reasoning_effort`         | string                                                             | false    |              | Reasoning effort sets the effort of new chats. An empty string clears the override, so new chats use the model's default.                                                                                                                     |
-| `schedule_cron`            | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `schedule_time_zone`       | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `target_chat_id`           | string                                                             | false    |              |                                                                                                                                                                                                                                               |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |                                                                                                                                                                                                                                               |
+| Name                       | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                         |
+|----------------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`                  | boolean                                                            | false    |              | Enabled disables or re-enables the automation. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence; occurrences missed while it was disabled do not run.       |
+| `name`                     | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `new_chat_model_config_id` | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `project_id`               | string                                                             | false    |              | Project ID applies to new_chat automations only. A project ID moves the chats the automation creates later into that project. The all-zero UUID removes the project. Omitted or null leaves it unchanged. Chats created earlier keep their project. |
+| `prompt`                   | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `reasoning_effort`         | string                                                             | false    |              | Reasoning effort sets the effort of new chats. An empty string clears the override, so new chats use the model's default.                                                                                                                           |
+| `schedule_cron`            | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `schedule_time_zone`       | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `target_chat_id`           | string                                                             | false    |              |                                                                                                                                                                                                                                                     |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |                                                                                                                                                                                                                                                     |
 
 #### Enumerated Values
 

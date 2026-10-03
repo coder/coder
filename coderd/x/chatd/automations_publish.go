@@ -248,6 +248,10 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 	if err := p.checkAutomationNewChat(ctx, p.db, owner, automation); err != nil {
 		return PublishAutomationResult{}, err
 	}
+	projectID, err := p.automationNewChatProject(ctx, p.db, owner, automation)
+	if err != nil {
+		return PublishAutomationResult{}, err
+	}
 	modelConfigID := automation.NewChatModelConfigID.UUID
 	var reasoningEffort *string
 	if automation.ReasoningEffort.Valid {
@@ -266,6 +270,7 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		OrganizationID: automation.OrganizationID,
 		OwnerID:        automation.OwnerID,
 		CreatedBy:      automation.OwnerID,
+		ProjectID:      projectID,
 		// The title is explicit and its user source stops title
 		// generation, so the event data never becomes the chat title.
 		Title:              automationNewChatTitle(automation, titleTime),
@@ -278,12 +283,17 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		// servers the owner can read.
 		MCPServerIDs: nil,
 		AdmitInTx: func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
-			return p.admitAutomationNewChat(ctx, store, in, automation.ID, modelConfigID, chatID, inputID)
+			return p.admitAutomationNewChat(ctx, store, in, automation.ID, modelConfigID, projectID, chatID, inputID)
 		},
 	})
 	if err != nil {
 		if errors.Is(err, ErrInvalidModelConfigID) {
 			err = ErrAutomationModelUnavailable
+		}
+		// The project was deleted after it was selected, so the insert
+		// failed before admission could see the cleared reference.
+		if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+			err = ErrAutomationTargetUnavailable
 		}
 		logAutomationRefusal(ctx, logger, err)
 		return PublishAutomationResult{}, err
@@ -372,8 +382,9 @@ func (p *Server) admitAutomationNewChat(
 	ctx context.Context,
 	store database.Store,
 	in automationPublish,
-	automationID, modelConfigID, chatID uuid.UUID,
-	inputID uuid.UUID,
+	automationID, modelConfigID uuid.UUID,
+	projectID uuid.NullUUID,
+	chatID, inputID uuid.UUID,
 ) (chatstate.AutomationProvenance, error) {
 	// The new chat has no queued rows, so only this automation is locked.
 	locked, err := chatstate.LockAutomations(ctx, store, []uuid.UUID{automationID})
@@ -406,6 +417,16 @@ func (p *Server) admitAutomationNewChat(
 	}
 	if err := p.checkAutomationNewChat(ctx, store, owner, automation); err != nil {
 		return chatstate.AutomationProvenance{}, err
+	}
+	// The chat was created in the project selected before the create, so
+	// a different selection on the locked row refuses the input rather
+	// than commit a chat in a stale project.
+	lockedProjectID, err := p.automationNewChatProject(ctx, store, owner, automation)
+	if err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	if lockedProjectID != projectID {
+		return chatstate.AutomationProvenance{}, ErrAutomationTargetUnavailable
 	}
 	count, err := store.UpdateChatAutomationIDByID(ctx, database.UpdateChatAutomationIDByIDParams{
 		ID:           chatID,
@@ -667,6 +688,42 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 		return ErrAutomationForbidden
 	}
 	return nil
+}
+
+// automationNewChatProject returns the project of a chat the new_chat
+// automation creates. A stored project is not used, and the chat is
+// created without one, when the chat-projects experiment is off for the
+// owner or the owner can no longer read the project, owns it, or finds it
+// in the automation's organization. The stored reference is kept in those
+// cases, so later runs use the project again once it is usable. Other read
+// errors are returned.
+func (p *Server) automationNewChatProject(ctx context.Context, store database.Store, owner rbac.Subject, automation database.ChatAutomation) (uuid.NullUUID, error) {
+	if !automation.ProjectID.Valid {
+		return uuid.NullUUID{}, nil
+	}
+	logUnused := func(reason string) {
+		p.logger.Info(ctx, "chat automation project not used for new chat",
+			slog.F("automation_id", automation.ID),
+			slog.F("project_id", automation.ProjectID.UUID),
+			slog.F("reason", reason))
+	}
+	if !p.experimentEvaluator.Enabled(ctx, automation.OwnerID, codersdk.ExperimentChatProjects) {
+		logUnused("chat projects experiment is not enabled")
+		return uuid.NullUUID{}, nil
+	}
+	project, err := store.GetChatProjectByID(dbauthz.As(ctx, owner), automation.ProjectID.UUID)
+	if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+		logUnused("project not found")
+		return uuid.NullUUID{}, nil
+	}
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get automation project: %w", err)
+	}
+	if project.OwnerID != automation.OwnerID || project.OrganizationID != automation.OrganizationID {
+		logUnused("project is not the owner's project in the automation's organization")
+		return uuid.NullUUID{}, nil
+	}
+	return uuid.NullUUID{UUID: project.ID, Valid: true}, nil
 }
 
 // automationNewChatTitle returns the title of a chat a new_chat
