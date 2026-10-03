@@ -104,6 +104,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		cumulativeUsage     responses.ResponseUsage
 		innerLoopIterations int
 	)
+	defer respCopy.closeUpstream()
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
@@ -122,6 +123,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 
 	for shouldLoop {
 		srv := i.newResponsesService(ctx)
+		respCopy.closeUpstream()
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)
