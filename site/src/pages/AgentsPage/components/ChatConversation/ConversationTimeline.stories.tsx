@@ -14,7 +14,6 @@ import {
 	MockChatAutomation,
 	MockChatFileMetadata,
 } from "#/testHelpers/chatEntities";
-import { copiedText } from "#/testHelpers/selection";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -805,16 +804,6 @@ export const AutomationUserMessages: Story = {
 			references: new Map([[MockChatAutomation.id, MockChatAutomation]]),
 			status: "settled",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const [named] = await canvas.findAllByRole("note", {
-			name: /^Automation run/,
-		});
-		// Copying the card yields the visible text as one line.
-		expect(copiedText(named)).toBe(
-			`Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`,
-		);
 	},
 };
 

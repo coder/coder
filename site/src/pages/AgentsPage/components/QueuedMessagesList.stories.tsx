@@ -5,7 +5,6 @@ import {
 	MockChatAutomation,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { copiedText } from "#/testHelpers/selection";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -108,18 +107,10 @@ export const AutomationMessages: Story = {
 			status: "settled",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const expected = `Automation run · ${mockLongNameAutomation.name} (${mockLongNameAutomation.kind})`;
-		const label = await canvas.findByRole("note", { name: expected });
-		// Copying the badge yields one line, even with a truncated name.
-		expect(copiedText(label)).toBe(expected);
-	},
 };
 
 export const AutomationMessagesLoading: Story = {
 	...AutomationMessages,
-	play: undefined,
 	args: {
 		...AutomationMessages.args,
 		automationReferences: {

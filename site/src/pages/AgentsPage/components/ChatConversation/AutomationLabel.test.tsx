@@ -31,6 +31,10 @@ describe("AutomationLabel", () => {
 			const label = screen.getByRole("note", {
 				name: "Automation run · CI heartbeat (schedule)",
 			});
+			// The visible text is one contiguous run, so it copies as one line.
+			expect(label.textContent).toBe(
+				"Automation run · CI heartbeat (schedule)",
+			);
 
 			await user.tab();
 			expect(label).toHaveFocus();

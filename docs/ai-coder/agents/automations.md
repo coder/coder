@@ -193,6 +193,7 @@ It doesn't mean the agent has run the turn yet.
 The chat receives the saved prompt, then a separate text part that wraps the body as untrusted event data.
 An **Automation run** card above the message shows the automation name and its trigger kind, for example `Deploy hook (webhook)`.
 Anyone who can read the chat sees the name, even without access to the automation.
+If the automation was deleted, the card shows its ID instead of the name and trigger kind.
 
 ### Webhook responses
 

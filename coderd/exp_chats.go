@@ -9153,7 +9153,18 @@ func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 // automation that delivered into a chat. Reading the chat is enough: the
 // caller needs neither chat_automation read permission nor the
 // chat-automations experiment, so shared-chat viewers see automation names.
-// EXPERIMENTAL
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List automations referenced by a chat
+// @ID list-chat-automation-references
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatAutomationReference
+// @Router /api/experimental/chats/{chat}/automations [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutomationReferences(rw http.ResponseWriter, r *http.Request) {
