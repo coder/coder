@@ -815,6 +815,20 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
+	it("scrolls a focused field into view only for keyboard focus", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
+		scrollIntoView.mockClear();
+
+		// Scrolling between pointerdown and pointerup would lose the click.
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		expect(scrollIntoView).not.toHaveBeenCalled();
+		await user.tab();
+		expect(scrollIntoView).toHaveBeenCalled();
+	});
+
 	it("defaults to UTC when the browser reports an unknown zone", async () => {
 		const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
 		vi.spyOn(
