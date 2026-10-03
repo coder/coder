@@ -266,10 +266,10 @@ export const AutomationRow = memo<AutomationRowProps>(
 						<Button
 							size="sm"
 							variant="outline"
-							aria-label={`Edit ${automation.name}`}
+							aria-label={`${isOwner ? "Edit" : "View"} ${automation.name}`}
 							onClick={() => onEdit(automation)}
 						>
-							Edit
+							{isOwner ? "Edit" : "View"}
 						</Button>
 					</div>
 				</TableCell>

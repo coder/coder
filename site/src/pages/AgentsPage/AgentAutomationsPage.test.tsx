@@ -499,6 +499,14 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				schedule_time_zone: browserTimeZone,
 			});
 		});
+		await user.click(within(dialog).getByRole("button", { name: "Time zone" }));
+		await user.type(
+			await screen.findByPlaceholderText("Search time zones"),
+			"berl",
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Europe/Berlin" }),
+		);
 
 		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
 		await user.type(await screen.findByPlaceholderText("Search chats"), "Rele");
@@ -520,7 +528,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					target_mode: "existing_chat",
 					prompt: "Summarize yesterday.",
 					schedule_cron: "30 9 * * 1-5",
-					schedule_time_zone: browserTimeZone,
+					schedule_time_zone: "Europe/Berlin",
 					target_chat_id: mockOtherChat.id,
 					when_busy: "skip",
 				},
@@ -681,7 +689,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 		await waitFor(() => {
 			expect(
-				within(dialog).getByRole("combobox", { name: "Time zone" }),
+				within(dialog).getByRole("button", { name: "Time zone" }),
 			).toHaveAccessibleDescription("Unknown time zone.");
 		});
 		expect(
@@ -713,6 +721,122 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				name: "Model, No Models Configured",
 			}),
 		).toBeDisabled();
+	});
+
+	it("edits a stored schedule through the shortcut that wrote it", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		const time = within(dialog).getByLabelText("Time");
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		// A new time keeps the days of the shortcut that wrote the stored cron.
+		await user.clear(time);
+		await user.type(time, "10:15");
+		expect(cron).toHaveValue("15 10 * * 1-5");
+
+		await user.clear(cron);
+		await user.type(cron, "0 8 * * 1");
+		await user.clear(time);
+		await user.type(time, "07:00");
+		expect(cron).toHaveValue("0 7 * * 1");
+		await user.type(cron, ",3");
+		expect(time).toBeDisabled();
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		expect(minute).toHaveValue(0);
+		await user.clear(minute);
+		await user.type(minute, "15");
+		expect(cron).toHaveValue("15 * * * *");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "15 * * * *" }]);
+		});
+	});
+
+	it("never saves a cron that differs from an invalid Minute or Time", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		await user.clear(minute);
+		await user.type(minute, "60");
+		expect(cron).toHaveValue("");
+		expect(minute).toHaveAccessibleDescription("Enter a minute from 0 to 59.");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await within(dialog).findByText("Cron expression is required.");
+		expect(updateBodies).toEqual([]);
+		await user.clear(minute);
+		await user.type(minute, "05");
+		expect(cron).toHaveValue("5 * * * *");
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Daily" }));
+		const time = within(dialog).getByLabelText("Time");
+		await user.clear(time);
+		expect(cron).toHaveValue("");
+		expect(time).toHaveAccessibleDescription("Enter a time.");
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
+		expect(cron).toHaveValue("");
+
+		await user.type(time, "07:45");
+		expect(cron).toHaveValue("45 7 * * 1-5");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "45 7 * * 1-5" }]);
+		});
+	});
+
+	it("defaults to UTC when the browser reports an unknown zone", async () => {
+		const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+		vi.spyOn(
+			Intl.DateTimeFormat.prototype,
+			"resolvedOptions",
+		).mockImplementation(function (this: Intl.DateTimeFormat) {
+			return { ...resolvedOptions.call(this), timeZone: "Etc/Unknown" };
+		});
+		const user = userEvent.setup();
+		const { previewBodies, createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await waitFor(() => {
+			expect(previewBodies).toEqual([
+				{ schedule_cron: "0 9 * * *", schedule_time_zone: "UTC" },
+			]);
+		});
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({ schedule_time_zone: "UTC" }),
+			]);
+		});
 	});
 
 	it("shows upcoming runs in UTC when the browser does not know the zone", async () => {
@@ -907,6 +1031,49 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const alert = await within(dialog).findByRole("alert");
 			expect(alert.textContent).toBe(alertText);
 			expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
+		},
+	);
+
+	it.each([mockAutomation, mockWebhookAutomation])(
+		"shows a $kind owned by someone else read-only",
+		async (automation) => {
+			const user = userEvent.setup();
+			const { updateBodies } = setupEditor({
+				automations: [{ ...automation, owner_id: "another-user" }],
+			});
+			// Other owners' chats are usually unreadable, so the view must not
+			// look up the target and report a valid private chat as missing.
+			const chatLookups: string[] = [];
+			server.use(
+				http.get("/api/v2/chats/:chatId", ({ params }) => {
+					chatLookups.push(String(params.chatId));
+					return HttpResponse.json({ message: "Not found." }, { status: 404 });
+				}),
+			);
+
+			const view = await screen.findByRole("button", {
+				name: `View ${automation.name}`,
+			});
+			expect(
+				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
+			).toBeNull();
+			await user.click(view);
+			const dialog = await screen.findByRole("dialog", {
+				name: "View automation",
+			});
+			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+			expect(within(dialog).getByLabelText(/^Prompt/)).toBeDisabled();
+			expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
+			expect(
+				within(dialog).queryByRole("button", { name: "Rotate secret" }),
+			).toBeNull();
+			await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+			await waitFor(() => {
+				expect(screen.queryByRole("dialog")).toBeNull();
+			});
+			expect(updateBodies).toEqual([]);
+			expect(chatLookups).toEqual([]);
 		},
 	);
 

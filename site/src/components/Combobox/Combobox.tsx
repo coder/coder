@@ -99,6 +99,8 @@ export const ComboboxButton = ({
 
 type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
+	/** The item highlighted when the list opens. */
+	defaultValue?: string;
 };
 
 export const ComboboxContent = ({
@@ -106,6 +108,7 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	defaultValue,
 	...props
 }: ComboboxContentProps) => {
 	return (
@@ -117,7 +120,11 @@ export const ComboboxContent = ({
 			)}
 			{...props}
 		>
-			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+			<Command
+				shouldFilter={shouldFilter}
+				defaultValue={defaultValue}
+				className="min-h-0 flex-1"
+			>
 				{children}
 			</Command>
 		</PopoverContent>
