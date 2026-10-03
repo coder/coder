@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -37,6 +38,19 @@ import (
 
 // automationsExperimentStore turns the chat-automations experiment off for
 // every user while off is set.
+// failingAdvanceStore fails every schedule cursor write while fail is set.
+type failingAdvanceStore struct {
+	database.Store
+	fail atomic.Bool
+}
+
+func (s *failingAdvanceStore) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
+	if s.fail.Load() {
+		return 0, xerrors.New("advance failed")
+	}
+	return s.Store.AdvanceChatAutomationScheduleCursor(ctx, arg)
+}
+
 // shiftedCursorStore reports a schedule cursor one minute later than the
 // stored one while shift is set, so a publish sees a claimed occurrence as
 // not due yet.
@@ -779,6 +793,49 @@ WHERE id = $1`, automation.ID, edited)
 		reads.shift.Store(false)
 		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Equal(t, 1, f.inputs(ctx, t))
+	})
+
+	t.Run("FailedSkipReleasesClaim", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusRunning, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		writes := &failingAdvanceStore{}
+		server := f.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+			writes.Store = store
+			return writes
+		})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusySkip)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		f.advanceTo(ctx, t, due)
+
+		// The busy chat refuses the occurrence, and the skip's cursor
+		// write fails. The claim is released, so it does not hide the
+		// occurrence, or the ones after it, past their grace windows.
+		writes.fail.Store(true)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
+
+		// The next scan skips it.
+		writes.fail.Store(false)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("ReleaseAfterDeleteSucceeds", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_automations WHERE id = $1", automation.ID)
+		require.NoError(t, err)
+
+		// Deleting the automation dropped the claim with it, so the
+		// release is not an error worth a warning.
+		occurrence := automationOccurrence{revision: automation.ScheduleRevision, cursor: automation.ScheduleNextRunAt.Time}
+		require.NoError(t, releaseAutomationOccurrence(ctx, server.db, automation.ID, occurrence, f.clock.Now()))
 	})
 
 	t.Run("SlowOccurrenceDoesNotBlockOthers", func(t *testing.T) {

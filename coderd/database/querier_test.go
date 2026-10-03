@@ -1774,6 +1774,8 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 			ObservedNextRunAt: observed,
 			ClaimedUntil:      until,
 			Now:               at,
+			// The scheduler's grace window.
+			EarliestNextRunAt: at.Add(-time.Minute),
 		})
 		require.NoError(t, err)
 		return count
@@ -1814,6 +1816,8 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 
 		require.Zero(t, claim(ctx, t, automation, revision+1, cursor, now, now.Add(lease)), "a changed schedule revision")
 		require.Zero(t, claim(ctx, t, automation, revision, cursor.Add(time.Minute), now, now.Add(lease)), "a moved cursor")
+		late := cursor.Add(time.Minute + time.Microsecond)
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, late, late.Add(lease)), "an occurrence past the grace window")
 		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(lease)))
 		stored := claimedUntil(ctx, t, automation)
 		require.True(t, stored.Valid)
@@ -1825,9 +1829,22 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 		require.Zero(t, claim(ctx, t, automation, revision, cursor, beforeExpiry, beforeExpiry.Add(lease)))
 		require.False(t, isDue(ctx, t, automation, beforeExpiry))
 
+		// Once it expires, the row is due again, but the occurrence is past
+		// the grace window, so it cannot be claimed.
 		expired := now.Add(lease)
 		require.True(t, isDue(ctx, t, automation, expired))
-		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, expired, expired.Add(lease)))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, expired, expired.Add(lease)))
+	})
+
+	t.Run("ShortClaimCanBeRetakenWithinGrace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		const shortLease = 10 * time.Second
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(shortLease)))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, now.Add(shortLease-time.Microsecond), now.Add(2*shortLease)))
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now.Add(shortLease), now.Add(2*shortLease)))
 	})
 
 	t.Run("ReleaseDropsOnlyOwnClaim", func(t *testing.T) {

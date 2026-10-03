@@ -97,8 +97,9 @@ type sqlcQuerier interface {
 	// Claims the observed occurrence of an enabled schedule automation until
 	// claimed_until, so only the claimer runs its prompt hooks and publishes
 	// it. It affects no row when the schedule revision or the cursor changed
-	// since they were observed, the cursor is after now, or another caller
-	// holds a claim that has not expired at now.
+	// since they were observed, the cursor is after now or before
+	// earliest_next_run_at (the occurrence expired), or another caller holds a
+	// claim that has not expired at now.
 	ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg ClaimChatAutomationScheduleOccurrenceParams) (int64, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error

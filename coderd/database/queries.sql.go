@@ -5534,6 +5534,7 @@ WHERE
     AND schedule_revision = $3::bigint
     AND schedule_next_run_at = $4::timestamptz
     AND schedule_next_run_at <= $5::timestamptz
+    AND schedule_next_run_at >= $6::timestamptz
     AND (schedule_claimed_until IS NULL OR schedule_claimed_until <= $5::timestamptz)
 `
 
@@ -5543,13 +5544,15 @@ type ClaimChatAutomationScheduleOccurrenceParams struct {
 	ScheduleRevision  int64     `db:"schedule_revision" json:"schedule_revision"`
 	ObservedNextRunAt time.Time `db:"observed_next_run_at" json:"observed_next_run_at"`
 	Now               time.Time `db:"now" json:"now"`
+	EarliestNextRunAt time.Time `db:"earliest_next_run_at" json:"earliest_next_run_at"`
 }
 
 // Claims the observed occurrence of an enabled schedule automation until
 // claimed_until, so only the claimer runs its prompt hooks and publishes
 // it. It affects no row when the schedule revision or the cursor changed
-// since they were observed, the cursor is after now, or another caller
-// holds a claim that has not expired at now.
+// since they were observed, the cursor is after now or before
+// earliest_next_run_at (the occurrence expired), or another caller holds a
+// claim that has not expired at now.
 func (q *sqlQuerier) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, claimChatAutomationScheduleOccurrence,
 		arg.ClaimedUntil,
@@ -5557,6 +5560,7 @@ func (q *sqlQuerier) ClaimChatAutomationScheduleOccurrence(ctx context.Context, 
 		arg.ScheduleRevision,
 		arg.ObservedNextRunAt,
 		arg.Now,
+		arg.EarliestNextRunAt,
 	)
 	if err != nil {
 		return 0, err
