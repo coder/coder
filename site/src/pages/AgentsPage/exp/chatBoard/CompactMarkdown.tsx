@@ -27,6 +27,14 @@ export const CompactMarkdown: React.FC<CompactMarkdownProps> = ({
 // card turns into a block with its icon floating at the side and its hover
 // underline under the whole box. An inline anchor wraps like the text around
 // it and underlines each line.
+//
+// The external icon is a faded hint, smaller than the text: in notes nearly
+// every link is external, so a full-strength icon would repeat on every line.
+// It is drawn out of flow in the anchor's end padding. Inline padding only
+// lands on the last line, so the icon cannot wrap onto a line of its own,
+// whatever the label contains. It comes before the label in the DOM because
+// Chrome treats an out-of-flow child after the text as a break point, which
+// would let the padding wrap alone.
 const InlineLink: React.FC<React.ComponentProps<"a">> = ({
 	href,
 	children,
@@ -37,42 +45,18 @@ const InlineLink: React.FC<React.ComponentProps<"a">> = ({
 			href={href}
 			target={external ? "_blank" : undefined}
 			rel={external ? "noreferrer" : undefined}
-			className="font-medium text-content-link no-underline hover:underline focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			className={cn(
+				"font-medium text-content-link no-underline hover:underline focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+				external && "relative pe-3.5",
+			)}
 		>
-			{external ? <WithTrailingIcon>{children}</WithTrailingIcon> : children}
+			{external && (
+				<SquareArrowOutUpRightIcon
+					aria-hidden="true"
+					className="absolute end-0 bottom-[3px] size-2.5 opacity-55"
+				/>
+			)}
+			{children}
 		</a>
-	);
-};
-
-// The icon is a faded hint, smaller than the text: in notes nearly every
-// link is external, so a full-strength icon would repeat on every line.
-// Browsers may wrap before an inline icon, leaving it alone on a new line.
-// Binding it to the last character keeps it after the text; one character
-// rather than the last word, so a long URL can still wrap.
-const WithTrailingIcon: React.FC<{ readonly children: React.ReactNode }> = ({
-	children,
-}) => {
-	const icon = (
-		<SquareArrowOutUpRightIcon
-			aria-hidden="true"
-			className="ml-1 inline size-2.5 align-[-0.5px] opacity-55"
-		/>
-	);
-	if (typeof children !== "string" || children.length === 0) {
-		return (
-			<>
-				{children}
-				{icon}
-			</>
-		);
-	}
-	return (
-		<>
-			{children.slice(0, -1)}
-			<span className="whitespace-nowrap">
-				{children.slice(-1)}
-				{icon}
-			</span>
-		</>
 	);
 };
