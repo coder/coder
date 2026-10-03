@@ -476,16 +476,22 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										<FormField
 											field={getFieldHelpers("target_chat_id")}
 											label="Chat"
-											control={(props) => (
-												<AutomationChatPicker
-													{...props}
-													organizationId={organizationId}
-													value={form.values.target_chat_id}
-													onChange={(chatId) =>
-														form.setFieldValue("target_chat_id", chatId)
-													}
-												/>
-											)}
+											// Other owners' chats are usually unreadable to the viewer, so
+											// the read-only view shows the ID instead of looking it up.
+											control={
+												isReadOnly
+													? undefined
+													: (props) => (
+															<AutomationChatPicker
+																{...props}
+																organizationId={organizationId}
+																value={form.values.target_chat_id}
+																onChange={(chatId) =>
+																	form.setFieldValue("target_chat_id", chatId)
+																}
+															/>
+														)
+											}
 										/>
 										<SelectField
 											field={getFieldHelpers("when_busy")}
