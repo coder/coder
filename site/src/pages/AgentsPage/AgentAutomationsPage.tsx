@@ -45,6 +45,8 @@ type EditorState =
 	| { mode: "create" }
 	| { mode: "edit"; automation: ChatAutomation };
 
+type SecretGuard = "pending" | "shown";
+
 const AutomationsList: React.FC = () => {
 	const { buildInfo, organizations, showOrganizations } = useDashboard();
 	const queryClient = useQueryClient();
@@ -113,12 +115,26 @@ const AutomationsList: React.FC = () => {
 		),
 	);
 
-	// Leaving mid-request would drop the one-time secret in the response.
-	const leavePrompt = useUnsavedChangesPrompt(
+	// Leaving mid-request, or before copying, loses the one-time secret.
+	let secretGuard: SecretGuard | undefined;
+	if (webhookSecret) {
+		secretGuard = "shown";
+	} else if (
 		rotateMutation.isPending ||
-			(createMutation.isPending &&
-				createMutation.variables?.kind === "webhook"),
+		(createMutation.isPending && createMutation.variables?.kind === "webhook")
+	) {
+		secretGuard = "pending";
+	}
+	const leavePrompt = useUnsavedChangesPrompt(
+		secretGuard !== undefined,
+		secretGuard,
 	);
+	const editedAutomation =
+		editor?.mode === "edit"
+			? (automationsQuery.data?.find(
+					(automation) => automation.id === editor.automation.id,
+				) ?? editor.automation)
+			: undefined;
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
@@ -233,7 +249,7 @@ const AutomationsList: React.FC = () => {
 				editor && (
 					<AutomationEditorDialog
 						organizationId={organizationId}
-						automation={editor.mode === "edit" ? editor.automation : undefined}
+						automation={editedAutomation}
 						currentUserId={user.id}
 						origin={webhookOrigin}
 						error={
@@ -262,25 +278,35 @@ const AutomationsList: React.FC = () => {
 				)
 			}
 			webhookSecretDialog={
-				<>
-					{webhookSecret && (
-						<AutomationWebhookSecretDialog
-							endpoint={webhookPublishEndpoint(
-								webhookOrigin,
-								webhookSecret.automationId,
-							)}
-							secret={webhookSecret.secret}
-							returnFocusRef={secretReturnFocusRef}
-							onClose={() => setWebhookSecret(undefined)}
-						/>
-					)}
-					{leavePrompt.isOpen && (
-						<LeaveBeforeSecretPrompt
-							onStay={leavePrompt.onCancel}
-							onLeave={leavePrompt.onConfirm}
-						/>
-					)}
-				</>
+				webhookSecret && (
+					<AutomationWebhookSecretDialog
+						endpoint={webhookPublishEndpoint(
+							webhookOrigin,
+							webhookSecret.automationId,
+						)}
+						secret={webhookSecret.secret}
+						returnFocusRef={secretReturnFocusRef}
+						onClose={() => setWebhookSecret(undefined)}
+					/>
+				)
+			}
+			leavePrompt={
+				<ConfirmDialog
+					open={leavePrompt.isOpen}
+					type="info"
+					hideCancel={false}
+					cancelText="Stay"
+					title={
+						secretGuard === "shown"
+							? "Leave without copying the secret?"
+							: "Leave before the secret arrives?"
+					}
+					description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
+					confirmText="Leave"
+					onClose={leavePrompt.onCancel}
+					onConfirm={leavePrompt.onConfirm}
+					onCloseAutoFocus={leavePrompt.onCloseAutoFocus}
+				/>
 			}
 			chatsDialog={
 				chatsAutomation && {
@@ -294,42 +320,6 @@ const AutomationsList: React.FC = () => {
 					onClose: () => setChatsAutomation(undefined),
 				}
 			}
-		/>
-	);
-};
-
-type LeaveBeforeSecretPromptProps = {
-	onStay: () => void;
-	onLeave: () => void;
-};
-
-const LeaveBeforeSecretPrompt: React.FC<LeaveBeforeSecretPromptProps> = ({
-	onStay,
-	onLeave,
-}) => {
-	// The prompt opens without a trigger, so Radix has nowhere to return focus.
-	const [opener] = useState(() =>
-		document.activeElement instanceof HTMLElement
-			? document.activeElement
-			: null,
-	);
-	return (
-		<ConfirmDialog
-			open
-			type="info"
-			hideCancel={false}
-			cancelText="Stay"
-			title="Leave before the secret arrives?"
-			description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
-			confirmText="Leave"
-			onClose={onStay}
-			onConfirm={onLeave}
-			onCloseAutoFocus={(event) => {
-				if (opener?.isConnected) {
-					event.preventDefault();
-					opener.focus();
-				}
-			}}
 		/>
 	);
 };

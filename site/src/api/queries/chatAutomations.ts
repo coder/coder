@@ -72,10 +72,13 @@ export const createChatAutomation = (
 		}
 		return response;
 	},
-	onSettled: () =>
-		queryClient.invalidateQueries({
+	// Not awaited, so the mutation stops pending when the response arrives
+	// instead of after the list refetch.
+	onSettled: () => {
+		void queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
-		}),
+		});
+	},
 });
 
 export const rotateChatAutomationSecret = (
@@ -92,10 +95,12 @@ export const rotateChatAutomationSecret = (
 		onWebhookSecret(automationId, webhook_secret);
 		return response;
 	},
-	onSettled: () =>
-		queryClient.invalidateQueries({
+	// Not awaited, so the mutation stops pending when the response arrives.
+	onSettled: () => {
+		void queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
-		}),
+		});
+	},
 });
 
 export const chatAutomationSchedulePreviewKey = (

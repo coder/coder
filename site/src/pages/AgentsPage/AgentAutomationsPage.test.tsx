@@ -6,7 +6,10 @@ import { HttpResponse, http } from "msw";
 import type { QueryClient } from "react-query";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
+import {
+	chatAutomationsKey,
+	webhookPublishEndpoint,
+} from "#/api/queries/chatAutomations";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import {
 	MockChat,
@@ -1143,7 +1146,7 @@ const confirmRotate = async (
 describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 	it("creates a single-use webhook and shows its secret only once", async () => {
 		const user = userEvent.setup();
-		const { queryClient, mutationStates, createBodies } = setupEditor();
+		const { queryClient, router, mutationStates, createBodies } = setupEditor();
 		server.use(
 			http.post(automationsPath(":organizationId"), async ({ request }) => {
 				createBodies.push(await request.json());
@@ -1189,6 +1192,21 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 				mockWebhookAutomation.id,
 			),
 		);
+		// Leaving before Done loses the secret, so the guard stays armed.
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(true);
+		void router.navigate("/agents");
+		const leaveDialog = await screen.findByRole("dialog", {
+			name: "Leave without copying the secret?",
+		});
+		await user.click(within(leaveDialog).getByRole("button", { name: "Stay" }));
+		await waitFor(() => {
+			expect(
+				within(secretDialog).getByRole("button", { name: "Copy endpoint" }),
+			).toHaveFocus();
+		});
+		expect(router.state.location.pathname).toBe("/");
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
@@ -1254,6 +1272,120 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 			});
 		},
 	);
+
+	it("closes a leave prompt opened before the secret arrived once it arrives", async () => {
+		const user = userEvent.setup();
+		const { router } = setupEditor();
+		let releaseSave = () => {};
+		server.use(
+			http.post(automationsPath(":organizationId"), async () => {
+				await new Promise<void>((resolve) => {
+					releaseSave = resolve;
+				});
+				return HttpResponse.json(
+					{ automation: mockWebhookAutomation, webhook_secret: webhookSecret },
+					{ status: 201 },
+				);
+			}),
+		);
+		const dialog = await openCreateDialog(user);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		// The name includes the spinner's title while saving.
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: /Save/ }),
+			).toBeDisabled();
+		});
+
+		void router.navigate("/agents");
+		const leaveName = "Leave before the secret arrives?";
+		await user.click(
+			within(await screen.findByRole("dialog", { name: leaveName })).getByRole(
+				"button",
+				{ name: "Stay" },
+			),
+		);
+		// Save is disabled, so focus returns to the editor around it.
+		await waitFor(() => {
+			expect(dialog).toHaveFocus();
+		});
+		void router.navigate("/agents");
+		await screen.findByRole("dialog", { name: leaveName });
+		releaseSave();
+
+		await screen.findByRole("dialog", { name: "Copy the webhook secret" });
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog", { name: leaveName })).toBeNull();
+		});
+		expect(router.state.location.pathname).toBe("/");
+	});
+
+	it("re-enables the editor when a webhook create fails while the list refetches", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		server.use(
+			http.get(automationsPath(":organizationId"), () => new Promise(() => {})),
+			http.post(automationsPath(":organizationId"), () =>
+				validationError("name", "Name is taken."),
+			),
+		);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByLabelText(/^Name/),
+			).toHaveAccessibleDescription("Name is taken.");
+		});
+		expect(within(dialog).getByRole("button", { name: "Save" })).toBeEnabled();
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(false);
+	});
+
+	it("follows a list refetch without resetting the user's input", async () => {
+		const user = userEvent.setup();
+		const unused: ChatAutomation = {
+			...mockWebhookAutomation,
+			webhook_use: "single",
+		};
+		const { queryClient, updateBodies } = setupEditor({
+			automations: [unused],
+		});
+		const dialog = await openWebhookEditor(user);
+		const name = within(dialog).getByLabelText(/^Name/);
+		await user.clear(name);
+		await user.type(name, "Renamed");
+
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([
+					{
+						...unused,
+						prompt: "Changed in another tab.",
+						webhook_consumed_at: "2026-09-30T10:15:00Z",
+					},
+				]),
+			),
+		);
+		await queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(MockDefaultOrganization.id),
+		});
+		await within(dialog).findByText(/^Used on/);
+		expect(
+			within(dialog).queryByRole("button", { name: "Rotate secret" }),
+		).toBeNull();
+		expect(name).toHaveValue("Renamed");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ name: "Renamed" }]);
+		});
+	});
 
 	it("rotates the secret only after confirmation and shows it once", async () => {
 		const user = userEvent.setup();

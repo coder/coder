@@ -10,6 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import type { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import type { ModelFormValues } from "#/modules/aiModels/modelConfigFormLogic";
 
 export const ModelFormDialogs: React.FC<{
@@ -20,11 +21,7 @@ export const ModelFormDialogs: React.FC<{
 	setConfirmingDelete: (open: boolean) => void;
 	resetForm: (values: ModelFormValues) => void;
 	formValues: ModelFormValues;
-	unsavedChanges: {
-		isOpen: boolean;
-		onCancel: () => void;
-		onConfirm: () => void;
-	};
+	unsavedChanges: ReturnType<typeof useUnsavedChangesPrompt>;
 	confirmingReplaceDefault: boolean;
 	setConfirmingReplaceDefault: (open: boolean) => void;
 	currentDefaultModel?: TypesGen.ChatModel;
@@ -64,7 +61,10 @@ export const ModelFormDialogs: React.FC<{
 				open={unsavedChanges.isOpen}
 				onOpenChange={(open) => !open && unsavedChanges.onCancel()}
 			>
-				<DialogContent className="border-border-warning">
+				<DialogContent
+					className="border-border-warning"
+					onCloseAutoFocus={unsavedChanges.onCloseAutoFocus}
+				>
 					<DialogHeader>
 						<DialogTitle>Unsaved changes</DialogTitle>
 						<DialogDescription className="flex items-start gap-3">

@@ -40,8 +40,7 @@ import {
 import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
-import { AutomationScheduleFields } from "./AutomationScheduleFields";
-import { AutomationWebhookFields } from "./AutomationWebhookFields";
+import { AutomationTriggerField } from "./AutomationTriggerField";
 import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
@@ -199,7 +198,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	onClose,
 }) => {
 	const isCreate = !automation;
-	const triggerLabelId = useId();
 	const isReadOnly = Boolean(
 		automation && automation.owner_id !== currentUserId,
 	);
@@ -228,7 +226,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		hasUserFixableModelProviders: hasUserFixableProviders(modelCatalog),
 	});
 
-	const initialValues = initialFormValues(automation);
+	// Frozen at open, so a list refetch that refreshes `automation` neither
+	// resets the user's input nor changes the PATCH baseline.
+	const [initialValues] = useState(() => initialFormValues(automation));
 	const form = useFormik<AutomationFormValues>({
 		initialValues,
 		// A blur error would shift the fields below it between pointerdown and
@@ -362,7 +362,20 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					{/* The div scrolls because Chrome does not scroll a flex-sized
 					    fieldset. Radix Select triggers open on pointerdown, which
 					    browsers still dispatch to fieldset-disabled buttons. */}
-					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
+					<div
+						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
+						// The focus trap wraps Tab with preventScroll, which would
+						// leave the wrapped-to field out of view.
+						onFocus={(event) => {
+							if (event.target instanceof HTMLElement) {
+								// The parent first keeps a field's label in view too.
+								event.target.parentElement?.scrollIntoView?.({
+									block: "nearest",
+								});
+								event.target.scrollIntoView?.({ block: "nearest" });
+							}
+						}}
+					>
 						<fieldset
 							disabled={isSubmitting || isReadOnly}
 							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
@@ -406,71 +419,37 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									/>
 								)}
 							/>
-							<section className="flex flex-col gap-4">
-								{isCreate ? (
-									<>
-										<h3
-											id={triggerLabelId}
-											className="m-0 text-sm font-medium text-content-primary"
-										>
-											Trigger
-										</h3>
-										<RadioGroup
-											aria-labelledby={triggerLabelId}
-											value={form.values.kind}
-											onValueChange={(kind) => {
-												if (kind === "schedule" || kind === "webhook") {
-													if (!whenBusyChosen) {
-														form.setFieldValue(
-															"when_busy",
-															defaultWhenBusy(kind),
-														);
-													}
-													form.setFieldValue("kind", kind);
-												}
-											}}
-										>
-											<RadioOption value="schedule" label="Schedule" />
-											<RadioOption value="webhook" label="Webhook" />
-										</RadioGroup>
-									</>
-								) : (
-									<h3 className="m-0 text-sm font-medium text-content-primary">
-										Trigger:{" "}
-										<span className="font-normal text-content-secondary">
-											{isSchedule ? "Schedule" : "Webhook"}
-										</span>
-									</h3>
-								)}
-								{isSchedule && (
-									<AutomationScheduleFields
-										organizationId={organizationId}
-										cronField={getFieldHelpers("schedule_cron")}
-										timeZoneField={getFieldHelpers("schedule_time_zone")}
-										onCronChange={(cron) =>
-											form.setFieldValue("schedule_cron", cron)
-										}
-										onTimeZoneChange={(timeZone) =>
-											form.setFieldValue("schedule_time_zone", timeZone)
-										}
-									/>
-								)}
-								{!isSchedule && (
-									<AutomationWebhookFields
-										automation={automation}
-										origin={origin}
-										webhookUse={form.values.webhook_use}
-										onWebhookUseChange={(webhookUse) =>
-											form.setFieldValue("webhook_use", webhookUse)
-										}
-										rotateSecretError={rotateSecretError}
-										isRotatingSecret={isRotatingSecret}
-										isSubmitting={isSubmitting}
-										canRotateSecret={!isReadOnly}
-										onRotateSecret={onRotateSecret}
-									/>
-								)}
-							</section>
+							<AutomationTriggerField
+								isCreate={isCreate}
+								kind={form.values.kind}
+								onKindChange={(kind) => {
+									if (!whenBusyChosen) {
+										form.setFieldValue("when_busy", defaultWhenBusy(kind));
+									}
+									form.setFieldValue("kind", kind);
+								}}
+								scheduleFieldsProps={{
+									organizationId,
+									cronField: getFieldHelpers("schedule_cron"),
+									timeZoneField: getFieldHelpers("schedule_time_zone"),
+									onCronChange: (cron) =>
+										form.setFieldValue("schedule_cron", cron),
+									onTimeZoneChange: (timeZone) =>
+										form.setFieldValue("schedule_time_zone", timeZone),
+								}}
+								webhookFieldsProps={{
+									automation,
+									origin,
+									webhookUse: form.values.webhook_use,
+									onWebhookUseChange: (webhookUse) =>
+										form.setFieldValue("webhook_use", webhookUse),
+									rotateSecretError,
+									isRotatingSecret,
+									isSubmitting,
+									canRotateSecret: !isReadOnly,
+									onRotateSecret,
+								}}
+							/>
 							<section className="flex flex-col gap-4">
 								<h3 className="m-0 text-sm font-medium text-content-primary">
 									Target
