@@ -177,9 +177,30 @@ func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) 
 		}
 		timer.Reset(max(defaultTaskTimeout, silence+taskTimeoutMargin), "chatworker", tag)
 	})
+	// A process tool must return its own timeout result before the task is
+	// canceled. Sibling tools share this timer, so shorter waits must not
+	// shorten a reservation. Each committed step gets a new task context.
+	var waitMu sync.Mutex
+	var waitDeadline time.Time
+	attemptCtx = chattool.WithProcessWait(attemptCtx, func(wait time.Duration) {
+		waitMu.Lock()
+		defer waitMu.Unlock()
+		if attemptCtx.Err() != nil {
+			return
+		}
+		now := clock.Now()
+		// Add separately to avoid overflowing a model-supplied duration.
+		deadline := now.Add(wait).Add(taskTimeoutMargin)
+		if deadline.After(waitDeadline) {
+			waitDeadline = deadline
+			timer.Reset(max(defaultTaskTimeout, deadline.Sub(now)), "chatworker", tag)
+		}
+	})
 	return attemptCtx, func() {
-		timer.Stop()
+		waitMu.Lock()
+		defer waitMu.Unlock()
 		cancelCause(nil)
+		timer.Stop()
 	}
 }
 
