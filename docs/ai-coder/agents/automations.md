@@ -162,6 +162,24 @@ Other management requests use the same base path:
 | `PATCH /api/experimental/organizations/{organization}/chat-automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
 | `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation. The dashboard has no delete control.          |
 
+### Read why an automation can't run
+
+List and get responses include `paused_reasons` when a condition stops an automation from running while it's turned on.
+Coder refuses its scheduled runs, **Run now**, and webhook deliveries until the condition clears.
+
+| Value                 | Meaning                                                                                                                                       |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner_inactive`      | The owner is suspended, dormant, or deleted.                                                                                                  |
+| `experiment_disabled` | The `chat-automations` experiment is off for the owner.                                                                                       |
+| `target_unavailable`  | The target chat is deleted or archived.                                                                                                       |
+| `model_unavailable`   | The model of a new-chat automation is deleted, turned off, or not available to the owner. Coder doesn't check it while the owner is inactive. |
+
+The field is a snapshot, not a guarantee.
+A response without `paused_reasons` can still be refused, for example when the target chat is busy or its queue is full.
+
+Responses also include `target_chat` and `created_by_chat` with the `id` and `title` of the target chat and of the chat that created the automation.
+They're included only when you can read that chat, so they're missing for deleted chats and for chats you can't read.
+
 ## Send an event to a webhook
 
 Send a `POST` request to the endpoint with the secret as a bearer token and a JSON body:
@@ -276,6 +294,7 @@ The control plane computes the next runs of a schedule:
 
 - The editor lists them under **Upcoming runs** while you type.
 - Responses for turned-on schedules include `next_run_times`, up to five times in UTC.
+  The list is empty while the schedule has [`paused_reasons`](#read-why-an-automation-cant-run).
 - `POST /api/experimental/organizations/{organization}/chat-automations/schedule-preview` evaluates an unsaved schedule.
   Send `schedule_cron` and `schedule_time_zone`, and the response contains `next_run_times`.
 
