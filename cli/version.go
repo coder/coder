@@ -40,9 +40,9 @@ func (vi versionInfo) String() string {
 	_, _ = str.WriteString("\r\n" + vi.ExternalURL + "\r\n\r\n")
 
 	if vi.Slim {
-		_, _ = str.WriteString(fmt.Sprintf("Slim build of Coder, does not support the %s subcommand.", pretty.Sprint(cliui.DefaultStyles.Code, "server")))
+		_, _ = fmt.Fprintf(&str, "Slim build of Coder, does not support the %s subcommand.", pretty.Sprint(cliui.DefaultStyles.Code, "server"))
 	} else {
-		_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.", pretty.Sprint(cliui.DefaultStyles.Code, "server")))
+		_, _ = fmt.Fprintf(&str, "Full build of Coder, supports the %s subcommand.", pretty.Sprint(cliui.DefaultStyles.Code, "server"))
 	}
 	return str.String()
 }

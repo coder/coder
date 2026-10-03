@@ -1,7 +1,8 @@
 package levenshtein
 
 import (
-	"golang.org/x/exp/constraints"
+	"cmp"
+
 	"golang.org/x/xerrors"
 )
 
@@ -88,7 +89,7 @@ func Distance(a, b string, maxDist int) (int, error) {
 	return int(d[m][n]), nil
 }
 
-func minOf[T constraints.Ordered](ts ...T) T {
+func minOf[T cmp.Ordered](ts ...T) T {
 	if len(ts) == 0 {
 		panic("minOf: no arguments")
 	}

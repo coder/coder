@@ -61,7 +61,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 			{providerType: codersdk.AIProviderTypeVercel, baseURL: "https://ai-gateway.vercel.sh/v1"},
 		}
 		for _, tt := range tests {
-			t.Run(string(tt.providerType), func(t *testing.T) {
+			t.Run(string(tt.providerType), func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 					Type:    tt.providerType,
 					Name:    "type-preserve-" + string(tt.providerType),
@@ -1535,7 +1535,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			},
 		}
 		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) { //nolint:paralleltest // subtests share parent timeout context
 				changedDisplay := "Must not be persisted by " + tt.name
 				_, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 					DisplayName: &changedDisplay,

@@ -236,10 +236,8 @@ func (b *HeadTailBuffer) Output() (string, *workspacesdk.ProcessTruncation) {
 	var sb strings.Builder
 	_, _ = sb.WriteString(headStr)
 	if omitted > 0 {
-		_, _ = sb.WriteString(fmt.Sprintf(
-			"\n\n... [omitted %d bytes] ...\n\n",
-			omitted,
-		))
+		_, _ = fmt.Fprintf(&sb, "\n\n... [omitted %d bytes] ...\n\n",
+			omitted)
 	} else {
 		// Head and tail are contiguous but were stored
 		// separately because the head filled up.

@@ -422,7 +422,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert all authz properties
-		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
+		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 			// Creating workspaces is an organization action. So organization
 			// permissions should be sufficient to complete the action.
 			for _, call := range authz.AllCalls() {

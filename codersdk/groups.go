@@ -112,6 +112,7 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 }
 
 // GroupsByOrganization
+//
 // Deprecated: use Groups with GroupArguments instead.
 func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]Group, error) {
 	return c.Groups(ctx, GroupArguments{Organization: orgID.String()})

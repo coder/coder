@@ -182,6 +182,7 @@ type CreateUserRequest struct {
 }
 
 // CreateUserRequestWithOrgs is kept for callers that predate the rename.
+//
 // Deprecated: Use CreateUserRequest instead.
 // @typescript-ignore CreateUserRequestWithOrgs
 type CreateUserRequestWithOrgs = CreateUserRequest
@@ -528,6 +529,7 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 }
 
 // CreateUserWithOrgs creates a new user.
+//
 // Deprecated: Use CreateUser instead.
 func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequest) (User, error) {
 	return c.CreateUser(ctx, req)

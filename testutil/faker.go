@@ -31,7 +31,7 @@ func Fake[T any](t *testing.T, faker *gofakeit.Faker, seed T) T {
 // Make sure `dst` is a pointer to a struct, otherwise the fields are not assignable.
 func mergeZero(dst any, src any) {
 	srcv := reflect.ValueOf(src)
-	if srcv.Kind() == reflect.Ptr {
+	if srcv.Kind() == reflect.Pointer {
 		srcv = srcv.Elem()
 	}
 	remain := [][2]reflect.Value{

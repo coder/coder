@@ -298,7 +298,7 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 
 		p := mustRandom(p)
 		for _, c := range p {
-			_, _ = b.WriteRune(rune(allowedChars[c%byte(len(allowedChars))]))
+			_, _ = b.WriteRune(rune(allowedChars[c%byte(len(allowedChars))])) //nolint:gosec // allowedChars is shorter than 256 bytes.
 		}
 		_, _ = b.WriteString("\n")
 		if _, err := b.WriteTo(dst); err != nil {

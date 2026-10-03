@@ -71,13 +71,13 @@ func formatDiagnostics(baseDir string, diags tfconfig.Diagnostics) string {
 			location = fmt.Sprintf("%s:%d", filename, d.Pos.Line)
 		}
 
-		_, _ = msgs.WriteString(fmt.Sprintf("\n%s: %s (%s)\n", severity, d.Summary, location))
+		_, _ = fmt.Fprintf(&msgs, "\n%s: %s (%s)\n", severity, d.Summary, location)
 
 		// Wrap the details to 80 characters and indent them.
 		if d.Detail != "" {
 			wrapped := wordwrap.WrapString(d.Detail, 78)
 			for _, line := range strings.Split(wrapped, "\n") {
-				_, _ = msgs.WriteString(fmt.Sprintf("> %s\n", line))
+				_, _ = fmt.Fprintf(&msgs, "> %s\n", line)
 			}
 		}
 	}

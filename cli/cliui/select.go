@@ -237,19 +237,17 @@ func (m selectModel) View() string {
 
 	if m.selected != "" {
 		selected := pretty.Sprint(DefaultStyles.Keyword, m.selected)
-		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
+		_, _ = fmt.Fprintf(&s, "%s %s\n", msg, selected)
 
 		return s.String()
 	}
 
 	if m.hideSearch {
-		_, _ = s.WriteString(fmt.Sprintf("%s [Use arrows to move]\n", msg))
+		_, _ = fmt.Fprintf(&s, "%s [Use arrows to move]\n", msg)
 	} else {
-		_, _ = s.WriteString(fmt.Sprintf(
-			"%s %s[Use arrows to move, type to filter]\n",
+		_, _ = fmt.Fprintf(&s, "%s %s[Use arrows to move, type to filter]\n",
 			msg,
-			m.search.View(),
-		))
+			m.search.View())
 	}
 
 	options, start := m.viewableOptions()
@@ -642,21 +640,19 @@ func (m multiSelectModel) View() string {
 
 	if m.selected {
 		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.selectedOptions(), ", "))
-		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
+		_, _ = fmt.Fprintf(&s, "%s %s\n", msg, selected)
 
 		return s.String()
 	}
 
 	if m.isCustomInputMode {
-		_, _ = s.WriteString(fmt.Sprintf("%s\nEnter custom value: %s\n", msg, m.customInput))
+		_, _ = fmt.Fprintf(&s, "%s\nEnter custom value: %s\n", msg, m.customInput)
 		return s.String()
 	}
 
-	_, _ = s.WriteString(fmt.Sprintf(
-		"%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n",
+	_, _ = fmt.Fprintf(&s, "%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n",
 		msg,
-		m.search.View(),
-	))
+		m.search.View())
 
 	options := m.filteredOptions()
 	for i, option := range options {
@@ -674,12 +670,10 @@ func (m multiSelectModel) View() string {
 			chosen = pretty.Sprint(DefaultStyles.Keyword, "[x]")
 		}
 
-		_, _ = s.WriteString(fmt.Sprintf(
-			"%s%s %s\n",
+		_, _ = fmt.Fprintf(&s, "%s%s %s\n",
 			cursor,
 			chosen,
-			o,
-		))
+			o)
 	}
 
 	if m.enableCustomInput {
@@ -690,7 +684,7 @@ func (m multiSelectModel) View() string {
 			cursor = pretty.Sprint(DefaultStyles.Keyword, "> ")
 			text = pretty.Sprint(DefaultStyles.Keyword, text)
 		}
-		_, _ = s.WriteString(fmt.Sprintf("%s%s\n", cursor, text))
+		_, _ = fmt.Fprintf(&s, "%s%s\n", cursor, text)
 	}
 	return s.String()
 }

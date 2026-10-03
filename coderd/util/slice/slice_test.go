@@ -33,7 +33,7 @@ func TestSameElements(t *testing.T) {
 func assertSameElements[T comparable](t *testing.T, elements []T) {
 	cpy := make([]T, len(elements))
 	copy(cpy, elements)
-	rand.Shuffle(len(cpy), func(i, j int) {
+	rand.Shuffle(len(cpy), func(i, j int) { //nolint:gosec // Test ordering does not need crypto/rand.
 		cpy[i], cpy[j] = cpy[j], cpy[i]
 	})
 	assert.True(t, slice.SameElements(elements, cpy))

@@ -67,7 +67,7 @@ func diffValues(left, right any, table Table) audit.Map {
 
 		// If the field is a pointer, dereference it. Nil pointers are coerced
 		// to the zero value of their underlying type.
-		if leftF.Kind() == reflect.Ptr && rightF.Kind() == reflect.Ptr {
+		if leftF.Kind() == reflect.Pointer && rightF.Kind() == reflect.Pointer {
 			leftF, rightF = derefPointer(leftF), derefPointer(rightF)
 			leftI, rightI = leftF.Interface(), rightF.Interface()
 		}
@@ -207,7 +207,7 @@ type fieldDiff struct {
 // Conflicting field names need to be handled by the caller.
 func flattenStructFields(leftV, rightV reflect.Value) ([]fieldDiff, error) {
 	// Dereference pointers if the field is a pointer field.
-	if leftV.Kind() == reflect.Ptr {
+	if leftV.Kind() == reflect.Pointer {
 		leftV = derefPointer(leftV)
 		rightV = derefPointer(rightV)
 	}
@@ -263,7 +263,7 @@ func derefPointer(ref reflect.Value) reflect.Value {
 	}
 
 	// Recursively deref nested pointers.
-	if ref.Kind() == reflect.Ptr {
+	if ref.Kind() == reflect.Pointer {
 		return derefPointer(ref)
 	}
 

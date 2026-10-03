@@ -1,7 +1,7 @@
 package slice
 
 import (
-	"golang.org/x/exp/constraints"
+	"cmp"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -174,7 +174,7 @@ func New[T any](items ...T) []T {
 	return items
 }
 
-func Ascending[T constraints.Ordered](a, b T) int {
+func Ascending[T cmp.Ordered](a, b T) int {
 	if a < b {
 		return -1
 	} else if a == b {
@@ -183,7 +183,7 @@ func Ascending[T constraints.Ordered](a, b T) int {
 	return 1
 }
 
-func Descending[T constraints.Ordered](a, b T) int {
+func Descending[T cmp.Ordered](a, b T) int {
 	return -Ascending[T](a, b)
 }
 

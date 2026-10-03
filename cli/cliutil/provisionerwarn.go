@@ -40,7 +40,7 @@ func WarnMatchedProvisioners(w io.Writer, mp *codersdk.MatchedProvisioners, job 
 	if err := json.NewEncoder(&tagsJSON).Encode(job.Tags); err != nil {
 		// Fall back to the less-pretty string representation.
 		tagsJSON.Reset()
-		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", job.Tags))
+		_, _ = fmt.Fprintf(&tagsJSON, "%v", job.Tags)
 	}
 	if mp.Count == 0 {
 		cliui.Warnf(w, warnNoMatchedProvisioners, job.ID, tagsJSON.String())

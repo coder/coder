@@ -397,7 +397,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 					ScriptId: script.ID[:],
 					Start:    timestamppb.New(start),
 					End:      timestamppb.New(end),
-					ExitCode: int32(exitCode),
+					ExitCode: int32(exitCode), //nolint:gosec // Exit codes are 32-bit values.
 					Stage:    stage,
 					Status:   status,
 				},

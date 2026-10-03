@@ -93,6 +93,7 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 // ready (can be overridden).
 //
 // Presently, non-blocking is the default, but this may change in the future.
+//
 // Deprecated: `coder_script` allows configuration on a per-script basis.
 type WorkspaceAgentStartupScriptBehavior string
 

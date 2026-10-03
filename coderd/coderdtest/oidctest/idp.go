@@ -789,10 +789,10 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 
 	cli := f.HTTPClient(nil)
 	u := f.locked.Config().AuthCodeURL(state, opts...)
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", u, nil)
 	require.NoError(t, err)
 
-	resp, err := cli.Do(req.WithContext(context.Background()))
+	resp, err := cli.Do(req)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

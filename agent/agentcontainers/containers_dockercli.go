@@ -382,12 +382,12 @@ func (dis dockerInspectState) String() string {
 	var sb strings.Builder
 	_, _ = sb.WriteString("exited")
 	if dis.ExitCode != 0 {
-		_, _ = sb.WriteString(fmt.Sprintf(" with code %d", dis.ExitCode))
+		_, _ = fmt.Fprintf(&sb, " with code %d", dis.ExitCode)
 	} else {
 		_, _ = sb.WriteString(" successfully")
 	}
 	if dis.Error != "" {
-		_, _ = sb.WriteString(fmt.Sprintf(": %s", dis.Error))
+		_, _ = fmt.Fprintf(&sb, ": %s", dis.Error)
 	}
 	return sb.String()
 }
