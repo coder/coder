@@ -69,6 +69,8 @@ const meta = {
 			["provider-anthropic", "anthropic"],
 		]),
 		organizations: [modelsOrganization],
+		compactionModelIDByOrganization: new Map<string, string>(),
+		isLoadingModels: false,
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
