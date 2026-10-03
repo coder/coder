@@ -157,6 +157,15 @@ type ChatAutomationRunResponse struct {
 	ChatID  uuid.UUID `json:"chat_id" format:"uuid"`
 }
 
+// ChatAutomationReference names an automation that delivered into a chat.
+// Anyone who can read the chat can read its references, so it carries no
+// other automation fields.
+type ChatAutomationReference struct {
+	ID   uuid.UUID          `json:"id" format:"uuid"`
+	Name string             `json:"name"`
+	Kind ChatAutomationKind `json:"kind" enums:"webhook,schedule"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", organizationID)
 }
@@ -276,4 +285,19 @@ func (c *ExperimentalClient) ChatAutomationSchedulePreview(ctx context.Context, 
 	}
 	var resp ChatAutomationSchedulePreviewResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatAutomationReferences lists the automations that delivered into a
+// chat. The caller needs only read access to the chat.
+func (c *ExperimentalClient) ChatAutomationReferences(ctx context.Context, chatID uuid.UUID) ([]ChatAutomationReference, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/automations", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var references []ChatAutomationReference
+	return references, ReadBodyAsJSON(res, &references)
 }

@@ -1531,6 +1531,93 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+// TestGetChatAutomationReferencesByChatID checks which automations a chat
+// references: the automation that created the chat, the automations of its
+// non-deleted user messages and of its queued messages, each once and only
+// from the chat's organization.
+func TestGetChatAutomationReferencesByChatID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	otherChat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+
+	newAutomation := func(orgID uuid.UUID, kind database.ChatAutomationKind) database.ChatAutomation {
+		return dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: orgID, OwnerID: owner.ID, Kind: kind})
+	}
+	addMessage := func(chatID, automationID uuid.UUID) database.ChatMessage {
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:       chatID,
+			CreatedBy:    uuid.NullUUID{UUID: owner.ID, Valid: true},
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+			InputID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+	}
+	addQueued := func(automationID uuid.UUID) {
+		_, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:          chat.ID,
+			Content:         json.RawMessage("[]"),
+			CreatedBy:       owner.ID,
+			AutomationID:    uuid.NullUUID{UUID: automationID, Valid: true},
+			InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			QueueGeneration: sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	creator := newAutomation(org.ID, database.ChatAutomationKindSchedule)
+	rows, err := db.UpdateChatAutomationIDByID(ctx, database.UpdateChatAutomationIDByIDParams{AutomationID: creator.ID, ID: chat.ID})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+
+	history := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, history.ID)
+	addMessage(chat.ID, history.ID)
+
+	queued := newAutomation(org.ID, database.ChatAutomationKindSchedule)
+	addQueued(queued.ID)
+
+	historyAndQueued := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, historyAndQueued.ID)
+	addQueued(historyAndQueued.ID)
+
+	deletedMessage := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	require.NoError(t, db.SoftDeleteChatMessageByID(ctx, addMessage(chat.ID, deletedMessage.ID).ID))
+
+	otherChatOnly := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(otherChat.ID, otherChatOnly.ID)
+
+	otherOrgAutomation := newAutomation(otherOrg.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, otherOrgAutomation.ID)
+
+	deletedAutomation := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, deletedAutomation.ID)
+	require.NoError(t, db.DeleteChatAutomationByID(ctx, deletedAutomation.ID))
+
+	want := []database.GetChatAutomationReferencesByChatIDRow{}
+	for _, a := range []database.ChatAutomation{creator, history, queued, historyAndQueued} {
+		want = append(want, database.GetChatAutomationReferencesByChatIDRow{ID: a.ID, Name: a.Name, Kind: a.Kind})
+	}
+	slices.SortFunc(want, func(a, b database.GetChatAutomationReferencesByChatIDRow) int {
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+
+	got, err := db.GetChatAutomationReferencesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 // TestChatAutomationShapeConstraints checks the schema invariants that later
 // automation services rely on instead of re-validating every row.
 func TestChatAutomationShapeConstraints(t *testing.T) {

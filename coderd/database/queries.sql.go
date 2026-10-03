@@ -5619,6 +5619,85 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 	return i, err
 }
 
+const getChatAutomationReferencesByChatID = `-- name: GetChatAutomationReferencesByChatID :many
+WITH referenced AS (
+    SELECT
+        chats.automation_id
+    FROM
+        chats
+    WHERE
+        chats.id = $1::uuid
+        AND chats.automation_id IS NOT NULL
+    UNION
+    -- The role, deleted and visibility predicates match
+    -- idx_chat_messages_user_prompts so the index applies.
+    SELECT
+        chat_messages.automation_id
+    FROM
+        chat_messages
+    WHERE
+        chat_messages.chat_id = $1::uuid
+        AND chat_messages.deleted = false
+        AND chat_messages.role = 'user'
+        AND chat_messages.visibility IN ('user', 'both')
+        AND chat_messages.automation_id IS NOT NULL
+    UNION
+    SELECT
+        chat_queued_messages.automation_id
+    FROM
+        chat_queued_messages
+    WHERE
+        chat_queued_messages.chat_id = $1::uuid
+        AND chat_queued_messages.automation_id IS NOT NULL
+)
+SELECT
+    chat_automations.id,
+    chat_automations.name,
+    chat_automations.kind
+FROM
+    referenced
+    JOIN chat_automations ON chat_automations.id = referenced.automation_id
+    JOIN chats ON chats.id = $1::uuid
+WHERE
+    chat_automations.organization_id = chats.organization_id
+ORDER BY
+    chat_automations.id
+`
+
+type GetChatAutomationReferencesByChatIDRow struct {
+	ID   uuid.UUID          `db:"id" json:"id"`
+	Name string             `db:"name" json:"name"`
+	Kind ChatAutomationKind `db:"kind" json:"kind"`
+}
+
+// Returns the id, name and kind of each automation that delivered into
+// the chat: the automation that created the chat, the automations of its
+// visible non-deleted user messages and the automations of its queued
+// messages. Only automations in the chat's organization are returned, and
+// deleted automations are absent.
+func (q *sqlQuerier) GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatAutomationReferencesByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationReferencesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatAutomationReferencesByChatIDRow
+	for rows.Next() {
+		var i GetChatAutomationReferencesByChatIDRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Kind); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
 SELECT
     id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at

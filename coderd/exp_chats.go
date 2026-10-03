@@ -9149,6 +9149,50 @@ func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, summaries)
 }
 
+// getChatAutomationReferences returns the id, name and kind of each
+// automation that delivered into a chat. Reading the chat is enough: the
+// caller needs neither chat_automation read permission nor the
+// chat-automations experiment, so shared-chat viewers see automation names.
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List automations referenced by a chat
+// @ID list-chat-automation-references
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatAutomationReference
+// @Router /api/experimental/chats/{chat}/automations [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatAutomationReferences(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	rows, err := api.Database.GetChatAutomationReferencesByChatID(ctx, chat.ID)
+	if err != nil {
+		// Access may be revoked between middleware extraction and this
+		// query (dbauthz re-authorizes the chat read).
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat automation references.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	references := make([]codersdk.ChatAutomationReference, 0, len(rows))
+	for _, row := range rows {
+		references = append(references, db2sdk.ChatAutomationReference(row))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, references)
+}
+
 // getChatDebugRun returns a single debug run with its steps.
 // EXPERIMENTAL
 //

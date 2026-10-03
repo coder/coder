@@ -10,6 +10,7 @@ import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatAutomation,
+	ChatAutomationReference,
 	ChatAutomationRunResponse,
 	ChatAutomationSchedulePreviewRequest,
 	CreateChatAutomationRequest,
@@ -27,29 +28,52 @@ export const chatAutomations = (organizationId: string) => ({
 		API.experimental.getChatAutomations(organizationId),
 });
 
-/** Automation IDs mapped to names. Deleted or unreadable automations are absent. */
-export type ChatAutomationNameMap = ReadonlyMap<string, string>;
+/** Automation IDs mapped to their references. Deleted automations are absent. */
+export type ChatAutomationReferenceMap = ReadonlyMap<
+	string,
+	ChatAutomationReference
+>;
 
-const selectChatAutomationNames = (
-	automations: ChatAutomation[],
-): ChatAutomationNameMap =>
-	new Map(automations.map((automation) => [automation.id, automation.name]));
+const chatAutomationReferencesFamilyKey = [
+	"chat-automation-references",
+] as const;
 
-export const chatAutomationNameMap = (
-	organizationId: string | undefined,
+export const chatAutomationReferencesKey = (chatId: string) =>
+	[...chatAutomationReferencesFamilyKey, chatId] as const;
+
+const selectChatAutomationReferences = (
+	references: ChatAutomationReference[],
+): ChatAutomationReferenceMap =>
+	new Map(references.map((reference) => [reference.id, reference] as const));
+
+/** Names the automations that delivered into a chat. */
+export const chatAutomationReferences = (
+	chatId: string,
 	{ enabled }: { enabled: boolean },
 ) =>
 	({
-		...chatAutomations(organizationId ?? ""),
-		select: selectChatAutomationNames,
-		enabled: Boolean(organizationId) && enabled,
+		queryKey: chatAutomationReferencesKey(chatId),
+		queryFn: () => API.experimental.getChatAutomationReferences(chatId),
+		select: selectChatAutomationReferences,
+		enabled,
 	}) satisfies UseQueryOptions<
-		ChatAutomation[],
+		ChatAutomationReference[],
 		unknown,
-		ChatAutomationNameMap
+		ChatAutomationReferenceMap,
+		ReturnType<typeof chatAutomationReferencesKey>
 	>;
 
-/** Refetches automation names, for example after new automation input. */
+/** Omit chatId to refetch every chat. */
+export const invalidateChatAutomationReferences = (
+	queryClient: QueryClient,
+	chatId?: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatId
+			? chatAutomationReferencesKey(chatId)
+			: chatAutomationReferencesFamilyKey,
+	});
+
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });
 

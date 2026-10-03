@@ -1788,6 +1788,16 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	}
 }
 
+// ChatAutomationReference converts a chat automation reference row to its
+// SDK form.
+func ChatAutomationReference(row database.GetChatAutomationReferencesByChatIDRow) codersdk.ChatAutomationReference {
+	return codersdk.ChatAutomationReference{
+		ID:   row.ID,
+		Name: row.Name,
+		Kind: codersdk.ChatAutomationKind(row.Kind),
+	}
+}
+
 // ChatAutomation converts a chat automation row to its SDK form. The
 // webhook secret hash is never included. nextRuns are the upcoming schedule
 // runs the caller computed; a nil slice is returned as empty.

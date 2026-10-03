@@ -11,7 +11,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
-import { invalidateChatAutomations } from "#/api/queries/chatAutomations";
+import { invalidateChatAutomationReferences } from "#/api/queries/chatAutomations";
 import {
 	chatMessagesKey,
 	invalidateChatPrompts,
@@ -210,9 +210,9 @@ export const useChatStore = (
 				void invalidateChatPrompts(queryClient, chatID);
 			}
 			// New automation input can come from an automation created or
-			// renamed after the name list loaded.
+			// renamed after the chat's automation references loaded.
 			if (messages.some((msg) => msg.automation_id !== undefined)) {
-				void invalidateChatAutomations(queryClient);
+				void invalidateChatAutomationReferences(queryClient, chatID);
 			}
 			void invalidateChatSearches(queryClient);
 		},
@@ -621,7 +621,7 @@ export const useChatStore = (
 									m.automation_id !== undefined && !previousQueuedIDs.has(m.id),
 							);
 							if (hasNewAutomationInput) {
-								void invalidateChatAutomations(queryClient);
+								void invalidateChatAutomationReferences(queryClient, chatID);
 							}
 							// Cache the store's filtered queue, not the raw
 							// event, so a promoted message suppressed by the

@@ -435,7 +435,7 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
-	automationNames: { names: new Map(), status: "settled" },
+	automationReferences: { references: new Map(), status: "settled" },
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -800,10 +800,36 @@ export const AutomationUserMessages: Story = {
 				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
 			},
 		),
-		automationNames: {
-			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+		automationReferences: {
+			references: new Map([[MockChatAutomation.id, MockChatAutomation]]),
 			status: "settled",
 		},
+	},
+};
+
+export const AutomationUserMessagesLoading: Story = {
+	args: {
+		...AutomationUserMessages.args,
+		automationReferences: { references: new Map(), status: "loading" },
+	},
+};
+
+export const AutomationUserMessagesError: Story = {
+	args: {
+		...AutomationUserMessages.args,
+		automationReferences: { references: new Map(), status: "error" },
+	},
+};
+
+// Focuses the first label to capture its tooltip with the full IDs.
+export const AutomationUserMessagesTooltip: Story = {
+	args: AutomationUserMessages.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [label] = await canvas.findAllByRole("note", {
+			name: /^Automation run/,
+		});
+		await userEvent.hover(label);
 	},
 };
 

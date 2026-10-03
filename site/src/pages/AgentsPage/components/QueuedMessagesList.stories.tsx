@@ -19,7 +19,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
-		automationNames: { names: new Map(), status: "settled" },
+		automationReferences: { references: new Map(), status: "settled" },
 		onDelete: fn(),
 		onPromote: fn(),
 	},
@@ -99,10 +99,10 @@ export const AutomationMessages: Story = {
 			},
 			buildMessage(4, textContent("Run the test suite")),
 		],
-		automationNames: {
-			names: new Map([
-				[MockChatAutomation.id, MockChatAutomation.name],
-				[mockLongNameAutomation.id, mockLongNameAutomation.name],
+		automationReferences: {
+			references: new Map([
+				[MockChatAutomation.id, MockChatAutomation],
+				[mockLongNameAutomation.id, mockLongNameAutomation],
 			]),
 			status: "settled",
 		},
@@ -113,8 +113,8 @@ export const AutomationMessagesLoading: Story = {
 	...AutomationMessages,
 	args: {
 		...AutomationMessages.args,
-		automationNames: {
-			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+		automationReferences: {
+			references: new Map([[MockChatAutomation.id, MockChatAutomation]]),
 			status: "loading",
 		},
 	},
@@ -125,19 +125,19 @@ export const AutomationLabelTooltip: Story = {
 	...AutomationMessages,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const [label] = await canvas.findAllByRole("button", {
+		const [label] = await canvas.findAllByRole("note", {
 			name: /^Automation run/,
 		});
 		await userEvent.hover(label);
 	},
 };
 
-// Opens the first label's tooltip after the automations list failed.
+// Opens the first label's tooltip after the references request failed.
 export const AutomationLabelTooltipError: Story = {
 	...AutomationLabelTooltip,
 	args: {
 		...AutomationMessages.args,
-		automationNames: { names: new Map(), status: "error" },
+		automationReferences: { references: new Map(), status: "error" },
 	},
 };
 

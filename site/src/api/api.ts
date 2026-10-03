@@ -3894,6 +3894,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatAutomationReferences = async (
+		chatId: string,
+	): Promise<TypesGen.ChatAutomationReference[]> => {
+		const response = await this.axios.get<TypesGen.ChatAutomationReference[]>(
+			`/api/experimental/chats/${encodeURIComponent(chatId)}/automations`,
+		);
+		return response.data;
+	};
+
 	createChatAutomation = async (
 		organizationId: string,
 		req: TypesGen.CreateChatAutomationRequest,
