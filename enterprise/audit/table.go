@@ -519,6 +519,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"schedule_time_zone":       ActionTrack,
 		"schedule_revision":        ActionIgnore, // Internal schedule bookkeeping.
 		"schedule_next_run_at":     ActionIgnore, // Internal schedule cursor.
+		"schedule_claimed_until":   ActionIgnore, // Internal schedule occurrence claim.
 		"queue_generation":         ActionIgnore, // Internal queued-message invalidation counter.
 		"created_at":               ActionIgnore,
 		"updated_at":               ActionIgnore,

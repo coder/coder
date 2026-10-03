@@ -947,6 +947,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION clear_chat_automation_schedule_claim() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.schedule_next_run_at IS DISTINCT FROM OLD.schedule_next_run_at
+		OR NEW.schedule_revision IS DISTINCT FROM OLD.schedule_revision THEN
+		NEW.schedule_claimed_until := NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2010,6 +2022,7 @@ CREATE TABLE chat_automations (
     queue_generation bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    schedule_claimed_until timestamp with time zone,
     CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
     CONSTRAINT chat_automations_name_length CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
     CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL) AND (when_busy IS NOT NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL) AND (when_busy IS NULL))))
@@ -2030,6 +2043,8 @@ COMMENT ON COLUMN chat_automations.schedule_revision IS 'Incremented whenever th
 COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.';
 
 COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.';
+
+COMMENT ON COLUMN chat_automations.schedule_claimed_until IS 'Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
@@ -5300,6 +5315,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_clear_chat_automation_schedule_claim BEFORE UPDATE OF schedule_next_run_at, schedule_revision ON chat_automations FOR EACH ROW EXECUTE FUNCTION clear_chat_automation_schedule_claim();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

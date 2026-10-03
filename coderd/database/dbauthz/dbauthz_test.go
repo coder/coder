@@ -1601,6 +1601,31 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().AdvanceChatAutomationScheduleCursor(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("ClaimChatAutomationScheduleOccurrence", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		arg := database.ClaimChatAutomationScheduleOccurrenceParams{
+			ID:                automation.ID,
+			ScheduleRevision:  2,
+			ObservedNextRunAt: dbtime.Now(),
+			ClaimedUntil:      dbtime.Now().Add(time.Minute),
+			Now:               dbtime.Now(),
+		}
+		dbm.EXPECT().ClaimChatAutomationScheduleOccurrence(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("ReleaseChatAutomationScheduleClaim", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		arg := database.ReleaseChatAutomationScheduleClaimParams{
+			ID:                automation.ID,
+			ScheduleRevision:  2,
+			ObservedNextRunAt: dbtime.Now(),
+			ClaimedUntil:      dbtime.Now().Add(time.Minute),
+		}
+		dbm.EXPECT().ReleaseChatAutomationScheduleClaim(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()

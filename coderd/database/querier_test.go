@@ -1734,6 +1734,215 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 	})
 }
 
+// TestChatAutomationScheduleClaim checks the guards that let only one
+// instance claim a schedule occurrence, and that a moved cursor drops the
+// claim so it never blocks a later occurrence.
+func TestChatAutomationScheduleClaim(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	now := dbtime.Now()
+	cursor := now.Add(-time.Second)
+	const lease = 2 * time.Minute
+
+	newSchedule := func(t *testing.T) database.ChatAutomation {
+		t.Helper()
+		return dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:       org.ID,
+			OwnerID:              owner.ID,
+			Kind:                 database.ChatAutomationKindSchedule,
+			Enabled:              true,
+			TargetMode:           database.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			ScheduleNextRunAt:    sql.NullTime{Time: cursor, Valid: true},
+		})
+	}
+	claim := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, revision int64, observed, at, until time.Time) int64 {
+		t.Helper()
+		count, err := db.ClaimChatAutomationScheduleOccurrence(ctx, database.ClaimChatAutomationScheduleOccurrenceParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: observed,
+			ClaimedUntil:      until,
+			Now:               at,
+			// The scheduler's grace window.
+			EarliestNextRunAt: at.Add(-time.Minute),
+		})
+		require.NoError(t, err)
+		return count
+	}
+	release := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, revision int64, observed, until time.Time) int64 {
+		t.Helper()
+		count, err := db.ReleaseChatAutomationScheduleClaim(ctx, database.ReleaseChatAutomationScheduleClaimParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: observed,
+			ClaimedUntil:      until,
+		})
+		require.NoError(t, err)
+		return count
+	}
+	claimedUntil := func(ctx context.Context, t *testing.T, automation database.ChatAutomation) sql.NullTime {
+		t.Helper()
+		got, err := db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		return got.ScheduleClaimedUntil
+	}
+	isDue := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, at time.Time) bool {
+		t.Helper()
+		rows, err := db.GetDueChatAutomationSchedules(ctx, database.GetDueChatAutomationSchedulesParams{
+			Now:        at,
+			AfterID:    uuid.Nil,
+			LimitCount: 1000,
+		})
+		require.NoError(t, err)
+		return slices.ContainsFunc(rows, func(row database.ChatAutomation) bool { return row.ID == automation.ID })
+	}
+
+	t.Run("ClaimIsExclusiveUntilExpiry", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+
+		require.Zero(t, claim(ctx, t, automation, revision+1, cursor, now, now.Add(lease)), "a changed schedule revision")
+		require.Zero(t, claim(ctx, t, automation, revision, cursor.Add(time.Minute), now, now.Add(lease)), "a moved cursor")
+		late := cursor.Add(time.Minute + time.Microsecond)
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, late, late.Add(lease)), "an occurrence past the grace window")
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(lease)))
+		stored := claimedUntil(ctx, t, automation)
+		require.True(t, stored.Valid)
+		require.True(t, stored.Time.Equal(now.Add(lease)), "claimed until %s", stored.Time)
+
+		// Until the claim expires, another instance can neither claim the
+		// occurrence nor see it as due.
+		beforeExpiry := now.Add(lease - time.Microsecond)
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, beforeExpiry, beforeExpiry.Add(lease)))
+		require.False(t, isDue(ctx, t, automation, beforeExpiry))
+
+		// Once it expires, the row is due again, but the occurrence is past
+		// the grace window, so it cannot be claimed.
+		expired := now.Add(lease)
+		require.True(t, isDue(ctx, t, automation, expired))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, expired, expired.Add(lease)))
+	})
+
+	t.Run("ShortClaimCanBeRetakenWithinGrace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		const shortLease = 10 * time.Second
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(shortLease)))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, now.Add(shortLease-time.Microsecond), now.Add(2*shortLease)))
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now.Add(shortLease), now.Add(2*shortLease)))
+	})
+
+	t.Run("ReleaseDropsOnlyOwnClaim", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		until := now.Add(lease)
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, until))
+
+		require.Zero(t, release(ctx, t, automation, revision, cursor, until.Add(time.Second)), "another instance's claim")
+		require.Zero(t, release(ctx, t, automation, revision+1, cursor, until), "a changed schedule revision")
+		require.Zero(t, release(ctx, t, automation, revision, cursor.Add(time.Minute), until), "a moved cursor")
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+
+		require.EqualValues(t, 1, release(ctx, t, automation, revision, cursor, until))
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+	})
+
+	t.Run("CursorMoveDropsClaim", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(lease)))
+
+		// Accepting or skipping the occurrence moves the cursor.
+		next := cursor.Add(time.Minute)
+		count, err := db.AdvanceChatAutomationScheduleCursor(ctx, database.AdvanceChatAutomationScheduleCursorParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: cursor,
+			NextRunAt:         sql.NullTime{Time: next, Valid: true},
+			UpdatedAt:         now,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		update := func(t *testing.T, munge func(*database.UpdateChatAutomationByIDParams)) {
+			t.Helper()
+			row, err := db.GetChatAutomationByID(ctx, automation.ID)
+			require.NoError(t, err)
+			arg := database.UpdateChatAutomationByIDParams{
+				ID:                   row.ID,
+				Name:                 row.Name,
+				Prompt:               row.Prompt,
+				TargetChatID:         row.TargetChatID,
+				NewChatModelConfigID: row.NewChatModelConfigID,
+				ReasoningEffort:      row.ReasoningEffort,
+				WhenBusy:             row.WhenBusy,
+				ScheduleCron:         row.ScheduleCron,
+				ScheduleTimeZone:     row.ScheduleTimeZone,
+				ScheduleRevision:     row.ScheduleRevision,
+				ScheduleNextRunAt:    row.ScheduleNextRunAt,
+				Enabled:              row.Enabled,
+				QueueGeneration:      row.QueueGeneration,
+				UpdatedAt:            now,
+			}
+			munge(&arg)
+			_, err = db.UpdateChatAutomationByID(ctx, arg)
+			require.NoError(t, err)
+		}
+
+		// An occurrence that is not due yet cannot be claimed.
+		require.Zero(t, claim(ctx, t, automation, revision, next, now, now.Add(lease)))
+
+		// An edit that keeps the occurrence keeps its claim.
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, next, next, next.Add(lease)))
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.Name = "renamed" })
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+
+		// A new schedule revision drops it.
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.ScheduleRevision++ })
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		// So does a cursor write that does not name the claim column, as
+		// from a replica that predates it during a rolling upgrade. A write
+		// that leaves the cursor alone keeps the claim.
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, next, next, next.Add(lease)))
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = schedule_next_run_at WHERE id = $1", automation.ID)
+		require.NoError(t, err)
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = $1 WHERE id = $2", next.Add(time.Minute), automation.ID)
+		require.NoError(t, err)
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		// So does a moved cursor, as disabling does.
+		later := next.Add(time.Minute)
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, later, later, later.Add(lease)))
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) {
+			arg.Enabled = false
+			arg.ScheduleNextRunAt = sql.NullTime{}
+		})
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+	})
+}
+
 func TestChatContextHydration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

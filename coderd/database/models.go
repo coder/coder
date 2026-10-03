@@ -5449,6 +5449,8 @@ type ChatAutomation struct {
 	QueueGeneration int64     `db:"queue_generation" json:"queue_generation"`
 	CreatedAt       time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	// Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.
+	ScheduleClaimedUntil sql.NullTime `db:"schedule_claimed_until" json:"schedule_claimed_until"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.

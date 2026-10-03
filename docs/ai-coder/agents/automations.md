@@ -302,6 +302,10 @@ Coder checks for due schedules every 30&nbsp;seconds and accepts an occurrence u
 An occurrence that is older than that is missed and never replayed.
 When a check finds a missed occurrence, it still runs the next occurrence that is less than 60&nbsp;seconds late.
 After a server outage, schedules continue from their next time and don't catch up on missed runs.
+With several Coder replicas, each occurrence's prompt reaches [chat lifecycle hooks](../../admin/setup/chat-lifecycle-hooks.md) once.
+If a replica stops while it sends an occurrence's prompt, that occurrence is missed.
+A hook that fails is called again when Coder retries the occurrence within the 60&nbsp;seconds.
+An edit to the automation while the hooks run also calls them again, with the edited prompt, and only the edited prompt is sent.
 
 When you turn a schedule back on, it continues from its next future time.
 When you change its cron expression or time zone, Coder recomputes its next run.

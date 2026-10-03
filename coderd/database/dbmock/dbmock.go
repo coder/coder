@@ -352,6 +352,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ClaimChatAutomationScheduleOccurrence mocks base method.
+func (m *MockStore) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg database.ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimChatAutomationScheduleOccurrence", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimChatAutomationScheduleOccurrence indicates an expected call of ClaimChatAutomationScheduleOccurrence.
+func (mr *MockStoreMockRecorder) ClaimChatAutomationScheduleOccurrence(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatAutomationScheduleOccurrence", reflect.TypeOf((*MockStore)(nil).ClaimChatAutomationScheduleOccurrence), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -9920,6 +9935,21 @@ func (m *MockStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batch
 func (mr *MockStoreMockRecorder) ReindexStaleChatMessagesSearchTsv(ctx, batchSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReindexStaleChatMessagesSearchTsv", reflect.TypeOf((*MockStore)(nil).ReindexStaleChatMessagesSearchTsv), ctx, batchSize)
+}
+
+// ReleaseChatAutomationScheduleClaim mocks base method.
+func (m *MockStore) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg database.ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseChatAutomationScheduleClaim", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseChatAutomationScheduleClaim indicates an expected call of ReleaseChatAutomationScheduleClaim.
+func (mr *MockStoreMockRecorder) ReleaseChatAutomationScheduleClaim(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseChatAutomationScheduleClaim", reflect.TypeOf((*MockStore)(nil).ReleaseChatAutomationScheduleClaim), ctx, arg)
 }
 
 // ReleaseExternalAuthLinkRefreshLease mocks base method.
