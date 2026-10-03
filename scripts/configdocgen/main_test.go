@@ -1,8 +1,13 @@
 package main
 
 import (
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/spf13/pflag"
 
 	"github.com/coder/serpent"
 )
@@ -181,6 +186,33 @@ func TestCollapse(t *testing.T) {
 	}
 }
 
+func TestSplitSentences(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"single sentence", "One sentence.", "One sentence."},
+		{"two sentences", "First one. Second one.", "First one.\nSecond one."},
+		{"question and exclamation", "Why? Because! Done.", "Why?\nBecause!\nDone."},
+		{"closing quote or code span", "Set to `true`. Then restart.", "Set to `true`.\nThen restart."},
+		{"bold deprecation marker", "**Deprecated.** Use the new flag.", "**Deprecated.**\nUse the new flag."},
+		{"abbreviation", "Headers, e.g. X-Forwarded-For. Done.", "Headers, e.g. X-Forwarded-For.\nDone."},
+		{"lowercase continuation", "Use a dot. e.g. foo.", "Use a dot. e.g. foo."},
+		{"no list marker at line start", "Pick a value. 1. is not allowed.", "Pick a value. 1. is not allowed."},
+		{"dot inside a word", "See example.com for details.", "See example.com for details."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := splitSentences(tt.in); got != tt.want {
+				t.Errorf("splitSentences(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestRenderDangerousWithDescription verifies the Caution alert uses the
 // Dangerous group's own codersdk description when it has one, instead of the
 // fallback copy.
@@ -244,7 +276,7 @@ func TestRenderPipeline(t *testing.T) {
 		// YAML key is the dotted group path.
 		"- YAML key: `email.from`",
 		// Deprecated marker is prepended for the UseInstead path.
-		"**Deprecated.** The sender address.",
+		"**Deprecated.**\nThe sender address.",
 		// A DefaultFn with no static Default is labeled, not evaluated.
 		"- Default value: `(computed at runtime)`",
 		"### Email authentication",
@@ -285,5 +317,142 @@ func TestRenderPipeline(t *testing.T) {
 	}
 	if strings.Contains(got, "Unsettable") {
 		t.Error("option with no env/flag/YAML should be skipped")
+	}
+}
+
+func TestValueType(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		value       pflag.Value
+		wantName    string
+		wantChoices []string
+	}{
+		{"plain type", serpent.BoolOf(new(bool)), "bool", nil},
+		{"duration", serpent.DurationOf(new(time.Duration)), "duration", nil},
+		{
+			"enum lists its choices",
+			serpent.EnumOf(new(string), "password", "awsiamrds"),
+			"enum",
+			[]string{"password", "awsiamrds"},
+		},
+		{
+			"enum array lists its choices",
+			serpent.EnumArrayOf(new([]string), "read", "write"),
+			"enum-array",
+			[]string{"read", "write"},
+		},
+		{
+			"structured mapping uses a YAML type",
+			&serpent.Struct[map[string]string]{},
+			"YAML mapping",
+			nil,
+		},
+		{
+			"structured sequence uses a YAML type",
+			&serpent.Struct[[]string]{},
+			"YAML sequence",
+			nil,
+		},
+		{
+			"structured object uses a YAML type",
+			&serpent.Struct[struct{ Name string }]{},
+			"YAML object",
+			nil,
+		},
+		{"nil value has no type", nil, "", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gotName, gotChoices := valueType(serpent.Option{Value: tc.value})
+			if gotName != tc.wantName {
+				t.Errorf("valueType() name = %q, want %q", gotName, tc.wantName)
+			}
+			if !slices.Equal(gotChoices, tc.wantChoices) {
+				t.Errorf("valueType() choices = %v, want %v", gotChoices, tc.wantChoices)
+			}
+		})
+	}
+}
+
+// TestRenderTypeAndSecret covers the two fields the reference previously
+// dropped: every option's value type, and the marker that keeps a secret out
+// of a YAML configuration file.
+func TestRenderTypeAndSecret(t *testing.T) {
+	t.Parallel()
+
+	secret := serpent.Option{
+		Name:        "Client Secret",
+		Description: "Client secret for the identity provider.",
+		Flag:        "oidc-client-secret",
+		Env:         "CODER_OIDC_CLIENT_SECRET",
+		Value:       serpent.StringOf(new(string)),
+		Annotations: serpent.Annotations{}.Mark("secret", "true"),
+	}
+	plain := serpent.Option{
+		Name:        "Access URL",
+		Description: "The URL the deployment is reachable at.",
+		Flag:        "access-url",
+		Env:         "CODER_ACCESS_URL",
+		YAML:        "accessURL",
+		Value:       serpent.URLOf(&url.URL{}),
+	}
+
+	enum := serpent.Option{
+		Name:        "Database Authentication",
+		Description: "The database authentication method.",
+		Flag:        "database-auth",
+		Env:         "CODER_DATABASE_AUTH",
+		Value:       serpent.EnumOf(new(string), "password", "awsiamrds"),
+	}
+	singleChoiceEnum := serpent.Option{
+		Name:        "Budget Period",
+		Description: "The budget period.",
+		Flag:        "budget-period",
+		Env:         "CODER_BUDGET_PERIOD",
+		Value:       serpent.EnumOf(new(string), "month"),
+	}
+	enumArray := serpent.Option{
+		Name:        "Permissions",
+		Description: "The permissions to grant.",
+		Flag:        "permissions",
+		Env:         "CODER_PERMISSIONS",
+		Value:       serpent.EnumArrayOf(new([]string), "read", "write"),
+	}
+	singleChoiceEnumArray := serpent.Option{
+		Name:        "Allowed Permission",
+		Description: "The allowed permission.",
+		Flag:        "allowed-permission",
+		Env:         "CODER_ALLOWED_PERMISSION",
+		Value:       serpent.EnumArrayOf(new([]string), "only"),
+	}
+	secretWithYAML := secret
+	secretWithYAML.Name = "Invalid Secret"
+	secretWithYAML.YAML = "invalidSecret"
+	secretWithoutEnv := secret
+	secretWithoutEnv.Name = "Secret Without Environment Variable"
+	secretWithoutEnv.Env = ""
+
+	got := render(buildTree(serpent.OptionSet{secret, plain, enum, singleChoiceEnum, enumArray, singleChoiceEnumArray, secretWithYAML, secretWithoutEnv}))
+
+	wantContains := []string{
+		"- Type: `string`",
+		"- Type: `url`",
+		"- Type: `enum`, one of `password`, `awsiamrds`",
+		"- Type: `enum`, must be `month`",
+		"- Type: `enum-array`, each value must be one of `read`, `write`",
+		"- Type: `enum-array`, each value must be `only`",
+		"- Holds a secret: Coder never writes this option to a YAML configuration file.\n  Set it through the environment variable above.",
+		"### Secret without environment variable\n\nClient secret for the identity provider.\n\n- Type: `string`\n- CLI flag: [`--oidc-client-secret`](../../reference/cli/server/index.md#--oidc-client-secret)\n- Holds a secret: Coder never writes this option to a YAML configuration file.\n",
+	}
+	for _, w := range wantContains {
+		if !strings.Contains(got, w) {
+			t.Errorf("render() missing %q\n---\n%s", w, got)
+		}
+	}
+
+	if n := strings.Count(got, "Holds a secret"); n != 3 {
+		t.Errorf("secret marker rendered %d times, want 3", n)
 	}
 }

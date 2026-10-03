@@ -324,6 +324,31 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 	},
 };
 
+/**
+ * Pin order belongs to the owner, so a chat another user pinned lists under
+ * Shared with you instead of joining the viewer's sortable Pinned section.
+ */
+export const SharedChatPinnedByOwnerStaysInSharedWithYou: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "own-pinned",
+				title: "Own pinned chat",
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "shared-pinned-by-owner",
+				title: "Shared chat pinned by its owner",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				pin_order: 1,
+			}),
+		],
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
@@ -2531,6 +2556,40 @@ export const ProjectFolderExpanded: Story = {
 				path: `/agents/projects/${MockChatProject.id}`,
 				pathParams: { projectId: MockChatProject.id },
 			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const MobileWithAutomations: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div className="h-125 w-90">
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const AutomationsActive: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations" },
 			routing: agentsRouting,
 		}),
 	},

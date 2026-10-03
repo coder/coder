@@ -27,11 +27,11 @@ import (
 
 // scopeDocsURL points at the scopes a token may request. The api_key_scope enum
 // table in the API reference is a superset: it lists internal scopes too.
-const scopeDocsURL = "https://coder.com/docs/admin/users/sessions-tokens#api-key-scopes"
+const scopeDocsURL = "https://coder.com/docs/reference/api-key-scopes"
 
-// writeUnrequestableScope answers 400 for a scope name a token may not carry,
-// telling a name that is no scope at all apart from a real api_key_scope member
-// that is internal to Coder.
+// writeUnrequestableScope answers 400 for a scope name a token may not carry.
+// It distinguishes an unknown name from an internal api_key_scope member and
+// reports the relevant detail.
 func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name rbac.ScopeName) {
 	detail := fmt.Sprintf("unknown API key scope: %q. See %s for the scopes a token may request.", name, scopeDocsURL)
 	if database.APIKeyScope(name).Valid() {

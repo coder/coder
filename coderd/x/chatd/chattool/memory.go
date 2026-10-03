@@ -91,24 +91,34 @@ func InsertProjectMemory(ctx context.Context, db database.Store, params database
 }
 
 // ConsolidateProjectMemories deletes and inserts project memories in one
-// transaction and returns the project's memory count afterward. Deletes run
-// first, so an insert may reuse a deleted name to replace that memory. Any
-// missing delete, duplicate insert, or result over the cap rolls back every
-// change.
-func ConsolidateProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, deleteNames []string, inserts []database.InsertChatProjectMemoryParams) (int64, error) {
-	return writeProjectMemories(ctx, db, projectID, func(tx database.Store) error {
+// transaction and returns the deleted and inserted rows with the project's
+// memory count afterward. Deletes run first, so an insert may reuse a deleted
+// name to replace that memory. Any missing delete, duplicate insert, or result
+// over the cap rolls back every change.
+func ConsolidateProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, deleteNames []string, inserts []database.InsertChatProjectMemoryParams) (deleted, inserted []database.ChatProjectMemory, count int64, err error) {
+	count, err = writeProjectMemories(ctx, db, projectID, func(tx database.Store) error {
+		// Reset so a retried transaction does not report rows twice.
+		deleted, inserted = nil, nil
 		for _, name := range deleteNames {
-			if err := deleteProjectMemory(ctx, tx, projectID, name); err != nil {
+			memory, err := deleteProjectMemory(ctx, tx, projectID, name)
+			if err != nil {
 				return err
 			}
+			deleted = append(deleted, memory)
 		}
 		for _, params := range inserts {
-			if _, err := insertProjectMemoryTx(ctx, tx, params); err != nil {
+			memory, err := insertProjectMemoryTx(ctx, tx, params)
+			if err != nil {
 				return err
 			}
+			inserted = append(inserted, memory)
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return deleted, inserted, count, nil
 }
 
 func insertProjectMemoryTx(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
@@ -119,12 +129,12 @@ func insertProjectMemoryTx(ctx context.Context, db database.Store, params databa
 	return memory, err
 }
 
-func deleteProjectMemory(ctx context.Context, db database.Store, projectID uuid.UUID, name string) error {
-	rows, err := db.DeleteChatProjectMemoryByName(ctx, database.DeleteChatProjectMemoryByNameParams{ProjectID: projectID, Name: name})
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && rows == 0) {
-		return xerrors.Errorf("%w: %q", ErrMemoryNotFound, name)
+func deleteProjectMemory(ctx context.Context, db database.Store, projectID uuid.UUID, name string) (database.ChatProjectMemory, error) {
+	memory, err := db.DeleteChatProjectMemoryByName(ctx, database.DeleteChatProjectMemoryByNameParams{ProjectID: projectID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatProjectMemory{}, xerrors.Errorf("%w: %q", ErrMemoryNotFound, name)
 	}
-	return err
+	return memory, err
 }
 
 func memoryIntro(projectName string) string {
@@ -167,17 +177,29 @@ type MemoryStore interface {
 	Consolidate(ctx context.Context, deleteNames []string, saves []MemoryInput) (int64, error)
 }
 
+// MemoryAuditFunc records a committed memory change. oldMemory is zero for a
+// create and newMemory is zero for a delete.
+type MemoryAuditFunc func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory)
+
 type projectMemoryStore struct {
 	db             database.Store
 	projectID      uuid.UUID
 	organizationID uuid.UUID
 	ownerID        uuid.UUID
+	audit          MemoryAuditFunc
 }
 
 // NewProjectMemoryStore returns a store scoped to a chat project. New
-// memories are attributed to ownerID.
-func NewProjectMemoryStore(db database.Store, projectID, organizationID, ownerID uuid.UUID) MemoryStore {
-	return projectMemoryStore{db: db, projectID: projectID, organizationID: organizationID, ownerID: ownerID}
+// memories are attributed to ownerID. audit, when set, is called for every
+// memory the store creates or deletes, after the change commits.
+func NewProjectMemoryStore(db database.Store, projectID, organizationID, ownerID uuid.UUID, audit MemoryAuditFunc) MemoryStore {
+	return projectMemoryStore{db: db, projectID: projectID, organizationID: organizationID, ownerID: ownerID, audit: audit}
+}
+
+func (s projectMemoryStore) auditChange(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
+	if s.audit != nil {
+		s.audit(ctx, action, oldMemory, newMemory)
+	}
 }
 
 func (s projectMemoryStore) Get(ctx context.Context, name string) (Memory, error) {
@@ -211,12 +233,21 @@ func (s projectMemoryStore) insertParams(input MemoryInput) database.InsertChatP
 }
 
 func (s projectMemoryStore) Insert(ctx context.Context, input MemoryInput) (int64, error) {
-	_, count, err := InsertProjectMemory(ctx, s.db, s.insertParams(input))
-	return count, err
+	memory, count, err := InsertProjectMemory(ctx, s.db, s.insertParams(input))
+	if err != nil {
+		return 0, err
+	}
+	s.auditChange(ctx, database.AuditActionCreate, database.ChatProjectMemory{}, memory)
+	return count, nil
 }
 
 func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
-	return deleteProjectMemory(ctx, s.db, s.projectID, name)
+	memory, err := deleteProjectMemory(ctx, s.db, s.projectID, name)
+	if err != nil {
+		return err
+	}
+	s.auditChange(ctx, database.AuditActionDelete, memory, database.ChatProjectMemory{})
+	return nil
 }
 
 func (s projectMemoryStore) Consolidate(ctx context.Context, deleteNames []string, saves []MemoryInput) (int64, error) {
@@ -224,7 +255,17 @@ func (s projectMemoryStore) Consolidate(ctx context.Context, deleteNames []strin
 	for i, input := range saves {
 		inserts[i] = s.insertParams(input)
 	}
-	return ConsolidateProjectMemories(ctx, s.db, s.projectID, deleteNames, inserts)
+	deleted, inserted, count, err := ConsolidateProjectMemories(ctx, s.db, s.projectID, deleteNames, inserts)
+	if err != nil {
+		return 0, err
+	}
+	for _, memory := range deleted {
+		s.auditChange(ctx, database.AuditActionDelete, memory, database.ChatProjectMemory{})
+	}
+	for _, memory := range inserted {
+		s.auditChange(ctx, database.AuditActionCreate, database.ChatProjectMemory{}, memory)
+	}
+	return count, nil
 }
 
 // NormalizeMemoryName lowercases and validates a stable memory identifier.
@@ -446,8 +487,11 @@ func ReadMemory(store MemoryStore) fantasy.AgentTool {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
 		memory, err := store.Get(ctx, name)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrMemoryNotFound):
 			return fantasy.NewTextErrorResponse("memory was not found"), nil
+		case err != nil:
+			return fantasy.NewTextErrorResponse("failed to read memory"), nil
 		}
 		return toolResponse(map[string]any{"name": memory.Name, "description": memory.Description, "body": memory.Body, "created_at": memory.CreatedAt, "created_by": memory.CreatedByUsername}), nil
 	})

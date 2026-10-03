@@ -17,6 +17,7 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogMode } from "./chats/ProjectFolders";
 import { ChatProjectDialog } from "./dialogs/ChatProjectDialog";
@@ -288,7 +289,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					!location.pathname.startsWith(AUTOMATIONS_PATH)
 				}
 				location={location}
 				currentUserId={currentUserId}
