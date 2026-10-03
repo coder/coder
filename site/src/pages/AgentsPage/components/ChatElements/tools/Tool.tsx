@@ -1162,7 +1162,7 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-const WebSearchRenderer: FC<ToolRendererProps> = (props) => (
+const WebSearchRenderer: React.FC<ToolRendererProps> = (props) => (
 	<WebSearchTool
 		action={getWebSearchAction(props.args)}
 		state={getWebSearchState(props)}
@@ -1212,7 +1212,7 @@ export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 export const getToolRenderer = (
 	name: string,
 	providerExecuted: boolean | undefined,
-): FC<ToolRendererProps> => {
+): React.FC<ToolRendererProps> => {
 	if (isSubagentToolName(name)) {
 		return SubagentRenderer;
 	}

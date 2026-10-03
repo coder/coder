@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SourceLink } from "../../ChatConversation/types";
 import { ToolCall } from "./ToolCall";
 import { asString, parseArgs, parseStringList, type ToolStatus } from "./utils";
@@ -97,7 +96,7 @@ type WebSearchToolProps = {
 	errorMessage?: string;
 };
 
-export const WebSearchTool: FC<WebSearchToolProps> = ({
+export const WebSearchTool: React.FC<WebSearchToolProps> = ({
 	action,
 	state,
 	foundPages,
