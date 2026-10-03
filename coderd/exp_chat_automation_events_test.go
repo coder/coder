@@ -249,7 +249,7 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusTooManyRequests, status, string(body))
 		var shareFull codersdk.Response
 		require.NoError(t, json.Unmarshal(body, &shareFull))
-		require.Equal(t, "At most 1 automation messages can be queued in a chat.", shareFull.Detail)
+		require.Equal(t, "Automations can queue at most 1 message in a chat.", shareFull.Detail)
 		require.Len(t, env.queuedMessageIDs(t, busy.ID), 1)
 	})
 

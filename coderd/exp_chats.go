@@ -480,7 +480,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		if len(parser.Errors) == 0 && automationID == uuid.Nil {
 			parser.Errors = append(parser.Errors, codersdk.ValidationError{
 				Field:  "automation_id",
-				Detail: "Query param \"automation_id\" must not be the nil UUID.",
+				Detail: "Query param \"automation_id\" must be the ID of an automation.",
 			})
 		}
 		if len(parser.Errors) > 0 {

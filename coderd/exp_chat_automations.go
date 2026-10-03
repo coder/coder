@@ -719,7 +719,11 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 	case errors.Is(err, chatd.ErrAutomationQueueShareFull):
 		detail := ""
 		if shareFull, ok := errors.AsType[*chatd.AutomationQueueShareFullError](err); ok {
-			detail = fmt.Sprintf("At most %d automation messages can be queued in a chat.", shareFull.Max)
+			noun := "messages"
+			if shareFull.Max == 1 {
+				noun = "message"
+			}
+			detail = fmt.Sprintf("Automations can queue at most %d %s in a chat.", shareFull.Max, noun)
 		}
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 			Message: "Too many automation messages are queued in the target chat.",

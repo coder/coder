@@ -3096,7 +3096,7 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, []uuid.UUID{archivedCreated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:true"}))
 		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
 
-		for _, value := range []string{"not-a-uuid", uuid.Nil.String()} {
+		for _, value := range []string{"", "not-a-uuid", uuid.Nil.String()} {
 			status, body := rawGet(t, env.member, "/api/v2/chats?automation_id="+value)
 			require.Equal(t, http.StatusBadRequest, status, body)
 			require.Contains(t, body, "automation_id")
