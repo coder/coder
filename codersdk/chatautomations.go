@@ -75,11 +75,18 @@ type ChatAutomationChat struct {
 // prompt to an agent chat. It never carries the webhook secret or its
 // hash.
 type ChatAutomation struct {
-	ID              uuid.UUID  `json:"id" format:"uuid"`
-	OrganizationID  uuid.UUID  `json:"organization_id" format:"uuid"`
-	OwnerID         uuid.UUID  `json:"owner_id" format:"uuid"`
-	Name            string     `json:"name"`
-	CreatedByChatID *uuid.UUID `json:"created_by_chat_id,omitempty" format:"uuid"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	// Owner is the display data of the automation owner. It is set by the
+	// chat automations API only when the caller can read the owner's
+	// membership in the automation's organization, the same check as
+	// GET /api/v2/organizations/{organization}/members/{user}. It is absent
+	// otherwise, including for deleted owners and owners who left the
+	// organization.
+	Owner           *MinimalUser `json:"owner,omitempty"`
+	Name            string       `json:"name"`
+	CreatedByChatID *uuid.UUID   `json:"created_by_chat_id,omitempty" format:"uuid"`
 	// CreatedByChat is the chat that created the automation. It is set by
 	// the chat automations API only when the caller can read that chat, so
 	// it is absent for automations created outside a chat, for deleted

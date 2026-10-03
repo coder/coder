@@ -2611,6 +2611,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "2019-08-24T14:15:22Z"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "paused_reasons": [
     "owner_inactive"
@@ -2648,6 +2654,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `new_chat_model_config_id` | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `next_run_times`           | array of string                                                                     | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks, disabled schedules, and schedules with any paused reason.                                                                                                                                                                                                                                                                                                                              |
 | `organization_id`          | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `owner`                    | [codersdk.MinimalUser](#codersdkminimaluser)                                        | false    |              | Owner is the display data of the automation owner. It is set by the chat automations API only when the caller can read the owner's membership in the automation's organization, the same check as GET /api/v2/organizations/{organization}/members/{user}. It is absent otherwise, including for deleted owners and owners who left the organization.                                                                                                                                  |
 | `owner_id`                 | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `paused_reasons`           | array of [codersdk.ChatAutomationPausedReason](#codersdkchatautomationpausedreason) | false    |              | Paused reasons lists conditions that stop the automation from running even while it is enabled: schedule occurrences, Run now, and webhook deliveries are refused. It is set by the chat automations API and absent when none was found. It is computed independently of Enabled. It is an advisory snapshot: admission stays authoritative, and an empty list does not guarantee that a run is accepted, because lost chat permissions, busy chats, and full queues are not reported. |
 | `prompt`                   | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -6264,6 +6271,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "2019-08-24T14:15:22Z"
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    },
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "paused_reasons": [
       "owner_inactive"

@@ -20932,6 +20932,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner": {
+                    "description": "Owner is the display data of the automation owner. It is set by the\nchat automations API only when the caller can read the owner's\nmembership in the automation's organization, the same check as\nGET /api/v2/organizations/{organization}/members/{user}. It is absent\notherwise, including for deleted owners and owners who left the\norganization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
