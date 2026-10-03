@@ -10,7 +10,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 
 	return (
 		<div className="relative z-2 flex items-start border-t border-border font-mono text-sm">
-			<div className="flex-1 self-stretch bg-red-950 pb-5 pr-4 pt-4 leading-[160%] text-red-50 wrap-anywhere">
+			<div className="flex-1 self-stretch bg-surface-git-deleted pb-5 pr-4 pt-4 leading-[160%] text-content-primary wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
 						<div className="w-12 shrink-0 text-right opacity-50">
@@ -19,7 +19,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">-</div>
 						<div>
 							{attrName}:{" "}
-							<span className="rounded p-px bg-red-800">
+							<span className="rounded p-px bg-git-deleted/20">
 								{valueDiff.secret
 									? "••••••••"
 									: formatAuditDiffValue(valueDiff.old)}
@@ -28,7 +28,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 					</div>
 				))}
 			</div>
-			<div className="flex-1 self-stretch bg-green-950 pb-5 pr-4 pt-4 leading-[160%] text-green-50 wrap-anywhere">
+			<div className="flex-1 self-stretch bg-surface-git-added pb-5 pr-4 pt-4 leading-[160%] text-content-primary wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
 						<div className="w-12 shrink-0 text-right opacity-50">
@@ -37,7 +37,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 						<div className="w-8 shrink-0 text-center text-base">+</div>
 						<div>
 							{attrName}:{" "}
-							<span className="rounded p-px bg-green-800">
+							<span className="rounded p-px bg-git-added/20">
 								{valueDiff.secret
 									? "••••••••"
 									: formatAuditDiffValue(valueDiff.new)}

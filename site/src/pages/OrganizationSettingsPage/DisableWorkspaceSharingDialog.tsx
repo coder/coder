@@ -68,7 +68,7 @@ export const DisableWorkspaceSharingDialog: React.FC<
 							{isLoadingCount ? (
 								<Skeleton className="h-6 w-4/5" />
 							) : sharedCount > 0 ? (
-								<p className="text-content-danger font-medium m-0">
+								<p className="text-content-destructive font-medium m-0">
 									This action will affect{" "}
 									<strong className="text-content-primary">
 										{sharedCount} workspace{sharedCount !== 1 ? "s" : ""}

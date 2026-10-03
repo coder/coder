@@ -69,7 +69,7 @@ export const SidebarIconButton: React.FC<SidebarIconButtonProps> = ({
 		<TopbarIconButton
 			className={cn(
 				"opacity-75 hover:opacity-100 border-0 border-x-2 border-x-transparent border-solid",
-				isActive && "opacity-100 relative border-l-sky-400",
+				isActive && "opacity-100 relative border-l-border-pending",
 				className,
 			)}
 			{...buttonProps}

@@ -168,7 +168,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				aria-label={`Go to ${label}`}
 				className={cn(
 					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent border-0 cursor-pointer rounded-sm",
-					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				)}
 			>
 				<div className={stepCircleVariants({ variant })}>{step}</div>
@@ -237,7 +237,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 					className={cn(
 						"flex items-center gap-2 w-full text-left p-1 rounded-sm bg-transparent border-0 cursor-pointer",
 						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 				>
 					<Avatar src={template.iconUrl} size="sm" variant="icon" />
@@ -275,7 +275,7 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 					className={cn(
 						"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent border-0 cursor-pointer",
 						"text-sm text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 				>
 					<div className="h-lh content-center">
