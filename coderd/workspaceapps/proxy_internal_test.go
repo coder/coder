@@ -1,11 +1,28 @@
 package workspaceapps
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // Test_originLocalURL checks that originLocalURL produces a redirect target that
@@ -114,4 +131,101 @@ func Test_originLocalURL(t *testing.T) {
 			})
 		}
 	})
+}
+
+// fakeTokenProvider returns the same token for every request.
+type fakeTokenProvider struct {
+	token *SignedToken
+}
+
+func (p fakeTokenProvider) FromRequest(*http.Request) (*SignedToken, bool) {
+	return p.token, true
+}
+
+func (fakeTokenProvider) Issue(context.Context, http.ResponseWriter, *http.Request, IssueTokenRequest) (*SignedToken, string, bool) {
+	panic("unexpected Issue call")
+}
+
+// unreachableAgentProvider fails every AgentConn with AgentUnreachableError.
+type unreachableAgentProvider struct {
+	fields []slog.Field
+}
+
+func (unreachableAgentProvider) ReverseProxy(*url.URL, *url.URL, uuid.UUID, appurl.ApplicationURL, string) *httputil.ReverseProxy {
+	panic("unexpected ReverseProxy call")
+}
+
+func (p unreachableAgentProvider) AgentConn(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return nil, nil, &AgentUnreachableError{Fields: p.fields}
+}
+
+func (unreachableAgentProvider) ServeHTTPDebug(http.ResponseWriter, *http.Request) {}
+
+func (unreachableAgentProvider) Close() error { return nil }
+
+func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	logs := testutil.NewWaitBuffer()
+	logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
+
+	agentID := uuid.New()
+	basePath := fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID)
+	accessURL, err := url.Parse("http://coder.test")
+	require.NoError(t, err)
+
+	s := NewServer(ServerOptions{
+		Logger:       logger,
+		DashboardURL: accessURL,
+		AccessURL:    accessURL,
+		SignedTokenProvider: fakeTokenProvider{token: &SignedToken{
+			Request: Request{
+				AccessMethod:  AccessMethodTerminal,
+				BasePath:      basePath,
+				AgentNameOrID: agentID.String(),
+			},
+			AgentID: agentID,
+		}},
+		AgentProvider: unreachableAgentProvider{fields: []slog.Field{
+			slog.F("agent_id", agentID),
+			slog.F("reason", "no_node"),
+		}},
+		WSWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
+	})
+	r := chi.NewRouter()
+	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + basePath + "?reconnect=" + uuid.NewString()
+	// The response body is nil after a successful upgrade.
+	conn, _, err := websocket.Dial(ctx, wsURL, nil) //nolint:bodyclose
+	require.NoError(t, err)
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	// The handler closes the socket once the dial fails.
+	_, _, err = conn.Read(ctx)
+	var closeErr websocket.CloseError
+	require.ErrorAs(t, err, &closeErr)
+	require.Equal(t, websocket.StatusInternalError, closeErr.Code)
+	require.Contains(t, closeErr.Reason, "agent is unreachable")
+
+	var found bool
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var entry struct {
+			Level  string         `json:"level"`
+			Msg    string         `json:"msg"`
+			Fields map[string]any `json:"fields"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(line), &entry), line)
+		if entry.Msg != "agent is unreachable" {
+			continue
+		}
+		found = true
+		require.Equal(t, "WARN", entry.Level)
+		require.Equal(t, agentID.String(), entry.Fields["agent_id"])
+		require.Equal(t, "no_node", entry.Fields["reason"])
+	}
+	require.True(t, found, "no agent is unreachable log line")
 }
