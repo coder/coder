@@ -81,6 +81,74 @@ func TestGetModulesArchive(t *testing.T) {
 		require.Equal(t, []byte{}, archive)
 	})
 
+	// The lock file alone is enough to produce an archive, so templates
+	// without remote modules still get their provider versions pinned.
+	t.Run("LockFileWithoutModules", func(t *testing.T) {
+		t.Parallel()
+
+		root := afero.NewMemMapFs()
+		lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+		require.NoError(t, afero.WriteFile(root, ".terraform.lock.hcl", lock, 0o644))
+
+		archive, skipped, err := GetModulesArchive(afero.NewIOFS(root))
+		require.NoError(t, err)
+		require.Len(t, skipped, 0)
+		require.NotEmpty(t, archive)
+
+		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		content, err := fs.ReadFile(tarfs, ".terraform.lock.hcl")
+		require.NoError(t, err)
+		require.Equal(t, lock, content)
+		_, err = fs.ReadFile(tarfs, ".terraform/modules/modules.json")
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("LockFileWithModules", func(t *testing.T) {
+		t.Parallel()
+
+		memFS := moduleArchiveFS(t, map[string]moduleDef{
+			"mod1": {payload: []byte("module one")},
+		})
+		lock := []byte("provider \"registry.terraform.io/coder/coder\" {}\n")
+		writeLockFile(t, memFS, lock)
+
+		archive, skipped, err := GetModulesArchive(memFS)
+		require.NoError(t, err)
+		require.Empty(t, skipped)
+
+		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		content, err := fs.ReadFile(tarfs, ".terraform.lock.hcl")
+		require.NoError(t, err)
+		require.Equal(t, lock, content)
+		_, err = fs.ReadFile(tarfs, ".terraform/modules/mod1/payload")
+		require.NoError(t, err)
+		_, err = fs.ReadFile(tarfs, ".terraform/modules/modules.json")
+		require.NoError(t, err)
+	})
+
+	// The lock file must never be dropped in favor of modules when the
+	// archive budget is tight.
+	t.Run("LockFileSurvivesSizeLimit", func(t *testing.T) {
+		t.Parallel()
+
+		memFS := moduleArchiveFS(t, map[string]moduleDef{
+			"large": {payload: bytes.Repeat([]byte("L"), 5000)},
+		})
+		lock := bytes.Repeat([]byte("k"), 1000)
+		writeLockFile(t, memFS, lock)
+
+		archive, skipped, err := GetModulesArchiveWithLimit(memFS, 4000)
+		require.NoError(t, err)
+		require.Equal(t, []string{"large:large"}, skipped)
+
+		tarfs := archivefs.FromTarReader(bytes.NewBuffer(archive))
+		content, err := fs.ReadFile(tarfs, ".terraform.lock.hcl")
+		require.NoError(t, err)
+		require.Equal(t, lock, content)
+		_, err = fs.ReadFile(tarfs, ".terraform/modules/large/payload")
+		require.Error(t, err)
+	})
+
 	t.Run("ModulesTooLarge", func(t *testing.T) {
 		t.Parallel()
 
@@ -282,4 +350,13 @@ func moduleArchiveFS(t *testing.T, defs map[string]moduleDef) fs.FS {
 	jm.Close()
 
 	return afero.NewIOFS(memFS)
+}
+
+// writeLockFile places a .terraform.lock.hcl at the root of a filesystem
+// created by moduleArchiveFS.
+func writeLockFile(t *testing.T, fsys fs.FS, content []byte) {
+	t.Helper()
+	iofs, ok := fsys.(afero.IOFS)
+	require.True(t, ok, "expected an afero.IOFS")
+	require.NoError(t, afero.WriteFile(iofs.Fs, ".terraform.lock.hcl", content, 0o644))
 }

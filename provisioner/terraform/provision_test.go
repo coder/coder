@@ -3,10 +3,13 @@
 package terraform_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -1230,4 +1233,86 @@ func TestProvision_MalformedModules(t *testing.T) {
 
 	log, _ := readProvisionLog(t, sess)
 	require.Contains(t, log, "Invalid block definition")
+}
+
+// TestProvision_LockFileCached verifies that the lock file produced by the
+// import-time init is returned in the module archive, and that a later build
+// which receives that archive lets Terraform reuse the pinned providers rather
+// than resolving them from the registry again.
+func TestProvision_LockFileCached(t *testing.T) {
+	t.Parallel()
+
+	source := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			}
+		}`,
+	})
+
+	ctx, api := setupProvisioner(t, nil)
+
+	// Import: no module archive is available yet, so init must resolve the
+	// provider and write a fresh lock file.
+	importSess := configure(ctx, t, api, &proto.Config{})
+	var importLog strings.Builder
+	importResp := sendInitAndGetResp(t, importSess, source, func(log string) {
+		_, _ = importLog.WriteString(log)
+	})
+	require.Empty(t, importResp.Error)
+	require.NotContains(t, importLog.String(), "Reusing previous version from the dependency lock file")
+	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
+
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform.lock.hcl")
+	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
+
+	// Build: stream the archive the same way provisionerd does for cached
+	// module files, then confirm Terraform picked the lock file up.
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, importResp.ModuleFiles)
+	require.NoError(t, err)
+	err = buildSess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+		TemplateSourceArchive: source,
+		OmitModuleFiles:       true,
+		InitialModuleTarHash:  upload.DataHash,
+	}}})
+	require.NoError(t, err)
+	err = buildSess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
+	}}})
+	require.NoError(t, err)
+	for _, chunk := range chunks {
+		err = buildSess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
+		}}})
+		require.NoError(t, err)
+	}
+
+	buildLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetInit())
+	require.Empty(t, last.GetInit().Error)
+	require.Contains(t, buildLog, "Reusing previous version from the dependency lock file")
+}
+
+func readTarFile(t *testing.T, archive []byte, name string) []byte {
+	t.Helper()
+	reader := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		if header.Name != name {
+			continue
+		}
+		content, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		return content
+	}
+	require.Failf(t, "file not found in archive", "%s", name)
+	return nil
 }
