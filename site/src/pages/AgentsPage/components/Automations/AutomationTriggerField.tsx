@@ -13,7 +13,6 @@ type AutomationTriggerFieldProps = {
 	webhookFieldsProps: React.ComponentProps<typeof AutomationWebhookFields>;
 };
 
-/** The trigger kind and the fields of the chosen kind. */
 export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 	isCreate,
 	kind,
