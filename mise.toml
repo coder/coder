@@ -9,7 +9,7 @@ lockfile = true
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.5"
+go = "1.27.1"
 node = "22.19.0"
 pnpm = "10.33.2"
 
@@ -20,7 +20,7 @@ protoc = "23.4"
 protoc-gen-go = "1.30.0"
 
 # Go development tools.
-"go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
+"go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "d6c2546989b45c01a99506060ddc46809eb635de"
 "go:github.com/coder/whichtests" = "377b8dbf1cccae3b04b48bc8cfc2410813491414"
 # Keep golangci-lint on the Go backend until we upgrade to a more recent
 # version. The upstream precompiled binaries may be built with older Go versions
