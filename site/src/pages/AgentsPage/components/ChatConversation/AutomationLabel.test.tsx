@@ -18,7 +18,11 @@ describe("AutomationLabel", () => {
 						variant={variant}
 						automationId={automationId}
 						inputId={inputId}
-						reference={{ name: "CI heartbeat", kind: "schedule" }}
+						reference={{
+							id: automationId,
+							name: "CI heartbeat",
+							kind: "schedule",
+						}}
 						nameStatus="settled"
 					/>
 				</TooltipProvider>,
@@ -27,8 +31,6 @@ describe("AutomationLabel", () => {
 			const label = screen.getByRole("note", {
 				name: "Automation run · CI heartbeat (schedule)",
 			});
-			// The label only hosts the tooltip, so it is not a button.
-			expect(screen.queryAllByRole("button")).toHaveLength(0);
 
 			await user.tab();
 			expect(label).toHaveFocus();

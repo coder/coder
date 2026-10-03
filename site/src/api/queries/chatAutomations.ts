@@ -28,16 +28,10 @@ export const chatAutomations = (organizationId: string) => ({
 		API.experimental.getChatAutomations(organizationId),
 });
 
-/** Name and trigger kind of an automation that delivered into a chat. */
-export type ChatAutomationReferenceInfo = Pick<
-	ChatAutomationReference,
-	"name" | "kind"
->;
-
-/** Automation IDs mapped to name and kind. Deleted automations are absent. */
+/** Automation IDs mapped to their references. Deleted automations are absent. */
 export type ChatAutomationReferenceMap = ReadonlyMap<
 	string,
-	ChatAutomationReferenceInfo
+	ChatAutomationReference
 >;
 
 const chatAutomationReferencesFamilyKey = [
@@ -50,14 +44,9 @@ export const chatAutomationReferencesKey = (chatId: string) =>
 const selectChatAutomationReferences = (
 	references: ChatAutomationReference[],
 ): ChatAutomationReferenceMap =>
-	new Map(
-		references.map(({ id, name, kind }) => [id, { name, kind }] as const),
-	);
+	new Map(references.map((reference) => [reference.id, reference] as const));
 
-/**
- * Names the automations that delivered into a chat. Anyone who can read the
- * chat can read them, so this needs no automation permission or experiment.
- */
+/** Names the automations that delivered into a chat. */
 export const chatAutomationReferences = (
 	chatId: string,
 	{ enabled }: { enabled: boolean },
@@ -66,7 +55,7 @@ export const chatAutomationReferences = (
 		queryKey: chatAutomationReferencesKey(chatId),
 		queryFn: () => API.experimental.getChatAutomationReferences(chatId),
 		select: selectChatAutomationReferences,
-		enabled: Boolean(chatId) && enabled,
+		enabled,
 	}) satisfies UseQueryOptions<
 		ChatAutomationReference[],
 		unknown,
@@ -74,10 +63,7 @@ export const chatAutomationReferences = (
 		ReturnType<typeof chatAutomationReferencesKey>
 	>;
 
-/**
- * Refetches the automation references of one chat, or of every chat when
- * chatId is omitted, so new or renamed automations resolve.
- */
+/** Omit chatId to refetch every chat. */
 export const invalidateChatAutomationReferences = (
 	queryClient: QueryClient,
 	chatId?: string,
@@ -88,7 +74,6 @@ export const invalidateChatAutomationReferences = (
 			: chatAutomationReferencesFamilyKey,
 	});
 
-/** Refetches the automations lists of every organization. */
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });
 

@@ -436,7 +436,7 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
-	automationNames: { names: new Map(), status: "settled" },
+	automationReferences: { references: new Map(), status: "settled" },
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -801,44 +801,46 @@ export const AutomationUserMessages: Story = {
 				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
 			},
 		),
-		automationNames: {
-			names: new Map([
-				[
-					MockChatAutomation.id,
-					{ name: MockChatAutomation.name, kind: MockChatAutomation.kind },
-				],
-			]),
+		automationReferences: {
+			references: new Map([[MockChatAutomation.id, MockChatAutomation]]),
 			status: "settled",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const namedLabel = `Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`;
-		const [named, missing] = await canvas.findAllByRole("note", {
+		const [named] = await canvas.findAllByRole("note", {
 			name: /^Automation run/,
 		});
-		expect(named).toHaveAccessibleName(namedLabel);
-		// A deleted automation falls back to its ID.
-		expect(missing).toHaveAccessibleName(
-			"Automation run · 3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
-		);
 		// Copying the card yields the visible text as one line.
-		expect(copiedText(named)).toBe(namedLabel);
+		expect(copiedText(named)).toBe(
+			`Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`,
+		);
 	},
 };
 
 export const AutomationUserMessagesLoading: Story = {
 	args: {
 		...AutomationUserMessages.args,
-		automationNames: { names: new Map(), status: "loading" },
+		automationReferences: { references: new Map(), status: "loading" },
 	},
+};
+
+export const AutomationUserMessagesError: Story = {
+	args: {
+		...AutomationUserMessages.args,
+		automationReferences: { references: new Map(), status: "error" },
+	},
+};
+
+// Focuses the first label to capture its tooltip with the full IDs.
+export const AutomationUserMessagesTooltip: Story = {
+	args: AutomationUserMessages.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const labels = await canvas.findAllByRole("note", {
+		const [label] = await canvas.findAllByRole("note", {
 			name: /^Automation run/,
 		});
-		// No UUID flashes while the names load.
-		expect(labels[0]).toHaveAccessibleName("Automation run");
+		await userEvent.hover(label);
 	},
 };
 

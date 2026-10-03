@@ -355,7 +355,6 @@ describe("useChatToolInvalidations", () => {
 					queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
 				).toBe(true);
 			});
-			// A renamed automation can label any chat.
 			expect(
 				queryClient.getQueryState(chatAutomationReferencesKey("other-chat"))
 					?.isInvalidated,

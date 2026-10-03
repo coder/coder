@@ -1,13 +1,7 @@
 import { cn } from "cn";
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import { memo, useState } from "react";
 import type { UrlTransform } from "streamdown";
-import type { ChatAutomationReferenceInfo } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -26,7 +20,10 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
+import {
+	AutomationLabel,
+	type ChatAutomationReferences,
+} from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	type LiveStatusModel,
@@ -38,6 +35,7 @@ import {
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import { TimelineNotice } from "./TimelineNotice";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -65,21 +63,6 @@ const getChatMessageTextContent = (
 	return textContent.length > 0 ? textContent : undefined;
 };
 
-// Avoid announcing historical hook notices as live alerts.
-const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
-	children,
-}) => (
-	<div
-		role="note"
-		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
-	>
-		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
-			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
-			<div className="min-w-0 flex-1">{children}</div>
-		</div>
-	</div>
-);
-
 const LifecycleHookNotice: React.FC<{
 	children: string;
 	urlTransform?: UrlTransform;
@@ -97,8 +80,8 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
-	automationReference?: ChatAutomationReferenceInfo;
-	automationNameStatus: ChatAutomationNames["status"];
+	automationReference?: TypesGen.ChatAutomationReference;
+	automationNameStatus: ChatAutomationReferences["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -237,15 +220,13 @@ const ChatMessageItem = memo<{
 				inert={isAfterEditingMessage ? true : undefined}
 			>
 				{message?.automation_id && (
-					<div className="mb-1">
-						<AutomationLabel
-							variant="card"
-							automationId={message.automation_id}
-							inputId={message.input_id}
-							reference={automationReference}
-							nameStatus={automationNameStatus}
-						/>
-					</div>
+					<AutomationLabel
+						variant="card"
+						automationId={message.automation_id}
+						inputId={message.input_id}
+						reference={automationReference}
+						nameStatus={automationNameStatus}
+					/>
 				)}
 				<ConversationItem {...conversationItemProps}>
 					{isUser && displayState && parsed ? (
@@ -422,7 +403,7 @@ const ChatMessageItem = memo<{
 type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
-	automationNames: ChatAutomationNames;
+	automationReferences: ChatAutomationReferences;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
@@ -451,7 +432,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		organizationId,
 		parsedMessages,
-		automationNames,
+		automationReferences,
 		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
@@ -624,13 +605,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								message={message}
 								automationReference={
 									message.automation_id
-										? automationNames.names.get(message.automation_id)
+										? automationReferences.references.get(message.automation_id)
 										: undefined
 								}
 								automationNameStatus={
 									// A fixed status keeps rows without an automation from
 									// re-rendering when the automations list status changes.
-									message.automation_id ? automationNames.status : "settled"
+									message.automation_id
+										? automationReferences.status
+										: "settled"
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}

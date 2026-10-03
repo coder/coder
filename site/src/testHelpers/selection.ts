@@ -1,9 +1,6 @@
 /**
- * Selects the contents of element and returns the text a user would copy.
- * Run it in a real browser (Storybook play functions): the browser
- * serializes the selection from the rendered layout, so block or flex
- * children show up as line breaks. The selection is cleared afterwards so
- * visual snapshots are unaffected.
+ * Returns the text a user would copy from element. Needs a real browser
+ * (Storybook play functions).
  */
 export const copiedText = (element: Element): string => {
 	const selection = window.getSelection();

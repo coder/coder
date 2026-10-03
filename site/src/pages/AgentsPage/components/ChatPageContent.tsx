@@ -46,7 +46,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
-import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
+import type { ChatAutomationReferences } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -118,10 +118,10 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-const toChatAutomationNames = (
+const toChatAutomationReferences = (
 	query: UseQueryResult<ChatAutomationReferenceMap>,
-): ChatAutomationNames => ({
-	names: query.data ?? new Map(),
+): ChatAutomationReferences => ({
+	references: query.data ?? new Map(),
 	status: query.isFetching ? "loading" : query.isError ? "error" : "settled",
 });
 
@@ -225,12 +225,14 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	const automationNamesQuery = useQuery(
+	const automationReferencesQuery = useQuery(
 		chatAutomationReferences(chatId, {
 			enabled: messages.some((message) => message.automation_id !== undefined),
 		}),
 	);
-	const automationNames = toChatAutomationNames(automationNamesQuery);
+	const automationReferences = toChatAutomationReferences(
+		automationReferencesQuery,
+	);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -251,7 +253,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
-					automationNames={automationNames}
+					automationReferences={automationReferences}
 					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={liveStreamState}
@@ -437,14 +439,16 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
-	const automationNamesQuery = useQuery(
+	const automationReferencesQuery = useQuery(
 		chatAutomationReferences(chatId, {
 			enabled: queuedMessages.some(
 				(message) => message.automation_id !== undefined,
 			),
 		}),
 	);
-	const automationNames = toChatAutomationNames(automationNamesQuery);
+	const automationReferences = toChatAutomationReferences(
+		automationReferencesQuery,
+	);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -844,7 +848,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
-			automationNames={automationNames}
+			automationReferences={automationReferences}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}

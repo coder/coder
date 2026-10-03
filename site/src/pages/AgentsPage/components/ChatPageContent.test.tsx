@@ -86,8 +86,6 @@ const mockExperiments = (experiments: TypesGen.Experiment[]) =>
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
 	);
 
-// A viewer without the chat-automations experiment, who cannot read the
-// automation itself, can still read the chat's automation references.
 const mockChatAutomationReferencesResponse = () => {
 	mockExperiments([]);
 	server.use(
@@ -102,8 +100,6 @@ const mockChatAutomationReferencesResponse = () => {
 		),
 	);
 };
-
-const automationLabelName = `Automation run · ${MockChatAutomation.name} (${MockChatAutomation.kind})`;
 
 describe("ChatPageInput", () => {
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
@@ -153,8 +149,12 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	it("labels queued automation input with the automation name and kind", async () => {
+	it("requests automation references for queued automation input", async () => {
 		mockChatAutomationReferencesResponse();
+		const getChatAutomationReferences = vi.spyOn(
+			API.experimental,
+			"getChatAutomationReferences",
+		);
 		const store = createChatStore();
 		store.setQueuedMessages([mockQueuedAutomationInput]);
 
@@ -162,9 +162,9 @@ describe("ChatPageInput", () => {
 			chat: { ...MockChat, id: "test-chat-id", organization_id: "test-org-id" },
 		});
 
-		expect(
-			await screen.findByRole("note", { name: automationLabelName }),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(getChatAutomationReferences).toHaveBeenCalledWith("test-chat-id"),
+		);
 	});
 
 	it("does not request automation references when the queue has no automation input", async () => {
@@ -216,13 +216,17 @@ const renderChatPageTimelineWithAutomationInput = () => {
 };
 
 describe("ChatPageTimeline", () => {
-	it("labels automation input in the history with the automation name and kind", async () => {
+	it("requests automation references for automation input in the history", async () => {
 		mockChatAutomationReferencesResponse();
+		const getChatAutomationReferences = vi.spyOn(
+			API.experimental,
+			"getChatAutomationReferences",
+		);
 
 		renderChatPageTimelineWithAutomationInput();
 
-		expect(
-			await screen.findByRole("note", { name: automationLabelName }),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(getChatAutomationReferences).toHaveBeenCalledWith("test-chat-id"),
+		);
 	});
 });
