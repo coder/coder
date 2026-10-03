@@ -588,12 +588,13 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
 			// The working directory is a single scan root. The
 			// resolver reads its top-level instruction files and
-			// .mcp.json plus the fixed skill containers under it;
-			// it neither descends into subdirectories nor climbs
-			// to parent directories. Additional directories are
-			// added explicitly as Sources or via the seeding env
-			// vars.
-			out = append(out, ScanRoot{Path: wd})
+			// .mcp.json plus the fixed skill containers under it,
+			// and the instruction files of its immediate child
+			// directories (a repository cloned during a chat); it
+			// never climbs to parent directories. Additional
+			// directories are added explicitly as Sources or via
+			// the seeding env vars.
+			out = append(out, ScanRoot{Path: wd, ChildProjects: true})
 		}
 	}
 	return out
