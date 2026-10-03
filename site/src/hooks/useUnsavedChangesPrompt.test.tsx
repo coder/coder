@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -37,7 +37,10 @@ describe("useUnsavedChangesPrompt", () => {
 		expect(prompt?.isOpen).toBe(true);
 		await user.click(screen.getByRole("button", { name: "New reason" }));
 
-		expect(prompt?.isOpen).toBe(false);
+		// The stale prompt resets in an effect, after the click settles.
+		await waitFor(() => {
+			expect(prompt?.isOpen).toBe(false);
+		});
 		expect(router.state.location.pathname).toBe("/");
 	});
 });
