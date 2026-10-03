@@ -1004,6 +1004,10 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 
 func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 	t.Parallel()
+	// A system message of 9985 bytes, calibrated at 5 bytes per token
+	// by a first step whose prompt was that message alone.
+	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 9985))
+	history := []fantasy.Message{system, textMessage(fantasy.MessageRoleAssistant, "step")}
 	var parts []codersdk.ChatMessagePart
 	result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
 		Model: &chattest.FakeModel{
@@ -1018,12 +1022,15 @@ func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 		},
 		Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 		SystemSummaryPrefix: "Prefix",
-		NextPrompt:          CompactionNextPrompt{RetainedBytes: 9985, BytesPerToken: 5},
-		Force:               true,
-		ContextLimit:        100000,
-		StepUsage:           fantasy.Usage{InputTokens: 800},
-		ToolCallID:          "summary",
-		ToolName:            "chat_summarized",
+		NextPrompt: CompactionNextPrompt{
+			History:        history,
+			FirstStepUsage: fantasy.Usage{InputTokens: 1997},
+		},
+		Force:        true,
+		ContextLimit: 100000,
+		StepUsage:    fantasy.Usage{InputTokens: 800},
+		ToolCallID:   "summary",
+		ToolName:     "chat_summarized",
 		PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			parts = append(parts, part)
 		},
@@ -1038,7 +1045,7 @@ func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 	require.Equal(t, float64(2000), metadata["estimated_context_tokens"])
 }
 
-func TestNewCompactionNextPrompt(t *testing.T) {
+func TestCompactionNextPromptSize(t *testing.T) {
 	t.Parallel()
 
 	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 3000))
@@ -1049,6 +1056,7 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 	}
 	// read_file (9) + description (891) + {"type":"object"} (17).
 	const toolBytes = 917
+	tools := []fantasy.Tool{tool}
 	firstUser := textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 83))
 	assistant := textMessage(fantasy.MessageRoleAssistant, strings.Repeat("a", 500))
 	toolResult := fantasy.Message{
@@ -1069,23 +1077,40 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 		// 4000 bytes over 800 tokens. The whole history would give
 		// (4000 + 500 + 2000) / 800, so the ratio shows which prompt
 		// was measured.
-		next := NewCompactionNextPrompt(history, pending, []fantasy.Tool{tool}, firstStepUsage)
-		require.Equal(t, 3000+toolBytes+100, next.RetainedBytes)
-		require.InDelta(t, 5.0, next.BytesPerToken, 1e-9)
+		next := CompactionNextPrompt{History: history, Pending: pending, Tools: tools, FirstStepUsage: firstStepUsage}
+		retained, bytesPerToken := next.size()
+		require.Equal(t, 3000+toolBytes+100, retained)
+		require.InDelta(t, 5.0, bytesPerToken, 1e-9)
 		require.Equal(t, int64((3000+toolBytes+100+83)/5), next.estimateTokens(83))
 	})
 
 	t.Run("FallsBackWithoutFirstStepUsage", func(t *testing.T) {
 		t.Parallel()
-		next := NewCompactionNextPrompt(history, nil, []fantasy.Tool{tool}, fantasy.Usage{})
-		require.Equal(t, 3000+toolBytes, next.RetainedBytes)
-		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+		retained, bytesPerToken := CompactionNextPrompt{History: history, Tools: tools}.size()
+		require.Equal(t, 3000+toolBytes, retained)
+		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
 	})
 
 	t.Run("FallsBackOnImplausibleRatio", func(t *testing.T) {
 		t.Parallel()
-		next := NewCompactionNextPrompt(history, nil, []fantasy.Tool{tool}, fantasy.Usage{InputTokens: 10})
-		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+		for _, tokens := range []int64{10, 10000} {
+			_, bytesPerToken := CompactionNextPrompt{
+				History:        history,
+				Tools:          tools,
+				FirstStepUsage: fantasy.Usage{InputTokens: tokens},
+			}.size()
+			require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9, "tokens %d", tokens)
+		}
+	})
+
+	t.Run("FallsBackWhenHistoryStartsWithAssistant", func(t *testing.T) {
+		t.Parallel()
+		_, bytesPerToken := CompactionNextPrompt{
+			History:        []fantasy.Message{assistant, toolResult},
+			Tools:          tools,
+			FirstStepUsage: firstStepUsage,
+		}.size()
+		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
 	})
 
 	t.Run("FallsBackWhenFirstPromptHasMedia", func(t *testing.T) {
@@ -1097,8 +1122,12 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
 			},
 		}
-		next := NewCompactionNextPrompt([]fantasy.Message{system, withImage, assistant}, nil, []fantasy.Tool{tool}, firstStepUsage)
-		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+		_, bytesPerToken := CompactionNextPrompt{
+			History:        []fantasy.Message{system, withImage, assistant},
+			Tools:          tools,
+			FirstStepUsage: firstStepUsage,
+		}.size()
+		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
 	})
 
 	t.Run("SkipsMedia", func(t *testing.T) {
@@ -1111,18 +1140,18 @@ func TestNewCompactionNextPrompt(t *testing.T) {
 				fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("x", 50000)}},
 			},
 		}
-		next := NewCompactionNextPrompt([]fantasy.Message{system}, []fantasy.Message{media}, nil, fantasy.Usage{})
-		require.Equal(t, 3000+len("see image"), next.RetainedBytes)
+		retained, _ := CompactionNextPrompt{History: []fantasy.Message{system}, Pending: []fantasy.Message{media}}.size()
+		require.Equal(t, 3000+len("see image"), retained)
 	})
 
 	t.Run("CountsProviderDefinedTools", func(t *testing.T) {
 		t.Parallel()
-		next := NewCompactionNextPrompt(nil, nil, []fantasy.Tool{fantasy.ProviderDefinedTool{
+		retained, _ := CompactionNextPrompt{Tools: []fantasy.Tool{fantasy.ProviderDefinedTool{
 			ID:   "anthropic.web_search",
 			Name: "web_search",
 			Args: map[string]any{"max_uses": 5},
-		}}, fantasy.Usage{})
-		require.Equal(t, len("web_search")+len(`{"max_uses":5}`), next.RetainedBytes)
+		}}}.size()
+		require.Equal(t, len("web_search")+len(`{"max_uses":5}`), retained)
 	})
 
 	t.Run("ZeroValueUsesFallbackRatio", func(t *testing.T) {

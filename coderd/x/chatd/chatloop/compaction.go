@@ -385,69 +385,65 @@ const (
 	maxNextPromptBytesPerToken = 16.0
 )
 
-// CompactionNextPrompt sizes the request that follows a compaction,
+// CompactionNextPrompt describes the request that follows a compaction,
 // apart from the summary, so the estimate published with the summary
-// covers the whole prompt.
+// covers the whole prompt. It is sized only when a compaction runs.
 type CompactionNextPrompt struct {
-	// RetainedBytes is the text size of what the next request carries
-	// besides the summary: system messages, tool definitions, and the
-	// pending user messages replayed after the boundary.
-	RetainedBytes int
-	// BytesPerToken converts text bytes to tokens. Zero uses
-	// nextPromptBytesPerTokenFallback.
-	BytesPerToken float64
+	// History is the chat model's prompt before compaction, system
+	// messages included. Its system messages are sent again.
+	History []fantasy.Message
+	// Pending holds the user messages replayed after the boundary.
+	Pending []fantasy.Message
+	// Tools are the tool definitions of the next request.
+	Tools []fantasy.Tool
+	// FirstStepUsage is the usage of the first assistant message in
+	// History, or zero when it is unknown.
+	FirstStepUsage fantasy.Usage
 }
 
-// NewCompactionNextPrompt sizes the next request from the chat
-// model's history (system messages included), the pending user
-// messages replayed after the boundary, and the tool definitions.
+// size returns the text bytes the next request carries besides the
+// summary, and the bytes-per-token ratio that converts them. Media is
+// not counted: its token count does not follow its byte size.
 //
-// The bytes-per-token ratio comes from the first step of the current
-// context window: firstStepUsage is the usage of the first assistant
-// message in history, and that step's prompt is everything before it.
-// That prompt is mostly system messages and tool definitions, like the
-// prompt after compaction. Later prompts are dominated by history whose
-// tokenization differs: calibrating on the last prompt overestimated by
-// 30% to 50% after large tool results, against 1% for the first step.
-// A first prompt with media is not used, because the media's tokens
-// have no matching text bytes.
-func NewCompactionNextPrompt(
-	history []fantasy.Message,
-	pending []fantasy.Message,
-	tools []fantasy.Tool,
-	firstStepUsage fantasy.Usage,
-) CompactionNextPrompt {
-	toolBytes := toolDefinitionBytes(tools)
-	pendingBytes, _ := promptTextBytes(pending)
-	retained := toolBytes + pendingBytes
+// The ratio comes from the first step of the current context window,
+// whose prompt is everything in History before the first assistant
+// message. That prompt is mostly system messages and tool definitions,
+// like the prompt after compaction. Later prompts are dominated by
+// history whose tokenization differs: calibrating on the last prompt
+// overestimated by 30% to 50% after large tool results, against 1% for
+// the first step. A first prompt with media is not used, because the
+// media's tokens have no matching text bytes. System messages or tools
+// added after the first step, for example when a workspace attaches,
+// make the ratio too large and the estimate low.
+func (p CompactionNextPrompt) size() (retainedBytes int, bytesPerToken float64) {
+	toolBytes := toolDefinitionBytes(p.Tools)
+	pendingBytes, _ := promptTextBytes(p.Pending)
+	retainedBytes = toolBytes + pendingBytes
 	firstAssistant := -1
-	for i, msg := range history {
+	for i, msg := range p.History {
 		if msg.Role == fantasy.MessageRoleSystem {
 			systemBytes, _ := messageTextBytes(msg)
-			retained += systemBytes
+			retainedBytes += systemBytes
 		}
 		if firstAssistant < 0 && msg.Role == fantasy.MessageRoleAssistant {
 			firstAssistant = i
 		}
 	}
 
-	bytesPerToken := nextPromptBytesPerTokenFallback
-	if tokens := contextTokensFromUsage(firstStepUsage); tokens > 0 && firstAssistant > 0 {
-		firstPromptBytes, hasMedia := promptTextBytes(history[:firstAssistant])
+	bytesPerToken = nextPromptBytesPerTokenFallback
+	if tokens := contextTokensFromUsage(p.FirstStepUsage); tokens > 0 && firstAssistant > 0 {
+		firstPromptBytes, hasMedia := promptTextBytes(p.History[:firstAssistant])
 		ratio := float64(toolBytes+firstPromptBytes) / float64(tokens)
 		if !hasMedia && ratio >= minNextPromptBytesPerToken && ratio <= maxNextPromptBytesPerToken {
 			bytesPerToken = ratio
 		}
 	}
-	return CompactionNextPrompt{RetainedBytes: retained, BytesPerToken: bytesPerToken}
+	return retainedBytes, bytesPerToken
 }
 
 func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
-	bytesPerToken := p.BytesPerToken
-	if bytesPerToken <= 0 {
-		bytesPerToken = nextPromptBytesPerTokenFallback
-	}
-	return int64(math.Ceil(float64(p.RetainedBytes+summaryBytes) / bytesPerToken))
+	retainedBytes, bytesPerToken := p.size()
+	return int64(math.Ceil(float64(retainedBytes+summaryBytes) / bytesPerToken))
 }
 
 // promptTextBytes sums the text the provider tokenizes as text and

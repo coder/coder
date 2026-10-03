@@ -217,10 +217,10 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	// NextPrompt sizes the request that follows the compaction, apart
-	// from the summary. Build it with NewCompactionNextPrompt from the
-	// chat model's prompt and tools, before a compaction override
-	// replaces Messages or ToolDefinitions.
+	// NextPrompt describes the request that follows the compaction,
+	// apart from the summary. It holds the chat model's prompt and
+	// tools, which a compaction override leaves unchanged while it
+	// replaces Messages and ToolDefinitions.
 	NextPrompt CompactionNextPrompt
 
 	// Force skips the threshold gate (including the threshold=100

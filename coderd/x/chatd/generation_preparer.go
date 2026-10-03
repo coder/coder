@@ -756,6 +756,7 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
+	var deferredActivations []string
 	// The owner is the subject: only the owner posts turns and descendant
 	// chats inherit it. Preparation runs for every step, so the first step
 	// with MCP candidates decides and later steps of the same turn reuse
@@ -803,17 +804,30 @@ func (server *Server) prepareGeneration(
 				)
 			},
 		})
+		deferredActivations = deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget)
 		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
 			tools,
 			activeToolNames,
 			deferredCandidates,
 			findTools,
-			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
+			deferredActivations,
 		)
 		builtinToolNames[chattool.FindToolsName] = true
 	}
 
 	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
+	// Deferred MCP tool activations are derived from the history after
+	// the latest boundary, so the request after a compaction drops them.
+	nextPromptToolDefinitions := toolDefinitions
+	if len(deferredActivations) > 0 {
+		nextPromptToolDefinitions = chatloop.BuildToolDefinitions(
+			tools,
+			slices.DeleteFunc(slices.Clone(activeToolNames), func(name string) bool {
+				return slices.Contains(deferredActivations, name)
+			}),
+			providerTools,
+		)
+	}
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
@@ -857,12 +871,12 @@ func (server *Server) prepareGeneration(
 	if pendingUserRows != nil {
 		compactionPendingPrompt = pendingPrompt
 	}
-	compactionNextPrompt := chatloop.NewCompactionNextPrompt(
-		compactionPromptMessages,
-		compactionPendingPrompt,
-		toolDefinitions,
-		firstPromptUsage(promptRows),
-	)
+	compactionNextPrompt := chatloop.CompactionNextPrompt{
+		History:        compactionPromptMessages,
+		Pending:        compactionPendingPrompt,
+		Tools:          nextPromptToolDefinitions,
+		FirstStepUsage: firstPromptUsage(promptRows, modelConfig.ID),
+	}
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -958,12 +972,17 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 
 // firstPromptUsage returns the usage of the first assistant message,
 // the first step of the current context window. It is zero when that
-// step persisted no usage.
-func firstPromptUsage(messages []database.ChatMessage) fantasy.Usage {
+// step persisted no usage or ran on another model config, whose
+// tokenizer can differ.
+func firstPromptUsage(messages []database.ChatMessage, modelConfigID uuid.UUID) fantasy.Usage {
 	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleAssistant {
-			return usageFromMessage(msg)
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
 		}
+		if msg.ModelConfigID.UUID != modelConfigID {
+			return fantasy.Usage{}
+		}
+		return usageFromMessage(msg)
 	}
 	return fantasy.Usage{}
 }

@@ -847,6 +847,37 @@ func TestLatestPromptUsage(t *testing.T) {
 	})
 }
 
+func TestFirstPromptUsage(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	assistant := func(id, inputTokens int64, configID uuid.UUID) database.ChatMessage {
+		msg := withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step")), inputTokens, 0)
+		msg.ModelConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+		return msg
+	}
+	user := dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi"))
+
+	t.Run("returns the first step", func(t *testing.T) {
+		t.Parallel()
+		usage := firstPromptUsage([]database.ChatMessage{user, assistant(2, 5000, modelConfigID), assistant(3, 5200, modelConfigID)}, modelConfigID)
+		assert.Equal(t, int64(5000), usage.InputTokens)
+	})
+
+	t.Run("returns zero when the first step has no usage", func(t *testing.T) {
+		t.Parallel()
+		interrupted := assistant(2, 0, modelConfigID)
+		usage := firstPromptUsage([]database.ChatMessage{user, interrupted, assistant(3, 5200, modelConfigID)}, modelConfigID)
+		assert.Equal(t, fantasy.Usage{}, usage)
+	})
+
+	t.Run("returns zero when the first step ran on another model", func(t *testing.T) {
+		t.Parallel()
+		usage := firstPromptUsage([]database.ChatMessage{user, assistant(2, 5000, uuid.New()), assistant(3, 5200, modelConfigID)}, modelConfigID)
+		assert.Equal(t, fantasy.Usage{}, usage)
+	})
+}
+
 // TestShouldCompactPromptUsage verifies the compaction threshold decision
 // is correct for both the inflated values the aibridge bug produced and
 // accurate per-step values.

@@ -224,17 +224,7 @@ describe("getLatestContextUsage", () => {
 		expect(getLatestContextUsage([], 200000)).toBeNull();
 	});
 
-	it("returns usage from the newest usage-bearing message", () => {
-		const messages = [
-			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
-			{ ...MockChatMessage, id: 2 },
-			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
-		];
-		const result = getLatestContextUsage(messages);
-		expect(result?.inputTokens).toBe(300);
-	});
-
-	it("uses the last step of a tool loop instead of summing steps", () => {
+	it("returns the newest usage-bearing step instead of summing a tool loop", () => {
 		const step = (
 			id: number,
 			usage: TypesGen.ChatMessageUsage,
