@@ -58,3 +58,12 @@ Repeatable scope to attach to the token (e.g. workspace:read).
 | Type | <code>allow-list</code> |
 
 Repeatable allow-list entry (`<type>:<uuid>`, e.g. workspace:1234-...).
+
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.

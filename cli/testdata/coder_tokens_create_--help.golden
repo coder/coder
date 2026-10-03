@@ -18,6 +18,9 @@ OPTIONS:
   -n, --name string, $CODER_TOKEN_NAME
           Specify a human-readable name.
 
+  -o, --output text|json (default: text)
+          Output format.
+
       --scope string-array
           Repeatable scope to attach to the token (e.g. workspace:read).
 
