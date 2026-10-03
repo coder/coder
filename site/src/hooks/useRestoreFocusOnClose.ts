@@ -5,21 +5,14 @@ const getFocusedElement = (): HTMLElement | null => {
 	if (active instanceof HTMLElement && active !== document.body) {
 		return active;
 	}
-	// Chrome moves focus to the body when a focused control becomes disabled.
+	// Chrome moves focus to the body when a focused control becomes disabled,
+	// so fall back to the topmost open dialog.
 	const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
 	return dialogs[dialogs.length - 1] ?? null;
 };
 
-/**
- * An `onCloseAutoFocus` handler body for dialogs that open without a Radix
- * trigger, so Radix has nowhere to return focus. Focuses `element`, or its
- * dialog when the element has been disabled since. Leaves Radix's default
- * when the element is gone.
- */
-export const restoreFocusTo = (
-	event: Event,
-	element: HTMLElement | null | undefined,
-) => {
+/** An `onCloseAutoFocus` handler body for dialogs that open without a Radix trigger. */
+export const restoreFocusTo = (event: Event, element: HTMLElement | null) => {
 	if (!element?.isConnected) {
 		return;
 	}

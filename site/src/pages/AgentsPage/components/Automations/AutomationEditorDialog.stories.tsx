@@ -361,6 +361,41 @@ export const SaveForbidden: Story = {
 	},
 };
 
+export const SaveValidationError: Story = {
+	args: {
+		automation: mockAutomation,
+		error: mockApiError({
+			message: "Validation failed.",
+			validations: [
+				{
+					field: "reasoning_effort",
+					detail: "Existing chat automations do not take a reasoning effort.",
+				},
+			],
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	// Server errors show once the values they apply to were submitted.
+	play: async () => {
+		await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+	},
+};
+
 export const CreateWebhook: Story = {
 	parameters: {
 		queries: [

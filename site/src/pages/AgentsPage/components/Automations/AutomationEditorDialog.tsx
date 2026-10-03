@@ -12,7 +12,6 @@ import type {
 	ChatAutomationWhenBusy,
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
-	ValidationError,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -62,11 +61,6 @@ const SERVER_FIELDS: Record<
 	when_busy: { label: "When busy", shownFor: "target_mode" },
 	new_chat_model_config_id: { label: "Model", shownFor: "target_mode" },
 	reasoning_effort: { label: "Reasoning effort", shownFor: "target_mode" },
-};
-
-const formatValidation = ({ field, detail }: ValidationError) => {
-	const label = SERVER_FIELDS[field]?.label;
-	return label ? `${label}: ${detail}` : detail;
 };
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
@@ -282,7 +276,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	});
 	// A server error applies while its field, and the choice that shows the
 	// field, still hold the submitted values.
-	const isSubmittedValue = (field: string) => {
+	const serverErrorApplies = (field: string) => {
 		if (!submittedValues) {
 			return false;
 		}
@@ -295,7 +289,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		return !isFormField(field) || submittedValues[field] === form.values[field];
 	};
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
-		getFormHelpers(form, isSubmittedValue(name) ? error : undefined)(name);
+		getFormHelpers(form, serverErrorApplies(name) ? error : undefined)(name);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
@@ -315,7 +309,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) =>
 			!renderedFields.includes(validation.field) &&
-			isSubmittedValue(validation.field),
+			serverErrorApplies(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
@@ -393,7 +387,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											{apiError?.detail}
 											{alertValidations.map((validation) => (
 												<span key={validation.field} className="block">
-													{formatValidation(validation)}
+													{SERVER_FIELDS[validation.field]
+														? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
+														: validation.detail}
 												</span>
 											))}
 										</AlertDescription>

@@ -46,7 +46,6 @@ export const useUnsavedChangesPrompt = (
 	);
 	const isBlocked = blocker.state === "blocked";
 	const onCloseAutoFocus = useRestoreFocusOnClose(isBlocked);
-	// The reason the open prompt was opened for.
 	const [blockedReason, setBlockedReason] = useState<string>();
 	const [wasBlocked, setWasBlocked] = useState(false);
 	if (isBlocked !== wasBlocked) {
