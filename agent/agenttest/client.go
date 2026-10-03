@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"storj.io/drpc/drpcmux"
@@ -279,6 +280,12 @@ func (c *Client) ContextStatePushes() []*agentproto.PushContextStateRequest {
 	return c.fakeAgentAPI.ContextStatePushes()
 }
 
+// SetPluginsSupported sets plugins_supported on the manifest returned by
+// later GetManifest calls.
+func (c *Client) SetPluginsSupported(supported bool) {
+	c.fakeAgentAPI.SetPluginsSupported(supported)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -335,7 +342,21 @@ func (f *FakeAgentAPI) ContextStatePushes() []*agentproto.PushContextStateReques
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	f.Lock()
+	defer f.Unlock()
 	return f.manifest, nil
+}
+
+// SetPluginsSupported replaces the served manifest with a copy whose
+// plugins_supported is supported. Manifests already returned are not
+// modified.
+func (f *FakeAgentAPI) SetPluginsSupported(supported bool) {
+	f.Lock()
+	defer f.Unlock()
+	m, ok := protobuf.Clone(f.manifest).(*agentproto.Manifest)
+	require.True(f.t, ok)
+	m.PluginsSupported = supported
+	f.manifest = m
 }
 
 func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {

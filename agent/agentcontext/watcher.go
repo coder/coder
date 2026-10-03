@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -34,11 +35,10 @@ type WatcherOptions struct {
 }
 
 // Watcher is a fixed-location fsnotify wrapper. It watches only
-// the directories that can hold recognized resources (each scan
-// root plus its skill containers and immediate skill dirs) rather
-// than walking the tree, mirroring the resolver's fixed-location
-// discovery. Inotify ENOSPC degrades the watcher into a poll-only
-// mode that still re-resolves on Sync calls.
+// the directories that can hold recognized resources (see
+// collectDirs) rather than walking the tree. Inotify
+// ENOSPC degrades the watcher into a poll-only mode that still
+// re-resolves on Sync calls.
 type Watcher struct {
 	logger   slog.Logger
 	clock    quartz.Clock
@@ -121,9 +121,8 @@ func (w *Watcher) Degraded() string {
 	return w.degraded
 }
 
-// Sync replaces the set of watched directories with the fixed
-// locations that can hold recognized resources: each scan root,
-// its skill containers, and the immediate skill subdirectories.
+// Sync replaces the set of watched directories with the set
+// collectDirs returns for roots and opts.
 // Files are not watched directly; watching the parent directory
 // catches creates, renames, removes, and writes that touch any
 // recognized basename. Files that are themselves scan roots are
@@ -133,7 +132,7 @@ func (w *Watcher) Degraded() string {
 // released around the directory scan so concurrent Close,
 // schedule, and the run goroutine are not blocked by a slow
 // filesystem.
-func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
+func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot, opts ResolveOptions) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -159,7 +158,7 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	// scan root and skill container). Compute the desired set
 	// outside the mutex so it does not block the run goroutine,
 	// Close, or schedule.
-	desired := w.collectDirs(roots)
+	desired := w.collectDirs(roots, opts)
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -278,7 +277,11 @@ func (w *Watcher) run() {
 // are picked up.
 func (*Watcher) eventRelevant(ev fsnotify.Event) bool {
 	name := filepath.Base(ev.Name)
-	if recognizedInstructionFile(name) || name == mcpConfigFileName || name == skillMetaFileName {
+	switch name {
+	case mcpConfigFileName, skillMetaFileName, pluginManifestFileName:
+		return true
+	}
+	if recognizedInstructionFile(name) {
 		return true
 	}
 	// Directory create/remove flips re-resolve so new subtrees
@@ -313,11 +316,16 @@ func (w *Watcher) schedule() {
 
 // collectDirs returns the set of directories to watch. Discovery
 // is fixed-location, mirroring the resolver: for each scan root we
-// watch the root directory itself (catching top-level instruction
-// and .mcp.json changes), plus every existing skill container and
-// its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). The watcher never recurses the tree.
-func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
+// watch the root directory itself (catching top-level instruction,
+// .mcp.json, and plugin.json changes), every existing skill
+// container and its immediate skill subdirectories (catching skill
+// add/remove and SKILL.md writes), and, when opts.PluginsEnabled, every
+// existing plugin container with each immediate plugin directory, its
+// skills container, and that container's immediate subdirectories.
+// A missing nested plugin container's existing parent (such as
+// .agents) is watched so creating the container fires.
+// The watcher never recurses the tree.
+func (*Watcher) collectDirs(roots []ScanRoot, opts ResolveOptions) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
 		if root.Path == "" {
@@ -338,16 +346,73 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 		}
 		out[root.Path] = struct{}{}
 		for _, container := range skillContainersFor(root.Path) {
-			out[container] = struct{}{}
-			entries, err := os.ReadDir(container)
-			if err != nil {
+			collectContainerDirs(container, out)
+		}
+		if !opts.PluginsEnabled {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(root.Path, pluginManifestFileName)); err == nil {
+			collectPluginSkillDirs(root.Path, out)
+		}
+		containers := pluginContainersFor(root.Path)
+		for _, rel := range pluginContainerRelPaths {
+			container := filepath.Join(root.Path, rel)
+			parent := filepath.Dir(container)
+			if slices.Contains(containers, container) || parent == root.Path {
 				continue
 			}
-			for _, e := range entries {
-				if e.IsDir() {
-					out[filepath.Join(container, e.Name())] = struct{}{}
-				}
+			if info, err := os.Lstat(parent); err == nil && info.IsDir() {
+				out[parent] = struct{}{}
 			}
+		}
+		for _, container := range containers {
+			out[container] = struct{}{}
+			for _, pluginDir := range immediateSubdirs(container) {
+				out[pluginDir] = struct{}{}
+				collectPluginSkillDirs(pluginDir, out)
+			}
+		}
+	}
+	return out
+}
+
+// collectPluginSkillDirs adds the skills container of the plugin at
+// pluginDir and the skill directories the resolver would read from it.
+func collectPluginSkillDirs(pluginDir string, out map[string]struct{}) {
+	pluginRoot, err := canonicalExistingDir(pluginDir)
+	if err != nil {
+		return
+	}
+	container, dirs, _ := pluginSkillDirs(pluginDir, pluginRoot)
+	if container == "" {
+		return
+	}
+	out[container] = struct{}{}
+	for _, dir := range dirs {
+		if dir.escapeErr == "" {
+			out[dir.path] = struct{}{}
+		}
+	}
+}
+
+func collectContainerDirs(container string, out map[string]struct{}) {
+	out[container] = struct{}{}
+	for _, dir := range immediateSubdirs(container) {
+		out[dir] = struct{}{}
+	}
+}
+
+// immediateSubdirs lists the real directories directly under dir;
+// symlinks to directories are not included.
+func immediateSubdirs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, filepath.Join(dir, e.Name()))
 		}
 	}
 	return out
