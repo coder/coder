@@ -14,6 +14,7 @@ type ScrollAreaProps = React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
 	viewportClassName?: string;
 	viewportTabIndex?: number;
 	viewportAriaLabel?: string;
+	viewportRef?: React.Ref<HTMLDivElement>;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
 };
@@ -26,6 +27,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	viewportClassName,
 	viewportTabIndex,
 	viewportAriaLabel,
+	viewportRef,
 	orientation = "vertical",
 	children,
 	...props
@@ -36,6 +38,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			{...props}
 		>
 			<ScrollAreaPrimitive.Viewport
+				ref={viewportRef}
 				tabIndex={viewportTabIndex}
 				role={viewportAriaLabel ? "region" : undefined}
 				aria-label={viewportAriaLabel}
