@@ -170,7 +170,7 @@ export const RightPanelAddTabControl: React.FC<{
 						disabled={!canCreateTerminal}
 					>
 						<SquareTerminalIcon />
-						New Terminal
+						New terminal
 					</DropdownMenuItem>
 
 					{workspace && agent && userApps.length > 0 && (

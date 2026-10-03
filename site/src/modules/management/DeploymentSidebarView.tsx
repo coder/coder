@@ -41,17 +41,17 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/userauth">
-						User Authentication
+						User authentication
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/external-auth">
-						External Authentication
+						External authentication
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && buildInfo.oauth2_provider && (
 					<SidebarNavItem href="/deployment/oauth2-provider/apps">
-						OAuth2 Applications
+						OAuth2 applications
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
@@ -59,7 +59,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.readWorkspaceProxies && (
 					<SidebarNavItem href="/deployment/workspace-proxies">
-						Workspace Proxies
+						Workspace proxies
 					</SidebarNavItem>
 				)}
 				{permissions.viewDeploymentConfig && (
@@ -83,7 +83,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (
 					<SidebarNavItem href="/deployment/idp-org-sync">
-						IdP Organization Sync
+						IdP organization sync
 					</SidebarNavItem>
 				)}
 				{permissions.viewNotificationTemplate && (
@@ -95,7 +95,7 @@ export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 				)}
 				{!hidePremiumTab && (
 					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
-						Trial Upgrade
+						Trial upgrade
 					</SidebarNavItem>
 				)}
 			</div>

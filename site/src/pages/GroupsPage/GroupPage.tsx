@@ -167,7 +167,7 @@ const GroupPage: React.FC = () => {
 					/>
 					<SettingsHeaderTitle>
 						<span className="block min-w-0 truncate">
-							{groupData.display_name || groupData.name || "Unknown Group"}
+							{groupData.display_name || groupData.name || "Unknown group"}
 						</span>
 					</SettingsHeaderTitle>
 				</div>

@@ -75,7 +75,7 @@ export const AssignDefaultOrgWarningDialog: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("switch", {
-				name: "Assign Default Organization",
+				name: "Assign default organization",
 			}),
 		);
 	},

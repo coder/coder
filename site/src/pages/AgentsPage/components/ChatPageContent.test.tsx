@@ -131,7 +131,7 @@ describe("ChatPageInput", () => {
 			],
 		});
 
-		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+		await user.click(await screen.findByRole("button", { name: "Save edit" }));
 
 		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
 		expect(onSend.mock.calls[0][0].workspaceUploads).toEqual([

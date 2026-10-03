@@ -384,7 +384,7 @@ export const ErrorStateWithStackTrace: Story = {
 		await expect(alert).toBeInTheDocument();
 
 		// Open the stack trace details and verify it stays contained.
-		const details = body.getByText("Stack Trace");
+		const details = body.getByText("Stack trace");
 		await userEvent.click(details);
 		await expect(body.getByText(/fetchChats/)).toBeInTheDocument();
 	},

@@ -41,7 +41,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">User Engagement</h3>
+						<h3 className="text-md m-0 font-medium">User engagement</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -69,12 +69,12 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							the daily count of unique users who engaged at least once, with
 							additional insights available through the{" "}
 							<Link size="sm" asChild>
-								<RouterLink to="/audit">Activity Audit</RouterLink>
+								<RouterLink to="/audit">Activity audit</RouterLink>
 							</Link>{" "}
 							and{" "}
 							<Link size="sm" asChild>
 								<RouterLink to="/deployment/licenses">
-									License Consumption
+									License consumption
 								</RouterLink>
 							</Link>{" "}
 							tools.

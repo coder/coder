@@ -90,11 +90,11 @@ const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("Create Token")}</title>
+			<title>{pageTitle("Create token")}</title>
 
 			{tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
 			<FullPageHorizontalForm
-				title="Create Token"
+				title="Create token"
 				detail="All tokens are unscoped and therefore have full resource access."
 			>
 				<CreateTokenForm

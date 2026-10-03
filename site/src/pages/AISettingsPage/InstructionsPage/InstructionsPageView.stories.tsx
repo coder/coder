@@ -66,11 +66,11 @@ export const AdminWithDefaultToggleOn: Story = {
 		).toBeInTheDocument();
 
 		await userEvent.click(canvas.getByRole("button", { name: "View prompt" }));
-		expect(await body.findByText("Default System Prompt")).toBeInTheDocument();
+		expect(await body.findByText("Default system prompt")).toBeInTheDocument();
 		expect(body.getByText(mockDefaultSystemPrompt)).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
-			expect(body.queryByText("Default System Prompt")).not.toBeInTheDocument();
+			expect(body.queryByText("Default system prompt")).not.toBeInTheDocument();
 		});
 
 		await userEvent.click(toggle);

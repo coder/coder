@@ -254,7 +254,7 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 					}
 					title={member.username}
 					subtitle={
-						member.is_service_account ? "Service Account" : member.email
+						member.is_service_account ? "Service account" : member.email
 					}
 				/>
 			</TableCell>

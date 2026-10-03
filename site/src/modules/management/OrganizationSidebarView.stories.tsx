@@ -42,7 +42,7 @@ export const NoCreateOrg: Story = {
 			canvas.getByRole("button", { name: /My Organization/i }),
 		);
 		await waitFor(() =>
-			expect(canvas.queryByText("Create Organization")).not.toBeInTheDocument(),
+			expect(canvas.queryByText("Create organization")).not.toBeInTheDocument(),
 		);
 	},
 };

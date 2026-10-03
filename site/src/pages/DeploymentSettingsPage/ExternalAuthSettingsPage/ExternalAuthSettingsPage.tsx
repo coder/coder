@@ -11,7 +11,7 @@ const ExternalAuthSettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("External Authentication Settings")}</title>
+			<title>{pageTitle("External authentication settings")}</title>
 
 			<ExternalAuthSettingsPageView
 				config={deploymentConfig.config}

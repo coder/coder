@@ -269,7 +269,7 @@ const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
-					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					{interval === "day" ? "Daily" : "Weekly"} active users
 					<InfoTooltip size="small">
 						<TooltipTitle>How do we calculate active users?</TooltipTitle>
 						<TooltipMessage>
@@ -415,7 +415,7 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle>App & IDE Usage</PanelTitle>
+				<PanelTitle>App & IDE usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={validUsage}>
 				<div className="flex flex-col gap-6">

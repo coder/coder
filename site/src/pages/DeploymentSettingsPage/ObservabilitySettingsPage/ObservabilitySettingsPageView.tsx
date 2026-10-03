@@ -28,7 +28,7 @@ export const ObservabilitySettingsPageView: React.FC<
 
 				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
-						Audit Logging
+						Audit logging
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Allow auditors to monitor user operations in your deployment.{" "}
@@ -46,7 +46,7 @@ export const ObservabilitySettingsPageView: React.FC<
 				) : (
 					<PremiumPaywall
 						source="observability"
-						message="Audit Logging"
+						message="Audit logging"
 						description="Monitor user operations across your deployment."
 						features={[
 							"Track user actions across deployment",

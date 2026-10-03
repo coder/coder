@@ -8,7 +8,7 @@ const CliAuthenticationPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("CLI Auth")}</title>
+			<title>{pageTitle("CLI auth")}</title>
 			<CliAuthPageView sessionToken={data?.key} />
 		</>
 	);
