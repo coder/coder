@@ -1041,6 +1041,15 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const { updateBodies } = setupEditor({
 				automations: [{ ...automation, owner_id: "another-user" }],
 			});
+			// Other owners' chats are usually unreadable, so the view must not
+			// look up the target and report a valid private chat as missing.
+			const chatLookups: string[] = [];
+			server.use(
+				http.get("/api/v2/chats/:chatId", ({ params }) => {
+					chatLookups.push(String(params.chatId));
+					return HttpResponse.json({ message: "Not found." }, { status: 404 });
+				}),
+			);
 
 			const view = await screen.findByRole("button", {
 				name: `View ${automation.name}`,
@@ -1064,6 +1073,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				expect(screen.queryByRole("dialog")).toBeNull();
 			});
 			expect(updateBodies).toEqual([]);
+			expect(chatLookups).toEqual([]);
 		},
 	);
 
