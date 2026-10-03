@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -23,6 +22,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import {
 	AutomationRow,
 	ChatTitleLink,
@@ -75,10 +75,7 @@ type AutomationChatsDialogProps = {
 const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 	state,
 }) => {
-	// The dialog opens from a row button rather than a DialogTrigger, so Radix
-	// has no trigger to return focus to on close. It mounts right after the
-	// View chats button is activated, so the focused element is the opener.
-	const [opener] = useState(() => document.activeElement);
+	const restoreFocus = useRestoreFocusOnClose();
 	let body: React.ReactNode;
 	if (state.isLoading) {
 		body = <Loader />;
@@ -129,14 +126,7 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 				}
 			}}
 		>
-			<DialogContent
-				onCloseAutoFocus={(event) => {
-					if (opener instanceof HTMLElement && opener.isConnected) {
-						event.preventDefault();
-						opener.focus();
-					}
-				}}
-			>
+			<DialogContent onCloseAutoFocus={restoreFocus}>
 				<DialogHeader>
 					<DialogTitle>Chats for {state.automation.name}</DialogTitle>
 					<DialogDescription>

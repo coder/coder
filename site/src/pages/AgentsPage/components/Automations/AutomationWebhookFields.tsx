@@ -11,6 +11,7 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { restoreFocusTo } from "#/hooks/useRestoreFocusOnClose";
 import { formatDate } from "#/utils/time";
 import { RadioOption } from "./RadioOption";
 
@@ -154,10 +155,11 @@ export const AutomationWebhookFields: React.FC<
 					setConfirmingRotate(false);
 					onRotateSecret(rotateButtonRef.current);
 				}}
-				onCloseAutoFocus={(event) => {
-					event.preventDefault();
-					rotateButtonRef.current?.focus();
-				}}
+				// The button, not the focused element: Safari does not focus a
+				// button on click.
+				onCloseAutoFocus={(event) =>
+					restoreFocusTo(event, rotateButtonRef.current)
+				}
 			/>
 		</>
 	);
