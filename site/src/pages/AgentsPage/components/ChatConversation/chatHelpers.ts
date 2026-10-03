@@ -21,8 +21,8 @@ export const extractContextUsageFromMessage = (
 	const cacheReadTokens = usage.cache_read_tokens;
 	const contextLimitTokens = usage.context_limit;
 
-	// Output tokens already include reasoning tokens, so adding
-	// reasoning_tokens would count them twice.
+	// Providers that report reasoning_tokens count them inside
+	// output_tokens, so adding them would count them twice.
 	const components = [
 		inputTokens,
 		outputTokens,

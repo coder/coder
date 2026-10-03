@@ -164,6 +164,23 @@ export const NoUsage: Story = {
 	},
 };
 
+// After compaction the server estimates the next prompt until the next
+// response reports measured usage, and the popover labels the number as an
+// estimate.
+export const EstimatedAfterCompaction: Story = {
+	args: {
+		usage: {
+			usedTokens: 18_000,
+			contextLimitTokens: 200_000,
+			estimated: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
 // Some providers report usage without token counts, so no percentage can be
 // computed even though a message was sent. The popover must say the usage is
 // unavailable instead of promising numbers after the next message.
