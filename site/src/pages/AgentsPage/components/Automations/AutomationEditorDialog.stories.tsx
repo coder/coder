@@ -51,6 +51,14 @@ const mockProject: ChatProject = {
 	organization_id: organizationId,
 };
 
+// Listed by the API but in another organization, so the field hides it.
+const mockOtherOrgProject: ChatProject = {
+	...MockChatProject,
+	id: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+	organization_id: "other-org-id",
+	name: "Other organization project",
+};
+
 const mockNewChatAutomation: ChatAutomation = {
 	...mockAutomation,
 	target_mode: "new_chat",
@@ -185,7 +193,7 @@ export const CreateNewChatProject: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			{ key: chatProjectsKey, data: [mockProject] },
+			{ key: chatProjectsKey, data: [mockProject, mockOtherOrgProject] },
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",
@@ -199,6 +207,9 @@ export const CreateNewChatProject: Story = {
 	play: async () => {
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "New chat each run" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: /^Project/ }),
 		);
 	},
 };

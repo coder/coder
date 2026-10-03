@@ -37,8 +37,9 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 		<SelectField
 			field={field}
 			label="Project"
-			// Saving before the list loads would drop the intended project.
-			disabled={projectsQuery.isLoading}
+			// Choosing from a list that is still loading or refreshing could
+			// drop the intended project or pick a deleted one.
+			disabled={projectsQuery.isFetching}
 			description={
 				projectsQuery.isError
 					? "Could not load projects."
