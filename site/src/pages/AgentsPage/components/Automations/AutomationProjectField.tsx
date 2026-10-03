@@ -21,7 +21,11 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 	onValueChange,
 }) => {
 	const value = String(field.value ?? NO_PROJECT);
-	const projectsQuery = useQuery(chatProjects());
+	// Projects can be deleted elsewhere, so each open loads a fresh list.
+	const projectsQuery = useQuery({
+		...chatProjects(),
+		refetchOnMount: "always",
+	});
 	const projects = (projectsQuery.data ?? []).filter(
 		(project) => project.organization_id === organizationId,
 	);
@@ -39,9 +43,11 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 					? "Could not load projects."
 					: projectsQuery.isLoading
 						? "Loading projects…"
-						: projects.length === 0
-							? "You have no projects in this organization."
-							: "Chats this automation creates join the selected project."
+						: isUnlisted
+							? "This project was deleted, or you cannot see it."
+							: projects.length === 0
+								? "You have no projects in this organization."
+								: "Chats this automation creates join the selected project."
 			}
 			onValueChange={onValueChange}
 		>
