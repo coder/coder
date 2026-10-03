@@ -200,7 +200,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 }) => {
 	const isCreate = !automation;
 	const triggerLabelId = useId();
-	// Only the owner can change an automation, so others get a read-only view.
 	const isReadOnly = Boolean(
 		automation && automation.owner_id !== currentUserId,
 	);

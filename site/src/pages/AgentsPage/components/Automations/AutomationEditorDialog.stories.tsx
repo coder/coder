@@ -179,6 +179,26 @@ export const EditWeekdaySchedule: Story = {
 	},
 };
 
+export const EditCustomSchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "0 9 1 * *" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 1 * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
 export const EditHourlySchedule: Story = {
 	args: { automation: { ...mockAutomation, schedule_cron: "15 * * * *" } },
 	parameters: {

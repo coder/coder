@@ -784,9 +784,11 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(cron).toHaveValue("");
 		expect(minute).toHaveAccessibleDescription("Enter a minute from 0 to 59.");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
-		expect(
-			await within(dialog).findByText("Cron expression is required."),
-		).toBeInTheDocument();
+		await within(dialog).findByText("Cron expression is required.");
+		expect(updateBodies).toEqual([]);
+		await user.clear(minute);
+		await user.type(minute, "05");
+		expect(cron).toHaveValue("5 * * * *");
 
 		await user.click(repeat);
 		await user.click(await screen.findByRole("option", { name: "Daily" }));
