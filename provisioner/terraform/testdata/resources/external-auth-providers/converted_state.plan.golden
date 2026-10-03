@@ -35,7 +35,5 @@
       "optional": true
     }
   ],
-  "AITasks": [],
-  "HasAITasks": false,
   "HasExternalAgents": false
 }

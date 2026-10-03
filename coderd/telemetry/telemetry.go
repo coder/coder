@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,6 +43,8 @@ const (
 	// VersionHeader is sent in every telemetry request to
 	// report the semantic version of Coder.
 	VersionHeader = "X-Coder-Version"
+
+	DefaultSnapshotFrequency = 30 * time.Minute
 )
 
 type Options struct {
@@ -58,6 +61,16 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the server.
+	// Must be derived from the pre-WithoutSecrets DeploymentValues because the
+	// SCIM API key is annotated as a secret and is cleared before the config
+	// is handed to the telemetry reporter.
+	SCIMEnabled bool
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY. Not secret-scrubbed, but accepted alongside
+	// SCIMEnabled so both come from the same source.
+	SCIMUseLegacy bool
+
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
@@ -70,8 +83,7 @@ func New(options Options) (Reporter, error) {
 		options.Clock = quartz.NewReal()
 	}
 	if options.SnapshotFrequency == 0 {
-		// Report once every 30mins by default!
-		options.SnapshotFrequency = 30 * time.Minute
+		options.SnapshotFrequency = DefaultSnapshotFrequency
 	}
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
@@ -330,26 +342,44 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	scimEnabled := r.options.SCIMEnabled
+	scimUseLegacy := r.options.SCIMUseLegacy
+
+	agentsExperimentValues := make(map[string]json.RawMessage, len(agentsExperiments))
+	for _, exp := range agentsExperiments {
+		agentsExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	}
+	agentsExperimentsJSON, err := json.Marshal(agentsExperimentValues)
+	if err != nil {
+		// Best-effort: the field is omitempty, so the deployment report
+		// proceeds without it.
+		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
+		agentsExperimentsJSON = nil
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		SCIMEnabled:       &scimEnabled,
+		SCIMUseLegacy:     &scimUseLegacy,
+		AgentsExperiments: agentsExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -414,9 +444,10 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
 		ctx = r.ctx
+		now = r.options.Clock.Now()
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = dbtime.Time(r.options.Clock.Now().Add(-1 * time.Hour)).UTC()
+		createdAfter = dbtime.Time(now.Add(-1 * time.Hour)).UTC()
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -622,7 +653,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
+				converted, err := ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat))
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		} else {
 			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
@@ -631,7 +666,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			}
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+				converted, err := ConvertWorkspaceAgentStat(stat)
+				if err != nil {
+					return xerrors.Errorf("convert workspace agent stat: %w", err)
+				}
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, converted)
 			}
 		}
 		return nil
@@ -738,25 +777,81 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
-			OwnerID:        uuid.Nil,
-			OrganizationID: uuid.Nil,
-			Status:         "",
-		})
+		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
 		if err != nil {
-			return err
+			return xerrors.Errorf("generate AI Gateway interceptions telemetry summaries: %w", err)
 		}
-		for _, dbTask := range dbTasks {
-			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+		snapshot.AIBridgeInterceptionsSummaries = summaries
+		return nil
+	})
+	eg.Go(func() error {
+		summary, err := r.collectBoundaryUsageSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect boundary usage summary: %w", err)
+		}
+		// Only send a summary if there was actual usage.
+		if summary != nil && summary.UniqueUsers > 0 {
+			snapshot.BoundaryUsageSummary = summary
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		chats, err := r.options.Database.GetChatsUpdatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get chats updated after: %w", err)
+		}
+		snapshot.Chats = make([]Chat, 0, len(chats))
+		for _, chat := range chats {
+			snapshot.Chats = append(snapshot.Chats, ConvertChat(chat))
 		}
 		return nil
 	})
 	eg.Go(func() error {
-		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
+		summaries, err := r.options.Database.GetChatMessageSummariesPerChat(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("generate AI Bridge interceptions telemetry summaries: %w", err)
+			return xerrors.Errorf("get chat message summaries: %w", err)
 		}
-		snapshot.AIBridgeInterceptionsSummaries = summaries
+		snapshot.ChatMessageSummaries = make([]ChatMessageSummary, 0, len(summaries))
+		for _, s := range summaries {
+			snapshot.ChatMessageSummaries = append(snapshot.ChatMessageSummaries, ConvertChatMessageSummary(s))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		configs, err := r.options.Database.GetChatModelConfigsForTelemetry(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat model configs: %w", err)
+		}
+		snapshot.ChatModelConfigs = make([]ChatModelConfig, 0, len(configs))
+		for _, c := range configs {
+			snapshot.ChatModelConfigs = append(snapshot.ChatModelConfigs, ConvertChatModelConfig(c))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		row, err := r.options.Database.GetChatDiffStatusSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat diff status summary: %w", err)
+		}
+		snapshot.ChatDiffStatusSummary = &ChatDiffStatusSummary{
+			Total:  row.Total,
+			Open:   row.Open,
+			Merged: row.Merged,
+			Closed: row.Closed,
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summary, err := r.collectUserSecretsSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect user secrets summary: %w", err)
+		}
+		// summary is nil when another replica already claimed the
+		// telemetry lock for this period.
+		if summary != nil {
+			snapshot.UserSecretsSummary = summary
+		}
 		return nil
 	})
 
@@ -788,7 +883,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		return nil, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("insert AI Bridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
+		return nil, xerrors.Errorf("insert AI Gateway interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
 	}
 
 	// List the summary categories that need to be calculated.
@@ -797,7 +892,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		EndedAtBefore: endedAtBefore, // exclusive
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("list AI Bridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
+		return nil, xerrors.Errorf("list AI Gateway interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
 	}
 
 	// Calculate and convert the summaries for all categories.
@@ -816,7 +911,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 				EndedAtBefore: endedAtBefore,
 			})
 			if err != nil {
-				return xerrors.Errorf("calculate AI Bridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
+				return xerrors.Errorf("calculate AI Gateway interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
 			}
 
 			// Double check that at least one interception was found in the
@@ -835,6 +930,101 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	}
 
 	return summaries, eg.Wait()
+}
+
+// collectBoundaryUsageSummary collects boundary usage statistics from all
+// replicas and resets the stats for the next telemetry period. Returns nil if
+// another replica has already collected for this period.
+func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*BoundaryUsageSummary, error) {
+	// Use twice the snapshot frequency as the staleness limit to ensure we
+	// capture data from replicas that may have slightly different flush times.
+	maxStaleness := r.options.SnapshotFrequency * 2
+	//nolint:gocritic // This is the actual collection of boundary usage tracking.
+	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+
+	// Claim the telemetry lock for this period. Use snapshot frequency so each
+	// telemetry snapshot period gets exactly one collection.
+	now := dbtime.Time(r.options.Clock.Now()).UTC()
+	periodEndingAt := now.Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "boundary_usage_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "boundary usage telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert boundary usage telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	var summary database.GetAndResetBoundaryUsageSummaryRow
+	err = r.options.Database.InTx(func(tx database.Store) error {
+		// The advisory lock use here ensures a clean transition to the next snapshot by
+		// preventing replicas from upserting row(s) at the same time as we aggregate and
+		// delete all rows here.
+		var txErr error
+		if txErr = tx.AcquireLock(boundaryCtx, database.LockIDBoundaryUsageStats); txErr != nil {
+			return txErr
+		}
+		summary, txErr = tx.GetAndResetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+		return txErr
+	}, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("get and reset boundary usage summary: %w", err)
+	}
+
+	return &BoundaryUsageSummary{
+		UniqueWorkspaces:           summary.UniqueWorkspaces,
+		UniqueUsers:                summary.UniqueUsers,
+		AllowedRequests:            summary.AllowedRequests,
+		DeniedRequests:             summary.DeniedRequests,
+		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
+		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
+	}, nil
+}
+
+// collectUserSecretsSummary returns a deployment-wide aggregate of user
+// secrets configuration. Returns nil if another replica has already
+// collected for this period.
+//
+// The summary has no natural per-row UUID for the telemetry server to
+// de-duplicate on, so we elect a single replica per snapshot period
+// via the telemetry_locks table.
+func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSecretsSummary, error) {
+	// Claim the telemetry lock for this period. Use snapshot frequency so
+	// each telemetry snapshot period gets exactly one collection across
+	// replicas.
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "user secrets telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert user secrets telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetUserSecretsTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get user secrets telemetry summary: %w", err)
+	}
+	return &UserSecretsSummary{
+		UsersWithSecrets:  row.UsersWithSecrets,
+		TotalSecrets:      row.TotalSecrets,
+		EnvNameOnly:       row.EnvNameOnly,
+		FilePathOnly:      row.FilePathOnly,
+		Both:              row.Both,
+		Neither:           row.Neither,
+		SecretsPerUserMax: row.SecretsPerUserMax,
+		SecretsPerUserP25: row.SecretsPerUserP25,
+		SecretsPerUserP50: row.SecretsPerUserP50,
+		SecretsPerUserP75: row.SecretsPerUserP75,
+		SecretsPerUserP90: row.SecretsPerUserP90,
+	}, nil
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -877,9 +1067,6 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		TemplateVersionID: build.TemplateVersionID,
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
-	}
-	if build.HasAITask.Valid {
-		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
 	}
 	return wb
 }
@@ -958,8 +1145,13 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
-func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
+// ConvertWorkspaceAgentStat reports raw per-app counts beside family totals.
+func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
+	sessionCounts, err := codersdk.DecodeAppMap[int64](stat.SessionCounts)
+	if err != nil {
+		return WorkspaceAgentStat{}, xerrors.Errorf("decode session counts: %w", err)
+	}
+	familySessionCounts := codersdk.SumByFamily(sessionCounts)
 	return WorkspaceAgentStat{
 		UserID:                      stat.UserID,
 		TemplateID:                  stat.TemplateID,
@@ -970,11 +1162,12 @@ func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) Workspac
 		ConnectionLatency95:         stat.WorkspaceConnectionLatency95,
 		RxBytes:                     stat.WorkspaceRxBytes,
 		TxBytes:                     stat.WorkspaceTxBytes,
-		SessionCountVSCode:          stat.SessionCountVSCode,
-		SessionCountJetBrains:       stat.SessionCountJetBrains,
-		SessionCountReconnectingPTY: stat.SessionCountReconnectingPTY,
-		SessionCountSSH:             stat.SessionCountSSH,
-	}
+		SessionCounts:               sessionCounts,
+		SessionCountVSCode:          familySessionCounts[codersdk.AppFamilyVSCode],
+		SessionCountJetBrains:       familySessionCounts[codersdk.AppFamilyJetBrains],
+		SessionCountReconnectingPTY: familySessionCounts[codersdk.AppFamilyReconnectingPTY],
+		SessionCountSSH:             familySessionCounts[codersdk.AppFamilySSH],
+	}, nil
 }
 
 // ConvertWorkspaceApp anonymizes a workspace app.
@@ -1191,6 +1384,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostopRequirementWeeks:      dbTemplate.AutostopRequirementWeeks,
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
+		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
 		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
@@ -1209,9 +1403,6 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	}
 	if version.SourceExampleID.Valid {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
-	}
-	if version.HasAITask.Valid {
-		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
 	}
 	return snapVersion
 }
@@ -1304,11 +1495,20 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
-	Tasks                                []Task                                `json:"tasks"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
+	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary"`
+	FirstUserOnboarding                  *FirstUserOnboarding                  `json:"first_user_onboarding"`
+	Chats                                []Chat                                `json:"chats"`
+	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
+	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
+	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
+	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
+	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
+	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
+	WorkspaceBuildDebugEvents            []WorkspaceBuildDebugEvent            `json:"workspace_build_debug_events"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1334,6 +1534,19 @@ type Deployment struct {
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the deployment.
+	// Reports configuration state, not license entitlement. Nullable so older
+	// Coder versions that do not emit the field decode as nil.
+	SCIMEnabled *bool `json:"scim_enabled"`
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY instead of the SCIM 2.0 handler in
+	// enterprise/coderd/scim. Nullable for the same backward compatibility
+	// reason as SCIMEnabled.
+	SCIMUseLegacy *bool `json:"scim_use_legacy"`
+	// AgentsExperiments reports the state of the Coder Agents experiments as
+	// opaque per-experiment JSON, so rotating the reported set is a code-only
+	// change. Omitted by older Coder versions, so it decodes as nil there.
+	AgentsExperiments json.RawMessage `json:"agents_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -1356,6 +1569,14 @@ type User struct {
 	GithubComUserID int64               `json:"github_com_user_id"`
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
+}
+
+// FirstUserOnboarding contains optional newsletter preference data
+// collected during first user setup. This is sent once when the first
+// user is created.
+type FirstUserOnboarding struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 type Group struct {
@@ -1421,19 +1642,21 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentStat struct {
-	UserID                      uuid.UUID `json:"user_id"`
-	TemplateID                  uuid.UUID `json:"template_id"`
-	WorkspaceID                 uuid.UUID `json:"workspace_id"`
-	AggregatedFrom              time.Time `json:"aggregated_from"`
-	AgentID                     uuid.UUID `json:"agent_id"`
-	RxBytes                     int64     `json:"rx_bytes"`
-	TxBytes                     int64     `json:"tx_bytes"`
-	ConnectionLatency50         float64   `json:"connection_latency_50"`
-	ConnectionLatency95         float64   `json:"connection_latency_95"`
-	SessionCountVSCode          int64     `json:"session_count_vscode"`
-	SessionCountJetBrains       int64     `json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64     `json:"session_count_ssh"`
+	UserID              uuid.UUID        `json:"user_id"`
+	TemplateID          uuid.UUID        `json:"template_id"`
+	WorkspaceID         uuid.UUID        `json:"workspace_id"`
+	AggregatedFrom      time.Time        `json:"aggregated_from"`
+	AgentID             uuid.UUID        `json:"agent_id"`
+	RxBytes             int64            `json:"rx_bytes"`
+	TxBytes             int64            `json:"tx_bytes"`
+	ConnectionLatency50 float64          `json:"connection_latency_50"`
+	ConnectionLatency95 float64          `json:"connection_latency_95"`
+	SessionCounts       map[string]int64 `json:"session_counts,omitempty"`
+	// The counts below are family totals derived from SessionCounts.
+	SessionCountVSCode          int64 `json:"session_count_vscode"`
+	SessionCountJetBrains       int64 `json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64 `json:"session_count_ssh"`
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
@@ -1467,7 +1690,6 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
-	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {
@@ -1504,6 +1726,7 @@ type Template struct {
 	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
+	AgentsAllowed                  bool     `json:"agents_allowed"`
 	Deprecated                     bool     `json:"deprecated"`
 	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
@@ -1515,7 +1738,6 @@ type TemplateVersion struct {
 	OrganizationID  uuid.UUID  `json:"organization_id"`
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
-	HasAITask       *bool      `json:"has_ai_task"`
 }
 
 type ProvisionerJob struct {
@@ -1854,50 +2076,69 @@ type Organization struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type Task struct {
-	ID                   string    `json:"id"`
-	OrganizationID       string    `json:"organization_id"`
-	OwnerID              string    `json:"owner_id"`
-	Name                 string    `json:"name"`
-	WorkspaceID          *string   `json:"workspace_id"`
-	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
-	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
-	WorkspaceAppID       *string   `json:"workspace_app_id"`
-	TemplateVersionID    string    `json:"template_version_id"`
-	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	CreatedAt            time.Time `json:"created_at"`
-	Status               string    `json:"status"`
+// ConvertChat converts a database chat row to a telemetry Chat.
+func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
+	c := Chat{
+		ID:                dbChat.ID,
+		OwnerID:           dbChat.OwnerID,
+		OrganizationID:    dbChat.OrganizationID,
+		CreatedAt:         dbChat.CreatedAt,
+		UpdatedAt:         dbChat.UpdatedAt,
+		Status:            string(dbChat.Status),
+		HasParent:         dbChat.HasParent,
+		Archived:          dbChat.Archived,
+		LastModelConfigID: dbChat.LastModelConfigID,
+	}
+	if dbChat.RootChatID.Valid {
+		c.RootChatID = &dbChat.RootChatID.UUID
+	}
+	if dbChat.WorkspaceID.Valid {
+		c.WorkspaceID = &dbChat.WorkspaceID.UUID
+	}
+	if dbChat.Mode.Valid {
+		mode := string(dbChat.Mode.ChatMode)
+		c.Mode = &mode
+	}
+	c.ClientType = string(dbChat.ClientType)
+	if dbChat.PullRequestState.Valid {
+		c.PullRequestState = &dbChat.PullRequestState.String
+	}
+	return c
 }
 
-// ConvertTask anonymizes a Task.
-func ConvertTask(task database.Task) Task {
-	t := &Task{
-		ID:                   task.ID.String(),
-		OrganizationID:       task.OrganizationID.String(),
-		OwnerID:              task.OwnerID.String(),
-		Name:                 task.Name,
-		WorkspaceID:          nil,
-		WorkspaceBuildNumber: nil,
-		WorkspaceAgentID:     nil,
-		WorkspaceAppID:       nil,
-		TemplateVersionID:    task.TemplateVersionID.String(),
-		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
-		CreatedAt:            task.CreatedAt,
-		Status:               string(task.Status),
+// ConvertChatMessageSummary converts a database chat message
+// summary row to a telemetry ChatMessageSummary.
+func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow) ChatMessageSummary {
+	return ChatMessageSummary{
+		ChatID:                   dbRow.ChatID,
+		MessageCount:             dbRow.MessageCount,
+		UserMessageCount:         dbRow.UserMessageCount,
+		AssistantMessageCount:    dbRow.AssistantMessageCount,
+		ToolMessageCount:         dbRow.ToolMessageCount,
+		SystemMessageCount:       dbRow.SystemMessageCount,
+		TotalInputTokens:         dbRow.TotalInputTokens,
+		TotalOutputTokens:        dbRow.TotalOutputTokens,
+		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
+		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
+		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
+		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
+		DistinctModelCount:       dbRow.DistinctModelCount,
+		CompressedMessageCount:   dbRow.CompressedMessageCount,
 	}
-	if task.WorkspaceID.Valid {
-		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
+}
+
+// ConvertChatModelConfig converts a database model config row to a
+// telemetry ChatModelConfig.
+func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
+	return ChatModelConfig{
+		ID:             dbRow.ID,
+		OrganizationID: dbRow.OrganizationID,
+		Provider:       dbRow.Provider,
+		Model:          dbRow.Model,
+		ContextLimit:   dbRow.ContextLimit,
+		Enabled:        dbRow.Enabled,
+		IsDefault:      dbRow.IsDefault,
 	}
-	if task.WorkspaceBuildNumber.Valid {
-		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
-	}
-	if task.WorkspaceAgentID.Valid {
-		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
-	}
-	if task.WorkspaceAppID.Valid {
-		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
-	}
-	return *t
 }
 
 type telemetryItemKey string
@@ -1912,6 +2153,131 @@ const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
+
+// agentsExperiment is one entry in the Deployment.AgentsExperiments field.
+// Edit agentsExperiments to rotate the reported set without schema or
+// telemetry-server changes. Collectors are best-effort: they log and return
+// a degraded payload instead of erroring, so they can never fail a report.
+type agentsExperiment struct {
+	name    string
+	collect func(ctx context.Context, opts Options) json.RawMessage
+}
+
+var agentsExperiments = []agentsExperiment{
+	{name: "virtual_desktop", collect: CollectAgentsVirtualDesktop},
+	{name: "advisor", collect: CollectAgentsAdvisor},
+}
+
+const (
+	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
+	// dedicated model override and reuses the chat model at runtime.
+	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
+	// AgentsExperimentUnknown reports a value that could not be determined,
+	// e.g. after a transient DB error.
+	AgentsExperimentUnknown = "unknown"
+)
+
+// AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in Deployment.AgentsExperiments.
+type AgentsVirtualDesktopTelemetry struct {
+	Enabled     bool                       `json:"enabled"`
+	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
+}
+
+type AgentsComputerUseTelemetry struct {
+	Provider       string `json:"provider"`
+	ProviderSource string `json:"provider_source"`
+}
+
+// AgentsAdvisorOverrideTelemetry describes one organization's advisor model override.
+type AgentsAdvisorOverrideTelemetry struct {
+	OrganizationID string `json:"organization_id"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+}
+
+// AgentsAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentsExperiments.
+type AgentsAdvisorTelemetry struct {
+	Enabled         bool                             `json:"enabled"`
+	MaxUsesPerRun   int                              `json:"max_uses_per_run"`
+	MaxOutputTokens int64                            `json:"max_output_tokens"`
+	Overrides       []AgentsAdvisorOverrideTelemetry `json:"overrides"`
+}
+
+// CollectAgentsVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
+// the desktop and computer use.
+func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
+	providerSource := "configured"
+	switch {
+	case err != nil:
+		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
+		provider = AgentsExperimentUnknown
+		providerSource = AgentsExperimentUnknown
+	case provider == "":
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
+		providerSource = "default"
+	}
+	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
+		ComputerUse: AgentsComputerUseTelemetry{
+			Provider:       provider,
+			ProviderSource: providerSource,
+		},
+	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+// CollectAgentsAdvisor collects the advisor entry in
+// Deployment.AgentsExperiments.
+func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentsAdvisorTelemetry{
+		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Overrides: []AgentsAdvisorOverrideTelemetry{},
+	}
+	var cfg codersdk.AdvisorConfig
+	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+	} else {
+		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+	}
+
+	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextAdvisor))
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor model overrides for telemetry", slog.Error(err))
+	} else {
+		for _, override := range overrides {
+			// When the override's model is disabled or deleted, the runtime
+			// falls back to the chat model.
+			provider, model := AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+			if override.ModelAvailable {
+				provider, model = override.ProviderType, override.Model
+			}
+			payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
+				OrganizationID: override.OrganizationID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
+		}
+	}
+
+	val, err := json.Marshal(payload)
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
 
 type TelemetryItem struct {
 	Key       string    `json:"key"`
@@ -1993,6 +2359,209 @@ type AIBridgeInterceptionsSummary struct {
 
 	ToolCallsCount             AIBridgeInterceptionsSummaryToolCallsCount `json:"tool_calls_count"`
 	InjectedToolCallErrorCount int64                                      `json:"injected_tool_call_error_count"`
+}
+
+// BoundaryUsageSummary contains aggregated boundary usage statistics across all
+// replicas for the telemetry period. See the boundaryusage package documentation
+// for the full tracking architecture.
+type BoundaryUsageSummary struct {
+	UniqueWorkspaces int64 `json:"unique_workspaces"`
+	UniqueUsers      int64 `json:"unique_users"`
+	AllowedRequests  int64 `json:"allowed_requests"`
+	DeniedRequests   int64 `json:"denied_requests"`
+
+	// PeriodStart and PeriodDurationMilliseconds describe the approximate collection
+	// window. The actual data may not align *exactly* to these boundaries because:
+	//
+	//   - Each replica flushes to the database independently on its own schedule
+	//   - The summary captures "data flushed since last reset" rather than "usage
+	//     during exactly the stated interval"
+	//   - Unflushed in-memory data at snapshot time rolls into the next period
+	//
+	// This is adequate for our purposes of gathering general usage and trends.
+	//
+	// PeriodStart is the approximate start of the collection period.
+	PeriodStart time.Time `json:"period_start"`
+	// PeriodDurationMilliseconds is the expected duration of the collection
+	// period (the telemetry snapshot frequency).
+	PeriodDurationMilliseconds int64 `json:"period_duration_ms"`
+}
+
+// Chat contains anonymized metadata about a chat for telemetry.
+// Titles and message content are excluded to avoid PII leakage.
+type Chat struct {
+	ID                uuid.UUID  `json:"id"`
+	OwnerID           uuid.UUID  `json:"owner_id"`
+	OrganizationID    uuid.UUID  `json:"organization_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Status            string     `json:"status"`
+	HasParent         bool       `json:"has_parent"`
+	RootChatID        *uuid.UUID `json:"root_chat_id"`
+	WorkspaceID       *uuid.UUID `json:"workspace_id"`
+	Mode              *string    `json:"mode"`
+	Archived          bool       `json:"archived"`
+	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
+	ClientType        string     `json:"client_type"`
+	PullRequestState  *string    `json:"pull_request_state"`
+}
+
+// ChatMessageSummary contains per-chat aggregated message metrics
+// for telemetry. Individual message content is never included.
+type ChatMessageSummary struct {
+	ChatID                   uuid.UUID `json:"chat_id"`
+	MessageCount             int64     `json:"message_count"`
+	UserMessageCount         int64     `json:"user_message_count"`
+	AssistantMessageCount    int64     `json:"assistant_message_count"`
+	ToolMessageCount         int64     `json:"tool_message_count"`
+	SystemMessageCount       int64     `json:"system_message_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
+	DistinctModelCount       int64     `json:"distinct_model_count"`
+	CompressedMessageCount   int64     `json:"compressed_message_count"`
+}
+
+// ChatModelConfig contains model configuration metadata for
+// telemetry. Sensitive fields like API keys are excluded.
+type ChatModelConfig struct {
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	ContextLimit   int64     `json:"context_limit"`
+	Enabled        bool      `json:"enabled"`
+	// Each organization has at most one default configuration.
+	IsDefault bool `json:"is_default"`
+}
+
+// ChatDiffStatusSummary contains aggregate PR counts across all
+// agent chats. Total counts unique PRs with a known state
+// (open + merged + closed). Open, Merged, and Closed break that
+// total down by state.
+type ChatDiffStatusSummary struct {
+	Total  int64 `json:"total"`
+	Open   int64 `json:"open"`
+	Merged int64 `json:"merged"`
+	Closed int64 `json:"closed"`
+}
+
+// UserSecretsSummary contains deployment-wide aggregates about user
+// secrets. All counts are scoped to active non-system users so that
+// soft-deleted accounts, dormant or suspended users, and internal
+// subjects (e.g. the prebuilds user) do not skew the results. Status
+// transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// UsersWithSecrets is the count of active non-system users that have
+// at least one secret. TotalSecrets is the count of secrets owned by
+// those users. EnvNameOnly, FilePathOnly, Both, and Neither break
+// TotalSecrets down by which target fields are stored. They do not
+// describe effective delivery because deployment policy can block a
+// stored target.
+//
+// The SecretsPerUser* fields describe the distribution of secrets per
+// user across the entire active non-system user base, including users
+// with zero secrets, so the percentiles reflect deployment-wide
+// adoption rather than only the power-user subset. Max and Px are the
+// maximum and the 25th, 50th, 75th, and 90th percentiles.
+type UserSecretsSummary struct {
+	UsersWithSecrets  int64 `json:"users_with_secrets"`
+	TotalSecrets      int64 `json:"total_secrets"`
+	EnvNameOnly       int64 `json:"env_name_only"`
+	FilePathOnly      int64 `json:"file_path_only"`
+	Both              int64 `json:"both"`
+	Neither           int64 `json:"neither"`
+	SecretsPerUserMax int64 `json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
+}
+
+// TemplateBuilderSession tracks a single event in the template builder
+// wizard: entry, compose completion, and build failure. User-supplied
+// variable values are never included.
+type TemplateBuilderSession struct {
+	ID              uuid.UUID `json:"id"`
+	EventType       string    `json:"event_type"`
+	UserID          uuid.UUID `json:"user_id"`
+	BaseTemplateID  string    `json:"base_template_id,omitempty"`
+	ModuleIDs       []string  `json:"module_ids,omitempty"`
+	DurationSeconds float64   `json:"duration_seconds,omitempty"`
+	Success         bool      `json:"success,omitempty"`
+	FailureReason   string    `json:"failure_reason,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// TemplateBuilderSessionEventBuildFailure is stamped by coderd when a
+// template builder create request fails. The wizard reports entry and
+// compose completion itself, but only the server knows why a build failed,
+// and the event must survive the browser navigating away. It is therefore
+// absent from the codersdk event type enum, which clients may send.
+const TemplateBuilderSessionEventBuildFailure = "build_failure"
+
+// Reasons a template builder build failed, reported on
+// TemplateBuilderSessionEventBuildFailure events. The provisioner reasons
+// mirror templatebuilder.ProvisionerErrorCategory, which is derived from the
+// provisioner job error and its logs.
+const (
+	TemplateBuilderFailureInvalidRequest     = "invalid_request"
+	TemplateBuilderFailureComposeInvalid     = "compose_invalid"
+	TemplateBuilderFailureNameConflict       = "name_conflict"
+	TemplateBuilderFailureImportCanceled     = "import_canceled"
+	TemplateBuilderFailureImportTimeout      = "import_timeout"
+	TemplateBuilderFailureProvisionerNetwork = "provisioner_network"
+	TemplateBuilderFailureProvisionerAuth    = "provisioner_auth"
+	TemplateBuilderFailureProvisionerUnknown = "provisioner_unknown"
+	TemplateBuilderFailureInternal           = "internal"
+)
+
+// Steps of the premium trial funnel. These are set by coderd rather than the
+// client so that a conversion cannot be forged.
+const (
+	PremiumFunnelEventCTAClick    = "cta_click"
+	PremiumFunnelEventTrialSignup = "trial_signup"
+)
+
+// PremiumFunnelEvent tracks a single step of the premium trial funnel: a
+// paywall call to action being clicked, or a trial license being issued.
+// AttributionID carries the ID of the cta_click event that led to a trial
+// signup, so signups can be joined back to the paywall that produced them; it
+// is the nil UUID for clicks and for trials started without a paywall.
+type PremiumFunnelEvent struct {
+	ID            uuid.UUID `json:"id"`
+	EventType     string    `json:"event_type"`
+	Source        string    `json:"source"`
+	Variant       string    `json:"variant"`
+	AttributionID uuid.UUID `json:"attribution_id"`
+	UserID        uuid.UUID `json:"user_id"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// Steps of the failed workspace build debug funnel. These are set by coderd
+// rather than the client so that a step cannot be forged.
+const (
+	WorkspaceBuildDebugEventClick = "click"
+)
+
+// WorkspaceBuildDebugEvent tracks a click on the "Debug with Coder Agents"
+// action shown for a failed workspace build. The workspace and build fields
+// come from the build itself so the workspace's later builds can be joined to
+// the click.
+type WorkspaceBuildDebugEvent struct {
+	ID               uuid.UUID `json:"id"`
+	EventType        string    `json:"event_type"`
+	UserID           uuid.UUID `json:"user_id"`
+	WorkspaceID      uuid.UUID `json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
+	Transition       string    `json:"transition"`
+	Reason           string    `json:"reason"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

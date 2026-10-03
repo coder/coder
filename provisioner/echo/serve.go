@@ -245,10 +245,6 @@ func (*echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, cancel
 			sess.ProvisionLog(log.Level, log.Output)
 		}
 		if complete := response.GetGraph(); complete != nil {
-			if len(complete.AiTasks) > 0 {
-				// These two fields are linked; if there are AI tasks, indicate that.
-				complete.HasAiTasks = true
-			}
 			return complete
 		}
 	}
@@ -343,35 +339,35 @@ func (r *Responses) Valid() error {
 
 	for _, parse := range r.Parse {
 		ty := parse.Type
-		if !(isParse(ty) || isLog(ty)) {
+		if !isParse(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid parse response type: %T", ty)
 		}
 	}
 
 	for _, init := range r.ProvisionInit {
 		ty := init.Type
-		if !(isInit(ty) || isLog(ty) || isChunkPiece(ty) || isDataUpload(ty)) {
+		if !isInit(ty) && !isLog(ty) && !isChunkPiece(ty) && !isDataUpload(ty) {
 			return xerrors.Errorf("invalid init response type: %T", ty)
 		}
 	}
 
 	for _, plan := range r.ProvisionPlan {
 		ty := plan.Type
-		if !(isPlan(ty) || isLog(ty)) {
+		if !isPlan(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid plan response type: %T", ty)
 		}
 	}
 
 	for _, apply := range r.ProvisionApply {
 		ty := apply.Type
-		if !(isApply(ty) || isLog(ty)) {
+		if !isApply(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid apply response type: %T", ty)
 		}
 	}
 
 	for _, graph := range r.ProvisionGraph {
 		ty := graph.Type
-		if !(isGraph(ty) || isLog(ty)) {
+		if !isGraph(ty) && !isLog(ty) {
 			return xerrors.Errorf("invalid graph response type: %T", ty)
 		}
 	}
@@ -426,10 +422,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 				responses.ProvisionPlan = []*proto.Response{{
 					Type: &proto.Response_Plan{
 						Plan: &proto.PlanComplete{
-							Plan: []byte("{}"),
-							//nolint:gosec // the number of resources will not exceed int32
-							AiTaskCount: int32(len(g.GetAiTasks())),
-							DailyCost:   dailycost,
+							Plan:      []byte("{}"),
+							DailyCost: dailycost,
 						},
 					},
 				}}
@@ -650,6 +644,12 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 			s, _ := proto.ProviderFormType(v.FormType)
 			return string(s)
 		},
+		"hasDefault": func(v *proto.RichParameter) bool {
+			// Emit default when the value is explicitly non-empty,
+			// or when the parameter is ephemeral (ephemeral params
+			// always need a default, even if it's an empty string).
+			return v.DefaultValue != "" || v.Ephemeral
+		},
 	}).Parse(`
 data "coder_parameter" "{{ .Name }}" {
   name         = "{{ .Name }}"
@@ -659,8 +659,16 @@ data "coder_parameter" "{{ .Name }}" {
   mutable      = {{ .Mutable }}
   ephemeral    = {{ .Ephemeral }}
   order 	 = {{ .Order }}
-{{- if .DefaultValue }}
+{{- if hasDefault . }}
+  {{- if eq .Type "list(string)" }}
+  default      = jsonencode({{ .DefaultValue }})
+  {{else if eq .Type "bool"}}
   default      = {{ .DefaultValue }}
+  {{else if eq .Type "number"}}
+  default      = {{ .DefaultValue }}
+  {{else}}
+  default      = "{{ .DefaultValue }}"
+  {{- end }}
 {{- end }}
 {{- if .Type }}
   type      = "{{ .Type }}"
@@ -699,20 +707,6 @@ data "coder_parameter" "{{ .Name }}" {
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, param)
 	return buf.String(), err
-}
-
-func WithResources(resources []*proto.Resource) *Responses {
-	return &Responses{
-		Parse:          ParseComplete,
-		ProvisionInit:  InitComplete,
-		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{}}}},
-		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-			Resources: resources,
-		}}}},
-		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-			Plan: []byte("{}"),
-		}}}},
-	}
 }
 
 func WithExtraFiles(extraFiles map[string][]byte) *Responses {

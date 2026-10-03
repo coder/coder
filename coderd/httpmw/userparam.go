@@ -31,11 +31,6 @@ func UserParam(r *http.Request) database.User {
 	return user
 }
 
-func UserParamOptional(r *http.Request) (database.User, bool) {
-	user, ok := r.Context().Value(userParamContextKey{}).(database.User)
-	return user, ok
-}
-
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
 func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
@@ -48,22 +43,6 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			ctx = context.WithValue(ctx, userParamContextKey{}, user)
-			next.ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
-}
-
-// ExtractUserParamOptional does not fail if no user is present.
-func ExtractUserParamOptional(db database.Store) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-
-			user, ok := ExtractUserContext(ctx, db, &httpapi.NoopResponseWriter{}, r)
-			if ok {
-				ctx = context.WithValue(ctx, userParamContextKey{}, user)
-			}
-
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -106,6 +85,10 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 	if userID, err := uuid.Parse(userQuery); err == nil {
 		user, err = db.GetUserByID(ctx, userID)
 		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return database.User{}, false
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: userErrorMessage,
 				Detail:  fmt.Sprintf("queried user=%q", userQuery),
@@ -120,6 +103,10 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 		Username: userQuery,
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return database.User{}, false
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: userErrorMessage,
 			Detail:  fmt.Sprintf("queried user=%q", userQuery),

@@ -1,4 +1,6 @@
-# Prebuilt workspaces
+---
+title: Prebuilt workspaces
+---
 
 Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
 ready-to-use workspaces for specific parameter presets.
@@ -30,7 +32,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 ## Prerequisites
 
-- [**Premium license**](../../licensing/index.md)
+- [**Premium license**](../../../install/prepare/licensing.md)
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.1`.
 
 ## Enable prebuilt workspaces for template presets
@@ -39,7 +41,7 @@ In your template, add a `prebuilds` block within a `coder_workspace_preset` defi
 instances your Coder deployment should maintain, and optionally configure a `expiration_policy` block to set a TTL
 (Time To Live) for unclaimed prebuilt workspaces to ensure stale resources are automatically cleaned up.
 
-   ```hcl
+   ```tf
    data "coder_workspace_preset" "goland" {
      name = "GoLand: Large"
      parameters = {
@@ -94,7 +96,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. The workspace name changes to the user's requested name.
    1. `terraform apply` is executed using the new ownership details, which may affect the [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and
       [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
-      datasources (see [Preventing resource replacement](#preventing-resource-replacement) for further considerations).
+      datasources (see [Prevent resource replacement](#prevent-resource-replacement) for further considerations).
 
    The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
 
@@ -126,7 +128,7 @@ Configure scheduling by adding a `scheduling` block within your `prebuilds` conf
 ```tf
 data "coder_workspace_preset" "goland" {
    name = "GoLand: Large"
-   parameters {
+   parameters = {
      jetbrains_ide = "GO"
      cpus          = 8
      memory        = 16
@@ -229,7 +231,9 @@ When a template's active version is updated:
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
 
-### Invalidating prebuilds
+<a id="invalidating-prebuilds"></a>
+
+### Invalidate prebuilds
 
 When external dependencies change without a template version update, you can invalidate presets to force their prebuilt workspaces to be recreated.
 
@@ -244,11 +248,11 @@ To invalidate presets:
 
 1. Navigate to **Templates** and select your template.
 1. Go to the **Prebuilds** tab.
-1. Click **Invalidate Prebuilds**.
+1. Select **Invalidate Prebuilds**.
 1. Confirm the action in the dialog.
 
 Once presets are invalidated, the **next reconciliation loop** run will delete the old prebuilt workspaces and create new ones to maintain the desired instance count.
-The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 15 seconds).
+The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 1&nbsp;minute, or `1m0s`).
 
 > [!NOTE]
 > Preset invalidation only affects unclaimed prebuilt workspaces owned by the `prebuilds` system user.
@@ -257,7 +261,9 @@ The process typically completes within a few reconciliation cycles (the interval
 
 ## Administration and troubleshooting
 
-### Managing resource quotas
+<a id="managing-resource-quotas"></a>
+
+### Manage resource quotas
 
 To help prevent unexpected infrastructure costs, prebuilt workspaces can be used in conjunction with [resource quotas](../../users/quotas.md).
 Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can:
@@ -265,15 +271,21 @@ Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can
 1. Configure quotas for any group that includes this user.
 1. Set appropriate limits to balance prebuilt workspace availability with resource constraints.
 
-When prebuilt workspaces are configured for an organization, Coder creates a "prebuilds" group in that organization and adds the prebuilds user to it. This group has a default quota allowance of 0, which you should adjust based on your needs:
+When prebuilt workspaces are configured for an organization, Coder creates a group named `coderprebuiltworkspaces` (the **Prebuilt Workspaces** group) in that organization and adds the `prebuilds` user to it.
+This group has a default quota allowance of 0, which you should adjust based on your needs:
 
-- **Set a quota allowance** on the "prebuilds" group to control how many prebuilt workspaces can be provisioned
-- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances
-- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size
+- **Set a Quota Allowance** on the `coderprebuiltworkspaces` group to control how many prebuilt workspaces can be provisioned.
+- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances.
+- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size.
+
+> [!NOTE]
+> The `prebuilds` user is a system user, so it does not appear in the group's member list in the Coder dashboard or API, even though it is a member.
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
-### Managing prebuild provisioning queues
+<a id="managing-prebuild-provisioning-queues"></a>
+
+### Manage prebuild provisioning queues
 
 Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators create new workspaces or manage their templates. Fundamentally, this happens when provisioners are not able to meet the demand for provisioner jobs. Prebuilds contribute to provisioner demand by scheduling many jobs in bursts whenever templates are updated. The solution is to either increase the number of provisioners or decrease the number of requested prebuilt workspaces across the entire system.
 
@@ -295,7 +307,7 @@ The troubleshooting steps below will help you assess and resolve this situation:
 
 Run:
 
-```bash
+```sh
 coder prebuilds pause
 ```
 
@@ -307,7 +319,7 @@ This prevents further pollution of your provisioner queues by stopping the prebu
 
 Next, run:
 
-```bash
+```sh
 coder provisioner jobs list --status=pending --initiator=prebuilds
 ```
 
@@ -321,8 +333,8 @@ Human-initiated jobs are prioritized above prebuild jobs in the provisioner queu
 
 To expedite fixing a broken template by ensuring maximum provisioner availability, cancel all pending prebuild jobs:
 
-```bash
-coder provisioner jobs list --status=pending --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+```sh
+coder provisioner jobs list --status=pending --initiator=prebuilds --output json | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
 ```
 
 This will clear the provisioner queue of all jobs that were not initiated by a human being, which increases the probability that a provisioner will be available when the next human operator needs it. It does not cancel running provisioner jobs, so there may still be some delay in processing new provisioner jobs until a provisioner completes its current job.
@@ -333,8 +345,8 @@ At this stage, most prebuild related impact will have been mitigated. There may 
 
 If you need to expedite the processing of human-related jobs at the cost of some infrastructure housekeeping, you can run:
 
-```bash
-coder provisioner jobs list --status=running --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+```sh
+coder provisioner jobs list --status=running --initiator=prebuilds --output json | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
 ```
 
 This should be done as a last resort. It will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs. Orphaned infrastructure will need to be manually cleaned up by a human operator. The process to identify and clear these orphaned resources will likely require administrative access to the infrastructure that hosts Coder workspaces. Furthermore, the ability to identify such orphaned resources will depend on metadata that should be included in the workspace template.
@@ -343,7 +355,7 @@ Once the provisioner queue has been cleared and all templates have been fixed, r
 
 #### Resume prebuild reconciliation
 
-```bash
+```sh
 coder prebuilds resume
 ```
 
@@ -351,7 +363,9 @@ This re-enables the prebuilt workspaces feature and allows the reconciliation lo
 
 ### Template configuration best practices
 
-#### Preventing resource replacement
+<a id="preventing-resource-replacement"></a>
+
+#### Prevent resource replacement
 
 When a prebuilt workspace is claimed, another `terraform apply` run occurs with new values for the workspace owner and name.
 
@@ -367,7 +381,7 @@ For example, when these values are used in immutable fields like the AWS instanc
 
 To prevent this, add a `lifecycle` block with `ignore_changes`:
 
-```hcl
+```tf
 resource "docker_container" "workspace" {
   lifecycle {
     ignore_changes = [env, image] # include all fields which caused drift
@@ -390,13 +404,15 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
-### Preventing prebuild queue contention (recommended)
+<a id="preventing-prebuild-queue-contention-recommended"></a>
 
-The section [Managing prebuild provisioning queues](#managing-prebuild-provisioning-queues) covers how to recover when prebuilds have already overwhelmed the provisioner queue.
+### Prevent prebuild queue contention (recommended)
+
+The section [Manage prebuild provisioning queues](#manage-prebuild-provisioning-queues) covers how to recover when prebuilds have already overwhelmed the provisioner queue.
 This section outlines a **best-practice configuration** to prevent that situation by isolating prebuild jobs to a dedicated provisioner pool.
 This setup is optional and requires minor template changes.
 
-Coder supports [external provisioners and provisioner tags](../../provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
+Coder supports [external provisioners and provisioner tags](../../../install/operate/provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
 By creating external provisioners with a special tag (e.g., `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs,
 all prebuild work is handled by the prebuild pool.
 This keeps other provisioners available to handle user-initiated jobs.
@@ -406,15 +422,15 @@ This keeps other provisioners available to handle user-initiated jobs.
 1. Create a provisioner key with a prebuild tag (e.g., `is_prebuild=true`).
     Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
     **Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
-    See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
+    See [Scoped Key](../../../install/operate/provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
 
 1. Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
     Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
-    See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
+    See [External provisioners](../../../install/operate/provisioners/index.md) for environment-specific deployment examples.
 
 1. Update the template to conditionally add the prebuild tag for prebuild jobs.
 
-    ```hcl
+    ```tf
     data "coder_workspace_tags" "prebuilds" {
       count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
       tags = {
@@ -430,20 +446,20 @@ Because the condition evaluates based on the workspace owner, provisioning or de
 > [!NOTE]
 > The prebuild provisioner pool can still accept non-prebuild jobs.
 > To achieve a fully isolated setup, add an additional tag (`is_prebuild=false`) to your standard provisioners, ensuring a clean separation between prebuild and non-prebuild workloads.
-> See [Provisioner Tags](../../provisioners/index.md#provisioner-tags) for further details.
+> See [Provisioner Tags](../../../install/operate/provisioners/index.md#provisioner-tags) for further details.
 
 #### Validation
 
-To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../../reference/cli/provisioner_jobs_list.md) CLI command to inspect job metadata and tags.
+To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
 Follow these steps:
 
 1. Publish the new template version.
 
 1. Validate the status of the prebuild provisioners.
-    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner_list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
+    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner/list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
 
 1. Wait for the prebuilds reconciliation loop to run.
-    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server.md#--workspace-prebuilds-reconciliation-interval).
+    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server/index.md#--workspace-prebuilds-reconciliation-interval).
     When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
     Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
 

@@ -1,8 +1,7 @@
-import { Badge } from "components/Badge/Badge";
-import type { FC, HTMLProps } from "react";
-import { cn } from "utils/cn";
+import { cn } from "cn";
+import { Badge } from "#/components/Badge/Badge";
 
-export const ProvisionerTags: FC<HTMLProps<HTMLDivElement>> = ({
+export const ProvisionerTags: React.FC<React.HTMLProps<HTMLDivElement>> = ({
 	className,
 	...props
 }) => {
@@ -19,9 +18,12 @@ type ProvisionerTagProps = {
 	value?: string;
 };
 
-export const ProvisionerTag: FC<ProvisionerTagProps> = ({ label, value }) => {
+export const ProvisionerTag: React.FC<ProvisionerTagProps> = ({
+	label,
+	value,
+}) => {
 	return (
-		<Badge size="sm" className="whitespace-nowrap">
+		<Badge className="whitespace-nowrap">
 			[{label}
 			{value && `=${value}`}]
 		</Badge>
@@ -32,7 +34,9 @@ type ProvisionerTagsProps = {
 	tags: Record<string, string>;
 };
 
-export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
+export const ProvisionerTruncateTags: React.FC<ProvisionerTagsProps> = ({
+	tags,
+}) => {
 	const keys = Object.keys(tags);
 
 	if (keys.length === 0) {
@@ -46,7 +50,7 @@ export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
 	return (
 		<ProvisionerTags>
 			<ProvisionerTag label={firstKey} value={firstValue} />
-			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
+			{remainderCount > 0 && <Badge>+{remainderCount}</Badge>}
 		</ProvisionerTags>
 	);
 };

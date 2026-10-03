@@ -1,19 +1,21 @@
-import { useTheme } from "@emotion/react";
-import { forwardRef, type ImgHTMLAttributes } from "react";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
+import { useAppearance } from "#/theme/appearance";
+import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
-export const ExternalImage = forwardRef<
-	HTMLImageElement,
-	ImgHTMLAttributes<HTMLImageElement>
->((props, ref) => {
-	const theme = useTheme();
+export const ExternalImage: React.FC<React.ComponentProps<"img">> = ({
+	style,
+	alt = "",
+	...props
+}) => {
+	const { externalImages } = useAppearance();
 
 	return (
-		// biome-ignore lint/a11y/useAltText: alt should be passed in as a prop
 		<img
-			ref={ref}
-			css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+			alt={alt}
+			style={{
+				...getExternalImageStylesFromUrl(externalImages, props.src),
+				...style,
+			}}
 			{...props}
 		/>
 	);
-});
+};

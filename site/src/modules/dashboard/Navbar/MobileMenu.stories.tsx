@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -5,12 +7,24 @@ import {
 	MockUserMember,
 	MockUserOwner,
 	MockWorkspaceProxies,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PointerEventsCheckLevel } from "@testing-library/user-event";
-import type { FC } from "react";
-import { fn, userEvent, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { MobileMenu } from "./MobileMenu";
+
+const defaultProxyContextValue = {
+	latenciesLoaded: true,
+	proxy: {
+		preferredPathAppURL: "",
+		preferredWildcardHostname: "",
+		proxy: MockPrimaryWorkspaceProxy,
+	},
+	isLoading: false,
+	isFetched: true,
+	setProxy: fn(),
+	clearProxy: fn(),
+	refetchProxyLatencies: fn(),
+	proxyLatencies: MockProxyLatencies,
+	proxies: MockWorkspaceProxies,
+};
 
 const meta: Meta<typeof MobileMenu> = {
 	title: "modules/dashboard/MobileMenu",
@@ -22,29 +36,20 @@ const meta: Meta<typeof MobileMenu> = {
 	},
 	component: MobileMenu,
 	args: {
-		proxyContextValue: {
-			latenciesLoaded: true,
-			proxy: {
-				preferredPathAppURL: "",
-				preferredWildcardHostname: "",
-				proxy: MockPrimaryWorkspaceProxy,
-			},
-			isLoading: false,
-			isFetched: true,
-			setProxy: fn(),
-			clearProxy: fn(),
-			refetchProxyLatencies: fn(),
-			proxyLatencies: MockProxyLatencies,
-			proxies: MockWorkspaceProxies,
-		},
+		proxyContextValue: defaultProxyContextValue,
 		user: MockUserOwner,
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
-		canViewAuditLog: true,
-		canViewDeployment: true,
-		canViewHealth: true,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewDeployment: true,
+			canViewOrganizations: true,
+			canViewAISettings: true,
+			canViewAuditLog: true,
+			canViewConnectionLog: true,
+			canViewAIBridge: true,
+			canViewHealth: true,
+		},
 	},
 	decorators: [withNavbarMock],
 };
@@ -65,10 +70,9 @@ export const Admin: Story = {
 export const Auditor: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -76,10 +80,10 @@ export const Auditor: Story = {
 export const OrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewAuditLog: true,
+			canViewOrganizations: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -87,16 +91,13 @@ export const OrgAdmin: Story = {
 export const Member: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 	},
 };
 
 export const ProxySettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /workspace proxy settings/i,
@@ -105,9 +106,56 @@ export const ProxySettings: Story = {
 	},
 };
 
+export const ProxyWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockPrimaryWorkspaceProxy.id,
+				),
+			),
+		},
+	},
+};
+
 export const UserSettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /user settings/i,
@@ -116,7 +164,7 @@ export const UserSettings: Story = {
 	},
 };
 
-function withNavbarMock(Story: FC) {
+function withNavbarMock(Story: React.FC) {
 	return (
 		<div className="h-[72px] border-0 border-b border-solid px-6 flex items-center justify-end">
 			<Story />
@@ -124,21 +172,12 @@ function withNavbarMock(Story: FC) {
 	);
 }
 
-function setupUser() {
-	// It seems the dropdown component is disabling pointer events, which is
-	// causing Testing Library to throw an error. As a workaround, we can
-	// disable the pointer events check.
-	return userEvent.setup({
-		pointerEventsCheck: PointerEventsCheckLevel.Never,
-	});
-}
-
 async function openAdminSettings({
 	canvasElement,
 }: {
 	canvasElement: HTMLElement;
 }) {
-	const user = setupUser();
+	const user = userEvent.setup();
 	const body = within(canvasElement.ownerDocument.body);
 	const menuItem = await body.findByRole("menuitem", {
 		name: /admin settings/i,

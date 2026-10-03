@@ -1,21 +1,19 @@
-import { Loader } from "components/Loader/Loader";
+import { cn } from "cn";
 import {
-	SelectMenu,
-	SelectMenuButton,
-	SelectMenuContent,
-	SelectMenuIcon,
-	SelectMenuItem,
-	SelectMenuList,
-	SelectMenuSearch,
-	SelectMenuTrigger,
-} from "components/SelectMenu/SelectMenu";
-import { type FC, type ReactNode, useState } from "react";
-import { cn } from "utils/cn";
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 const BASE_WIDTH = 200;
 
 export type SelectFilterOption = {
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	label: string;
 	value: string;
 };
@@ -30,90 +28,73 @@ type SelectFilterProps = {
 	// Used to customize the empty state message
 	emptyText?: string;
 	onSelect: (option: SelectFilterOption | undefined) => void;
-	// SelectFilterSearch element
-	selectFilterSearch?: ReactNode;
 	width?: number;
+	// SelectFilterSearch element
+	selectFilterSearch?: React.ReactNode;
 };
 
-export const SelectFilter: FC<SelectFilterProps> = ({
+export const SelectFilter: React.FC<SelectFilterProps> = ({
 	label,
 	options,
 	selectedOption,
 	onSelect,
 	placeholder,
-	emptyText,
-	selectFilterSearch,
+	emptyText = "No options found",
 	width = BASE_WIDTH,
+	selectFilterSearch,
 }) => {
-	const [open, setOpen] = useState(false);
-
 	return (
-		<SelectMenu open={open} onOpenChange={setOpen}>
-			<SelectMenuTrigger>
-				<SelectMenuButton
-					startIcon={selectedOption?.startIcon}
+		<Combobox
+			value={selectedOption?.value}
+			onValueChange={(value) =>
+				onSelect(options?.find((opt) => opt.value === value))
+			}
+		>
+			<ComboboxTrigger asChild>
+				<ComboboxButton
+					selectedOption={selectedOption}
+					placeholder={placeholder}
 					className="shrink-0 grow"
 					style={{ flexBasis: width }}
 					aria-label={label}
-				>
-					{selectedOption?.label ?? placeholder}
-				</SelectMenuButton>
-			</SelectMenuTrigger>
-			<SelectMenuContent
-				align="end"
+				/>
+			</ComboboxTrigger>
+			<ComboboxContent
 				className={cn([
 					// When including selectFilterSearch, we aim for the width to be as
 					// wide as possible.
 					selectFilterSearch && "w-full",
-					"max-w-[320px]",
+					"max-w-[260px]",
 				])}
 				style={{
 					minWidth: width,
 				}}
+				align="end"
+				// We want the backend to handle the filtering, not the client.
+				shouldFilter={false}
 			>
 				{selectFilterSearch}
-				{options ? (
-					options.length > 0 ? (
-						<SelectMenuList>
-							{options.map((o) => {
-								const isSelected = o.value === selectedOption?.value;
-								return (
-									<SelectMenuItem
-										key={o.value}
-										selected={isSelected}
-										onClick={() => {
-											setOpen(false);
-											onSelect(isSelected ? undefined : o);
-										}}
-									>
-										{o.startIcon && (
-											<SelectMenuIcon>{o.startIcon}</SelectMenuIcon>
-										)}
-										{o.label}
-									</SelectMenuItem>
-								);
-							})}
-						</SelectMenuList>
+				<ComboboxList className={cn(!selectFilterSearch && "border-t-0")}>
+					{options !== undefined ? (
+						options.map((option) => (
+							<ComboboxItem
+								className="px-4 font-normal gap-4"
+								key={option.value}
+								value={option.value}
+								keywords={[option.label]}
+							>
+								{option.startIcon}
+								<span className="flex-1 truncate">{option.label}</span>
+							</ComboboxItem>
+						))
 					) : (
-						<div
-							css={(theme) => ({
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								padding: 32,
-								color: theme.palette.text.secondary,
-								lineHeight: 1,
-							})}
-						>
-							{emptyText || "No options found"}
+						<div className="flex items-center justify-center py-4">
+							<Spinner size="sm" loading />
 						</div>
-					)
-				) : (
-					<Loader size="sm" />
-				)}
-			</SelectMenuContent>
-		</SelectMenu>
+					)}
+				</ComboboxList>
+				{options !== undefined && <ComboboxEmpty>{emptyText}</ComboboxEmpty>}
+			</ComboboxContent>
+		</Combobox>
 	);
 };
-
-export const SelectFilterSearch = SelectMenuSearch;

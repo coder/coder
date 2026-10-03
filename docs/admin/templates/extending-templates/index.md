@@ -1,4 +1,6 @@
-# Extending templates
+---
+title: Extend templates
+---
 
 There are a variety of Coder-native features to extend the configuration of your
 development environments. Many of the following features are defined in your
@@ -6,7 +8,7 @@ templates using the
 [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs).
 The provider docs will provide code examples for usage; alternatively, you can
 view our
-[example templates](https://github.com/coder/coder/tree/main/examples/templates)
+[example templates](../../../../examples/templates)
 to get started.
 
 ## Workspace agents
@@ -60,7 +62,7 @@ A common configuration is a template whose only persistent resource is the home
 directory. This allows the developer to retain their work while ensuring the
 rest of their environment is consistently up-to-date on each workspace restart.
 
-When a workspace is deleted, the Coder server essentially runs a
+When a workspace is deleted, the control plane essentially runs a
 [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
 resources associated with the workspace.
 
@@ -95,7 +97,7 @@ You can use these examples to add new Coder apps:
 
 ## code-server
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -109,7 +111,7 @@ resource "coder_app" "code-server" {
 
 ## Filebrowser
 
-```hcl
+```tf
 resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.main.id
   display_name = "file browser"
@@ -123,7 +125,7 @@ resource "coder_app" "filebrowser" {
 
 ## Zed
 
-```hcl
+```tf
 resource "coder_app" "zed" {
     agent_id = coder_agent.main.id
     slug          = "slug"
@@ -139,7 +141,20 @@ resource "coder_app" "zed" {
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
 
-## Running scripts on workspace lifecycle
+## Environment variables
+
+Use the
+[`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+resource to inject environment variables into workspace agents. Multiple
+resources can target the same variable using
+[merge strategies](./environment-variables.md) like `append` and `prepend`,
+which is useful for building up `PATH`-style variables across modules.
+
+See [Environment variables](./environment-variables.md) for details.
+
+<a id="running-scripts-on-workspace-lifecycle"></a>
+
+## Run scripts on workspace lifecycle events
 
 The
 [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)

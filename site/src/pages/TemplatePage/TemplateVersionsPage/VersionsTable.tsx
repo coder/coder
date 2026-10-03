@@ -1,32 +1,24 @@
-import type * as TypesGen from "api/typesGenerated";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import type { FC } from "react";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
 
-const Language = {
-	emptyMessage: "No versions found",
-	nameLabel: "Version name",
-	createdAtLabel: "Created at",
-	createdByLabel: "Created by",
+type VersionsTableProps = {
+	activeVersionId: string;
+	versions?: TemplateVersion[];
+	onPromoteClick?: (version: TemplateVersion) => void;
+	onArchiveClick?: (version: TemplateVersion) => void;
 };
 
-interface VersionsTableProps {
-	activeVersionId: string;
-	versions?: TypesGen.TemplateVersion[];
-	onPromoteClick?: (templateVersionId: string) => void;
-	onArchiveClick?: (templateVersionId: string) => void;
-}
-
-export const VersionsTable: FC<VersionsTableProps> = ({
+export const VersionsTable: React.FC<VersionsTableProps> = ({
 	activeVersionId,
 	versions,
 	onArchiveClick,
 	onPromoteClick,
 }) => {
-	const latestVersionId = versions?.reduce(
+	const latestVersionId = versions?.reduce<TemplateVersion | undefined>(
 		(latestSoFar, against) => {
 			if (against.job.status !== "succeeded") {
 				return latestSoFar;
@@ -41,7 +33,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				? against
 				: latestSoFar;
 		},
-		undefined as TypesGen.TemplateVersion | undefined,
+		undefined,
 	)?.id;
 
 	return (
@@ -67,13 +59,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				)}
 
 				{versions && versions.length === 0 && (
-					<TableRow>
-						<TableCell colSpan={999}>
-							<div css={{ padding: 32 }}>
-								<EmptyState message={Language.emptyMessage} />
-							</div>
-						</TableCell>
-					</TableRow>
+					<TableEmpty message="No versions found" />
 				)}
 			</TableBody>
 		</Table>

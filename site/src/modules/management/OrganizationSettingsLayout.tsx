@@ -1,24 +1,24 @@
-import { organizationsPermissions } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
+import { createContext, Suspense, useContext } from "react";
+import { useQuery } from "react-query";
+import { Outlet, useParams } from "react-router";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import type { Organization } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
 	BreadcrumbList,
 	BreadcrumbPage,
 	BreadcrumbSeparator,
-} from "components/Breadcrumb/Breadcrumb";
-import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
+} from "#/components/Breadcrumb/Breadcrumb";
+import { Loader } from "#/components/Loader/Loader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	canViewOrganization,
 	type OrganizationPermissions,
-} from "modules/permissions/organizations";
-import NotFoundPage from "pages/404Page/404Page";
-import { createContext, type FC, Suspense, useContext } from "react";
-import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router";
+} from "#/modules/permissions/organizations";
+import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -46,7 +46,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	return context;
 };
 
-const OrganizationSettingsLayout: FC = () => {
+const OrganizationSettingsLayout: React.FC = () => {
 	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
@@ -91,7 +91,7 @@ const OrganizationSettingsLayout: FC = () => {
 				organizationPermissions,
 			}}
 		>
-			<div className="flex flex-col flex-1 min-h-0">
+			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
@@ -122,11 +122,10 @@ const OrganizationSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<div className="h-px border-none bg-border" />
-				<div className="flex flex-col flex-1 min-h-0 pl-10">
-					<Suspense fallback={<Loader />}>
-						<Outlet />
-					</Suspense>
-				</div>
+
+				<Suspense fallback={<Loader />}>
+					<Outlet />
+				</Suspense>
 			</div>
 		</OrganizationSettingsContext.Provider>
 	);

@@ -1,30 +1,25 @@
-import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import type { CreateGroupRequest } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
+import { useFormik } from "formik";
+import { ArrowLeftIcon } from "lucide-react";
+import { Link } from "react-router";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import type { CreateGroupRequest } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { FormFields, FormFooter } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { useNavigate } from "react-router";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
@@ -32,16 +27,19 @@ const validationSchema = Yup.object({
 
 type CreateGroupPageViewProps = {
 	onSubmit: (data: CreateGroupRequest) => void;
+	onCancel: () => void;
 	error?: unknown;
 	isLoading: boolean;
+	showOrganizations: boolean;
 };
 
-export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
+export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 	onSubmit,
+	onCancel,
 	error,
 	isLoading,
+	showOrganizations,
 }) => {
-	const navigate = useNavigate();
 	const form = useFormik<CreateGroupRequest>({
 		initialValues: {
 			name: "",
@@ -53,40 +51,48 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
-	const onCancel = () => navigate(-1);
 
 	return (
 		<>
-			<SettingsHeader>
-				<SettingsHeaderTitle>New group</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Create a group in this organization.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+			<Button variant="subtle" asChild className="-ml-3">
+				<Link to="..">
+					<ArrowLeftIcon />
+					<span>Back to groups</span>
+				</Link>
+			</Button>
 
-			<HorizontalForm onSubmit={form.handleSubmit}>
-				<FormSection
-					title="Group settings"
-					description="Set a name and avatar for this group."
+			<div className="pt-6">
+				<SettingsHeader>
+					<SettingsHeaderTitle>New group</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Add a group to this{" "}
+						{showOrganizations ? "organization" : "deployment"}.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<form
+					className="flex flex-col gap-6 border border-solid p-6 rounded-lg"
+					onSubmit={form.handleSubmit}
 				>
-					<FormFields>
-						{Boolean(error) && !isApiValidationError(error) && (
-							<ErrorAlert error={error} />
-						)}
+					{Boolean(error) && !isApiValidationError(error) && (
+						<ErrorAlert error={error} />
+					)}
 
-						<TextField
-							{...getFieldHelpers("name")}
-							autoFocus
-							fullWidth
+					<FormFields>
+						<FormField
+							field={getFieldHelpers("name", {
+								helperText: "Unique identifier.",
+							})}
 							label="Name"
 							onChange={onChangeTrimmed(form)}
+							autoFocus
 							autoComplete="name"
+							required
 						/>
-						<TextField
-							{...getFieldHelpers("display_name", {
-								helperText: "Optional: keep empty to default to the name.",
+						<FormField
+							field={getFieldHelpers("display_name", {
+								helperText: "Friendly name. Defaults to the name if blank.",
 							})}
-							fullWidth
 							label="Display name"
 							autoComplete="display_name"
 						/>
@@ -98,19 +104,18 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
 					</FormFields>
-				</FormSection>
 
-				<FormFooter>
-					<Button onClick={onCancel} variant="outline">
-						Cancel
-					</Button>
-
-					<Button type="submit" disabled={isLoading}>
-						<Spinner loading={isLoading} />
-						Save
-					</Button>
-				</FormFooter>
-			</HorizontalForm>
+					<FormFooter className="mt-0">
+						<Button type="button" onClick={onCancel} variant="outline">
+							Cancel
+						</Button>
+						<Button type="submit" disabled={isLoading}>
+							<Spinner loading={isLoading} />
+							Save
+						</Button>
+					</FormFooter>
+				</form>
+			</div>
 		</>
 	);
 };

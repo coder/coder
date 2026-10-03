@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "components/Table/Table";
+import { Table, TableBody } from "#/components/Table/Table";
 import { TableLoader } from "./TableLoader";
 
 const meta: Meta<typeof TableLoader> = {

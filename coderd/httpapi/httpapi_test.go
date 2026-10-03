@@ -10,17 +10,24 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestInternalServerError(t *testing.T) {
@@ -94,6 +101,17 @@ func TestRead(t *testing.T) {
 		require.False(t, httpapi.Read(ctx, rw, r, v))
 	})
 
+	t.Run("BodyTooLarge", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", strings.NewReader(`{"value":"too large"}`))
+		r.Body = http.MaxBytesReader(rw, r.Body, 4)
+		var v json.RawMessage
+		require.False(t, httpapi.Read(ctx, rw, r, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+	})
+
 	t.Run("Validate", func(t *testing.T) {
 		t.Parallel()
 		type toValidate struct {
@@ -125,6 +143,219 @@ func TestRead(t *testing.T) {
 		require.Len(t, v.Validations, 1)
 		require.Equal(t, "value", v.Validations[0].Field)
 		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
+	})
+}
+
+// readBody is decoded by the request body limit tests. It carries no validate
+// tags so that a decode failure is unambiguously a body-size failure.
+type readBody struct {
+	Value string `json:"value"`
+}
+
+// jsonBodyOfSize returns a JSON object that decodes into readBody and is
+// exactly size bytes long.
+func jsonBodyOfSize(size int) string {
+	const (
+		prefix = `{"value":"`
+		suffix = `"}`
+	)
+	return prefix + strings.Repeat("a", size-len(prefix)-len(suffix)) + suffix
+}
+
+func TestReadDefaultLimit(t *testing.T) {
+	t.Parallel()
+
+	// requireTooLarge asserts the 413 response shape shared by every
+	// over-limit case.
+	requireTooLarge := func(t *testing.T, rw *httptest.ResponseRecorder, limit int) {
+		t.Helper()
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Equal(t, "Request body too large.", resp.Message)
+		require.Contains(t, resp.Detail, strconv.Itoa(limit),
+			"the detail must name the limit so the error is actionable")
+	}
+
+	t.Run("AtDefaultLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+		require.Len(t, v.Value, httpapi.DefaultMaxRequestBodyBytes-len(`{"value":""}`))
+	})
+
+	t.Run("OverDefaultLimitByOneByte", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	// The limit is enforced on bytes actually read, so neither an absent nor a
+	// dishonest Content-Length can raise it. Asserted in-process rather than
+	// over a connection because a client still streaming an oversized body may
+	// see the connection reset instead of the 413, which would make a
+	// network-driven assertion racy.
+	t.Run("NoContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		// io.NopCloser hides the length, which is what net/http sees for a
+		// chunked request.
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+		require.EqualValues(t, -1, r.ContentLength)
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("UnderstatedContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.ContentLength = 10
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("ChunkedUnderLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+	})
+}
+
+func TestReadLimit(t *testing.T) {
+	t.Parallel()
+
+	// A limit above the default must not be tightened by the default that Read
+	// installs. This is the unit-level regression test for the endpoints that
+	// legitimately accept more than DefaultMaxRequestBodyBytes; without
+	// ReadLimit they would be silently capped at the default.
+	t.Run("AboveDefaultIsNotTightened", func(t *testing.T) {
+		t.Parallel()
+		const limit = 8 << 20
+		body := jsonBodyOfSize(6 << 20)
+		require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Len(t, v.Value, len(body)-len(`{"value":""}`))
+	})
+
+	t.Run("BelowDefaultIsEnforced", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1)))
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Contains(t, resp.Detail, strconv.Itoa(limit))
+	})
+
+	t.Run("AtLimit", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit)))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+	})
+
+	// The limit lands on the request's existing log line rather than one of its
+	// own: a caller can produce 413s at will, so a dedicated line would let them
+	// drive log volume.
+	t.Run("RecordsLimitOnRequestLog", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", int64(limit))).
+			Times(1)
+
+		ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1))).WithContext(ctx)
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(ctx, rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+	})
+
+	// A caller that installs its own reader is doing what the docstring
+	// forbids, but the number reported must still be the one that rejected the
+	// request. Nested readers compose as tightest-wins, so reporting the limit
+	// this call installed would tell the client and the log a cap that is not
+	// the one it hit.
+	t.Run("ReportsLimitThatTripped", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			tight = 1024
+			loose = 1 << 20
+		)
+
+		for _, tc := range []struct {
+			name       string
+			callerWrap int64
+			readLimit  int64
+		}{
+			{name: "CallerWrapsTighter", callerWrap: tight, readLimit: loose},
+			{name: "CallerWrapsLooser", callerWrap: loose, readLimit: tight},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				requestLogger := loggermock.NewMockRequestLogger(ctrl)
+				requestLogger.EXPECT().
+					WithFields(slog.F("max_request_body_bytes", int64(tight))).
+					Times(1)
+
+				ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+				rw := httptest.NewRecorder()
+				r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(tight+1))).WithContext(ctx)
+				r.Body = http.MaxBytesReader(rw, r.Body, tc.callerWrap)
+
+				var v readBody
+				require.False(t, httpapi.ReadLimit(ctx, rw, r, tc.readLimit, &v))
+				require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+				var resp codersdk.Response
+				require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+				require.Contains(t, resp.Detail, strconv.Itoa(tight))
+				require.NotContains(t, resp.Detail, strconv.Itoa(loose))
+			})
+		}
 	})
 }
 
@@ -192,12 +423,6 @@ func (m mockOneWaySocketWriter) WriteHeader(code int) {
 	m.serverRecorder.WriteHeader(code)
 }
 
-type mockEventSenderWrite func(b []byte) (int, error)
-
-func (w mockEventSenderWrite) Write(b []byte) (int, error) {
-	return w(b)
-}
-
 func TestOneWayWebSocketEventSender(t *testing.T) {
 	t.Parallel()
 
@@ -219,18 +444,6 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		mockServer, mockClient := net.Pipe()
 		recorder := httptest.NewRecorder()
 
-		var write mockEventSenderWrite = func(b []byte) (int, error) {
-			serverCount, err := mockServer.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			recorderCount, err := recorder.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			return min(serverCount, recorderCount), nil
-		}
-
 		return mockOneWaySocketWriter{
 			testContext:    t,
 			serverConn:     mockServer,
@@ -238,7 +451,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			serverRecorder: recorder,
 			serverReadWriter: bufio.NewReadWriter(
 				bufio.NewReader(mockServer),
-				bufio.NewWriter(write),
+				bufio.NewWriter(mockServer),
 			),
 		}
 	}
@@ -262,7 +475,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newOneWayWriter(t)
-			_, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
+			_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), nil)(writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -271,9 +484,11 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
+
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		send, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
+		send, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
 
 		serverPayload := codersdk.ServerSentEvent{
@@ -285,21 +500,30 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 
 		// The client connection will receive a little bit of additional data on
 		// top of the main payload. Have to make sure check has tolerance for
-		// extra data being present
+		// extra data being present. Read until the payload shows up; EOF only
+		// arrives after the close handshake times out against this raw pipe.
 		serverBytes, err := json.Marshal(serverPayload)
 		require.NoError(t, err)
-		clientBytes, err := io.ReadAll(writer.clientConn)
-		require.NoError(t, err)
-		require.True(t, bytes.Contains(clientBytes, serverBytes))
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		require.NoError(t, writer.clientConn.SetReadDeadline(deadline))
+		var clientBytes []byte
+		buf := make([]byte, 1024)
+		for !bytes.Contains(clientBytes, serverBytes) {
+			n, err := writer.clientConn.Read(buf)
+			require.NoError(t, err)
+			clientBytes = append(clientBytes, buf[:n]...)
+		}
 	})
 
 	t.Run("Signals to outside consumer when socket has been closed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
+		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -321,9 +545,10 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
+		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -351,9 +576,10 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		send, done, err := httpapi.OneWayWebSocketEventSender(writer, req)
+		send, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -385,17 +611,21 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		// Need add at least three heartbeats for something to be reliably
-		// counted as an interval, but also need some wiggle room
+		// One tick of the mock clock must produce a heartbeat; read a few
+		// bytes of it to prove it was written.
 		heartbeatCount := 3
-		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
-		timeout := hbDuration + (5 * time.Second)
+		timeout := testutil.WaitShort
 
 		ctx := testutil.Context(t, timeout)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+		wsw := httpapi.NewWSWatcher(mClock, nil)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, _, err := httpapi.OneWayWebSocketEventSender(writer, req)
+		_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
+		trap.MustWait(ctx).MustRelease(ctx)
 
 		type Result struct {
 			Err     error
@@ -421,6 +651,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			resultC <- Result{nil, true}
 		}()
 
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
@@ -552,17 +783,20 @@ func TestServerSentEventSender(t *testing.T) {
 	t.Run("Sends a heartbeat to the client on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		// Need add at least three heartbeats for something to be reliably
-		// counted as an interval, but also need some wiggle room
+		// One tick of the mock clock must produce a heartbeat; read a few
+		// bytes of it to prove it was written.
 		heartbeatCount := 3
-		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
-		timeout := hbDuration + (5 * time.Second)
+		timeout := testutil.WaitShort
 
 		ctx := testutil.Context(t, timeout)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("ServerSentEventSender")
+		defer trap.Close()
 		req := newBaseRequest(ctx)
 		writer := newServerSentWriter(t)
-		_, _, err := httpapi.ServerSentEventSender(writer, req)
+		_, _, err := httpapi.ServerSentEventSenderWithClock(mClock)(writer, req)
 		require.NoError(t, err)
+		trap.MustWait(ctx).MustRelease(ctx)
 
 		type Result struct {
 			Err     error
@@ -588,8 +822,41 @@ func TestServerSentEventSender(t *testing.T) {
 			resultC <- Result{nil, true}
 		}()
 
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
+	})
+}
+
+// TestRecordRequestBodyLimit pins both halves of the call every oversized-body
+// 413 site shares: the log field naming the limit, and the metric tracker.
+func TestRecordRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RecordsFieldAndMarksTracker", func(t *testing.T) {
+		t.Parallel()
+		const limit = int64(4096)
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", limit)).
+			Times(1)
+
+		tracker := &httpapi.RequestBodyLimitTracker{}
+		ctx := httpapi.WithRequestBodyLimitTracker(
+			loggermw.WithRequestLogger(context.Background(), requestLogger), tracker)
+
+		require.False(t, tracker.Exceeded())
+		httpapi.RecordRequestBodyLimit(ctx, limit)
+		require.True(t, tracker.Exceeded())
+	})
+
+	// The middleware that installs the tracker is not mounted on every route, so
+	// a call without one must not panic.
+	t.Run("NoTrackerInContext", func(t *testing.T) {
+		t.Parallel()
+		httpapi.RecordRequestBodyLimit(context.Background(), 4096)
 	})
 }

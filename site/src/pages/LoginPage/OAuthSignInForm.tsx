@@ -1,10 +1,8 @@
-import { visuallyHidden } from "@mui/utils";
-import type { AuthMethods } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { KeyIcon } from "lucide-react";
-import { type FC, useId } from "react";
-import { Language } from "./Language";
+import { useId } from "react";
+import type { AuthMethods } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type OAuthSignInFormProps = {
 	isSigningIn: boolean;
@@ -12,13 +10,13 @@ type OAuthSignInFormProps = {
 	authMethods?: AuthMethods;
 };
 
-export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
+export const OAuthSignInForm: React.FC<OAuthSignInFormProps> = ({
 	isSigningIn,
 	redirectTo,
 	authMethods,
 }) => {
 	return (
-		<div css={{ display: "grid", gap: "16px" }}>
+		<div className="grid gap-4">
 			{authMethods?.github.enabled && (
 				<Button
 					variant="outline"
@@ -34,7 +32,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						)}`}
 					>
 						<ExternalImage src="/icon/github.svg" />
-						{Language.githubSignIn}
+						GitHub
 					</a>
 				</Button>
 			)}
@@ -58,7 +56,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						) : (
 							<KeyIcon />
 						)}
-						{authMethods.oidc.signInText || Language.oidcSignIn}
+						{authMethods.oidc.signInText || "OpenID Connect"}
 					</a>
 				</Button>
 			)}
@@ -70,7 +68,7 @@ type OidcIconProps = {
 	iconUrl: string;
 };
 
-const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
+const OidcIcon: React.FC<OidcIconProps> = ({ iconUrl }) => {
 	const hookId = useId();
 	const oidcId = `${hookId}-oidc`;
 
@@ -79,8 +77,8 @@ const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
 	// if that happens, but also still need a way to inject accessible text
 	return (
 		<>
-			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
-			<div id={oidcId} css={{ ...visuallyHidden }}>
+			<ExternalImage alt="" src={iconUrl} aria-labelledby={oidcId} />
+			<div id={oidcId} className="sr-only">
 				Open ID Connect
 			</div>
 		</>

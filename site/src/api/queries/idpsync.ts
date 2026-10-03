@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type { OrganizationSyncSettings } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import type { OrganizationSyncSettings } from "#/api/typesGenerated";
 
 const getOrganizationIdpSyncSettingsKey = () => ["organizationIdpSyncSettings"];
 

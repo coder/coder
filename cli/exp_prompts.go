@@ -109,13 +109,13 @@ func (RootCmd) promptExample() *serpent.Command {
 					Options: []string{
 						"Blue", "Green", "Yellow", "Red", "Something else",
 					},
-					Default:    "",
+					Default:    "Green",
 					Message:    "Select your favorite color:",
 					Size:       5,
 					HideSearch: !useSearch,
 				})
 				if value == "Something else" {
-					_, _ = fmt.Fprint(inv.Stdout, "I would have picked blue.\n")
+					_, _ = fmt.Fprint(inv.Stdout, "I would have picked green.\n")
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "%s is a nice color.\n", value)
 				}
@@ -128,7 +128,7 @@ func (RootCmd) promptExample() *serpent.Command {
 					Options: []string{
 						"Car", "Bike", "Plane", "Boat", "Train",
 					},
-					Default: "Car",
+					Default: "Bike",
 				})
 				if err != nil {
 					return err
@@ -168,6 +168,19 @@ func (RootCmd) promptExample() *serpent.Command {
 							"Code", "Chairs", "Whale", "Diamond", "Carrot",
 						},
 						Defaults:          []string{"Code"},
+						EnableCustomInput: enableCustomInput,
+					})
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "%q are nice choices.\n", strings.Join(multiSelectValues, ", "))
+				return multiSelectError
+			}, useThingsOption, enableCustomInputOption),
+			promptCmd("multi-select-no-defaults", func(inv *serpent.Invocation) error {
+				if len(multiSelectValues) == 0 {
+					multiSelectValues, multiSelectError = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+						Message: "Select some things:",
+						Options: []string{
+							"Code", "Chairs", "Whale",
+						},
 						EnableCustomInput: enableCustomInput,
 					})
 				}

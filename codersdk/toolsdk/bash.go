@@ -16,6 +16,7 @@ import (
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 type WorkspaceBashArgs struct {
@@ -89,6 +90,7 @@ Examples:
 			Required: []string{"workspace", "command"},
 		},
 	},
+	MCPAnnotations: mcpDestructiveAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceBashArgs) (res WorkspaceBashResult, err error) {
 		if args.Workspace == "" {
 			return WorkspaceBashResult{}, xerrors.New("workspace name cannot be empty")
@@ -100,7 +102,7 @@ Examples:
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
 		defer cancel()
 
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := openAgentConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceBashResult{}, err
 		}
@@ -189,7 +191,7 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 	}
 
 	// Get workspace
-	workspace, err := namedWorkspace(ctx, client, workspaceName)
+	workspace, err := client.ResolveWorkspace(ctx, workspaceName)
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
@@ -223,8 +225,16 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 			}
 		}
 
-		// Refresh workspace after build completes
-		workspace, err = client.Workspace(ctx, workspace.ID)
+		// Refresh workspace after build completes. Only the agent is read below.
+		workspace, err = client.Workspace(ctx, workspace.ID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				LatestBuild: &wsrelated.LatestBuild{
+					Resources: &wsrelated.Resources{
+						Agents: &wsrelated.Agents{},
+					},
+				},
+			},
+		})
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -271,37 +281,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	}
 
 	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
-}
-
-func splitNameAndOwner(identifier string) (name string, owner string) {
-	// Parse owner and name (workspace, task).
-	parts := strings.SplitN(identifier, "/", 2)
-
-	if len(parts) == 2 {
-		owner = parts[0]
-		name = parts[1]
-	} else {
-		owner = "me"
-		name = identifier
-	}
-
-	return name, owner
-}
-
-// namedWorkspace gets a workspace by owner/name or just name
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	workspaceName, owner := splitNameAndOwner(identifier)
-
-	// Handle -- separator format (convert to / format)
-	if strings.Contains(identifier, "--") && !strings.Contains(identifier, "/") {
-		dashParts := strings.SplitN(identifier, "--", 2)
-		if len(dashParts) == 2 {
-			owner = dashParts[0]
-			workspaceName = dashParts[1]
-		}
-	}
-
-	return client.WorkspaceByOwnerAndName(ctx, owner, workspaceName, codersdk.WorkspaceOptions{})
 }
 
 // executeCommandWithTimeout executes a command with timeout support

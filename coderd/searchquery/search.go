@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,7 +68,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	}
 
 	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
-	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	// nolint:exhaustruct // UserID and CountCap are not obtained from the query parameters.
 	countFilter := database.CountAuditLogsParams{
 		RequestID:      filter.RequestID,
 		ResourceID:     filter.ResourceID,
@@ -123,6 +125,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	}
 
 	// This MUST be kept in sync with the above
+	// nolint:exhaustruct // CountCap is not obtained from the query parameters.
 	countFilter := database.CountConnectionLogsParams{
 		OrganizationID:      filter.OrganizationID,
 		WorkspaceOwner:      filter.WorkspaceOwner,
@@ -155,18 +158,46 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:          parser.String(values, "", "search"),
-		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:        parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
-		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
-		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
-		LoginType:       httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
+		Search:           parser.String(values, "", "search"),
+		Name:             parser.String(values, "", "name"),
+		ExactUsername:    parser.String(values, "", "username"),
+		ExactEmail:       parser.String(values, "", "email"),
+		Status:           httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		IsServiceAccount: parser.NullableBoolean(values, sql.NullBool{}, "service_account"),
+		RbacRole:         parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:    parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:   parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:     parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:    parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID:  parser.Int64(values, 0, "github_com_user_id"),
+		LoginType:        httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
+}
+
+// Groups parses a group search query using the standard filter syntax shared
+// with the rest of the dashboard. Bare terms (including multi-word terms)
+// become a free-text search over group name and display name. A value that
+// contains a colon must be quoted or supplied via the explicit search key,
+// e.g. search:"team: frontend", because an unquoted colon is otherwise treated
+// as a key:value delimiter. Unknown keys are rejected, which keeps room for
+// real key:value filters in the future.
+func Groups(query string) (string, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return "", errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	search := parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return search, parser.Errors
 }
 
 func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
@@ -213,7 +244,7 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 	return params, parser.Errors
 }
 
-func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration, actorID uuid.UUID) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -253,7 +284,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
-	filter.HasAgent = parser.String(values, "", "has-agent")
+	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
@@ -265,13 +296,24 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
-	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
+	// include_agent_metadata expands the response with the named agent
+	// metadata keys; it does not filter the returned workspaces.
+	filter.IncludeAgentMetadata = parser.Strings(values, []string{}, "include_agent_metadata")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
-	// TODO: support "me" by passing in the actorID
-	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	filter.UserID = parseUser(ctx, db, parser, values, "user", actorID)
+	// Translate healthy filter to has-agent statuses
+	// healthy:true = connected, healthy:false = disconnected or timeout
+	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
+		if healthy.Bool {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "connected")
+		} else {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "disconnected", "timeout")
+		}
+	}
 
 	type paramMatch struct {
 		name  string
@@ -325,18 +367,19 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:          parser.Boolean(values, false, "deleted"),
-		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
-		ExactName:        parser.String(values, "", "exact_name"),
-		ExactDisplayName: parser.String(values, "", "exact_display_name"),
-		FuzzyName:        parser.String(values, "", "name"),
-		FuzzyDisplayName: parser.String(values, "", "display_name"),
-		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
-		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
-		AuthorUsername:   parser.String(values, "", "author"),
-		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
+		Deleted:                 parser.Boolean(values, false, "deleted"),
+		OrganizationID:          parseOrganization(ctx, db, parser, values, "organization"),
+		ExactName:               parser.String(values, "", "exact_name"),
+		ExactDisplayName:        parser.String(values, "", "exact_display_name"),
+		FuzzyName:               parser.String(values, "", "name"),
+		FuzzyDisplayName:        parser.String(values, "", "display_name"),
+		IDs:                     parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:              parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		UseClassicParameterFlow: parser.NullableBoolean(values, sql.NullBool{}, "compatibility_mode"),
+		AgentsAllowed:           parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
+		AuthorID:                parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername:          parser.String(values, "", "author"),
+		HasExternalAgent:        parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
 	}
 
 	if filter.AuthorUsername == codersdk.Me {
@@ -348,10 +391,10 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	return filter, parser.Errors
 }
 
-func AIBridgeInterceptions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID) (database.ListAIBridgeInterceptionsParams, []codersdk.ValidationError) {
+func AIBridgeSessions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID, afterSessionID string) (database.ListAIBridgeSessionsParams, []codersdk.ValidationError) {
 	// nolint:exhaustruct // Empty values just means "don't filter by that field".
-	filter := database.ListAIBridgeInterceptionsParams{
-		AfterID: page.AfterID,
+	filter := database.ListAIBridgeSessionsParams{
+		AfterSessionID: afterSessionID,
 		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
 		Limit: int32(page.Limit),
 		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
@@ -362,10 +405,9 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 		return filter, nil
 	}
 
-	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the initiating user
-		values.Add("initiator", term)
-		return nil
+	values, errors := searchTerms(query, func(string, url.Values) error {
+		// Do not specify a default search key; let's be explicit to prevent user confusion.
+		return xerrors.New("no search key specified")
 	})
 	if len(errors) > 0 {
 		return filter, errors
@@ -374,7 +416,12 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
+	// Match interceptions by name. Do not look up ai_providers: that requires
+	// AIProvider read, which session viewers do not have.
+	filter.ProviderName = parser.String(values, "", "provider_name")
 	filter.Model = parser.String(values, "", "model")
+	filter.Client = parser.String(values, "", "client")
+	filter.SessionID = parser.String(values, "", "session_id")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
@@ -390,28 +437,22 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	return filter, parser.Errors
 }
 
-// Tasks parses a search query for tasks.
-//
-// Supported query parameters:
-//   - owner: string (username, UUID, or 'me' for current user)
-//   - organization: string (organization UUID or name)
-//   - status: string (pending, initializing, active, paused, error, unknown)
-func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
-	filter := database.ListTasksParams{
-		OwnerID:        uuid.Nil,
-		OrganizationID: uuid.Nil,
-		Status:         "",
+func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBridgeModelsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeModelsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
 	}
 
 	if query == "" {
 		return filter, nil
 	}
 
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default unqualified terms to owner
-		values.Add("owner", term)
+		// Defaults to the `model` if no `key:value` pair is provided.
+		values.Add("model", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -419,12 +460,208 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter.OwnerID = parseUser(ctx, db, parser, values, "owner", actorID)
-	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
-	filter.Status = parser.String(values, "", "status")
+	filter.Model = parser.String(values, "", "model")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
+}
+
+func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBridgeClientsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeClientsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("client", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Client = parser.String(values, "", "client")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// Chats parses a search query for chats.
+//
+// Supported query parameters:
+//   - title: case-insensitive title substring match via ILIKE (bare terms
+//     are rejected; use title:<value> for title filtering)
+//   - archived: boolean, or any to include archived and active chats
+//     (default: false, excludes archived chats unless explicitly set)
+//   - has_unread: nullable boolean (filter by unread message status)
+//   - status: repeated or comma-separated chat_status enum value:
+//     waiting, running, error, requires_action, or interrupting
+//   - pr_status: repeated or comma-separated list of draft, open,
+//     merged, closed, or none (no pull request)
+//   - diff_url: string (matches chats whose linked diff URL equals the
+//     given value, case-insensitively; URLs typically contain ':' so
+//     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
+//   - pr: positive integer (exact PR number match)
+//   - repo: string (case-insensitive substring match against git remote origin or URL)
+//   - pr_title: string (case-insensitive PR title substring match)
+//   - source: one of created_by_me, shared_with_me, or all (controls
+//     ownership scope; created_by_me returns only chats the caller owns,
+//     shared_with_me returns only chats shared with the caller, all returns
+//     both)
+//   - search: full-text search over chat content; mutually exclusive
+//     with title, pr_title, and pr
+func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
+	filter := database.GetChatsParams{
+		// Default to hiding archived chats and chats not owned by the caller.
+		Archived:  sql.NullBool{Bool: false, Valid: true},
+		OwnedOnly: true,
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	// Lowercase the keys so they match regardless of how the caller
+	// types them, but preserve value casing because some filters
+	// (e.g. diff_url) may include URL path segments where case is
+	// meaningful.
+	values, errors := searchTerms(query, func(term string, _ url.Values) error {
+		return xerrors.Errorf("unsupported search term: %q", term)
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	if archived := values["archived"]; len(archived) == 1 && strings.EqualFold(archived[0], "any") {
+		// A null filter matches archived and active chats. Deleting the
+		// term keeps ErrorExcessParams from rejecting it as unparsed.
+		filter.Archived = sql.NullBool{}
+		values.Del("archived")
+	} else {
+		filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	}
+	filter.HasUnread = parser.NullableBoolean(values, filter.HasUnread, "has_unread")
+	filter.ChatStatuses = httpapi.ParseCustomList(parser, values, nil, "status", func(v string) (string, error) {
+		status := database.ChatStatus(strings.ToLower(strings.TrimSpace(v)))
+		if !status.Valid() {
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+		return string(status), nil
+	})
+	filter.PullRequestStatuses = httpapi.ParseCustomList(parser, values, nil, "pr_status", func(v string) (string, error) {
+		normalizedPRStatus := strings.ToLower(strings.TrimSpace(v))
+		switch normalizedPRStatus {
+		case "draft", "open", "merged", "closed", "none":
+			return normalizedPRStatus, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if diffURL := parser.String(values, "", "diff_url"); diffURL != "" {
+		if err := validateDiffURL(diffURL); err != nil {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "diff_url",
+				Detail: err.Error(),
+			})
+		} else {
+			filter.DiffURL = sql.NullString{String: diffURL, Valid: true}
+		}
+	}
+
+	filter.TitleQuery = parser.String(values, "", "title")
+	filter.PrTitleQuery = parser.String(values, "", "pr_title")
+	filter.RepoQuery = parser.String(values, "", "repo")
+	sources := httpapi.ParseCustomList(parser, values, nil, "source", func(v string) (string, error) {
+		source := strings.ToLower(strings.TrimSpace(v))
+		switch source {
+		case "created_by_me", "shared_with_me":
+			return source, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if len(sources) > 0 {
+		hasCreatedByMe := slices.Contains(sources, "created_by_me")
+		hasSharedWithMe := slices.Contains(sources, "shared_with_me")
+
+		switch {
+		case hasCreatedByMe && hasSharedWithMe:
+			filter.OwnedOnly = true
+			filter.SharedOnly = true
+		case hasSharedWithMe:
+			filter.OwnedOnly = false
+			filter.SharedOnly = true
+		default:
+			filter.OwnedOnly = true
+			filter.SharedOnly = false
+		}
+	}
+
+	// pr: requires a positive integer.
+	if prStr := parser.String(values, "", "pr"); prStr != "" {
+		n, err := strconv.ParseInt(prStr, 10, 32)
+		if err != nil || n <= 0 {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "pr",
+				Detail: fmt.Sprintf("%q is not a valid positive integer", prStr),
+			})
+		} else {
+			filter.PrNumber = int32(n)
+		}
+	}
+
+	if values.Has("search") {
+		parser.RequiredNotEmpty("search")
+		if search := parser.String(values, "", "search"); search != "" {
+			var conflicts []string
+			if filter.TitleQuery != "" {
+				conflicts = append(conflicts, `"title"`)
+			}
+			if filter.PrTitleQuery != "" {
+				conflicts = append(conflicts, `"pr_title"`)
+			}
+			if filter.PrNumber != 0 {
+				conflicts = append(conflicts, `"pr"`)
+			}
+			if len(conflicts) > 0 {
+				parser.Errors = append(parser.Errors, codersdk.ValidationError{
+					Field:  "search",
+					Detail: fmt.Sprintf(`"search" cannot be combined with %s`, strings.Join(conflicts, ", ")),
+				})
+			} else {
+				filter.Search = search
+			}
+		}
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// validateDiffURL checks that the value is a syntactically valid HTTP(S)
+// URL. The check is intentionally forge-agnostic because the diff URL on
+// a chat may point to a pull request, merge request, branch page, etc.
+func validateDiffURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return xerrors.Errorf("diff_url is not a valid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return xerrors.Errorf("diff_url must use http or https scheme, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return xerrors.New("diff_url must include a host")
+	}
+	return nil
 }
 
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {

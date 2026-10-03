@@ -1,10 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type {
-	ComponentProps,
-	FC,
-	HTMLAttributes,
-	PropsWithChildren,
-} from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
 	mockInitialRenderResult,
@@ -12,12 +6,12 @@ import {
 } from "./PaginationContainer.mocks";
 
 // Filtering out optional <div> props to give better auto-complete experience
-type EssentialComponent = FC<
+type EssentialComponent = React.FC<
 	Omit<
-		ComponentProps<typeof PaginationContainer>,
-		keyof HTMLAttributes<HTMLDivElement>
+		React.ComponentProps<typeof PaginationContainer>,
+		keyof React.ComponentProps<"div">
 	> &
-		PropsWithChildren
+		React.PropsWithChildren
 >;
 
 const meta: Meta<EssentialComponent> = {
@@ -42,7 +36,6 @@ export const FirstPageWithData: Story = {
 	args: {
 		query: {
 			...mockPaginationResultBase,
-			isSuccess: true,
 			currentPage: 1,
 			currentOffsetStart: 1,
 			totalRecords: 100,
@@ -58,7 +51,6 @@ export const FirstPageWithLittleData: Story = {
 	args: {
 		query: {
 			...mockPaginationResultBase,
-			isSuccess: true,
 			currentPage: 1,
 			currentOffsetStart: 1,
 			totalRecords: 7,
@@ -74,7 +66,6 @@ export const FirstPageWithNoData: Story = {
 	args: {
 		query: {
 			...mockPaginationResultBase,
-			isSuccess: true,
 			currentPage: 1,
 			currentOffsetStart: 1,
 			totalRecords: 0,
@@ -86,11 +77,25 @@ export const FirstPageWithNoData: Story = {
 	},
 };
 
+export const FirstPageWithTonsOfData: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 2,
+			currentOffsetStart: 1000,
+			totalRecords: 123_456,
+			totalPages: 4939,
+			hasPreviousPage: false,
+			hasNextPage: true,
+			isPlaceholderData: false,
+		},
+	},
+};
+
 export const TransitionFromFirstToSecondPage: Story = {
 	args: {
 		query: {
 			...mockPaginationResultBase,
-			isSuccess: true,
 			currentPage: 2,
 			currentOffsetStart: 26,
 			totalRecords: 100,
@@ -107,7 +112,6 @@ export const SecondPageWithData: Story = {
 	args: {
 		query: {
 			...mockPaginationResultBase,
-			isSuccess: true,
 			currentPage: 2,
 			currentOffsetStart: 26,
 			totalRecords: 100,
@@ -117,5 +121,53 @@ export const SecondPageWithData: Story = {
 			isPlaceholderData: false,
 		},
 		children: <div>New data for page 2</div>,
+	},
+};
+
+export const CappedCountFirstPage: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 1,
+			currentOffsetStart: 1,
+			totalRecords: 2000,
+			totalPages: 80,
+			hasPreviousPage: false,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
+	},
+};
+
+export const CappedCountMiddlePage: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 3,
+			currentOffsetStart: 51,
+			totalRecords: 2000,
+			totalPages: 80,
+			hasPreviousPage: true,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
+	},
+};
+
+export const CappedCountBeyondKnownPages: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 85,
+			currentOffsetStart: 2101,
+			totalRecords: 2000,
+			totalPages: 85,
+			hasPreviousPage: true,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
 	},
 };

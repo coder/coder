@@ -15,7 +15,7 @@ OPTIONS:
           The connection URL for the Postgres database.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

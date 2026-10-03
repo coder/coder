@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/quartz"
 )
 
@@ -36,13 +37,13 @@ func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock, logg
 
 // ReconcileAll ensures the prebuilds system user has the necessary memberships to create prebuilt workspaces.
 // For each organization with prebuilds configured, it ensures:
-// * The user is a member of the organization
-// * A group exists with quota 0
-// * The user is a member of that group
+// * The prebuilds user is a member of the organization
+// * A prebuilds group exists with quota allowance 0 (admins should adjust based on needs)
+// * The prebuilds user is a member of that group
 //
 // Unique constraint violations are safely ignored (concurrent creation).
-//
-// ReconcileAll does not have an opinion on transaction or lock management. These responsibilities are left to the caller.
+// ReconcileAll performs independent write operations without a transaction.
+// Partial failures are handled by subsequent reconciliation cycles.
 func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid.UUID, groupName string) error {
 	orgStatuses, err := s.store.GetOrganizationsWithPrebuildStatus(ctx, database.GetOrganizationsWithPrebuildStatusParams{
 		UserID:    userID,
@@ -63,7 +64,8 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 
 		// Add user to org if needed
 		if !orgStatus.HasPrebuildUser {
-			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+			//nolint:gocritic // Must use AsSystemRestricted when creating a new org member as it also assigns roles.
+			_, err = s.store.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
 				OrganizationID: orgStatus.OrganizationID,
 				UserID:         userID,
 				CreatedAt:      s.clock.Now(),

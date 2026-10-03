@@ -1,10 +1,10 @@
-import TextField from "@mui/material/TextField";
-import type { ProvisionerDaemon } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { PlusIcon } from "lucide-react";
-import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import * as Yup from "yup";
+import type { ProvisionerDaemon } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { ProvisionerTag } from "#/modules/provisioners/ProvisionerTag";
 
 // Users can't delete these tags
 const REQUIRED_TAGS = ["scope", "organization", "user"];
@@ -17,7 +17,7 @@ type ProvisionerTagsFieldProps = {
 	onChange: (value: ProvisionerDaemon["tags"]) => void;
 };
 
-export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
+export const ProvisionerTagsField: React.FC<ProvisionerTagsFieldProps> = ({
 	value: fieldValue,
 	onChange,
 }) => {
@@ -78,7 +78,7 @@ type NewTagControlProps = {
 	onAdd: (tag: Tag) => void;
 };
 
-const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
+const NewTagControl: React.FC<NewTagControlProps> = ({ onAdd }) => {
 	const keyInputRef = useRef<HTMLInputElement>(null);
 	const [error, setError] = useState<string>();
 	const [newTag, setNewTag] = useState<Tag>({
@@ -119,9 +119,8 @@ const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
 				<label className="sr-only" htmlFor="tag-key-input">
 					Tag key
 				</label>
-				<TextField
-					inputRef={keyInputRef}
-					size="small"
+				<Input
+					ref={keyInputRef}
 					id="tag-key-input"
 					name="key"
 					placeholder="Key"
@@ -133,8 +132,7 @@ const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
 				<label className="sr-only" htmlFor="tag-value-input">
 					Tag value
 				</label>
-				<TextField
-					size="small"
+				<Input
 					id="tag-value-input"
 					name="value"
 					placeholder="Value"
@@ -146,7 +144,7 @@ const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
 				/>
 
 				<Button
-					className="flex-shrink-0"
+					className="shrink-0"
 					size="icon"
 					type="button"
 					onClick={addNewTag}

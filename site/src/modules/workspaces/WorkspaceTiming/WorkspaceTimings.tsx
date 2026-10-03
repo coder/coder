@@ -1,16 +1,19 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
+import { useState } from "react";
 import type {
 	AgentConnectionTiming,
 	AgentScriptTiming,
 	ProvisionerTiming,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	calcDuration,
 	formatTime,
@@ -45,28 +48,13 @@ type WorkspaceTimingsProps = {
 	agentConnectionTimings: readonly AgentConnectionTiming[] | undefined;
 };
 
-export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
+export const WorkspaceTimings: React.FC<WorkspaceTimingsProps> = ({
 	provisionerTimings = [],
 	agentScriptTimings = [],
 	agentConnectionTimings = [],
 	defaultIsOpen = false,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "default" });
-	// This is a workaround to deal with the BE returning multiple timings for a
-	// single agent script when it should return only one. Reference:
-	// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
-	const uniqScriptTimings = uniqBy(
-		sortBy(agentScriptTimings, (t) => new Date(t.started_at).getTime() * -1),
-		(t) => t.display_name,
-	);
-	const timings = [
-		...provisionerTimings,
-		...uniqScriptTimings,
-		...agentConnectionTimings,
-	].sort((a, b) => {
-		return new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
-	});
-
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 
 	// If any of the timings are empty, we are still loading the data. They can be
@@ -79,61 +67,84 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 		// at least one entry.
 	].some((t) => t.length === 0);
 
+	// This is a workaround to deal with the BE returning multiple timings for a
+	// single agent script when it should return only one. Reference:
+	// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
+	const uniqScriptTimings = sortBy(
+		uniqBy(
+			sortBy(agentScriptTimings, (t) => t.started_at).reverse(),
+			(t) => `${t.workspace_agent_id}:${t.display_name}`,
+		),
+		(t) => t.started_at,
+	);
+
+	// Combine agent timings for filtering by agent ID.
+	const agentTimings = [...agentConnectionTimings, ...uniqScriptTimings];
+
 	// Each agent connection timing is a stage in the timeline to make it easier
 	// to users to see the timing for connection and the other scripts.
-	const agentStageLabels = Array.from(
-		new Set(
-			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
-		),
-	);
+	const agents = uniqBy(agentConnectionTimings, (t) => t.workspace_agent_id);
 
 	const stages = [
 		...provisioningStages,
-		...agentStageLabels.flatMap((a) => agentStages(a)),
+		...agents.flatMap((agent) =>
+			agentStages(
+				`agent (${agent.workspace_agent_name})`,
+				agent.workspace_agent_id,
+			),
+		),
 	];
 
 	const displayProvisioningTime = () => {
-		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
+		const allTimings = [...provisionerTimings, ...agentTimings];
+		const totalRange = mergeTimeRanges(allTimings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
 		return formatTime(totalDuration);
 	};
 
 	return (
-		<div css={styles.collapse}>
-			<Button
-				disabled={isLoading}
-				variant="subtle"
-				css={styles.collapseTrigger}
-				onClick={() => setIsOpen((o) => !o)}
-			>
-				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				)}
-				<span>Build timeline</span>
-				<span
-					css={(theme) => ({
-						marginLeft: "auto",
-						color: theme.palette.text.secondary,
-					})}
-				>
+		<Collapsible
+			open={isOpen}
+			onOpenChange={setIsOpen}
+			className="rounded-lg border border-solid bg-surface-primary"
+		>
+			<div className="flex items-center justify-between px-4 py-1.5 relative">
+				<CollapsibleTrigger asChild>
+					<Button
+						disabled={isLoading}
+						variant="subtle"
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={isOpen} />
+						<span>Build timeline</span>
+					</Button>
+				</CollapsibleTrigger>
+				<span className="ml-auto text-sm text-content-secondary pr-2">
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
 					) : (
 						displayProvisioningTime()
 					)}
 				</span>
-			</Button>
+			</div>
 			{!isLoading && (
-				<Collapse in={isOpen}>
-					<div css={styles.collapseBody}>
+				<CollapsibleContent>
+					<div
+						className="border-solid border-0 border-t flex flex-col"
+						style={{
+							height: "var(--collapse-body-height, 420px)",
+						}}
+					>
 						{view.name === "default" && (
 							<StagesChart
 								timings={stages.map((s) => {
-									const stageTimings = timings.filter(
-										(t) => t.stage === s.name,
-									);
+									const stageTimings = s.agentId
+										? agentTimings.filter(
+												(t) =>
+													t.stage === s.name &&
+													t.workspace_agent_id === s.agentId,
+											)
+										: provisionerTimings.filter((t) => t.stage === s.name);
 									const stageRange =
 										stageTimings.length === 0
 											? undefined
@@ -174,7 +185,6 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 								}}
 							/>
 						)}
-
 						{view.name === "detailed" && (
 							<>
 								{view.stage.section === "provisioning" && (
@@ -196,8 +206,12 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 								{view.stage.name === "start" && (
 									<ScriptsChart
-										timings={agentScriptTimings
-											.filter((t) => t.stage === view.stage.name)
+										timings={uniqScriptTimings
+											.filter(
+												(t) =>
+													t.stage === view.stage.name &&
+													t.workspace_agent_id === view.stage.agentId,
+											)
 											.map((t) => {
 												return {
 													range: toTimeRange(t),
@@ -215,9 +229,9 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							</>
 						)}
 					</div>
-				</Collapse>
+				</CollapsibleContent>
 			)}
-		</div>
+		</Collapsible>
 	);
 };
 
@@ -230,46 +244,3 @@ const toTimeRange = (timing: {
 		endedAt: new Date(timing.ended_at),
 	};
 };
-
-const _humanizeDuration = (durationMs: number): string => {
-	const seconds = Math.floor(durationMs / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-
-	if (hours > 0) {
-		return `${hours.toLocaleString()}h ${(minutes % 60).toLocaleString()}m`;
-	}
-
-	if (minutes > 0) {
-		return `${minutes.toLocaleString()}m ${(seconds % 60).toLocaleString()}s`;
-	}
-
-	return `${seconds.toLocaleString()}s`;
-};
-
-const styles = {
-	collapse: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		backgroundColor: theme.palette.background.default,
-	}),
-	collapseTrigger: {
-		background: "none",
-		border: 0,
-		padding: 16,
-		color: "inherit",
-		width: "100%",
-		display: "flex",
-		alignItems: "center",
-		height: 57,
-		fontSize: 14,
-		fontWeight: 500,
-		cursor: "pointer",
-	},
-	collapseBody: (theme) => ({
-		borderTop: `1px solid ${theme.palette.divider}`,
-		display: "flex",
-		flexDirection: "column",
-		height: 420,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

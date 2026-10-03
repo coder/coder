@@ -1,24 +1,28 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
+import { cn } from "cn";
+import { TriangleAlertIcon } from "lucide-react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
-} from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
+} from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
+import {
+	agentConnectionMessages,
+	agentScriptMessages,
+} from "../workspaces/health";
+
+const statusDotBaseClassName = "size-1.5 shrink-0 rounded-full";
+const statusDotConnectedClassName =
+	"bg-content-success shadow-[0_0_12px_0] shadow-content-success";
+const statusDotDisconnectedClassName = "bg-content-secondary";
+const statusDotConnectingClassName =
+	"bg-content-link animate-pulse [animation-delay:0.5s]";
 
 // If we think in the agent status and lifecycle into a single enum/state I'd
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -26,25 +30,84 @@ import type { FC } from "react";
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifecycle: FC = () => {
+type AgentWarningTooltipProps = {
+	ariaLabel: string;
+	title: string;
+	detail: string;
+	troubleshootingURL?: string;
+	variant?: "warning" | "error";
+};
+
+/**
+ * Shared tooltip for agent warning/error states. Renders an alert
+ * icon with a help tooltip showing the title, detail, and an
+ * optional troubleshooting link.
+ */
+const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
+	ariaLabel,
+	title,
+	detail,
+	troubleshootingURL,
+	variant = "warning",
+}) => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<TriangleAlertIcon
+					role="status"
+					aria-label={ariaLabel}
+					className={cn(
+						"relative size-3.5",
+						variant === "warning"
+							? "text-content-warning"
+							: "text-content-destructive",
+					)}
+				/>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				<TooltipTitle>{title}</TooltipTitle>
+				<TooltipMessage>
+					{detail}
+					{troubleshootingURL && (
+						<>
+							{" "}
+							<Link
+								size="sm"
+								target="_blank"
+								rel="noreferrer"
+								href={troubleshootingURL}
+								className="p-0 mt-2"
+								showExternalIcon={false}
+							>
+								Troubleshoot
+							</Link>
+						</>
+					)}
+				</TooltipMessage>
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
+const ReadyLifecycle: React.FC = () => {
 	return (
 		<div
 			role="status"
 			data-testid="agent-status-ready"
 			aria-label="Ready"
-			css={[styles.status, styles.connected]}
+			className={cn(statusDotBaseClassName, statusDotConnectedClassName)}
 		/>
 	);
 };
 
-const StartingLifecycle: FC = () => {
+const StartingLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
 					aria-label="Starting..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Starting...</TooltipContent>
@@ -52,77 +115,28 @@ const StartingLifecycle: FC = () => {
 	);
 };
 
-interface AgentStatusProps {
+type AgentStatusProps = {
 	agent: WorkspaceAgent;
-}
+};
 
-interface SubAgentStatusProps {
+type SubAgentStatusProps = {
 	agent?: WorkspaceAgent;
-}
+};
 
-interface DevcontainerStatusProps {
+type DevcontainerStatusProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
 	parentAgent: WorkspaceAgent;
 	agent?: WorkspaceAgent;
-}
-
-const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Agent timeout">
-				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</HelpTooltipTrigger>
-
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
-				<HelpTooltipText>
-					We noticed this agent is taking longer than expected to start.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
 };
 
-const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Start error">
-				<TriangleAlertIcon css={styles.errorWarning} />
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
-				<HelpTooltipText>
-					Something went wrong during the agent startup.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
-};
-
-const ShuttingDownLifecycle: FC = () => {
+const ShuttingDownLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
 					aria-label="Stopping..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Stopping...</TooltipContent>
@@ -130,62 +144,33 @@ const ShuttingDownLifecycle: FC = () => {
 	);
 };
 
-const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Stop timeout">
-				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
-				<HelpTooltipText>
-					We noticed this agent is taking longer than expected to stop.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
-};
+const ShutdownTimeoutLifecycle: React.FC<AgentStatusProps> = ({ agent }) => (
+	<AgentWarningTooltip
+		ariaLabel="Shutdown script timeout"
+		title={agentScriptMessages.shutdown_timeout.title}
+		detail={agentScriptMessages.shutdown_timeout.detail}
+		troubleshootingURL={agent.troubleshooting_url}
+	/>
+);
 
-const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Stop error">
-				<TriangleAlertIcon css={styles.errorWarning} />
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
-				<HelpTooltipText>
-					Something went wrong while trying to stop the agent.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
-};
+const ShutdownErrorLifecycle: React.FC<AgentStatusProps> = ({ agent }) => (
+	<AgentWarningTooltip
+		ariaLabel="Shutdown script failed"
+		title={agentScriptMessages.shutdown_error.title}
+		detail={agentScriptMessages.shutdown_error.detail}
+		troubleshootingURL={agent.troubleshooting_url}
+		variant="warning"
+	/>
+);
 
-const OffLifecycle: FC = () => {
+const OffLifecycle: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
 					aria-label="Stopped"
-					css={[styles.status, styles.disconnected]}
+					className={cn(statusDotBaseClassName, statusDotDisconnectedClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Stopped</TooltipContent>
@@ -193,50 +178,46 @@ const OffLifecycle: FC = () => {
 	);
 };
 
-const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
+const ConnectedStatus: React.FC<AgentStatusProps> = ({ agent }) => {
 	// This is to support legacy agents that do not support
 	// reporting the lifecycle_state field.
 	if (agent.scripts.length === 0) {
 		return <ReadyLifecycle />;
 	}
-	return (
-		<ChooseOne>
-			<Cond condition={agent.lifecycle_state === "ready"}>
-				<ReadyLifecycle />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "start_timeout"}>
-				<StartTimeoutLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "start_error"}>
-				<StartErrorLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutting_down"}>
-				<ShuttingDownLifecycle />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-				<ShutdownTimeoutLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutdown_error"}>
-				<ShutdownErrorLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "off"}>
-				<OffLifecycle />
-			</Cond>
-			<Cond>
-				<StartingLifecycle />
-			</Cond>
-		</ChooseOne>
-	);
+	if (agent.lifecycle_state === "ready") {
+		return <ReadyLifecycle />;
+	}
+	// Script errors and timeouts do not affect agent connectivity.
+	// These states are surfaced in the per-script log tabs instead.
+	if (
+		agent.lifecycle_state === "start_timeout" ||
+		agent.lifecycle_state === "start_error"
+	) {
+		return <ReadyLifecycle />;
+	}
+	if (agent.lifecycle_state === "shutting_down") {
+		return <ShuttingDownLifecycle />;
+	}
+	if (agent.lifecycle_state === "shutdown_timeout") {
+		return <ShutdownTimeoutLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "shutdown_error") {
+		return <ShutdownErrorLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "off") {
+		return <OffLifecycle />;
+	}
+	return <StartingLifecycle />;
 };
 
-const DisconnectedStatus: FC = () => {
+const DisconnectedStatus: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
 					aria-label="Disconnected"
-					css={[styles.status, styles.disconnected]}
+					className={cn(statusDotBaseClassName, statusDotDisconnectedClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Disconnected</TooltipContent>
@@ -244,14 +225,14 @@ const DisconnectedStatus: FC = () => {
 	);
 };
 
-const ConnectingStatus: FC = () => {
+const ConnectingStatus: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div
 					role="status"
 					aria-label="Connecting..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Connecting...</TooltipContent>
@@ -259,98 +240,55 @@ const ConnectingStatus: FC = () => {
 	);
 };
 
-const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Timeout">
-				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
-				<HelpTooltipText>
-					We noticed this agent is taking longer than expected to connect.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
+const TimeoutStatus: React.FC<AgentStatusProps> = ({ agent }) => (
+	<AgentWarningTooltip
+		ariaLabel="Timeout"
+		title={agentConnectionMessages.timeout.title}
+		detail={agentConnectionMessages.timeout.detail}
+		troubleshootingURL={agent.troubleshooting_url}
+	/>
+);
+
+export const AgentStatus: React.FC<AgentStatusProps> = ({ agent }) => {
+	if (agent.status === "connected") {
+		return <ConnectedStatus agent={agent} />;
+	}
+	if (agent.status === "disconnected") {
+		return <DisconnectedStatus />;
+	}
+	if (agent.status === "timeout") {
+		return <TimeoutStatus agent={agent} />;
+	}
+	return <ConnectingStatus />;
 };
 
-export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<ChooseOne>
-			<Cond condition={agent.status === "connected"}>
-				<ConnectedStatus agent={agent} />
-			</Cond>
-			<Cond condition={agent.status === "disconnected"}>
-				<DisconnectedStatus />
-			</Cond>
-			<Cond condition={agent.status === "timeout"}>
-				<TimeoutStatus agent={agent} />
-			</Cond>
-			<Cond>
-				<ConnectingStatus />
-			</Cond>
-		</ChooseOne>
-	);
-};
-
-const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
+const SubAgentStatus: React.FC<SubAgentStatusProps> = ({ agent }) => {
 	if (!agent) {
 		return <DisconnectedStatus />;
 	}
-	return (
-		<ChooseOne>
-			<Cond condition={agent.status === "connected"}>
-				<ConnectedStatus agent={agent} />
-			</Cond>
-			<Cond condition={agent.status === "disconnected"}>
-				<DisconnectedStatus />
-			</Cond>
-			<Cond condition={agent.status === "timeout"}>
-				<TimeoutStatus agent={agent} />
-			</Cond>
-			<Cond>
-				<ConnectingStatus />
-			</Cond>
-		</ChooseOne>
-	);
+	if (agent.status === "connected") {
+		return <ConnectedStatus agent={agent} />;
+	}
+	if (agent.status === "disconnected") {
+		return <DisconnectedStatus />;
+	}
+	if (agent.status === "timeout") {
+		return <TimeoutStatus agent={agent} />;
+	}
+	return <ConnectingStatus />;
 };
 
-const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Start error">
-				<TriangleAlertIcon css={styles.errorWarning} />
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>
-					Error starting the devcontainer agent
-				</HelpTooltipTitle>
-				<HelpTooltipText>
-					Something went wrong during the devcontainer agent startup.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
-};
+const DevcontainerStartError: React.FC<AgentStatusProps> = ({ agent }) => (
+	<AgentWarningTooltip
+		ariaLabel="Start error"
+		title="Error starting the devcontainer agent"
+		detail="Something went wrong during the devcontainer agent startup."
+		troubleshootingURL={agent.troubleshooting_url}
+		variant="error"
+	/>
+);
 
-export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
+export const DevcontainerStatus: React.FC<DevcontainerStatusProps> = ({
 	devcontainer,
 	parentAgent,
 	agent,
@@ -364,52 +302,3 @@ export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
 
 	return <SubAgentStatus agent={agent} />;
 };
-
-const styles = {
-	status: {
-		width: 6,
-		height: 6,
-		borderRadius: "100%",
-		flexShrink: 0,
-	},
-
-	connected: (theme) => ({
-		backgroundColor: theme.palette.success.light,
-		boxShadow: `0 0 12px 0 ${theme.palette.success.light}`,
-	}),
-
-	disconnected: (theme) => ({
-		backgroundColor: theme.palette.text.secondary,
-	}),
-
-	"@keyframes pulse": {
-		"0%": {
-			opacity: 1,
-		},
-		"50%": {
-			opacity: 0.4,
-		},
-		"100%": {
-			opacity: 1,
-		},
-	},
-
-	connecting: (theme) => ({
-		backgroundColor: theme.palette.info.light,
-		animation: "$pulse 1.5s 0.5s ease-in-out forwards infinite",
-	}),
-
-	timeoutWarning: (theme) => ({
-		color: theme.palette.warning.light,
-		width: 14,
-		height: 14,
-		position: "relative",
-	}),
-
-	errorWarning: (theme) => ({
-		color: theme.palette.error.main,
-		width: 14,
-		height: 14,
-		position: "relative",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

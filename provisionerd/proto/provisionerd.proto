@@ -28,6 +28,9 @@ message AcquiredJob {
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
     // Reserved 11 for an experiment `exp_reuse_terraform_workspace` (bool) that was replaced.
     reserved 11;
+    // Reserved 12 for `user_secrets` introduced in v1.17 (#24542) and removed
+    // in v1.18 along with the rest of the `coder_secret` Terraform integration.
+    reserved 12;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
@@ -82,7 +85,8 @@ message CompletedJob {
     repeated provisioner.Timing timings = 3;
     repeated provisioner.Module modules = 4;
     repeated provisioner.ResourceReplacement resource_replacements = 5;
-    repeated provisioner.AITask ai_tasks = 6;
+    reserved 6;
+    reserved "ai_tasks";
   }
   message TemplateImport {
     repeated provisioner.Resource start_resources = 1;
@@ -91,12 +95,13 @@ message CompletedJob {
     repeated string external_auth_providers_names = 4;
     repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
     repeated provisioner.Module start_modules = 6;
-    repeated provisioner.Module stop_modules = 7;
+    reserved 7; // was stop_modules, which is always the same as start_modules
     repeated provisioner.Preset presets = 8;
     bytes plan = 9;
     bytes module_files = 10;
     bytes module_files_hash = 11;
-    bool has_ai_tasks = 12;
+    reserved 12;
+    reserved "has_ai_tasks";
     bool has_external_agents = 13;
   }
   message TemplateDryRun {

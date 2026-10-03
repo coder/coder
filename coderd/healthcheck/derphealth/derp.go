@@ -2,6 +2,7 @@ package derphealth
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/netip"
@@ -23,7 +24,6 @@ import (
 	tslogger "tailscale.com/types/logger"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
@@ -33,6 +33,7 @@ const (
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
 	noSTUN                   = "No STUN servers are available."
+	noDERP                   = "No DERP servers are available."
 	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
 )
 
@@ -40,19 +41,24 @@ type ReportOptions struct {
 	Dismissed bool
 
 	DERPMap *tailcfg.DERPMap
+
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 type Report healthsdk.DERPHealthReport
 
 type RegionReport struct {
 	healthsdk.DERPRegionReport
-	mu sync.Mutex
+	mu            sync.Mutex
+	derpTLSConfig *tls.Config
 }
 
 type NodeReport struct {
 	healthsdk.DERPNodeReport
 	mu            sync.Mutex
 	clientCounter int
+	derpTLSConfig *tls.Config
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
@@ -63,24 +69,34 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 
 	r.Regions = map[int]*healthsdk.DERPRegionReport{}
 
+	// Track whether the map contains any DERP nodes so we can warn if
+	// it does not.
+	hasDERP := false
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
 
 	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
+		for _, node := range region.Nodes {
+			if !node.STUNOnly {
+				hasDERP = true
+				break
+			}
+		}
 		var (
 			region       = region
 			regionReport = RegionReport{
 				DERPRegionReport: healthsdk.DERPRegionReport{
 					Region: region,
 				},
+				derpTLSConfig: opts.DERPTLSConfig,
 			}
 		)
 		go func() {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					regionReport.Error = ptr.Ref(fmt.Sprint(err))
+					regionReport.Error = new(fmt.Sprint(err))
 				}
 			}()
 
@@ -96,24 +112,33 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			mu.Unlock()
 		}()
 	}
-
 	ncLogf := func(format string, args ...interface{}) {
 		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
 		mu.Unlock()
 	}
 	nc := &netcheck.Client{
-		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
-		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
+		PortMapper:    portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
+		Logf:          tslogger.WithPrefix(ncLogf, "netcheck: "),
+		DERPTLSConfig: opts.DERPTLSConfig,
 	}
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
 	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		mu.Lock()
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+		mu.Unlock()
 	}
 
 	wg.Wait()
+
+	if !hasDERP {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(
+			health.CodeDERPNoNodes, noDERP,
+		))
+	}
 
 	// Count the number of STUN-capable nodes.
 	var stunCapableNodes int
@@ -159,6 +184,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 					Healthy: true,
 					Node:    node,
 				},
+				derpTLSConfig: r.derpTLSConfig,
 			}
 		)
 
@@ -166,7 +192,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
+					nodeReport.Error = new(fmt.Sprint(err))
 					nodeReport.Severity = health.SeverityError
 				}
 			}()
@@ -193,7 +219,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	if len(r.Region.Nodes) != len(r.NodeReports) {
 		r.Healthy = false
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref(missingNodeReport)
+		r.Error = new(missingNodeReport)
 		return
 	}
 
@@ -229,7 +255,7 @@ func (r *NodeReport) derpURL() *url.URL {
 	if r.Node.HostName == "" {
 		derpURL.Host = r.Node.IPv4
 	}
-	if r.Node.DERPPort != 0 && !(r.Node.DERPPort == 443 && derpURL.Scheme == "https") && !(r.Node.DERPPort == 80 && derpURL.Scheme == "http") {
+	if r.Node.DERPPort != 0 && (r.Node.DERPPort != 443 || derpURL.Scheme != "https") && (r.Node.DERPPort != 80 || derpURL.Scheme != "http") {
 		derpURL.Host = fmt.Sprintf("%s:%d", derpURL.Host, r.Node.DERPPort)
 	}
 
@@ -339,7 +365,7 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 
 		var iter uint8
 		for {
-			lastSent.Store(ptr.Ref(time.Now()))
+			lastSent.Store(new(time.Now()))
 			err = send.Send(receive.SelfPublicKey(), []byte{iter})
 			if err != nil {
 				r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
@@ -476,6 +502,10 @@ func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphtt
 		return nil, id, err
 	}
 
+	if r.derpTLSConfig != nil {
+		client.TLSConfig = r.derpTLSConfig
+	}
+
 	go func() {
 		<-ctx.Done()
 		_ = client.Close()
@@ -521,7 +551,7 @@ func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, err
 
 func convertError(err error) *string {
 	if err != nil {
-		return ptr.Ref(err.Error())
+		return new(err.Error())
 	}
 
 	return nil

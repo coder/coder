@@ -1,0 +1,374 @@
+package chatd
+
+import (
+	"context"
+	"database/sql"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/quartz"
+)
+
+const (
+	defaultAcquisitionBatchSize    = int32(10)
+	defaultCapacityMetricsInterval = 30 * time.Second
+	defaultRunnerSyncInterval      = 15 * time.Second
+	defaultHeartbeatCleanupEvery   = 30 * time.Second
+	// The archive cutoff is based on UTC start-of-day and only moves
+	// once per day, so hourly runs are more than enough to keep up
+	// while still catching chats that cross the threshold shortly
+	// after midnight.
+	defaultArchiveInterval         = time.Hour
+	defaultArchiveBatchSize        = int32(1000)
+	defaultStateChannelSize        = 64
+	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
+	defaultTaskRetryMaxBackoff     = 5 * time.Second
+
+	// defaultAutomationScheduleBatchSize is how many due automations a
+	// schedule scan reads per page.
+	defaultAutomationScheduleBatchSize = int32(500)
+)
+
+// chatWorkerPubsub is the chat worker pubsub dependency.
+type chatWorkerPubsub interface {
+	Publish(event string, message []byte) error
+	SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error)
+}
+
+// chatWorkerTaskStarter starts runner-owned side-effect tasks.
+type chatWorkerTaskStarter interface {
+	StartGeneration(context.Context, chatWorkerTaskStartInput) error
+	StartInterrupt(context.Context, chatWorkerTaskStartInput) error
+	StartRequiresActionTimeout(context.Context, chatWorkerTaskStartInput) error
+	StartAbandon(context.Context, chatWorkerTaskStartInput) error
+}
+
+// chatWorkerTaskStartInput describes one runner task invocation.
+type chatWorkerTaskStartInput struct {
+	TaskID uuid.UUID
+	ChatID uuid.UUID
+	// TurnID is a process-local correlation ID minted per generation
+	// task run. It groups the run's hook events; it is best-effort only
+	// and never persisted.
+	TurnID                   uuid.UUID
+	WorkerID                 uuid.UUID
+	RunnerID                 uuid.UUID
+	HistoryVersion           int64
+	GenerationAttempt        int64
+	Status                   database.ChatStatus
+	RequiresActionDeadlineAt sql.NullTime
+	DebugTurn                *runnerDebugTurn
+	TurnSpan                 *runnerTurnSpan
+	TurnToken                turnToken
+	SessionStart             *sessionStartTracker
+	StopNudges               *stopNudgeTracker
+	TurnExperiments          *turnExperimentDecisions
+}
+
+func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
+	if i.TurnID == uuid.Nil {
+		return nil
+	}
+	turnID := i.TurnID
+	return &turnID
+}
+
+// stopNudgeTracker allows at most one stop-hook nudge continuation per
+// turn. Turns are keyed by the last user prompt's message ID so the
+// claim survives task restarts, which mint fresh process-local turn
+// IDs.
+type stopNudgeTracker struct {
+	mu      sync.Mutex
+	turnKey int64
+	claimed bool
+	pending bool
+}
+
+// stopNudgeKey identifies the current turn by its prompt row. Model
+// visibility user rows are hook context, not prompts.
+func stopNudgeKey(messages []database.ChatMessage) int64 {
+	index := lastUserPromptIndex(messages)
+	if index == -1 {
+		return 0
+	}
+	return messages[index].ID
+}
+
+func (t *stopNudgeTracker) claim(turnKey int64) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey {
+		t.turnKey = turnKey
+		t.claimed = false
+	}
+	if t.claimed {
+		return false
+	}
+	t.claimed = true
+	t.pending = true
+	return true
+}
+
+func (t *stopNudgeTracker) consume(turnKey int64) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey || !t.pending {
+		return false
+	}
+	t.pending = false
+	return true
+}
+
+func (t *stopNudgeTracker) cancel(turnKey int64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey || !t.pending {
+		return
+	}
+	t.pending = false
+	t.claimed = false
+}
+
+func (t *stopNudgeTracker) reset() {
+	t.mu.Lock()
+	t.turnKey = 0
+	t.claimed = false
+	t.pending = false
+	t.mu.Unlock()
+}
+
+// turnExperimentDecisions keeps user-scoped experiment decisions for
+// one turn, so every step of the turn uses the decision made when the
+// turn first prepared and a rule change applies from the next turn.
+// Steps run as separate tasks, so the decisions live on the runner and
+// are keyed by the turn's prompt row like stopNudgeTracker. A runner
+// restart evaluates again.
+type turnExperimentDecisions struct {
+	mu              sync.Mutex
+	mcpToolSearch   turnExperimentDecision
+	chatAutomations turnExperimentDecision
+}
+
+// turnExperimentDecision is one experiment's decision and the turn it
+// belongs to. Experiments decide independently because each is evaluated
+// only when the turn needs it.
+type turnExperimentDecision struct {
+	turnKey int64
+	decided bool
+	enabled bool
+}
+
+// mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling
+// evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.mcpToolSearch, turnKey, evaluate)
+}
+
+// chatAutomationsEnabled returns the turn's chat-automations decision,
+// calling evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) chatAutomationsEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.chatAutomations, turnKey, evaluate)
+}
+
+func (t *turnExperimentDecisions) decide(d *turnExperimentDecision, turnKey int64, evaluate func() bool) bool {
+	if turnKey == 0 {
+		// Without a prompt row there is no turn identity to key on, and
+		// caching under 0 would pin one decision across such turns.
+		return evaluate()
+	}
+	t.mu.Lock()
+	if d.decided && d.turnKey == turnKey {
+		enabled := d.enabled
+		t.mu.Unlock()
+		return enabled
+	}
+	t.mu.Unlock()
+
+	// Evaluate outside the lock because it reads the database. If
+	// another task of the same turn decided meanwhile, its decision wins.
+	enabled := evaluate()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if d.decided && d.turnKey == turnKey {
+		return d.enabled
+	}
+	if d.decided && d.turnKey > turnKey {
+		// A canceled task of an older turn finished late. Prompt row IDs
+		// increase, so keep the newer turn's decision.
+		return enabled
+	}
+	d.turnKey = turnKey
+	d.decided = true
+	d.enabled = enabled
+	return enabled
+}
+
+type sessionStartTracker struct {
+	mu        sync.Mutex
+	completed bool
+	inFlight  chan struct{}
+}
+
+func (t *sessionStartTracker) claim(ctx context.Context) (bool, func(bool), error) {
+	for {
+		t.mu.Lock()
+		if t.completed {
+			t.mu.Unlock()
+			return false, nil, nil
+		}
+		if t.inFlight == nil {
+			t.inFlight = make(chan struct{})
+			t.mu.Unlock()
+			return true, func(completed bool) {
+				t.mu.Lock()
+				t.completed = completed
+				close(t.inFlight)
+				t.inFlight = nil
+				t.mu.Unlock()
+			}, nil
+		}
+		inFlight := t.inFlight
+		t.mu.Unlock()
+		select {
+		case <-inFlight:
+		case <-ctx.Done():
+			return false, nil, ctx.Err()
+		}
+	}
+}
+
+// chatWorkerOptions configures a chatWorker.
+type chatWorkerOptions struct {
+	WorkerID uuid.UUID
+
+	Store             database.Store
+	Pubsub            chatWorkerPubsub
+	Logger            slog.Logger
+	Clock             quartz.Clock
+	TaskStarter       chatWorkerTaskStarter
+	MessagePartBuffer *messagepartbuffer.Buffer
+
+	NotificationsEnqueuer notifications.Enqueuer
+	Auditor               *atomic.Pointer[audit.Auditor]
+	AutoArchiveRecords    prometheus.Counter
+
+	AgentCapacityLimiter AgentCapacityLimiter
+	CapacityMetrics      *capacityMetrics
+
+	AcquisitionInterval         time.Duration
+	CapacityMetricsInterval     time.Duration
+	AcquisitionBatchSize        int32
+	ArchiveInterval             time.Duration
+	ArchiveBatchSize            int32
+	AutomationScheduleInterval  time.Duration
+	AutomationScheduleBatchSize int32
+	RunnerSyncInterval          time.Duration
+	HeartbeatInterval           time.Duration
+	HeartbeatCleanupInterval    time.Duration
+	HeartbeatStaleSeconds       int32
+	// HeartbeatRenewalTimeout bounds one heartbeat renewal tick. It must
+	// stay well below the stale threshold so a slow tick fails and
+	// retries instead of letting every lease go stale.
+	HeartbeatRenewalTimeout time.Duration
+	// HeartbeatLockTimeout bounds the renewal's wait for the capacity
+	// admission lock.
+	HeartbeatLockTimeout       time.Duration
+	StateChannelSize           int
+	RunnerManagerChannelSize   int
+	AcquisitionWakeChannelSize int
+	TaskRetryInitialBackoff    time.Duration
+	TaskRetryMaxBackoff        time.Duration
+}
+
+func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
+	if o.Store == nil {
+		return chatWorkerOptions{}, xerrors.New("chatworker: store is required")
+	}
+	if o.Pubsub == nil {
+		return chatWorkerOptions{}, xerrors.New("chatworker: pubsub is required")
+	}
+	if o.TaskStarter == nil && o.MessagePartBuffer == nil {
+		return chatWorkerOptions{}, xerrors.New("chatworker: task starter or message part buffer is required")
+	}
+	if o.WorkerID == uuid.Nil {
+		return chatWorkerOptions{}, xerrors.New("chatworker: worker ID is required")
+	}
+	if o.Clock == nil {
+		o.Clock = quartz.NewReal()
+	}
+	if o.AcquisitionInterval <= 0 {
+		o.AcquisitionInterval = DefaultPendingChatAcquireInterval
+	}
+	if o.CapacityMetricsInterval <= 0 {
+		o.CapacityMetricsInterval = defaultCapacityMetricsInterval
+	}
+	if o.AcquisitionBatchSize <= 0 {
+		o.AcquisitionBatchSize = defaultAcquisitionBatchSize
+	}
+	if o.ArchiveInterval <= 0 {
+		o.ArchiveInterval = defaultArchiveInterval
+	}
+	if o.ArchiveBatchSize <= 0 {
+		o.ArchiveBatchSize = defaultArchiveBatchSize
+	}
+	if o.AutomationScheduleInterval <= 0 {
+		o.AutomationScheduleInterval = automationScheduleInterval
+	}
+	if o.AutomationScheduleBatchSize <= 0 {
+		o.AutomationScheduleBatchSize = defaultAutomationScheduleBatchSize
+	}
+	if o.NotificationsEnqueuer == nil {
+		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
+	}
+	if o.RunnerSyncInterval <= 0 {
+		o.RunnerSyncInterval = defaultRunnerSyncInterval
+	}
+	if o.HeartbeatInterval <= 0 {
+		o.HeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+	if o.HeartbeatCleanupInterval <= 0 {
+		o.HeartbeatCleanupInterval = defaultHeartbeatCleanupEvery
+	}
+	if o.HeartbeatStaleSeconds <= 0 {
+		o.HeartbeatStaleSeconds = int32(DefaultInFlightChatStaleAfter / time.Second)
+	}
+	if o.HeartbeatRenewalTimeout <= 0 {
+		o.HeartbeatRenewalTimeout = time.Duration(o.HeartbeatStaleSeconds) * time.Second / 3
+	}
+	if o.HeartbeatLockTimeout <= 0 {
+		o.HeartbeatLockTimeout = o.HeartbeatRenewalTimeout / 2
+	}
+	if o.AgentCapacityLimiter == nil {
+		o.AgentCapacityLimiter = newAgentCapacityLimiter(nil, o.HeartbeatStaleSeconds)
+	}
+	if o.StateChannelSize <= 0 {
+		o.StateChannelSize = defaultStateChannelSize
+	}
+	if o.RunnerManagerChannelSize <= 0 {
+		o.RunnerManagerChannelSize = defaultStateChannelSize
+	}
+	if o.AcquisitionWakeChannelSize <= 0 {
+		o.AcquisitionWakeChannelSize = 1
+	}
+	if o.TaskRetryInitialBackoff <= 0 {
+		o.TaskRetryInitialBackoff = defaultTaskRetryInitialBackoff
+	}
+	if o.TaskRetryMaxBackoff <= 0 {
+		o.TaskRetryMaxBackoff = defaultTaskRetryMaxBackoff
+	}
+	if o.TaskRetryMaxBackoff < o.TaskRetryInitialBackoff {
+		o.TaskRetryMaxBackoff = o.TaskRetryInitialBackoff
+	}
+	return o, nil
+}

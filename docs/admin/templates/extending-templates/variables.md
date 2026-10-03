@@ -1,4 +1,6 @@
-# Terraform template-wide variables
+---
+title: Terraform template-wide variables
+---
 
 In Coder, Terraform templates offer extensive flexibility through template-wide
 variables. These variables, managed by template authors, facilitate the
@@ -51,7 +53,7 @@ and predictability.
 If you encounter a situation where you need to override template settings for
 variables, you can employ a straightforward solution:
 
-1. Create a `terraform.tfvars` file in in the template directory:
+1. Create a `terraform.tfvars` file in the template directory:
 
    ```tf
    coder_image = newimage:tag
@@ -59,7 +61,7 @@ variables, you can employ a straightforward solution:
 
 1. Push the new template revision using Coder CLI:
 
-   ```shell
+   ```sh
    coder templates push my-template -y # no need to use --var
    ```
 

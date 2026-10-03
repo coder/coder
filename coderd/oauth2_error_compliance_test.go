@@ -1,14 +1,17 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -29,6 +32,7 @@ func TestOAuth2ErrorResponseFormat(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will definitely fail
@@ -99,7 +103,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 			req: codersdk.OAuth2ClientRegistrationRequest{
 				RedirectURIs: []string{"https://example.com/callback"},
 				ClientName:   fmt.Sprintf("test-client-%d", time.Now().UnixNano()),
-				GrantTypes:   []string{"unsupported_grant_type"},
+				GrantTypes:   []codersdk.OAuth2ProviderGrantType{"unsupported_grant_type"},
 			},
 			expectedError: "invalid_client_metadata",
 			expectedCode:  http.StatusBadRequest,
@@ -109,7 +113,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 			req: codersdk.OAuth2ClientRegistrationRequest{
 				RedirectURIs:  []string{"https://example.com/callback"},
 				ClientName:    fmt.Sprintf("test-client-%d", time.Now().UnixNano()),
-				ResponseTypes: []string{"unsupported_response_type"},
+				ResponseTypes: []codersdk.OAuth2ProviderResponseType{"unsupported_response_type"},
 			},
 			expectedError: "invalid_client_metadata",
 			expectedCode:  http.StatusBadRequest,
@@ -152,6 +156,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 
 			client := coderdtest.New(t, nil)
 			_ = coderdtest.CreateFirstUser(t, client)
+			oauth2providertest.EnableDCR(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// Create a copy of the request with a unique client name
@@ -214,6 +219,7 @@ func TestOAuth2ManagementErrorCodes(t *testing.T) {
 
 			client := coderdtest.New(t, nil)
 			_ = coderdtest.CreateFirstUser(t, client)
+			oauth2providertest.EnableDCR(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// First register a valid client to use for management tests
@@ -286,6 +292,7 @@ func TestOAuth2ErrorResponseStructure(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will generate an error
@@ -335,6 +342,7 @@ func TestOAuth2ErrorHTTPHeaders(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request that will fail
@@ -356,11 +364,15 @@ func TestOAuth2ErrorHTTPHeaders(t *testing.T) {
 func TestOAuth2SpecificErrorScenarios(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests that need a
+	// coderd server. Sub-tests that don't need one just ignore it.
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+
 	t.Run("MissingRequiredFields", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Test completely empty request
@@ -374,19 +386,54 @@ func TestOAuth2SpecificErrorScenarios(t *testing.T) {
 		// Error properly returned with bad request status
 	})
 
+	// A malformed body is rejected before validation, so it is the one path on
+	// this handler that does not go through req.Validate. It still owes the
+	// caller an RFC 7591 error rather than a codersdk.Response, which is the
+	// reason the decode is local to the handler rather than httpapi.Read. The
+	// body is sent raw because a typed request cannot express invalid JSON.
 	t.Run("InvalidJSONStructure", func(t *testing.T) {
 		t.Parallel()
 
-		// For invalid JSON structure, we'd need to make raw HTTP requests
-		// This is tested implicitly through the other tests since we're using
-		// typed requests that ensure proper JSON structure
+		for _, tc := range []struct {
+			name string
+			body string
+			// The decoder's own text, which the response must carry so a client
+			// integrator can tell an unterminated body from a mistyped field.
+			detail string
+		}{
+			{
+				name:   "UnterminatedObject",
+				body:   `{"client_name": "test"`,
+				detail: "unexpected EOF",
+			},
+			{
+				name:   "WrongFieldType",
+				body:   `{"redirect_uris": "https://example.com/callback"}`,
+				detail: "redirect_uris",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				res, err := client.Request(ctx, http.MethodPost, "/oauth2/register",
+					strings.NewReader(tc.body))
+				require.NoError(t, err)
+				defer res.Body.Close()
+
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+				var errResp OAuth2ErrorResponse
+				require.NoError(t, json.NewDecoder(res.Body).Decode(&errResp))
+				require.Equal(t, "invalid_request", errResp.Error)
+				require.Contains(t, errResp.ErrorDescription, tc.detail)
+			})
+		}
 	})
 
 	t.Run("UnsupportedFields", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Test with fields that might not be supported yet
@@ -408,8 +455,6 @@ func TestOAuth2SpecificErrorScenarios(t *testing.T) {
 	t.Run("SecurityBoundaryErrors", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Register a client first

@@ -1,27 +1,25 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import type { BannerConfig } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
+import type { BannerConfig } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { TableCell, TableRow } from "components/Table/Table";
-import { EllipsisVertical } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Switch } from "#/components/Switch/Switch";
+import { TableCell, TableRow } from "#/components/Table/Table";
 
-interface AnnouncementBannerItemProps {
+type AnnouncementBannerItemProps = {
 	enabled: boolean;
 	backgroundColor?: string;
 	message?: string;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
 	onEdit: () => void;
 	onDelete: () => void;
-}
+};
 
-export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
+export const AnnouncementBannerItem: React.FC<AnnouncementBannerItemProps> = ({
 	enabled,
 	backgroundColor = "#004852",
 	message,
@@ -31,38 +29,42 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 }) => {
 	return (
 		<TableRow>
-			<TableCell>
-				<Checkbox
-					size="small"
+			<TableCell className="align-middle pl-5">
+				<Switch
 					checked={enabled}
-					onClick={() => void onUpdate({ enabled: !enabled })}
+					aria-label="Enabled"
+					onCheckedChange={(checked) => {
+						void onUpdate({ enabled: checked });
+					}}
 				/>
 			</TableCell>
 
-			<TableCell css={!enabled && styles.disabled}>
+			<TableCell className={!enabled ? "text-content-disabled" : ""}>
 				{message || <em>No message</em>}
 			</TableCell>
 
 			<TableCell>
-				<div css={styles.colorSample} style={{ backgroundColor }}></div>
+				<div className="size-6 rounded-sm" style={{ backgroundColor }} />
 			</TableCell>
 
 			<TableCell>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-							<EllipsisVertical aria-hidden="true" />
+							<EllipsisVerticalIcon aria-hidden="true" />
 							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => onEdit()}>
+							<PencilIcon className="size-icon-xs" />
 							Edit&hellip;
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							className="text-content-destructive focus:text-content-destructive"
 							onClick={() => onDelete()}
 						>
+							<TrashIcon className="size-icon-xs" />
 							Delete&hellip;
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -71,15 +73,3 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	disabled: (theme) => ({
-		color: theme.roles.inactive.fill.outline,
-	}),
-
-	colorSample: {
-		width: 24,
-		height: 24,
-		borderRadius: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

@@ -1,21 +1,26 @@
-import Link from "@mui/material/Link";
-import type { AuditLog } from "api/typesGenerated";
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { Link as RouterLink } from "react-router";
-import { systemBuildReasons } from "utils/workspace";
+import type { AuditLog } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
+import {
+	legacySystemBuildReasons,
+	systemBuildReasons,
+} from "#/utils/workspace";
 
-interface BuildAuditDescriptionProps {
+type BuildAuditDescriptionProps = {
 	auditLog: AuditLog;
-}
+};
 
-export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
+export const BuildAuditDescription: React.FC<BuildAuditDescriptionProps> = ({
 	auditLog,
 }) => {
 	const workspaceName = auditLog.additional_fields?.workspace_name?.trim();
 	// workspaces can be started/stopped/deleted by a user, or kicked off automatically by Coder
+	const buildReason = auditLog.additional_fields?.build_reason;
 	const user =
-		auditLog.additional_fields?.build_reason &&
-		systemBuildReasons.includes(auditLog.additional_fields?.build_reason)
+		buildReason &&
+		(systemBuildReasons.includes(buildReason) ||
+			legacySystemBuildReasons.includes(buildReason))
 			? "Coder automatically"
 			: auditLog.user
 				? auditLog.user.username.trim()
@@ -38,8 +43,10 @@ export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
 		<span>
 			{user} <strong>{action}</strong> workspace{" "}
 			{auditLog.resource_link ? (
-				<Link component={RouterLink} to={auditLog.resource_link}>
-					<strong>{workspaceName}</strong>
+				<Link asChild showExternalIcon={false} className="text-base px-0">
+					<RouterLink to={auditLog.resource_link}>
+						<strong>{workspaceName}</strong>
+					</RouterLink>
 				</Link>
 			) : (
 				<strong>{workspaceName}</strong>

@@ -9,7 +9,7 @@ tags: [kubernetes, container]
 
 # Remote Development on Kubernetes Pods
 
-Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
+Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) with this example template.
 
 <!-- TODO: Add screenshot -->
 
@@ -19,7 +19,7 @@ Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/workspace
 
 **Cluster**: This template requires an existing Kubernetes cluster
 
-**Container Image**: This template uses the [codercom/enterprise-base:ubuntu image](https://github.com/coder/enterprise-images/tree/main/images/base) with some dev tools preinstalled. To add additional tools, extend this image or build it yourself.
+**Container Image**: This template uses the [codercom/example-base:ubuntu image](https://github.com/coder/images/tree/main/images/base) with some dev tools preinstalled. To add additional tools, extend this image or build it yourself.
 
 ### Authentication
 
@@ -32,7 +32,7 @@ This template provisions the following resources:
 - Kubernetes pod (ephemeral)
 - Kubernetes persistent volume claim (persistent on `/home/coder`)
 
-This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/dotfiles) their workspaces with dotfiles.
+This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/user-guides/workspace-dotfiles) their workspaces with dotfiles.
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.

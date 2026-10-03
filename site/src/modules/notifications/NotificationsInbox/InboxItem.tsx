@@ -1,11 +1,10 @@
-import type { InboxNotification } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
-import { SquareCheckBig } from "lucide-react";
-import type { FC } from "react";
+import { SquareCheckBigIcon } from "lucide-react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
-import { relativeTime } from "utils/time";
+import type { InboxNotification } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { relativeTime } from "#/utils/time";
 import { InboxAvatar } from "./InboxAvatar";
 
 type InboxItemProps = {
@@ -13,7 +12,7 @@ type InboxItemProps = {
 	onMarkNotificationAsRead: (notificationId: string) => void;
 };
 
-export const InboxItem: FC<InboxItemProps> = ({
+export const InboxItem: React.FC<InboxItemProps> = ({
 	notification,
 	onMarkNotificationAsRead,
 }) => {
@@ -23,13 +22,13 @@ export const InboxItem: FC<InboxItemProps> = ({
 			role="menuitem"
 			tabIndex={-1}
 		>
-			<div className="flex-shrink-0">
+			<div className="shrink-0">
 				<InboxAvatar icon={notification.icon} />
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
 				<Markdown
-					className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]"
+					className="text-content-secondary prose-sm font-medium wrap-anywhere"
 					components={{
 						a: ({ node, ...props }) => {
 							return <Link {...props} />;
@@ -56,7 +55,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 				</div>
 			</div>
 
-			<div className="w-12 flex flex-col items-end flex-shrink-0">
+			<div className="w-12 flex flex-col items-end shrink-0">
 				{notification.read_at === null && (
 					<>
 						<div className="group-focus:hidden group-hover:hidden size-2.5 rounded-full bg-highlight-sky">
@@ -69,7 +68,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 							variant="outline"
 							size="sm"
 						>
-							<SquareCheckBig />
+							<SquareCheckBigIcon />
 							mark as read
 						</Button>
 					</>

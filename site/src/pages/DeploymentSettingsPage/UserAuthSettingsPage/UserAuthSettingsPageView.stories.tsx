@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SerpentGroup } from "api/typesGenerated";
+import { expect, within } from "storybook/test";
+import type { SerpentGroup } from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const oidcGroup: SerpentGroup = {
@@ -24,6 +26,17 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				group: oidcGroup,
 				flag: "oidc-client-id",
 				flag_shorthand: "o",
+				hidden: false,
+			},
+			{
+				name: "OIDC Client Secret",
+				description: "Client secret to use for Login with OIDC.",
+				value: "",
+				value_source: "env",
+				env: "CODER_OIDC_CLIENT_SECRET",
+				group: oidcGroup,
+				flag: "oidc-client-secret",
+				annotations: { secret: "true" },
 				hidden: false,
 			},
 			{
@@ -73,6 +86,16 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				hidden: false,
 			},
 			{
+				name: "OAuth2 GitHub Client Secret",
+				description: "Client secret for Login with GitHub.",
+				value: "",
+				value_source: "flag",
+				group: ghGroup,
+				flag: "oauth2-github-client-secret",
+				annotations: { secret: "true" },
+				hidden: false,
+			},
+			{
 				name: "OAuth2 GitHub Allow Signups",
 				description: "Whether new users can sign up with GitHub.",
 				value: true,
@@ -118,4 +141,18 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof UserAuthSettingsPageView>;
 
-export const Page: Story = {};
+export const Page: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(2);
+		await expect(docsLinks[0]).toHaveAttribute(
+			"href",
+			docs("/admin/users/oidc-auth"),
+		);
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/users/github-auth"),
+		);
+	},
+};

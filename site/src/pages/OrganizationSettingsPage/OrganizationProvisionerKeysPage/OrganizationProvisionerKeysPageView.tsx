@@ -3,27 +3,26 @@ import {
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
 // If the user using provisioner keys for external provisioners you're unlikely to
@@ -34,31 +33,43 @@ const HIDDEN_PROVISIONER_KEYS = [
 	ProvisionerKeyIDPSK,
 ];
 
-interface OrganizationProvisionerKeysPageViewProps {
+type OrganizationProvisionerKeysPageViewProps = {
 	showPaywall: boolean | undefined;
 	provisionerKeyDaemons: ProvisionerKeyDaemons[] | undefined;
 	error: unknown;
+	permissions: Permissions;
 	onRetry: () => void;
-}
+};
 
-export const OrganizationProvisionerKeysPageView: FC<
+export const OrganizationProvisionerKeysPageView: React.FC<
 	OrganizationProvisionerKeysPageViewProps
-> = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
+> = ({ showPaywall, provisionerKeyDaemons, error, permissions, onRetry }) => {
+	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
+		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
+	);
+
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
+		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioner keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Manage provisioner keys used to authenticate provisioner instances.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{showPaywall ? (
-				<Paywall
+				<PremiumPaywall
+					source="provisioner_keys"
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					description="Scoped authentication keys for org provisioners."
+					features={[
+						"Scoped per organization & tag",
+						"Recommended provisioner authentication",
+						"Rotate keys without downtime",
+						"Fully isolated per organization",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<Table className="mt-6">
@@ -71,49 +82,33 @@ export const OrganizationProvisionerKeysPageView: FC<
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{provisionerKeyDaemons ? (
-							provisionerKeyDaemons.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={5}>
-										<EmptyState
-											message="No provisioner keys"
-											description="Create your first provisioner key to authenticate external provisioner daemons."
-										/>
-									</TableCell>
-								</TableRow>
+						{filteredProvisionerKeyDaemons ? (
+							filteredProvisionerKeyDaemons.length === 0 ? (
+								<TableEmpty
+									message="No provisioner keys"
+									description="Create your first provisioner key to authenticate external provisioner daemons."
+								/>
 							) : (
-								provisionerKeyDaemons
-									.filter(
-										(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
-									)
-									.map((pkd) => (
-										<ProvisionerKeyRow
-											key={pkd.key.id}
-											provisionerKey={pkd.key}
-											provisioners={pkd.daemons}
-											defaultIsOpen={false}
-										/>
-									))
+								filteredProvisionerKeyDaemons.map((pkd) => (
+									<ProvisionerKeyRow
+										key={pkd.key.id}
+										provisionerKey={pkd.key}
+										provisioners={pkd.daemons}
+										defaultIsOpen={false}
+									/>
+								))
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={5}>
-									<EmptyState
-										message="Error loading provisioner keys"
-										cta={
-											<Button onClick={onRetry} size="sm">
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading provisioner keys"
+								cta={
+									<Button onClick={onRetry} size="sm">
+										Retry
+									</Button>
+								}
+							/>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>

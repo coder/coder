@@ -1,17 +1,16 @@
-import TextField from "@mui/material/TextField";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { FileUpload } from "components/FileUpload/FileUpload";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { ChevronLeftIcon } from "lucide-react";
+import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { FileUpload } from "#/components/FileUpload/FileUpload";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import { ChevronLeftIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 
@@ -21,7 +20,7 @@ type AddNewLicenseProps = {
 	savingLicenseError?: unknown;
 };
 
-export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
+export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 	onSaveLicenseKey,
 	isSavingLicense,
 	savingLicenseError,
@@ -33,8 +32,10 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 
 			onSaveLicenseKey(licenseKey);
 
-			fileReader.onerror = () => {
-				displayError("Failed to read file");
+			fileReader.onerror = (error) => {
+				toast.error("Failed to read file.", {
+					description: getErrorDetail(error),
+				});
 			};
 		};
 
@@ -49,11 +50,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -67,7 +64,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						All Licenses
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
 			{savingLicenseError && <ErrorAlert error={savingLicenseError} />}
 
@@ -79,7 +76,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				description="Select a text file that contains your license key."
 			/>
 
-			<Stack css={{ paddingTop: 40 }}>
+			<div className="flex flex-col gap-4 pt-10">
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset
@@ -100,15 +97,13 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						</Button>
 					}
 				>
-					<TextField
+					<Textarea
 						name="licenseKey"
 						placeholder="Enter your license..."
-						multiline
 						rows={3}
-						fullWidth
 					/>
 				</Fieldset>
-			</Stack>
+			</div>
 		</>
 	);
 };

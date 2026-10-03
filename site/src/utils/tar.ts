@@ -11,7 +11,7 @@ const utf8Encode = (input: string) => encoder.encode(input);
 const decoder = new TextDecoder();
 const utf8Decode = (input: Uint8Array) => decoder.decode(input);
 
-export interface ITarFileInfo {
+export type ITarFileInfo = {
 	name: string;
 	type: TarFileType;
 	size: number;
@@ -20,24 +20,24 @@ export interface ITarFileInfo {
 	user: string;
 	group: string;
 	headerOffset: number;
-}
+};
 
-interface ITarWriteItem {
+type ITarWriteItem = {
 	name: string;
 	type: TarFileType;
 	data: ArrayBuffer | Promise<ArrayBuffer> | null;
 	size: number;
 	opts?: Partial<ITarWriteOptions>;
-}
+};
 
-interface ITarWriteOptions {
+type ITarWriteOptions = {
 	uid: number;
 	gid: number;
 	mode: number;
 	mtime: number;
 	user: string;
 	group: string;
-}
+};
 
 export class TarReader {
 	public fileInfo: ITarFileInfo[] = [];

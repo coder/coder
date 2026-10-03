@@ -25,11 +25,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog/v3"
@@ -38,10 +39,12 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/tailnet"
@@ -52,6 +55,14 @@ import (
 
 const (
 	disableUsageApp = "disable"
+
+	// Retry transient errors during SSH connection establishment.
+	sshRetryInterval = 2 * time.Second
+	sshMaxAttempts   = 10 // initial + retries per step
+
+	// Coder Connect DNS should answer locally, so a slow probe should fall
+	// back to the normal SSH tunnel.
+	coderConnectProbeTimeout = 100 * time.Millisecond
 )
 
 var (
@@ -62,9 +73,57 @@ var (
 	workspaceNameRe         = regexp.MustCompile(`[/.]+|--`)
 )
 
+// isRetryableError checks for transient connection errors worth
+// retrying: DNS failures, connection refused, and server 5xx.
+func isRetryableError(err error) bool {
+	if err == nil || xerrors.Is(err, context.Canceled) {
+		return false
+	}
+	// Check connection errors before context.DeadlineExceeded because
+	// net.Dialer.Timeout produces *net.OpError that matches both.
+	if codersdk.IsConnectionError(err) {
+		return true
+	}
+	if xerrors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var sdkErr *codersdk.Error
+	if xerrors.As(err, &sdkErr) {
+		return sdkErr.StatusCode() >= 500
+	}
+	return false
+}
+
+// retryWithInterval calls fn up to maxAttempts times, waiting
+// interval between attempts. Stops on success, non-retryable
+// error, or context cancellation.
+func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Duration, maxAttempts int, fn func() error) error {
+	var lastErr error
+	attempt := 0
+	for r := retry.New(interval, interval); r.Wait(ctx); {
+		lastErr = fn()
+		if lastErr == nil || !isRetryableError(lastErr) {
+			return lastErr
+		}
+		attempt++
+		if attempt >= maxAttempts {
+			break
+		}
+		logger.Warn(ctx, "transient error, retrying",
+			slog.Error(lastErr),
+			slog.F("attempt", attempt),
+		)
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return ctx.Err()
+}
+
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
+		tty                 bool
 		hostPrefix          string
 		hostnameSuffix      string
 		forceNewTunnel      bool
@@ -86,7 +145,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		containerUser string
 	)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "ssh <workspace> [command]",
 		Short:       "Start a shell into a workspace or run a command",
 		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
@@ -155,6 +214,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			// Get the session ID to additionally propagate it to tailnet telemetry.
+			sessionID := clientSessionIDFromContext(inv.Context())
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -203,7 +265,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 			wg.Add(1)
 			defer wg.Done()
 
-			if logDirPath != "" {
+			// Session diagnostic logging is on by default; --log-dir overrides the
+			// default user state directory.
+			{
+				logDir := logDirPath
+				if logDir == "" {
+					logDir = defaultSessionLogDir()
+				}
+				if err := os.MkdirAll(logDir, 0o700); err != nil {
+					return xerrors.Errorf("create log dir %q: %w", logDir, err)
+				}
+				pruneErr := pruneSessionLogs(logDir, keepSessionLogFiles)
+
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
 					return xerrors.Errorf("generate nonce: %w", err)
@@ -227,14 +300,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				logFileBaseName += ".log"
 
-				logFilePath := filepath.Join(logDirPath, logFileBaseName)
+				logFilePath := filepath.Join(logDir, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
 					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
 					0o600,
 				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logDir, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
@@ -242,9 +315,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
-				logger = logger.AppendSinks(sloghuman.Sink(dc))
-				if r.verbose {
-					logger = logger.Leveled(slog.LevelDebug)
+				// Record debug detail in memory and write it to the log file only
+				// when the command logs an error (via the deferred error log above),
+				// so normal operation stays quiet. Verbose writes debug directly.
+				logger = r.flightRecorder(logger, sloghuman.Sink(dc), r.flightRecorderSize)
+
+				// Pruning is best effort, so surface any failures in the log file
+				// rather than aborting the session.
+				if pruneErr != nil {
+					logger.Warn(ctx, "failed to prune old session logs", slog.Error(pruneErr))
 				}
 
 				// log HTTP requests
@@ -277,10 +356,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 				HostnameSuffix: hostnameSuffix,
 			}
 
-			workspace, workspaceAgent, err := findWorkspaceAndAgentByHostname(
-				ctx, inv, client,
-				inv.Args[0], cliConfig, disableAutostart)
-			if err != nil {
+			// Populated by the closure below.
+			var workspace codersdk.Workspace
+			var workspaceAgent codersdk.WorkspaceAgent
+			resolveWorkspace := func() error {
+				var err error
+				workspace, workspaceAgent, err = findWorkspaceAndAgentByHostname(
+					ctx, inv, client,
+					inv.Args[0], cliConfig, disableAutostart)
+				return err
+			}
+			if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, resolveWorkspace); err != nil {
 				return err
 			}
 
@@ -306,8 +392,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 				wait = false
 			}
 
-			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
-			if err != nil {
+			var templateVersion codersdk.TemplateVersion
+			fetchVersion := func() error {
+				var err error
+				templateVersion, err = client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
+				return err
+			}
+			if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, fetchVersion); err != nil {
 				return err
 			}
 
@@ -347,13 +438,31 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// If we're in stdio mode, check to see if we can use Coder Connect.
 			// We don't support Coder Connect over non-stdio coder ssh yet.
 			if stdio && !forceNewTunnel {
-				connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
-				if err != nil {
+				var connInfo workspacesdk.AgentConnectionInfo
+				if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, func() error {
+					var err error
+					connInfo, err = wsClient.AgentConnectionInfoGeneric(ctx)
+					return err
+				}); err != nil {
 					return xerrors.Errorf("get agent connection info: %w", err)
 				}
 				coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
 					workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
-				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost)
+				// Use trailing dot to indicate FQDN and prevent DNS
+				// search domain expansion, which can add 20-30s of
+				// delay on corporate networks with search domains
+				// configured.
+				// Some DNS paths blackhole absolute .coder. lookups instead of
+				// returning NXDOMAIN, so keep fallback fast.
+				coderConnectCtx, coderConnectCancel := context.WithTimeout(ctx, coderConnectProbeTimeout)
+				exists, ccErr := workspacesdk.ExistsViaCoderConnect(coderConnectCtx, coderConnectHost+".")
+				coderConnectCancel()
+				if ccErr != nil {
+					logger.Debug(ctx, "failed to check coder connect",
+						slog.F("hostname", coderConnectHost),
+						slog.Error(ccErr),
+					)
+				}
 				if exists {
 					defer cancel()
 
@@ -374,23 +483,37 @@ func (r *RootCmd) ssh() *serpent.Command {
 						})
 						defer closeUsage()
 					}
-					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack)
+					return runCoderConnectStdio(ctx, coderConnectOpts{
+						host:            coderConnectHost,
+						httpPort:        workspacesdk.AgentHTTPAPIServerPort,
+						tcpPort:         workspacesdk.AgentStandardSSHPort,
+						stdin:           stdioReader,
+						stdout:          stdioWriter,
+						stack:           stack,
+						logger:          logger,
+						clientSessionID: sessionID,
+					})
 				}
 			}
 
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
-			conn, err := wsClient.
-				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+			var conn workspacesdk.AgentConn
+			if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, func() error {
+				var err error
+				conn, err = wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					ClientSessionID: sessionID,
 				})
-			if err != nil {
+				return err
+			}); err != nil {
 				return xerrors.Errorf("dial agent: %w", err)
 			}
 			if err = stack.push("agent conn", conn); err != nil {
+				_ = conn.Close()
 				return err
 			}
 			conn.AwaitReachable(ctx)
@@ -434,7 +557,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				rawSSH, err := conn.SSHTCPConn(ctx)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
@@ -552,9 +675,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Command mode must not request a PTY by default. A PTY
+			// interposes line discipline on the remote stdin which would
+			// prevent EOF from propagating to commands that read until
+			// EOF (e.g. `cat`, `wc`, `tar`). Interactive shell sessions
+			// always need a PTY, and command mode can opt in via --tty.
+			requestPTY := command == "" || tty
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
-			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+			if requestPTY && validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
 				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
@@ -604,18 +733,29 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-			if err != nil {
-				return xerrors.Errorf("request pty: %w", err)
-			}
-
 			sshSession.Stdin = inv.Stdin
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
+			if requestPTY {
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request pty: %w", err)
+				}
+			}
+
 			if command != "" {
 				err := sshSession.Run(command)
 				if err != nil {
+					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+						// Preserve the remote command's exit status as the CLI
+						// exit code, but clear the error since it's not useful
+						// beyond reporting status.
+						return ExitError(exitErr.ExitStatus(), nil)
+					}
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
+						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
+					}
 					return xerrors.Errorf("run command: %w", err)
 				}
 			} else {
@@ -647,7 +787,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					// If the connection drops unexpectedly, we get an
 					// ExitMissingError but no other error details, so try to at
 					// least give the user a better message
-					if errors.Is(err, &gossh.ExitMissingError{}) {
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
 						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 					}
 					return xerrors.Errorf("session ended: %w", err)
@@ -669,6 +809,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
 			Value:       serpent.BoolOf(&stdio),
+		},
+		{
+			Flag:          "tty",
+			FlagShorthand: "t",
+			Env:           "CODER_SSH_TTY",
+			Description:   "Request a pseudo-terminal for the SSH session. Interactive shell sessions request one by default; command sessions do not unless this flag is set.",
+			Value:         serpent.BoolOf(&tty),
 		},
 		{
 			Flag:        "ssh-host-prefix",
@@ -903,7 +1050,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		err            error
 	)
 
-	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
+	workspace, err = client.ResolveWorkspace(ctx, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 	}
@@ -936,7 +1083,9 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
+			useParameterDefaults: true,
+		}, buildFlags{
 			reason: string(codersdk.BuildReasonSSHConnection),
 		}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok {
@@ -946,7 +1095,9 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 				return GetWorkspaceAndAgent(ctx, inv, client, false, input)
 
 			case http.StatusForbidden:
-				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
+				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
+					useParameterDefaults: true,
+				}, buildFlags{}, WorkspaceUpdate)
 				if err != nil {
 					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}
@@ -959,7 +1110,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		}
 
 		// Refresh workspace state so that `outdated`, `build`,`template_*` fields are up-to-date.
-		workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
+		workspace, err = client.ResolveWorkspace(ctx, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 		}
@@ -1049,7 +1200,14 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		ws, err := client.Workspace(ctx, workspaceID)
+		// Only TTLMillis (derived from the template) and the latest build's
+		// deadline are read below.
+		ws, err := client.Workspace(ctx, workspaceID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				Template:    true,
+				LatestBuild: &wsrelated.LatestBuild{},
+			},
+		})
 		if err != nil {
 			return time.Time{}, nil
 		}
@@ -1329,7 +1487,7 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
-	conn   *gonet.TCPConn
+	conn   workspacesdk.TCPConn
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
@@ -1337,7 +1495,7 @@ type rawSSHCopier struct {
 	done chan struct{}
 }
 
-func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
+func newRawSSHCopier(logger slog.Logger, conn workspacesdk.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
 
@@ -1410,21 +1568,18 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == disableUsageApp {
+// getUsageAppName returns the app name to report usage under, or the empty
+// string to report none. Any name is valid because the server normalizes it
+// at ingestion.
+func getUsageAppName(usageApp string) string {
+	switch usageApp {
+	case disableUsageApp:
 		return ""
+	case "":
+		return string(codersdk.UsageAppNameSSH)
+	default:
+		return usageApp
 	}
-
-	allowedUsageApps := []string{
-		string(codersdk.UsageAppNameSSH),
-		string(codersdk.UsageAppNameVscode),
-		string(codersdk.UsageAppNameJetbrains),
-	}
-	if slices.Contains(allowedUsageApps, usageApp) {
-		return codersdk.UsageAppName(usageApp)
-	}
-
-	return codersdk.UsageAppNameSSH
 }
 
 func setStatsCallback(
@@ -1568,24 +1723,78 @@ func WithTestOnlyCoderConnectDialer(ctx context.Context, dialer coderConnectDial
 func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	dialer, ok := ctx.Value(coderConnectDialerContextKey{}).(coderConnectDialer)
 	if !ok || dialer == nil {
-		return &net.Dialer{}
+		// Timeout prevents hanging on broken tunnels (OS default is very long).
+		return &net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
 	}
 	return dialer
 }
 
-func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack) error {
-	dialer := testOrDefaultDialer(ctx)
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return xerrors.Errorf("dial coder connect host: %w", err)
+type coderConnectOpts struct {
+	host            string
+	httpPort        uint16
+	tcpPort         uint16
+	clientSessionID string
+	stdin           io.Reader
+	stdout          io.Writer
+	stack           *closerStack
+	logger          slog.Logger
+}
+
+func runCoderConnectStdio(ctx context.Context, opts coderConnectOpts) error {
+	var conn net.Conn
+	if err := retryWithInterval(ctx, opts.logger, sshRetryInterval, sshMaxAttempts, func() error {
+		headers := http.Header{}
+		// Propagate any baggage and add the session ID.
+		if opts.clientSessionID != "" {
+			member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, opts.clientSessionID)
+			if err != nil {
+				return err
+			}
+			bctx := propagation.Baggage{}.Extract(ctx, propagation.HeaderCarrier(headers))
+			bag, err := baggage.FromContext(bctx).SetMember(member)
+			if err != nil {
+				return err
+			}
+			bctx = baggage.ContextWithBaggage(bctx, bag)
+			propagation.Baggage{}.Inject(bctx, propagation.HeaderCarrier(headers))
+		}
+
+		dialer := testOrDefaultDialer(ctx)
+		client := http.Client{
+			// Redirects are blocked to prevent misuse.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			Transport: &http.Transport{
+				// Disable keep alives as we're usually only making a single
+				// request, and this triggers goleak in tests
+				DisableKeepAlives: true,
+				DialContext:       dialer.DialContext,
+			},
+		}
+
+		var err error
+		addr := fmt.Sprintf("%s:%d", opts.host, opts.httpPort)
+		conn, err = workspacesdk.DialTCPUpgrade(ctx, addr, &client, headers, workspacesdk.AgentStandardSSHPort)
+		if errors.Is(err, workspacesdk.ErrAgentTCPUpgradeUnsupported) {
+			// Fall back to dialing the port directly.
+			addr = fmt.Sprintf("%s:%d", opts.host, opts.tcpPort)
+			conn, err = dialer.DialContext(ctx, "tcp", addr)
+		}
+		return err
+	}); err != nil {
+		return err
 	}
-	if err := stack.push("tcp conn", conn); err != nil {
+	if err := opts.stack.push("tcp conn", conn); err != nil {
 		return err
 	}
 
 	agentssh.Bicopy(ctx, conn, &StdioRwc{
-		Reader: stdin,
-		Writer: stdout,
+		Reader: opts.stdin,
+		Writer: opts.stdout,
 	})
 
 	return nil

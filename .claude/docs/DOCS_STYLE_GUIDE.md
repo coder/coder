@@ -1,6 +1,20 @@
 # Documentation Style Guide
 
-This guide documents documentation patterns observed in the Coder repository, based on analysis of existing admin guides, tutorials, and reference documentation. This is specifically for documentation files in the `docs/` directory - see [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
+This guide documents structure, research, and content patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules or the prose style guide.
+
+> [!IMPORTANT]
+> **What belongs in the docs (and what doesn't)** is governed by
+> [`docs/.style/content-guidelines.md`](../../docs/.style/content-guidelines.md).
+> Read that first. When this style guide conflicts with the content
+> guidelines, the content guidelines govern.
+>
+> **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
+> Vale rules under `docs/.style/styles/Coder/` enforce a small subset of that guide and run advisory; markdownlint and the em-dash check enforce a few more and do fail the build.
+> Read the guide and apply it; a clean lint run is not conformance.
+> Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
+> This file remains authoritative for structure, research, and content patterns.
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -79,32 +93,23 @@ Use bold labels for capabilities, provides high-level understanding before detai
 - Caption: Use `<small>` tag below images
 - Alt text: Describe what's shown, not just repeat heading
 
-### Image-Driven Documentation
+### Screenshot policy
 
-When you have multiple screenshots showing different aspects of a feature:
+Screenshots are governed by the canonical content guidelines. See
+[Screenshots, used wisely](../../docs/.style/content-guidelines.md#what-belongs-in-the-docs)
+in `docs/.style/content-guidelines.md`. The short version:
 
-1. **Structure sections around images** - Each major screenshot gets its own section
-2. **Describe what's visible** - Reference specific UI elements, data values shown in the screenshot
-3. **Flow naturally** - Let screenshots guide the reader through the feature
+- Include a screenshot only when the topic would be confusing without
+  the visual aid.
+- No PHI or PII.
+- No internal secrets leaked without obfuscation.
+- Capture the minimally necessary surface area.
+- Alt text is always required and must explain the screenshot's
+  purpose for accessibility.
 
-**Example**: Template Insights documentation has 3 screenshots that define the 3 main content sections.
-
-### Screenshot Guidelines
-
-**When screenshots are not yet available**: If you're documenting a feature before screenshots exist, you can use image placeholders with descriptive alt text and ask the user to provide screenshots:
-
-```markdown
-![Placeholder: Template Insights page showing weekly active users chart](../../images/admin/templates/template-insights.png)
-```
-
-Then ask: "Could you provide a screenshot of the Template Insights page? I've added a placeholder at [location]."
-
-**When documenting with screenshots**:
-
-- Illustrate features being discussed in preceding text
-- Show actual UI/data, not abstract concepts
-- Reference specific values shown when explaining features
-- Organize documentation around key screenshots
+Do not structure sections around screenshots, and do not insert
+placeholders for missing screenshots. Those older patterns are
+superseded by the canonical content guidelines.
 
 ## Content Organization
 
@@ -150,13 +155,51 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
   - Inline: `` `coder server` ``
   - Blocks: Use triple backticks with language identifier
 
+### Punctuation
+
+- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
+  For numeric ranges, use a plain hyphen (e.g., `0-100`).
+
 ### Instructions
 
 - **Numbered lists** for sequential steps
-- **Start with verb**: "Navigate to", "Click", "Select", "Run"
+- **Start with verb**: "Navigate to", "Select", "Run" (write `select`, not `click`; DOC6 in [docs/AGENTS.md](../../docs/AGENTS.md))
 - **Be specific**: Include exact button/menu names in bold
 
 ## Code Examples
+
+### Configuration examples: prefer environment variables
+
+When showing how to configure `coder server` in admin or setup
+documentation, lead with the environment variable form. Production Coder
+deployments are typically run as a system service, container, or Helm
+chart, all of which set configuration through environment variables (for
+example, Helm `values.yaml` for Kubernetes or `/etc/coder.d/coder.env` for
+a system service). Showing the CLI flag form first forces operators to
+mentally translate every example.
+
+Show the equivalent CLI flag only when the example is invoking
+`coder server` directly (for local development or one-off runs), or as a
+supporting note. Point readers at the
+[configuration reference](../../docs/admin/setup/configuration-reference.md)
+for the full mapping between environment variables, flags, and YAML keys.
+
+````markdown
+```sh
+# Preferred for admin/setup docs:
+CODER_UPDATE_CHECK=false
+```
+````
+
+CLI flag form, reserved for ad-hoc invocations:
+
+````markdown
+```sh
+coder server --update-check=false
+```
+````
 
 ### Command Examples
 
@@ -207,6 +250,11 @@ Link to specific endpoints:
 
 ## Accuracy Standards
 
+The exact-value instructions in this section are about how to state a value
+once it belongs on the page; whether it belongs there at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
+
 ### Specific Numbers Matter
 
 Document exact values from code:
@@ -228,30 +276,37 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-**CRITICAL**: All documentation pages must be added to `docs/manifest.json` to appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
+Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
 
-## Proactive Documentation
+## Documentation lands with the change
 
-When documenting features that depend on upcoming PRs:
-
-1. **Reference the PR explicitly** - Mention PR number and what it adds
-2. **Document the feature anyway** - Write as if feature exists
-3. **Link to auto-generated docs** - Point to CLI reference sections that will be created
-4. **Update PR description** - Note documentation is included proactively
-
-**Example**: Template Insights docs include `--disable-template-insights` flag from PR #20940 before it merged, with link to `../../reference/cli/server.md#--disable-template-insights` that will exist when the PR lands.
+This rule lives in the canonical content guidelines. See
+[Documentation lands with the change](../../docs/.style/content-guidelines.md#documentation-lands-with-the-change)
+in `docs/.style/content-guidelines.md` for the rule, the definition of
+"user-facing," the three corollaries, and the experiments-versus-feature-stages
+distinction.
 
 ## Special Sections
-
-### Troubleshooting
-
-- **H3 subheadings** for each issue
-- Format: Issue description followed by solution steps
 
 ### Prerequisites
 
 - Bullet or numbered list
 - Include version requirements, dependencies, permissions
+
+## Sections that don't belong
+
+### Troubleshooting
+
+Troubleshooting and failure-mode content routes to the Support
+knowledge base (Pylon), not the docs. Support is the primary owner;
+Docs is secondary owner where needed. See the
+[routing table](../../docs/.style/content-guidelines.md#routing-table)
+in the canonical content guidelines.
+
+Don't add a Troubleshooting section to a docs page. If a page would
+benefit from troubleshooting context, surface it via the embedded
+Pylon KB widget when that work lands; until then, link out to the
+relevant Pylon article from the page body.
 
 ## Formatting and Linting
 
@@ -304,18 +359,20 @@ Don't manually edit auto-generated sections.
 
 When renaming or moving documentation pages, redirects must be added to prevent broken links.
 
-**Important**: Redirects are NOT configured in this repository. The coder.com website runs on Vercel with Next.js and reads redirects from a separate repository:
+Redirects are configured in `docs/redirects.json` in this repository. The coder.com website runs on Vercel with Next.js, reads the file at build time, and rebuilds when it changes.
 
-- **Redirect configuration**: https://github.com/coder/coder.com/blob/master/redirects.json
+- **Redirect configuration**: `docs/redirects.json`, a JSON array of `{"source", "destination", "permanent"}` rules. Both paths are full `/docs/...` paths, `permanent` is optional and defaults to `true`, and a destination may be an external URL. A source is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
 - **Do NOT create** a `docs/_redirects` file - this format (used by Netlify/Cloudflare Pages) is not processed by coder.com
 
-When you rename or move a doc page, create a PR in coder/coder.com to add the redirect.
+When you rename or move a doc page, add the rule to `docs/redirects.json` in the same PR. Each release branch has its own copy, and the unversioned docs are served from the mainline release branch, so backport the move and its redirect together.
 
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths
-3. **Visual structure** - Organize around screenshots when available
+2. **Be precise** - Use exact numbers, permission names, and API paths for
+   the values that belong on the page per
+   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
-5. **Manifest inclusion** - Add to manifest.json for navigation
-6. **Add redirects** - When moving/renaming pages, add redirects in coder/coder.com repo
+5. **Manifest inclusion** - Add to `docs/manifest/` for navigation
+6. **Add redirects** - When moving/renaming pages, add a rule to `docs/redirects.json` in the same PR

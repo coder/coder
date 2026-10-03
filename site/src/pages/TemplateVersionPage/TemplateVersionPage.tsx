@@ -1,18 +1,18 @@
+import { useMemo } from "react";
+import { useQuery } from "react-query";
+import { useParams } from "react-router";
 import {
 	templateByName,
 	templateFiles,
 	templateVersion,
 	templateVersionByName,
-} from "api/queries/templates";
-import { useAuthenticated } from "hooks";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, useMemo } from "react";
-import { useQuery } from "react-query";
-import { useParams } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/templates";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { TemplateVersionPageView } from "./TemplateVersionPageView";
 
-const TemplateVersionPage: FC = () => {
+const TemplateVersionPage: React.FC = () => {
 	const getLink = useLinks();
 	const {
 		organization: organizationName = "default",

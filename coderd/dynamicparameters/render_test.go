@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
@@ -32,4 +33,26 @@ func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
 			require.Equal(t, dyn, does)
 		})
 	}
+}
+
+func TestPreviewOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilConfig", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, dynamicparameters.PreviewOptions(nil))
+	})
+
+	t.Run("Default", func(t *testing.T) {
+		t.Parallel()
+		dv := &codersdk.DeploymentValues{}
+		require.Empty(t, dynamicparameters.PreviewOptions(dv))
+	})
+
+	t.Run("FullEvaluation", func(t *testing.T) {
+		t.Parallel()
+		dv := &codersdk.DeploymentValues{}
+		require.NoError(t, dv.DynamicParametersFullEvaluation.Set("true"))
+		require.Len(t, dynamicparameters.PreviewOptions(dv), 1)
+	})
 }

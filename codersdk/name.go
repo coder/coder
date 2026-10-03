@@ -59,6 +59,28 @@ func NameValid(str string) error {
 	return nil
 }
 
+// OAuth2AppNameMaxBytes is the maximum UTF-8 byte length of an OAuth2
+// application name.
+const OAuth2AppNameMaxBytes = 64
+
+// OAuth2AppNameValid returns whether the input string is a valid OAuth2
+// application name: a non-empty string of at most OAuth2AppNameMaxBytes UTF-8
+// bytes with no leading or trailing whitespace. Unlike NameValid, it allows
+// spaces and other characters that appear in dynamically registered client
+// names such as "VS Code Coder Extension".
+func OAuth2AppNameValid(str string) error {
+	if len(str) < 1 {
+		return xerrors.New("must be >= 1 character")
+	}
+	if len(str) > OAuth2AppNameMaxBytes {
+		return xerrors.Errorf("must be <= %d bytes", OAuth2AppNameMaxBytes)
+	}
+	if strings.TrimSpace(str) != str {
+		return xerrors.New("must not have leading or trailing whitespace")
+	}
+	return nil
+}
+
 // TemplateVersionNameValid returns whether the input string is a valid template version name.
 func TemplateVersionNameValid(str string) error {
 	if len(str) > 64 {

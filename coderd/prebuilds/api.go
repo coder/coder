@@ -39,7 +39,9 @@ type ReconciliationOrchestrator interface {
 
 // ReconcileStats contains statistics about a reconciliation cycle.
 type ReconcileStats struct {
-	Elapsed time.Duration
+	Elapsed           time.Duration
+	PresetsTotal      int
+	PresetsReconciled int
 }
 
 type Reconciler interface {
@@ -63,6 +65,7 @@ type StateSnapshotter interface {
 type Claimer interface {
 	Claim(
 		ctx context.Context,
+		store database.Store,
 		now time.Time,
 		userID uuid.UUID,
 		name string,

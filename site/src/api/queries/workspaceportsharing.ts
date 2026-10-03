@@ -1,8 +1,8 @@
-import { API } from "api/api";
+import { API } from "#/api/api";
 import type {
 	DeleteWorkspaceAgentPortShareRequest,
 	UpsertWorkspaceAgentPortShareRequest,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 
 export const workspacePortShares = (workspaceId: string) => {
 	return {

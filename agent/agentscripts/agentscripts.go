@@ -283,6 +283,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
+	logDir := filepath.Dir(logPath)
+	if err = r.Filesystem.MkdirAll(logDir, 0o700); err != nil {
+		return xerrors.Errorf("create script log file directory %q: %w", logDir, err)
+	}
+
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", logPath, err)
@@ -398,11 +403,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				},
 			})
 			if err != nil {
-				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
+				logger.Warn(ctx, "reporting script completed", slog.Error(err))
 			}
 		})
 		if err != nil {
-			logger.Error(ctx, fmt.Sprintf("reporting script completed: track command goroutine: %s", err.Error()))
+			logger.Warn(ctx, "reporting script completed: track command goroutine", slog.Error(err))
 		}
 	}()
 
@@ -439,7 +444,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			"This usually means a child process was started with references to stdout or stderr. As a result, this " +
 				"process may now have been terminated. Consider redirecting the output or using a separate " +
 				"\"coder_script\" for the process, see " +
-				"https://coder.com/docs/templates/troubleshooting#startup-script-issues for more information.",
+				"https://coder.com/docs/admin/templates/troubleshooting#startup-script-issues for more information.",
 		)
 		// Inform the user by propagating the message via log writers.
 		_, _ = fmt.Fprintf(cmd.Stderr, "WARNING: %s. %s\n", message, details)

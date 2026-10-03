@@ -1,15 +1,14 @@
+import { keepPreviousData, useQuery } from "react-query";
+import { useNavigate, useSearchParams } from "react-router";
 import {
 	JobError,
 	templateExamples,
 	templateVersionLogs,
 	templateVersionVariables,
-} from "api/queries/templates";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
-import { keepPreviousData, useQuery } from "react-query";
-import { useNavigate, useSearchParams } from "react-router";
+} from "#/api/queries/templates";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import {
@@ -18,7 +17,9 @@ import {
 	newTemplate,
 } from "./utils";
 
-export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
+export const ImportStarterTemplateView: React.FC<
+	CreateTemplatePageViewProps
+> = ({
 	onCreateTemplate,
 	onOpenBuildLogsDrawer,
 	variablesSectionRef,

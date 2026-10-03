@@ -137,10 +137,10 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 }
 
 // nolint:revive // usage is a control flag while we have the experiment
-func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, workspaceAgent database.WorkspaceAgent, stats *agentproto.Stats, usage bool) error {
+func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.WorkspaceIdentity, agentID uuid.UUID, agentName string, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
 	if !r.opts.DisableDatabaseInserts {
-		r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
+		r.opts.StatsBatcher.Add(now, agentID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
 	}
 
 	// update prometheus metrics (even if template insights are disabled)
@@ -148,16 +148,13 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
 			Username:      workspace.OwnerUsername,
 			WorkspaceName: workspace.Name,
-			AgentName:     workspaceAgent.Name,
+			AgentName:     agentName,
 			TemplateName:  workspace.TemplateName,
 		}, stats.Metrics)
 	}
 
 	// workspace activity: if no sessions we do not bump activity
-	if usage && stats.SessionCountVscode == 0 &&
-		stats.SessionCountJetbrains == 0 &&
-		stats.SessionCountReconnectingPty == 0 &&
-		stats.SessionCountSsh == 0 {
+	if usage && !HasSessionCounts(stats) {
 		return nil
 	}
 
@@ -194,7 +191,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}
 
 		// bump workspace activity
-		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
+		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart, ActivityBumpReasonWorkspaceStats)
 	}
 
 	// bump workspace last_used_at

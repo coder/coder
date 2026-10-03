@@ -4,10 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 func TestBaggage(t *testing.T) {
@@ -30,4 +32,33 @@ func TestBaggage(t *testing.T) {
 	got := audit.BaggageFromContext(bCtx)
 
 	require.Equal(t, expected, got)
+}
+
+func TestResourceTarget_ChatTitleNotLeaked(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{
+		ID:    uuid.UUID{1},
+		Title: "sensitive-project-name",
+	}
+	target := audit.ResourceTarget(chat)
+	require.NotContains(t, target, chat.Title,
+		"ResourceTarget for Chat must not contain the title; it should use a UUID prefix")
+}
+
+func TestResourceTarget_MCPServerConfigSlugFallback(t *testing.T) {
+	t.Parallel()
+
+	config := database.MCPServerConfig{
+		ID:          uuid.UUID{1},
+		DisplayName: "GitHub MCP",
+		Slug:        "github",
+	}
+	require.Equal(t, "GitHub MCP", audit.ResourceTarget(config))
+
+	config.DisplayName = ""
+	require.Equal(t, "github", audit.ResourceTarget(config))
+
+	config.Slug = ""
+	require.Equal(t, config.ID.String(), audit.ResourceTarget(config))
 }

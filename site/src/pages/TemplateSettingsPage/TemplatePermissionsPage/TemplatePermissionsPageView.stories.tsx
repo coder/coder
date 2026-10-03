@@ -1,5 +1,5 @@
-import { MockTemplateACL, MockTemplateACLEmpty } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockTemplateACL, MockTemplateACLEmpty } from "#/testHelpers/entities";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 const meta: Meta<typeof TemplatePermissionsPageView> = {

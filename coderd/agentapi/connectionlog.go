@@ -14,11 +14,12 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 type ConnLogAPI struct {
-	AgentFn          func(context.Context) (database.WorkspaceAgent, error)
+	AgentID          uuid.UUID
+	AgentName        string
 	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 	Workspace        *CachedWorkspaceFields
 	Database         database.Store
@@ -53,27 +54,12 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		}
 	}
 
-	// Inject RBAC object into context for dbauthz fast path, avoid having to
-	// call GetWorkspaceByAgentID on every metadata update.
-	rbacCtx := ctx
 	var ws database.WorkspaceIdentity
 	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
 		ws = dbws
-		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
-		if err != nil {
-			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
-			//nolint:gocritic
-			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
-		}
-	}
-
-	// Fetch contextual data for this connection log event.
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, xerrors.Errorf("get agent: %w", err)
 	}
 	if ws.Equal(database.WorkspaceIdentity{}) {
-		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, a.AgentID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 		}
@@ -89,6 +75,10 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	logIP := database.ParseIP(logIPRaw) // will return null if invalid
 
 	reason := req.GetConnection().GetReason()
+	clientSessionID := req.GetConnection().GetClientSessionId()
+	if !tracing.ValidSessionID(clientSessionID) {
+		clientSessionID = ""
+	}
 	connLogger := *a.ConnectionLogger.Load()
 	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
@@ -97,13 +87,17 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceOwnerID: ws.OwnerID,
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
-		AgentName:        workspaceAgent.Name,
+		AgentName:        a.AgentName,
 		Type:             connectionType,
 		Code:             code,
-		Ip:               logIP,
+		IP:               logIP,
 		ConnectionID: uuid.NullUUID{
 			UUID:  connectionID,
 			Valid: true,
+		},
+		ClientSessionID: sql.NullString{
+			String: clientSessionID,
+			Valid:  clientSessionID != "",
 		},
 		DisconnectReason: sql.NullString{
 			String: reason,

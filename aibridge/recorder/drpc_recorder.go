@@ -1,0 +1,225 @@
+package recorder
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
+)
+
+var _ Recorder = &DRPCRecorder{}
+
+// DRPCRecorder satisfies the Recorder interface and translates calls into dRPC calls to aibridgedserver.
+type DRPCRecorder struct {
+	apiKeyID string
+	clientFn func(context.Context) (proto.DRPCRecorderClient, error)
+}
+
+// client resolves the client to use for a single record call. A DRPCRecorder
+// outlives any one client, so the client is acquired against the context of the
+// call being served rather than held for the recorder's lifetime.
+func (t *DRPCRecorder) client(ctx context.Context) (proto.DRPCRecorderClient, error) {
+	client, err := t.clientFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("acquire client: %w", err)
+	}
+
+	return client, nil
+}
+
+func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	in := &proto.RecordInterceptionRequest{
+		Id:                          req.ID,
+		ApiKeyId:                    t.apiKeyID,
+		InitiatorId:                 req.InitiatorID,
+		Provider:                    req.Provider,
+		ProviderName:                req.ProviderName,
+		Model:                       req.Model,
+		UserAgent:                   req.UserAgent,
+		Client:                      req.Client,
+		ClientSessionId:             req.ClientSessionID,
+		Metadata:                    marshalForProto(req.Metadata),
+		StartedAt:                   timestamppb.New(req.StartedAt),
+		CorrelatingToolCallId:       req.CorrelatingToolCallID,
+		CredentialKind:              string(req.CredentialKind),
+		CredentialHint:              req.CredentialHint,
+		AgentFirewallSessionId:      req.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: req.AgentFirewallSequenceNumber,
+	}
+	if attr, ok := agplaibridge.AttributionFromContext(ctx); ok {
+		in.WorkspaceId = attr.WorkspaceID.String()
+	}
+	_, err = client.RecordInterception(ctx, in)
+	return err
+}
+
+func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	endedReq := &proto.RecordInterceptionEndedRequest{
+		Id:             req.ID,
+		EndedAt:        timestamppb.New(req.EndedAt),
+		CredentialHint: req.CredentialHint,
+	}
+	if req.ErrorType != "" {
+		errType := string(req.ErrorType)
+		endedReq.ErrorType = &errType
+	}
+	if req.ErrorMessage != "" {
+		endedReq.ErrorMessage = &req.ErrorMessage
+	}
+	_, err = client.RecordInterceptionEnded(ctx, endedReq)
+	return err
+}
+
+func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
+		InterceptionId: req.InterceptionID,
+		MsgId:          req.MsgID,
+		Prompt:         req.Prompt,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	merged := req.Metadata
+	if merged == nil {
+		merged = Metadata{}
+	}
+
+	// Merge remaining extra token types into metadata.
+	for k, v := range req.ExtraTokenTypes {
+		merged[k] = v
+	}
+
+	_, err = client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId:        req.InterceptionID,
+		MsgId:                 req.MsgID,
+		ProviderModel:         req.ProviderModel,
+		InputTokens:           req.Input,
+		OutputTokens:          req.Output,
+		CacheReadInputTokens:  req.CacheReadInputTokens,
+		CacheWriteInputTokens: req.CacheWriteInputTokens,
+		Metadata:              marshalForProto(merged),
+		CreatedAt:             timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	serialized, err := json.Marshal(req.Args)
+	if err != nil {
+		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
+	}
+
+	var invErr *string
+	if req.InvocationError != nil {
+		invErr = new(req.InvocationError.Error())
+	}
+
+	_, err = client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId:  req.InterceptionID,
+		MsgId:           req.MsgID,
+		ToolCallId:      req.ToolCallID,
+		ItemId:          req.ItemID,
+		ServerUrl:       req.ServerURL,
+		Tool:            req.Tool,
+		Input:           string(serialized),
+		Injected:        req.Injected,
+		InvocationError: invErr,
+		Metadata:        marshalForProto(req.Metadata),
+		CreatedAt:       timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+		InterceptionId: req.InterceptionID,
+		Content:        req.Content,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+// marshalForProto will attempt to convert from aibridge.Metadata into a proto-friendly map[string]*anypb.Any.
+// If any marshaling fails, rather return a map with the error details since we don't want to fail Record* funcs if metadata can't encode,
+// since it's, well, metadata.
+func marshalForProto(in Metadata) map[string]*anypb.Any {
+	out := make(map[string]*anypb.Any, len(in))
+	if len(in) == 0 {
+		return out
+	}
+
+	// Instead of returning error, just encode error into metadata.
+	encodeErr := func(err error) map[string]*anypb.Any {
+		errVal, _ := anypb.New(structpb.NewStringValue(err.Error()))
+		mdVal, _ := anypb.New(structpb.NewStringValue(fmt.Sprintf("%+v", in)))
+		return map[string]*anypb.Any{
+			"error":    errVal,
+			"metadata": mdVal,
+		}
+	}
+
+	for k, v := range in {
+		sv, err := structpb.NewValue(v)
+		if err != nil {
+			return encodeErr(err)
+		}
+
+		av, err := anypb.New(sv)
+		if err != nil {
+			return encodeErr(err)
+		}
+
+		out[k] = av
+	}
+	return out
+}
+
+// NewDRPCRecorder creates a [DRPCRecorder]. clientFn receives the context of
+// the record call it serves.
+func NewDRPCRecorder(aPIKeyID string, clientFn func(context.Context) (proto.DRPCRecorderClient, error)) *DRPCRecorder {
+	return &DRPCRecorder{
+		apiKeyID: aPIKeyID,
+		clientFn: clientFn,
+	}
+}

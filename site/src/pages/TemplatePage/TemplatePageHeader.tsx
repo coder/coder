@@ -1,44 +1,44 @@
-import { API } from "api/api";
-import { workspaces } from "api/queries/workspaces";
+import {
+	CopyIcon,
+	DownloadIcon,
+	EditIcon,
+	EllipsisVerticalIcon,
+	PlusIcon,
+	SettingsIcon,
+	TrashIcon,
+} from "lucide-react";
+import { useQuery } from "react-query";
+import { Link as RouterLink, useNavigate } from "react-router";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { workspaces } from "#/api/queries/workspaces";
 import type {
 	AuthorizationResponse,
 	Template,
 	TemplateVersion,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button, Button as ShadcnButton } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
+import { Button, Button as ShadcnButton } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Margins } from "components/Margins/Margins";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Margins } from "#/components/Margins/Margins";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
-import {
-	CopyIcon,
-	DownloadIcon,
-	EditIcon,
-	EllipsisVertical,
-	PlusIcon,
-	SettingsIcon,
-	TrashIcon,
-} from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router";
+} from "#/components/PageHeader/PageHeader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
@@ -51,7 +51,7 @@ type TemplateMenuProps = {
 	onDelete: () => void;
 };
 
-const TemplateMenu: FC<TemplateMenuProps> = ({
+const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	organizationName,
 	templateName,
 	templateVersion,
@@ -59,10 +59,14 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	fileId,
 	onDelete,
 }) => {
-	const dialogState = useDeletionDialogState(templateId, onDelete);
+	const dialogState = useDeletionDialogState(
+		templateId,
+		onDelete,
+		templateName,
+	);
 	const navigate = useNavigate();
 	const getLink = useLinks();
-	const queryText = `template:${templateName}`;
+	const queryText = `organization:${organizationName} template:${templateName}`;
 	const workspaceCountQuery = useQuery({
 		...workspaces({ q: queryText }),
 		select: (res) => res.count,
@@ -85,7 +89,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 			window.URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error("Failed to export template:", error);
-			// TODO: Show user-friendly error message
+			toast.error("Failed to export template.", {
+				description: getErrorDetail(error),
+			});
 		}
 	};
 
@@ -94,34 +100,30 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<ShadcnButton size="icon-lg" variant="subtle" aria-label="Open menu">
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Open menu</span>
 					</ShadcnButton>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem
-						onClick={() => navigate(`${templateLink}/settings`)}
-					>
-						<SettingsIcon className="size-icon-sm" />
-						Settings
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/settings`}>
+							<SettingsIcon className="size-icon-sm" />
+							Settings
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`${templateLink}/versions/${templateVersion}/edit`)
-						}
-					>
-						<EditIcon />
-						Edit files
+					<DropdownMenuItem asChild>
+						<RouterLink to={`${templateLink}/versions/${templateVersion}/edit`}>
+							<EditIcon />
+							Edit files
+						</RouterLink>
 					</DropdownMenuItem>
 
-					<DropdownMenuItem
-						onClick={() =>
-							navigate(`/templates/new?fromTemplate=${templateId}`)
-						}
-					>
-						<CopyIcon className="size-icon-sm" />
-						Duplicate&hellip;
+					<DropdownMenuItem asChild>
+						<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
+							<CopyIcon className="size-icon-sm" />
+							Duplicate&hellip;
+						</RouterLink>
 					</DropdownMenuItem>
 
 					<DropdownMenuItem onClick={() => handleExport()}>
@@ -202,7 +204,7 @@ type TemplatePageHeaderProps = {
 	onDeleteTemplate: () => void;
 };
 
-export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
+export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,
@@ -242,39 +244,36 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-				<Stack direction="row">
+				<div className="flex flex-row gap-4">
 					<Avatar
 						size="lg"
 						variant="icon"
 						src={template.icon}
 						fallback={template.name}
 					/>
-
 					<div>
-						<Stack direction="row" alignItems="center" spacing={1}>
+						<div className="flex flex-row items-center gap-2">
 							<PageHeaderTitle>
 								{template.display_name.length > 0
 									? template.display_name
 									: template.name}
 							</PageHeaderTitle>
-							{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-						</Stack>
+							{template.deprecated && <DeprecatedBadge />}
+						</div>
 
 						{template.deprecation_message !== "" ? (
-							<PageHeaderSubtitle condensed>
+							<PageHeaderSubtitle>
 								<MemoizedInlineMarkdown>
 									{template.deprecation_message}
 								</MemoizedInlineMarkdown>
 							</PageHeaderSubtitle>
 						) : (
 							template.description !== "" && (
-								<PageHeaderSubtitle condensed>
-									{template.description}
-								</PageHeaderSubtitle>
+								<PageHeaderSubtitle>{template.description}</PageHeaderSubtitle>
 							)
 						)}
 					</div>
-				</Stack>
+				</div>
 			</PageHeader>
 			<div className="pb-8">
 				<TemplateStats template={template} activeVersion={activeVersion} />

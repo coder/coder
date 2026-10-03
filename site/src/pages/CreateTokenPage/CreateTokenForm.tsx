@@ -1,21 +1,27 @@
-import { css } from "@emotion/css";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
-import { Button } from "components/Button/Button";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import type { FormikContextType } from "formik";
+import { useEffect, useId, useState } from "react";
+import { useNavigate } from "react-router";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import type { FormikContextType } from "formik";
-import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+} from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import {
 	type CreateTokenData,
 	customLifetimeDay,
@@ -26,31 +32,35 @@ import {
 
 dayjs.extend(utc);
 
-interface CreateTokenFormProps {
+type CreateTokenFormProps = {
 	form: FormikContextType<CreateTokenData>;
 	maxTokenLifetime?: number;
 	formError: unknown;
 	setFormError: (arg0: unknown) => void;
 	isCreating: boolean;
 	creationFailed: boolean;
-}
+	now?: Date;
+};
 
-export const CreateTokenForm: FC<CreateTokenFormProps> = ({
+export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 	form,
 	maxTokenLifetime,
 	formError,
 	setFormError,
 	isCreating,
 	creationFailed,
+	now,
 }) => {
 	const navigate = useNavigate();
+	const lifetimeId = useId();
+	const expiresOnId = useId();
 
 	const [expDays, setExpDays] = useState<number>(1);
 	const [lifetimeDays, setLifetimeDays] = useState<number | string>(
 		determineDefaultLtValue(maxTokenLifetime),
 	);
+	const currentTime = dayjs(now ?? new Date());
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: adding form will cause an infinite loop
 	useEffect(() => {
 		if (lifetimeDays !== "custom") {
 			void form.setFieldValue("lifetime", lifetimeDays);
@@ -66,16 +76,16 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 			<FormSection
 				title="Name"
 				description="What is this token for?"
-				classes={{ sectionInfo: classNames.sectionInfo }}
+				classes={{ sectionInfo: "min-w-[300px]" }}
 			>
 				<FormFields>
-					<TextField
-						{...getFieldHelpers("name")}
+					<FormField
+						field={getFieldHelpers("name")}
 						label="Name"
 						required
 						onChange={onChangeTrimmed(form, () => setFormError(undefined))}
 						autoFocus
-						fullWidth
+						className="w-full"
 					/>
 				</FormFields>
 			</FormSection>
@@ -85,8 +95,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					form.values.lifetime ? (
 						<>
 							The token will expire on{" "}
-							<span data-chromatic="ignore">
-								{dayjs()
+							<span data-pixel="ignore">
+								{currentTime
 									.add(form.values.lifetime, "days")
 									.utc()
 									.format("MMMM DD, YYYY")}
@@ -96,61 +106,71 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 						"Please set a token expiration."
 					)
 				}
-				classes={{ sectionInfo: classNames.sectionInfo }}
+				classes={{ sectionInfo: "min-w-[300px]" }}
 			>
 				<FormFields>
-					<Stack direction="row">
-						<TextField
-							select
-							label="Lifetime"
-							required
-							defaultValue={determineDefaultLtValue(maxTokenLifetime)}
-							onChange={(event) => {
-								void setLifetimeDays(event.target.value);
-							}}
-							fullWidth
-						>
-							{filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
-								<MenuItem key={lt.label} value={lt.value}>
-									{lt.label}
-								</MenuItem>
-							))}
-							<MenuItem
-								key={customLifetimeDay.label}
-								value={customLifetimeDay.value}
+					<div className="flex flex-row gap-4">
+						<div className="flex flex-col gap-2 flex-1">
+							<Label htmlFor={lifetimeId}>
+								Lifetime{" "}
+								<span className="text-xs font-bold text-content-destructive">
+									*
+								</span>
+							</Label>
+							<Select
+								value={String(lifetimeDays)}
+								onValueChange={setLifetimeDays}
 							>
-								{customLifetimeDay.label}
-							</MenuItem>
-						</TextField>
+								<SelectTrigger id={lifetimeId} className="w-full">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
+										<SelectItem key={lt.label} value={String(lt.value)}>
+											{lt.label}
+										</SelectItem>
+									))}
+									<SelectItem value={String(customLifetimeDay.value)}>
+										{customLifetimeDay.label}
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 
 						{lifetimeDays === "custom" && (
-							<TextField
-								type="date"
-								label="Expires on"
-								defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}
-								onChange={(event) => {
-									const lt = Math.ceil(
-										dayjs(event.target.value).diff(dayjs(), "day", true),
-									);
-									setExpDays(lt);
-								}}
-								inputProps={{
-									"data-chromatic": "ignore",
-									min: dayjs().add(1, "day").format("YYYY-MM-DD"),
-									max: maxTokenLifetime
-										? dayjs()
-												.add(maxTokenLifetime / NANO_HOUR / 24, "day")
-												.format("YYYY-MM-DD")
-										: undefined,
-									required: true,
-								}}
-								fullWidth
-								InputLabelProps={{
-									required: true,
-								}}
-							/>
+							<div className="flex flex-col gap-2 flex-1">
+								<Label htmlFor={expiresOnId}>
+									Expires on{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+								</Label>
+								<Input
+									id={expiresOnId}
+									type="date"
+									data-pixel="ignore"
+									defaultValue={dayjs()
+										.add(expDays, "day")
+										.format("YYYY-MM-DD")}
+									min={dayjs().add(1, "day").format("YYYY-MM-DD")}
+									max={
+										maxTokenLifetime
+											? dayjs()
+													.add(maxTokenLifetime / NANO_HOUR / 24, "day")
+													.format("YYYY-MM-DD")
+											: undefined
+									}
+									required
+									onChange={(event) => {
+										const lt = Math.ceil(
+											dayjs(event.target.value).diff(dayjs(), "day", true),
+										);
+										setExpDays(lt);
+									}}
+								/>
+							</div>
 						)}
-					</Stack>
+					</div>
 				</FormFields>
 			</FormSection>
 
@@ -165,10 +185,4 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 			</FormFooter>
 		</HorizontalForm>
 	);
-};
-
-const classNames = {
-	sectionInfo: css`
-    min-width: 300px;
-  `,
 };

@@ -5,6 +5,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -23,6 +27,44 @@ type exclusion struct {
 	flag bool
 	env  bool
 	yaml bool
+}
+
+// TestExperimentDisplayNames pins the display name of every known experiment.
+// DisplayName falls back to a title-cased key, so an experiment missing its
+// case renders a guess in the product UI instead of failing loudly. The length
+// assertion forces a new experiment to be named here as well.
+func TestExperimentDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	expected := map[codersdk.Experiment]string{
+		codersdk.ExperimentExample:                   "Example Experiment",
+		codersdk.ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
+		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
+		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
+		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
+		codersdk.ExperimentMCPToolSearch:             "MCP Tool Search",
+		codersdk.ExperimentNoNATSPubsub:              "No NATS Pubsub",
+		codersdk.ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
+		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
+		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
+		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
+		codersdk.ExperimentChatProjects:              "Chat Projects",
+		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
+		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
+		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
+		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
+		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
+		codersdk.ExperimentChatBoard:                 "Chat Board",
+		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentChatAutomations:           "Chat Automations",
+	}
+
+	require.Len(t, expected, len(codersdk.ExperimentsKnown))
+	for _, experiment := range codersdk.ExperimentsKnown {
+		displayName, ok := expected[experiment]
+		require.Truef(t, ok, "experiment %q has no expected display name", experiment)
+		require.Equal(t, displayName, experiment.DisplayName())
+	}
 }
 
 func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
@@ -80,21 +122,10 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Email Auth: Password": {
 			yaml: true,
 		},
+		"Chat: Hook Secret": {
+			yaml: true,
+		},
 		"Notifications: Email Auth: Password": {
-			yaml: true,
-		},
-		// We don't want these to be configurable via YAML because they are secrets.
-		// However, we do want to allow them to be shown in documentation.
-		"AI Bridge OpenAI Key": {
-			yaml: true,
-		},
-		"AI Bridge Anthropic Key": {
-			yaml: true,
-		},
-		"AI Bridge Bedrock Access Key": {
-			yaml: true,
-		},
-		"AI Bridge Bedrock Access Key Secret": {
 			yaml: true,
 		},
 	}
@@ -144,6 +175,283 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 
 	for opt := range excludes {
 		t.Errorf("Excluded option %q is not in the deployment config. Remove it?", opt)
+	}
+}
+
+func TestAIBudgetPeriodAdjective(t *testing.T) {
+	t.Parallel()
+
+	// Every selectable period must have a real adjective.
+	for _, p := range codersdk.AIBudgetPeriods {
+		period := codersdk.AIBudgetPeriod(p)
+		require.NotEqual(t, p, period.Adjective(),
+			"add an adjective for AI budget period %q in AIBudgetPeriod.Adjective", p)
+	}
+
+	require.Equal(t, "monthly", codersdk.AIBudgetPeriodMonth.Adjective())
+}
+
+func TestParseSSHConfigOption(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		option    string
+		wantKey   string
+		wantValue string
+		wantErr   bool
+	}{
+		{
+			name:      "ProxyCommandWithSpaces",
+			option:    "ProxyCommand=ssh -W %h:%p bastion",
+			wantKey:   "ProxyCommand",
+			wantValue: "ssh -W %h:%p bastion",
+		},
+		{
+			name:      "SetEnvWithEquals",
+			option:    "SetEnv=FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "SetEnvWithSpaceSeparator",
+			option:    "SetEnv FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "HostName",
+			option:    "HostName example.com",
+			wantKey:   "HostName",
+			wantValue: "example.com",
+		},
+		{
+			name:    "NewlineInValue",
+			option:  "ProxyCommand=echo hi\nHost *",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInValue",
+			option:  "ProxyCommand=echo hi\rHost *",
+			wantErr: true,
+		},
+		{
+			name:    "NULInValue",
+			option:  "ProxyCommand=echo hi\x00Host *",
+			wantErr: true,
+		},
+		{
+			name:    "NewlineInKey",
+			option:  "Proxy\nCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInKey",
+			option:  "Proxy\rCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "NULInKey",
+			option:  "Proxy\x00Command=value",
+			wantErr: true,
+		},
+		{
+			name:    "MissingSeparator",
+			option:  "JustAKeyNoValue",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			key, value, err := codersdk.ParseSSHConfigOption(tt.option)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, key)
+			require.Equal(t, tt.wantValue, value)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		suffix  string
+		wantErr bool
+	}{
+		{name: "Coder", suffix: "coder"},
+		{name: "Example", suffix: "example"},
+		{name: "Dotted", suffix: "coder.example.com"},
+		{name: "Empty", suffix: ""},
+		{name: "LeadingDot", suffix: ".coder", wantErr: true},
+		{name: "Newline", suffix: "coder\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", suffix: "coder\r\nHost *", wantErr: true},
+		{name: "Space", suffix: "coder Host *", wantErr: true},
+		{name: "Tab", suffix: "coder\t*", wantErr: true},
+		{name: "NUL", suffix: "coder\x00", wantErr: true},
+		{name: "NonBreakingSpace", suffix: "coder\u00A0suffix", wantErr: true},
+		{name: "Glob", suffix: "*", wantErr: true},
+		{name: "GlobPrefix", suffix: "*.*", wantErr: true},
+		{name: "QuestionMark", suffix: "code?", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnameSuffix(tt.suffix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		prefix  string
+		wantErr bool
+	}{
+		{name: "Default", prefix: "coder."},
+		{name: "NoDot", prefix: "coder"},
+		{name: "Empty", prefix: ""},
+		{name: "LeadingDot", prefix: ".coder"},
+		{name: "Newline", prefix: "coder.\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", prefix: "coder.\r\nHost *", wantErr: true},
+		{name: "Space", prefix: "coder. Host *", wantErr: true},
+		{name: "Tab", prefix: "coder.\t*", wantErr: true},
+		{name: "NUL", prefix: "coder.\x00", wantErr: true},
+		{name: "NonBreakingSpace", prefix: "coder.\u00A0x", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnamePrefix(tt.prefix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateSSHConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		options map[string]string
+		wantErr bool
+	}{
+		{name: "HostName", options: map[string]string{"HostName": "example.com"}},
+		{name: "User", options: map[string]string{"User": "coder"}},
+		{name: "Port", options: map[string]string{"Port": "22"}},
+		{name: "SetEnv", options: map[string]string{"SetEnv": "FOO=bar BAZ=qux"}},
+		{name: "UserKnownHostsFile", options: map[string]string{"UserKnownHostsFile": "/tmp/coder_known_hosts"}},
+		{name: "EmptyKey", options: map[string]string{"": "value"}, wantErr: true},
+		{name: "NewlineInKey", options: map[string]string{"User\nProxyCommand": "evil"}, wantErr: true},
+		{name: "CarriageReturnInKey", options: map[string]string{"User\rProxyCommand": "evil"}, wantErr: true},
+		{name: "NULInKey", options: map[string]string{"User\x00ProxyCommand": "evil"}, wantErr: true},
+		{name: "SpaceInKey", options: map[string]string{"User ProxyCommand": "evil"}, wantErr: true},
+		{name: "EqualsInKey", options: map[string]string{"User=ProxyCommand": "evil"}, wantErr: true},
+		{name: "Host", options: map[string]string{"Host": "*"}, wantErr: true},
+		{name: "HostCaseInsensitive", options: map[string]string{"hOsT": "*"}, wantErr: true},
+		{name: "Match", options: map[string]string{"Match": "all"}, wantErr: true},
+		{name: "Include", options: map[string]string{"Include": "~/.ssh/config.d/*"}, wantErr: true},
+		{name: "ProxyCommand", options: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "ProxyCommandCaseInsensitive", options: map[string]string{"proxycommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "LocalCommand", options: map[string]string{"LocalCommand": "echo pwned"}, wantErr: true},
+		{name: "PermitLocalCommand", options: map[string]string{"PermitLocalCommand": "yes"}, wantErr: true},
+		{name: "RemoteCommand", options: map[string]string{"RemoteCommand": "some-command"}, wantErr: true},
+		{name: "KnownHostsCommand", options: map[string]string{"KnownHostsCommand": "echo key"}, wantErr: true},
+		{name: "PKCS11Provider", options: map[string]string{"PKCS11Provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "PKCS11ProviderCaseInsensitive", options: map[string]string{"pkcs11provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "SecurityKeyProvider", options: map[string]string{"SecurityKeyProvider": "/tmp/evil.so"}, wantErr: true},
+		{name: "NewlineInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *\nProxyCommand evil"}, wantErr: true},
+		{name: "CarriageReturnInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\r\nHost *"}, wantErr: true},
+		{name: "NULInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\x00suffix"}, wantErr: true},
+		{name: "SmartcardDevice", options: map[string]string{"SmartcardDevice": "/path/to/lib"}, wantErr: true},
+		{name: "XAuthLocation", options: map[string]string{"XAuthLocation": "/usr/bin/xauth"}, wantErr: true},
+		{name: "ProxyJump", options: map[string]string{"ProxyJump": "bastion.example.com"}, wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateSSHConfigOptions(tt.options)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSSHConfigResponse_Validate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		response codersdk.SSHConfigResponse
+		wantErr  string
+	}{
+		{
+			name: "Valid",
+			response: codersdk.SSHConfigResponse{
+				HostnamePrefix:   "coder.",
+				HostnameSuffix:   "coder",
+				SSHConfigOptions: map[string]string{"HostName": "example.com"},
+			},
+		},
+		{
+			name:     "Empty",
+			response: codersdk.SSHConfigResponse{},
+		},
+		{
+			name:     "PrefixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:  "workspace hostname prefix",
+		},
+		{
+			name:     "SuffixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:  "workspace hostname suffix",
+		},
+		{
+			name:     "OptionUnsafe",
+			response: codersdk.SSHConfigResponse{SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}},
+			wantErr:  `ssh config option "ProxyCommand" is not allowed`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.response.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
 	}
 }
 
@@ -305,11 +613,356 @@ func must[T any](value T, err error) T {
 	return value
 }
 
+func TestAIGatewayActorHeaderNames(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		environ      serpent.Environ
+		config       string
+		wantID       string
+		wantUsername string
+		wantEmail    string
+	}{
+		{
+			name:         "defaults",
+			wantID:       "X-AI-Bridge-Actor-ID",
+			wantUsername: "X-AI-Bridge-Actor-Metadata-Username",
+			wantEmail:    "",
+		},
+		{
+			name:         "flags",
+			args:         []string{"--ai-gateway-actor-header-id", "X-User-ID", "--ai-gateway-actor-header-username", "X-Username", "--ai-gateway-actor-header-email", "X-Email"},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+		{
+			name: "environment",
+			environ: serpent.Environ{
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_ID", Value: "X-User-ID"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", Value: "X-Username"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", Value: "X-Email"},
+			},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+		{
+			name:         "YAML",
+			config:       "ai_gateway:\n  actor_header_id: X-User-ID\n  actor_header_username: X-Username\n  actor_header_email: X-Email\n",
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dv := &codersdk.DeploymentValues{}
+			called := false
+			cmd := &serpent.Command{
+				Use:     "test",
+				Options: dv.Options(),
+				Handler: func(_ *serpent.Invocation) error {
+					called = true
+					require.Equal(t, tc.wantID, dv.AI.BridgeConfig.ActorHeaderID.Value())
+					require.Equal(t, tc.wantUsername, dv.AI.BridgeConfig.ActorHeaderUsername.Value())
+					require.Equal(t, tc.wantEmail, dv.AI.BridgeConfig.ActorHeaderEmail.Value())
+					return dv.Validate()
+				},
+			}
+			inv := cmd.Invoke(tc.args...)
+			inv.Environ = append(serpent.Environ{}, tc.environ...)
+			if tc.config != "" {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				require.NoError(t, os.WriteFile(path, []byte(tc.config), 0o600))
+				inv.Environ = append(inv.Environ, serpent.EnvVar{Name: "CODER_CONFIG_PATH", Value: path})
+			}
+			require.NoError(t, inv.Run())
+			require.True(t, called, "configuration must reach validation")
+		})
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := codersdk.AIBridgeConfig{
+			ActorHeaderID:       serpent.String("X-User-ID"),
+			ActorHeaderUsername: serpent.String("X-Username"),
+			ActorHeaderEmail:    serpent.String("X-Email"),
+		}
+		encoded, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(encoded, &fields))
+		require.JSONEq(t, `"X-User-ID"`, string(fields["actor_header_id"]))
+		require.JSONEq(t, `"X-Username"`, string(fields["actor_header_username"]))
+		require.JSONEq(t, `"X-Email"`, string(fields["actor_header_email"]))
+		require.NotContains(t, fields, "actor_header_names")
+		require.NotContains(t, fields, "actor_header_meta_username")
+	})
+
+	t.Run("validation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			email    string
+			wantErr  string
+		}{
+			{name: "both empty"},
+			{name: "ID only", id: "X-User-ID"},
+			{name: "username only", username: "X-Username"},
+			{name: "email only", email: "X-Email"},
+			{name: "custom names", id: "X-User-ID", username: "X-Username", email: "X-Email"},
+			{name: "invalid", username: "Bad: Header", wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
+			{name: "email standard exception", email: "x-ai-bridge-actor-metadata-email"},
+			{name: "email collision", username: "X-User", email: "x-user", wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME and CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.wantErr != "" {
+					require.EqualError(t, err, tc.wantErr)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("actor prefix", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			email    string
+			reserved string
+		}{
+			{name: "own standard names", id: "x-aI-bRiDgE-aCtOr-iD", username: "x-aI-bRiDgE-aCtOr-mEtAdAtA-uSeRnAmE"},
+			{name: "ID uses username header", id: "x-ai-bridge-actor-metadata-username", reserved: "x-ai-bridge-actor-metadata-username"},
+			{name: "username uses ID header", username: "x-ai-bridge-actor-id", reserved: "x-ai-bridge-actor-id"},
+			{name: "mixed-case metadata prefix", id: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr", reserved: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr"},
+			{name: "exact prefix", username: "x-aI-bRiDgE-aCtOr", reserved: "x-aI-bRiDgE-aCtOr"},
+			{name: "prefix without separator", username: "x-aI-bRiDgE-aCtOrOther", reserved: "x-aI-bRiDgE-aCtOrOther"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.reserved != "" {
+					require.EqualError(t, err, fmt.Sprintf("reserved AI Gateway actor header name %q", tc.reserved))
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("reserved names", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{
+			"Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number",
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{ActorHeaderID: serpent.String(name)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", name))
+
+				lower := strings.ToLower(name)
+				cfg = codersdk.AIBridgeConfig{ActorHeaderUsername: serpent.String(lower)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", lower))
+			})
+		}
+	})
+}
+
+func TestAIGatewayCompatibilityAliases(t *testing.T) {
+	t.Parallel()
+
+	options := (&codersdk.DeploymentValues{}).Options()
+	byFlag := map[string]serpent.Option{}
+	for _, opt := range options {
+		if opt.Flag != "" {
+			byFlag[opt.Flag] = opt
+		}
+	}
+
+	type alias struct {
+		old serpent.Option
+		new serpent.Option
+	}
+	var aliases []alias
+	for _, opt := range options {
+		if !strings.HasPrefix(opt.Flag, "aibridge-") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(opt.Description, "Deprecated:"), "aibridge option %s should have a 'Deprecated:' description", opt.Flag)
+		require.Len(t, opt.UseInstead, 1, "aibridge option %s should point to a single replacement", opt.Flag)
+
+		newOpt, ok := byFlag[opt.UseInstead[0].Flag]
+		require.True(t, ok, "aibridge option %s points to unknown flag %s", opt.Flag, opt.UseInstead[0].Flag)
+		require.NotEqual(t, opt.Flag, newOpt.Flag, "flag %s shares its flag with the new alias option", opt.Flag)
+		require.NotEqual(t, opt.Env, newOpt.Env, "flag %s shares its env with the new alias option", opt.Flag)
+		if oldYAML := opt.YAMLPath(); oldYAML != "" {
+			require.NotEqual(t, oldYAML, newOpt.YAMLPath(), "flag %s shares its YAML path with the new alias option", opt.Flag)
+		} else {
+			require.Empty(t, newOpt.YAMLPath(), "flag %s has no YAML path but the new alias option %s does", opt.Flag, newOpt.Flag)
+		}
+		aliases = append(aliases, alias{old: opt, new: newOpt})
+	}
+	// Update this count when adding or removing aibridge alias options.
+	require.Len(t, aliases, 24, "unexpected number of aibridge alias options")
+
+	sampleVal := func(opt serpent.Option) any {
+		switch opt.Value.Type() {
+		case "bool":
+			return opt.Default != "true"
+		case "int":
+			return 7
+		case "duration":
+			return "2h"
+		case "string-array":
+			return []string{"10.0.0.0/8", "172.16.0.0/12"}
+		default:
+			return "alias-value"
+		}
+	}
+	sampleArg := func(opt serpent.Option) string {
+		v := sampleVal(opt)
+		if arr, ok := v.([]string); ok {
+			return strings.Join(arr, ",")
+		}
+		return fmt.Sprint(v)
+	}
+
+	aiConfFromOpts := func(t *testing.T, apply func(opts serpent.OptionSet) error) codersdk.AIConfig {
+		t.Helper()
+		dv := &codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, apply(opts))
+		return dv.AI
+	}
+
+	t.Run("FlagParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldArgs, newArgs []string
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldArgs = append(oldArgs, "--"+a.old.Flag, value)
+			newArgs = append(newArgs, "--"+a.new.Flag, value)
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(oldArgs)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(newArgs)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("EnvParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldEnv, newEnv []serpent.EnvVar
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldEnv = append(oldEnv, serpent.EnvVar{Name: a.old.Env, Value: value})
+			newEnv = append(newEnv, serpent.EnvVar{Name: a.new.Env, Value: value})
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(oldEnv)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(newEnv)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("YAMLParity", func(t *testing.T) {
+		t.Parallel()
+
+		setPath := func(doc map[string]any, path string, value any) {
+			parts := strings.Split(path, ".")
+			for _, field := range parts[:len(parts)-1] {
+				next, ok := doc[field].(map[string]any)
+				if !ok {
+					next = map[string]any{}
+					doc[field] = next
+				}
+				doc = next
+			}
+			doc[parts[len(parts)-1]] = value
+		}
+
+		oldYAML := map[string]any{}
+		newYAML := map[string]any{}
+		for _, a := range aliases {
+			oldPath := a.old.YAMLPath()
+			newPath := a.new.YAMLPath()
+			if oldPath == "" {
+				require.Empty(t, newPath)
+				continue
+			}
+			require.NotEmpty(t, newPath, "new flag %s has no YAML path", a.old.Flag)
+
+			value := sampleVal(a.old)
+			setPath(oldYAML, oldPath, value)
+			setPath(newYAML, newPath, value)
+		}
+
+		parse := func(doc map[string]any) codersdk.AIConfig {
+			var node yaml.Node
+			require.NoError(t, node.Encode(doc))
+			return aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+				return opts.UnmarshalYAML(&node)
+			})
+		}
+
+		require.Equal(t, parse(newYAML), parse(oldYAML))
+	})
+}
+
+// defaultDeploymentValues returns deployment values with every option set to
+// its default, which passes Validate.
+func defaultDeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	t.Helper()
+	dv := &codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	return dv
+}
+
 func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Parallel()
 
-	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
-		dv := &codersdk.DeploymentValues{}
+	mk := func(t *testing.T, access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := defaultDeploymentValues(t)
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
 		return dv
@@ -317,7 +970,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("EqualDurations_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 1*time.Hour)
+		dv := mk(t, 1*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -325,7 +978,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshShorter_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(2*time.Hour, 1*time.Hour)
+		dv := mk(t, 2*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -333,7 +986,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshZero_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 0)
+		dv := mk(t, 1*time.Hour, 0)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -342,7 +995,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Run("AccessUninitialized_Error", func(t *testing.T) {
 		t.Parallel()
 		// Access duration is zero (uninitialized); refresh is valid.
-		dv := mk(0, 48*time.Hour)
+		dv := mk(t, 0, 48*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
@@ -350,10 +1003,256 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshLonger_OK", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 48*time.Hour)
+		dv := mk(t, 1*time.Hour, 48*time.Hour)
 		err := dv.Validate()
 		require.NoError(t, err)
 	})
+}
+
+func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
+	t.Parallel()
+
+	limits := []struct {
+		flag  string
+		value func(*codersdk.DeploymentValues) *serpent.Int64
+	}{
+		{"chat-max-steps-per-turn", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxStepsPerTurn }},
+		{"chat-max-generation-retries", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxGenerationRetries }},
+		{"chat-max-queued-messages-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxQueuedMessagesPerChat }},
+		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
+		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
+		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+		{"chat-max-automations-per-owner", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAutomationsPerOwner }},
+	}
+	values := []struct {
+		value int64
+		valid bool
+	}{
+		{value: -1},
+		{value: 0},
+		{value: 1, valid: true},
+		{value: math.MaxInt32, valid: true},
+		{value: math.MaxInt32 + 1},
+	}
+
+	for _, limit := range limits {
+		for _, tc := range values {
+			t.Run(fmt.Sprintf("%s=%d", limit.flag, tc.value), func(t *testing.T) {
+				t.Parallel()
+				dv := defaultDeploymentValues(t)
+				*limit.value(dv) = serpent.Int64(tc.value)
+				err := dv.Validate()
+				if tc.valid {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, fmt.Sprintf("--%s (%d) must be between 1 and", limit.flag, tc.value))
+			})
+		}
+	}
+}
+
+func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		disabled      bool
+		url           string
+		secret        string
+		timeout       time.Duration
+		allowInsecure bool
+		wantErr       string
+	}{
+		{
+			name:    "NoURL",
+			timeout: 1500 * time.Millisecond,
+		},
+		{
+			name:     "DisabledSkipsValidation",
+			disabled: true,
+			url:      "http://hooks.example.com/agent",
+			timeout:  0,
+		},
+		{
+			name:    "Valid",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5 * time.Second,
+		},
+		{
+			name:    "HTTPURL",
+			url:     "http://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook URL must use HTTPS",
+		},
+		{
+			name:          "HTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+		},
+		{
+			name:          "NonHTTPSchemeAllowInsecure",
+			url:           "ftp://hooks.example.com/agent",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook URL must use HTTPS",
+		},
+		{
+			name:          "AllowInsecureStillRequiresSecret",
+			url:           "http://hooks.example.com/agent",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "chat hook secret is required",
+		},
+		{
+			name:    "HostlessURL",
+			url:     "https:///hook",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
+			name:          "HostlessHTTPURLAllowInsecure",
+			url:           "http:///hook",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a complete URL",
+		},
+		{
+			name:          "PortOnlyHTTPURLAllowInsecure",
+			url:           "http://:8080/hooks",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "must include a host",
+		},
+		{
+			name:    "PortOnlyHTTPSURL",
+			url:     "https://:8080/hooks",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
+			name:    "FragmentURL",
+			url:     "https://hooks.example.com/agent#frag",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:          "FragmentHTTPURLAllowInsecure",
+			url:           "http://hooks.example.com/agent#frag",
+			secret:        "0123456789abcdef0123456789abcdef",
+			timeout:       1500 * time.Millisecond,
+			allowInsecure: true,
+			wantErr:       "set --chat-hook-url to a URL without a fragment or userinfo",
+		},
+		{
+			name:    "UserinfoURL",
+			url:     "https://user:pass@hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must not contain a fragment or userinfo",
+		},
+		{
+			name:    "MissingSecret",
+			url:     "https://hooks.example.com/agent",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret is required",
+		},
+		{
+			name:    "ShortSecret",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcde",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret must be at least 32 bytes",
+		},
+		{
+			name:    "ZeroTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 0,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NegativeTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: -time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "TimeoutAboveMaximum",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 5*time.Second + time.Millisecond,
+			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NoURLSkipsTimeoutValidation",
+			timeout: 10 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
+			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
+			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
+			dv.AI.Chat.HookAllowInsecure = serpent.Bool(tt.allowInsecure)
+			if tt.url != "" {
+				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
+			}
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		wantErr string
+	}{
+		{name: "Disabled", timeout: 0},
+		{name: "Negative", timeout: -time.Second, wantErr: "chat stream silence timeout"},
+		{name: "Maximum", timeout: 24 * time.Hour},
+		{name: "AboveMaximum", timeout: 24*time.Hour + time.Second, wantErr: "chat stream silence timeout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
@@ -401,6 +1300,7 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		ID:                            "id",
 		AuthURL:                       "https://example.com/auth",
 		TokenURL:                      "https://example.com/token",
+		RedirectURL:                   "https://example.com/redirect",
 		ValidateURL:                   "https://example.com/validate",
 		RevokeURL:                     "https://example.com/revoke",
 		AppInstallURL:                 "https://example.com/install",
@@ -482,7 +1382,7 @@ func TestFeatureComparison(t *testing.T) {
 			Name: "EntitledVsGracePeriodLimits",
 			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			// Entitled should still win here
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
 			Expected: 1,
 		},
 		{
@@ -520,8 +1420,8 @@ func TestFeatureComparison(t *testing.T) {
 		// --
 		{
 			Name:     "EntitledVsGracePeriodCapable",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](200)},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](300), Actual: ptr.Ref[int64](200)},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		// UserLimits
@@ -530,62 +1430,119 @@ func TestFeatureComparison(t *testing.T) {
 			// is not exceeded. This is the edge case that we should use the graceful period
 			// instead of the entitled.
 			Name:     "UserLimitExceeded",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: -1,
 		},
 		{
 			Name:     "UserLimitExceededNoEntitled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 3,
 		},
 		{
 			Name:     "HigherLimit",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(110)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 10, // Diff in the limit #
 		},
 		{
 			Name:     "HigherActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(200))},
 			Expected: 100, // Diff in the actual #
 		},
 		{
 			Name:     "LimitExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "LimitExistsGrace",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "ActualExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
 		{
 			Name:     "EnabledVsDisabled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: new(int64(300)), Actual: new(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(300)), Actual: new(int64(200))},
 			Expected: 1,
 		},
 		{
 			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), Actual: new(int64(50))},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "SoftHardLimitsIgnored",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100)), SoftLimit: new(int64(80)), HardLimit: new(int64(120))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: new(int64(100))},
+			Expected: 0,
+		},
+		{
+			Name: "NewerIssuedAtWinsOverSoftHardLimits",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       new(int64(50)),
+				SoftLimit:   new(int64(40)),
+				HardLimit:   new(int64(60)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Limit:       new(int64(100)),
+				SoftLimit:   new(int64(80)),
+				HardLimit:   new(int64(120)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			Expected: 1,
+		},
+		{
+			// A nil limit on a usage period feature means unlimited, so it
+			// outranks a set limit on an exact usage period tie.
+			Name: "UnlimitedUsagePeriodOutranksMeteredOnTie",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       new(int64(100)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
 			Expected: 1,
 		},
 	}
@@ -623,7 +1580,8 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
 
-	// Premium = All Features EXCEPT usage limit features
+	// Premium = All Features EXCEPT limit-based features.
+	// TODO: In future release, also exclude addon features (f.IsAddonFeature()).
 	expectedPremiumFeatures := []codersdk.FeatureName{}
 	for _, feature := range codersdk.FeatureNames {
 		if feature.UsesLimit() {
@@ -746,7 +1704,6 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -762,6 +1719,136 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAuditLogs, dv.Retention.AuditLogs.Value(), "audit logs retention mismatch")
 			assert.Equal(t, tt.expectedConnectionLogs, dv.Retention.ConnectionLogs.Value(), "connection logs retention mismatch")
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
+		})
+	}
+}
+
+func TestDisableUserSecretFilePath(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.False(t, dv.DisableUserSecretFilePath.Value(), "must default to false")
+
+	var opt serpent.Option
+	for _, o := range opts {
+		if o.Value == &dv.DisableUserSecretFilePath {
+			opt = o
+			break
+		}
+	}
+	require.NotEmpty(t, opt.Flag, "option must be registered")
+	assert.Equal(t, "disable-user-secret-file-path", opt.Flag)
+	assert.Equal(t, "CODER_DISABLE_USER_SECRET_FILE_PATH", opt.Env)
+	assert.Equal(t, "disableUserSecretFilePath", opt.YAML)
+
+	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+		{Name: "CODER_DISABLE_USER_SECRET_FILE_PATH", Value: "true"},
+	}))
+	require.True(t, dv.DisableUserSecretFilePath.Value(), "env must set the value")
+
+	yamlDV := codersdk.DeploymentValues{}
+	yamlOpts := yamlDV.Options()
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("disableUserSecretFilePath: true\n"), &node))
+	require.NoError(t, node.Decode(&yamlOpts))
+	require.True(t, yamlDV.DisableUserSecretFilePath.Value(), "yaml must set the value")
+
+	// The option is not a secret, so telemetry and the config endpoint
+	// must keep reporting it after sanitization.
+	full := codersdk.DeploymentValues{DisableUserSecretFilePath: true}
+	sanitized, err := full.WithoutSecrets()
+	require.NoError(t, err)
+	require.True(t, sanitized.DisableUserSecretFilePath.Value())
+}
+
+func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.True(t, dv.AI.Chat.AIGatewayRoutingEnabled.Value())
+}
+
+func TestAIBudgetConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("AcceptsSupportedValues", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: string(codersdk.AIBudgetPolicyHighest)},
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: string(codersdk.AIBudgetPeriodMonth)},
+		}))
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("RejectsUnsupportedPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+
+	t.Run("RejectsUnsupportedPeriod", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+}
+
+func TestNewAIBudgetPolicyFromString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want codersdk.AIBudgetPolicy
+	}{
+		{name: "supported", in: "highest", want: codersdk.AIBudgetPolicyHighest},
+		{name: "empty falls back to highest", in: "", want: codersdk.AIBudgetPolicyHighest},
+		{name: "unknown falls back to highest", in: "unsupported", want: codersdk.AIBudgetPolicyHighest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, codersdk.NewAIBudgetPolicyFromString(tt.in))
 		})
 	}
 }
@@ -880,5 +1967,235 @@ func TestComputeMaxIdleConns(t *testing.T) {
 				require.Equal(t, tt.expectedIdle, result)
 			}
 		})
+	}
+}
+
+func TestHTTPCookieConfigMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// Realistic cookies that are always present in production.
+	// These cookies are added to every test.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name            string
+		cfg             codersdk.HTTPCookieConfig
+		extraCookies    []*http.Cookie
+		expectedCookies map[string]string // cookie name -> value that handler should see
+		expectedDeleted []string          // if any cookies are supposed to be deleted via Set-Cookie
+	}{
+		{
+			name: "Disabled_PassesThrough",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_StripsPrefixFromCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_DeletesUnprefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Unprefixed cookie that should be in the "to prefix" list.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				// Session token should NOT be present - it was deleted.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
+		},
+		{
+			name: "Enabled_BothPrefixedAndUnprefixed",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Browser might send both during migration.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "prefixed-token", // Prefixed wins.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-SomeOtherCookie", Value: "other-cookie"},
+				{Name: "__Host-Santa", Value: "santa"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "session",
+				"__Host-SomeOtherCookie":    "other-cookie",
+				"__Host-Santa":              "santa",
+			},
+		},
+		{
+			name: "Enabled_UnrelatedCookiesUnchanged",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "custom_cookie", Value: "custom-value"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-foobar", Value: "do-not-change-me"},
+			},
+			expectedCookies: map[string]string{
+				"custom_cookie":             "custom-value",
+				codersdk.SessionTokenCookie: "session",
+				"__Host-foobar":             "do-not-change-me",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var handlerCookies []*http.Cookie
+			handler := tc.cfg.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerCookies = r.Cookies()
+			}))
+
+			req := httptest.NewRequest("GET", "/", nil)
+			for _, c := range baseCookies {
+				req.AddCookie(c)
+			}
+			for _, c := range tc.extraCookies {
+				req.AddCookie(c)
+			}
+
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, req)
+
+			// Verify cookies seen by handler.
+			gotCookies := make(map[string]string)
+			for _, c := range handlerCookies {
+				gotCookies[c.Name] = c.Value
+			}
+
+			for _, v := range baseCookies {
+				tc.expectedCookies[v.Name] = v.Value
+			}
+			assert.Equal(t, tc.expectedCookies, gotCookies)
+
+			// Verify Set-Cookie header for deletion.
+			setCookies := rw.Result().Cookies()
+			if len(tc.expectedDeleted) > 0 {
+				assert.NotEmpty(t, setCookies, "expected Set-Cookie header for cookie deletion")
+				expDel := make(map[string]struct{})
+				for _, name := range tc.expectedDeleted {
+					expDel[name] = struct{}{}
+				}
+				// Verify it's a deletion (MaxAge < 0).
+				for _, c := range setCookies {
+					assert.Less(t, c.MaxAge, 0, "Set-Cookie should have MaxAge < 0 for deletion")
+					delete(expDel, c.Name)
+				}
+				require.Empty(t, expDel, "expected Set-Cookie header for deletion")
+			} else {
+				assert.Empty(t, setCookies, "did not expect Set-Cookie header")
+			}
+		})
+	}
+}
+
+func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
+	noop := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	// Realistic cookies that are always present in production.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name         string
+		cfg          codersdk.HTTPCookieConfig
+		extraCookies []*http.Cookie
+	}{
+		{
+			name: "Disabled",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_NoPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_WithPrefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__Host-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
+				{Name: "__Host-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
+				{Name: "__Host-" + "foobar", Value: "do-not-change-me"},
+			},
+		},
+		{
+			name: "Enabled_NonSessionPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			handler := tc.cfg.Middleware(noop)
+			rw := httptest.NewRecorder()
+
+			allCookies := make([]*http.Cookie, 1, len(baseCookies))
+			copy(allCookies, baseCookies)
+			// Combine base cookies with test-specific cookies.
+			allCookies = append(allCookies, tc.extraCookies...)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest("GET", "/", nil)
+				for _, c := range allCookies {
+					req.AddCookie(c)
+				}
+				handler.ServeHTTP(rw, req)
+			}
+		})
+	}
+}
+
+func TestExperimentsSafeAreKnown(t *testing.T) {
+	t.Parallel()
+
+	for _, ex := range codersdk.ExperimentsSafe {
+		require.Contains(t, codersdk.ExperimentsKnown, ex)
 	}
 }

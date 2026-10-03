@@ -1,19 +1,20 @@
-import { API } from "api/api";
-import { authMethods, updatePassword } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "hooks";
-import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
-import { Section } from "../Section";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { authMethods, updatePassword } from "#/api/queries/users";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { SecurityForm } from "./SecurityForm";
 import {
 	SingleSignOnSection,
 	useSingleSignOnSection,
 } from "./SingleSignOnSection";
 
-const SecurityPage: FC = () => {
+const SecurityPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const updatePasswordMutation = useMutation(updatePassword());
 	const authMethodsQuery = useQuery(authMethods());
@@ -39,10 +40,10 @@ const SecurityPage: FC = () => {
 							userId: me.id,
 							...data,
 						});
-						displaySuccess("Updated password.");
+						toast.success("Updated password.");
 						// Refresh the browser session. We need to improve the AuthProvider
 						// to include better API to handle these scenarios
-						window.location.href = location.origin;
+						location.href = location.origin;
 					},
 				},
 			}}
@@ -57,26 +58,29 @@ const SecurityPage: FC = () => {
 	);
 };
 
-interface SecurityPageViewProps {
+type SecurityPageViewProps = {
 	security: {
-		form: ComponentProps<typeof SecurityForm>;
+		form: React.ComponentProps<typeof SecurityForm>;
 	};
 	oidc?: {
-		section: ComponentProps<typeof SingleSignOnSection>;
+		section: React.ComponentProps<typeof SingleSignOnSection>;
 	};
-}
+};
 
-export const SecurityPageView: FC<SecurityPageViewProps> = ({
+export const SecurityPageView: React.FC<SecurityPageViewProps> = ({
 	security,
 	oidc,
 }) => {
 	return (
-		<Stack spacing={6}>
-			<Section title="Security" description="Update your account password">
+		<div className="flex flex-col gap-12">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
+				</SettingsHeader>
 				<SecurityForm {...security.form} />
-			</Section>
+			</div>
 			{oidc && <SingleSignOnSection {...oidc.section} />}
-		</Stack>
+		</div>
 	);
 };
 

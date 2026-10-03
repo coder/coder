@@ -1,0 +1,88 @@
+#!/bin/bash
+set -e
+
+LANGUAGES="${LANGUAGES}"
+APT_UPDATED=false
+
+apt_update() {
+  if [ "$APT_UPDATED" = "false" ]; then
+    sudo apt-get update -qq
+    APT_UPDATED=true
+  fi
+}
+
+if echo "$LANGUAGES" | grep -q "python"; then
+  if command -v python3 >/dev/null 2>&1; then
+    echo "Python: $(python3 --version)"
+  else
+    echo "Installing Python..."
+    apt_update
+    sudo apt-get install -y -qq python3 python3-pip python3-venv
+    echo "Installed Python: $(python3 --version)"
+  fi
+fi
+
+if echo "$LANGUAGES" | grep -q "nodejs"; then
+  if command -v node >/dev/null 2>&1; then
+    echo "Node.js: $(node --version)"
+  else
+    echo "Installing Node.js 22..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt-get install -y -qq nodejs
+    echo "Installed Node.js: $(node --version)"
+  fi
+fi
+
+if echo "$LANGUAGES" | grep -q "go"; then
+  if command -v /usr/local/go/bin/go >/dev/null 2>&1; then
+    echo "Go: $(/usr/local/go/bin/go version)"
+  else
+    echo "Installing Go..."
+    ARCH=$(uname -m)
+    case $ARCH in
+      x86_64)  GOARCH="amd64" ;;
+      aarch64) GOARCH="arm64" ;;
+      *)       echo "Unsupported architecture: $ARCH"; exit 1 ;;
+    esac
+    GO_VERSION=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1)
+    curl -fsSL "https://go.dev/dl/$${GO_VERSION}.linux-$${GOARCH}.tar.gz" | sudo tar -C /usr/local -xz
+    echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' | sudo tee /etc/profile.d/go.sh >/dev/null
+    echo "Installed Go: $(/usr/local/go/bin/go version)"
+  fi
+fi
+
+if echo "$LANGUAGES" | grep -q "rust"; then
+  if command -v rustc >/dev/null 2>&1 || [ -f "$HOME/.cargo/bin/rustc" ]; then
+    RUSTC=$${HOME}/.cargo/bin/rustc
+    command -v rustc >/dev/null 2>&1 && RUSTC=rustc
+    echo "Rust: $($RUSTC --version)"
+  else
+    echo "Installing Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    echo "Installed Rust: $($HOME/.cargo/bin/rustc --version)"
+  fi
+fi
+
+if echo "$LANGUAGES" | grep -q "java"; then
+  if command -v java >/dev/null 2>&1; then
+    echo "Java: $(java --version 2>&1 | head -1)"
+  else
+    echo "Installing Java (OpenJDK 21)..."
+    apt_update
+    sudo apt-get install -y -qq openjdk-21-jdk
+    echo "Installed Java: $(java --version 2>&1 | head -1)"
+  fi
+fi
+
+if echo "$LANGUAGES" | grep -q "cpp"; then
+  if command -v gcc >/dev/null 2>&1; then
+    echo "C/C++: $(gcc --version | head -1)"
+  else
+    echo "Installing C/C++ toolchain..."
+    apt_update
+    sudo apt-get install -y -qq gcc g++ make cmake
+    echo "Installed C/C++: $(gcc --version | head -1)"
+  fi
+fi
+
+echo "Language setup complete."

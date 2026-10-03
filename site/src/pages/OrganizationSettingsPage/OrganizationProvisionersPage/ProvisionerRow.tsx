@@ -1,26 +1,26 @@
+import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
+import { useState } from "react";
+import { Link as RouterLink } from "react-router";
 import type {
 	ProvisionerDaemon,
 	ProvisionerDaemonStatus,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import { TableCell, TableRow } from "components/Table/Table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
+} from "#/components/StatusIndicator/StatusIndicator";
+import { TableCell, TableRow } from "#/components/Table/Table";
+import { JobStatusIndicator } from "#/modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
-import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
+} from "#/modules/provisioners/ProvisionerTags";
+import { ProvisionerKey } from "#/pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
+import { relativeTime } from "#/utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 
 const variantByStatus: Record<
@@ -38,7 +38,7 @@ type ProvisionerRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const ProvisionerRow: FC<ProvisionerRowProps> = ({
+export const ProvisionerRow: React.FC<ProvisionerRowProps> = ({
 	provisioner,
 	buildVersion,
 	defaultIsOpen = false,
@@ -60,7 +60,9 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{provisioner.name}
 					</Button>
@@ -114,10 +116,10 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							])}
 						>
 							<dt>Last seen:</dt>
-							<dd data-chromatic="ignore">{provisioner.last_seen_at}</dd>
+							<dd data-pixel="ignore">{provisioner.last_seen_at}</dd>
 
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{provisioner.created_at}</dd>
+							<dd data-pixel="ignore">{provisioner.created_at}</dd>
 
 							<dt>Version:</dt>
 							<dd>

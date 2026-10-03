@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ProvisionerDaemon } from "api/typesGenerated";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
+import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ProvisionerTagsField } from "./ProvisionerTagsField";
 
 const meta: Meta<typeof ProvisionerTagsField> = {
@@ -35,9 +35,9 @@ type StatefulProvisionerTagsFieldProps = {
 	initialValue?: ProvisionerDaemon["tags"];
 };
 
-const StatefulProvisionerTagsField: FC<StatefulProvisionerTagsFieldProps> = ({
-	initialValue = {},
-}) => {
+const StatefulProvisionerTagsField: React.FC<
+	StatefulProvisionerTagsFieldProps
+> = ({ initialValue = {} }) => {
 	const [value, setValue] = useState<ProvisionerDaemon["tags"]>(initialValue);
 	return <ProvisionerTagsField value={value} onChange={setValue} />;
 };

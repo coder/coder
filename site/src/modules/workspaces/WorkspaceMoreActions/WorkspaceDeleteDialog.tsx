@@ -1,48 +1,60 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
+import dayjs from "dayjs";
+import { useId, useState } from "react";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
-} from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import dayjs from "dayjs";
-import { type FC, type FormEvent, useId, useState } from "react";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import {
+	DeleteConfirmationField,
+	useDeleteConfirmation,
+} from "#/components/Dialog/DeleteDialog/DeleteConfirmationField";
+import { Link } from "#/components/Link/Link";
+import { docs } from "#/utils/docs";
 
-interface WorkspaceDeleteDialogProps {
+const warnBoxClassName =
+	"mt-6 flex gap-2 rounded-lg border border-solid border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
+
+type WorkspaceDeleteDialogProps = {
 	workspace: Workspace;
 	canDeleteFailedWorkspace: boolean;
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
-}
+};
 
-export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
+export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 	workspace,
 	canDeleteFailedWorkspace,
 	isOpen,
 	onCancel,
 	onConfirm,
 }) => {
-	const hookId = useId();
-	const [userConfirmationText, setUserConfirmationText] = useState("");
+	const orphanId = useId();
+
+	const confirmation = useDeleteConfirmation(workspace.name, isOpen);
 	const [orphanWorkspace, setOrphanWorkspace] =
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
-	const [isFocused, setIsFocused] = useState(false);
+	const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-	const deletionConfirmed = workspace.name === userConfirmationText;
-	const onSubmit = (event: FormEvent) => {
+	// The dialog stays mounted while closed, so clear the checkbox on close.
+	if (isOpen !== prevIsOpen) {
+		setPrevIsOpen(isOpen);
+		if (!isOpen) {
+			setOrphanWorkspace(false);
+		}
+	}
+
+	const confirm = () => onConfirm(orphanWorkspace);
+
+	const onSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
-		if (deletionConfirmed) {
-			onConfirm(orphanWorkspace);
+		if (confirmation.confirmed) {
+			confirm();
 		}
 	};
 
-	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
 	// Orphaning is sort of a "last resort" that should really only
 	// be used under the following circumstances:
 	// a) Terraform is failing to apply while deleting, which
@@ -56,27 +68,29 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
 
-	const hasTask = !!workspace.task_id;
-
 	return (
 		<ConfirmDialog
 			type="delete"
 			hideCancel={false}
 			open={isOpen}
-			title="Delete workspace"
-			onConfirm={() => onConfirm(orphanWorkspace)}
+			title="Delete Workspace"
+			onConfirm={confirm}
 			onClose={onCancel}
-			disabled={!deletionConfirmed}
+			disabled={!confirmation.confirmed}
 			description={
 				<>
-					<div css={styles.workspaceInfo}>
+					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">
 						<div>
-							<p className="name">{workspace.name}</p>
-							<p className="label">workspace</p>
+							<p className="m-0 text-base font-semibold text-content-primary">
+								{workspace.name}
+							</p>
+							<p className="m-0 text-xs text-content-secondary">workspace</p>
 						</div>
-						<div css={{ textAlign: "right" }}>
-							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
-							<p className="label">created</p>
+						<div className="text-right">
+							<p className="m-0 text-xs font-medium text-content-primary">
+								{dayjs(workspace.created_at).fromNow()}
+							</p>
+							<p className="m-0 text-xs text-content-secondary">created</p>
 						</div>
 					</div>
 
@@ -86,80 +100,50 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						confirm:
 					</p>
 
-					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
-							autoFocus
-							css={{ marginTop: 32 }}
-							name="confirmation"
-							autoComplete="off"
-							id={`${hookId}-confirm`}
-							placeholder={workspace.name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
+					<form className="mt-2 flex flex-col gap-2" onSubmit={onSubmit}>
+						<DeleteConfirmationField
+							confirmation={confirmation}
 							label="Workspace name"
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this workspace`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
+							entity="workspace"
 						/>
-						{hasTask && (
-							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
-									<p className="info">This workspace is related to a task</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
-										Deleting this workspace will also delete{" "}
-										<Link
-											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-										>
-											this task
-										</Link>
-										.
-									</span>
-								</div>
-							</div>
-						)}
+
 						{canOrphan && (
-							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
+							<div className={warnBoxClassName}>
+								<label
+									htmlFor={orphanId}
+									className="flex items-start gap-2 cursor-pointer"
+								>
 									<Checkbox
-										id="orphan_resources"
-										size="small"
-										color="warning"
-										onChange={() => {
-											setOrphanWorkspace(!orphanWorkspace);
-										}}
-										className="option"
+										id={orphanId}
 										name="orphan_resources"
 										checked={orphanWorkspace}
+										onCheckedChange={(checked) => {
+											setOrphanWorkspace(checked === true);
+										}}
 										data-testid="orphan-checkbox"
+										className="mt-0.5 border-content-warning hover:enabled:border-content-warning data-[state=checked]:bg-content-warning data-[state=checked]:border-content-warning data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-content-warning hover:data-[state=checked]:border-content-warning"
 									/>
-								</div>
-								<div css={{ flexDirection: "column" }}>
-									<p className="info">Orphan resources</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
-										As a Template Admin, you may skip resource cleanup to delete
-										a failed workspace. Resources such as volumes and virtual
-										machines will not be destroyed.&nbsp;
-										<Link
-											href={docs(
-												"/user-guides/workspace-management#workspace-resources",
-											)}
-											target="_blank"
-											rel="noreferrer"
-										>
-											Learn more...
-										</Link>
+									<span>
+										<span className="block text-sm font-semibold">
+											Orphan Resources
+										</span>
+										<span className="mt-1 block text-xs text-content-secondary">
+											As a Template Admin, you may skip resource cleanup to
+											delete a failed workspace. Resources such as volumes and
+											virtual machines will not be destroyed.{" "}
+											<Link
+												href={docs(
+													"/user-guides/workspace-management#workspace-resources",
+												)}
+												target="_blank"
+												rel="noreferrer"
+												size="sm"
+											>
+												Learn more
+											</Link>
+										</span>
 									</span>
-								</div>
+								</label>
 							</div>
 						)}
 					</form>
@@ -168,56 +152,3 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	workspaceInfo: (theme) => ({
-		display: "flex",
-		justifyContent: "space-between",
-		borderRadius: 6,
-		padding: 16,
-		marginBottom: 20,
-		lineHeight: "1.3em",
-		border: `1px solid ${theme.palette.divider}`,
-
-		"& .name": {
-			fontSize: 16,
-			fontWeight: 600,
-			color: theme.palette.text.primary,
-		},
-
-		"& .label": {
-			fontSize: 12,
-			color: theme.palette.text.secondary,
-		},
-
-		"& .info": {
-			fontSize: 12,
-			fontWeight: 500,
-			color: theme.palette.text.primary,
-		},
-	}),
-	warnContainer: (theme) => ({
-		marginTop: 24,
-		display: "flex",
-		backgroundColor: theme.roles.danger.background,
-		justifyContent: "space-between",
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: 8,
-		padding: 12,
-		gap: 8,
-		lineHeight: "18px",
-
-		"& .option": {
-			color: theme.roles.danger.fill.solid,
-			"&.Mui-checked": {
-				color: theme.roles.danger.fill.solid,
-			},
-		},
-
-		"& .info": {
-			fontSize: 14,
-			fontWeight: 600,
-			color: theme.roles.danger.text,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -9,8 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
@@ -27,7 +26,7 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 		return nil, xerrors.Errorf("template version parameters: %w", err)
 	}
 
-	params := db2sdk.List(dbTemplateVersionParameters, TemplateVersionParameter)
+	params := slice.List(dbTemplateVersionParameters, TemplateVersionParameter)
 
 	for i, param := range params {
 		// Update the diagnostics to validate the 'default' value.
@@ -93,22 +92,22 @@ func TemplateVersionParameter(it database.TemplateVersionParameter) previewtypes
 	if it.ValidationError != "" || it.ValidationRegex != "" || it.ValidationMonotonic != "" {
 		var reg *string
 		if it.ValidationRegex != "" {
-			reg = ptr.Ref(it.ValidationRegex)
+			reg = new(it.ValidationRegex)
 		}
 
 		var vMin *int64
 		if it.ValidationMin.Valid {
-			vMin = ptr.Ref(int64(it.ValidationMin.Int32))
+			vMin = new(int64(it.ValidationMin.Int32))
 		}
 
 		var vMax *int64
 		if it.ValidationMax.Valid {
-			vMax = ptr.Ref(int64(it.ValidationMax.Int32))
+			vMax = new(int64(it.ValidationMax.Int32))
 		}
 
 		var monotonic *string
 		if it.ValidationMonotonic != "" {
-			monotonic = ptr.Ref(it.ValidationMonotonic)
+			monotonic = new(it.ValidationMonotonic)
 		}
 
 		param.Validations = append(param.Validations, &previewtypes.ParameterValidation{

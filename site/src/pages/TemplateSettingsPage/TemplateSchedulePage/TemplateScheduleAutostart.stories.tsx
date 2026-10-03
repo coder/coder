@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { userEvent, within } from "storybook/test";
-import type { TemplateAutostartRequirementDaysValue } from "utils/schedule";
+import type { TemplateAutostartRequirementDaysValue } from "#/utils/schedule";
 import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 
 const meta: Meta<typeof TemplateScheduleAutostart> = {

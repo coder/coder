@@ -1,23 +1,24 @@
 package cli
 
 import (
-	"bufio"
-	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"runtime/trace"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,18 +27,24 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -54,6 +61,8 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
+	ErrClientURLNotConfigured = xerrors.New("client URL is not configured")
+
 	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
 )
 
@@ -65,24 +74,34 @@ const (
 	varNoOpen                  = "no-open"
 	varNoVersionCheck          = "no-version-warning"
 	varNoFeatureWarning        = "no-feature-warning"
+	varAllowRedirects          = "allow-redirects"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
+	varFlightRecorderSize      = "flight-recorder-size"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 	varUseKeyring              = "use-keyring"
+	varClientTLSCAFile         = "client-tls-ca-file"
+	varClientTLSCertFile       = "client-tls-cert-file"
+	varClientTLSKeyFile        = "client-tls-key-file"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
-	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
-	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
-	envSessionToken     = "CODER_SESSION_TOKEN"
-	envUseKeyring       = "CODER_USE_KEYRING"
+	envNoVersionCheck    = "CODER_NO_VERSION_WARNING"
+	envNoFeatureWarning  = "CODER_NO_FEATURE_WARNING"
+	envAllowRedirects    = "CODER_ALLOW_REDIRECTS"
+	envSessionToken      = "CODER_SESSION_TOKEN"
+	envUseKeyring        = "CODER_USE_KEYRING"
+	envClientTLSCAFile   = "CODER_CLIENT_TLS_CA_FILE"
+	envClientTLSCertFile = "CODER_CLIENT_TLS_CERT_FILE"
+	envClientTLSKeyFile  = "CODER_CLIENT_TLS_KEY_FILE"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
 	envAgentAuth      = "CODER_AGENT_AUTH"
+	envAgentName      = "CODER_AGENT_NAME"
 	envURL            = "CODER_URL"
 )
 
@@ -96,13 +115,14 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.logout(),
 		r.netcheck(),
 		r.notifications(),
+		r.oauth2Provider(),
 		r.organizations(),
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
+		r.secrets(),
 		r.sharing(),
 		r.state(),
-		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -137,7 +157,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),
-		workspaceAgent(),
+		r.workspaceAgent(),
 	}
 }
 
@@ -146,11 +166,13 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 	return []*serpent.Command{
 		r.scaletestCmd(),
 		r.errorExample(),
+		r.chatCommand(),
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
-		r.boundary(),
+		r.updateUserEmail(),
+		r.experimentRulesCommand(),
 	}
 }
 
@@ -230,6 +252,10 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 }
 
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
+	if r.clock == nil {
+		r.clock = quartz.NewReal()
+	}
+
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	hiddenAgentAuth := &AgentAuth{}
@@ -311,14 +337,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
-			if slices.Contains(cmd.Aliases, "rm") {
-				merr = errors.Join(
-					merr,
-					xerrors.Errorf("command %q shouldn't have alias %q since it's added automatically", cmd.FullName(), "rm"),
-				)
-				return
+			if !slices.Contains(cmd.Aliases, "rm") {
+				cmd.Aliases = append(cmd.Aliases, "rm")
 			}
-			cmd.Aliases = append(cmd.Aliases, "rm")
 		}
 	})
 
@@ -330,6 +351,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 				if cmd.Name() == "server" {
 					// The server command is funky and has YAML-only options, e.g.
 					// support links.
+					return
+				}
+				if cmd.Name() == "agent-firewall" || cmd.Name() == "boundary" {
+					// The agent-firewall command (and its "boundary" alias) is
+					// integrated from the boundary package and has YAML-only
+					// options (e.g., allowlist from config file) that don't
+					// have flags or env vars.
 					return
 				}
 				merr = errors.Join(
@@ -375,12 +403,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	// Add the PrintDeprecatedOptions middleware to all commands.
+	// Add the PrintDeprecatedOptions and client session ID middleware to all
+	// commands. clientSessionIDMiddleware runs first so the resolved ID is on
+	// the invocation context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = PrintDeprecatedOptions()
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
 		}
 	})
 
@@ -428,6 +458,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAllowRedirects,
+			Env:         envAllowRedirects,
+			Description: "Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.",
+			Value:       serpent.BoolOf(&r.allowRedirects),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
@@ -437,7 +474,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varHeaderCommand,
 			Env:         "CODER_HEADER_COMMAND",
-			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT, it will be refreshed based on the value in its `exp` field.",
 			Value:       serpent.StringOf(&r.headerCommand),
 			Group:       globalGroup,
 		},
@@ -466,6 +503,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:         globalGroup,
 		},
 		{
+			Flag:    varFlightRecorderSize,
+			Env:     "CODER_FLIGHT_RECORDER_SIZE",
+			Default: strconv.Itoa(defaultCLIFlightRecorderSize),
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable the flight recorder.",
+			Value: serpent.Int64Of(&r.flightRecorderSize),
+			Group: globalGroup,
+		},
+		{
 			Flag:        varDisableDirect,
 			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
 			Description: "Disable direct (P2P) connections to workspaces.",
@@ -477,6 +523,27 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Env:         "CODER_DISABLE_NETWORK_TELEMETRY",
 			Description: "Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.",
 			Value:       serpent.BoolOf(&r.disableNetworkTelemetry),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varClientTLSCAFile,
+			Env:         envClientTLSCAFile,
+			Description: "Path to a CA certificate file to trust for API and DERP connections.",
+			Value:       serpent.StringOf(&r.tlsCAFile),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varClientTLSCertFile,
+			Env:         envClientTLSCertFile,
+			Description: "Path to a client certificate file for mTLS authentication with API and DERP. Requires --client-tls-key-file.",
+			Value:       serpent.StringOf(&r.tlsClientCertFile),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varClientTLSKeyFile,
+			Env:         envClientTLSKeyFile,
+			Description: "Path to a client private key file for mTLS authentication with API and DERP. Requires --client-tls-cert-file.",
+			Value:       serpent.StringOf(&r.tlsClientKeyFile),
 			Group:       globalGroup,
 		},
 		{
@@ -529,45 +596,144 @@ type RootCmd struct {
 	header        []string
 	headerCommand string
 
-	forceTTY      bool
-	noOpen        bool
-	verbose       bool
-	versionFlag   bool
-	disableDirect bool
-	debugHTTP     bool
+	forceTTY           bool
+	noOpen             bool
+	verbose            bool
+	flightRecorderSize int64
+	versionFlag        bool
+	disableDirect      bool
+	debugHTTP          bool
 
 	disableNetworkTelemetry    bool
 	noVersionCheck             bool
 	noFeatureWarning           bool
+	allowRedirects             bool
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
+
+	// clock is used for time-dependent operations. Initialized to
+	// quartz.NewReal() in Command() if unset.
+	clock quartz.Clock
+
+	// TLS configuration for custom CA or client certificates.
+	tlsCAFile         string
+	tlsClientCertFile string
+	tlsClientKeyFile  string
+	tlsConfig         *tls.Config
+}
+
+// ensureClientURL loads the client URL from the config file if it
+// wasn't provided via --url or CODER_URL.
+func (r *RootCmd) ensureClientURL() error {
+	u, err := r.resolveClientURL()
+
+	if errors.Is(err, ErrClientURLNotConfigured) {
+		binPath, execErr := os.Executable()
+		if execErr != nil {
+			binPath = "coder"
+		}
+		return xerrors.Errorf(notLoggedInMessage, binPath)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	r.clientURL = u
+	return nil
+}
+
+func (r *RootCmd) resolveClientURL() (*url.URL, error) {
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		return r.clientURL, nil
+	}
+
+	rawURL, err := r.createConfig().URL().Read()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrClientURLNotConfigured
+		}
+		return nil, xerrors.Errorf("read configured URL: %w", err)
+	}
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, xerrors.Errorf("parse configured URL: %w", err)
+	}
+	return parsedURL, nil
+}
+
+// ResolveClientConnection resolves the deployment URL and client TLS transport
+// without reading or requiring a user session.
+func (r *RootCmd) ResolveClientConnection() (*url.URL, http.RoundTripper, error) {
+	serverURL, err := r.resolveClientURL()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, nil, xerrors.Errorf("load client TLS config: %w", err)
+	}
+	transport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create HTTP transport: %w", err)
+	}
+	return serverURL, transport, nil
+}
+
+// ensureTLSConfig loads the TLS configuration from files if specified.
+// The resulting config is used for both API requests and DERP connections.
+// If tlsConfig is already set programmatically, file-based configuration is skipped.
+func (r *RootCmd) ensureTLSConfig() error {
+	// Already loaded or programmatically set - skip file loading
+	if r.tlsConfig != nil {
+		return nil
+	}
+
+	// No TLS config needed
+	if r.tlsCAFile == "" && r.tlsClientCertFile == "" && r.tlsClientKeyFile == "" {
+		return nil
+	}
+
+	// Validate that cert and key are specified together
+	if (r.tlsClientCertFile == "") != (r.tlsClientKeyFile == "") {
+		return xerrors.Errorf("--%s and --%s must be specified together", varClientTLSCertFile, varClientTLSKeyFile)
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// Load CA certificate if specified
+	if r.tlsCAFile != "" {
+		caData, err := os.ReadFile(r.tlsCAFile)
+		if err != nil {
+			return xerrors.Errorf("read TLS CA file %q: %w", r.tlsCAFile, err)
+		}
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caData) {
+			return xerrors.Errorf("failed to parse CA certificate in %q", r.tlsCAFile)
+		}
+		tlsConfig.RootCAs = caPool
+	}
+
+	// Load client certificate if specified
+	if r.tlsClientCertFile != "" && r.tlsClientKeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(r.tlsClientCertFile, r.tlsClientKeyFile)
+		if err != nil {
+			return xerrors.Errorf("load TLS client certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	r.tlsConfig = tlsConfig
+	return nil
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
-	conf := r.createConfig()
-	var err error
-	// Read the client URL stored on disk.
-	if r.clientURL == nil || r.clientURL.String() == "" {
-		rawURL, err := conf.URL().Read()
-		// If the configuration files are absent, the user is logged out
-		if os.IsNotExist(err) {
-			binPath, err := os.Executable()
-			if err != nil {
-				binPath = "coder"
-			}
-			return nil, xerrors.Errorf(notLoggedInMessage, binPath)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-		if err != nil {
-			return nil, err
-		}
+	if err := r.ensureClientURL(); err != nil {
+		return nil, err
 	}
 	if r.token == "" {
 		tok, err := r.ensureTokenBackend().Read(r.clientURL)
@@ -584,6 +750,11 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 		}
 	}
 
+	// Load TLS config from files if specified
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, err
+	}
+
 	// Configure HTTP client with transport wrappers
 	httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 	if err != nil {
@@ -597,6 +768,10 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 
 	if r.disableDirect {
 		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+	}
+
+	if r.tlsConfig != nil {
+		clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.tlsConfig))
 	}
 
 	if r.debugHTTP {
@@ -646,6 +821,11 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 	// Only configure the client if we have a URL
 	if r.clientURL != nil && r.clientURL.String() != "" {
+		// Load TLS config from files if specified
+		if err := r.ensureTLSConfig(); err != nil {
+			return nil, err
+		}
+
 		// Configure HTTP client with transport wrappers
 		httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 		if err != nil {
@@ -659,6 +839,10 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 		if r.disableDirect {
 			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+		}
+
+		if r.tlsConfig != nil {
+			clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.tlsConfig))
 		}
 
 		if r.debugHTTP {
@@ -682,14 +866,26 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
+	baseTransport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+	transport := baseTransport
+
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
+	if sessionID := clientSessionIDFromContext(inv.Context()); sessionID != "" {
+		transport = wrapTransportWithSessionIDHeader(transport, sessionID)
+	}
 	if !r.noVersionCheck {
-		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
+		buildInfoTransport, err := newHTTPTransport(r.tlsConfig)
+		if err != nil {
+			return nil, err
+		}
+		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL)
+			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: buildInfoTransport}))
 			return basicClient.BuildInfo(ctx)
 		})
 	}
@@ -704,12 +900,76 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	return &http.Client{
+	httpClient := &http.Client{
 		Transport: headerTransport,
-	}, nil
+	}
+	if !r.allowRedirects {
+		httpClient.CheckRedirect = rejectRedirect
+	}
+	return httpClient, nil
+}
+
+// rejectRedirect is an http.Client CheckRedirect hook. Following a redirect
+// may alter the request method or drop its body, which silently changes the
+// API call being made.
+func rejectRedirect(req *http.Request, via []*http.Request) error {
+	err := &redirectError{to: req.URL}
+	if len(via) > 0 {
+		err.from = via[0].URL
+	}
+	return err
+}
+
+// redirectError is returned when the server redirects an API request.
+type redirectError struct {
+	from *url.URL
+	to   *url.URL
+}
+
+func (e *redirectError) Error() string {
+	if e.from == nil {
+		return fmt.Sprintf("server redirected request to %s", e.to)
+	}
+	return fmt.Sprintf("server redirected request from %s to %s", e.from, e.to)
+}
+
+// Helper returns a suggestion for resolving the redirect.
+func (e *redirectError) Helper() string {
+	if e.to == nil {
+		return ""
+	}
+	newBase := &url.URL{Scheme: e.to.Scheme, Host: e.to.Host}
+	if e.from != nil && e.from.Scheme == newBase.Scheme && e.from.Host == newBase.Host {
+		return fmt.Sprintf("The request was redirected within the same deployment. Check for a proxy or path rewrite in front of Coder, or pass --%s to follow redirects.", varAllowRedirects)
+	}
+	return fmt.Sprintf("The deployment URL may have changed. Run %q to log in against the new URL, or pass --%s to follow redirects.", "coder login "+newBase.String(), varAllowRedirects)
+}
+
+func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		if tlsConfig != nil {
+			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
+		}
+		return http.DefaultTransport, nil
+	}
+
+	// Clone http.DefaultTransport for each CLI client. Parallel tests and
+	// embedded callers may close idle connections on their own clients, and
+	// sharing the process-global transport can interrupt in-flight requests.
+	transport := defaultTransport.Clone()
+	if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
+	}
+	return transport, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
+	// Load TLS config for login and other unauthenticated requests
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, err
+	}
+
 	httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
 	if err != nil {
 		return nil, err
@@ -763,6 +1023,7 @@ type AgentAuth struct {
 	agentTokenFile string
 	agentURL       url.URL
 	agentAuth      string
+	agentName      string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -795,6 +1056,13 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Default:     "token",
 		Value:       serpent.StringOf(&a.agentAuth),
 		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Name",
+		Description: "The name of the agent to authenticate as (only applicable for instance identity).",
+		Flag:        "agent-name",
+		Env:         envAgentName,
+		Value:       serpent.StringOf(&a.agentName),
+		Hidden:      hidden,
 	})
 }
 
@@ -804,6 +1072,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 	agentURL := a.agentURL
 	if agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
+	}
+
+	var iiOpts []agentsdk.InstanceIdentityOption
+	if a.agentName != "" {
+		iiOpts = append(iiOpts, agentsdk.WithInstanceIdentityAgentName(a.agentName))
 	}
 
 	switch a.agentAuth {
@@ -824,11 +1097,11 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		}
 		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
 	case "google-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil)), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil, iiOpts...)), nil
 	case "aws-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity(iiOpts...)), nil
 	case "azure-instance-identity":
-		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity()), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity(iiOpts...)), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
 	}
@@ -878,16 +1151,27 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
 			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
 		})
+		if index >= 0 {
+			return orgs[index], nil
+		}
 
-		if index < 0 {
+		// Not in membership list - try direct fetch.
+		// This allows site-wide admins (e.g., Owners) to use orgs they aren't
+		// members of.
+		org, err := client.OrganizationByName(inv.Context(), o.FlagSelect)
+		if err != nil {
 			var names []string
 			for _, org := range orgs {
 				names = append(names, org.Name)
 			}
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
-				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			var sdkErr *codersdk.Error
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+				return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
+					"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			}
+			return codersdk.Organization{}, xerrors.Errorf("get organization %q: %w", o.FlagSelect, err)
 		}
-		return orgs[index], nil
+		return org, nil
 	}
 
 	if len(orgs) == 1 {
@@ -901,33 +1185,6 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	}
 
 	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
-}
-
-func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
-	parts := strings.Split(identifier, "/")
-
-	switch len(parts) {
-	case 1:
-		owner = codersdk.Me
-		workspaceName = parts[0]
-	case 2:
-		owner = parts[0]
-		workspaceName = parts[1]
-	default:
-		return "", "", xerrors.Errorf("invalid workspace name: %q", identifier)
-	}
-	return owner, workspaceName, nil
-}
-
-// namedWorkspace fetches and returns a workspace by an identifier, which may be either
-// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
-// where user is either a username or UUID.
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	owner, name, err := splitNamedWorkspace(identifier)
-	if err != nil {
-		return codersdk.Workspace{}, err
-	}
-	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
 func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
@@ -1135,6 +1392,12 @@ func (e *exitError) Unwrap() error {
 	return e.err
 }
 
+// ExitCode returns the OS exit code that the CLI will use when this error is
+// returned from a command handler.
+func (e *exitError) ExitCode() int {
+	return e.code
+}
+
 // ExitError returns an error that will cause the CLI to exit with the given
 // exit code. If err is non-nil, it will be wrapped by the returned error.
 func ExitError(code int, err error) error {
@@ -1206,6 +1469,10 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 	// Order does matter! We want to check for the most specific errors first.
 	if sdkError, ok := err.(*codersdk.Error); ok {
 		return formatCoderSDKError(from, sdkError, opts), true
+	}
+
+	if redirectErr, ok := err.(*redirectError); ok {
+		return formatRedirectError(from, redirectErr), true
 	}
 
 	if cmdErr, ok := err.(*serpent.RunCommandError); ok {
@@ -1306,7 +1573,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose {
 		// If all these fields are empty, then do not print this information.
 		// This can occur if the error is being used outside the api.
-		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+		if err.Method() != "" || err.URL() != "" || err.StatusCode() != 0 {
 			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 			_, _ = str.WriteString("\n")
 		}
@@ -1339,6 +1606,21 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
 		_, _ = str.WriteString("\n")
 		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
+	}
+	return str.String()
+}
+
+// formatRedirectError formats a redirectError for CLI output.
+func formatRedirectError(from string, err *redirectError) string {
+	var str strings.Builder
+	if from != "" {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Trace=[%s]", from)))
+		_, _ = str.WriteString("\n")
+	}
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Error()))
+	if helper := err.Helper(); helper != "" {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", helper))
 	}
 	return str.String()
 }
@@ -1376,7 +1658,6 @@ func tailLineStyle() pretty.Style {
 	return pretty.Style{pretty.Nop}
 }
 
-//nolint:unused
 func SlimUnsupported(w io.Writer, cmd string) {
 	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
 	_, _ = fmt.Fprintln(w, "")
@@ -1394,7 +1675,22 @@ func defaultUpgradeMessage(version string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
 	}
-	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+	return fmt.Sprintf("download the server version with: 'curl -fsSL https://coder.com/install.sh | sh -s -- --version %s'", version)
+}
+
+// serverVersionMessage returns a warning message if the server version
+// is a release candidate or development build. Returns empty string
+// for stable versions. RC is checked before devel because RC dev
+// builds (e.g. v2.33.0-rc.1-devel+hash) contain both tags.
+func serverVersionMessage(serverVersion string) string {
+	switch {
+	case buildinfo.IsRCVersion(serverVersion):
+		return fmt.Sprintf("the server is running a release candidate of Coder (%s)", serverVersion)
+	case buildinfo.IsDevVersion(serverVersion):
+		return fmt.Sprintf("the server is running a development version of Coder (%s)", serverVersion)
+	default:
+		return ""
+	}
 }
 
 // wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
@@ -1415,10 +1711,10 @@ func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.
 	})
 }
 
-// wrapTransportWithVersionMismatchCheck adds a middleware to the HTTP transport
-// that checks for version mismatches between the client and server. If a mismatch
-// is detected, a warning is printed to the user.
-func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
+// wrapTransportWithVersionCheck adds a middleware to the HTTP transport
+// that checks the server version and warns about development builds,
+// release candidates, and client/server version mismatches.
+func wrapTransportWithVersionCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
 	var once sync.Once
 	return roundTripper(func(req *http.Request) (*http.Response, error) {
 		res, err := rt.RoundTrip(req)
@@ -1430,9 +1726,16 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			if serverVersion == "" {
 				return
 			}
+			// Warn about non-stable server versions. Skip
+			// during tests to avoid polluting golden files.
+			if msg := serverVersionMessage(serverVersion); msg != "" && flag.Lookup("test.v") == nil {
+				warning := pretty.Sprint(cliui.DefaultStyles.Warn, msg)
+				_, _ = fmt.Fprintln(inv.Stderr, warning)
+			}
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
 			}
+
 			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
 			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
 				switch {
@@ -1514,57 +1817,147 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 	})
 }
 
+// clientSessionIDEnv is the environment variable a spawning client (Toolbox,
+// the VS Code plugin) can set so the CLI it launches reuses an existing client
+// session ID instead of generating a new one.
+const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
+
+// annotationClientSessionID marks commands that establish a client session and
+// should resolve a client_session_id. clientSessionIDMiddleware only resolves
+// and attaches the ID for commands that opt in with this annotation, so
+// long-running daemon commands (server, agent, provisionerd, and so on) never
+// carry a meaningless session ID in their logs, request baggage, or telemetry.
+const annotationClientSessionID = "client_session_id"
+
+// annotationFlightRecorder marks commands whose diagnostic logs should be kept
+// in memory by a flight recorder and emitted to stderr only when the command
+// returns an error. flightRecorderMiddleware installs the recorder for these
+// commands. Commands that manage their own logger destination (for example ssh,
+// which writes to a file to avoid corrupting its stdio stream) should not opt in.
+const annotationFlightRecorder = "flight_recorder"
+
+// flightRecorderMiddleware installs a stderr logger backed by a flight recorder
+// for commands that opt in with annotationFlightRecorder. Entries below the
+// display level (Info, or Debug under --verbose) are kept in a bounded in-memory
+// ring and emitted only when the command returns an error, so successful runs
+// stay quiet while the detail leading up to a failure is still available. The
+// recorder is shared with any logger derived from the invocation logger (such as
+// the codersdk client logger), so flushing here also emits their recorded
+// entries.
+func (r *RootCmd) flightRecorderMiddleware() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationFlightRecorder) {
+				return next(inv)
+			}
+			logger := r.flightRecorder(inv.Logger, sloghuman.Sink(inv.Stderr), r.flightRecorderSize)
+			inv.Logger = logger
+			err := next(inv)
+			if err != nil {
+				// Replay the recorded diagnostic history to stderr. Flush does not
+				// add a duplicate error line; the returned error is rendered by the
+				// top-level formatter.
+				logger.Flush(inv.Context())
+			}
+			return err
+		}
+	}
+}
+
+type clientSessionIDContextKey struct{}
+
+// withClientSessionID returns a copy of ctx carrying the client session ID so
+// non-log consumers (HTTP baggage, tailnet telemetry) can read it back.
+func withClientSessionID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, clientSessionIDContextKey{}, id)
+}
+
+// clientSessionIDFromContext returns the client session ID stored on ctx, or
+// the empty string if none was resolved for this invocation.
+func clientSessionIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(clientSessionIDContextKey{}).(string)
+	return id
+}
+
+// resolveClientSessionID returns the client session ID for this invocation.
+// When CODER_TRACE_SESSION_ID is set it is used verbatim so a spawning client
+// can correlate the CLI it launches. A warning is logged if the value is not
+// the canonical 32-character lowercase hex form, since coderd and agent
+// middleware drop non-canonical values. Otherwise a new session ID is
+// generated.
+func resolveClientSessionID(inv *serpent.Invocation) (string, error) {
+	if id, ok := inv.Environ.Lookup(clientSessionIDEnv); ok && id != "" {
+		if !tracing.ValidSessionID(id) {
+			cliui.Warnf(inv.Stderr,
+				"%s is not a 32-character lowercase hexadecimal string; it will not correlate in coderd and agent logs.",
+				clientSessionIDEnv)
+		}
+		return id, nil
+	}
+	id, err := tracing.NewSessionID()
+	if err != nil {
+		return "", xerrors.Errorf("generate client session ID: %w", err)
+	}
+	return id, nil
+}
+
+// clientSessionIDMiddleware resolves a single client session ID per invocation
+// and stores it on the invocation context for commands that opt in with the
+// annotationClientSessionID annotation. It attaches the ID as a slog field so
+// any log written with the invocation context (or a descendant) carries
+// client_session_id regardless of which logger emits it, and stores the raw ID
+// so createHTTPClient can attach it as W3C baggage and ssh can forward it as
+// tailnet telemetry. Commands that do not opt in (and completion mode) are
+// skipped so daemon logs stay free of an irrelevant session ID.
+func clientSessionIDMiddleware() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationClientSessionID) {
+				return next(inv)
+			}
+			id, err := resolveClientSessionID(inv)
+			if err != nil {
+				return err
+			}
+			ctx := slog.With(inv.Context(), slog.F("client_session_id", id))
+			ctx = withClientSessionID(ctx, id)
+			return next(inv.WithContext(ctx))
+		}
+	}
+}
+
+// wrapTransportWithSessionIDHeader attaches the client session ID to every
+// request as W3C baggage under the client_session_id key, so coderd and agent
+// middleware can correlate logs, spans, and telemetry by session. It is set
+// regardless of whether tracing is enabled, and merges with any baggage
+// already present on the request rather than overwriting it.
+func wrapTransportWithSessionIDHeader(transport http.RoundTripper, sessionID string) http.RoundTripper {
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		// An invalid session ID should never reach here. If it somehow does,
+		// skip attaching baggage rather than failing every request.
+		return transport
+	}
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		ctx := propagation.Baggage{}.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+		if bag, err := baggage.FromContext(ctx).SetMember(member); err == nil {
+			ctx = baggage.ContextWithBaggage(ctx, bag)
+			propagation.Baggage{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+		}
+		return transport.RoundTrip(req)
+	})
+}
+
 type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
 
-// HeaderTransport creates a new transport that executes `--header-command`
-// if it is set to add headers for all outbound requests.
-func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
-	transport := &codersdk.HeaderTransport{
-		Transport: http.DefaultTransport,
-		Header:    http.Header{},
-	}
-	headers := header
-	if headerCommand != "" {
-		shell := "sh"
-		caller := "-c"
-		if runtime.GOOS == "windows" {
-			shell = "cmd.exe"
-			caller = "/c"
-		}
-		var outBuf bytes.Buffer
-		// #nosec
-		cmd := exec.CommandContext(ctx, shell, caller, headerCommand)
-		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
-		cmd.Stdout = &outBuf
-		cmd.Stderr = io.Discard
-		err := cmd.Run()
-		if err != nil {
-			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
-		}
-		scanner := bufio.NewScanner(&outBuf)
-		for scanner.Scan() {
-			headers = append(headers, scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
-		}
-	}
-	for _, header := range headers {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return nil, xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.Header.Add(parts[0], parts[1])
-	}
-	return transport, nil
-}
-
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
+// PrintDeprecatedOptions loops through all command options, and
+// prints a warning for usage of deprecated options.
 func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
@@ -1579,11 +1972,22 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 					continue
 				}
 
+				// Verify that this deprecated option was itself
+				// the source of the value. Serpent propagates
+				// ValueSource across all options that share the
+				// same Value pointer, so a new option being set
+				// can make a deprecated sibling appear set when
+				// it was not.
+				source := deprecatedOptionDirectSource(inv, opt)
+				if source == serpent.ValueSourceNone {
+					continue
+				}
+
 				var warnStr strings.Builder
-				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+				_, _ = warnStr.WriteString(translateSource(source, opt))
 				_, _ = warnStr.WriteString(" is deprecated, please use ")
 				for i, use := range opt.UseInstead {
-					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
+					_, _ = warnStr.WriteString(translateSource(source, use))
 					if i != len(opt.UseInstead)-1 {
 						_, _ = warnStr.WriteString(" and ")
 					}
@@ -1598,6 +2002,34 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 			return next(inv)
 		}
 	}
+}
+
+// deprecatedOptionDirectSource returns the source by which a deprecated
+// option was directly set, ignoring any propagated ValueSource from
+// sibling options that share the same Value pointer.
+func deprecatedOptionDirectSource(inv *serpent.Invocation, opt serpent.Option) serpent.ValueSource {
+	if opt.Flag != "" {
+		fl := inv.ParsedFlags().Lookup(opt.Flag)
+		if fl != nil && fl.Changed {
+			return serpent.ValueSourceFlag
+		}
+	}
+
+	if opt.Env != "" {
+		_, exists := inv.Environ.Lookup(opt.Env)
+		if exists {
+			return serpent.ValueSourceEnv
+		}
+	}
+
+	if opt.ValueSource == serpent.ValueSourceYAML {
+		// There is no straightforward way to check whether a
+		// specific YAML key was present in the config file, so
+		// we conservatively assume the deprecated key was used.
+		return serpent.ValueSourceYAML
+	}
+
+	return serpent.ValueSourceNone
 }
 
 // translateSource provides the name of the source of the option, depending on the

@@ -1,17 +1,20 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {
 	title: "pages/OrganizationSettingsPageView",
 	component: OrganizationSettingsPageView,
-	parameters: { chromatic },
 	args: {
 		organization: MockOrganization,
+		onSubmit: action("onSubmit"),
+		onDeleteOrganization: action("onDeleteOrganization"),
+		shareableWorkspaceOwners: "everyone",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
 	},
 };
 

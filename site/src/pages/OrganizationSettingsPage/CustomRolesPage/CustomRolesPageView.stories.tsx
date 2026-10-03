@@ -1,18 +1,53 @@
-import {
-	MockOrganizationAuditorRole,
-	MockRoleWithOrgPermissions,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import { expect, userEvent, within } from "storybook/test";
+import type { AssignableRoles } from "#/api/typesGenerated";
+import {
+	MockAgentsAccessRole,
+	MockOrganization,
+	MockOrganizationAuditorRole,
+	MockPermissions,
+	MockRoleWithOrgPermissions,
+} from "#/testHelpers/entities";
 import { CustomRolesPageView } from "./CustomRolesPageView";
+
+const mockOrgRoles: AssignableRoles[] = [
+	{
+		name: "organization-workspace-access",
+		display_name: "Organization Workspace Access",
+		organization_id: MockOrganization.id,
+		site_permissions: [],
+		organization_permissions: [],
+		organization_member_permissions: [],
+		user_permissions: [],
+		assignable: true,
+		built_in: true,
+	},
+	MockAgentsAccessRole,
+	{
+		name: "organization-admin",
+		display_name: "Organization Admin",
+		organization_id: MockOrganization.id,
+		site_permissions: [],
+		organization_permissions: [],
+		organization_member_permissions: [],
+		user_permissions: [],
+		assignable: true,
+		built_in: true,
+	},
+];
 
 const meta: Meta<typeof CustomRolesPageView> = {
 	title: "pages/OrganizationCustomRolesPage",
 	component: CustomRolesPageView,
 	args: {
+		organization: MockOrganization,
 		builtInRoles: [MockRoleWithOrgPermissions],
 		customRoles: [MockRoleWithOrgPermissions],
 		canCreateOrgRole: true,
+		canEditDefaultRoles: true,
 		isCustomRolesEnabled: true,
+		permissions: MockPermissions,
 	},
 };
 
@@ -24,6 +59,29 @@ export const Enabled: Story = {};
 export const NotEnabled: Story = {
 	args: {
 		isCustomRolesEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEnabledWithoutLicenseAccess: Story = {
+	args: {
+		isCustomRolesEnabled: false,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -64,5 +122,85 @@ export const EmptyTableUserWithoutPermission: Story = {
 export const EmptyTableUserWithPermission: Story = {
 	args: {
 		customRoles: [],
+	},
+};
+
+export const DefaultRolesSection: Story = {
+	args: {
+		defaultRolesEntitled: true,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+};
+
+export const DefaultRolesNotEntitled: Story = {
+	args: {
+		defaultRolesEntitled: false,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const editButton = await body.findByRole("button", {
+			name: /edit default roles/i,
+		});
+		expect(editButton).toBeDisabled();
+		await body.findByText(/requires a Premium license/i);
+	},
+};
+
+export const DefaultRolesEmpty: Story = {
+	args: {
+		organization: {
+			...MockOrganization,
+			default_org_member_roles: [],
+		},
+		defaultRolesEntitled: true,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+};
+
+export const DefaultRolesReadOnlyWithoutEditPermission: Story = {
+	args: {
+		defaultRolesEntitled: true,
+		canEditDefaultRoles: false,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		// The section is visible read-only; only the edit button is hidden.
+		await body.findByRole("heading", { name: "Default Roles" });
+		expect(
+			body.queryByRole("button", { name: /edit default roles/i }),
+		).toBeNull();
+	},
+};
+
+export const DefaultRolesEditDialog: Story = {
+	args: {
+		defaultRolesEntitled: true,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const editButton = await body.findByRole("button", {
+			name: /edit default roles/i,
+		});
+		await user.click(editButton);
+		await body.findByRole("heading", { name: /edit default roles/i });
 	},
 };

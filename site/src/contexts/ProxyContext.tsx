@@ -1,23 +1,16 @@
-import { API } from "api/api";
-import { cachedQuery } from "api/queries/util";
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	useCallback,
-	useContext,
-	useEffect,
-	useState,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
+import { API } from "#/api/api";
+import { cachedQuery } from "#/api/queries/util";
+import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
 export type ProxyLatencies = Record<string, ProxyLatencyReport>;
-export interface ProxyContextValue {
+export type ProxyContextValue = {
 	// proxy is **always** the workspace proxy that should be used.
 	// The 'proxy.selectedProxy' field is the proxy being used and comes from either:
 	//   1. The user manually selected this proxy. (saved to local storage)
@@ -67,9 +60,9 @@ export interface ProxyContextValue {
 	// clearProxy is a function that clears the user's selected proxy.
 	// If no proxy is selected, then the default proxy will be used.
 	clearProxy: () => void;
-}
+};
 
-interface PreferredProxy {
+type PreferredProxy = {
 	// proxy is the proxy being used. It is provided for
 	// getting the fields such as "display_name" and "id"
 	// Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
@@ -81,7 +74,7 @@ interface PreferredProxy {
 	preferredPathAppURL: string;
 	// PreferredWildcardHostname is a hostname that includes a wildcard.
 	preferredWildcardHostname: string;
-}
+};
 
 export const ProxyContext = createContext<ProxyContextValue | undefined>(
 	undefined,
@@ -90,18 +83,16 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
-export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
+export const ProxyProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	// Using a useState so the caller always has the latest user saved
 	// proxy.
 	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
 
-	// Load the initial state from local storage.
-	const [proxy, setProxy] = useState<PreferredProxy>(
-		computeUsableURLS(userSavedProxy),
-	);
-
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
+	const { workspace_proxy: workspaceProxyEnabled } = useFeatureVisibility();
 
 	const {
 		data: proxiesResp,
@@ -111,11 +102,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	} = useQuery(
 		cachedQuery({
 			metadata: metadata.regions,
-			queryKey: ["get-proxies"],
+			queryKey: ["get-proxies", workspaceProxyEnabled],
 			queryFn: async (): Promise<readonly Region[]> => {
-				const apiCall = permissions.editWorkspaceProxies
-					? API.getWorkspaceProxies
-					: API.getWorkspaceProxyRegions;
+				// Detailed proxy status requires the workspace_proxy entitlement.
+				// Fall back to regions when unlicensed so admins do not hit a
+				// Premium feature error on every page load.
+				const apiCall =
+					permissions.editWorkspaceProxies && workspaceProxyEnabled
+						? API.getWorkspaceProxies
+						: API.getWorkspaceProxyRegions;
 
 				const resp = await apiCall();
 				return resp.regions;
@@ -131,43 +126,30 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		loaded: latenciesLoaded,
 	} = useProxyLatency(proxiesResp);
 
-	// updateProxy is a helper function that when called will
-	// update the proxy being used.
-	const updateProxy = useCallback(() => {
-		// Update the saved user proxy for the caller.
-		setUserSavedProxy(loadUserSelectedProxy());
-		setProxy(
+	const proxy = useMemo(
+		() =>
 			getPreferredProxy(
 				proxiesResp ?? [],
-				loadUserSelectedProxy(),
+				userSavedProxy,
 				proxyLatencies,
-				// Do not auto select based on latencies, as inconsistent latencies can cause this
-				// to change on each call. updateProxy should be stable when selecting a proxy to
-				// prevent flickering.
+				// Do not auto select based on latencies, as inconsistent
+				// latencies can cause this to change on each call. The proxy
+				// value should be stable to prevent flickering.
 				false,
 			),
-		);
-	}, [proxiesResp, proxyLatencies]);
-
-	// This useEffect ensures the proxy to be used is updated whenever the state changes.
-	// This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
-	useEffect(() => {
-		updateProxy();
-	}, [proxiesResp, proxyLatencies]);
+		[proxiesResp, userSavedProxy, proxyLatencies],
+	);
 
 	// This useEffect will auto select the best proxy if the user has not selected one.
 	// It must wait until all latencies are loaded to select based on latency. This does mean
 	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
 	//
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
 		if (loadUserSelectedProxy() !== undefined) {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
-			// Wait until the latencies are loaded first.
 			return;
 		}
 
@@ -180,7 +162,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		if (best?.proxy) {
 			saveUserSelectedProxy(best.proxy);
-			updateProxy();
+			setUserSavedProxy(best.proxy);
 		}
 	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
 
@@ -199,15 +181,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: (proxy: Region) => {
-					// Save to local storage to persist the user's preference across reloads
 					saveUserSelectedProxy(proxy);
-					// Update the selected proxy
-					updateProxy();
+					setUserSavedProxy(proxy);
 				},
 				clearProxy: () => {
-					// Clear the user's selection from local storage.
 					clearUserSelectedProxy();
-					updateProxy();
+					setUserSavedProxy(undefined);
 				},
 			}}
 		>
@@ -249,7 +228,7 @@ export const getPreferredProxy = (
 	);
 
 	// If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
-	if (!selectedProxy || !selectedProxy.healthy) {
+	if (!selectedProxy?.healthy) {
 		// Default to the primary proxy
 		selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 

@@ -1,12 +1,12 @@
-import { templaceACLAvailable } from "api/queries/templates";
-import type { Group, ReducedUser } from "api/typesGenerated";
-import { Autocomplete } from "components/Autocomplete/Autocomplete";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Check } from "lucide-react";
-import { getGroupSubtitle, isGroup } from "modules/groups";
-import { type FC, useState } from "react";
+import { CheckIcon } from "lucide-react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
-import { prepareQuery } from "utils/filters";
+import { templaceACLAvailable } from "#/api/queries/templates";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
+import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { getGroupSubtitle, isGroup } from "#/modules/groups";
+import { prepareQuery } from "#/utils/filters";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 type AutocompleteOption = Exclude<UserOrGroupAutocompleteValue, null>;
@@ -18,12 +18,9 @@ type UserOrGroupAutocompleteProps = {
 	exclude: UserOrGroupAutocompleteValue[];
 };
 
-export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
-	value,
-	onChange,
-	templateID,
-	exclude,
-}) => {
+export const UserOrGroupAutocomplete: React.FC<
+	UserOrGroupAutocompleteProps
+> = ({ value, onChange, templateID, exclude }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 
@@ -78,7 +75,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
 						src={option.avatar_url}
 					/>
-					{isSelected && <Check className="size-4 shrink-0" />}
+					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>
 			)}
 			open={open}

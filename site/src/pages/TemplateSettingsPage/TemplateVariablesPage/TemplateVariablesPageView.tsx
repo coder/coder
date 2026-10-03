@@ -2,15 +2,17 @@ import type {
 	CreateTemplateVersionRequest,
 	TemplateVersion,
 	TemplateVersionVariable,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import type { ComponentProps, FC } from "react";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
-interface TemplateVariablesPageViewProps {
+type TemplateVariablesPageViewProps = {
 	templateVersion?: TemplateVersion;
 	templateVariables?: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -26,12 +28,14 @@ interface TemplateVariablesPageViewProps {
 		 */
 		publishError?: unknown;
 	};
-	initialTouched?: ComponentProps<
+	initialTouched?: React.ComponentProps<
 		typeof TemplateVariablesForm
 	>["initialTouched"];
-}
+};
 
-export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
+export const TemplateVariablesPageView: React.FC<
+	TemplateVariablesPageViewProps
+> = ({
 	templateVersion,
 	templateVariables,
 	onCancel,
@@ -43,19 +47,23 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 	const hasError = Object.values(errors).some((error) => Boolean(error));
 
 	return (
-		<>
-			<PageHeader css={{ paddingTop: 0 }}>
-				<PageHeaderTitle>Template variables</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Variables</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the variables used by this template.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
 			{hasError && (
-				<Stack css={{ marginBottom: 64 }}>
+				<div className="flex flex-col gap-4">
 					{Boolean(errors.buildError) && (
 						<ErrorAlert error={errors.buildError} />
 					)}
 					{Boolean(errors.publishError) && (
 						<ErrorAlert error={errors.publishError} />
 					)}
-				</Stack>
+				</div>
 			)}
 			{templateVersion && templateVariables && templateVariables.length > 0 && (
 				<TemplateVariablesForm
@@ -73,6 +81,6 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 					This template does not use managed variables.
 				</Alert>
 			)}
-		</>
+		</div>
 	);
 };

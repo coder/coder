@@ -2,22 +2,23 @@ package workspacesdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/netip"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/baggage"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -159,7 +160,7 @@ func (c *Client) AgentConnectionInfoGeneric(ctx context.Context) (AgentConnectio
 	}
 
 	var connInfo AgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+	return connInfo, codersdk.ReadBodyAsJSON(res, &connInfo)
 }
 
 func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (AgentConnectionInfo, error) {
@@ -173,8 +174,12 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 	}
 
 	var connInfo AgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+	return connInfo, codersdk.ReadBodyAsJSON(res, &connInfo)
 }
+
+// AgentConnFunc returns a new connection to the specified agent. If release is
+// non-nil, callers must invoke it after they are done with the AgentConn.
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (conn AgentConn, release func(), err error)
 
 // @typescript-ignore DialAgentOptions
 type DialAgentOptions struct {
@@ -188,6 +193,10 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
+	// ClientSessionID, when set, is attached to network telemetry events as
+	// client_session_id so the session can be correlated across the client's
+	// logs, requests, and telemetry.
+	ClientSessionID string
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -197,6 +206,40 @@ type DialAgentOptions struct {
 // necessary.
 func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.client.Logger(), derpMap, c.client.URL)
+}
+
+// clientSessionIDBaggage returns the W3C baggage header value carrying sessionID
+// under the client_session_id key, so coderd and the agent's tracing middleware
+// can log requests against the client's session. The bool is false when
+// sessionID is empty or not a valid baggage value.
+func clientSessionIDBaggage(sessionID string) (string, bool) {
+	if sessionID == "" {
+		return "", false
+	}
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		return "", false
+	}
+	bag, err := baggage.New(member)
+	if err != nil {
+		return "", false
+	}
+	return bag.String(), true
+}
+
+// setClientSessionIDBaggage attaches sessionID as a W3C baggage member under the
+// client_session_id key on the websocket handshake headers, so coderd's tracing
+// middleware can log it against the coordinate request. It is a no-op when
+// sessionID is empty or not a valid baggage value.
+func setClientSessionIDBaggage(wsOptions *websocket.DialOptions, sessionID string) {
+	value, ok := clientSessionIDBaggage(sessionID)
+	if !ok {
+		return
+	}
+	if wsOptions.HTTPHeader == nil {
+		wsOptions.HTTPHeader = http.Header{}
+	}
+	wsOptions.HTTPHeader.Set("baggage", value)
 }
 
 func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn AgentConn, err error) {
@@ -219,6 +262,13 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	c.client.SessionTokenProvider.SetDialOption(wsOptions)
 
+	// Attach the client session ID as W3C baggage on the coordinate handshake
+	// so coderd's tracing middleware logs it against the
+	// /api/v2/workspaceagents/{id}/coordinate request. This is set explicitly at
+	// the dial site (like the session token) so it does not rely on a
+	// baggage-injecting client transport, which non-CLI callers may not have.
+	setClientSessionIDBaggage(wsOptions, options.ClientSessionID)
+
 	// New context, separate from dialCtx. We don't want to cancel the
 	// connection if dialCtx is canceled.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -239,9 +289,18 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
-	var header http.Header
-	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-		header = headerTransport.Header
+	var getHeaders func() http.Header
+	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+		getHeaders = func() http.Header {
+			refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			headers, err := headerTransport.Provider.Headers(refreshCtx)
+			if err != nil {
+				options.Logger.Error(ctx, "get connection headers", slog.Error(err))
+				return nil
+			}
+			return headers
+		}
 	}
 	var telemetrySink tailnet.TelemetrySink
 	if options.EnableTelemetry {
@@ -254,12 +313,14 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
+		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
 		CaptureHook:         options.CaptureHook,
 		ClientType:          proto.TelemetryEvent_CLI,
+		ClientSessionID:     options.ClientSessionID,
 		TelemetrySink:       telemetrySink,
 	})
 	if err != nil {
@@ -267,6 +328,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	defer func() {
 		if err != nil {
+			// getHeaders may block on a refresh while holding the DERP lock.
+			// Cancel its context before Close waits for that lock.
+			cancel()
 			_ = conn.Close()
 		}
 	}()
@@ -296,7 +360,17 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
+		Logger: options.Logger,
 	})
+
+	// Agent HTTP API requests use a separate per-request HTTP client that does
+	// not go through the CLI's baggage transport, so attach the session ID to the
+	// conn's extra headers to propagate it to the agent's tracing middleware.
+	if value, ok := clientSessionIDBaggage(options.ClientSessionID); ok {
+		header := http.Header{}
+		header.Set("baggage", value)
+		agentConn.SetExtraHeaders(header)
+	}
 
 	if !agentConn.AwaitReachable(dialCtx) {
 		_ = agentConn.Close()
@@ -363,26 +437,23 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	serverURL.RawQuery = q.Encode()
 
-	// If we're not using a signed token, we need to set the session token as a
-	// cookie.
-	httpClient := c.client.HTTPClient
+	// Shallow-clone the HTTP client so we never inherit a caller-provided
+	// cookie jar. Non-browser websocket auth uses the Coder-Session-Token
+	// header or a signed-token query param — never cookies. A stale jar
+	// cookie would take precedence on the server (cookies are checked
+	// before headers) and cause spurious 401s.
+	wsHTTPClient := *c.client.HTTPClient
+	wsHTTPClient.Jar = nil
+
+	headers := http.Header{}
+	// If we're not using a signed token, set the session token header.
 	if opts.SignedToken == "" {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  codersdk.SessionTokenCookie,
-			Value: c.client.SessionToken(),
-		}})
-		httpClient = &http.Client{
-			Jar:       jar,
-			Transport: c.client.HTTPClient.Transport,
-		}
+		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
 	//nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
+		HTTPClient: &wsHTTPClient,
+		HTTPHeader: headers,
 	})
 	if err != nil {
 		if res == nil {

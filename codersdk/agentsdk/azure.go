@@ -11,18 +11,24 @@ import (
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Encoding  string `json:"encoding" validate:"required"`
+	// AgentName optionally selects a specific agent when multiple
+	// agents share the same instance identity. An empty string is
+	// treated as unspecified.
+	AgentName string `json:"agent_name,omitempty"`
 }
 
 // AzureSessionTokenExchanger exchanges Azure attested metadata for a Coder session token.
 // @typescript-ignore AzureSessionTokenExchanger
 type AzureSessionTokenExchanger struct {
-	client *codersdk.Client
+	client    *codersdk.Client
+	agentName string
 }
 
-func WithAzureInstanceIdentity() SessionTokenSetup {
+func WithAzureInstanceIdentity(opts ...InstanceIdentityOption) SessionTokenSetup {
+	cfg := applyInstanceIdentityOptions(opts)
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &InstanceIdentitySessionTokenProvider{
-			TokenExchanger: &AzureSessionTokenExchanger{client: client},
+			TokenExchanger: &AzureSessionTokenExchanger{client: client, agentName: cfg.AgentName},
 		}
 	}
 }
@@ -42,10 +48,11 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 	defer res.Body.Close()
 
 	var token AzureInstanceIdentityToken
-	err = json.NewDecoder(res.Body).Decode(&token)
+	err = json.NewDecoder(res.Body).Decode(&token) //nolint:gocritic // Azure IMDS attested document response, not the Coder API.
 	if err != nil {
 		return AuthenticateResponse{}, err
 	}
+	token.AgentName = a.agentName
 
 	res, err = a.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
 	if err != nil {
@@ -56,5 +63,5 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

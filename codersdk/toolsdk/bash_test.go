@@ -2,9 +2,15 @@ package toolsdk_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/kballard/go-shellquote"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -315,31 +321,18 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		// Output capture must not depend on starting within a short deadline.
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace:  workspace.Name,
-			Command:    `echo "started" && sleep 60 && echo "completed"`, // Command that would take 60+ seconds
-			Background: true,                                             // Run in background
-			TimeoutMs:  2000,                                             // 2 second timeout
+			Command:    `sh -c 'echo stdout; echo stderr >&2'`,
+			Background: true,
 		}
 
 		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
-
-		// Should not error
 		require.NoError(t, err)
-
-		t.Logf("Background result: exitCode=%d, output=%q", result.ExitCode, result.Output)
-
-		// Should have exit code 124 (timeout) since command times out
-		require.Equal(t, 124, result.ExitCode)
-
-		// Should capture output up to timeout point
-		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
-
-		// Should NOT contain the second echo (it never executed due to timeout)
-		require.NotContains(t, result.Output, "completed", "Should not contain output after timeout")
-
-		// Should contain background continuation message
-		require.Contains(t, result.Output, "Command continues running in background")
+		require.Equal(t, 0, result.ExitCode)
+		require.Contains(t, result.Output, "stdout")
+		require.Contains(t, result.Output, "stderr")
 	})
 
 	t.Run("BackgroundVsNormalExecution", func(t *testing.T) {
@@ -391,6 +384,20 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Run("BackgroundCommandContinuesAfterTimeout", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		gatePath := filepath.Join(dir, "continue")
+		donePath := filepath.Join(dir, "done")
+		output, err := exec.CommandContext(ctx, "mkfifo", gatePath).CombinedOutput()
+		require.NoError(t, err, "%s", output)
+
+		// Opening both ends lets the test release the command even if shell
+		// startup takes longer than the timeout. Close after agent cleanup so
+		// an in-flight command can still read the release token.
+		gate, err := os.OpenFile(gatePath, os.O_RDWR, 0)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = gate.Close() })
+
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
@@ -402,37 +409,36 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		t.Cleanup(func() {
+			// Release the command before agent cleanup, including on failure.
+			_, _ = gate.WriteString("continue\n")
+		})
+
+		script := fmt.Sprintf("read -r proceed < %s && echo done > %s",
+			shellquote.Join(gatePath), shellquote.Join(donePath))
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace:  workspace.Name,
-			Command:    `echo "started" && sleep 4 && echo "done" > /tmp/bg-test-done`, // Command that will timeout but continue
-			TimeoutMs:  2000,                                                           // 2000ms timeout (shorter than command duration)
-			Background: true,                                                           // Run in background
+			Command:    shellquote.Join("sh", "-c", script),
+			TimeoutMs:  2000,
+			Background: true,
 		}
 
 		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
-
-		// Should not error but should timeout
 		require.NoError(t, err)
-
-		t.Logf("Background with timeout result: exitCode=%d, output=%q", result.ExitCode, result.Output)
-
-		// Should have timeout exit code
 		require.Equal(t, 124, result.ExitCode)
+		// No output is required before timeout, including during slow startup.
+		require.Equal(t, "\nCommand continues running in background", result.Output)
+		_, err = os.Stat(donePath)
+		require.ErrorIs(t, err, os.ErrNotExist)
 
-		// Should capture output before timeout
-		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
-
-		// Should contain background continuation message
-		require.Contains(t, result.Output, "Command continues running in background")
-
-		// Wait for the background command to complete (even though SSH session timed out)
-		require.Eventually(t, func() bool {
-			checkArgs := toolsdk.WorkspaceBashArgs{
-				Workspace: workspace.Name,
-				Command:   `cat /tmp/bg-test-done 2>/dev/null || echo "not found"`,
-			}
-			checkResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, checkArgs)
-			return err == nil && checkResult.Output == "done"
-		}, testutil.WaitMedium, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
+		// Only allow completion after the timed-out handler has returned.
+		_, err = gate.WriteString("continue\n")
+		require.NoError(t, err)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			output, err := os.ReadFile(donePath)
+			require.NoError(c, err)
+			require.Equal(c, "done\n", string(output))
+		}, testutil.WaitLong, testutil.IntervalMedium,
+			"Background command should continue running and complete after timeout")
 	})
 }

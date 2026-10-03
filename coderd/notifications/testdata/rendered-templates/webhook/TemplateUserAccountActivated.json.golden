@@ -16,6 +16,7 @@
       }
     ],
     "labels": {
+      "account_type": "user",
       "activated_account_name": "bobby",
       "activated_account_user_name": "William Tables",
       "initiator": "rob"

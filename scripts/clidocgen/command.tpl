@@ -1,5 +1,5 @@
-<!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ fullName . }}
+{{- frontMatter . -}}
+{{ generatedContentBanner }}
 
 {{ with .Short }}
 {{ . }}
@@ -33,14 +33,14 @@ Aliases:
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| [{{ $cmd.Name | wrapCode }}](./{{commandURI $cmd}}) | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}]({{ subcommandLink $cmd }}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
 {{- range $index, $opt := visibleOptions . }}
 {{- if eq $index 0 }}
 ## Options
 {{- end }}
-### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
+### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}{{ if $opt.Flag }}--{{ $opt.Flag }}{{ else }}{{ $opt.YAMLPath }}{{ end }}
 {{" "}}
 {{ tableHeader }}
 | Type | {{ typeHelper $opt | wrapCode }} |

@@ -1,10 +1,8 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
-import type { FC, HTMLAttributes, PropsWithChildren } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 
-export const OptionName: FC<PropsWithChildren> = ({ children }) => {
+export const OptionName: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<span className="block text-sm font-medium text-content-primary">
 			{children}
@@ -12,17 +10,20 @@ export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
+export const OptionDescription: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <span className="text-sm font-normal">{children}</span>;
 };
 
-interface OptionValueProps {
+type OptionValueProps = {
 	children?: boolean | number | string | string[] | Record<string, boolean>;
-}
+};
 
-export const OptionValue: FC<OptionValueProps> = (props) => {
+export const OptionValue: React.FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
-	const theme = useTheme();
+	const optionClassName =
+		"text-sm font-mono wrap-anywhere select-all [&_ul]:p-4";
 
 	if (typeof value === "boolean") {
 		return (
@@ -34,7 +35,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "number") {
 		return (
-			<span css={styles.option} className="option-value-number">
+			<span className={cn("option-value-number", optionClassName)}>
 				{value}
 			</span>
 		);
@@ -42,15 +43,13 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (!value || value.length === 0) {
 		return (
-			<span css={styles.option} className="option-value-empty">
-				Not set
-			</span>
+			<span className={cn("option-value-empty", optionClassName)}>Not set</span>
 		);
 	}
 
 	if (typeof value === "string") {
 		return (
-			<span css={styles.option} className="option-value-string">
+			<span className={cn("option-value-string", optionClassName)}>
 				{value}
 			</span>
 		);
@@ -58,29 +57,21 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "object" && !Array.isArray(value)) {
 		return (
-			<ul css={{ listStyle: "none" }} className="option-array">
+			<ul className="option-array list-none">
 				{Object.entries(value)
 					.sort((a, b) => a[0].localeCompare(b[0]))
 					.map(([option, isEnabled]) => (
 						<li
 							key={option}
-							css={[
-								styles.option,
-								!isEnabled && {
-									marginLeft: 32,
-									color: theme.palette.text.disabled,
-								},
-							]}
-							className={`option-array-item-${option} ${
-								isEnabled ? "option-enabled" : "option-disabled"
-							}`}
+							className={cn(
+								`option-array-item-${option}`,
+								isEnabled
+									? "option-enabled"
+									: "option-disabled ml-8 text-content-disabled",
+								optionClassName,
+							)}
 						>
-							<div
-								css={{
-									display: "inline-flex",
-									alignItems: "center",
-								}}
-							>
+							<div className="inline-flex items-center">
 								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
@@ -92,9 +83,9 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (Array.isArray(value)) {
 		return (
-			<ul css={{ listStylePosition: "inside" }} className="option-array">
+			<ul className="option-array list-inside">
 				{value.map((item) => (
-					<li key={item} css={styles.option}>
+					<li key={item} className={optionClassName}>
 						{item}
 					</li>
 				))}
@@ -103,75 +94,47 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 	}
 
 	return (
-		<span css={styles.option} className="option-value-json">
+		<span className={cn("option-value-json", optionClassName)}>
 			{JSON.stringify(value)}
 		</span>
 	);
 };
 
-type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
+type OptionConfigProps = React.ComponentProps<"div"> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
-export const OptionConfig: FC<OptionConfigProps> = ({ isSource, ...attrs }) => {
+export const OptionConfig: React.FC<OptionConfigProps> = ({
+	isSource,
+	className,
+	...attrs
+}) => {
 	return (
 		<div
 			{...attrs}
-			css={[styles.configOption, isSource && styles.sourceConfigOption]}
+			className={cn(
+				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
+				"font-mono text-xs font-semibold leading-none",
+				"border-border-secondary bg-surface-secondary",
+				isSource &&
+					"border-highlight-sky [&_[data-slot=option-config-flag]]:bg-surface-sky [&_[data-slot=option-config-flag]]:text-highlight-sky",
+				className,
+			)}
 		/>
 	);
 };
 
-export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	const theme = useTheme();
-
+export const OptionConfigFlag: React.FC<React.ComponentProps<"div">> = (
+	props,
+) => {
 	return (
 		<div
 			{...props}
-			className="OptionConfigFlag"
-			css={{
-				fontSize: 10,
-				fontWeight: 600,
-				display: "block",
-				backgroundColor: theme.palette.divider,
-				lineHeight: 1,
-				padding: "2px 4px",
-				borderRadius: 1,
-			}}
+			data-slot="option-config-flag"
+			className={cn(
+				"block rounded-[1px] bg-border-secondary px-1 py-0.5",
+				"text-2xs font-semibold leading-none text-content-primary",
+				props.className,
+			)}
 		/>
 	);
 };
-
-const styles = {
-	configOption: (theme) => ({
-		fontSize: 13,
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		fontWeight: 600,
-		backgroundColor: theme.palette.background.paper,
-		display: "inline-flex",
-		alignItems: "center",
-		borderRadius: 4,
-		padding: 6,
-		lineHeight: 1,
-		gap: 6,
-		border: `1px solid ${theme.palette.divider}`,
-	}),
-
-	sourceConfigOption: (theme) => ({
-		border: `1px solid ${theme.roles.active.fill.outline}`,
-
-		"& .OptionConfigFlag": {
-			background: theme.roles.active.fill.solid,
-		},
-	}),
-
-	option: css`
-    font-size: 14px;
-    font-family: ${MONOSPACE_FONT_FAMILY};
-    overflow-wrap: anywhere;
-    user-select: all;
-
-    & ul {
-      padding: 16px;
-    }
-  `,
-} satisfies Record<string, Interpolation<Theme>>;

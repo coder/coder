@@ -1,10 +1,17 @@
-import { API } from "api/api";
+import {
+	type QueryOptions,
+	queryOptions,
+	type UseInfiniteQueryOptions,
+	type UseQueryOptions,
+} from "react-query";
+import { API } from "#/api/api";
 import type {
+	ProvisionerJobLog,
 	WorkspaceBuild,
+	WorkspaceBuildDebugEventRequest,
 	WorkspaceBuildParameter,
 	WorkspaceBuildsRequest,
-} from "api/typesGenerated";
-import type { QueryOptions, UseInfiniteQueryOptions } from "react-query";
+} from "#/api/typesGenerated";
 
 export function workspaceBuildParametersKey(workspaceBuildId: string) {
 	return ["workspaceBuilds", workspaceBuildId, "parameters"] as const;
@@ -28,6 +35,25 @@ export const workspaceBuildByNumber = (
 			API.getWorkspaceBuildByNumber(username, workspaceName, buildNumber),
 	};
 };
+
+const workspaceBuildByIdKey = (workspaceBuildId: string) =>
+	["workspaceBuilds", workspaceBuildId] as const;
+
+export const workspaceBuildById = (workspaceBuildId: string) =>
+	queryOptions({
+		queryKey: workspaceBuildByIdKey(workspaceBuildId),
+		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),
+	});
+
+type ReportWorkspaceBuildDebugClickArgs = {
+	workspaceBuildId: string;
+	req: WorkspaceBuildDebugEventRequest;
+};
+
+export const reportWorkspaceBuildDebugClick = () => ({
+	mutationFn: ({ workspaceBuildId, req }: ReportWorkspaceBuildDebugClickArgs) =>
+		API.reportWorkspaceBuildDebugClick(workspaceBuildId, req),
+});
 
 export const workspaceBuildsKey = (workspaceId: string) => [
 	"workspaceBuilds",
@@ -60,6 +86,25 @@ export const infiniteWorkspaceBuilds = (
 		},
 	} satisfies UseInfiniteQueryOptions<WorkspaceBuild[]>;
 };
+
+function workspaceBuildLogsKey(workspaceBuildId: string) {
+	return ["workspaceBuilds", workspaceBuildId, "logs"] as const;
+}
+
+// Fetches build logs via REST. Completed build logs are immutable,
+// so the query uses infinite staleTime to cache across re-mounts
+// (e.g. collapsible expand/collapse cycles).
+export function workspaceBuildLogs(workspaceBuildId: string) {
+	return {
+		queryKey: workspaceBuildLogsKey(workspaceBuildId),
+		queryFn: () => API.getWorkspaceBuildLogs(workspaceBuildId),
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 10 * 60 * 1000, // 10 minutes. Avoids holding logs in cache forever.
+		refetchOnMount: false,
+		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
+	} as const satisfies UseQueryOptions<ProvisionerJobLog[]>;
+}
 
 // We use readyAgentsCount to invalidate the query when an agent connects
 export const workspaceBuildTimings = (workspaceBuildId: string) => {

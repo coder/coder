@@ -21,7 +21,7 @@ import (
 // @Param os path string true "Operating system"
 // @Param arch path string true "Architecture"
 // @Success 200 "Success"
-// @Router /init-script/{os}/{arch} [get]
+// @Router /api/v2/init-script/{os}/{arch} [get]
 func (api *API) initScript(rw http.ResponseWriter, r *http.Request) {
 	os := strings.ToLower(chi.URLParam(r, "os"))
 	arch := strings.ToLower(chi.URLParam(r, "arch"))

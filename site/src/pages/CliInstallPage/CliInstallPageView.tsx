@@ -1,80 +1,46 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Welcome } from "components/Welcome/Welcome";
-import type { FC } from "react";
+import { cn } from "cn";
 import { Link as RouterLink } from "react-router";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Welcome } from "#/components/Welcome/Welcome";
 
 type CliInstallPageViewProps = {
 	origin: string;
 };
 
-export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
+export const CliInstallPageView: React.FC<CliInstallPageViewProps> = ({
+	origin,
+}) => {
 	return (
-		<div css={styles.container}>
-			<Welcome>Install the Coder CLI</Welcome>
+		<div
+			className={cn(
+				"mx-auto h-screen w-[600px] max-w-full px-4",
+				"flex flex-1 flex-col items-center justify-center",
+			)}
+		>
+			<Welcome>Install the Coder&nbsp;CLI</Welcome>
 
-			<p css={styles.instructions}>
+			<p className="pb-2 text-center text-base leading-[1.4] text-content-secondary">
 				Copy the command below and{" "}
-				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+				<strong className="block">paste it in your terminal.</strong>
 			</p>
 
 			<CodeExample
-				css={{ maxWidth: "100%" }}
+				className="max-w-full [&>code]:overflow-x-hidden [&>code]:text-ellipsis [&>code]:whitespace-nowrap"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>
 
-			<div css={{ paddingTop: 16 }}>
-				<RouterLink to="/workspaces" css={styles.backLink}>
+			<div className="pt-4">
+				<RouterLink
+					to="/workspaces"
+					className="block py-4 text-center text-content-primary underline decoration-[hsla(0,0%,100%,0.7)] underline-offset-[3px] hover:no-underline"
+				>
 					Go to workspaces
 				</RouterLink>
 			</div>
-			<div css={styles.copyright}>
+			<div className="mt-6 text-xs text-content-secondary">
 				&copy; {new Date().getFullYear()} Coder Technologies, Inc.
 			</div>
 		</div>
 	);
 };
-
-const styles = {
-	container: {
-		flex: 1,
-		// Fallback to 100vh
-		height: ["100vh", "-webkit-fill-available"],
-		display: "flex",
-		flexDirection: "column",
-		justifyContent: "center",
-		alignItems: "center",
-		width: 480,
-		margin: "auto",
-	},
-
-	instructions: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		paddingBottom: 8,
-		textAlign: "center",
-		lineHeight: 1.4,
-	}),
-
-	backLink: (theme) => ({
-		display: "block",
-		textAlign: "center",
-		color: theme.palette.text.primary,
-		textDecoration: "underline",
-		textUnderlineOffset: 3,
-		textDecorationColor: "hsla(0deg, 0%, 100%, 0.7)",
-		paddingTop: 16,
-		paddingBottom: 16,
-
-		"&:hover": {
-			textDecoration: "none",
-		},
-	}),
-
-	copyright: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		marginTop: 24,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

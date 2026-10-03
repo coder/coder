@@ -1,50 +1,82 @@
-import { getErrorMessage } from "api/errors";
-import { groupsByOrganization } from "api/queries/groups";
-import { organizationsPermissions } from "api/queries/organizations";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import { PlusIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
-import { pageTitle } from "utils/page";
+import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	organizationGroupsAISpend,
+	paginatedGroupsByOrganization,
+} from "#/api/queries/groups";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
+import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
-import { GroupsPageView } from "./GroupsPageView";
+import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
 
-const GroupsPage: FC = () => {
-	const { template_rbac: groupsEnabled } = useFeatureVisibility();
+const GroupsPage: React.FC = () => {
+	const { permissions: authPermissions } = useAuthenticated();
+	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
-	const groupsQuery = useQuery({
-		...groupsByOrganization(organization?.name ?? ""),
-		enabled: !!organization,
+	const aibridgeVisible = Boolean(aibridge);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupsQuery = usePaginatedQuery({
+		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
+		enabled: Boolean(groupsEnabled && organization),
 	});
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: groupsQuery.goToFirstPage,
+	});
+	const groupIds = groupsQuery.data?.groups.map((group) => group.id) ?? [];
+	const groupsSpendQuery = useQuery({
+		...organizationGroupsAISpend(organization?.name ?? "", groupIds),
+		enabled: aibridgeVisible && Boolean(organization) && groupIds.length > 0,
+	});
+	const groupsWithSpend = joinGroupsSpend(
+		groupsQuery.data?.groups,
+		groupsSpendQuery.data,
+	);
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(groupsQuery.error, "Unable to load groups."),
+				{
+					description: getErrorDetail(groupsQuery.error),
+				},
 			);
 		}
 	}, [groupsQuery.error]);
 
 	useEffect(() => {
+		if (groupsSpendQuery.error) {
+			toast.error(
+				getErrorMessage(groupsSpendQuery.error, "Unable to load AI spend."),
+				{
+					description: getErrorDetail(groupsSpendQuery.error),
+				},
+			);
+		}
+	}, [groupsSpendQuery.error]);
+
+	useEffect(() => {
 		if (permissionsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(permissionsQuery.error, "Unable to load permissions."),
+				{
+					description: getErrorDetail(permissionsQuery.error),
+				},
 			);
 		}
 	}, [permissionsQuery.error]);
@@ -71,36 +103,19 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			{title}
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
-				<SettingsHeader>
-					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Manage groups for this{" "}
-						{showOrganizations ? "organization" : "deployment"}.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
-
-				{groupsEnabled && permissions.createGroup && (
-					<Button asChild>
-						<RouterLink to="create">
-							<PlusIcon className="size-icon-sm" />
-							Create group
-						</RouterLink>
-					</Button>
-				)}
-			</Stack>
-
 			<GroupsPageView
-				groups={groupsQuery.data}
+				groups={groupsWithSpend}
+				spendError={groupsSpendQuery.isError}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
+				showOrganizations={showOrganizations}
+				showAIBudget={aibridgeVisible}
+				filterProps={{ filter }}
+				groupsQuery={groupsQuery}
+				permissions={authPermissions}
 			/>
 		</div>
 	);

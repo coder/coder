@@ -16,7 +16,7 @@ import (
 // @Tags Authorization
 // @Produce json
 // @Success 200 {object} codersdk.ExternalAPIKeyScopes
-// @Router /auth/scopes [get]
+// @Router /api/v2/auth/scopes [get]
 func (*API) listExternalScopes(rw http.ResponseWriter, r *http.Request) {
 	scopes := rbac.ExternalScopeNames()
 	external := make([]codersdk.APIKeyScope, 0, len(scopes))

@@ -7,7 +7,7 @@ icon: /icon/docker.png
 
 ## Overview
 
-This Coder template presents use of [Workspace Tags](https://coder.com/docs/admin/templates/extending-templates/workspace-tags) and [Coder Parameters](https://coder.com/docs/templates/parameters).
+This Coder template presents use of [Workspace Tags](https://coder.com/docs/admin/templates/extending-templates/workspace-tags) and [Coder Parameters](https://coder.com/docs/admin/templates/extending-templates/parameters).
 
 ## Use case
 

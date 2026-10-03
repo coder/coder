@@ -1,7 +1,9 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,13 +12,15 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplateVersions(t *testing.T) {
 	t.Parallel()
 	t.Run("ListVersions", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -27,7 +31,7 @@ func TestTemplateVersions(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "versions", "list", template.Name)
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		errC := make(chan error)
 		go func() {
@@ -36,9 +40,36 @@ func TestTemplateVersions(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch(version.Name)
-		pty.ExpectMatch(version.CreatedBy.Username)
-		pty.ExpectMatch("Active")
+		stdout.ExpectMatch(ctx, version.Name)
+		stdout.ExpectMatch(ctx, version.CreatedBy.Username)
+		stdout.ExpectMatch(ctx, "Active")
+	})
+
+	t.Run("ListVersionsJSON", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "templates", "versions", "list", template.Name, "--output", "json")
+		clitest.SetupConfig(t, member, root)
+
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+
+		require.NoError(t, inv.Run())
+
+		var rows []struct {
+			TemplateVersion codersdk.TemplateVersion `json:"TemplateVersion"`
+			Active          bool                     `json:"active"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &rows))
+		require.Len(t, rows, 1)
+		assert.Equal(t, version.ID, rows[0].TemplateVersion.ID)
+		assert.True(t, rows[0].Active)
 	})
 }
 

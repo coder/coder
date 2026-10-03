@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -29,7 +31,7 @@ import (
 // @Param request body codersdk.CustomRoleRequest true "Insert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [post]
+// @Router /api/v2/organizations/{organization}/members/roles [post]
 func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -62,9 +64,9 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			UUID:  organization.ID,
 			Valid: true,
 		},
-		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
-		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
+		SitePermissions: slice.List(req.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  slice.List(req.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: slice.List(req.UserPermissions, sdkPermissionToDB),
 		// Satisfy the linter (we don't support member permissions in non-system roles).
 		MemberPermissions: database.CustomRolePermissions{},
 		IsSystem:          false,
@@ -96,7 +98,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CustomRoleRequest true "Update role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [put]
+// @Router /api/v2/organizations/{organization}/members/roles [put]
 func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -154,9 +156,9 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		// to throw an error, then the story of a previously valid role
 		// now being invalid has to be addressed. Coder can change permissions,
 		// objects, and actions at any time.
-		SitePermissions: db2sdk.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
-		UserPermissions: db2sdk.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
+		SitePermissions: slice.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
+		OrgPermissions:  slice.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
+		UserPermissions: slice.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
 		// Satisfy the linter (we don't support member permissions in non-system roles).
 		MemberPermissions: database.CustomRolePermissions{},
 	})
@@ -186,7 +188,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param roleName path string true "Role name"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles/{roleName} [delete]
+// @Router /api/v2/organizations/{organization}/members/roles/{roleName} [delete]
 func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -290,8 +292,8 @@ func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
 
 func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRequest, rw http.ResponseWriter) bool {
 	// This check is not ideal, but we cannot enforce a unique role name in the db against
-	// the built-in role names.
-	if rbac.ReservedRoleName(req.Name) {
+	// the built-in role names. Custom role names are stored lowercase.
+	if rbac.ReservedRoleName(strings.ToLower(req.Name)) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Reserved role name",
 			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", req.Name),

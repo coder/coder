@@ -64,76 +64,73 @@ func NewAppHealthReporterWithClock(
 		var mu sync.RWMutex
 		failures := make(map[uuid.UUID]int, 0)
 		client := &http.Client{}
-		for _, nextApp := range apps {
-			if !shouldStartTicker(nextApp) {
+		for _, app := range apps {
+			if !shouldStartTicker(app) {
 				continue
 			}
-			app := nextApp
-			go func() {
-				_ = clk.TickerFunc(ctx, time.Duration(app.Healthcheck.Interval)*time.Second, func() error {
-					// We time out at the healthcheck interval to prevent getting too backed up, but
-					// set it 1ms early so that it's not simultaneous with the next tick in testing,
-					// which makes the test easier to understand.
-					//
-					// It would be idiomatic to use the http.Client.Timeout or a context.WithTimeout,
-					// but we are passing this off to the native http library, which is not aware
-					// of the clock library we are using. That means in testing, with a mock clock
-					// it will compare mocked times with real times, and we will get strange results.
-					// So, we just implement the timeout as a context we cancel with an AfterFunc
-					reqCtx, reqCancel := context.WithCancel(ctx)
-					timeout := clk.AfterFunc(
-						time.Duration(app.Healthcheck.Interval)*time.Second-time.Millisecond,
-						reqCancel,
-						"timeout", app.Slug)
-					defer timeout.Stop()
+			_ = clk.TickerFunc(ctx, time.Duration(app.Healthcheck.Interval)*time.Second, func() error {
+				// We time out at the healthcheck interval to prevent getting too backed up, but
+				// set it 1ms early so that it's not simultaneous with the next tick in testing,
+				// which makes the test easier to understand.
+				//
+				// It would be idiomatic to use the http.Client.Timeout or a context.WithTimeout,
+				// but we are passing this off to the native http library, which is not aware
+				// of the clock library we are using. That means in testing, with a mock clock
+				// it will compare mocked times with real times, and we will get strange results.
+				// So, we just implement the timeout as a context we cancel with an AfterFunc
+				reqCtx, reqCancel := context.WithCancel(ctx)
+				timeout := clk.AfterFunc(
+					time.Duration(app.Healthcheck.Interval)*time.Second-time.Millisecond,
+					reqCancel,
+					"timeout", app.Slug)
+				defer timeout.Stop()
 
-					err := func() error {
-						req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, app.Healthcheck.URL, nil)
-						if err != nil {
-							return err
-						}
-						res, err := client.Do(req)
-						if err != nil {
-							return err
-						}
-						// successful healthcheck is a non-5XX status code
-						_ = res.Body.Close()
-						if res.StatusCode >= http.StatusInternalServerError {
-							return xerrors.Errorf("error status code: %d", res.StatusCode)
-						}
-
-						return nil
-					}()
+				err := func() error {
+					req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, app.Healthcheck.URL, nil)
 					if err != nil {
-						nowUnhealthy := false
-						mu.Lock()
-						if failures[app.ID] < int(app.Healthcheck.Threshold) {
-							// increment the failure count and keep status the same.
-							// we will change it when we hit the threshold.
-							failures[app.ID]++
-						} else {
-							// set to unhealthy if we hit the failure threshold.
-							// we stop incrementing at the threshold to prevent the failure value from increasing forever.
-							health[app.ID] = codersdk.WorkspaceAppHealthUnhealthy
-							nowUnhealthy = true
-						}
-						mu.Unlock()
-						logger.Debug(ctx, "error checking app health",
-							slog.F("id", app.ID.String()),
-							slog.F("slug", app.Slug),
-							slog.F("now_unhealthy", nowUnhealthy), slog.Error(err),
-						)
-					} else {
-						mu.Lock()
-						// we only need one successful health check to be considered healthy.
-						health[app.ID] = codersdk.WorkspaceAppHealthHealthy
-						failures[app.ID] = 0
-						mu.Unlock()
-						logger.Debug(ctx, "workspace app healthy", slog.F("id", app.ID.String()), slog.F("slug", app.Slug))
+						return err
 					}
+					res, err := client.Do(req)
+					if err != nil {
+						return err
+					}
+					// successful healthcheck is a non-5XX status code
+					_ = res.Body.Close()
+					if res.StatusCode >= http.StatusInternalServerError {
+						return xerrors.Errorf("error status code: %d", res.StatusCode)
+					}
+
 					return nil
-				}, "healthcheck", app.Slug)
-			}()
+				}()
+				if err != nil {
+					nowUnhealthy := false
+					mu.Lock()
+					if failures[app.ID] < int(app.Healthcheck.Threshold) {
+						// increment the failure count and keep status the same.
+						// we will change it when we hit the threshold.
+						failures[app.ID]++
+					} else {
+						// set to unhealthy if we hit the failure threshold.
+						// we stop incrementing at the threshold to prevent the failure value from increasing forever.
+						health[app.ID] = codersdk.WorkspaceAppHealthUnhealthy
+						nowUnhealthy = true
+					}
+					mu.Unlock()
+					logger.Debug(ctx, "error checking app health",
+						slog.F("id", app.ID.String()),
+						slog.F("slug", app.Slug),
+						slog.F("now_unhealthy", nowUnhealthy), slog.Error(err),
+					)
+				} else {
+					mu.Lock()
+					// we only need one successful health check to be considered healthy.
+					health[app.ID] = codersdk.WorkspaceAppHealthHealthy
+					failures[app.ID] = 0
+					mu.Unlock()
+					logger.Debug(ctx, "workspace app healthy", slog.F("id", app.ID.String()), slog.F("slug", app.Slug))
+				}
+				return nil
+			}, "healthcheck", app.Slug)
 		}
 
 		mu.Lock()

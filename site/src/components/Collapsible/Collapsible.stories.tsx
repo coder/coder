@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "components/Button/Button";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDownIcon } from "lucide-react";
+import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -20,19 +20,19 @@ const meta: Meta<typeof Collapsible> = {
 					</h4>
 					<CollapsibleTrigger asChild>
 						<Button size="sm">
-							<ChevronsUpDown className="h-4 w-4" />
+							<ChevronsUpDownIcon />
 							<span className="sr-only">Toggle</span>
 						</Button>
 					</CollapsibleTrigger>
 				</div>
-				<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-sm">
+				<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-xs">
 					@radix-ui/primitives
 				</div>
 				<CollapsibleContent className="space-y-2">
-					<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-sm">
+					<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-xs">
 						@radix-ui/colors
 					</div>
-					<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-sm">
+					<div className="rounded-md border px-4 py-2 font-mono text-sm shadow-xs">
 						@stitches/react
 					</div>
 				</CollapsibleContent>

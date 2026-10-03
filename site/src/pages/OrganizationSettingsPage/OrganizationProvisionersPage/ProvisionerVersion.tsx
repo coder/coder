@@ -1,18 +1,17 @@
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import { TriangleAlertIcon } from "lucide-react";
+import { StatusIndicator } from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 type ProvisionerVersionProps = {
 	buildVersion: string | undefined;
 	provisionerVersion: string;
 };
 
-export const ProvisionerVersion: FC<ProvisionerVersionProps> = ({
+export const ProvisionerVersion: React.FC<ProvisionerVersionProps> = ({
 	provisionerVersion,
 	buildVersion,
 }) => {

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -131,7 +130,7 @@ func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsight
 		return UserLatencyInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserLatencyInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 type UserActivityInsightsRequest struct {
@@ -163,7 +162,7 @@ func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsig
 		return UserActivityInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserActivityInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 // TemplateInsightsResponse is the response from the template insights endpoint.
@@ -281,7 +280,7 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 		return TemplateInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result TemplateInsightsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }
 
 type GetUserStatusCountsResponse struct {
@@ -294,14 +293,18 @@ type UserStatusChangeCount struct {
 }
 
 type GetUserStatusCountsRequest struct {
-	// Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
-	// for the local timezone.
-	Offset int `json:"offset"`
+	Timezone string `json:"timezone" example:"America/St_Johns"`
+	// Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
+	Offset int `json:"offset,omitempty" example:"-2"`
 }
 
 func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCountsRequest) (GetUserStatusCountsResponse, error) {
 	qp := url.Values{}
-	qp.Add("tz_offset", strconv.Itoa(req.Offset))
+	if req.Timezone != "" {
+		qp.Add("timezone", req.Timezone)
+	} else {
+		qp.Add("tz_offset", strconv.Itoa(req.Offset))
+	}
 
 	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
@@ -314,5 +317,5 @@ func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCount
 		return GetUserStatusCountsResponse{}, ReadBodyAsError(resp)
 	}
 	var result GetUserStatusCountsResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
+	return result, ReadBodyAsJSON(resp, &result)
 }

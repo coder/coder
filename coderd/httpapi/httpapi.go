@@ -16,9 +16,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -48,11 +50,23 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -80,7 +94,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -228,16 +242,50 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	_ = enc.Encode(response)
 }
 
-// Read decodes JSON from the HTTP request into the value provided. It uses
-// go-validator to validate the incoming request body. ctx is used for tracing
-// and can be nil. Although tracing this function isn't likely too helpful, it
-// was done to be consistent with Write.
+// DefaultMaxRequestBodyBytes bounds the request body that a JSON endpoint will
+// decode. It exists so that a single request, including an unauthenticated one,
+// cannot exhaust server memory with an oversized body. Endpoints that need a
+// different limit must call ReadLimit rather than change this constant.
+const DefaultMaxRequestBodyBytes = 4 << 20 // 4 MiB
+
+// Read decodes JSON from the HTTP request into the value provided, reading at
+// most DefaultMaxRequestBodyBytes from the body. It uses go-validator to
+// validate the incoming request body. ctx is used for tracing and can be nil.
+// Although tracing this function isn't likely too helpful, it was done to be
+// consistent with Write.
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+	return ReadLimit(ctx, rw, r, DefaultMaxRequestBodyBytes, value)
+}
+
+// ReadLimit is Read with an explicit request body size limit, for endpoints
+// that need one above or below DefaultMaxRequestBodyBytes. Most callers set a
+// tighter one.
+//
+// Callers must use this rather than wrapping r.Body in an http.MaxBytesReader
+// themselves. Read installs its own limit, and nested readers compose as
+// tightest-wins, so the default would override a larger caller-supplied limit.
+func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, limit int64, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	r.Body = http.MaxBytesReader(rw, r.Body, limit)
+
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
+		// Report the limit the error carries, not the one this call installed.
+		// Nested readers compose as tightest-wins and the error carries the
+		// winner, so a caller that wrapped r.Body tighter would otherwise be
+		// told a limit far looser than the one that rejected it.
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Must be r.Context(), not ctx: ctx is the caller's and need not
+			// be the request's, but the tracker rides the request's.
+			RecordRequestBodyLimit(r.Context(), mbe.Limit)
+			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit),
+			})
+			return false
+		}
 		Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
@@ -307,6 +355,26 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	<-chan struct{},
 	error,
 ) {
+	return newServerSentEventSender(quartz.NewReal(), rw, r)
+}
+
+// ServerSentEventSenderWithClock is ServerSentEventSender with the heartbeat
+// ticker driven by clk.
+func ServerSentEventSenderWithClock(clk quartz.Clock) EventSender {
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(sse codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		return newServerSentEventSender(clk, rw, r)
+	}
+}
+
+func newServerSentEventSender(clk quartz.Clock, rw http.ResponseWriter, r *http.Request) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -329,7 +397,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := clk.NewTicker(HeartbeatInterval, "ServerSentEventSender")
 		defer ticker.Stop()
 
 		for {
@@ -357,7 +425,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
+		_, err := fmt.Fprintf(buf, "event: %s\n", newEvent.Type)
 		if err != nil {
 			return err
 		}
@@ -418,92 +486,122 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
+func OneWayWebSocketEventSender(log slog.Logger, watcher *WSWatcher) func(rw http.ResponseWriter, r *http.Request) (
 	func(event codersdk.ServerSentEvent) error,
 	<-chan struct{},
 	error,
 ) {
-	ctx, cancel := context.WithCancel(r.Context())
-	r = r.WithContext(ctx)
-	socket, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		cancel()
-		return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
-	}
-	go Heartbeat(ctx, socket)
-
-	eventC := make(chan codersdk.ServerSentEvent)
-	socketErrC := make(chan websocket.CloseError, 1)
-	closed := make(chan struct{})
-	go func() {
-		defer cancel()
-		defer close(closed)
-
-		for {
-			select {
-			case event := <-eventC:
-				writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				err := wsjson.Write(writeCtx, socket, event)
-				cancel()
-				if err == nil {
-					continue
-				}
-				_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
-			case err := <-socketErrC:
-				_ = socket.Close(err.Code, err.Reason)
-			case <-ctx.Done():
-				_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
-			}
-			return
-		}
-	}()
-
-	// We have some tools in the UI code to help enforce one-way WebSocket
-	// connections, but there's still the possibility that the client could send
-	// a message when it's not supposed to. If that happens, the client likely
-	// forgot to use those tools, and communication probably can't be trusted.
-	// Better to just close the socket and force the UI to fix its mess
-	go func() {
-		_, _, err := socket.Read(ctx)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(event codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		ctx, cancel := context.WithCancel(r.Context())
+		r = r.WithContext(ctx)
+		socket, err := websocket.Accept(rw, r, nil)
 		if err != nil {
-			socketErrC <- websocket.CloseError{
-				Code:   websocket.StatusInternalError,
-				Reason: "Unable to process invalid message from client",
+			cancel()
+			return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
+		}
+		ctx = watcher.Watch(ctx, log, socket)
+
+		eventC := make(chan codersdk.ServerSentEvent, 64)
+		socketErrC := make(chan websocket.CloseError, 1)
+		closed := make(chan struct{})
+		go func() {
+			defer cancel()
+			defer close(closed)
+
+			for {
+				select {
+				case event := <-eventC:
+					writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					err := wsjson.Write(writeCtx, socket, event)
+					cancel()
+					if err == nil {
+						continue
+					}
+					_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
+				case err := <-socketErrC:
+					_ = socket.Close(err.Code, err.Reason)
+				case <-ctx.Done():
+					_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+				}
+				return
 			}
-			return
-		}
-		socketErrC <- websocket.CloseError{
-			Code:   websocket.StatusProtocolError,
-			Reason: "Clients cannot send messages for one-way WebSockets",
-		}
-	}()
+		}()
 
-	sendEvent := func(event codersdk.ServerSentEvent) error {
-		select {
-		case eventC <- event:
-		case <-ctx.Done():
-			return ctx.Err()
+		// We have some tools in the UI code to help enforce one-way WebSocket
+		// connections, but there's still the possibility that the client could send
+		// a message when it's not supposed to. If that happens, the client likely
+		// forgot to use those tools, and communication probably can't be trusted.
+		// Better to just close the socket and force the UI to fix its mess
+		go func() {
+			_, _, err := socket.Read(ctx)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				socketErrC <- websocket.CloseError{
+					Code:   websocket.StatusInternalError,
+					Reason: "Unable to process invalid message from client",
+				}
+				return
+			}
+			socketErrC <- websocket.CloseError{
+				Code:   websocket.StatusProtocolError,
+				Reason: "Clients cannot send messages for one-way WebSockets",
+			}
+		}()
+
+		sendEvent := func(event codersdk.ServerSentEvent) error {
+			// Prioritize context cancellation over sending to the
+			// buffered channel. Without this check, both cases in
+			// the select below can fire simultaneously when the
+			// context is already done and the channel has capacity,
+			// making the result nondeterministic.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			select {
+			case eventC <- event:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return nil
 		}
-		return nil
+
+		return sendEvent, closed, nil
 	}
-
-	return sendEvent, closed, nil
-}
-
-// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
-type OAuth2Error struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description,omitempty"`
 }
 
 // WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
 // This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
-func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
-	Write(ctx, rw, status, OAuth2Error{
+func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode codersdk.OAuth2ErrorCode, description string) {
+	// RFC 6749 §5.2: invalid_client SHOULD use 401 and MUST include a
+	// WWW-Authenticate response header.
+	if status == http.StatusUnauthorized && errorCode == codersdk.OAuth2ErrorCodeInvalidClient {
+		rw.Header().Set("WWW-Authenticate", `Basic realm="coder"`)
+	}
+
+	Write(ctx, rw, status, codersdk.OAuth2Error{
 		Error:            errorCode,
 		ErrorDescription: description,
 	})
+}
+
+// WriteOAuth2RequestTooLarge reports a request body over limit as an RFC 6749
+// error, for the OAuth2 endpoints that read a form body rather than decoding
+// through Read. RFC 6749 defines no error code for a transport rejection, so
+// invalid_request is the closest compliant framing.
+//
+// The limit is the one carried by the *http.MaxBytesError that tripped, so a
+// caller of this function reports the bound that actually applied rather than
+// the one it assumes applied.
+func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	RecordRequestBodyLimit(ctx, limit)
+	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
+		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
 }

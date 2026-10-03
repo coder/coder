@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontainers/dcspec"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func TestUnmarshalDevContainer(t *testing.T) {
@@ -28,21 +27,21 @@ func TestUnmarshalDevContainer(t *testing.T) {
 			name: "minimal",
 			file: filepath.Join("testdata", "minimal.json"),
 			want: dcspec.DevContainer{
-				Image: ptr.Ref("test-image"),
+				Image: new("test-image"),
 			},
 		},
 		{
 			name: "arrays",
 			file: filepath.Join("testdata", "arrays.json"),
 			want: dcspec.DevContainer{
-				Image:   ptr.Ref("test-image"),
+				Image:   new("test-image"),
 				RunArgs: []string{"--network=host", "--privileged"},
 				ForwardPorts: []dcspec.ForwardPort{
 					{
-						Integer: ptr.Ref[int64](8080),
+						Integer: new(int64(8080)),
 					},
 					{
-						String: ptr.Ref("3000:3000"),
+						String: new("3000:3000"),
 					},
 				},
 			},
@@ -52,7 +51,7 @@ func TestUnmarshalDevContainer(t *testing.T) {
 			file:    filepath.Join("testdata", "devcontainers-template-starter.json"),
 			wantErr: false,
 			want: dcspec.DevContainer{
-				Image:    ptr.Ref("mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye"),
+				Image:    new("mcr.microsoft.com/devcontainers/javascript-node:1-18-bullseye"),
 				Features: &dcspec.Features{},
 				Customizations: map[string]interface{}{
 					"vscode": map[string]interface{}{
@@ -63,7 +62,7 @@ func TestUnmarshalDevContainer(t *testing.T) {
 					},
 				},
 				PostCreateCommand: &dcspec.Command{
-					String: ptr.Ref("npm install -g @devcontainers/cli"),
+					String: new("npm install -g @devcontainers/cli"),
 				},
 			},
 		},

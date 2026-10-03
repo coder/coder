@@ -1,45 +1,49 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import { RBACResourceActions } from "api/rbacresourcesGenerated";
-import type {
-	AssignableRoles,
-	CustomRoleRequest,
-	Permission,
-	RBACAction,
-	RBACResource,
-	Role,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
+import { type FormikContextType, useFormik } from "formik";
+import { ArrowLeftIcon } from "lucide-react";
+import { useId, useState } from "react";
+import { Link } from "react-router";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import { RBACResourceActions } from "#/api/rbacresourcesGenerated";
+import {
+	type AssignableRoles,
+	type CustomRoleRequest,
+	type Permission,
+	type RBACAction,
+	RBACActions,
+	type RBACResource,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { FormFooter } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
 	TableCell,
-	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { useFormik } from "formik";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/components/Table/Table";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
+	display_name: displayNameValidator("Display name"),
 });
 
 type CreateEditRolePageViewProps = {
@@ -51,7 +55,7 @@ type CreateEditRolePageViewProps = {
 	allResources?: boolean;
 };
 
-const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
+export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 	role,
 	onSubmit,
 	error,
@@ -59,13 +63,12 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 	organizationName,
 	allResources = false,
 }) => {
-	const navigate = useNavigate();
-	const onCancel = () => navigate(-1);
-
+	const isEditing = role !== undefined;
+	const rolesHref = `/organizations/${organizationName}/roles`;
 	const form = useFormik<CustomRoleRequest>({
 		initialValues: {
-			name: role?.name || "",
-			display_name: role?.display_name || "",
+			name: role?.name ?? "",
+			display_name: role?.display_name ?? "",
 			site_permissions: role?.site_permissions ?? [],
 			user_permissions: role?.user_permissions ?? [],
 			organization_permissions: role?.organization_permissions ?? [],
@@ -76,85 +79,81 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 		onSubmit,
 	});
 
-	const getFieldHelpers = getFormHelpers<Role>(form, error);
+	const getFieldHelpers = getFormHelpers<CustomRoleRequest>(form, error);
 
 	return (
-		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+		<div>
+			<Button variant="subtle" asChild className="-ml-3">
+				<Link to={rolesHref}>
+					<ArrowLeftIcon />
+					<span>Back to roles</span>
+				</Link>
+			</Button>
+
+			<div className="pt-6">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
-						{role ? "Edit" : "Create"} Custom Role
+						{isEditing ? "Edit Custom Role" : "New Custom Role"}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Set a name and permissions for this role.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<div className="flex space-x-2 items-center">
-					<Button
-						variant="outline"
-						onClick={() => {
-							navigate(`/organizations/${organizationName}/roles`);
-						}}
+				<div className="border border-solid p-6 rounded-lg">
+					<form
+						onSubmit={form.handleSubmit}
+						noValidate
+						autoComplete="off"
+						aria-label="Custom role settings form"
+						className="flex flex-col gap-6"
 					>
-						Cancel
-					</Button>
-					<Button
-						onClick={() => {
-							form.handleSubmit();
-						}}
-					>
-						<Spinner loading={isLoading} />
-						{role !== undefined ? "Save" : "Create role"}
-					</Button>
+						<fieldset
+							disabled={isLoading}
+							className="flex flex-col gap-6 m-0 border-none p-0 min-w-0"
+						>
+							{Boolean(error) && !isApiValidationError(error) && (
+								<ErrorAlert error={error} />
+							)}
+
+							<FormField
+								field={getFieldHelpers("name", {
+									helperText: "Cannot be changed after the role is created.",
+								})}
+								label="Name"
+								required
+								autoFocus
+								disabled={isEditing}
+								onChange={onChangeTrimmed(form)}
+								className="w-full"
+							/>
+							<FormField
+								field={getFieldHelpers("display_name", {
+									helperText: "Keep empty to default to the name.",
+								})}
+								label="Display name"
+								className="w-full"
+							/>
+							<ActionCheckboxes
+								permissions={role?.organization_permissions ?? []}
+								form={form}
+								allResources={allResources}
+							/>
+						</fieldset>
+
+						<FormFooter>
+							<Button asChild variant="outline">
+								<Link to={rolesHref}>Cancel</Link>
+							</Button>
+							<Button type="submit" disabled={isLoading}>
+								<Spinner loading={isLoading} aria-hidden />
+								{isEditing ? "Save" : "Create custom role"}
+							</Button>
+						</FormFooter>
+					</form>
 				</div>
-			</Stack>
-
-			<VerticalForm onSubmit={form.handleSubmit}>
-				<FormFields>
-					{Boolean(error) && !isApiValidationError(error) && (
-						<ErrorAlert error={error} />
-					)}
-
-					<TextField
-						{...getFieldHelpers("name", {
-							helperText:
-								"The role name cannot be modified after the role is created.",
-						})}
-						autoFocus
-						fullWidth
-						disabled={role !== undefined}
-						label="Name"
-					/>
-					<TextField
-						{...getFieldHelpers("display_name", {
-							helperText: "Optional: keep empty to default to the name.",
-						})}
-						fullWidth
-						label="Display name"
-					/>
-					<ActionCheckboxes
-						permissions={role?.organization_permissions || []}
-						form={form}
-						allResources={allResources}
-					/>
-				</FormFields>
-				<FormFooter>
-					<Button onClick={onCancel} variant="outline">
-						Cancel
-					</Button>
-
-					<Button type="submit" disabled={isLoading}>
-						<Spinner loading={isLoading} />
-						{role ? "Save role" : "Create role"}
-					</Button>
-				</FormFooter>
-			</VerticalForm>
-		</>
+			</div>
+		</div>
 	);
 };
 
@@ -166,7 +165,6 @@ const ResourceActionComparator = (
 	p.resource_type === resource &&
 	(p.action.toString() === "*" || p.action === action);
 
-// the subset of resources that are useful for most users
 const DEFAULT_RESOURCES = [
 	"audit_log",
 	"group",
@@ -185,13 +183,21 @@ const filteredRBACResourceActions = Object.fromEntries(
 	),
 );
 
-interface ActionCheckboxesProps {
-	permissions: readonly Permission[];
-	form: ReturnType<typeof useFormik<Role>> & { values: Role };
-	allResources: boolean;
+function isRBACResource(resource: string): resource is RBACResource {
+	return resource in RBACResourceActions;
 }
 
-const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
+function isRBACAction(action: string): action is RBACAction {
+	return RBACActions.some((rbacAction) => rbacAction === action);
+}
+
+type ActionCheckboxesProps = {
+	permissions: readonly Permission[];
+	form: FormikContextType<CustomRoleRequest>;
+	allResources: boolean;
+};
+
+const ActionCheckboxes: React.FC<ActionCheckboxesProps> = ({
 	permissions,
 	form,
 	allResources,
@@ -203,24 +209,23 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 		? RBACResourceActions
 		: filteredRBACResourceActions;
 
-	const handleActionCheckChange = async (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
-	) => {
-		const { name, checked } = e.currentTarget;
-		const [resource_type, action] = name.split(":");
+	const handleActionCheckChange = async (name: string, checked: boolean) => {
+		const [resourceType, action] = name.split(":");
+		if (!isRBACResource(resourceType) || !isRBACAction(action)) {
+			return;
+		}
 
 		const newPermissions = checked
 			? [
 					...checkedActions,
 					{
 						negate: false,
-						resource_type: resource_type as RBACResource,
-						action: action as RBACAction,
+						resource_type: resourceType,
+						action,
 					},
 				]
-			: checkedActions?.filter(
-					(p) => p.resource_type !== resource_type || p.action !== action,
+			: checkedActions.filter(
+					(p) => p.resource_type !== resourceType || p.action !== action,
 				);
 
 		setCheckActions(newPermissions);
@@ -228,43 +233,44 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	};
 
 	const handleResourceCheckChange = async (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		resource: RBACResource,
+		checked: boolean,
 		indeterminate: boolean,
 	) => {
-		const { name, checked } = e.currentTarget;
-		const resource = name as RBACResource;
-
 		const resourceActionsForResource = resourceActions[resource] || {};
 
 		const newCheckedActions =
 			!checked || indeterminate
-				? checkedActions?.filter((p) => p.resource_type !== resource)
+				? checkedActions.filter((p) => p.resource_type !== resource)
 				: checkedActions;
 
-		const newPermissions =
-			checked || indeterminate
-				? [
-						...newCheckedActions,
-						...Object.keys(resourceActionsForResource).map((resourceKey) => ({
-							negate: false,
-							resource_type: resource as RBACResource,
-							action: resourceKey as RBACAction,
-						})),
-					]
-				: [...newCheckedActions];
+		const resourcePermissions: Permission[] = [];
+		if (checked || indeterminate) {
+			for (const resourceKey of Object.keys(resourceActionsForResource)) {
+				if (!isRBACAction(resourceKey)) {
+					continue;
+				}
+				resourcePermissions.push({
+					negate: false,
+					resource_type: resource,
+					action: resourceKey,
+				});
+			}
+		}
+
+		const newPermissions = [...newCheckedActions, ...resourcePermissions];
 
 		setCheckActions(newPermissions);
 		await form.setFieldValue("organization_permissions", newPermissions);
 	};
 
 	return (
-		<Table>
+		<Table aria-label="Role permissions">
 			<TableHeader>
 				<TableRow>
 					<TableHead>Permission</TableHead>
 					<TableHead className="py-1 text-right">
-						<ShowAllResourcesCheckbox
+						<ShowAllResourcesSwitch
 							showAllResources={showAllResources}
 							setShowAllResources={setShowAllResources}
 						/>
@@ -273,156 +279,131 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 			</TableHeader>
 			<TableBody>
 				{Object.entries(resourceActions).map(([resourceKey, value]) => {
+					if (!isRBACResource(resourceKey)) {
+						return null;
+					}
 					return (
 						<PermissionCheckboxGroup
 							key={resourceKey}
-							checkedActions={checkedActions?.filter(
+							checkedActions={checkedActions.filter(
 								(a) => a.resource_type === resourceKey,
 							)}
 							resourceKey={resourceKey}
 							value={value}
-							form={form}
 							handleActionCheckChange={handleActionCheckChange}
 							handleResourceCheckChange={handleResourceCheckChange}
 						/>
 					);
 				})}
 			</TableBody>
-			<TableFooter>
-				<TableRow>
-					<TableCell align="right" colSpan={2} className="py-1 pr-1">
-						<ShowAllResourcesCheckbox
-							showAllResources={showAllResources}
-							setShowAllResources={setShowAllResources}
-						/>
-					</TableCell>
-				</TableRow>
-			</TableFooter>
 		</Table>
 	);
 };
 
-interface PermissionCheckboxGroupProps {
+type PermissionCheckboxGroupProps = {
 	checkedActions: readonly Permission[];
-	resourceKey: string;
+	resourceKey: RBACResource;
 	value: Partial<Record<RBACAction, string>>;
-	form: ReturnType<typeof useFormik<Role>> & { values: Role };
-	handleActionCheckChange: (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
-	) => Promise<void>;
+	handleActionCheckChange: (name: string, checked: boolean) => Promise<void>;
 	handleResourceCheckChange: (
-		e: ChangeEvent<HTMLInputElement>,
-		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		resource: RBACResource,
+		checked: boolean,
 		indeterminate: boolean,
 	) => Promise<void>;
-}
+};
 
-const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
+const PermissionCheckboxGroup: React.FC<PermissionCheckboxGroupProps> = ({
 	checkedActions,
 	resourceKey,
 	value,
-	form,
 	handleActionCheckChange,
 	handleResourceCheckChange,
 }) => {
+	const actionCount = Object.keys(value).length;
+	const isResourceChecked = checkedActions.length === actionCount;
+	const isResourceIndeterminate =
+		checkedActions.length > 0 && checkedActions.length < actionCount;
+
 	return (
-		<TableRow key={resourceKey}>
-			<TableCell className="pl-0.5" colSpan={2}>
-				<li key={resourceKey} css={styles.checkBoxes}>
-					<Checkbox
-						size="small"
-						name={`${resourceKey}`}
-						checked={checkedActions.length === Object.keys(value).length}
-						indeterminate={
-							checkedActions.length > 0 &&
-							checkedActions.length < Object.keys(value).length
-						}
-						data-testid={`${resourceKey}`}
-						onChange={(e) =>
-							handleResourceCheckChange(
-								e,
-								form,
-								checkedActions.length > 0 &&
-									checkedActions.length < Object.keys(value).length,
-							)
-						}
-					/>
-					{resourceKey}
-					<ul css={styles.checkBoxes}>
-						{Object.entries(value).map(([actionKey, value]) => (
-							<li key={actionKey} css={styles.actionItem}>
-								<span css={styles.actionText}>
-									<Checkbox
-										size="small"
-										name={`${resourceKey}:${actionKey}`}
-										checked={checkedActions.some((p) =>
-											ResourceActionComparator(p, resourceKey, actionKey),
-										)}
-										onChange={(e) => handleActionCheckChange(e, form)}
-									/>
-									{actionKey}
-								</span>
-								<span css={styles.actionDescription}>{value}</span>
-							</li>
-						))}
+		<TableRow>
+			<TableCell className="px-4" colSpan={2}>
+				<div>
+					<div className="inline-flex items-center gap-2">
+						<Checkbox
+							name={resourceKey}
+							checked={
+								isResourceIndeterminate ? "indeterminate" : isResourceChecked
+							}
+							data-testid={resourceKey}
+							aria-label={resourceKey}
+							onCheckedChange={(checked) =>
+								handleResourceCheckChange(
+									resourceKey,
+									checked === true,
+									isResourceIndeterminate,
+								)
+							}
+						/>
+						<span>{resourceKey}</span>
+					</div>
+					<ul className="m-0 list-none py-2 flex flex-col gap-2 pl-8">
+						{Object.entries(value).map(([actionKey, description]) => {
+							const actionName = `${resourceKey}:${actionKey}`;
+							const isActionChecked = checkedActions.some((p) =>
+								ResourceActionComparator(p, resourceKey, actionKey),
+							);
+
+							return (
+								<li key={actionKey} className="grid grid-cols-[270px_1fr]">
+									<span className="inline-flex items-center text-content-primary gap-2">
+										<Checkbox
+											name={actionName}
+											checked={isActionChecked}
+											aria-label={actionName}
+											onCheckedChange={(checked) =>
+												handleActionCheckChange(actionName, checked === true)
+											}
+										/>
+										{actionKey}
+									</span>
+									<span className="pt-1.5 text-content-secondary">
+										{description}
+									</span>
+								</li>
+							);
+						})}
 					</ul>
-				</li>
+				</div>
 			</TableCell>
 		</TableRow>
 	);
 };
 
-interface ShowAllResourcesCheckboxProps {
+type ShowAllResourcesSwitchProps = {
 	showAllResources: boolean;
 	setShowAllResources: React.Dispatch<React.SetStateAction<boolean>>;
-}
+};
 
-const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
+const ShowAllResourcesSwitch: React.FC<ShowAllResourcesSwitchProps> = ({
 	showAllResources,
 	setShowAllResources,
 }) => {
+	const id = useId();
+
 	return (
-		<FormControlLabel
-			sx={{ marginRight: 1 }}
-			control={
-				<Checkbox
-					size="small"
-					id="show_all_permissions"
-					name="show_all_permissions"
-					checked={showAllResources}
-					onChange={(e) => setShowAllResources(e.currentTarget.checked)}
-					checkedIcon={<EyeIcon className="size-icon-sm" />}
-					icon={<EyeOffIcon className="size-icon-sm" />}
-				/>
-			}
-			label={
-				<span style={{ fontSize: 12 }}>
-					{showAllResources
-						? "Hide advanced permissions"
-						: "Show advanced permissions"}
-				</span>
-			}
-		/>
+		<div className="mr-2 inline-flex items-center justify-end gap-2">
+			<Label htmlFor={id} className="cursor-pointer text-xs font-normal">
+				{showAllResources
+					? "Hide advanced permissions"
+					: "Show advanced permissions"}
+			</Label>
+			<Switch
+				id={id}
+				size="sm"
+				name="show_all_permissions"
+				checked={showAllResources}
+				onCheckedChange={setShowAllResources}
+			/>
+		</div>
 	);
 };
-
-const styles = {
-	checkBoxes: {
-		margin: 0,
-		listStyleType: "none",
-	},
-	actionText: (theme) => ({
-		color: theme.palette.text.primary,
-	}),
-	actionDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		paddingTop: 6,
-	}),
-	actionItem: {
-		display: "grid",
-		gridTemplateColumns: "270px 1fr",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
-
-export default CreateEditRolePageView;

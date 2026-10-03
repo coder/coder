@@ -19,7 +19,10 @@ var (
 	appURL = regexp.MustCompile(fmt.Sprintf(
 		`^(?P<AppSlug>%[1]s)(?:--(?P<AgentName>%[1]s))?--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
 		nameRegex))
-	PortRegex = regexp.MustCompile(`^\d{4}s?$`)
+	// PortRegex should not be able to be greater than 65535. In usage though, if a
+	// user tries to use a greater port, the proxy will just block it and not cause
+	// any issues. This is a good enough regex check.
+	PortRegex = regexp.MustCompile(`^\d{4,5}s?$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )

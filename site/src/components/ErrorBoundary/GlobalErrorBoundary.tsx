@@ -1,28 +1,28 @@
-import { Button } from "components/Button/Button";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { Link } from "components/Link/Link";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,
 	useLocation,
 	useRouteError,
 } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Link } from "#/components/Link/Link";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
 const errorPageTitle = "Something went wrong";
 
 // Mocking React Router's error-handling logic is a pain; the next best thing is
 // to split it off from the rest of the code, and pass the value via props
-export const GlobalErrorBoundary: FC = () => {
+export const GlobalErrorBoundary: React.FC = () => {
 	const error = useRouteError();
 	return <GlobalErrorBoundaryInner error={error} />;
 };
 
 type GlobalErrorBoundaryInnerProps = Readonly<{ error: unknown }>;
-export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
-	error,
-}) => {
+export const GlobalErrorBoundaryInner: React.FC<
+	GlobalErrorBoundaryInnerProps
+> = ({ error }) => {
 	const [showErrorMessage, setShowErrorMessage] = useState(false);
 	const { metadata } = useEmbeddedMetadata();
 	const location = useLocation();
@@ -37,7 +37,7 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
 				<div className="flex gap-2 flex-col items-center">
-					<CoderIcon className="w-11 h-11" />
+					<ProductLogo />
 
 					<div className="text-content-primary flex flex-col gap-1">
 						<h1 className="text-2xl font-semibold m-0">{errorPageTitle}</h1>
@@ -93,9 +93,9 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 };
 
 type ErrorStackProps = Readonly<{ error: Error | ErrorResponse }>;
-const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
+const ErrorStack: React.FC<ErrorStackProps> = ({ error }) => {
 	return (
-		<aside className="p-4 text-left rounded-md border-[1px] border-content-tertiary border-solid">
+		<aside className="p-4 text-left rounded-md border border-content-tertiary border-solid">
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">
@@ -115,7 +115,7 @@ const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
 					</p>
 					{error.stack && (
 						<pre className="m-0 py-2 px-0 overflow-x-auto text-xs">
-							<code data-testid="code" data-chromatic="ignore">
+							<code data-testid="code" data-pixel="ignore">
 								{error.stack}
 							</code>
 						</pre>

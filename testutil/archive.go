@@ -2,7 +2,10 @@ package testutil
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"errors"
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -58,4 +61,40 @@ func CreateZip(t testing.TB, files map[string]string) []byte {
 	za, err := archive.CreateZipFromTar(tr, int64(len(ta)))
 	require.NoError(t, err)
 	return za
+}
+
+// Reads every entry of the in-memory tar into a map keyed by entry name.
+func ReadTar(t testing.TB, data []byte) map[string][]byte {
+	t.Helper()
+
+	entries := make(map[string][]byte)
+	tr := tar.NewReader(bytes.NewReader(data))
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return entries
+		}
+		require.NoError(t, err)
+		content, err := io.ReadAll(tr)
+		require.NoError(t, err)
+		entries[hdr.Name] = content
+	}
+}
+
+// Reads every entry of the in-memory zip into a map keyed by entry name.
+func ReadZip(t testing.TB, data []byte) map[string][]byte {
+	t.Helper()
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	entries := make(map[string][]byte, len(zr.File))
+	for _, file := range zr.File {
+		rc, err := file.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		require.NoError(t, err)
+		entries[file.Name] = content
+	}
+	return entries
 }

@@ -116,10 +116,11 @@ func TestOrganizationParam(t *testing.T) {
 			rtr   = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      "test",
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    uuid.New(),
+			Name:                  "test",
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
@@ -192,10 +193,10 @@ func TestOrganizationParam(t *testing.T) {
 			assert.Equal(t, user.AvatarURL, orgMem.AvatarURL)
 			assert.NotEmpty(t, orgMem.Roles)
 			assert.NotZero(t, orgMem.OrganizationMember)
-			assert.NotEmpty(t, orgMem.OrganizationMember.CreatedAt)
-			assert.NotEmpty(t, orgMem.OrganizationMember.UpdatedAt)
-			assert.NotEmpty(t, orgMem.OrganizationMember.UserID)
-			assert.NotEmpty(t, orgMem.OrganizationMember.Roles)
+			assert.NotEmpty(t, orgMem.CreatedAt)
+			assert.NotEmpty(t, orgMem.UpdatedAt)
+			assert.NotEmpty(t, orgMem.UserID)
+			assert.NotEmpty(t, orgMem.Roles)
 
 			orgMems := httpmw.OrganizationMembersParam(r)
 			assert.NotZero(t, orgMems)
@@ -227,10 +228,7 @@ func TestOrganizationParam(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode, "by default keyword")
 
-		// Try by legacy
-		// TODO: This can be removed when legacy nil uuids are no longer supported.
-		//		 This is a temporary measure to ensure as legacy provisioners use
-		//		 nil uuids as the org id and expect the default org.
+		// Try by nil uuid, which resolves to the default org.
 		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.Nil.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.ServeHTTP(rw, r)

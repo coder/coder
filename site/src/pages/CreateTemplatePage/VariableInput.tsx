@@ -1,49 +1,47 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import TextField from "@mui/material/TextField";
-import type { TemplateVersionVariable } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
+import type { TemplateVersionVariable } from "#/api/typesGenerated";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
 };
 
-interface VariableLabelProps {
+type VariableLabelProps = {
 	variable: TemplateVersionVariable;
-}
+};
 
-const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
+const VariableLabel: React.FC<VariableLabelProps> = ({ variable }) => {
 	return (
 		<label htmlFor={variable.name}>
-			<span css={styles.labelName}>
+			<span className="mb-1 block text-sm text-content-secondary">
 				var.{variable.name}
 				{!variable.required && " (optional)"}
 			</span>
-			<span css={styles.labelDescription}>{variable.description}</span>
+			<span className="block text-base font-semibold text-content-primary">
+				{variable.description}
+			</span>
 		</label>
 	);
 };
 
-interface VariableInputProps {
+type VariableInputProps = {
 	disabled?: boolean;
 	variable: TemplateVersionVariable;
 	onChange: (value: string) => void;
 	defaultValue?: string;
-}
+};
 
-export const VariableInput: FC<VariableInputProps> = ({
+export const VariableInput: React.FC<VariableInputProps> = ({
 	disabled,
 	onChange,
 	variable,
 	defaultValue,
 }) => {
 	return (
-		<Stack direction="column" spacing={0.75}>
+		<div className="flex flex-col gap-1.5">
 			<VariableLabel variable={variable} />
-			<div css={styles.input}>
+			<div className="flex flex-col">
 				<VariableField
 					disabled={disabled}
 					onChange={onChange}
@@ -51,46 +49,47 @@ export const VariableInput: FC<VariableInputProps> = ({
 					defaultValue={defaultValue}
 				/>
 			</div>
-		</Stack>
+		</div>
 	);
 };
 
-const VariableField: FC<VariableInputProps> = ({
+const VariableField: React.FC<VariableInputProps> = ({
 	disabled,
 	onChange,
 	variable,
 	defaultValue,
 }) => {
 	if (isBoolean(variable)) {
+		const trueId = `${variable.name}-true`;
+		const falseId = `${variable.name}-false`;
+
 		return (
 			<RadioGroup
 				id={variable.name}
 				defaultValue={variable.default_value}
-				onChange={(event) => {
-					onChange(event.target.value);
-				}}
+				disabled={disabled}
+				onValueChange={onChange}
 			>
-				<FormControlLabel
-					disabled={disabled}
-					value="true"
-					control={<Radio size="small" />}
-					label="True"
-				/>
-				<FormControlLabel
-					disabled={disabled}
-					value="false"
-					control={<Radio size="small" />}
-					label="False"
-				/>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={trueId} value="true" />
+					<Label htmlFor={trueId} className="font-normal cursor-pointer">
+						True
+					</Label>
+				</div>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem id={falseId} value="false" />
+					<Label htmlFor={falseId} className="font-normal cursor-pointer">
+						False
+					</Label>
+				</div>
 			</RadioGroup>
 		);
 	}
 
 	return (
-		<TextField
+		<Input
 			autoComplete="off"
 			id={variable.name}
-			size="small"
 			disabled={disabled}
 			placeholder={variable.sensitive ? "" : variable.default_value}
 			required={variable.required}
@@ -105,27 +104,8 @@ const VariableField: FC<VariableInputProps> = ({
 					? "number"
 					: variable.sensitive
 						? "password"
-						: "string"
+						: "text"
 			}
 		/>
 	);
 };
-
-const styles = {
-	labelName: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		display: "block",
-		marginBottom: 4,
-	}),
-	labelDescription: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.primary,
-		display: "block",
-		fontWeight: 600,
-	}),
-	input: {
-		display: "flex",
-		flexDirection: "column",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

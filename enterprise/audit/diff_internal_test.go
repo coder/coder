@@ -2,6 +2,8 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -13,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func Test_diffValues(t *testing.T) {
@@ -82,14 +83,14 @@ func Test_diffValues(t *testing.T) {
 		runDiffValuesTests(t, table, []diffTest{
 			{
 				name: "LeftNil",
-				left: foo{Bar: nil}, right: foo{Bar: ptr.Ref("baz")},
+				left: foo{Bar: nil}, right: foo{Bar: new("baz")},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "", New: "baz"},
 				},
 			},
 			{
 				name: "RightNil",
-				left: foo{Bar: ptr.Ref("baz")}, right: foo{Bar: nil},
+				left: foo{Bar: new("baz")}, right: foo{Bar: nil},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "baz", New: ""},
 				},
@@ -369,6 +370,76 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// Chat titles can contain sensitive content, so they must be
+			// masked in audit diffs via ActionSecret. This case guards
+			// against a regression where title is flipped back to
+			// ActionTrack in enterprise/audit/table.go.
+			name: "TitleMasked",
+			left: audit.Empty[database.Chat](),
+			right: database.Chat{
+				ID:          uuid.UUID{1},
+				OwnerID:     uuid.UUID{2},
+				WorkspaceID: uuid.NullUUID{UUID: uuid.UUID{3}, Valid: true},
+				Title:       "a very secret chat title",
+			},
+			exp: audit.Map{
+				"id":           audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"workspace_id": audit.OldNew{Old: "null", New: uuid.UUID{3}.String()},
+				"title":        audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "ConditionTracked",
+			left: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `"coder/beta" in user.groups`,
+				Revision:   1,
+			},
+			right: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `user.email == "alice@example.com"`,
+				Revision:   2,
+			},
+			exp: audit.Map{
+				"condition": audit.OldNew{Old: `"coder/beta" in user.groups`, New: `user.email == "alice@example.com"`},
+				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// User skill content is user-authored instruction text, not secret
+			// material, so audit diffs can include the content change.
+			name: "UserSkillContentTracked",
+			left: audit.Empty[database.UserSkill](),
+			right: database.UserSkill{
+				ID:          uuid.UUID{1},
+				UserID:      uuid.UUID{2},
+				Name:        "review-guidance",
+				Description: "How to review private projects",
+				Content:     "review markdown",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"name":        audit.OldNew{Old: "", New: "review-guidance"},
+				"description": audit.OldNew{Old: "", New: "How to review private projects"},
+				"content":     audit.OldNew{Old: "", New: "review markdown"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "Create",
 			left: audit.Empty[database.WorkspaceTable](),
 			right: database.WorkspaceTable{
@@ -411,6 +482,283 @@ func Test_diff(t *testing.T) {
 			},
 		},
 	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "PropertyChange",
+			left: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AIProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Primary", Valid: true},
+				Enabled:     true,
+				BaseUrl:     "https://api.openai.com/v1",
+			},
+			right: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AIProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Renamed", Valid: true},
+				Enabled:     false,
+				BaseUrl:     "https://api.openai.com/v2",
+			},
+			exp: audit.Map{
+				"display_name": audit.OldNew{Old: "Primary", New: "Renamed"},
+				"enabled":      audit.OldNew{Old: true, New: false},
+				"base_url":     audit.OldNew{Old: "https://api.openai.com/v1", New: "https://api.openai.com/v2"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// api_key is tracked, but callers must pre-mask before the
+			// row reaches the audit pipeline. The pre-masked rendering
+			// (sk-prefix...suffix) is what flows into the diff.
+			name: "PreMaskedKeyFlowsThrough",
+			left: audit.Empty[database.AIProviderKey](),
+			right: database.AIProviderKey{
+				ID:         uuid.UUID{1},
+				ProviderID: uuid.UUID{2},
+				APIKey:     "sk-a...wxyz",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"provider_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"api_key":     audit.OldNew{Old: "", New: "sk-a...wxyz"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Prompt text is tracked, not secret: reviewers must see what
+			// agents are told to do (CODAGT-719). The system-prompt
+			// endpoint populates only its two fields; the untouched
+			// plan-mode field stays zero on both sides and never diffs.
+			name: "SystemPromptChangeTracked",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "old instructions",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "new instructions",
+				IncludeDefaultSystemPrompt: false,
+			},
+			exp: audit.Map{
+				"system_prompt":                 audit.OldNew{Old: "old instructions", New: "new instructions"},
+				"include_default_system_prompt": audit.OldNew{Old: true, New: false},
+			},
+		},
+		{
+			// The plan-mode endpoint populates only its own field; the
+			// system-prompt fields stay zero on both sides, so a
+			// plan-mode change diffs exactly one field.
+			name: "PlanModeInstructionsChangeTracked",
+			left: database.ChatInstructionSettings{
+				PlanModeInstructions: "old plan guidance",
+			},
+			right: database.ChatInstructionSettings{
+				ID:                   uuid.UUID{1},
+				PlanModeInstructions: "new plan guidance",
+			},
+			exp: audit.Map{
+				"plan_mode_instructions": audit.OldNew{Old: "old plan guidance", New: "new plan guidance"},
+			},
+		},
+		{
+			// The artificial ID is ignored, so a value-identical write
+			// would diff empty. Handlers additionally suppress the entry
+			// entirely by leaving both resource IDs nil.
+			name: "ArtificialIDIgnored",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			exp: audit.Map{},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "CreateEmptyStoredValues",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			},
+			exp: audit.Map{},
+		},
+		{
+			name: "Create",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				Slug:               "github",
+				Url:                "https://mcp.example.com/v1",
+				AuthType:           "api_key",
+				APIKeyHeader:       "X-Api-Key",
+				APIKeyValue:        "plaintext-api-key",
+				CustomHeaders:      `{"Authorization":"Bearer plaintext-header"}`,
+				ToolAllowList:      []string{"issues"},
+				ToolDenyList:       []string{"delete_repository"},
+				OAuth2ClientSecret: "plaintext-oauth-secret",
+				SigningSecret:      "plaintext-signing-secret",
+				Enabled:            true,
+				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				UpdatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":         audit.OldNew{Old: "", New: "GitHub MCP"},
+				"slug":                 audit.OldNew{Old: "", New: "github"},
+				"url":                  audit.OldNew{Old: "", New: "https://mcp.example.com/v1"},
+				"auth_type":            audit.OldNew{Old: "", New: "api_key"},
+				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
+				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers":       audit.OldNew{Old: "", New: "", Secret: true},
+				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
+				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
+				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
+				"signing_secret":       audit.OldNew{Old: "", New: "", Secret: true},
+				"enabled":              audit.OldNew{Old: false, New: true},
+				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"updated_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+			},
+		},
+		{
+			name: "CustomHeadersAdded",
+			left: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "CustomHeadersRemoved",
+			left: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "SecretRotationRedacted",
+			left: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				AuthType:           "api_key",
+				APIKeyValue:        "old-plaintext-api-key",
+				APIKeyValueKeyID:   sql.NullString{String: "key-1", Valid: true},
+				CustomHeaders:      `{"Authorization":"Bearer old-plaintext"}`,
+				CustomHeadersKeyID: sql.NullString{String: "key-1", Valid: true},
+				SigningSecret:      "old-plaintext-signing-secret",
+				SigningSecretKeyID: sql.NullString{String: "key-1", Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			right: database.MCPServerConfig{
+				ID:             uuid.UUID{1},
+				DisplayName:    "Renamed MCP",
+				AuthType:       "api_key",
+				APIKeyValue:    "new-plaintext-api-key",
+				CustomHeaders:  `{"Authorization":"Bearer new-plaintext"}`,
+				SigningSecret:  "new-plaintext-signing-secret",
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":   audit.OldNew{Old: "GitHub MCP", New: "Renamed MCP"},
+				"api_key_value":  audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+				"signing_secret": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+}
+
+func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{
+		"plaintext-oauth-secret",
+		"plaintext-api-key",
+		"Bearer plaintext-header",
+		"plaintext-signing-secret",
+	}
+	left := audit.Empty[database.MCPServerConfig]()
+	right := database.MCPServerConfig{
+		ID:                 uuid.UUID{1},
+		DisplayName:        "GitHub MCP",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "client-id",
+		OAuth2ClientSecret: secrets[0],
+		APIKeyValue:        secrets[1],
+		CustomHeaders:      `{"Authorization":"` + secrets[2] + `"}`,
+		SigningSecret:      secrets[3],
+		OrganizationID:     uuid.UUID{4},
+	}
+
+	raw, err := json.Marshal(diffValues(left, right, AuditableResources))
+	require.NoError(t, err)
+	for _, secret := range secrets {
+		require.NotContains(t, string(raw), secret)
+	}
+	require.Contains(t, string(raw), "client-id")
+}
+
+func Test_chatAutomationSecretFieldsRedacted(t *testing.T) {
+	t.Parallel()
+
+	fields := AuditableResources[structName(reflect.TypeFor[database.ChatAutomation]())]
+	require.Equal(t, Action(ActionSecret), fields["webhook_secret_hash"])
+	require.Equal(t, Action(ActionSecret), fields["prompt"])
+
+	oldHash := []byte("old-webhook-secret-hash")
+	newHash := []byte("new-webhook-secret-hash")
+	left := database.ChatAutomation{
+		ID:                   uuid.UUID{1},
+		Name:                 "deploy-hook",
+		Kind:                 database.ChatAutomationKindWebhook,
+		WebhookSecretHash:    oldHash,
+		WebhookSecretVersion: 1,
+		Prompt:               "old private prompt text",
+	}
+	right := left
+	right.WebhookSecretHash = newHash
+	right.WebhookSecretVersion = 2
+	right.Prompt = "new private prompt text"
+
+	diff := diffValues(left, right, AuditableResources)
+	require.Equal(t, audit.Map{
+		"webhook_secret_hash":    audit.OldNew{Old: []byte(nil), New: []byte(nil), Secret: true},
+		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
+		"prompt":                 audit.OldNew{Old: "", New: "", Secret: true},
+	}, diff)
+
+	// The persisted diff is JSON; neither hash nor prompt may appear in any
+	// encoding.
+	raw, err := json.Marshal(diff)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "private prompt text")
+	for _, hash := range [][]byte{oldHash, newHash} {
+		require.NotContains(t, string(raw), string(hash))
+		require.NotContains(t, string(raw), base64.StdEncoding.EncodeToString(hash))
+	}
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

@@ -196,8 +196,16 @@ FROM webpush_subscriptions
 WHERE user_id = @user_id::uuid;
 
 -- name: InsertWebpushSubscription :one
+-- Inserts or updates a webpush subscription. The (user_id, endpoint) pair
+-- is unique; re-subscribing the same endpoint replaces the keys instead of
+-- inserting a duplicate row. This is the recovery path after a PWA reinstall
+-- on iOS, where the browser may keep the same endpoint with rotated keys.
 INSERT INTO webpush_subscriptions (user_id, created_at, endpoint, endpoint_p256dh_key, endpoint_auth_key)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id, endpoint) DO UPDATE
+    SET endpoint_p256dh_key = EXCLUDED.endpoint_p256dh_key,
+        endpoint_auth_key   = EXCLUDED.endpoint_auth_key,
+        created_at          = EXCLUDED.created_at
 RETURNING *;
 
 -- name: DeleteWebpushSubscriptions :exec

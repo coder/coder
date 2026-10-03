@@ -3,6 +3,7 @@ package httpmw
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,64 @@ import (
 // RateLimit returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint, nil)
+}
+
+// RateLimitByEndpointKey returns a handler that limits requests per-minute
+// based on the caller, with key naming the endpoint instead of the request
+// path. Use it on routes whose path contains a caller-chosen value, so a
+// caller cannot vary that value to get a fresh bucket per request.
+func RateLimitByEndpointKey(count int, window time.Duration, key string) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window,
+		func(*http.Request) (string, error) {
+			return key, nil
+		},
+		nil,
+	)
+}
+
+// RateLimitOAuth2 returns a handler that limits requests per-minute based on
+// the caller. Mount it on each route, since every call is a separate bucket.
+//
+// The key ignores the request path, which some of these routes vary, so a
+// caller cannot respell a path to get a fresh bucket.
+//
+// A refusal reports temporarily_unavailable, the closest RFC 6749 code for
+// throttling, so a client can parse it like the other OAuth2 errors.
+func RateLimitOAuth2(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window,
+		func(*http.Request) (string, error) {
+			return "oauth2", nil
+		},
+		func(rw http.ResponseWriter, r *http.Request) {
+			message := rateLimitMessage(count, window)
+			httpapi.Write(r.Context(), rw, http.StatusTooManyRequests, oauth2RateLimitError{
+				OAuth2Error: codersdk.OAuth2Error{
+					Error:            codersdk.OAuth2ErrorCodeTemporarilyUnavailable,
+					ErrorDescription: message,
+				},
+				Message: message,
+			})
+		},
+	)
+}
+
+// oauth2RateLimitError is the body of a refused OAuth2 request. DELETE
+// /oauth2/tokens shares the limiter with the RFC 6749 routes, and the
+// dashboard and codersdk read message rather than error_description, so
+// the body carries both. RFC 6749 allows extra members in an error response.
+type oauth2RateLimitError struct {
+	codersdk.OAuth2Error
+	Message string `json:"message"`
+}
+
+// rateLimitMessage is the message a refused request reports, shared so the
+// limiters built here say the same thing whatever the body shape.
+func rateLimitMessage(count int, window time.Duration) string {
+	return fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window)
+}
+
+func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error), onLimited http.HandlerFunc) func(http.Handler) http.Handler {
 	// -1 is no rate limit
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -28,49 +87,89 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 		}
 	}
 
+	if onLimited == nil {
+		onLimited = func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusTooManyRequests, codersdk.Response{
+				Message: rateLimitMessage(count, window),
+			})
+		}
+	}
+
 	return httprate.Limit(
 		count,
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-			// Prioritize by user, but fallback to IP.
-			apiKey, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey)
-			if !ok {
+			// Identify the caller. We check two sources:
+			//
+			// 1. apiKeyPrecheckedContextKey — set by PrecheckAPIKey
+			//    at the root of the router. Only fully validated
+			//    keys are used.
+			// 2. apiKeyContextKey — set by ExtractAPIKeyMW if it
+			//    has already run (e.g. unit tests, workspace-app
+			//    routes that don't go through PrecheckAPIKey).
+			//
+			// If neither is present, fall back to IP.
+			var userID string
+			var subject *rbac.Subject
+
+			if pc, ok := r.Context().Value(apiKeyPrecheckedContextKey{}).(APIKeyPrechecked); ok && pc.Result != nil {
+				userID = pc.Result.Key.UserID.String()
+				subject = &pc.Result.Subject
+			} else if ak, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey); ok {
+				userID = ak.UserID.String()
+				if auth, ok := UserAuthorizationOptional(r.Context()); ok {
+					subject = &auth
+				}
+			} else {
 				return httprate.KeyByIP(r)
 			}
 
 			if ok, _ := strconv.ParseBool(r.Header.Get(codersdk.BypassRatelimitHeader)); !ok {
-				// No bypass attempt, just ratelimit.
-				return apiKey.UserID.String(), nil
+				// No bypass attempt, just rate limit by user.
+				return userID, nil
 			}
 
 			// Allow Owner to bypass rate limiting for load tests
-			// and automation.
-			auth := UserAuthorization(r.Context())
-
-			// We avoid using rbac.Authorizer since rego is CPU-intensive
-			// and undermines the DoS-prevention goal of the rate limiter.
-			for _, role := range auth.SafeRoleNames() {
+			// and automation. We avoid using rbac.Authorizer since
+			// rego is CPU-intensive and undermines the
+			// DoS-prevention goal of the rate limiter.
+			if subject == nil {
+				// Can't verify roles — rate limit normally.
+				return userID, nil
+			}
+			for _, role := range subject.SafeRoleNames() {
 				if role == rbac.RoleOwner() {
 					// HACK: use a random key each time to
 					// de facto disable rate limiting. The
-					// `httprate` package has no
-					// support for selectively changing the limit
-					// for particular keys.
+					// httprate package has no support for
+					// selectively changing the limit for
+					// particular keys.
 					return cryptorand.String(16)
 				}
 			}
 
-			return apiKey.UserID.String(), xerrors.Errorf(
+			return userID, xerrors.Errorf(
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)
-		}, httprate.KeyByEndpoint),
-		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
-				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
-			})
-		}),
+		}, endpointKey),
+		httprate.WithLimitHandler(onLimited),
 	)
+}
+
+// keyByNormalizedEndpoint mirrors httprate.KeyByEndpoint, but cleans the
+// request path first. chi's router tolerates redundant slashes (see
+// singleSlashMW in coderd.go) and routes them to the same handler as the
+// canonical path, but only normalizes its internal route-matching path,
+// not r.URL.Path. Without normalizing here too, a client can respell a
+// path, for example inserting an extra slash, to get a fresh rate-limit
+// bucket for an endpoint it's already been throttled on.
+func keyByNormalizedEndpoint(r *http.Request) (string, error) {
+	p := r.URL.Path
+	if p == "" {
+		p = "/"
+	}
+	return path.Clean(p), nil
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the

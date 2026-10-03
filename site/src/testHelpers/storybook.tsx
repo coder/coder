@@ -1,21 +1,20 @@
 import type { StoryContext } from "@storybook/react-vite";
-import { withDefaultFeatures } from "api/api";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { hasFirstUserKey, meKey } from "api/queries/users";
-import type { Entitlements } from "api/typesGenerated";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
-import { AuthProvider } from "contexts/auth/AuthProvider";
+import { useQueryClient } from "react-query";
+import { withDefaultFeatures } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { hasFirstUserKey, meKey } from "#/api/queries/users";
+import type { Entitlements } from "#/api/typesGenerated";
+import { Toaster } from "#/components/Toaster/Toaster";
+import { AuthProvider } from "#/contexts/auth/AuthProvider";
 import {
 	getPreferredProxy,
 	ProxyContext,
 	type ProxyContextValue,
-} from "contexts/ProxyContext";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
-import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
-import { permissionChecks } from "modules/permissions";
-import type { FC } from "react";
-import { useQueryClient } from "react-query";
+} from "#/contexts/ProxyContext";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { DeploymentConfigContext } from "#/modules/management/DeploymentConfigProvider";
+import { OrganizationSettingsContext } from "#/modules/management/OrganizationSettingsLayout";
+import { permissionChecks } from "#/modules/permissions";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -27,7 +26,7 @@ import {
 } from "./entities";
 
 export const withDashboardProvider = (
-	Story: FC,
+	Story: React.FC,
 	{ parameters }: StoryContext,
 ) => {
 	const {
@@ -36,6 +35,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		buildInfo = {},
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -43,10 +43,13 @@ export const withDashboardProvider = (
 		has_license: features.length > 0,
 		features: withDefaultFeatures(
 			Object.fromEntries(
-				features.map((feature) => [
-					feature,
-					{ enabled: true, entitlement: "entitled" },
-				]),
+				features.map((feature) => {
+					if (typeof feature === "string") {
+						return [feature, { enabled: true, entitlement: "entitled" }];
+					}
+					const { name, ...values } = feature;
+					return [name, { enabled: true, entitlement: "entitled", ...values }];
+				}),
 			),
 		),
 	};
@@ -60,6 +63,7 @@ export const withDashboardProvider = (
 				buildInfo: {
 					...MockBuildInfo,
 					version: "v0.0.0-test",
+					...buildInfo,
 				},
 				organizations,
 				showOrganizations,
@@ -74,28 +78,68 @@ export const withDashboardProvider = (
 type MessageEvent = Record<"data", string>;
 type CallbackFn = (ev?: MessageEvent) => void;
 
-export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
-	const events = parameters.webSocket;
+// parameters.webSocket accepts two formats:
+//
+//   Array — events are delivered to every socket (backward-compatible):
+//     webSocket: [{ event: "message", data: "..." }]
+//
+//   Record keyed by URL substring — events are delivered only to
+//   sockets whose URL contains the key:
+//     webSocket: {
+//       "/api/v2/chats/": [{ event: "message", data: "..." }],
+//       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
+//     }
+export const withWebSocket = (
+	Story: React.FC,
+	{ parameters }: StoryContext,
+) => {
+	const param = parameters.webSocket;
 
-	if (!events) {
+	if (!param) {
 		console.warn("You forgot to add `parameters.webSocket` to your story");
 		return <Story />;
 	}
 
-	const listeners = new Map<string, CallbackFn>();
-	let callEventsDelay: number;
+	const isRouted = !Array.isArray(param);
+	const broadcastEvents = isRouted ? [] : param;
+	const routedEvents = isRouted ? param : {};
 
 	window.WebSocket = class WebSocket {
 		public readyState = 1;
+		public binaryType = "blob";
+		static OPEN = 1;
+
+		#listeners = new Map<string, CallbackFn>();
+		#callEventsDelay: number | undefined;
+		#url: string;
+
+		constructor(url?: string) {
+			this.#url = url ?? "";
+		}
+
+		send() {}
 
 		addEventListener(type: string, callback: CallbackFn) {
-			listeners.set(type, callback);
+			this.#listeners.set(type, callback);
+
+			// Determine which events this socket should receive.
+			let events = broadcastEvents;
+			if (isRouted) {
+				const matchingKey = Object.keys(routedEvents).find((key) =>
+					this.#url.includes(key),
+				);
+				events = matchingKey ? routedEvents[matchingKey] : [];
+			}
+
+			if (events.length === 0) {
+				return;
+			}
 
 			// Runs when the last event listener is added
-			clearTimeout(callEventsDelay);
-			callEventsDelay = window.setTimeout(() => {
+			clearTimeout(this.#callEventsDelay);
+			this.#callEventsDelay = window.setTimeout(() => {
 				for (const entry of events) {
-					const callback = listeners.get(entry.event);
+					const callback = this.#listeners.get(entry.event);
 
 					if (callback) {
 						entry.event === "message"
@@ -109,18 +153,21 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 		removeEventListener(_type: string, _callback: CallbackFn) {}
 
 		close() {}
-	} as unknown as typeof window.WebSocket;
+	} as unknown as typeof WebSocket;
 
 	return <Story />;
 };
 
-export const withDesktopViewport = (Story: FC) => (
+export const withDesktopViewport = (Story: React.FC) => (
 	<div style={{ width: 1200, height: 800 }}>
 		<Story />
 	</div>
 );
 
-export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
+export const withAuthProvider = function WithAuthProvider(
+	Story: React.FC,
+	{ parameters }: StoryContext,
+) {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}
@@ -139,14 +186,14 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withGlobalSnackbar = (Story: FC) => (
+export const withToaster = (Story: React.FC) => (
 	<>
 		<Story />
-		<GlobalSnackbar />
+		<Toaster />
 	</>
 );
 
-export const withOrganizationSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: React.FC) => {
 	return (
 		<OrganizationSettingsContext.Provider
 			value={{
@@ -168,7 +215,7 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 };
 
 export const withProxyProvider =
-	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+	(value?: Partial<ProxyContextValue>) => (Story: React.FC) => {
 		return (
 			<ProxyContext.Provider
 				value={{

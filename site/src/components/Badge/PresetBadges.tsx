@@ -1,0 +1,41 @@
+import { Badge } from "./Badge";
+
+export const EnabledBadge: React.FC = () => {
+	return (
+		<Badge className="option-enabled" variant="green">
+			Enabled
+		</Badge>
+	);
+};
+
+export const DisabledBadge: React.FC<React.ComponentProps<"div">> = ({
+	...props
+}) => {
+	return (
+		<Badge {...props} className="option-disabled">
+			Disabled
+		</Badge>
+	);
+};
+
+export const EnterpriseBadge: React.FC = () => {
+	return <Badge variant="purple">Enterprise</Badge>;
+};
+
+export const PremiumBadge: React.FC<React.PropsWithChildren> = ({
+	children = "Premium",
+}) => {
+	return <Badge variant="magenta">{children}</Badge>;
+};
+
+export const AlphaBadge: React.FC = () => {
+	return <Badge variant="purple">Alpha</Badge>;
+};
+
+export const ExperimentalBadge: React.FC = () => {
+	return <Badge variant="purple">Experimental</Badge>;
+};
+
+export const DeprecatedBadge: React.FC = () => {
+	return <Badge variant="warning">Deprecated</Badge>;
+};

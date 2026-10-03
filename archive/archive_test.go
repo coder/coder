@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -35,19 +36,111 @@ func TestCreateTarFromZip(t *testing.T) {
 	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	require.NoError(t, err, "failed to parse sample zip file")
 
-	tarBytes, err := archive.CreateTarFromZip(zr, int64(len(zipBytes)))
+	wantTar := archivetest.TestTarFileBytes()
+	gotTar, err := archive.CreateTarFromZip(zr, int64(len(wantTar)))
 	require.NoError(t, err, "failed to convert zip to tar")
 
-	archivetest.AssertSampleTarFile(t, tarBytes)
+	archivetest.AssertSampleTarFile(t, gotTar)
 
 	tempDir := t.TempDir()
 	tempFilePath := filepath.Join(tempDir, "test.tar")
-	err = os.WriteFile(tempFilePath, tarBytes, 0o600)
+	err = os.WriteFile(tempFilePath, gotTar, 0o600)
 	require.NoError(t, err, "failed to write converted tar file")
 
 	cmd := exec.CommandContext(ctx, "tar", "--extract", "--verbose", "--file", tempFilePath, "--directory", tempDir)
 	require.NoError(t, cmd.Run(), "failed to extract converted tar file")
 	assertExtractedFiles(t, tempDir, true)
+}
+
+func buildTestZip(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var zipBytes bytes.Buffer
+	zw := zip.NewWriter(&zipBytes)
+	for name, contents := range files {
+		w, err := zw.Create(name)
+		require.NoError(t, err)
+
+		_, err = w.Write([]byte(contents))
+		require.NoError(t, err)
+	}
+	require.NoError(t, zw.Close())
+
+	return zipBytes.Bytes()
+}
+
+func TestCreateTarFromZip_RejectsOversizedAggregateExpansion(t *testing.T) {
+	t.Parallel()
+
+	zipBytes := buildTestZip(t, map[string]string{
+		"a.txt": strings.Repeat("a", 600),
+		"b.txt": strings.Repeat("b", 600),
+		"c.txt": strings.Repeat("c", 600),
+	})
+
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	require.NoError(t, err)
+
+	tarBytes, err := archive.CreateTarFromZip(zr, 1024)
+	require.Error(t, err)
+	require.Nil(t, tarBytes)
+}
+
+func TestCreateTarFromZip_RejectsInvalidZipMetadata(t *testing.T) {
+	t.Parallel()
+
+	// Ref: https://github.com/golang/go/blob/go1.24.0/src/archive/zip/struct.go
+	corruptZipUncompressedSize := func(t *testing.T, zipBytes []byte, size uint32) []byte {
+		t.Helper()
+
+		const (
+			directoryHeaderSignature = "PK\x01\x02"
+			uncompressedSizeOffset   = 24
+		)
+		hdrOffset := bytes.Index(zipBytes, []byte(directoryHeaderSignature))
+		require.NotEqual(t, -1, hdrOffset, "missing ZIP central directory header")
+		corrupted := bytes.Clone(zipBytes)
+		sizeBytes := corrupted[hdrOffset+uncompressedSizeOffset : hdrOffset+uncompressedSizeOffset+4]
+		binary.LittleEndian.PutUint32(sizeBytes, size)
+
+		return corrupted
+	}
+
+	zipBytes := buildTestZip(t, map[string]string{
+		"hello.txt": "hello",
+	})
+	zipBytes = corruptZipUncompressedSize(t, zipBytes, 6)
+
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	require.NoError(t, err)
+
+	// Keep the size limit large so this test exercises the invalid
+	// ZIP metadata path rather than the tar output limit.
+	maxSize := int64(4096)
+	tarBytes, err := archive.CreateTarFromZip(zr, maxSize)
+	require.ErrorIs(t, err, archive.ErrInvalidZipContent)
+	require.Nil(t, tarBytes)
+}
+
+func TestCreateTarFromZip_RejectsOversizedTarOverhead(t *testing.T) {
+	t.Parallel()
+
+	// Empty files keep the ZIP payload tiny while still forcing tar
+	// headers and end-of-archive blocks to consume output budget.
+	zipBytes := buildTestZip(t, map[string]string{
+		"empty-a.txt": "",
+		"empty-b.txt": "",
+	})
+
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	require.NoError(t, err)
+
+	// Two empty tar entries still need 2 header blocks plus the 2
+	// end-of-archive blocks, so the output is 2048 bytes and must
+	// exceed this limit.
+	tarBytes, err := archive.CreateTarFromZip(zr, 2047)
+	require.Error(t, err)
+	require.Nil(t, tarBytes)
 }
 
 func TestCreateZipFromTar(t *testing.T) {

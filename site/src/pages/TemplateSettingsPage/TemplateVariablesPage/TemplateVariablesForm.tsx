@@ -1,27 +1,26 @@
+import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import * as Yup from "yup";
 import type {
 	CreateTemplateVersionRequest,
 	TemplateVersion,
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import { type FormHelpers, getFormHelpers } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 import {
 	SensitiveVariableHelperText,
 	TemplateVariableField,
 } from "./TemplateVariableField";
 
-export interface TemplateVariablesForm {
+type TemplateVariablesFormProps = {
 	templateVersion: TemplateVersion;
 	templateVariables: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -30,8 +29,8 @@ export interface TemplateVariablesForm {
 	error?: unknown;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<CreateTemplateVersionRequest>;
-}
-export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
+};
+export const TemplateVariablesForm: React.FC<TemplateVariablesFormProps> = ({
 	templateVersion,
 	templateVariables,
 	onSubmit,
@@ -92,10 +91,13 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 					>
 						<FormFields>
 							<TemplateVariableField
-								{...fieldHelpers}
 								templateVersionVariable={templateVariable}
 								initialValue={initialUserVariableValues[index].value}
 								disabled={isSubmitting}
+								error={fieldHelpers.error}
+								helperText={fieldHelpers.helperText}
+								name={fieldHelpers.name}
+								onBlur={fieldHelpers.onBlur}
 								onChange={async (value) => {
 									await form.setFieldValue(`user_variable_values.${index}`, {
 										name: templateVariable.name,

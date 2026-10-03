@@ -10,7 +10,8 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -56,12 +57,127 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--max-failures", "1",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
+}
+
+func TestScaleTestCreateUsers(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		// No provisioner daemons are required because this command only creates
+		// users.
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "create-users",
+		"--count", "3",
+		"--template-admin-percentage", "34",
+		"--no-cleanup",
+		"--concurrency", "2",
+		"--timeout", "30s",
+		"--job-timeout", "15s",
+		"--cleanup-concurrency", "1",
+		"--cleanup-timeout", "30s",
+		"--cleanup-job-timeout", "15s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+
+	// Verify the users were created and roughly the requested percentage are
+	// template admins (34% of 3 rounds down to 1).
+	res, err := client.Users(ctx, codersdk.UsersRequest{Search: loadtestutil.ScaleTestPrefix + "-"})
+	require.NoError(t, err)
+
+	var created, templateAdmins int
+	for _, u := range res.Users {
+		if !loadtestutil.IsScaleTestUser(u.Username, u.Email) {
+			continue
+		}
+		created++
+		for _, role := range u.Roles {
+			if role.Name == codersdk.RoleTemplateAdmin {
+				templateAdmins++
+			}
+		}
+	}
+	require.Equal(t, 3, created)
+	require.Equal(t, 1, templateAdmins)
+}
+
+func TestScaleTestNotifications_TemplateDeletionCountValidation(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "1",
+		"--template-deletion-count", "0",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "--template-deletion-count must be at least 1")
+}
+
+// TestScaleTestNotifications_ReuseUsersInsufficient verifies that the
+// notifications scaletest checks the user pool up front and exits with an
+// actionable error when not enough scaletest users (or template admins) exist,
+// rather than creating any.
+func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "2",
+		"--template-admin-percentage", "50",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
 }
 
 // This test just validates that the CLI command accepts its known arguments.
@@ -91,10 +207,6 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 		"--ssh",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
 }
@@ -120,10 +232,6 @@ func TestScaleTestWorkspaceTraffic_Template(t *testing.T) {
 		"--template", "doesnotexist",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
 }
@@ -149,10 +257,6 @@ func TestScaleTestWorkspaceTraffic_TargetWorkspaces(t *testing.T) {
 		"--target-workspaces", "0:0",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "invalid target workspaces \"0:0\": start and end cannot be equal")
 }
@@ -178,10 +282,6 @@ func TestScaleTestCleanup_Template(t *testing.T) {
 		"--template", "doesnotexist",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
 }
@@ -208,10 +308,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--interval", "0s",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "--interval must be greater than zero")
 	})
@@ -232,10 +328,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--jitter", "1s",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "--jitter must be less than --interval")
 	})
@@ -260,10 +352,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--rand-seed", "1234567890",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err, "")
 	})
@@ -283,10 +371,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--target-users", "0:0",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
 	})

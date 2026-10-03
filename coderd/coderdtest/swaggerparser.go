@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/aibridge"
 )
 
 type SwaggerComment struct {
@@ -119,9 +121,10 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 				r.model = args[2]
 			}
 
-			if annotationName == "@Success" {
+			switch annotationName {
+			case "@Success":
 				c.successes = append(c.successes, r)
-			} else if annotationName == "@Failure" {
+			case "@Failure":
 				c.failures = append(c.failures, r)
 			}
 		case "@Param":
@@ -147,7 +150,41 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 	return c
 }
 
-func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment) {
+// SwaggerOption configures VerifySwaggerDefinitions.
+type SwaggerOption func(*swaggerOptions)
+
+type swaggerOptions struct {
+	routePrefix string
+}
+
+// WithSwaggerRoutePrefix prepends the given prefix to every route walked from
+// the chi router. Use this when calling VerifySwaggerDefinitions with a
+// subrouter (for example api.APIHandler at /api/v2) so that routes line up
+// with the absolute paths used in @Router annotations.
+func WithSwaggerRoutePrefix(prefix string) SwaggerOption {
+	return func(o *swaggerOptions) {
+		o.routePrefix = prefix
+	}
+}
+
+func isExperimentalEndpoint(route string) bool {
+	return strings.HasPrefix(route, "/api/v2/workspaceagents/me/experimental/")
+}
+
+// isLegacyAIBridgeAlias returns true for /api/v2/aibridge routes that are
+// backward-compatibility aliases of /api/v2/ai-gateway. The swagger
+// annotations live on the canonical /ai-gateway paths, so the legacy
+// routes have no matching annotation and must be skipped.
+func isLegacyAIBridgeAlias(route string) bool {
+	return strings.HasPrefix(route, aibridge.AIBridgeRootPath+"/")
+}
+
+func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment, opts ...SwaggerOption) {
+	cfg := swaggerOptions{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	assertUniqueRoutes(t, swaggerComments)
 	assertSingleAnnotations(t, swaggerComments)
 
@@ -157,12 +194,30 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			route = route[:len(route)-1]
 		}
 
+		// chi.Walk yields routes relative to the router that
+		// VerifySwaggerDefinitions was called with. Prepend the configured
+		// mount prefix so routes match the absolute paths used in @Router
+		// annotations.
+		if cfg.routePrefix != "" {
+			if route == "/" {
+				route = cfg.routePrefix + "/"
+			} else {
+				route = cfg.routePrefix + route
+			}
+		}
+
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
 			// Wildcard routes break the swaggo parser, so we do not document
 			// them.
 			if strings.HasSuffix(route, "/*") {
+				return
+			}
+			if isExperimentalEndpoint(route) {
+				return
+			}
+			if isLegacyAIBridgeAlias(route) {
 				return
 			}
 
@@ -266,7 +321,7 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 		text := strings.TrimSpace(line.Text)
 
 		if inSwaggerBlock {
-			if !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") {
+			if text != "//" && !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") && !strings.HasPrefix(text, "//nolint:") {
 				assert.Fail(t, "Go function comment must be placed before swagger comments")
 				return
 			}
@@ -304,18 +359,25 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	authorizedSecurityTags := []string{
 		"CoderSessionToken",
 		"CoderProvisionerKey",
+		"AIGatewayKey",
 	}
 
-	if comment.router == "/updatecheck" ||
-		comment.router == "/buildinfo" ||
-		comment.router == "/" ||
-		comment.router == "/auth/scopes" ||
-		comment.router == "/users/login" ||
-		comment.router == "/users/otp/request" ||
-		comment.router == "/users/otp/change-password" ||
-		comment.router == "/init-script/{os}/{arch}" {
+	if comment.router == "/api/v2/updatecheck" ||
+		comment.router == "/api/v2/buildinfo" ||
+		comment.router == "/api/v2/" ||
+		comment.router == "/api/v2/auth/scopes" ||
+		comment.router == "/api/v2/users/login" ||
+		comment.router == "/api/v2/users/otp/request" ||
+		comment.router == "/api/v2/users/otp/change-password" ||
+		comment.router == "/api/v2/init-script/{os}/{arch}" ||
+		comment.router == "/api/v2/chats/files/{file}/download" {
 		return // endpoints do not require authorization
 	}
+	if comment.router == "/api/v2/ai-gateway/serve" {
+		assert.Equal(t, "AIGatewayKey", comment.security, "@Security must be AIGatewayKey")
+		return
+	}
+
 	assert.Containsf(t, authorizedSecurityTags, comment.security, "@Security must be either of these options: %v", authorizedSecurityTags)
 }
 
@@ -358,15 +420,19 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 		assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
 		assert.Contains(t, allowedProduceTypes, comment.produce, "@Produce value is limited to specific types: %s", strings.Join(allowedProduceTypes, ","))
 	} else {
-		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
-			(comment.router == "/workspaceagents/me/startup" && comment.method == "post") ||
-			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
-			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
-			(comment.router == "/debug/coordinator" && comment.method == "get") ||
-			(comment.router == "/debug/tailnet" && comment.method == "get") ||
-			(comment.router == "/workspaces/{workspace}/acl" && comment.method == "patch") ||
-			(comment.router == "/init-script/{os}/{arch}" && comment.method == "get") {
-			return // Exception: HTTP 200 is returned without response entity
+		if (comment.router == "/api/v2/workspaceagents/me/app-health" && comment.method == "post") ||
+			(comment.router == "/api/v2/workspaceagents/me/startup" && comment.method == "post") ||
+			(comment.router == "/api/v2/workspaceagents/me/startup/logs" && comment.method == "patch") ||
+			(comment.router == "/api/v2/licenses/{id}" && comment.method == "delete") ||
+			(comment.router == "/api/v2/debug/coordinator" && comment.method == "get") ||
+			(comment.router == "/api/v2/debug/tailnet" && comment.method == "get") ||
+			(comment.router == "/api/v2/workspaces/{workspace}/acl" && comment.method == "patch") ||
+			(comment.router == "/api/v2/init-script/{os}/{arch}" && comment.method == "get") ||
+			(comment.router == "/api/v2/organizations/{organization}/ai/spend/export" && comment.method == "get") ||
+			(comment.router == "/api/v2/templatebuilder/compose" && comment.method == "post") ||
+			(comment.router == "/api/v2/chats/files/{file}" && comment.method == "get") ||
+			(comment.router == "/api/v2/chats/files/{file}/download" && comment.method == "get") {
+			return // Exception: HTTP 200 is returned without a response model
 		}
 
 		assert.Truef(t, comment.produce == "", "Response model is undefined, so we can't predict the content type: %v", comment)

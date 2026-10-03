@@ -67,6 +67,11 @@ OPTIONS:
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
 
+  -t, --tty bool, $CODER_SSH_TTY
+          Request a pseudo-terminal for the SSH session. Interactive shell
+          sessions request one by default; command sessions do not unless this
+          flag is set.
+
       --wait yes|no|auto, $CODER_SSH_WAIT (default: auto)
           Specifies whether or not to wait for the startup script to finish
           executing. Auto means that the agent startup script behavior

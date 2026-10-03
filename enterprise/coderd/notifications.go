@@ -22,7 +22,7 @@ import (
 // @Tags Enterprise
 // @Success 200 "Success"
 // @Success 304 "Not modified"
-// @Router /notifications/templates/{notification_template}/method [put]
+// @Router /api/v2/notifications/templates/{notification_template}/method [put]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

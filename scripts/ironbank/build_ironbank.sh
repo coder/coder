@@ -96,8 +96,8 @@ fi
 pushd "$tmpdir"
 docker build \
 	--build-arg BASE_REGISTRY=registry.access.redhat.com \
-	--build-arg BASE_IMAGE=ubi8/ubi-minimal \
-	--build-arg BASE_TAG=8.7 \
+	--build-arg BASE_IMAGE=ubi9/ubi-minimal \
+	--build-arg BASE_TAG=9.6 \
 	--build-arg TERRAFORM_CODER_PROVIDER_VERSION="$terraform_coder_provider_version" \
 	-t "$image_tag" \
 	. >&2

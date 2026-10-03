@@ -57,26 +57,25 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 -- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name';
 
--- name: GetAppSecurityKey :one
-SELECT value FROM site_configs WHERE key = 'app_signing_key';
+-- name: GetCodernautsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'codernauts_enabled'), true) :: boolean AS codernauts_enabled;
 
--- name: UpsertAppSecurityKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key';
-
--- name: GetOAuthSigningKey :one
-SELECT value FROM site_configs WHERE key = 'oauth_signing_key';
-
--- name: UpsertOAuthSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key';
-
--- name: GetCoordinatorResumeTokenSigningKey :one
-SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key';
-
--- name: UpsertCoordinatorResumeTokenSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('coordinator_resume_token_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'coordinator_resume_token_signing_key';
+-- name: UpsertCodernautsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'codernauts_enabled',
+    CASE
+        WHEN @enabled::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN @enabled::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'codernauts_enabled';
 
 -- name: GetHealthSettings :one
 SELECT
@@ -141,6 +140,28 @@ SET value = CASE
 END
 WHERE site_configs.key = 'oauth2_github_default_eligible';
 
+-- name: GetOAuth2DCREnabled :one
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool;
+
+-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN sqlc.arg(enabled)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enabled)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled';
+
 -- name: UpsertWebpushVAPIDKeys :exec
 INSERT INTO site_configs (key, value)
 VALUES
@@ -153,3 +174,265 @@ DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key;
 SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key;
+
+-- name: GetChatSystemPrompt :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt;
+
+-- GetChatSystemPromptConfig returns both chat system prompt settings in a
+-- single read to avoid torn reads between separate site-config lookups.
+-- The include-default fallback preserves the legacy behavior where a
+-- non-empty custom prompt implied opting out before the explicit toggle
+-- existed.
+-- name: GetChatSystemPromptConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt,
+    COALESCE(
+        (SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'),
+        NOT EXISTS (
+            SELECT 1
+            FROM site_configs
+            WHERE key = 'agents_chat_system_prompt'
+                AND value != ''
+        )
+    ) :: boolean AS include_default_system_prompt,
+    EXISTS (
+        SELECT 1
+        FROM site_configs
+        WHERE key = 'agents_chat_include_default_system_prompt'
+    ) :: boolean AS include_default_system_prompt_set;
+
+-- name: UpsertChatSystemPrompt :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt';
+
+-- name: GetChatPlanModeInstructions :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_plan_mode_instructions'), '') :: text AS plan_mode_instructions;
+
+-- name: UpsertChatPlanModeInstructions :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_mode_instructions', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_mode_instructions';
+
+-- name: GetChatDesktopEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop;
+
+-- name: UpsertChatDesktopEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_desktop_enabled',
+    CASE
+        WHEN sqlc.arg(enable_desktop)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enable_desktop)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_desktop_enabled';
+
+-- GetChatAdvisorConfig returns the deployment-wide runtime configuration
+-- for the experimental chat advisor as a JSON blob. Callers unmarshal the
+-- result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
+-- values apply by default.
+-- name: GetChatAdvisorConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config;
+
+-- UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
+-- for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+-- to JSON before invoking this query.
+-- name: UpsertChatAdvisorConfig :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config';
+
+-- name: GetChatComputerUseProvider :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider;
+
+-- name: UpsertChatComputerUseProvider :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', sqlc.arg(provider))
+ON CONFLICT (key) DO UPDATE SET value = sqlc.arg(provider) WHERE site_configs.key = 'agents_computer_use_provider';
+
+-- GetChatDebugLoggingAllowUsers returns the runtime admin setting that
+-- allows users to opt into chat debug logging when the deployment does
+-- not already force debug logging on globally.
+-- name: GetChatDebugLoggingAllowUsers :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users;
+
+-- UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
+-- allows users to opt into chat debug logging.
+-- name: UpsertChatDebugLoggingAllowUsers :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_debug_logging_allow_users',
+    CASE
+        WHEN sqlc.arg(allow_users)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(allow_users)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_debug_logging_allow_users';
+
+-- GetChatPersonalModelOverridesEnabled returns whether users may configure
+-- personal chat model overrides. It defaults to false when unset.
+-- name: GetChatPersonalModelOverridesEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_personal_model_overrides_enabled'), false) :: boolean AS enabled;
+
+-- UpsertChatPersonalModelOverridesEnabled updates whether users may configure
+-- personal chat model overrides.
+-- name: UpsertChatPersonalModelOverridesEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_personal_model_overrides_enabled',
+    CASE
+        WHEN sqlc.arg(enabled)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enabled)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_personal_model_overrides_enabled';
+
+-- GetChatIncludeDefaultSystemPrompt preserves the legacy default
+-- for deployments created before the explicit include-default toggle.
+-- When the toggle is unset, a non-empty custom prompt implies false;
+-- otherwise the setting defaults to true.
+-- name: GetChatIncludeDefaultSystemPrompt :one
+SELECT
+    COALESCE(
+        (SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'),
+        NOT EXISTS (
+            SELECT 1
+            FROM site_configs
+            WHERE key = 'agents_chat_system_prompt'
+                AND value != ''
+        )
+    ) :: boolean AS include_default_system_prompt;
+
+-- name: UpsertChatIncludeDefaultSystemPrompt :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_include_default_system_prompt',
+    CASE
+        WHEN sqlc.arg(include_default_system_prompt)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(include_default_system_prompt)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_include_default_system_prompt';
+
+-- name: GetChatWorkspaceTTL :one
+-- Returns the global TTL for chat workspaces as a Go duration string.
+-- Returns "0s" (disabled) when no value has been configured.
+SELECT
+    COALESCE(
+        (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
+        '0s'
+    )::text AS workspace_ttl;
+
+-- name: UpsertChatWorkspaceTTL :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_workspace_ttl', @workspace_ttl::text)
+ON CONFLICT (key) DO UPDATE
+SET value = @workspace_ttl::text
+WHERE site_configs.key = 'agents_workspace_ttl';
+
+-- name: GetChatRetentionDays :one
+-- Returns the chat retention period in days. Chats archived longer
+-- than this and orphaned chat files older than this are purged by
+-- dbpurge. Returns 30 (days) when no value has been configured.
+-- A value of 0 disables chat purging entirely.
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_retention_days'),
+    30
+) :: integer AS retention_days;
+
+-- name: UpsertChatRetentionDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_retention_days', CAST(@retention_days AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST(@retention_days AS integer)::text
+WHERE site_configs.key = 'agents_chat_retention_days';
+
+-- name: GetChatDebugRetentionDays :one
+-- Chat debug run retention window in days. 0 disables.
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_debug_retention_days'),
+    @default_debug_retention_days::integer
+) :: integer AS debug_retention_days;
+
+-- name: UpsertChatDebugRetentionDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_debug_retention_days', CAST(@debug_retention_days AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST(@debug_retention_days AS integer)::text
+WHERE site_configs.key = 'agents_chat_debug_retention_days';
+
+-- name: GetChatAutoArchiveDays :one
+-- Auto-archive window in days. 0 disables.
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_auto_archive_days'),
+    @default_auto_archive_days::integer
+) :: integer AS auto_archive_days;
+
+-- name: UpsertChatAutoArchiveDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_auto_archive_days', CAST(@auto_archive_days AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST(@auto_archive_days AS integer)::text
+WHERE site_configs.key = 'agents_chat_auto_archive_days';
+
+-- GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
+-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE(MAX(site_configs.value), '')::text AS value,
+    COUNT(*) > 0 AS exists
+FROM site_configs
+WHERE site_configs.key = sqlc.arg(config_key)
+    AND site_configs.key IN (
+        'agents_chat_retention_days',
+        'agents_chat_debug_retention_days',
+        'agents_chat_auto_archive_days',
+        'agents_workspace_ttl',
+        'agents_computer_use_provider',
+        'agents_chat_debug_logging_allow_users',
+        'agents_chat_personal_model_overrides_enabled'
+    );
+
+-- GetExperimentRules returns every stored runtime experiment rule, keyed by
+-- the experiment name. starts_with is used instead of LIKE because '_' is a
+-- LIKE wildcard.
+-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key;
+
+-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || sqlc.arg(experiment)::text;
+
+-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || sqlc.arg(experiment)::text, sqlc.arg(value)::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

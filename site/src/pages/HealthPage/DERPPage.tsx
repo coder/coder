@@ -1,17 +1,20 @@
-import { useTheme } from "@emotion/react";
+import { MapPinIcon } from "lucide-react";
+import { Link, useOutletContext } from "react-router";
 import type {
 	HealthcheckReport,
 	HealthSeverity,
 	NetcheckReport,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { MapPinIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link, useOutletContext } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import {
-	BooleanPill,
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { pageTitle } from "#/utils/page";
+import {
 	Header,
 	HeaderTitle,
 	HealthMessageDocsLink,
@@ -19,34 +22,116 @@ import {
 	Logs,
 	Main,
 	SectionLabel,
+	StatusIcon,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
-import { healthyColor } from "./healthyColor";
-
-const flags: BooleanKeys<NetcheckReport>[] = [
-	"UDP",
-	"IPv6",
-	"IPv4",
-	"IPv6CanSend",
-	"IPv4CanSend",
-	"OSHasIPv6",
-	"ICMPv4",
-	"MappingVariesByDestIP",
-	"HairPinning",
-	"UPnP",
-	"PMP",
-	"PCP",
-];
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
 }[keyof T];
 
-const DERPPage: FC = () => {
+type FlagInfo = {
+	label: string;
+	description: string;
+	invert?: boolean;
+};
+
+const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
+	UDP: {
+		label: "UDP",
+		description: "Whether a UDP STUN round trip completed successfully.",
+	},
+	IPv6: {
+		label: "IPv6",
+		description: "Whether an IPv6 STUN round trip completed successfully.",
+	},
+	IPv4: {
+		label: "IPv4",
+		description: "Whether an IPv4 STUN round trip completed successfully.",
+	},
+	IPv6CanSend: {
+		label: "IPv6 Send",
+		description: "Whether this server can send IPv6 packets.",
+	},
+	IPv4CanSend: {
+		label: "IPv4 Send",
+		description: "Whether this server can send IPv4 packets.",
+	},
+	OSHasIPv6: {
+		label: "OS IPv6 Support",
+		description: "Whether the operating system supports IPv6.",
+	},
+	ICMPv4: {
+		label: "ICMP Ping",
+		description: "Whether an ICMPv4 round trip completed successfully.",
+	},
+	MappingVariesByDestIP: {
+		label: "No Symmetric NAT",
+		description:
+			"Whether STUN results are consistent across destinations. Symmetric NAT may degrade peer-to-peer connectivity.",
+		invert: true,
+	},
+	UPnP: {
+		label: "UPnP",
+		description: "Whether Universal Plug and Play was detected on the LAN.",
+	},
+	PMP: {
+		label: "NAT-PMP",
+		description: "Whether NAT Port Mapping Protocol was detected on the LAN.",
+	},
+	PCP: {
+		label: "PCP",
+		description: "Whether Port Control Protocol was detected on the LAN.",
+	},
+	CaptivePortal: {
+		label: "No Captive Portal",
+		description:
+			"Whether HTTP traffic is free from captive portal interception.",
+		invert: true,
+	},
+};
+
+type FlagGroup = {
+	title: string;
+	flags: BooleanKeys<NetcheckReport>[];
+};
+
+const flagGroups: FlagGroup[] = [
+	{
+		title: "Connectivity",
+		flags: ["UDP", "IPv4", "IPv6", "ICMPv4", "CaptivePortal"],
+	},
+	{
+		title: "IPv6 Support",
+		flags: ["OSHasIPv6", "IPv4CanSend", "IPv6CanSend"],
+	},
+	{
+		title: "NAT Traversal",
+		flags: ["MappingVariesByDestIP"],
+	},
+	{
+		title: "Port Mapping",
+		flags: ["UPnP", "PMP", "PCP"],
+	},
+];
+
+const severityColor = (severity: HealthSeverity): string => {
+	switch (severity) {
+		case "ok":
+			return "text-content-success";
+		case "warning":
+			return "text-content-warning";
+		case "error":
+			return "text-content-destructive";
+		default:
+			return "";
+	}
+};
+
+const DERPPage: React.FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);
-	const theme = useTheme();
 
 	return (
 		<>
@@ -57,7 +142,7 @@ const DERPPage: FC = () => {
 					<HealthyDot severity={derp.severity as HealthSeverity} />
 					DERP
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="DERP" />
+				<MuteWarningsButton healthcheck="DERP" />
 			</Header>
 
 			<Main>
@@ -68,6 +153,7 @@ const DERPPage: FC = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>
@@ -75,19 +161,44 @@ const DERPPage: FC = () => {
 				})}
 
 				<section>
-					<SectionLabel>Flags</SectionLabel>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-						{flags.map((flag) => (
-							<BooleanPill key={flag} value={safeNetcheck[flag]}>
-								{flag}
-							</BooleanPill>
-						))}
-					</div>
+					<SectionLabel>Network Checks</SectionLabel>
+					{flagGroups.map((group) => (
+						<div key={group.title} className="mb-6">
+							<h5 className="text-xs uppercase tracking-wide text-content-secondary m-0 mb-2">
+								{group.title}
+							</h5>
+							<Table>
+								<TableBody>
+									{group.flags.map((flag) => (
+										<TableRow key={flag}>
+											<TableCell className="w-8">
+												<StatusIcon
+													value={
+														safeNetcheck[flag] === null
+															? null
+															: flagDescriptions[flag].invert
+																? !safeNetcheck[flag]
+																: safeNetcheck[flag]
+													}
+												/>
+											</TableCell>
+											<TableCell className="font-medium whitespace-nowrap w-36">
+												{flagDescriptions[flag].label}
+											</TableCell>
+											<TableCell className="text-content-secondary">
+												{flagDescriptions[flag].description}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+					))}
 				</section>
 
 				<section>
 					<SectionLabel>Regions</SectionLabel>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+					<div className="flex flex-wrap gap-3">
 						{Object.values(regions ?? {})
 							.filter((region) => {
 								// Values can technically be null
@@ -100,34 +211,27 @@ const DERPPage: FC = () => {
 								return 0;
 							})
 							.map(({ severity, region }) => {
+								if (!region) {
+									return null;
+								}
 								return (
-									<Button variant="outline" key={region!.RegionID} asChild>
-										<Link to={`/health/derp/regions/${region!.RegionID}`}>
+									<Button variant="outline" key={region.RegionID} asChild>
+										<Link to={`/health/derp/regions/${region.RegionID}`}>
 											<MapPinIcon
-												style={{
-													color: healthyColor(
-														theme,
-														severity as HealthSeverity,
-													),
-												}}
+												className={severityColor(severity as HealthSeverity)}
 											/>
-											{region!.RegionName}
+											{region.RegionName}
 										</Link>
 									</Button>
 								);
 							})}
 					</div>
 				</section>
-
 				<section>
 					<SectionLabel>Logs</SectionLabel>
 					<Logs
 						lines={logs}
-						css={(theme) => ({
-							borderRadius: 8,
-							border: `1px solid ${theme.palette.divider}`,
-							color: theme.palette.text.secondary,
-						})}
+						className="rounded-lg border border-solid border-border text-content-secondary"
 					/>
 				</section>
 			</Main>

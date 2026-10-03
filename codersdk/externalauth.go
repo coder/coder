@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -143,7 +142,7 @@ func (c *Client) ExternalAuthDeviceByID(ctx context.Context, provider string) (E
 		return ExternalAuthDevice{}, ReadBodyAsError(res)
 	}
 	var extAuth ExternalAuthDevice
-	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
+	return extAuth, ReadBodyAsJSON(res, &extAuth)
 }
 
 // ExchangeGitAuth exchanges a device code for an external auth token.
@@ -170,7 +169,7 @@ func (c *Client) ExternalAuthByID(ctx context.Context, provider string) (Externa
 		return ExternalAuth{}, ReadBodyAsError(res)
 	}
 	var extAuth ExternalAuth
-	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
+	return extAuth, ReadBodyAsJSON(res, &extAuth)
 }
 
 // UnlinkExternalAuthByID deletes the external auth for the given provider by ID
@@ -186,7 +185,7 @@ func (c *Client) UnlinkExternalAuthByID(ctx context.Context, provider string) (D
 		return noRevoke, ReadBodyAsError(res)
 	}
 	var resp DeleteExternalAuthByIDResponse
-	err = json.NewDecoder(res.Body).Decode(&resp)
+	err = ReadBodyAsJSON(res, &resp)
 	if err != nil {
 		return noRevoke, err
 	}
@@ -205,5 +204,5 @@ func (c *Client) ListExternalAuths(ctx context.Context) (ListUserExternalAuthRes
 		return ListUserExternalAuthResponse{}, ReadBodyAsError(res)
 	}
 	var extAuth ListUserExternalAuthResponse
-	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
+	return extAuth, ReadBodyAsJSON(res, &extAuth)
 }

@@ -1,8 +1,15 @@
-# Configure Control Plane Access
+---
+title: Configure control plane access
+---
 
-Coder server's primary configuration is done via environment variables. For a
-full list of the options, run `coder server --help` or see our
-[CLI documentation](../../reference/cli/server.md).
+The control plane's primary configuration is done via environment variables. For
+a full list of the options, run `coder server --help` or see our
+[CLI documentation](../../reference/cli/server/index.md).
+
+> [!TIP]
+> Need to look up an exact environment variable, CLI flag, or YAML key for a
+> setting? See the [configuration reference](./configuration-reference.md) for
+> a searchable list of every option.
 
 ## Access URL
 
@@ -21,7 +28,7 @@ to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```shell
+```sh
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -32,7 +39,7 @@ export CODER_TLS_ADDRESS=0.0.0.0:443
 ## Redirect from HTTP to HTTPS
 export CODER_REDIRECT_TO_ACCESS_URL=true
 
-# Start the Coder server
+# Start the control plane
 coder server
 ```
 
@@ -41,10 +48,10 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for
-[port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
-or running [coder_apps](../templates/index.md) on an absolute path. Set this to
-a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
+The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
+It requires a DNS record and TLS certificate for `*.example.com`.
 
 > [!NOTE]
 > We do not recommend using a top-level-domain for Coder wildcard access
@@ -52,14 +59,14 @@ a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 > browsers consider these "public" domains and will refuse Coder's cookies,
 > which are vital to the proper operation of this feature.
 
-If you are providing TLS certificates directly to the Coder server, either
+If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
-   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+   [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
-   [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
-   [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
+   [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and
+   [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
 
@@ -67,7 +74,7 @@ After you enable the wildcard access URL, you should [disable path-based apps](.
 
 ## TLS & Reverse Proxy
 
-The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and
+The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and
 accompanying configuration flags. However, Coder can also run behind a
 reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
@@ -83,7 +90,7 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-   ```shell
+   ```sh
    kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
    ```
 
@@ -94,12 +101,14 @@ working directory prior to step 1.
    ```yaml
    coder:
      tls:
-         secretName:
+       secretNames:
          - coder-tls
 
      # Alternatively, if you use an Ingress controller to terminate TLS,
      # set the following values:
      ingress:
+       enable: true
+       tls:
          enable: true
          secretName: coder-tls
          wildcardSecretName: coder-tls
@@ -124,7 +133,9 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+<a id="migrating-from-the-built-in-database-to-an-external-database"></a>
+
+### Migrate from the built-in database to an external database
 
 To migrate from the built-in database to an external database, follow these
 steps:
@@ -139,11 +150,13 @@ steps:
 1. Start your Coder deployment with
    `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
-## Configuring Coder behind a proxy
+<a id="configuring-coder-behind-a-proxy"></a>
+
+## Configure Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables
-`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
-(e.g. `http_proxy`) are also respected in this case.
+`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase
+values (e.g. `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 
@@ -153,10 +166,10 @@ integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../external-auth/index.md) section for
+Please refer to the [external authentication](../external-auth.md) section for
 more information.
 
 ## Up Next
 
 - [Setup and manage templates](../templates/index.md)
-- [Setup external provisioners](../provisioners/index.md)
+- [Setup external provisioners](../../install/operate/provisioners/index.md)

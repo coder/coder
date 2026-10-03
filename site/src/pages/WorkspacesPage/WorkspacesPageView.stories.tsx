@@ -1,34 +1,32 @@
-import {
-	MockBuildInfo,
-	MockOrganization,
-	MockPendingProvisionerJob,
-	MockTaskWorkspace,
-	MockTemplate,
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	mockApiError,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withProxyProvider,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
 	WorkspaceStatuses,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
-import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
+	MockBuildInfo,
+	MockOrganization,
+	MockPendingProvisionerJob,
+	MockTemplate,
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "#/testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -133,20 +131,14 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
-	query: "owner:me",
-	menus: {
-		user: MockMenu,
-		template: MockMenu,
-		status: MockMenu,
-		organizations: MockMenu,
-	},
+const defaultFilter = getDefaultFilterProps<{ filter: UseFilterResult }>({
+	query: "user:me",
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
-});
+}).filter;
 
 const mockTemplates = [
 	MockTemplate,
@@ -166,11 +158,11 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterState: defaultFilterProps,
+		filter: defaultFilter,
 		checkedWorkspaces: [],
-		canCheckWorkspaces: true,
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
+		canCreateWorkspace: true,
 		count: 13,
 		page: 1,
 	},
@@ -189,10 +181,133 @@ const meta: Meta<typeof WorkspacesPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
 
+export const FilteredPaginationSummary: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/^Filtered: Showing/);
+	},
+};
+
+export const FilteredEmptySummary: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: { ...defaultFilter, query: "status:running", used: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = await canvas.findAllByText(
+			/no workspaces match your search\./i,
+		);
+		expect(matches).toHaveLength(2);
+		expect(canvas.queryByText(/no records available/i)).toBeNull();
+	},
+};
+
+export const FilteredEmptyClearsFilter: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: {
+			...defaultFilter,
+			query: "status:running",
+			used: true,
+			update: fn(),
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /clear all/i }),
+		);
+		await expect(args.filter.update).toHaveBeenCalledWith("");
+	},
+};
+
+export const UnfilteredPaginationSummary: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+		filter: { ...defaultFilter, query: "", used: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/^Showing/);
+		expect(canvas.queryByText(/Filtered:/)).toBeNull();
+	},
+};
+
+export const CannotCreateWorkspace: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+		await canvas.findByText(/don't have permission to create workspaces/i);
+	},
+};
+
+export const CannotCreateWorkspaceWithWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+		canCreateWorkspace: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(allWorkspaces[0].name);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+	},
+};
+
+export const CannotCreateWorkspaceWithFilter: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+		filter: { ...defaultFilter, used: true },
+	},
+	// The filter empty state takes priority: an active filter that matched
+	// nothing shows "no results" regardless of create permission, since the
+	// user may own workspaces the filter excluded.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("heading", {
+			name: /no workspaces match your search\./i,
+		});
+		expect(
+			canvas.queryByText(/don't have permission to create workspaces/i),
+		).toBeNull();
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+	},
+};
+
 export const AllStates: Story = {
 	args: {
 		workspaces: allWorkspaces,
 		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(allWorkspaces[0].name);
+		const images = canvasElement.querySelectorAll("img");
+		expect(images.length).toBeGreaterThan(0);
+		for (const img of images) {
+			expect(img).toHaveAttribute("alt");
+		}
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		workspaces: undefined,
+		count: undefined,
 	},
 };
 
@@ -231,6 +346,7 @@ export const OwnerHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -240,6 +356,7 @@ export const OwnerHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -248,6 +365,7 @@ export const UserHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -257,19 +375,17 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterState: {
-			...defaultFilterProps,
-			filter: {
-				...defaultFilterProps.filter,
-				query: "searchwithnoresults",
-				used: true,
-			},
+		filter: {
+			...defaultFilter,
+			query: "searchwithnoresults",
+			used: true,
 		},
 		count: 0,
 	},
@@ -348,6 +464,118 @@ export const MultipleApps: Story = {
 	},
 };
 
+// The shortcuts row only renders apps from the parent agent (the agent without
+// a `parent_id`). Apps from sub-agents, such as those created by devcontainers,
+// are excluded so the row stays deterministic regardless of agent ordering.
+export const ParentAgentApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "parent-agent-apps",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								// Sub-agent is listed first to prove ordering does
+								// not determine which apps are shown.
+								{
+									...MockWorkspaceSubAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "sub-agent-app",
+											slug: "sub-agent-app",
+											display_name: "Sub Agent App",
+											health: "healthy",
+										},
+									],
+								},
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "parent-agent-app",
+											slug: "parent-agent-app",
+											display_name: "Parent Agent App",
+											health: "healthy",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("link", { name: /Open Parent Agent App/i });
+		expect(
+			canvas.queryByRole("link", { name: /Open Sub Agent App/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// An external app with an unparsable URL must not crash the table. Its icon
+// renders as a non-navigating button with an explanatory label instead of a
+// broken link.
+export const InvalidAppUrl: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "invalid-app-url",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "invalid-app",
+											slug: "invalid-app",
+											display_name: "Broken App",
+											health: "healthy",
+											external: true,
+											// A bare string with no scheme is unparsable
+											// by the URL constructor.
+											url: "my-repo",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The invalid app renders a non-navigating button, not a link.
+		await canvas.findByRole("button", {
+			name: /Broken App has an invalid URL/i,
+		});
+		expect(
+			canvas.queryByRole("link", { name: /Broken App/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [
@@ -383,17 +611,53 @@ export const ShowOrganizations: Story = {
 	},
 };
 
-export const ShowWorkspaceTasks: Story = {
+export const ShowWorkspaceChats: Story = {
 	args: {
 		workspaces: [
 			{
 				...MockWorkspace,
-				name: "regular-user-workspace",
+				name: "regular-workspace",
 			},
 			{
-				...MockTaskWorkspace,
-				name: "task-workspace",
+				...MockWorkspace,
+				id: "ws-with-agent",
+				name: "agent-workspace",
 			},
 		],
+		chatsByWorkspace: { "ws-with-agent": "some-chat-id" },
+	},
+};
+
+export const WithCheckedWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 5),
+		checkedWorkspaces: allWorkspaces.slice(0, 2),
+		count: 5,
+	},
+};
+
+// An invalid filter query returns an API validation error. The page suppresses
+// its ErrorAlert for validation errors, so the message must surface on the
+// filter itself and the input must be marked invalid.
+export const WithFilterError: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		error: mockApiError({
+			message: "Invalid filter query.",
+			validations: [
+				{ field: "q", detail: 'Query param "q" has an invalid value.' },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/invalid value/i);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter workspaces…",
+		});
+		expect(input).toHaveAttribute("aria-invalid", "true");
+		const alert = canvas.getByRole("alert");
+		expect(input).toHaveAttribute("aria-errormessage", alert.id);
 	},
 };

@@ -45,6 +45,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
 		copyParametersFrom string
+		noWait             bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -67,7 +68,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
-				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])
+				workspaceOwner, workspaceName, err = codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -103,7 +104,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var sourceWorkspace codersdk.Workspace
 			if copyParametersFrom != "" {
-				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
+				sourceWorkspaceOwner, sourceWorkspaceName, err := codersdk.SplitWorkspaceIdentifier(copyParametersFrom)
 				if err != nil {
 					return err
 				}
@@ -231,7 +232,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			// If the user specified an organization via a flag or env var, the template **must**
 			// be in that organization. Otherwise, we should throw an error.
 			orgValue, orgValueSource := orgContext.ValueSource(inv)
-			if orgValue != "" && !(orgValueSource == serpent.ValueSourceDefault || orgValueSource == serpent.ValueSourceNone) {
+			if orgValue != "" && orgValueSource != serpent.ValueSourceDefault && orgValueSource != serpent.ValueSourceNone {
 				selectedOrg, err := orgContext.Selected(inv, client)
 				if err != nil {
 					return err
@@ -270,6 +271,11 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				return xerrors.Errorf("can't parse given parameter defaults: %w", err)
 			}
 
+			cliEphemeralParameters, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given ephemeral parameter values: %w", err)
+			}
+
 			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 			if copyParametersFrom != "" {
 				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
@@ -296,19 +302,22 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 					if !errors.Is(err, ErrNoPresetFound) {
 						return xerrors.Errorf("unable to resolve preset: %w", err)
 					}
-					// If no preset found, prompt the user to choose a preset
+					// If no preset found, prompt the user to choose a preset.
+					// A nil preset means the user chose "None".
 					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
 						return xerrors.Errorf("unable to prompt user for preset: %w", err)
 					}
 				}
+			}
 
+			if preset != nil {
 				// Convert preset parameters into workspace build parameters
 				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
 				// Inform the user which preset was applied and its parameters
 				displayAppliedPreset(inv, preset, presetParameters)
 			} else {
 				// Inform the user that no preset was applied
-				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
 			}
 
 			if opts.BeforeCreate != nil {
@@ -322,13 +331,19 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
+				Owner:             workspaceOwner,
 
 				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
 				RichParameterDefaults: cliBuildParameterDefaults,
 
+				PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
+				EphemeralParameters:       cliEphemeralParameters,
+
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
+
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -344,7 +359,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var ttlMillis *int64
 			if stopAfter > 0 {
-				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
+				ttlMillis = new(stopAfter.Milliseconds())
 			}
 
 			req := codersdk.CreateWorkspaceRequest{
@@ -367,6 +382,14 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout,
+					"\nThe %s workspace has been created and is building in the background.\n",
+					cliui.Keyword(workspace.Name),
+				)
+				return nil
+			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
@@ -435,10 +458,16 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Description: "Specify the source workspace name to copy parameters from.",
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
+		serpent.Option{
+			Flag:        "no-wait",
+			Env:         "CODER_CREATE_NO_WAIT",
+			Description: "Return immediately after creating the workspace. The build will run in the background.",
+			Value:       serpent.BoolOf(&noWait),
+		},
 		cliui.SkipPromptOption(),
 	)
-	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
-	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
+	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
+
 	orgContext.AttachOptions(cmd)
 	return cmd
 }
@@ -447,6 +476,8 @@ type prepWorkspaceBuildArgs struct {
 	Action            WorkspaceCLIAction
 	TemplateVersionID uuid.UUID
 	NewWorkspaceName  string
+	// The owner is required when evaluating dynamic parameters
+	Owner string
 
 	LastBuildParameters       []codersdk.WorkspaceBuildParameter
 	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
@@ -459,6 +490,8 @@ type prepWorkspaceBuildArgs struct {
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
+
+	UseParameterDefaults bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -486,12 +519,21 @@ func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Pres
 	return nil, ErrNoPresetFound
 }
 
-// promptPresetSelection shows a CLI selection menu of the presets defined in the template version.
-// Returns the selected preset
-func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
-	presetMap := make(map[string]*codersdk.Preset)
-	var presetOptions []string
+const (
+	// presetNoneOption is the selection menu label for creating a workspace
+	// without a preset, matching the dashboard's "None" option.
+	presetNoneOption = "None"
+	// presetNoneFallbackOption replaces presetNoneOption when a preset's
+	// label is also "None", so the menu never shows two identical entries.
+	presetNoneFallbackOption = "None (no preset)"
+)
 
+// presetSelectOptions builds the preset selection menu entries. The first
+// entry is the label for applying no preset, which is also returned as
+// noneOption. presetMap maps every other entry to its preset.
+func presetSelectOptions(presets []codersdk.Preset) (options []string, noneOption string, presetMap map[string]*codersdk.Preset) {
+	presetMap = make(map[string]*codersdk.Preset, len(presets))
+	presetOptions := make([]string, 0, len(presets))
 	for _, preset := range presets {
 		var option string
 		if preset.Description == "" {
@@ -503,6 +545,19 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 		presetMap[option] = &preset
 	}
 
+	noneOption = presetNoneOption
+	if _, ok := presetMap[noneOption]; ok {
+		noneOption = presetNoneFallbackOption
+	}
+	return append([]string{noneOption}, presetOptions...), noneOption, presetMap
+}
+
+// promptPresetSelection shows a CLI selection menu of the presets defined in the template version,
+// preceded by an option to apply no preset.
+// Returns the selected preset, or nil if the user chose to apply no preset.
+func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
+	presetOptions, noneOption, presetMap := presetSelectOptions(presets)
+
 	// Show selection UI
 	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a preset below:"))
 	selected, err := cliui.Select(inv, cliui.SelectOptions{
@@ -513,6 +568,9 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 		return nil, xerrors.Errorf("failed to select preset: %w", err)
 	}
 
+	if selected == noneOption {
+		return nil, nil //nolint:nilnil // A nil preset means no preset is applied.
+	}
 	return presetMap[selected], nil
 }
 
@@ -539,9 +597,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
-	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+	dynamicParameters := true
+	if templateVersion.TemplateID != nil {
+		// TODO: This fetch is often redundant, as the caller often has the template already.
+		template, err := client.Template(ctx, *templateVersion.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template: %w", err)
+		}
+		dynamicParameters = !template.UseClassicParameterFlow
 	}
 
 	parameterFile := map[string]string{}
@@ -561,7 +624,47 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
-		WithRichParametersDefaults(args.RichParameterDefaults)
+		WithRichParametersDefaults(args.RichParameterDefaults).
+		WithUseParameterDefaults(args.UseParameterDefaults)
+
+	var templateVersionParameters []codersdk.TemplateVersionParameter
+	if !dynamicParameters {
+		templateVersionParameters, err = client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		}
+	} else {
+		var ownerID uuid.UUID
+		{ // Putting in its own block to limit scope of owningMember, as it might be nil
+			owningMember, err := client.OrganizationMember(ctx, templateVersion.OrganizationID.String(), args.Owner)
+			if err != nil {
+				// This is unfortunate, but if we are an org owner, then we can create workspaces
+				// for users that are not part of the organization.
+				owningUser, uerr := client.User(ctx, args.Owner)
+				if uerr != nil {
+					return nil, xerrors.Errorf("get owning member: %w", err)
+				}
+				ownerID = owningUser.ID
+			} else {
+				ownerID = owningMember.UserID
+			}
+		}
+
+		initial := make(map[string]string)
+		for _, v := range resolver.InitialValues() {
+			initial[v.Name] = v.Value
+		}
+
+		eval, err := client.EvaluateTemplateVersion(ctx, templateVersion.ID, ownerID, initial)
+		if err != nil {
+			return nil, xerrors.Errorf("evaluate template version dynamic parameters: %w", err)
+		}
+
+		for _, param := range eval.Parameters {
+			templateVersionParameters = append(templateVersionParameters, param.TemplateVersionParameter())
+		}
+	}
+
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

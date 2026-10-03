@@ -1,32 +1,32 @@
-import type { ProvisionerDaemon } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
+import { XIcon } from "lucide-react";
+import type { ProvisionerDaemon } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { XIcon } from "lucide-react";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Tooltip/Tooltip";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
 
@@ -35,17 +35,18 @@ type ProvisionersFilter = {
 	offline: boolean;
 };
 
-interface OrganizationProvisionersPageViewProps {
+type OrganizationProvisionersPageViewProps = {
 	showPaywall: boolean | undefined;
 	provisioners: readonly ProvisionerDaemon[] | undefined;
 	buildVersion: string | undefined;
 	error: unknown;
 	filter: ProvisionersFilter;
+	permissions: Permissions;
 	onRetry: () => void;
 	onFilterChange: (filter: ProvisionersFilter) => void;
-}
+};
 
-export const OrganizationProvisionersPageView: FC<
+export const OrganizationProvisionersPageView: React.FC<
 	OrganizationProvisionersPageViewProps
 > = ({
 	showPaywall,
@@ -53,17 +54,18 @@ export const OrganizationProvisionersPageView: FC<
 	provisioners,
 	buildVersion,
 	filter,
+	permissions,
 	onFilterChange,
 	onRetry,
 }) => {
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
+		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder server runs provisioner daemons which execute terraform during
 					workspace and template builds.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -95,10 +97,17 @@ export const OrganizationProvisionersPageView: FC<
 			)}
 
 			{showPaywall ? (
-				<Paywall
+				<PremiumPaywall
+					source="provisioners"
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					description="Provisioners run your Terraform to create templates and workspaces."
+					features={[
+						"Run build jobs in isolation",
+						"Isolate cloud APIs from Coder",
+						"Keep secrets off the Coder host",
+						"Reduce server load and queue times",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<>
@@ -145,41 +154,29 @@ export const OrganizationProvisionersPageView: FC<
 										/>
 									))
 								) : (
-									<TableRow>
-										<TableCell colSpan={999}>
-											<EmptyState
-												message="No provisioners found"
-												description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
-												cta={
-													<Button size="sm" asChild>
-														<Link href={docs("/admin/provisioners")}>
-															Create a provisioner
-														</Link>
-													</Button>
-												}
-											/>
-										</TableCell>
-									</TableRow>
+									<TableEmpty
+										message="No provisioners found"
+										description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+										cta={
+											<Button size="sm" asChild>
+												<Link href={docs("/admin/provisioners")}>
+													Create a provisioner
+												</Link>
+											</Button>
+										}
+									/>
 								)
 							) : error ? (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="Error loading the provisioner jobs"
-											cta={
-												<Button onClick={onRetry} size="sm">
-													Retry
-												</Button>
-											}
-										/>
-									</TableCell>
-								</TableRow>
+								<TableEmpty
+									message="Error loading the provisioner jobs"
+									cta={
+										<Button onClick={onRetry} size="sm">
+											Retry
+										</Button>
+									}
+								/>
 							) : (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<Loader />
-									</TableCell>
-								</TableRow>
+								<TableLoader />
 							)}
 						</TableBody>
 					</Table>

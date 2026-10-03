@@ -1,0 +1,417 @@
+package chatd
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+)
+
+func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("gpt-5", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	options, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortHigh),
+		},
+	})
+	require.NoError(t, err)
+	overrideConfig.Options = options
+	wantTitle := "Override title"
+
+	var requestCount atomic.Int32
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount.Add(1)
+		bodyBytes, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		var raw map[string]any
+		require.NoError(t, json.Unmarshal(bodyBytes, &raw))
+		require.Equal(t, string(fantasyopenai.ReasoningEffortHigh), raw["reasoning"].(map[string]any)["effort"])
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-5","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	provider := database.AIProvider{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, "xhigh"), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       wantTitle,
+		TitleSource: database.ChatTitleSourceGenerated,
+	}).Return(chatWithGeneratedTitle(chat, wantTitle), nil)
+
+	generated := &generatedChatTitle{}
+	server := titleOverrideTestServer(db, logger)
+	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
+	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	require.Equal(t, overrideConfig, resolved.dbConfig)
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		messages,
+		nil,
+		resolved,
+		generated,
+		logger,
+		nil,
+	)
+
+	require.Equal(t, int32(1), requestCount.Load())
+	gotTitle, ok := generated.Load()
+	require.True(t, ok)
+	require.Equal(t, wantTitle, gotTitle)
+}
+
+func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+
+	var requestCount atomic.Int32
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount.Add(1)
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+
+	generated := &generatedChatTitle{}
+	server := titleOverrideTestServer(db, logger)
+	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
+	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		messages,
+		nil,
+		resolved,
+		generated,
+		logger,
+		nil,
+	)
+
+	require.Equal(t, int32(1), requestCount.Load())
+	_, ok := generated.Load()
+	require.False(t, ok)
+}
+
+func TestResolveQuickgenModel_TitleGenerationOverrideUnset(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	providerID := uuid.New()
+	preferredConfig := database.ChatModelConfig{
+		ID:           uuid.New(),
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		Model:        preferredTitleModels[1].model,
+		Enabled:      true,
+	}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
+		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
+		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
+	}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.True(t, resolved.model.Valid())
+	require.Equal(t, preferredConfig, resolved.dbConfig)
+}
+
+func TestResolveQuickgenModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	chat.OrganizationID = uuid.New()
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return(nil, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	require.Equal(t, resolvedModelCall{}, resolved)
+}
+
+func TestResolveQuickgenModel_TitleGenerationOverrideSetUsable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.True(t, resolved.model.Valid())
+	require.Equal(t, overrideConfig, resolved.dbConfig)
+}
+
+func TestResolveQuickgenModel_TitleGenerationOverrideAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("claude-haiku-4-5", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	// Claude Platform on AWS authenticates with ambient AWS credentials and
+	// stores no API keys.
+	settings, err := json.Marshal(codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-2",
+			WorkspaceID: "wrkspc_test",
+		},
+	})
+	require.NoError(t, err)
+	provider := aibridgeTestAIProvider(providerID, "claude-platform-aws", database.AIProviderTypeAnthropic)
+	provider.BaseUrl = "https://aws-external-anthropic.us-east-2.api.aws"
+	provider.Settings = sql.NullString{String: string(settings), Valid: true}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).MinTimes(1)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).MinTimes(1)
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.True(t, resolved.model.Valid())
+	require.Equal(t, overrideConfig, resolved.dbConfig)
+}
+
+func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	chat.OrganizationID = uuid.New()
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	overrideConfig.OrganizationID = chat.OrganizationID
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	overrideConfig.Options = modelCallSentinelOptions(t, "title-options-sentinel")
+	provider := database.AIProvider{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}
+	apiKeyID := uuid.NewString()
+	wantTitle := "Synthetic title"
+	seenAPIKeyID := make(chan string, 1)
+	seenBody := make(chan []byte, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		delegatedID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+		seenAPIKeyID <- delegatedID
+		bodyBytes, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		seenBody <- bodyBytes
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4.1","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+
+	db.EXPECT().GetChatMessagesByChatIDAscPaginated(gomock.Any(), database.GetChatMessagesByChatIDAscPaginatedParams{
+		ChatID:   chat.ID,
+		AfterID:  0,
+		LimitVal: manualTitleMessageWindowLimit,
+	}).Return(messages, nil)
+	db.EXPECT().GetChatMessagesByChatIDDescPaginated(gomock.Any(), database.GetChatMessagesByChatIDDescPaginatedParams{
+		ChatID:   chat.ID,
+		BeforeID: 0,
+		LimitVal: manualTitleMessageWindowLimit,
+	}).Return(nil, nil)
+	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{
+		UserID:    chat.OwnerID,
+		TokenName: GatewayTokenName(chat.OwnerID),
+	}).Return(database.APIKey{
+		ID:        apiKeyID,
+		UserID:    chat.OwnerID,
+		ExpiresAt: time.Now().Add(48 * time.Hour),
+	}, nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	server.clock = quartz.NewReal()
+	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
+	title, err := server.generateManualTitleCandidate(ctx, chat)
+	require.NoError(t, err)
+	require.Equal(t, wantTitle, title)
+	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(testutil.RequireReceive(ctx, t, seenBody), &raw))
+	require.Equal(t, "title-options-sentinel", raw["user"])
+}
+
+func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.ChatMessage) {
+	t.Helper()
+
+	userPrompt := "review pull request 123 and fix comments"
+	chat := database.Chat{
+		ID:          uuid.New(),
+		OwnerID:     uuid.New(),
+		Title:       chatprompt.FallbackTitle(userPrompt),
+		TitleSource: database.ChatTitleSourceFallback,
+	}
+	message := mustChatMessage(
+		t,
+		database.ChatMessageRoleUser,
+		database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText(userPrompt),
+	)
+	message.ID = 1
+	return chat, []database.ChatMessage{message}
+}
+
+func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
+	return &Server{
+		db:                       db,
+		pubsub:                   dbpubsub.NewInMemory(),
+		logger:                   logger,
+		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		chatLimits:               Limits{}.withDefaults(),
+	}
+}
+
+func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConfig {
+	return database.ChatModelConfig{
+		ID:      uuid.New(),
+		Model:   model,
+		Enabled: enabled,
+	}
+}
+
+func chatWithGeneratedTitle(chat database.Chat, title string) database.Chat {
+	chat.Title = title
+	chat.TitleSource = database.ChatTitleSourceGenerated
+	return chat
+}

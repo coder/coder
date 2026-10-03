@@ -1,0 +1,23 @@
+coder:
+  replicaCount: 3
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: https://coder.example.com
+    - name: CODER_AI_GATEWAY_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-gateway-key
+          key: key
+aigateway: {}
+# Enable every optional resource with only the values each one requires, so
+# the golden file covers rendering of all templates without opting into
+# non-default settings such as service.nodePort.
+ingress:
+  enable: true
+  host: ai.example.com
+httproute:
+  enable: true
+  parentRefs:
+    - name: shared-gateway

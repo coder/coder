@@ -15,6 +15,7 @@ var (
 	TemplateWorkspaceDormant           = uuid.MustParse("0ea69165-ec14-4314-91f1-69566ac3c5a0")
 	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
 	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
+	TemplateWorkspaceAutostopReminder  = uuid.MustParse("6f6cb984-c167-4fa5-bb87-1058dd642779")
 	TemplateWorkspaceManualBuildFailed = uuid.MustParse("2faeee0f-26cb-4e96-821c-85ccb9f71513")
 	TemplateWorkspaceOutOfMemory       = uuid.MustParse("a9d027b4-ac49-4fb1-9f6d-45af15f64e7a")
 	TemplateWorkspaceOutOfDisk         = uuid.MustParse("f047f6a3-5713-40f7-85aa-0394cce9fa3a")
@@ -53,10 +54,17 @@ var (
 	TemplateCustomNotification = uuid.MustParse("39b1e189-c857-4b0c-877a-511144c18516")
 )
 
-// Task-related events.
+// Chat-related events.
 var (
-	TemplateTaskWorking   = uuid.MustParse("bd4b7168-d05e-4e19-ad0f-3593b77aa90f")
-	TemplateTaskIdle      = uuid.MustParse("d4a6271c-cced-4ed0-84ad-afd02a9c7799")
-	TemplateTaskCompleted = uuid.MustParse("8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c")
-	TemplateTaskFailed    = uuid.MustParse("3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e")
+	TemplateChatAutoArchiveDigest = uuid.MustParse("764031be-4863-4220-867b-6ce1a1b7a5f5")
+	TemplateChatShared            = uuid.MustParse("b789bd75-d7c6-4cab-9757-1147ab184903")
+)
+
+// AI cost control related events.
+var (
+	TemplateAIBudgetWarningUser       = uuid.MustParse("b5db9597-de2a-4dea-87e9-25cee6906b86")
+	TemplateAIBudgetLimitReachedUser  = uuid.MustParse("cdcf2ecd-f003-4169-9800-abb2661ea522")
+	TemplateAIBudgetWarningAdmin      = uuid.MustParse("2a7b0ac1-00e1-4625-9cd5-1e5933972c77")
+	TemplateAIBudgetLimitReachedAdmin = uuid.MustParse("0bafe0ea-a78b-4217-ad05-1ef12e92e025")
+	TemplateAIModelsUnpricedReport    = uuid.MustParse("1b7d9fa7-f5a8-4e46-8078-5cf53abfed94")
 )

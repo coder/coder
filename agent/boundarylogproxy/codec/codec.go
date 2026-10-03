@@ -14,14 +14,23 @@ import (
 	"io"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/proto"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 
 type Tag uint8
 
 const (
-	// TagV1 identifies the first revision of the protocol. This version has a maximum
-	// data length of MaxMessageSizeV1.
+	// TagV1 identifies the first revision of the protocol. The payload is a
+	// bare ReportBoundaryLogsRequest. This version has a maximum data length
+	// of MaxMessageSizeV1.
 	TagV1 Tag = 1
+
+	// TagV2 identifies the second revision of the protocol. The payload is
+	// a BoundaryMessage envelope. This version has a maximum data length of
+	// MaxMessageSizeV2.
+	TagV2 Tag = 2
 )
 
 const (
@@ -35,6 +44,9 @@ const (
 	// over the wire for the TagV1 tag. While the wire format allows 24 bits for
 	// length, TagV1 only uses 15 bits.
 	MaxMessageSizeV1 uint32 = 1 << 15
+
+	// MaxMessageSizeV2 is the maximum data length for TagV2.
+	MaxMessageSizeV2 = MaxMessageSizeV1
 )
 
 var (
@@ -48,12 +60,9 @@ var (
 // WriteFrame writes a framed message with the given tag and data. The data
 // must not exceed 2^DataLength in length.
 func WriteFrame(w io.Writer, tag Tag, data []byte) error {
-	var maxSize uint32
-	switch tag {
-	case TagV1:
-		maxSize = MaxMessageSizeV1
-	default:
-		return xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
+	maxSize, err := maxSizeForTag(tag)
+	if err != nil {
+		return err
 	}
 
 	if len(data) > int(maxSize) {
@@ -101,12 +110,9 @@ func ReadFrame(r io.Reader, buf []byte) (Tag, []byte, error) {
 	}
 	tag := Tag(shifted)
 
-	var maxSize uint32
-	switch tag {
-	case TagV1:
-		maxSize = MaxMessageSizeV1
-	default:
-		return 0, nil, xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
+	maxSize, err := maxSizeForTag(tag)
+	if err != nil {
+		return 0, nil, err
 	}
 
 	if length > maxSize {
@@ -124,4 +130,57 @@ func ReadFrame(r io.Reader, buf []byte) (Tag, []byte, error) {
 	}
 
 	return tag, buf[:length], nil
+}
+
+// maxSizeForTag returns the maximum payload size for the given tag.
+func maxSizeForTag(tag Tag) (uint32, error) {
+	switch tag {
+	case TagV1:
+		return MaxMessageSizeV1, nil
+	case TagV2:
+		return MaxMessageSizeV2, nil
+	default:
+		return 0, xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
+	}
+}
+
+// ReadMessage reads a framed message and unmarshals it based on tag. The
+// returned buf should be passed back on the next call for buffer reuse.
+func ReadMessage(r io.Reader, buf []byte) (proto.Message, []byte, error) {
+	tag, data, err := ReadFrame(r, buf)
+	if err != nil {
+		return nil, data, err
+	}
+
+	var msg proto.Message
+	switch tag {
+	case TagV1:
+		var req agentproto.ReportBoundaryLogsRequest
+		if err := proto.Unmarshal(data, &req); err != nil {
+			return nil, data, xerrors.Errorf("unmarshal TagV1: %w", err)
+		}
+		msg = &req
+	case TagV2:
+		var envelope BoundaryMessage
+		if err := proto.Unmarshal(data, &envelope); err != nil {
+			return nil, data, xerrors.Errorf("unmarshal TagV2: %w", err)
+		}
+		msg = &envelope
+	default:
+		// maxSizeForTag already rejects unknown tags during ReadFrame,
+		// but handle it here for safety.
+		return nil, data, xerrors.Errorf("%w: %d", ErrUnsupportedTag, tag)
+	}
+
+	return msg, data, nil
+}
+
+// WriteMessage marshals a proto message and writes it as a framed message
+// with the given tag.
+func WriteMessage(w io.Writer, tag Tag, msg proto.Message) error {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return xerrors.Errorf("marshal: %w", err)
+	}
+	return WriteFrame(w, tag, data)
 }

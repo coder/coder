@@ -10,6 +10,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	previewtypes "github.com/coder/preview/types"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 type parameterValueSource int
@@ -26,12 +28,17 @@ type parameterValue struct {
 	Source parameterValueSource
 }
 
+// ResolveParameters determines the parameter values to store for a build. The
+// transition is required because only a start build may narrow the set of
+// stored values.
+//
 //nolint:revive // firstbuild is a control flag to turn on immutable validation
 func ResolveParameters(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	renderer Renderer,
 	firstBuild bool,
+	transition database.WorkspaceTransition,
 	previousValues []database.WorkspaceBuildParameter,
 	buildValues []codersdk.WorkspaceBuildParameter,
 	presetValues []database.TemplateVersionPresetParameter,
@@ -109,6 +116,7 @@ func ResolveParameters(
 	for _, parameter := range output.Parameters {
 		parameterNames[parameter.Name] = struct{}{}
 
+		// Validate mutability constraints.
 		if !firstBuild && !parameter.Mutable {
 			// previousValuesMap should be used over the first render output
 			// for the previous state of parameters. The previous build
@@ -142,6 +150,40 @@ func ResolveParameters(
 			}
 		}
 
+		// Validate monotonic constraints. Monotonic parameters
+		// require the value to only increase or only decrease
+		// relative to the previous build.
+		if !firstBuild {
+			prevStr, hasPrev := previousValuesMap[parameter.Name]
+			// Only validate on currently valid parameters. Do not load extra diagnostics if
+			// the parameter is already invalid.
+			if hasPrev && parameter.Value.Valid() {
+			MonotonicValidationLoop:
+				for _, v := range parameter.Validations {
+					if v.Monotonic == nil || *v.Monotonic == "" {
+						continue
+					}
+
+					validation := &provider.Validation{
+						Monotonic:   *v.Monotonic,
+						MinDisabled: true,
+						MaxDisabled: true,
+					}
+					prev := prevStr
+					if err := validation.Valid(provider.OptionType(parameter.Type), parameter.Value.AsString(), &prev); err != nil {
+						parameterError.Extend(parameter.Name, hcl.Diagnostics{
+							&hcl.Diagnostic{
+								Severity: hcl.DiagError,
+								Summary:  fmt.Sprintf("Parameter %q monotonicity", parameter.Name),
+								Detail:   err.Error(),
+							},
+						})
+						break MonotonicValidationLoop
+					}
+				}
+			}
+		}
+
 		// TODO: Fix the `hcl.Diagnostics(...)` type casting. It should not be needed.
 		if hcl.Diagnostics(parameter.Diagnostics).HasErrors() {
 			// All validation errors are raised here for each parameter.
@@ -168,9 +210,24 @@ func ResolveParameters(
 	// parameter values that have no effect. These leaky parameter values can cause
 	// problems in the future, as it makes it challenging to remove values from the
 	// database
-	for k := range values {
-		if _, ok := parameterNames[k]; !ok {
-			delete(values, k)
+	//
+	// Two conditions must hold before a value can be discarded.
+	//
+	// Only a start build may narrow the stored set. A stop or delete build does not
+	// change which parameters a workspace has, so a parameter missing from this
+	// render is not evidence the user removed it. Dropping the value there persists
+	// the reduced set and the following start build reads it as the previous state,
+	// which loses the value even when that build renders the parameter correctly.
+	//
+	// The render must also be complete. An incomplete one does not report every
+	// parameter the template declares, so absence from the output means nothing.
+	// Keeping those values is safe, because provisionerd resolves modules itself
+	// and the build still applies them correctly. Dropping them destroys user data.
+	if transition == database.WorkspaceTransitionStart && !incompleteRender(diags) {
+		for k := range values {
+			if _, ok := parameterNames[k]; !ok {
+				delete(values, k)
+			}
 		}
 	}
 
@@ -191,4 +248,19 @@ func (p parameterValueMap) ValuesMap() map[string]string {
 		values[name] = paramValue.Value
 	}
 	return values
+}
+
+// incompleteRender reports whether the render could not see the whole template.
+// Parameters missing from such a render are missing because the renderer could
+// not reach their source, not because the template stopped declaring them.
+func incompleteRender(diags hcl.Diagnostics) bool {
+	for _, diag := range diags {
+		// A module that fails to load takes every parameter it declares with it.
+		// This happens when the template version has no cached module files.
+		if previewtypes.ExtractDiagnosticExtra(diag).Code == previewtypes.DiagnosticModuleNotLoaded {
+			return true
+		}
+	}
+
+	return false
 }

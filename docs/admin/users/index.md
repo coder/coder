@@ -1,11 +1,15 @@
-# Users
+---
+title: Users
+---
 
 By default, Coder is accessible via password authentication. For production
 deployments, we recommend using an SSO authentication provider with multi-factor
 authentication (MFA). It is your responsibility to ensure the auth provider
 enforces MFA correctly.
 
-## Configuring SSO
+<a id="configuring-sso"></a>
+
+## Configure SSO
 
 - [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
@@ -44,9 +48,8 @@ interact with Coder using CLI.
 
 ### Dormant user
 
-A user account is set to _dormant_ status when they have not yet logged in, or
-have not logged into the Coder platform for the past 90 days. Once the user logs
-in to the platform, the account status will switch to _active_.
+A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90&nbsp;days.
+Once the user logs in to the platform, the account status will switch to _active_.
 
 Dormant accounts do not count towards the total number of licensed seats in a
 Coder subscription, allowing organizations to optimize their license usage.
@@ -72,17 +75,15 @@ To create a user with the web UI:
 
 1. Log in as a user admin.
 2. Go to **Users** > **New user**.
-3. In the window that opens, provide the **username**, **email**, and
-   **password** for the user (they can opt to change their password after their
-   initial login).
-4. Click **Submit** to create the user.
+3. Enter the **Username**, **Email**, and **Password**.
+4. Select **Save**.
 
-The new user will appear in the **Users** list. Use the toggle to change their
-**Roles** if desired.
+The new user appears in the **Users** list.
+You can assign roles on this page before you save, or later from the user's actions menu.
 
 To create a user via the Coder CLI, run:
 
-```shell
+```sh
 coder users create
 ```
 
@@ -110,13 +111,13 @@ User admins can suspend a user, removing the user's access to Coder.
 To suspend a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to suspend, click the vertical ellipsis to the right,
-   and click **Suspend**.
-3. In the confirmation dialog, click **Suspend**.
+2. Find the user you want to suspend, select the vertical ellipsis to the right,
+   and select **Suspend**.
+3. In the confirmation dialog, select **Suspend**.
 
 To suspend a user via the CLI, run:
 
-```shell
+```sh
 coder users suspend <username|user_id>
 ```
 
@@ -129,13 +130,13 @@ User admins can activate a suspended user, restoring their access to Coder.
 To activate a user via the web UI:
 
 1. Go to **Users**.
-2. Find the user you want to activate, click the vertical ellipsis to the right,
-   and click **Activate**.
-3. In the confirmation dialog, click **Activate**.
+2. Find the user you want to activate, select the vertical ellipsis to the right,
+   and select **Activate**.
+3. In the confirmation dialog, select **Activate**.
 
 To activate a user via the CLI, run:
 
-```shell
+```sh
 coder users activate <username|user_id>
 ```
 
@@ -144,24 +145,24 @@ Confirm the user activation by typing **yes** and pressing **enter**.
 ## Reset a password
 
 As of 2.17.0, users can reset their password independently on the login screen
-by clicking "Forgot Password." This feature requires
+by selecting "Forgot Password." This feature requires
 [email notifications](../monitoring/notifications/index.md#smtp-email) to be
 configured on the deployment.
 
 To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
-2. Find the user whose password you want to reset, click the vertical ellipsis
+2. Find the user whose password you want to reset, select the vertical ellipsis
    to the right, and select **Reset password**.
 3. Coder displays a temporary password that you can send to the user; copy the
-   password and click **Reset password**.
+   password and select **Reset password**.
 
 Coder will prompt the user to change their temporary password immediately after
 logging in.
 
 You can also reset a password via the CLI:
 
-```shell
+```sh
 # run `coder reset-password <username> --help` for usage instructions
 coder reset-password <username>
 ```
@@ -170,9 +171,11 @@ coder reset-password <username>
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
-### Resetting a password on Kubernetes
+<a id="resetting-a-password-on-kubernetes"></a>
 
-```shell
+### Reset a password on Kubernetes
+
+```sh
 kubectl exec -it deployment/coder -n coder -- /bin/bash
 
 coder reset-password <username>
@@ -192,9 +195,21 @@ to use the Coder's filter query:
   `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
 - To find users who login using Github:
   `login_type:github`
+- To find service accounts: `service_account:true`.
+
+Any text that is not part of a `key:value` filter is treated as a free-text
+search and matches against a user's username, email, and display name. For
+example, entering `jane` returns users whose username, email, or display name
+contains `jane`.
 
 The following filters are supported:
 
+- `username` - Matches the exact username of the user. The match ignores
+  letter case.
+- `email` - Matches the exact email address of the user. The match ignores
+  letter case.
+- `name` - Matches part of the display name of the user. The match ignores
+  letter case.
 - `status` - Indicates the status of the user. It can be either `active`,
   `dormant` or `suspended`.
 - `role` - Represents the role of the user. You can refer to the
@@ -206,6 +221,19 @@ The following filters are supported:
 - `created_before` and `created_after` - The time a user was created. Uses the
   RFC3339Nano format.
 - `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
+- `service_account` - Can be either `true` to only include service accounts or
+  `false` to filter them out. If omitted, both service and regular accounts and
+  are returned.
+
+## Edit a user's profile
+
+To edit a user's display name or username with the web UI:
+
+1. Log in as a user admin.
+2. Go to **Users**.
+3. Open the actions menu for the user and select **Edit**.
+4. Make any desired changes.
+5. Select **Save**.
 
 ## Retrieve your list of Coder users
 
@@ -215,19 +243,20 @@ You can use the Coder CLI or API to retrieve your list of users.
 
 ### CLI
 
-Use `users list` to export the list of users to a CSV file:
+Use `users list` with `jq` to export the list of users to a CSV file:
 
-```shell
-coder users list > users.csv
+```sh
+coder users list --output json | \
+  jq -r '["username","email","created_at","status"], (.[] | [.username, .email, .created_at, .status]) | @csv' > users.csv
 ```
 
-Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+Visit the [users list](../../reference/cli/users/list.md) documentation for more options.
 
 ### API
 
 Use [get users](../../reference/api/users.md#get-users):
 
-```shell
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -235,7 +264,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
 
 To export the results to a CSV file, you can use [`jq`](https://jqlang.org/) to process the JSON response:
 
-```shell
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY' | \

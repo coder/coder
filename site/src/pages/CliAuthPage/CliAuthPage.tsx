@@ -1,10 +1,9 @@
-import { apiKey } from "api/queries/users";
-import type { FC } from "react";
 import { useQuery } from "react-query";
-import { pageTitle } from "utils/page";
+import { apiKey } from "#/api/queries/users";
+import { pageTitle } from "#/utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
 
-const CliAuthenticationPage: FC = () => {
+const CliAuthenticationPage: React.FC = () => {
 	const { data } = useQuery(apiKey());
 
 	return (

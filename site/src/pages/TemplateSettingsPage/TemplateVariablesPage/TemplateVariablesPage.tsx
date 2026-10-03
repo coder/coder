@@ -1,36 +1,32 @@
-import {
-	createAndBuildTemplateVersion,
-	templateVersion,
-	templateVersionVariables,
-	updateActiveTemplateVersion,
-} from "api/queries/templates";
-import type {
-	CreateTemplateVersionRequest,
-	TemplateVersionVariable,
-	VariableValue,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, useCallback } from "react";
+import { useCallback } from "react";
 import {
 	keepPreviousData,
 	useMutation,
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import {
+	createAndBuildTemplateVersion,
+	templateVersion,
+	templateVersionVariables,
+	updateActiveTemplateVersion,
+} from "#/api/queries/templates";
+import type {
+	CreateTemplateVersionRequest,
+	TemplateVersionVariable,
+	VariableValue,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
-const TemplateVariablesPage: FC = () => {
+const TemplateVariablesPage: React.FC = () => {
 	const getLink = useLinks();
-	const { organization = "default", template: templateName } = useParams() as {
-		organization?: string;
-		template: string;
-	};
 	const { template } = useTemplateSettings();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -57,7 +53,7 @@ const TemplateVariablesPage: FC = () => {
 		mutateAsync: sendCreateAndBuildTemplateVersion,
 		error: buildError,
 		isPending: isBuilding,
-	} = useMutation(createAndBuildTemplateVersion(organization));
+	} = useMutation(createAndBuildTemplateVersion(template.organization_id));
 	const {
 		mutateAsync: sendUpdateActiveTemplateVersion,
 		error: publishError,
@@ -67,9 +63,11 @@ const TemplateVariablesPage: FC = () => {
 	const publishVersion = useCallback(
 		async (versionId: string) => {
 			await sendUpdateActiveTemplateVersion(versionId);
-			displaySuccess("Template updated successfully");
+			toast.success(
+				`Template "${template.name}" variables updated successfully.`,
+			);
 		},
-		[sendUpdateActiveTemplateVersion],
+		[sendUpdateActiveTemplateVersion, template.name],
 	);
 
 	const buildVersion = useCallback(
@@ -104,7 +102,9 @@ const TemplateVariablesPage: FC = () => {
 					publishError,
 				}}
 				onCancel={() => {
-					navigate(getLink(linkToTemplate(organization, templateName)));
+					navigate(
+						getLink(linkToTemplate(template.organization_name, template.name)),
+					);
 				}}
 				onSubmit={async (formData) => {
 					const request = filterEmptySensitiveVariables(formData, variables);

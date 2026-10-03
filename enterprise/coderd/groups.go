@@ -5,15 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -26,7 +30,7 @@ import (
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
-// @Router /organizations/{organization}/groups [post]
+// @Router /api/v2/organizations/{organization}/groups [post]
 func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -95,7 +99,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Param group path string true "Group name"
 // @Param request body codersdk.PatchGroupRequest true "Patch group request"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [patch]
+// @Router /api/v2/groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -196,11 +200,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name != "" && req.Name != group.Name {
-		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+		existing, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
 			Name:           req.Name,
 		})
-		if err == nil {
+		// GetGroupByOrgAndName matches names case-insensitively, so exclude the
+		// group being renamed. This allows changing only the casing of a name
+		// while still rejecting a name already taken by a different group.
+		if err == nil && existing.ID != group.ID {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
 			})
@@ -278,9 +285,15 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Unauthorized errors return a 404 to not leak information about the
+	// existence of resources.
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to add or remove non-existent group member",
+			Message: "Failed to update group.",
 			Detail:  err.Error(),
 		})
 		return
@@ -329,7 +342,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param group path string true "Group name"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [delete]
+// @Router /api/v2/groups/{group} [delete]
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -382,7 +395,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param groupName path string true "Group name"
 // @Success 200 {object} codersdk.Group
-// @Router /organizations/{organization}/groups/{groupName} [get]
+// @Router /api/v2/organizations/{organization}/groups/{groupName} [get]
 func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.group(rw, r)
 }
@@ -393,26 +406,32 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group id"
+// @Param exclude_members query bool false "Exclude members from the response"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [get]
+// @Router /api/v2/groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
 		group = httpmw.GroupParam(r)
 	)
 
+	excludeMembers, _ := strconv.ParseBool(r.URL.Query().Get("exclude_members"))
+
 	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 	}
 
-	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-		GroupID:       group.ID,
-		IncludeSystem: false,
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
+	users := []database.GroupMember{}
+	if !excludeMembers {
+		users, err = api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
@@ -431,6 +450,97 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	}, users, int(memberCount)))
 }
 
+// @Summary Get group members by organization and group name
+// @ID get-group-members-by-organization-and-group-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param groupName path string true "Group name"
+// @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.GroupMembersResponse
+// @Router /api/v2/organizations/{organization}/groups/{groupName}/members [get]
+func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
+	api.groupMembers(rw, r)
+}
+
+// @Summary Get group members by group ID
+// @ID get-group-members-by-group-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group id"
+// @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.GroupMembersResponse
+// @Router /api/v2/groups/{group}/members [get]
+func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		group = httpmw.GroupParam(r)
+	)
+
+	filterQuery := r.URL.Query().Get("q")
+	userFilterParams, filterErrs := searchquery.Users(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid member search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	members, err := api.Database.GetGroupMembersByGroupIDPaginated(ctx, database.GetGroupMembersByGroupIDPaginatedParams{
+		AfterID:          paginationParams.AfterID,
+		GroupID:          group.ID,
+		IncludeSystem:    false,
+		Search:           userFilterParams.Search,
+		Name:             userFilterParams.Name,
+		ExactUsername:    userFilterParams.ExactUsername,
+		ExactEmail:       userFilterParams.ExactEmail,
+		Status:           userFilterParams.Status,
+		IsServiceAccount: userFilterParams.IsServiceAccount,
+		RbacRole:         userFilterParams.RbacRole,
+		LastSeenBefore:   userFilterParams.LastSeenBefore,
+		LastSeenAfter:    userFilterParams.LastSeenAfter,
+		CreatedAfter:     userFilterParams.CreatedAfter,
+		CreatedBefore:    userFilterParams.CreatedBefore,
+		GithubComUserID:  userFilterParams.GithubComUserID,
+		LoginType:        userFilterParams.LoginType,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(members) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupMembersResponse{
+			Users: nil,
+			Count: 0,
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupMembersResponse{
+		Users: db2sdk.ReducedUsersFromGroupMemberRows(members),
+		Count: int(members[0].Count),
+	})
+}
+
 // @Summary Get groups by organization
 // @ID get-groups-by-organization
 // @Security CoderSessionToken
@@ -438,7 +548,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.Group
-// @Router /organizations/{organization}/groups [get]
+// @Router /api/v2/organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 
@@ -447,6 +557,116 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	r.URL.RawQuery = values.Encode()
 
 	api.groups(rw, r)
+}
+
+// @Summary Get groups by organization (paginated)
+// @ID get-groups-by-organization-paginated
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID or name"
+// @Param q query string false "Search query (see description for syntax and colon-quoting)"
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Param after_id query string false "After ID" format(uuid)
+// @Success 200 {object} codersdk.PaginatedGroupsResponse
+// @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+// @Description which authorizes each group individually via its ACL, this endpoint requires
+// @Description organization-wide group read permission and does no per-group filtering. It is
+// @Description therefore not a drop-in replacement: callers without org-wide group read receive
+// @Description an error rather than a filtered subset.
+// @Description
+// @Description The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
+// @Description perform a free-text search over group name and display name. `search:` is the only
+// @Description accepted key and unknown keys return 400. Because group display names may contain
+// @Description colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
+// @Description unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
+// @Description
+// @Description This endpoint returns group summaries without the member roster: each group
+// @Description carries only `total_member_count` and no `members` field. Callers that need the
+// @Description roster use the group members endpoint (GET /groups/{group}/members).
+// @Router /api/v2/organizations/{organization}/paginated-groups [get]
+func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+
+	filterQuery := r.URL.Query().Get("q")
+	search, filterErrs := searchquery.Groups(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid group search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	groups, err := api.Database.GetGroupsByOrganizationIDPaginated(ctx, database.GetGroupsByOrganizationIDPaginatedParams{
+		OrganizationID: org.ID,
+		Search:         search,
+		AfterID:        paginationParams.AfterID,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(groups) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedGroupsResponse{
+			Groups: []codersdk.PaginatedGroup{},
+			Count:  0,
+		})
+		return
+	}
+
+	resp := codersdk.PaginatedGroupsResponse{
+		Groups: make([]codersdk.PaginatedGroup, 0, len(groups)),
+		Count:  int(groups[0].Count),
+	}
+
+	// Fetch member counts for every group on the page in a single query to
+	// avoid an N+1 lookup. We intentionally do not hydrate the per-group member
+	// rosters here: they can be large, contain member PII, and a caller
+	// authorized to read a group is not necessarily authorized to read its
+	// membership. Callers that need the roster page it via the group members
+	// endpoint. Only the total member count is returned.
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.Group.ID
+	}
+	// nolint:gocritic // Member counts are returned even without member read
+	// access, matching GetGroupMembersCountByGroupID. The endpoint already
+	// authorized org-wide group read.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
+	for _, group := range groups {
+		resp.Groups = append(resp.Groups, db2sdk.PaginatedGroup(database.GetGroupsRow{
+			Group:                   group.Group,
+			OrganizationName:        group.OrganizationName,
+			OrganizationDisplayName: group.OrganizationDisplayName,
+		}, int(countByGroup[group.Group.ID])))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // @Summary Get groups
@@ -458,7 +678,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param has_member query string true "User ID or name"
 // @Param group_ids query string true "Comma separated list of group IDs"
 // @Success 200 {array} codersdk.Group
-// @Router /groups [get]
+// @Router /api/v2/groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

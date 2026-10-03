@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -54,10 +55,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -68,6 +70,8 @@ func TestMain(m *testing.M) {
 		exit := runSubAgentMain()
 		os.Exit(exit)
 	}
+	// Report multi-second pauses of the whole process, see coder/internal#1365.
+	testutil.StartStallDetector(5 * time.Second)
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
@@ -121,7 +125,87 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// NOTE: These tests only work when your default shell is bash for some reason.
+// eofClient forces the agent's RPC connection to fail with io.EOF so runLoop
+// takes the disconnect path.
+type eofClient struct {
+	*agenttest.Client
+}
+
+func (*eofClient) ConnectRPC212WithRole(context.Context, string) (
+	proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+) {
+	return nil, nil, io.EOF
+}
+
+// flushTestSink is a concurrency-safe slog.Sink that records entry messages.
+type flushTestSink struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (s *flushTestSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, e.Message)
+}
+
+func (*flushTestSink) Sync() {}
+
+func (s *flushTestSink) contains(msg string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.messages, msg)
+}
+
+// TestAgent_FlushFlightRecorderOnDisconnect verifies the agent emits its recorded
+// debug history when it loses the connection to coderd, so the detail leading
+// up to the disconnect is available even though the agent runs at Info.
+func TestAgent_FlushFlightRecorderOnDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	sink := &flushTestSink{}
+	logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1000)
+
+	// The debug entry is held by the flight recorder, not emitted, during normal
+	// operation at Info.
+	const sentinel = "recorded debug sentinel"
+	logger.Debug(ctx, sentinel)
+	require.False(t, sink.contains(sentinel), "debug entry should be recorded, not emitted")
+
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	baseClient := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(baseClient.Close)
+
+	agentUnderTest := agent.New(agent.Options{
+		Client:     &eofClient{Client: baseClient},
+		Filesystem: afero.NewMemMapFs(),
+		Logger:     logger.Named("agent"),
+	})
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// Losing the connection to coderd flushes the recorded debug history to the
+	// sink.
+	require.Eventually(t, func() bool {
+		return sink.contains(sentinel)
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+// NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
+//             Writing "exit 0" to stdin before closing fixed the issue for me.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
@@ -134,7 +218,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			defer cancel()
 
 			//nolint:dogsled
-			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 			sshClient, err := conn.SSHClientOnPort(ctx, port)
 			require.NoError(t, err)
@@ -147,19 +231,109 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
-			var s *proto.Stats
-			require.Eventuallyf(t, func() bool {
-				var ok bool
-				s, ok = <-stats
-				return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
-			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw stats: %+v", s,
-			)
+			// Generate SSH traffic so the connstats window sees the session.
+			_, err = stdin.Write([]byte("echo test\n"))
+			require.NoError(t, err)
+
+			assertSSHStats(t, stats)
+			_, err = stdin.Write([]byte("exit 0\n"))
+			require.NoError(t, err, "writing exit to stdin")
 			_ = stdin.Close()
 			err = session.Wait()
-			require.NoError(t, err)
+			require.NoError(t, err, "waiting for session to exit")
+
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Type: proto.Connection_SSH},
+				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+			)
 		})
 	}
+
+	// Regression test for CODAGT-517: the barrier blocks reportLoop's
+	// initial UpdateStats, so on unfixed code the connstats callback is
+	// never installed and handshake traffic is lost. On fixed code the
+	// callback is installed at creation, so traffic is captured.
+	t.Run("StatsCallbackRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		barrier := make(chan struct{})
+
+		//nolint:dogsled
+		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0,
+			func(c *agenttest.Client, _ *agent.Options) {
+				c.SetUpdateStatsOverride(func(
+					ctx context.Context,
+					req *proto.UpdateStatsRequest,
+					next func(context.Context, *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error),
+				) (*proto.UpdateStatsResponse, error) {
+					if req.Stats == nil {
+						select {
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						case <-barrier:
+						}
+					}
+					return next(ctx, req)
+				})
+			},
+		)
+
+		// Connect SSH while the barrier holds reportLoop blocked.
+		sshClient, err := conn.SSHClientOnPort(ctx, workspacesdk.AgentStandardSSHPort)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
+		err = session.Shell()
+		require.NoError(t, err)
+
+		// Shell must be idle so the only traffic is the SSH handshake.
+
+		close(barrier)
+
+		assertSSHStats(t, stats)
+		_, err = stdin.Write([]byte("exit 0\n"))
+		require.NoError(t, err, "writing exit to stdin")
+		_ = stdin.Close()
+		err = session.Wait()
+		require.NoError(t, err, "waiting for session to exit")
+	})
+}
+
+// assertSSHStats waits for ConnectionCount, RxBytes, TxBytes, and
+// SessionCountSsh to be nonzero on the stats channel.
+func assertSSHStats(t *testing.T, stats <-chan *proto.Stats) {
+	t.Helper()
+	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
+	require.Eventuallyf(t, func() bool {
+		s, ok := <-stats
+		if !ok {
+			return false
+		}
+		t.Logf("got stats: ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountSsh=%d",
+			s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCounts["ssh"])
+		if s.ConnectionCount > 0 {
+			connectionCountSeen = true
+		}
+		if s.RxBytes > 0 {
+			rxBytesSeen = true
+		}
+		if s.TxBytes > 0 {
+			txBytesSeen = true
+		}
+		if s.SessionCounts["ssh"] == 1 {
+			sessionCountSSHSeen = true
+		}
+		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw all SSH stats",
+	)
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
@@ -183,12 +357,31 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.NoError(t, err)
 
 	var s *proto.Stats
+	// We are looking for four different stats to be reported. They might not all
+	// arrive at the same time, so we loop until we've seen them all.
+	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen bool
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountReconnectingPty == 1
+		if !ok {
+			return false
+		}
+		if s.ConnectionCount > 0 {
+			connectionCountSeen = true
+		}
+		if s.RxBytes > 0 {
+			rxBytesSeen = true
+		}
+		if s.TxBytes > 0 {
+			txBytesSeen = true
+		}
+		if s.SessionCounts["reconnecting_pty"] == 1 {
+			sessionCountReconnectingPTYSeen = true
+		}
+		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountReconnectingPTYSeen
 	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
+		"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountReconnectingPTY: %t",
+		s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen,
 	)
 }
 
@@ -205,22 +398,23 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 
-		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
+		command := "sh -c 'echo $" + agentssh.AppNameEnvironmentVariable + "'"
 		expected := ""
 		if runtime.GOOS == "windows" {
-			expected = "%" + agentssh.MagicSessionTypeEnvironmentVariable + "%"
+			expected = "%" + agentssh.AppNameEnvironmentVariable + "%"
 			command = "cmd.exe /c echo " + expected
 		}
 		output, err := session.Output(command)
 		require.NoError(t, err)
 		require.Equal(t, expected, strings.TrimSpace(string(output)))
 	})
+
 	t.Run("TracksVSCode", func(t *testing.T) {
 		t.Parallel()
-		if runtime.GOOS == "window" {
+		if runtime.GOOS == "windows" {
 			t.Skip("Sleeping for infinity doesn't work on Windows")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -232,7 +426,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, string(agentssh.MagicSessionTypeVSCode))
+		session.Setenv(agentssh.AppNameEnvironmentVariable, string(codersdk.AppFamilyVSCode))
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -240,24 +434,29 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
-			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
-				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVscode, s.ConnectionMedianLatencyMs)
+			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCounts[vscode]=%d, ConnectionMedianLatencyMS=%f",
+				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCounts["vscode"], s.ConnectionMedianLatencyMs)
 			return ok &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
-				s.SessionCountVscode == 1 &&
+				s.SessionCounts["vscode"] == 1 &&
 				// Ensure that connection latency is being counted!
 				// If it isn't, it's set to -1.
 				s.ConnectionMedianLatencyMs >= 0
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats",
 		)
-		// The shell will automatically exit if there is no stdin!
+
+		_, err = stdin.Write([]byte("exit 0\n"))
+		require.NoError(t, err, "writing exit to stdin")
 		_ = stdin.Close()
 		err = session.Wait()
 		require.NoError(t, err)
 
-		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_VSCODE},
+			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+		)
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -309,8 +508,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
-				ok, s.ConnectionCount, s.SessionCountJetbrains)
-			return ok && s.SessionCountJetbrains == 1
+				ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
+			return ok && s.SessionCounts["jetbrains"] == 1
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats with conn open",
 		)
@@ -323,14 +522,17 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
 			t.Logf("got stats after disconnect %t, %d",
-				ok, s.SessionCountJetbrains)
+				ok, s.SessionCounts["jetbrains"])
 			return ok &&
-				s.SessionCountJetbrains == 0
+				s.SessionCounts["jetbrains"] == 0
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats after conn closes",
 		)
 
-		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_JETBRAINS},
+			proto.DisconnectEvent{Reason: "normal close"},
+		)
 	})
 }
 
@@ -354,7 +556,6 @@ func TestAgent_SessionExec(t *testing.T) {
 	}
 }
 
-//nolint:tparallel // Sub tests need to run sequentially.
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
@@ -371,72 +572,196 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 			"MY_SESSION_MANIFEST": "false",
 		},
 	}
-	banner := codersdk.ServiceBannerConfig{}
-	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
+		opts.EnvInfo = sessionEnvInfo{}
 	})
-
-	err := session.Setenv("MY_SESSION_MANIFEST", "true")
+	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
-	err = session.Setenv("MY_SESSION", "true")
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = sshClient.Close() })
 
-	command := "sh"
-	echoEnv := func(t *testing.T, w io.Writer, env string) {
-		if runtime.GOOS == "windows" {
-			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
-			require.NoError(t, err)
-		} else {
-			_, err := fmt.Fprintf(w, "echo $%s\n", env)
-			require.NoError(t, err)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-	}
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	defer stdin.Close()
-	stdout, err := session.StdoutPipe()
-	require.NoError(t, err)
-
-	err = session.Start(command)
-	require.NoError(t, err)
-
-	// Context is fine here since we're not doing a parallel subtest.
-	ctx := testutil.Context(t, testutil.WaitLong)
-	go func() {
-		<-ctx.Done()
-		_ = session.Close()
-	}()
-
-	s := bufio.NewScanner(stdout)
-
-	//nolint:paralleltest // These tests need to run sequentially.
-	for k, partialV := range map[string]string{
+	for envName, want := range map[string]string{
 		"CODER":               "true",  // From the agent.
 		"MY_MANIFEST":         "true",  // From the manifest.
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
-		"PATH":                scriptBinDir + string(filepath.ListSeparator),
+		"PATH":                scriptBinDir,
 	} {
-		t.Run(k, func(t *testing.T) {
-			echoEnv(t, stdin, k)
-			// Windows is unreliable, so keep scanning until we find a match.
-			for s.Scan() {
-				got := strings.TrimSpace(s.Text())
-				t.Logf("%s=%s", k, got)
-				if strings.Contains(got, partialV) {
-					break
-				}
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+
+			got := sessionEnvValue(t, sshClient, envName, map[string]string{
+				"MY_SESSION":          "true",
+				"MY_SESSION_MANIFEST": "true",
+			})
+			if envName == "PATH" {
+				require.Contains(t, filepath.SplitList(got), want)
+				return
 			}
-			if err := s.Err(); !errors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
+			require.Equal(t, want, got)
 		})
 	}
+}
+
+func TestAgent_Session_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		EnvironmentVariables: map[string]string{
+			"SHOULD_BE_OVERRIDDEN": "manifest-value",
+		},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_SECRET_ENV", Value: []byte("env-secret-value")},
+		{FilePath: "/tmp/secret-file", Value: []byte("file-secret-content")},
+		{EnvName: "BOTH_ENV", FilePath: "/tmp/both-file", Value: []byte("both-value")},
+		{EnvName: "SHOULD_BE_OVERRIDDEN", Value: []byte("secret-wins")},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgentWithSecrets(t, manifest, secrets, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.EnvInfo = sessionEnvInfo{}
+	})
+
+	// Verify file injection via the agent's filesystem.
+	content, err := afero.ReadFile(fs, "/tmp/secret-file")
+	require.NoError(t, err)
+	require.Equal(t, "file-secret-content", string(content))
+
+	content, err = afero.ReadFile(fs, "/tmp/both-file")
+	require.NoError(t, err)
+	require.Equal(t, "both-value", string(content))
+
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sshClient.Close() })
+
+	for envName, want := range map[string]string{
+		"MY_SECRET_ENV":        "env-secret-value",
+		"BOTH_ENV":             "both-value",
+		"SHOULD_BE_OVERRIDDEN": "secret-wins",
+	} {
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, want, sessionEnvValue(t, sshClient, envName, nil))
+		})
+	}
+}
+
+// Environment assertions need a shell that does not run host startup files.
+// The default shell can run those files before it executes the SSH command,
+// even when that command invokes another shell.
+type sessionEnvInfo struct {
+	usershell.SystemEnvInfo
+}
+
+func (sessionEnvInfo) Shell(string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return exec.LookPath("cmd.exe")
+	}
+	return "/bin/sh", nil
+}
+
+func (sessionEnvInfo) ModifyCommand(name string, args ...string) (string, []string) {
+	if runtime.GOOS == "windows" {
+		// Disable cmd.exe AutoRun commands from the host registry.
+		args = append([]string{"/d"}, args...)
+	}
+	return name, args
+}
+
+func sessionEnvValue(t *testing.T, sshClient *ssh.Client, envName string, sessionEnv map[string]string) string {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
+
+	for name, value := range sessionEnv {
+		require.NoError(t, session.Setenv(name, value))
+	}
+
+	stderr := &bytes.Buffer{}
+	session.Stderr = stderr
+	command := "printf '%s\\n' \"$" + envName + "\""
+	if runtime.GOOS == "windows" {
+		command = `echo %` + envName + `%`
+	}
+	out, err := session.Output(command)
+	if err != nil && ctx.Err() != nil {
+		t.Fatalf("SSH session deadline expired: %v; output: %q, stderr: %q", ctx.Err(), out, stderr.String())
+	}
+	require.NoError(t, err, "output: %q, stderr: %q", out, stderr.String())
+	return strings.TrimSpace(string(out))
+}
+
+func TestAgent_StartupScript_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("startup script test uses sh syntax")
+	}
+
+	tmpDir := t.TempDir()
+	secretFilePath := filepath.Join(tmpDir, "secret-file")
+	envProofPath := filepath.Join(tmpDir, "env-proof")
+	fileProofPath := filepath.Join(tmpDir, "file-proof")
+
+	// The startup script reads the secret env var and the secret file,
+	// writing both to proof files so we can verify they were available
+	// at script execution time.
+	script := fmt.Sprintf(
+		"echo \"$MY_STARTUP_SECRET\" > %s && cat %s > %s",
+		envProofPath, secretFilePath, fileProofPath,
+	)
+
+	manifest := agentsdk.Manifest{
+		Scripts: []codersdk.WorkspaceAgentScript{{
+			Script:     script,
+			Timeout:    30 * time.Second,
+			RunOnStart: true,
+		}},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_STARTUP_SECRET", Value: []byte("startup-env-value")},
+		{FilePath: secretFilePath, Value: []byte("startup-file-content")},
+	}
+
+	// Use the real OS filesystem so that both writeSecretFiles and
+	// the startup script operate on the same filesystem.
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgentWithSecrets(t, manifest, secrets, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = afero.NewOsFs()
+	})
+
+	// Wait for the startup script to complete.
+	var got []codersdk.WorkspaceAgentLifecycle
+	assert.Eventually(t, func() bool {
+		got = client.GetLifecycleStates()
+		return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Contains(t, got, codersdk.WorkspaceAgentLifecycleReady, "agent never reached ready")
+
+	// Verify the startup script could read the secret env var.
+	envProof, err := os.ReadFile(envProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-env-value", strings.TrimSpace(string(envProof)))
+
+	// Verify the startup script could read the secret file.
+	fileProof, err := os.ReadFile(fileProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-file-content", string(fileProof))
 }
 
 func TestAgent_GitSSH(t *testing.T) {
@@ -464,6 +789,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := testutil.Logger(t)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -472,16 +798,14 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 			}
 			err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 			require.NoError(t, err)
-			ptty := ptytest.New(t)
-			session.Stdout = ptty.Output()
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
+			stdout := expecter.NewAttachedToSSHSession(t, session)
+			stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
 			err = session.Start(command)
 			require.NoError(t, err)
-			_ = ptty.Peek(ctx, 1) // wait for the prompt
-			ptty.WriteLine("echo test")
-			ptty.ExpectMatch("test")
-			ptty.WriteLine("exit")
+			_ = stdout.Peek(ctx, 1) // wait for the prompt
+			stdin.WriteLine("echo test")
+			stdout.ExpectMatch(ctx, "test")
+			stdin.WriteLine("exit")
 			err = session.Wait()
 			require.NoError(t, err)
 		})
@@ -494,10 +818,6 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
-	ptty := ptytest.New(t)
-	session.Stdout = ptty.Output()
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
 	err = session.Start(command)
 	require.NoError(t, err)
 	err = session.Wait()
@@ -669,14 +989,14 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	setSBInterval := func(_ *agenttest.Client, opts *agent.Options) {
-		opts.ServiceBannerRefreshInterval = 5 * time.Millisecond
+		opts.ServiceBannerRefreshInterval = testutil.IntervalFast
 	}
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	//nolint:paralleltest // These tests need to swap the banner func.
 	for _, port := range sshPorts {
@@ -689,7 +1009,10 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		for i, test := range tests {
 			t.Run(fmt.Sprintf("(:%d)/%d", port, i), func(t *testing.T) {
 				// Set new banner func and wait for the agent to call it to update the
-				// banner.
+				// banner. We wait for two calls to ensure the value has been stored:
+				// the second call can only begin after the first iteration of
+				// fetchServiceBannerLoop completes (call + store), so after
+				// receiving two signals at least one store has happened.
 				ready := make(chan struct{}, 2)
 				client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 					select {
@@ -698,8 +1021,8 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 					}
 					return []codersdk.BannerConfig{test.banner}, nil
 				})
-				<-ready
-				<-ready // Wait for two updates to ensure the value has propagated.
+				testutil.TryReceive(ctx, t, ready)
+				testutil.TryReceive(ctx, t, ready)
 
 				session, err := sshClient.NewSession()
 				require.NoError(t, err)
@@ -723,22 +1046,23 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
-	wantMaybeServiceBanner := "Service banner text goes here"
+	wantServiceBanner := "Service banner text goes here"
 
 	u, err := user.Current()
 	require.NoError(t, err, "get current user")
 
-	name := filepath.Join(u.HomeDir, "motd")
+	motdPath := filepath.Join(u.HomeDir, "motd")
+	hushloginPath := filepath.Join(u.HomeDir, ".hushlogin")
 
 	// Neither banner nor MOTD should show if not a login shell.
 	t.Run("NotLogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
+			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -751,41 +1075,55 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 
 		require.Contains(t, string(output), wantEcho, "should show echo")
 		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
-		require.NotContains(t, string(output), wantMaybeServiceBanner, "should not show service banner")
+		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
 	})
 
 	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
+		// The agent writes banners and the MOTD before starting the
+		// login shell. The working theory is that, under CI contention,
+		// the host login shell can stall during startup and fail to
+		// process the PTY exit command, leaving session.Wait blocked.
+		// Use a self-terminating test shell so unrelated host-shell
+		// behavior cannot block the quiet-login assertions.
+		shellPath := filepath.Join(t.TempDir(), "shell")
+		//nolint:gosec // Executable test shell with test-controlled content.
+		err := os.WriteFile(shellPath, []byte("#!/bin/sh\nexit 0\n"), 0o700)
+		require.NoError(t, err, "write test shell")
+
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
-		}, codersdk.ServiceBannerConfig{
+			MOTDFile: motdPath,
+		}, codersdk.BannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 
-			// Create hushlogin to silence motd.
-			err = afero.WriteFile(fs, name, []byte{}, 0o600)
+			// Place an empty .hushlogin in the user's home so the agent's
+			// isQuietLogin lookup succeeds and showMOTD is skipped.
+			err = afero.WriteFile(fs, hushloginPath, []byte{}, 0o600)
 			require.NoError(t, err, "write hushlogin file")
+		}, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
-		ptty := ptytest.New(t)
-		var stdout bytes.Buffer
-		session.Stdout = &stdout
-		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Shell()
-		require.NoError(t, err)
+		stdout := testutil.NewWaitBuffer()
 
-		ptty.WriteLine("exit 0")
+		session.Stdout = stdout
+		require.NoError(t, session.Shell())
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stopClose := context.AfterFunc(ctx, func() { _ = session.Close() })
+
 		err = session.Wait()
+		stopClose()
 		require.NoError(t, err)
 
+		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
 	})
 }
 
@@ -802,8 +1140,6 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
-
-	ptty := ptytest.New(t)
 
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
@@ -824,8 +1160,6 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
 			err = session.Start("echo wazzup")
 			require.NoError(t, err)
 
@@ -853,8 +1187,6 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	require.NoError(t, err)
 	defer sshClient.Close()
 
-	ptty := ptytest.New(t)
-
 	var stdout bytes.Buffer
 	// NOTE(mafredri): Increase iterations to increase chance of failure,
 	//                 assuming bug is present.
@@ -873,8 +1205,6 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 			require.NoError(t, err)
 
 			session.Stdout = &stdout
-			session.Stderr = ptty.Output()
-			session.Stdin = ptty.Input()
 			want := strings.Repeat("wazzup", 1024+1) // ~6KB, +1 because 1024 is a common buffer size.
 			err = session.Start("echo " + want)
 			require.NoError(t, err)
@@ -934,6 +1264,161 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	go echoOnce(t, ll)
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
+	require.NoError(t, err)
+	defer conn.Close()
+	requireEcho(t, conn)
+}
+
+func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rl, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer rl.Close()
+	tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	remotePort := tcpAddr.Port
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+	require.ErrorContains(t, err, "administratively prohibited")
+}
+
+func TestAgent_TCPRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	localhost := netip.MustParseAddr("127.0.0.1")
+	randomPort := testutil.RandomPortNoListen(t)
+	addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+	_, err = sshClient.ListenTCP(addr)
+	require.ErrorContains(t, err, "tcpip-forward request denied by peer")
+}
+
+func TestAgent_UnixLocalForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	l, err := net.Listen("unix", remoteSocketPath)
+	require.NoError(t, err)
+	defer l.Close()
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.Dial("unix", remoteSocketPath)
+	require.ErrorContains(t, err, "administratively prohibited")
+}
+
+func TestAgent_UnixRemoteForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	tmpdir := testutil.TempDirUnixSocket(t)
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	_, err = sshClient.ListenUnix(remoteSocketPath)
+	require.ErrorContains(t, err, "streamlocal-forward@openssh.com request denied by peer")
+}
+
+// TestAgent_LocalBlockedDoesNotAffectReverse verifies that blocking
+// local port forwarding does not prevent reverse port forwarding from
+// working. A field-name transposition at any plumbing hop would cause
+// both directions to be blocked when only one flag is set.
+func TestAgent_LocalBlockedDoesNotAffectReverse(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockLocalPortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	// Reverse forwarding must still work.
+	localhost := netip.MustParseAddr("127.0.0.1")
+	var ll net.Listener
+	for {
+		randomPort := testutil.RandomPortNoListen(t)
+		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+		ll, err = sshClient.ListenTCP(addr)
+		if err != nil {
+			t.Logf("error remote forwarding: %s", err.Error())
+			select {
+			case <-ctx.Done():
+				t.Fatal("timed out getting random listener")
+			default:
+				continue
+			}
+		}
+		break
+	}
+	_ = ll.Close()
+}
+
+// TestAgent_ReverseBlockedDoesNotAffectLocal verifies that blocking
+// reverse port forwarding does not prevent local port forwarding from
+// working.
+func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rl, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer rl.Close()
+	tcpAddr, valid := rl.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	remotePort := tcpAddr.Port
+	go echoOnce(t, rl)
+
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockReversePortForwarding = true
+	})
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	// Local forwarding must still work.
+	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
 	requireEcho(t, conn)
@@ -1030,7 +1515,10 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.DisconnectEvent{},
+		)
 	})
 
 	t.Run("CustomWorkingDirectory", func(t *testing.T) {
@@ -1045,10 +1533,12 @@ func TestAgent_SFTP(t *testing.T) {
 			expectedDir = "/" + strings.ReplaceAll(customDir, "\\", "/")
 		}
 
-		//nolint:dogsled
-		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		conn, agentClient, _, fs, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: customDir,
 		}, 0)
+		// The agent stats the working directory against its filesystem, so
+		// the directory must exist there for it to be honored.
+		require.NoError(t, fs.MkdirAll(customDir, 0o700))
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -1061,7 +1551,38 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.DisconnectEvent{},
+		)
+	})
+
+	t.Run("MissingWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err, "get home dir")
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
+
+		// A configured directory that does not exist on the agent's
+		// filesystem must fall back to the home directory.
+		missingDir := filepath.Join(t.TempDir(), "does-not-exist")
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Directory: missingDir,
+		}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should fall back to user home")
 	})
 }
 
@@ -1088,7 +1609,10 @@ func TestAgent_SCP(t *testing.T) {
 
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	assertConnectionReport(t, agentClient,
+		proto.ConnectEvent{Type: proto.Connection_SSH},
+		proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+	)
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -1123,7 +1647,13 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.DisconnectEvent{
+				Code:   agentssh.BlockedFileTransferErrorCode,
+				Reason: "file transfer blocked",
+			},
+		)
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1147,7 +1677,13 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient,
+			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.DisconnectEvent{
+				Code:   agentssh.BlockedFileTransferErrorCode,
+				Reason: "file transfer blocked",
+			},
+		)
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1184,7 +1720,13 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
 
-				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+				assertConnectionReport(t, agentClient,
+					proto.ConnectEvent{Type: proto.Connection_SSH},
+					proto.DisconnectEvent{
+						Code:   agentssh.BlockedFileTransferErrorCode,
+						Reason: "file transfer blocked",
+					},
+				)
 			})
 		}
 	})
@@ -1312,6 +1854,43 @@ func TestAgent_SSHConnectionLoginVars(t *testing.T) {
 		})
 	}
 }
+
+// TestAgent_SSHEnvInfoShell verifies that an agent.Options.EnvInfo whose
+// Shell() reports a custom shell is piped through to the SSH session, so the
+// session command runs under that shell instead of the host default.
+func TestAgent_SSHEnvInfoShell(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake shell is a POSIX script")
+	}
+
+	// A fake shell that ignores its arguments and prints a sentinel. The
+	// sentinel only appears in the session output if the injected Shell() was
+	// honored. Otherwise the command's own output ("should-not-run") appears.
+	const marker = "injected-shell-was-used"
+	shellPath := filepath.Join(t.TempDir(), "fakeshell")
+	//nolint:gosec // Executable test shell with test-controlled content.
+	err := os.WriteFile(shellPath, []byte("#!/bin/sh\necho "+marker+"\n"), 0o700)
+	require.NoError(t, err)
+
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, o *agent.Options) {
+		o.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
+	})
+
+	output, err := session.Output("echo should-not-run")
+	require.NoError(t, err)
+	require.Contains(t, string(output), marker)
+	require.NotContains(t, string(output), "should-not-run")
+}
+
+// shellOverrideEnvInfo is a usershell.EnvInfoer that delegates to the system
+// implementation but reports a custom shell.
+type shellOverrideEnvInfo struct {
+	usershell.SystemEnvInfo
+	shell string
+}
+
+func (e shellOverrideEnvInfo) Shell(string) (string, error) { return e.shell, nil }
 
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
@@ -1813,8 +2392,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	_, err := exec.LookPath("screen")
 	hasScreen := err == nil
 
-	// Make sure UTF-8 works even with LANG set to something like C.
+	tmuxPath, err := exec.LookPath("tmux")
+	hasTmux := err == nil
+
+	// Make sure UTF-8 works even with locale variables set to C.
 	t.Setenv("LANG", "C")
+	t.Setenv("LC_CTYPE", "C")
+	t.Setenv("LC_ALL", "")
 
 	for _, backendType := range backends {
 		t.Run(backendType, func(t *testing.T) {
@@ -1848,7 +2432,10 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
-			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
+			assertConnectionReport(t, agentClient,
+				proto.ConnectEvent{Type: proto.Connection_RECONNECTING_PTY},
+				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+			)
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
@@ -1878,12 +2465,25 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
-			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
-			// will sometimes put the command output on the same line as the command and the test will flake
+			// Wait for the prompt before writing commands. If the command
+			// arrives before the prompt is written, screen will sometimes put
+			// the command output on the same line as the command and the test
+			// will flake.
 			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
 			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
 
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "printf '%s\\n' \"$TERM\"\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+			require.NoError(t, tr1.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr2.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "echo test\r",
 			})
 			require.NoError(t, err)
@@ -1944,6 +2544,46 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			bytes, err := io.ReadAll(netConn5)
 			require.NoError(t, err)
 			require.Contains(t, string(bytes), "❯")
+
+			if !hasTmux {
+				t.Log("`tmux` not found, skipping tmux glyph regression")
+			} else {
+				glyphs := "⚠╭╮╰╯•›│─█▓░▄❯✔╌"
+				tmuxSocket := "coder-test-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				t.Cleanup(func() {
+					_ = exec.Command(tmuxPath, "-L", tmuxSocket, "kill-server").Run()
+				})
+				// Keep the pane alive with a shell builtin until the read loop sees
+				// the glyphs, otherwise tmux can restore the alternate screen first.
+				command := fmt.Sprintf(
+					"%s -L %s new-session %q",
+					strconv.Quote(tmuxPath),
+					tmuxSocket,
+					fmt.Sprintf("printf '%%s\\n' '%s'; read _", glyphs),
+				)
+				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
+				require.NoError(t, err)
+				defer netConn6.Close()
+
+				var output strings.Builder
+				buffer := make([]byte, 1024)
+				deadline := time.Now().Add(testutil.WaitMedium)
+				for !strings.Contains(output.String(), glyphs) {
+					if time.Now().After(deadline) {
+						require.Contains(t, output.String(), glyphs)
+					}
+					require.NoError(t, netConn6.SetReadDeadline(time.Now().Add(testutil.IntervalMedium)))
+					read, err := netConn6.Read(buffer)
+					if read > 0 {
+						_, _ = output.Write(buffer[:read])
+					}
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						continue
+					}
+					require.NoError(t, err)
+				}
+			}
 		})
 	}
 }
@@ -2478,15 +3118,20 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 		o.Devcontainers = true
 	})
 
-	// Query the containers API endpoint. This should fail because
-	// devcontainers have been disabled for the sub agent.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	_, err := conn.ListContainers(ctx)
+	var err error
+	// setupAgent only waits for tailnet reachability, not for the HTTP API
+	// listener to serve the expected sub-agent rejection response.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, err = conn.ListContainers(ctx)
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+		}
+		return err != nil && strings.Contains(err.Error(), "Dev Container feature not supported.")
+	}, testutil.IntervalFast, "containers endpoint should reject devcontainers inside sub agents")
 	require.Error(t, err)
-
-	// Verify the error message contains the expected text.
 	require.Contains(t, err.Error(), "Dev Container feature not supported.")
 	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
@@ -2960,7 +3605,7 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
@@ -2973,7 +3618,8 @@ func TestAgent_Reconnect(t *testing.T) {
 		logger,
 		agentID,
 		agentsdk.Manifest{
-			DERPMap: derpMap,
+			DERPMap:   derpMap,
+			Directory: "/test/workspace",
 		},
 		statsCh,
 		fCoordinator,
@@ -2986,13 +3632,75 @@ func TestAgent_Reconnect(t *testing.T) {
 	})
 	defer closer.Close()
 
-	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
-	close(call1.Resps) // hang up
-	// expect reconnect
+	// Each iteration forces the agent to reconnect by closing
+	// the current coordinate call while the tracked HTTP server
+	// goroutine (from connection 1's createTailnet) is still
+	// alive, widening the race window.
+	const reconnections = 5
+	for i := range reconnections {
+		call := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+		require.Equal(t, i+1, client.GetNumRefreshTokenCalls())
+		close(call.Resps) // hang up — triggers reconnect
+	}
+	// Verify final reconnect succeeds.
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
-	// Check that the agent refreshes the token when it reconnects.
-	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
+	require.Equal(t, reconnections+1, client.GetNumRefreshTokenCalls())
+	closer.Close()
+}
+
+func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	fCoordinator := tailnettest.NewFakeCoordinator()
+	agentID := uuid.New()
+	statsCh := make(chan *proto.Stats, 50)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	client := agenttest.NewClient(t,
+		logger,
+		agentID,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "echo hello",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
+		},
+		statsCh,
+		fCoordinator,
+	)
+	defer client.Close()
+
+	closer := agent.New(agent.Options{
+		Client: client,
+		Logger: logger.Named("agent"),
+	})
+	defer closer.Close()
+
+	// Wait for the agent to reach Ready state.
+	require.Eventually(t, func() bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	statesBefore := slices.Clone(client.GetLifecycleStates())
+
+	// Disconnect by closing the coordinator response channel.
+	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	close(call1.Resps)
+
+	// Wait for reconnect.
+	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+
+	// Wait for a stats report as a deterministic steady-state proof.
+	testutil.RequireReceive(ctx, t, statsCh)
+
+	statesAfter := client.GetLifecycleStates()
+	require.Equal(t, statesBefore, statesAfter,
+		"lifecycle states should not be re-reported after reconnect")
+
 	closer.Close()
 }
 
@@ -3038,10 +3746,25 @@ func TestAgent_DebugServer(t *testing.T) {
 	randLogStr, err := cryptorand.String(32)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
+	newRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T20-00-00.000.log")
+	oldRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T19-00-00.000.log")
+	require.NoError(t, os.WriteFile(newRotatedLogPath, []byte("new rotated log"), 0o600))
+	require.NoError(t, os.WriteFile(oldRotatedLogPath, []byte("old rotated log"), 0o600))
+	now := time.Now()
+	newRotatedModTime := now.Add(-time.Minute)
+	oldRotatedModTime := now.Add(-48 * time.Hour)
+	require.NoError(t, os.Chtimes(newRotatedLogPath, newRotatedModTime, newRotatedModTime))
+	require.NoError(t, os.Chtimes(oldRotatedLogPath, oldRotatedModTime, oldRotatedModTime))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
-	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
+	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
+		EnvironmentVariables: map[string]string{
+			"AWS_SECRET_ACCESS_KEY": "env-value-should-be-redacted-67890",
+			"EMPTY_VAR":             "",
+		},
+	}, []agentsdk.WorkspaceSecret{
+		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
 		o.LogDir = logDir
 	})
@@ -3143,6 +3866,59 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NotNil(t, v)
 	})
 
+	t.Run("ManifestSecretsStripped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// The response must not contain the secret value.
+		require.NotContains(t, string(body), "super-secret-value-12345")
+
+		// Confirm we can decode as a Manifest. The SDK type
+		// intentionally has no Secrets field, so there is nothing
+		// to leak through JSON encoding.
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
+	})
+
+	t.Run("ManifestEnvVarValuesRedacted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		require.NotContains(t, string(body), "env-value-should-be-redacted-67890")
+
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
+
+		require.Contains(t, v.EnvironmentVariables, "AWS_SECRET_ACCESS_KEY")
+		require.Equal(t, "***REDACTED***", v.EnvironmentVariables["AWS_SECRET_ACCESS_KEY"])
+
+		// Empty values carry no secret and are preserved as empty.
+		require.Contains(t, v.EnvironmentVariables, "EMPTY_VAR")
+		require.Equal(t, "", v.EnvironmentVariables["EMPTY_VAR"])
+	})
+
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 
@@ -3158,6 +3934,85 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, string(resBody))
 		require.Contains(t, string(resBody), randLogStr)
+		require.NotContains(t, string(resBody), "new rotated log")
+	})
+
+	t.Run("LogsIncludeActiveOnlyWithAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + newRotatedModTime.Add(time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "coder-agent.log")
+		require.NotContains(t, body, "new rotated log")
+		require.NotContains(t, body, "old rotated log")
+	})
+
+	t.Run("LogsIncludeRotatedWithAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + newRotatedModTime.Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "coder-agent.log")
+		require.Contains(t, body, "coder-agent-2026-05-17T20-00-00.000.log")
+		require.Contains(t, body, "new rotated log")
+		require.NotContains(t, body, "old rotated log")
+	})
+
+	t.Run("LogsIncludeRotatedWithOlderAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + oldRotatedModTime.Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "new rotated log")
+		require.Contains(t, body, "old rotated log")
+		require.Less(t, strings.Index(body, randLogStr), strings.Index(body, "new rotated log"))
+		require.Less(t, strings.Index(body, "new rotated log"), strings.Index(body, "old rotated log"))
+	})
+
+	t.Run("LogsInvalidAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs?after=nope", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
 
@@ -3295,6 +4150,20 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
+	return setupAgentWithSecrets(t, metadata, nil, ptyTimeout, opts...)
+}
+
+// setupAgentWithSecrets is like setupAgent but also injects user
+// secrets into the agent's proto manifest. Separate from setupAgent
+// because agentsdk.Manifest intentionally does not carry secrets; see
+// the Manifest doc comment in codersdk/agentsdk.
+func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []agentsdk.WorkspaceSecret, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
+	*agenttest.Client,
+	<-chan *proto.Stats,
+	afero.Fs,
+	agent.Agent,
+) {
 	logger := slogtest.Make(t, &slogtest.Options{
 		// Agent can drop errors when shutting down, and some, like the
 		// fasthttplistener connection closed error, are unexported.
@@ -3324,7 +4193,7 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClientWithSecrets(t, logger.Named("agenttest"), metadata.AgentID, metadata, secrets, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{
@@ -3333,6 +4202,7 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 		EnvironmentVariables:   map[string]string{},
+		StatsReportInterval:    agenttest.StatsInterval,
 	}
 
 	for _, opt := range opts {
@@ -3437,21 +4307,29 @@ func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
 	t.Helper()
+	logger := testutil.Logger(t)
 
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
 
-	ptty := ptytest.New(t)
 	var stdout bytes.Buffer
 	session.Stdout = &stdout
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
+	stdin := testutil.NewWriterAttachedToSSHSession(t, logger.Named("sshin"), session)
 	err = session.Shell()
 	require.NoError(t, err)
 
-	ptty.WriteLine("exit 0")
-	err = session.Wait()
-	require.NoError(t, err)
+	stdin.WriteLine("exit 0")
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+	select {
+	case err = <-waitErr:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitLong):
+		require.Fail(t, "timed out waiting for session to exit")
+	}
 
 	for _, unexpected := range unexpected {
 		require.NotContains(t, stdout.String(), unexpected, "should not show output")
@@ -3618,9 +4496,10 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		for _, m := range mf.GetMetric() {
 			assert.Equal(t, expected[i].Name, mf.GetName())
 			assert.Equal(t, expected[i].Type.String(), mf.GetType().String())
-			if expected[i].Type == proto.Stats_Metric_GAUGE {
+			switch expected[i].Type {
+			case proto.Stats_Metric_GAUGE:
 				assert.NoError(t, expected[i].CheckFn(m.GetGauge().GetValue()), "check fn for %s failed", expected[i].Name)
-			} else if expected[i].Type == proto.Stats_Metric_COUNTER {
+			case proto.Stats_Metric_COUNTER:
 				assert.NoError(t, expected[i].CheckFn(m.GetCounter().GetValue()), "check fn for %s failed", expected[i].Name)
 			}
 			for j, lbl := range expected[i].Labels {
@@ -3633,9 +4512,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		}
 	}
 
+	_, err = stdin.Write([]byte("exit 0\n"))
+	require.NoError(t, err, "writing exit to stdin")
 	_ = stdin.Close()
 	err = session.Wait()
-	require.NoError(t, err)
+	require.NoError(t, err, "waiting for session to exit")
 }
 
 // echoOnce accepts a single connection, reads 4 bytes and echos them back
@@ -3668,7 +4549,11 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	require.Equal(t, "test", string(b))
 }
 
-func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connectionType proto.Connection_Type, status int, reason string) {
+// assertConnectionReport expects the provided connect and disconnect events
+// have been reported.
+func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
+	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
+) {
 	t.Helper()
 
 	var reports []*proto.ReportConnectionRequest
@@ -3683,19 +4568,228 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connect
 
 	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
 	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
-	assert.Equal(t, connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", connectionType)
-	assert.Equal(t, connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", connectionType)
+	assert.Equal(t, connect.Type, reports[0].GetConnection().GetType(), "connect type should be %s", connect.Type)
+	assert.Equal(t, connect.Type, reports[1].GetConnection().GetType(), "disconnect type should be %s", connect.Type)
 	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
 	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
 	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	assert.Equal(t, status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", status)
+	assert.Equal(t, disconnect.Code, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", disconnect.Code)
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
-	if reason != "" {
-		assert.Contains(t, reports[1].GetConnection().GetReason(), reason, "disconnect reason should contain %s", reason)
+	if disconnect.Reason != "" {
+		assert.Contains(t, reports[1].GetConnection().GetReason(), disconnect.Reason, "disconnect reason should contain %s", disconnect.Reason)
 	} else {
-		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
+		assert.Equal(t, "", reports[1].GetConnection().GetReason(), "disconnect reason should be empty")
+	}
+	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
+	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
+}
+
+func TestAgent_ToolCall(t *testing.T) {
+	t.Parallel()
+	//nolint:dogsled
+	conn, _, _, agentFS, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	// Every call uses the tool call context, as chatd does, so a method
+	// that wrongly sent the tool call ID would get a saved response.
+	tests := []struct {
+		name  string
+		fs    afero.Fs
+		act   func(ctx context.Context, path string) (any, error)
+		saved func(workspacesdk.CancelToolCallResponse) (any, error)
+	}{
+		{
+			name: "StartProcess",
+			fs:   afero.NewOsFs(),
+			act: func(ctx context.Context, path string) (any, error) {
+				resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
+					Command: "printf run > " + filepath.Base(path),
+					WorkDir: filepath.Dir(path),
+				})
+				if err != nil {
+					return nil, err
+				}
+				out, err := conn.ProcessOutput(ctx, resp.ID, &workspacesdk.ProcessOutputOptions{Wait: true})
+				if err != nil {
+					return nil, err
+				}
+				if out.ExitCode == nil {
+					return nil, xerrors.Errorf("process output reports no exit: %+v", out)
+				}
+				return resp, nil
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.StartProcessResult() },
+		},
+		{
+			name: "WriteFile",
+			fs:   agentFS,
+			act: func(ctx context.Context, path string) (any, error) {
+				return nil, conn.WriteFile(ctx, path, strings.NewReader("run"))
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return nil, r.WriteFileResult() },
+		},
+		{
+			name: "EditFiles",
+			fs:   agentFS,
+			act: func(ctx context.Context, path string) (any, error) {
+				return conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+					Files:       []workspacesdk.FileEdits{{Path: path, Edits: []workspacesdk.FileEdit{{OldText: "reset", NewText: "run"}}}},
+					IncludeDiff: true,
+				})
+			},
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.EditFilesResult() },
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			path := filepath.Join(t.TempDir(), "tool-call.txt")
+			reset := func() { require.NoError(t, afero.WriteFile(tc.fs, path, []byte("reset"), 0o600)) }
+			requireContent := func(want string) {
+				t.Helper()
+				content, err := afero.ReadFile(tc.fs, path)
+				require.NoError(t, err)
+				require.Equal(t, want, string(content))
+			}
+			id := uuid.New()
+			toolCtx := workspacesdk.WithToolCallID(ctx, id)
+
+			reset()
+			first, err := tc.act(toolCtx, path)
+			require.NoError(t, err)
+			requireContent("run")
+			reset()
+			repeat, err := tc.act(toolCtx, path)
+			require.NoError(t, err)
+			require.Equal(t, first, repeat)
+			requireContent("reset")
+
+			canceled, err := conn.CancelToolCall(toolCtx, id)
+			require.NoError(t, err)
+			require.True(t, canceled.Received)
+			saved, err := tc.saved(canceled)
+			require.NoError(t, err)
+			require.Equal(t, first, saved)
+
+			_, err = tc.act(toolCtx, path)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		})
+	}
+}
+
+// TestAgent_ToolCallOtherChat checks that two chats using the same tool
+// call ID get separate processes and cancels.
+func TestAgent_ToolCallOtherChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agentID := uuid.New()
+	//nolint:dogsled
+	connA, _, _, _, _ := setupAgent(t, agentsdk.Manifest{AgentID: agentID}, 0)
+	connA.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+	// connB shares connA's tailnet connection, which setupAgent closes.
+	connB := workspacesdk.NewAgentConn(connA.TailnetConn(), workspacesdk.AgentConnOptions{AgentID: agentID})
+	connB.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	id := uuid.New()
+	toolCtx := workspacesdk.WithToolCallID(ctx, id)
+	_, err := connA.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300"})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := connA.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+		assert.NoError(t, err)
+	})
+
+	_, err = connB.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "printf b"})
+	require.NoError(t, err)
+	outB, err := connB.ProcessOutput(toolCtx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
+	require.NoError(t, err)
+	require.Equal(t, "printf b", outB.Command)
+	require.Equal(t, "b", outB.Output)
+
+	_, err = connB.CancelToolCall(toolCtx, id)
+	require.NoError(t, err)
+	// CancelToolCall marks the process canceled before returning, so a
+	// wrong cancel shows here without waiting.
+	outA, err := connA.ProcessOutput(toolCtx, id.String(), nil)
+	require.NoError(t, err)
+	require.Equal(t, "sleep 300", outA.Command)
+	require.False(t, outA.Canceled)
+}
+
+func TestAgent_ProcessOutputTimeoutFromStartProcess(t *testing.T) {
+	t.Parallel()
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	// A 1 ms timeout has passed before any wait uses it and one hour cannot
+	// pass during the test, so no case depends on timing.
+	tests := []struct {
+		name      string
+		timeoutMs int64
+		opts      workspacesdk.ProcessOutputOptions
+		cancel    bool
+		want      workspacesdk.ProcessOutputResponse
+	}{
+		{
+			name:      "TimeoutFromStartProcess",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromStartProcess: true},
+			want:      workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
+		},
+		{
+			name:      "PlainWait",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true},
+			cancel:    true,
+			want:      workspacesdk.ProcessOutputResponse{Canceled: true},
+		},
+		{
+			name:      "BeforeTimeout",
+			timeoutMs: time.Hour.Milliseconds(),
+			want:      workspacesdk.ProcessOutputResponse{Running: true},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			id := uuid.New()
+			toolCtx := workspacesdk.WithToolCallID(ctx, id)
+			_, err := conn.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300", TimeoutMs: tc.timeoutMs})
+			require.NoError(t, err)
+			// Cancel the tool call so the agent does not wait for its process
+			// on close.
+			t.Cleanup(func() {
+				_, err := conn.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+				assert.NoError(t, err)
+			})
+
+			type result struct {
+				resp workspacesdk.ProcessOutputResponse
+				err  error
+			}
+			waited := make(chan result, 1)
+			go func() {
+				resp, err := conn.ProcessOutput(toolCtx, id.String(), &tc.opts)
+				waited <- result{resp, err}
+			}()
+			if tc.cancel {
+				_, err := conn.CancelToolCall(toolCtx, id)
+				require.NoError(t, err)
+			}
+
+			got := testutil.RequireReceive(ctx, t, waited)
+			require.NoError(t, got.err)
+			require.Equal(t, tc.want.Running, got.resp.Running)
+			require.Equal(t, tc.want.TimedOut, got.resp.TimedOut)
+			require.Equal(t, tc.want.Canceled, got.resp.Canceled)
+		})
 	}
 }

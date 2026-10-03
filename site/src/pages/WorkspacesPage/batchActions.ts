@@ -1,15 +1,15 @@
-import { API } from "api/api";
-import type { Workspace, WorkspaceBuild } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
 
-interface UseBatchActionsOptions {
+type UseBatchActionsOptions = {
 	onSuccess: () => Promise<void>;
-}
+};
 
 type UpdateAllPayload = Readonly<{
 	workspaces: readonly Workspace[];
-	isDynamicParametersEnabled: boolean;
 }>;
 
 type UseBatchActionsResult = Readonly<{
@@ -32,24 +32,34 @@ export function useBatchActions(
 	const startAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
 			return Promise.all(
-				workspaces.map((w) =>
-					API.startWorkspace(w.id, w.latest_build.template_version_id),
-				),
+				workspaces
+					.filter((w) => w.latest_build.status === "stopped")
+					.map((w) =>
+						API.startWorkspace(w.id, w.latest_build.template_version_id),
+					),
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to start workspaces");
+		onError: (error) => {
+			toast.error("Failed to start workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
 	const stopAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(workspaces.map((w) => API.stopWorkspace(w.id)));
+			return Promise.all(
+				workspaces
+					.filter((w) => w.latest_build.status === "running")
+					.map((w) => API.stopWorkspace(w.id)),
+			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to stop workspaces");
+		onError: (error) => {
+			toast.error("Failed to stop workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -58,23 +68,27 @@ export function useBatchActions(
 			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to delete some workspaces");
+		onError: (error) => {
+			toast.error("Failed to delete some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
 	const updateAllMutation = useMutation({
 		mutationFn: (payload: UpdateAllPayload) => {
-			const { workspaces, isDynamicParametersEnabled } = payload;
+			const { workspaces } = payload;
 			return Promise.all(
 				workspaces
 					.filter((w) => w.outdated && !w.dormant_at)
-					.map((w) => API.updateWorkspace(w, [], isDynamicParametersEnabled)),
+					.map((w) => API.updateWorkspace(w)),
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to update some workspaces");
+		onError: (error) => {
+			toast.error("Failed to update some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -92,8 +106,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to favorite some workspaces");
+		onError: (error) => {
+			toast.error("Failed to favorite some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -106,8 +122,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to unfavorite some workspaces");
+		onError: (error) => {
+			toast.error("Failed to unfavorite some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -123,6 +141,7 @@ export function useBatchActions(
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||
 			stopAllMutation.isPending ||
-			deleteAllMutation.isPending,
+			deleteAllMutation.isPending ||
+			updateAllMutation.isPending,
 	};
 }

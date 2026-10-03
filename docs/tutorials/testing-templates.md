@@ -1,4 +1,6 @@
-# Test and Publish Coder Templates Through CI/CD
+---
+title: Test and publish Coder templates through CI/CD
+---
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
@@ -24,13 +26,35 @@ ensures your templates are validated, tested, and promoted seamlessly.
   [user roles and permissions](../admin/users/groups-roles.md#roles) to manage
   templates and run workspaces.
 
-## Creating the headless user
+<a id="creating-the-headless-user"></a>
 
-```shell
+## Create the headless user
+
+> [!WARNING]
+> Creating users with `--login-type none` is deprecated.
+> For [Premium](https://coder.com/pricing) deployments, use
+> [service accounts](../admin/users/headless-auth.md) instead.
+> For OSS deployments, use a regular account with password, GitHub, or OIDC
+> authentication.
+
+For Premium deployments, create a service account:
+
+```sh
+coder users create \
+  --username machine-user \
+  --service-account
+
+coder tokens create --user machine-user --lifetime 8760h
+# Copy the token and store it in a secret in your CI environment with the name `CODER_SESSION_TOKEN`
+```
+
+For OSS deployments, create a regular user:
+
+```sh
 coder users create \
   --username machine-user \
   --email machine-user@example.com \
-  --login-type none
+  --login-type password
 
 coder tokens create --user machine-user --lifetime 8760h
 # Copy the token and store it in a secret in your CI environment with the name `CODER_SESSION_TOKEN`
@@ -111,5 +135,5 @@ jobs:
       - name: Promote template version
         if: success()
         run: |
-          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }} --yes
+          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }}
 ```

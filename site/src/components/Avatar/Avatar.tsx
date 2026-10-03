@@ -9,22 +9,20 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
-
-import { useTheme } from "@emotion/react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
-import { cn } from "utils/cn";
+import { cn } from "cn";
+import { Avatar as AvatarPrimitive } from "radix-ui";
+import { useAppearance } from "#/theme/appearance";
+import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {
-				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "size-[--avatar-default] text-2xs",
-				sm: "size-[--avatar-sm] text-[8px]",
+				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
+				md: "size-(--avatar-default) text-2xs",
+				sm: "size-(--avatar-sm) text-[8px]",
 			},
 			variant: {
 				default: null,
@@ -58,34 +56,60 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		/**
+		 * Alt text for the inner `<img>`. Defaults to `""` (decorative,
+		 * hidden from assistive tech). Pass a descriptive value when no
+		 * adjacent text identifies the content.
+		 */
+		alt?: string;
+		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
-const Avatar = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Root>,
-	AvatarProps
->(({ className, size, variant, src, fallback, children, ...props }, ref) => {
-	const theme = useTheme();
+export const Avatar: React.FC<AvatarProps> = ({
+	className,
+	size,
+	variant,
+	src,
+	fallback,
+	alt = "",
+	children,
+	style,
+	...props
+}) => {
+	const { externalImages } = useAppearance();
+
+	const isEmoji = src?.startsWith("/emojis/");
+	const avatarSizeToken = size === "lg" || size === "sm" ? size : "default";
 
 	return (
 		<AvatarPrimitive.Root
-			ref={ref}
-			className={cn(avatarVariants({ size, variant, className }))}
+			className={cn(
+				avatarVariants({
+					size,
+					variant: isEmoji ? "default" : variant,
+					className,
+				}),
+			)}
+			style={{
+				...style,
+				padding: isEmoji
+					? `calc(var(--avatar-${avatarSizeToken}) * 0.2)`
+					: style?.padding,
+			}}
 			{...props}
 		>
 			<AvatarPrimitive.Image
 				src={src}
-				className="aspect-square h-full w-full object-contain"
-				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+				alt={alt}
+				className="aspect-square size-full object-contain"
+				style={getExternalImageStylesFromUrl(externalImages, src)}
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.charAt(0).toUpperCase()}
+					{fallback.slice(0, 2).toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}
 			{children}
 		</AvatarPrimitive.Root>
 	);
-});
-Avatar.displayName = AvatarPrimitive.Root.displayName;
-
-export { Avatar };
+};

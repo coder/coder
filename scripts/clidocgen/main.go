@@ -1,54 +1,21 @@
 package main
 
 import (
-	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/coder/coder/v2/enterprise/cli"
+	"github.com/coder/coder/v2/scripts/docgenenv"
 	"github.com/coder/flog"
 	"github.com/coder/serpent"
 )
 
-// route is an individual page object in the docs manifest.json.
-type route struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Path        string   `json:"path,omitempty"`
-	IconPath    string   `json:"icon_path,omitempty"`
-	State       []string `json:"state,omitempty"`
-	Children    []route  `json:"children,omitempty"`
-}
-
-// manifest describes the entire documentation index.
-type manifest struct {
-	Versions []string `json:"versions,omitempty"`
-	Routes   []route  `json:"routes,omitempty"`
-}
-
-func prepareEnv() {
-	// Unset CODER_ environment variables
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "CODER_") {
-			split := strings.SplitN(env, "=", 2)
-			if err := os.Unsetenv(split[0]); err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	// Override default OS values to ensure the same generated results.
-	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
-	if err != nil {
-		panic(err)
-	}
-	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
-	if err != nil {
-		panic(err)
-	}
-}
+// cliIndexRoute holds the "Command Line" manifest route's metadata so the
+// generated index page can mirror it through the shared docgenenv.FrontMatter
+// emitter (see the frontMatter template func in gen.go). main populates it
+// before genTree runs.
+var cliIndexRoute docgenenv.Route
 
 func deleteEmptyDirs(dir string) error {
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -74,7 +41,10 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
-	prepareEnv()
+	manifestOnly := flag.Bool("manifest-only", false, "Only rebuild the \"Command Line\" sidebar fragment; do not write reference pages.")
+	flag.Parse()
+
+	docgenenv.Prepare()
 
 	workdir, err := os.Getwd()
 	if err != nil {
@@ -82,19 +52,60 @@ func main() {
 	}
 	root := (&cli.RootCmd{})
 
-	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*serpent.Command)
-
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
 
+	if d := os.Getenv("DOCS_DIR"); d != "" {
+		docsDir = d
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
+	}
+
+	// Load the sidebar sources up front so the generated index page can mirror
+	// the "Command Line" route's curated metadata (title/description/icon_path)
+	// instead of the root command name.
+	sourcesDir := filepath.Join(docsDir, docgenenv.ManifestSourcesDir)
+	man, err := docgenenv.LoadManifestSources(sourcesDir)
+	if err != nil {
+		flog.Fatalf("%v", err)
+	}
+	cmdLine := man.FindRoute("Reference", "Command Line")
+	if cmdLine == nil {
+		flog.Fatalf("could not find Command Line route in sidebar sources %q", sourcesDir)
+	}
+	if cmdLine.ChildrenFrom == "" {
+		flog.Fatalf("Command Line route in sidebar sources %q must set children_from", sourcesDir)
+	}
+	// Mirror the whole "Command Line" route (minus its nav children) so the
+	// index page front matter carries every current and future per-page field
+	// automatically, the same way the API index mirrors its manifest route.
+	cliIndexRoute = cliIndexRouteFrom(*cmdLine)
+
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)
 	}
-	err = genTree(
+	if !*manifestOnly {
+		writePages(cliMarkdownDir, cmd)
+	}
+
+	// Write the "Command Line" route's children, built from the command tree
+	// so the nav nests the same way the generated pages do, to the fragment
+	// the sources name in children_from.
+	fragment := filepath.Join(sourcesDir, filepath.FromSlash(cmdLine.ChildrenFrom))
+	if err := docgenenv.WriteRouteFragment(fragment, cliManifestChildren(cmd)); err != nil {
+		flog.Fatalf("%v", err)
+	}
+}
+
+// writePages generates a reference page for every visible command under
+// cliMarkdownDir, then deletes pages and directories left over from commands
+// that no longer exist.
+func writePages(cliMarkdownDir string, cmd *serpent.Command) {
+	// wroteMap indexes file paths to commands.
+	wroteMap := make(map[string]*serpent.Command)
+	err := genTree(
 		cliMarkdownDir,
 		cmd,
 		wroteMap,
@@ -127,65 +138,5 @@ func main() {
 	err = deleteEmptyDirs(cliMarkdownDir)
 	if err != nil {
 		flog.Fatalf("deleting empty dirs: %v", err)
-	}
-
-	// Update manifest
-	manifestPath := filepath.Join(docsDir, "manifest.json")
-
-	manifestByt, err := os.ReadFile(manifestPath)
-	if err != nil {
-		flog.Fatalf("reading manifest: %v", err)
-	}
-
-	var manifest manifest
-	err = json.Unmarshal(manifestByt, &manifest)
-	if err != nil {
-		flog.Fatalf("unmarshalling manifest: %v", err)
-	}
-
-	var found bool
-	for i := range manifest.Routes {
-		rt := &manifest.Routes[i]
-		if rt.Title != "Reference" {
-			continue
-		}
-		for j := range rt.Children {
-			child := &rt.Children[j]
-			if child.Title != "Command Line" {
-				continue
-			}
-			child.Children = nil
-			found = true
-			for path, cmd := range wroteMap {
-				relPath, err := filepath.Rel(docsDir, path)
-				if err != nil {
-					flog.Fatalf("getting relative path: %v", err)
-				}
-				child.Children = append(child.Children, route{
-					Title:       fullName(cmd),
-					Description: cmd.Short,
-					Path:        relPath,
-				})
-			}
-			// Sort children by title because wroteMap iteration is
-			// non-deterministic.
-			sort.Slice(child.Children, func(i, j int) bool {
-				return child.Children[i].Title < child.Children[j].Title
-			})
-		}
-	}
-
-	if !found {
-		flog.Fatalf("could not find Command Line route in manifest")
-	}
-
-	manifestByt, err = json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		flog.Fatalf("marshaling manifest: %v", err)
-	}
-
-	err = os.WriteFile(manifestPath, manifestByt, 0o600)
-	if err != nil {
-		flog.Fatalf("writing manifest: %v", err)
 	}
 }

@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+	"encoding/base64"
 	"fmt"
+	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
@@ -18,6 +20,7 @@ import (
 	"sync"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/emersion/go-sasl"
 	smtp "github.com/emersion/go-smtp"
@@ -66,7 +69,7 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 		return nil, xerrors.Errorf("render subject: %w", err)
 	}
 
-	htmlBody := markdown.HTMLFromMarkdown(bodyTmpl)
+	htmlBody := markdown.HTMLFromNotificationMarkdown(bodyTmpl)
 	plainBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render plaintext body: %w", err)
@@ -156,11 +159,11 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Sender identification.
-		from, err := s.validateFromAddr(s.cfg.From.String())
+		envelopeFrom, headerFrom, err := s.validateFromAddr(s.cfg.From.String())
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}
-		err = c.Mail(from, &smtp.MailOptions{})
+		err = c.Mail(envelopeFrom, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
 			return true, xerrors.Errorf("sender identification: %w", err)
@@ -200,9 +203,9 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		msg := &bytes.Buffer{}
 		multipartBuffer := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(multipartBuffer)
-		_, _ = fmt.Fprintf(msg, "From: %s\r\n", from)
+		_, _ = fmt.Fprintf(msg, "From: %s\r\n", headerFrom)
 		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(recipients, ", "))
-		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
+		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", encodeHeaderValue(subject))
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
 		_, _ = fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 		_, _ = fmt.Fprintf(msg, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
@@ -486,15 +489,25 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 	return nil, errs
 }
 
-func (*SMTPHandler) validateFromAddr(from string) (string, error) {
+// validateFromAddr parses the "from" address and returns two values:
+// 1. envelopeFrom: The bare email address for use in the SMTP MAIL FROM command.
+// 2. headerFrom: The original address (possibly including display name) for use in the email header.
+//
+// This separation is necessary because SMTP envelope addresses (used in MAIL FROM
+// and RCPT TO commands) must be bare email addresses, while email headers can
+// include display names (e.g., "John Doe <john@example.com>").
+func (*SMTPHandler) validateFromAddr(from string) (envelopeFrom, headerFrom string, err error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
-		return "", xerrors.Errorf("parse 'from' address: %w", err)
+		return "", "", xerrors.Errorf("parse 'from' address: %w", err)
 	}
 	if len(addrs) != 1 {
-		return "", ErrValidationNoFromAddress
+		return "", "", ErrValidationNoFromAddress
 	}
-	return from, nil
+	// Use the parsed email address for the SMTP envelope (MAIL FROM command),
+	// but preserve the original string for the email header (which may include
+	// a display name).
+	return addrs[0].Address, from, nil
 }
 
 func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
@@ -562,4 +575,70 @@ func (s *SMTPHandler) password() (string, error) {
 		return string(content), nil
 	}
 	return s.cfg.Auth.Password.String(), nil
+}
+
+const (
+	encodedWordPrefix = "=?utf-8?b?"
+	encodedWordSuffix = "?="
+	// RFC 2047 limits an encoded-word to 75 characters including its
+	// delimiters, and base64 expands three bytes to four characters.
+	encodedWordMaxBytes = (75 - len(encodedWordPrefix) - len(encodedWordSuffix)) / 4 * 3
+
+	// maxHeaderValueOctets is the longest value emitted unfolded. RFC 5322 caps
+	// a line at 998 octets; the rest of the budget covers the field name.
+	maxHeaderValueOctets = 900
+)
+
+// encodeHeaderValue prepares a rendered value for use as a header value. Line
+// breaks become spaces so the value cannot terminate the header and inject
+// another.
+func encodeHeaderValue(value string) string {
+	if strings.ContainsAny(value, "\r\n") {
+		value = strings.Map(func(r rune) rune {
+			if r == '\r' || r == '\n' {
+				return ' '
+			}
+			return r
+		}, value)
+	}
+	// A forged encoded-word is printable ASCII, which mime.WordEncoder passes
+	// through untouched for the recipient's client to decode.
+	if strings.Contains(value, "=?") {
+		return encodeWords(value)
+	}
+	// Length is measured on the encoded form: Q-encoding expands a non-ASCII
+	// rune to three characters per byte, so a short value can still exceed the
+	// line limit. WordEncoder separates words with a space rather than folding,
+	// so anything over the limit goes to encodeWords.
+	if encoded := mime.QEncoding.Encode("utf-8", value); len(encoded) <= maxHeaderValueOctets {
+		return encoded
+	}
+	return encodeWords(value)
+}
+
+// encodeWords emits value as RFC 2047 base64 encoded-words, joined with CRLF
+// and a space so they both concatenate per RFC 2047 and fold per RFC 5322.
+func encodeWords(value string) string {
+	var words []string
+	for len(value) > 0 {
+		n := encodedWordMaxBytes
+		if n >= len(value) {
+			n = len(value)
+		} else {
+			// Each encoded-word must decode on its own, so a multi-byte rune
+			// cannot straddle two of them.
+			for n > 0 && !utf8.RuneStart(value[n]) {
+				n--
+			}
+			if n == 0 {
+				// A rune wider than the budget: emit it whole rather than
+				// splitting it into something undecodable.
+				_, n = utf8.DecodeRuneInString(value)
+			}
+		}
+		words = append(words, encodedWordPrefix+
+			base64.StdEncoding.EncodeToString([]byte(value[:n]))+encodedWordSuffix)
+		value = value[n:]
+	}
+	return strings.Join(words, "\r\n ")
 }

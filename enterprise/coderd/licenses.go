@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -26,13 +27,26 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/trialer"
 )
 
 const (
+	// PubsubEventLicenses is the pubsub event that tells other replicas to
+	// re-read licenses from the database and recompute entitlements.
+	//
+	// It is published and subscribed on api.ReplicaSyncPubsub (always Postgres),
+	// not api.Pubsub. When the embedded NATS pubsub is in use, api.Pubsub is
+	// the embedded NATS pubsub whose cluster mesh only forms once a replica is
+	// HA-licensed, so propagating license changes over it is circular: a fresh
+	// replica could not learn about the license that would let it join the mesh.
+	// ReplicaSyncPubsub is available as soon as the DB connection is, independent
+	// of clustering or licensing.
 	PubsubEventLicenses = "licenses"
 )
 
@@ -62,7 +76,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
-// @Router /licenses [post]
+// @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -76,7 +90,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -95,15 +109,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := uuid.Parse(claims.ID)
-	if err != nil {
-		// If no uuid is in the license, we generate a random uuid.
-		// This is not ideal, and this should be fixed to require a uuid
-		// for all licenses. We require this patch to support older licenses.
-		// TODO: In the future (April 2023?) we should remove this and reissue
-		// old licenses with a uuid.
-		id = uuid.New()
-	}
 	if len(claims.DeploymentIDs) > 0 && !slices.Contains(claims.DeploymentIDs, api.AGPL.DeploymentID) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "License cannot be used on this deployment!",
@@ -113,30 +118,167 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lic, err := api.installLicense(ctx, aReq, addLicense.License, claims)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to install license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, lic)
+}
+
+// @Summary Request a trial license
+// @ID request-a-trial-license
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.CreateTrialLicenseRequest true "Trial license request"
+// @Success 201 {object} codersdk.License
+// @Router /api/v2/licenses/trial [post]
+func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.License](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.CreateTrialLicenseRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Prevent overwriting existing license
+	if api.Entitlements.HasLicense() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This deployment already has a license.",
+			Detail:  "Remove the existing license before requesting a trial.",
+		})
+		return
+	}
+
+	rawLicense, err := api.trialer.Request(ctx, codersdk.LicensorTrialRequest{
+		DeploymentID: api.AGPL.DeploymentID,
+		Email:        req.Email,
+		Source:       codersdk.LicensorTrialSourceProduct,
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		PhoneNumber:  req.PhoneNumber,
+		JobTitle:     req.JobTitle,
+		CompanyName:  req.CompanyName,
+		Country:      req.Country,
+		Developers:   req.Developers,
+	})
+	if err != nil {
+		if licensorErr, ok := errors.AsType[*trialer.LicensorError](err); ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unable to issue a trial license.",
+				Detail:  licensorErr.Message,
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to reach the Coder license server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// The deployment ID was supplied by us, so unlike postLicense there is no
+	// need to check the license against claims.DeploymentIDs.
+	claims, err := license.ParseClaimsIgnoreNbf(rawLicense, api.LicenseKeys)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "The Coder license server returned an invalid license.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	lic, err := api.installLicense(ctx, aReq, rawLicense, claims)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to install license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Reported here rather than from the browser so that a conversion is only
+	// counted when a license was actually issued.
+	source := req.Source
+	if !source.Valid() {
+		source = codersdk.PremiumFunnelSourceDirect
+	}
+	api.Telemetry.Report(&telemetry.Snapshot{
+		PremiumFunnelEvents: []telemetry.PremiumFunnelEvent{
+			{
+				ID:            uuid.New(),
+				EventType:     telemetry.PremiumFunnelEventTrialSignup,
+				Source:        string(source),
+				AttributionID: req.AttributionID,
+				UserID:        httpmw.APIKey(r).UserID,
+				CreatedAt:     dbtime.Now(),
+			},
+		},
+	})
+
+	httpapi.Write(ctx, rw, http.StatusCreated, lic)
+}
+
+// installLicense persists a parsed license and brings the deployment up to date
+// with it: the row is recorded on the audit request, entitlements are recomputed
+// so the caller's response reflects the new features, and other replicas are
+// told to recompute their own.
+//
+// Entitlements are refreshed here rather than through postRefreshEntitlements
+// because that path is rate limited and would reject a refresh immediately after
+// a license lands.
+//
+// Every failure is a server-side fault; callers should map a non-nil error to a
+// 500.
+func (api *API) installLicense(
+	ctx context.Context,
+	aReq *audit.Request[database.License],
+	rawLicense string,
+	claims *license.Claims,
+) (codersdk.License, error) {
+	id, err := uuid.Parse(claims.ID)
+	if err != nil {
+		// See postLicense: licenses are not guaranteed to carry a uuid.
+		id = uuid.New()
+	}
+
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
-		JWT:        addLicense.License,
+		JWT:        rawLicense,
 		Exp:        claims.ExpiresAt.Time,
 		UUID:       id,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Unable to add license to database",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.License{}, xerrors.Errorf("add license to database: %w", err)
 	}
 	aReq.New = dl
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update entitlements",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.License{}, xerrors.Errorf("update entitlements: %w", err)
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("add"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -144,13 +286,9 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 
 	c, err := decodeClaims(dl)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to decode database response",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.License{}, xerrors.Errorf("decode database response: %w", err)
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, c))
+	return convertLicense(dl, c), nil
 }
 
 // postRefreshEntitlements forces an `updateEntitlements` call and publishes
@@ -165,14 +303,14 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Success 201 {object} codersdk.Response
-// @Router /licenses/refresh-entitlements [post]
+// @Router /api/v2/licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// If the user cannot create a new license, then they cannot refresh entitlements.
 	// Refreshing entitlements is a way to force a refresh of the license, so it is
 	// equivalent to creating a new license.
-	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -217,7 +355,8 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("failed to update entitlements: %w", err)
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("refresh"))
 	if err != nil {
 		api.Logger.Error(ctx, "failed to publish forced entitlement update", slog.Error(err))
 		return xerrors.Errorf("failed to publish forced entitlement update, other replicas might not be updated: %w", err)
@@ -231,7 +370,7 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.License
-// @Router /licenses [get]
+// @Router /api/v2/licenses [get]
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
@@ -273,7 +412,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "License ID" format(number)
 // @Success 200
-// @Router /licenses/{id} [delete]
+// @Router /api/v2/licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
@@ -304,7 +443,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = dl
 
-	if !api.AGPL.Authorize(r, policy.ActionDelete, rbac.ResourceLicense) {
+	if !api.Authorize(r, policy.ActionDelete, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -331,7 +470,8 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("delete"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("delete"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -349,7 +489,7 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 }
 
 func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
-	var out []codersdk.License
+	out := make([]codersdk.License, 0, len(licenses))
 	for _, l := range licenses {
 		c, err := decodeClaims(l)
 		if err != nil {

@@ -1,23 +1,21 @@
-import type { SharedWorkspaceActor } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Link } from "components/Link/Link";
+import { UsersIcon } from "lucide-react";
+import type { SharedWorkspaceActor } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
-interface WorkspaceSharingIndicatorProps {
+type WorkspaceSharingIndicatorProps = {
 	sharedWith: readonly SharedWorkspaceActor[];
 	settingsPath: string;
-}
+};
 
-export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
-	sharedWith,
-	settingsPath,
-}) => {
+export const WorkspaceSharingIndicator: React.FC<
+	WorkspaceSharingIndicatorProps
+> = ({ sharedWith, settingsPath }) => {
 	// Sort by type (users then groups) and then alphabetically by name.
 	const sortedActors = [...sharedWith].sort((a, b) => {
 		if (a.actor_type !== b.actor_type) {

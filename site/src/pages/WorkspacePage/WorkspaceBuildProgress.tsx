@@ -1,11 +1,13 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
-import LinearProgress from "@mui/material/LinearProgress";
-import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import capitalize from "lodash/capitalize";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type {
+	Template,
+	TransitionStats,
+	Workspace,
+} from "#/api/typesGenerated";
+import LinearProgress from "#/components/LinearProgress/LinearProgress";
 
 dayjs.extend(duration);
 
@@ -59,21 +61,14 @@ const estimateFinish = (
 	return [p50percent, `Up to ${highGuess} seconds remaining...`];
 };
 
-interface WorkspaceBuildProgressProps {
+type WorkspaceBuildProgressProps = {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
-	// variant changes how the progress bar is displayed: with the workspace
-	// variant the workspace transition and time remaining are displayed under the
-	// bar aligned to the left and right respectively.  With the task variant the
-	// workspace transition is not displayed and the time remaining is displayed
-	// centered above the bar, and the bar's border radius is removed.
-	variant?: "workspace" | "task";
-}
+};
 
-export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
+export const WorkspaceBuildProgress: React.FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
-	variant,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -84,7 +79,6 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	// By default workspace is updated every second, which can cause visual stutter
 	// when the build estimate is a few seconds. The timer ensures no observable
 	// stutter in all cases.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
 	useEffect(() => {
 		const updateProgress = () => {
 			if (
@@ -120,16 +114,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		return null;
 	}
 	return (
-		<div css={styles.stack}>
-			{variant === "task" && (
-				<div className="mb-1 text-center">
-					<div css={styles.label} data-chromatic="ignore">
-						{progressText}
-					</div>
-				</div>
-			)}
+		<div className="px-0.5">
 			<LinearProgress
-				data-chromatic="ignore"
+				data-pixel="ignore"
 				value={progressValue !== undefined ? progressValue : 0}
 				variant={
 					// There is an initial state where progressValue may be undefined
@@ -140,48 +127,18 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 						? "determinate"
 						: "indeterminate"
 				}
-				classes={{
-					// If a transition is set, there is a moment on new load where the bar
-					// accelerates to progressValue and then rapidly decelerates, which is
-					// not indicative of true progress.
-					bar: classNames.bar,
-					// With the "task" variant, the progress bar is fullscreen, so remove
-					// the border radius.
-					root: variant === "task" ? classNames.root : undefined,
-				}}
 			/>
-			{variant !== "task" && (
-				<div className="flex mt-1 justify-between">
-					<div css={styles.label}>
-						{capitalize(workspace.latest_build.status)} workspace...
-					</div>
-					<div css={styles.label} data-chromatic="ignore">
-						{progressText}
-					</div>
+			<div className="flex mt-2.5 justify-between">
+				<div className="block text-xs font-semibold text-content-secondary">
+					{capitalize(workspace.latest_build.status)} workspace...
 				</div>
-			)}
+				<div
+					className="block text-xs font-semibold text-content-secondary"
+					data-pixel="ignore"
+				>
+					{progressText}
+				</div>
+			</div>
 		</div>
 	);
 };
-
-const classNames = {
-	bar: css`
-    transition: none;
-  `,
-	root: css`
-    border-radius: 0;
-  `,
-};
-
-const styles = {
-	stack: {
-		paddingLeft: 2,
-		paddingRight: 2,
-	},
-	label: (theme) => ({
-		fontSize: 12,
-		display: "block",
-		fontWeight: 600,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

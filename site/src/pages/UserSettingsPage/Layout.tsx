@@ -1,29 +1,55 @@
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "hooks";
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { Outlet } from "react-router";
-import { pageTitle } from "utils/page";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "#/components/Breadcrumb/Breadcrumb";
+import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 
-const Layout: FC = () => {
+const Layout: React.FC = () => {
 	const { user: me } = useAuthenticated();
 
 	return (
 		<>
 			<title>{pageTitle("Settings")}</title>
 
-			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-					<Sidebar user={me} />
-					<Suspense fallback={<Loader />}>
-						<main css={{ maxWidth: 800, width: "100%" }}>
-							<Outlet />
-						</main>
-					</Suspense>
-				</Stack>
-			</Margins>
+			<div>
+				<Breadcrumb>
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<BreadcrumbPage className="text-content-primary">
+								User Settings
+							</BreadcrumbPage>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage className="flex items-center gap-2">
+								<Avatar size="sm" fallback={me.username} src={me.avatar_url} />
+								{me.username}
+							</BreadcrumbPage>
+						</BreadcrumbItem>
+					</BreadcrumbList>
+				</Breadcrumb>
+				<div className="h-px border-none bg-border" />
+
+				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
+					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
+						<Sidebar />
+						<div className="grow min-w-0">
+							<Suspense fallback={<Loader />}>
+								<Outlet />
+							</Suspense>
+						</div>
+					</div>
+				</section>
+			</div>
 		</>
 	);
 };

@@ -1,7 +1,6 @@
-import type { FC, HTMLAttributes, ReactNode } from "react";
-import { cn } from "utils/cn";
+import { cn } from "cn";
 
-export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Stats: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -19,12 +18,12 @@ export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+type StatsItemProps = React.ComponentProps<"div"> & {
 	label: string;
-	value: ReactNode;
-}
+	value: React.ReactNode;
+};
 
-export const StatsItem: FC<StatsItemProps> = ({
+export const StatsItem: React.FC<StatsItemProps> = ({
 	label,
 	value,
 	className,
@@ -38,8 +37,8 @@ export const StatsItem: FC<StatsItemProps> = ({
 			)}
 			{...attrs}
 		>
-			<span className="block break-words">{label}:</span>
-			<span className="flex items-center break-words text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
+			<span className="block wrap-break-word">{label}:</span>
+			<span className="flex items-center wrap-break-word text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
 				{value}
 			</span>
 		</div>

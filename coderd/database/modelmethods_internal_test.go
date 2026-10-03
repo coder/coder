@@ -144,6 +144,45 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest
+func TestChatACLDisabled(t *testing.T) {
+	uid := uuid.NewString()
+	gid := uuid.NewString()
+
+	chat := Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: ChatACL{
+			uid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: ChatACL{
+			gid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+	}
+
+	t.Run("ACLsOmittedWhenDisabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(true)
+		t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+		obj := chat.RBACObject()
+
+		require.Empty(t, obj.ACLUserList, "user ACLs should be empty when disabled")
+		require.Empty(t, obj.ACLGroupList, "group ACLs should be empty when disabled")
+	})
+
+	t.Run("ACLsIncludedWhenEnabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+
+		obj := chat.RBACObject()
+
+		require.NotEmpty(t, obj.ACLUserList, "user ACLs should be present when enabled")
+		require.NotEmpty(t, obj.ACLGroupList, "group ACLs should be present when enabled")
+		require.Contains(t, obj.ACLUserList, uid)
+		require.Contains(t, obj.ACLGroupList, gid)
+	})
+}
+
+//nolint:tparallel,paralleltest
 func TestWorkspaceACLDisabled(t *testing.T) {
 	uid := uuid.NewString()
 	gid := uuid.NewString()
@@ -180,6 +219,38 @@ func TestWorkspaceACLDisabled(t *testing.T) {
 		require.Contains(t, obj.ACLUserList, uid)
 		require.Contains(t, obj.ACLGroupList, gid)
 	})
+}
+
+// TestOAuth2ProviderAppIsPublic pins IsPublic's contract directly, since it is
+// what decides whether the token endpoint validates a client secret at all.
+// Only the exact string "public" may read as public: anything else, including
+// an unset column or a differently-cased value, must read as confidential so
+// that a garbled value cannot silently skip client authentication.
+func TestOAuth2ProviderAppIsPublic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		clientType string
+		want       bool
+	}{
+		{name: "Public", clientType: "public", want: true},
+		{name: "Confidential", clientType: "confidential", want: false},
+		{name: "Empty", clientType: "", want: false},
+		{name: "MixedCasePublic", clientType: "Public", want: false},
+		{name: "AllCapsPublic", clientType: "PUBLIC", want: false},
+		{name: "LeadingSpace", clientType: " public", want: false},
+		{name: "TrailingSpace", clientType: "public ", want: false},
+		{name: "Bogus", clientType: "bogus", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			app := OAuth2ProviderApp{ClientType: tt.clientType}
+			require.Equal(t, tt.want, app.IsPublic())
+		})
+	}
 }
 
 // Helpers

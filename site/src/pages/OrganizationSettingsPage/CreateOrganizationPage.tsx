@@ -1,39 +1,21 @@
-import { createOrganization } from "api/queries/organizations";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "hooks";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
-const CreateOrganizationPage: FC = () => {
-	const navigate = useNavigate();
+const CreateOrganizationPage: React.FC = () => {
 	const feats = useFeatureVisibility();
 	const { permissions } = useAuthenticated();
 
-	const queryClient = useQueryClient();
-	const createOrganizationMutation = useMutation(
-		createOrganization(queryClient),
-	);
-
-	const error = createOrganizationMutation.error;
-
 	return (
-		<main className="py-7">
-			<RequirePermission isFeatureVisible={permissions.createOrganization}>
-				<CreateOrganizationPageView
-					error={error}
-					isEntitled={feats.multiple_organizations}
-					onSubmit={async (values) => {
-						await createOrganizationMutation.mutateAsync(values);
-						displaySuccess("Organization created.");
-						navigate(`/organizations/${values.name}`);
-					}}
-				/>
-			</RequirePermission>
-		</main>
+		<RequirePermission isFeatureVisible={permissions.createOrganization}>
+			<title>{pageTitle("New Organization")}</title>
+			<CreateOrganizationPageView
+				isEntitled={feats.multiple_organizations}
+				permissions={permissions}
+			/>
+		</RequirePermission>
 	);
 };
 

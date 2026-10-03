@@ -1,0 +1,1074 @@
+import { describe, expect, it } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
+import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const makeMessage = (
+	id: number,
+	role: string,
+	text: string,
+	chatID = "chat-1",
+): TypesGen.ChatMessage =>
+	({
+		id,
+		chat_id: chatID,
+		created_at: `2025-01-01T00:00:0${Math.max(Math.abs(id), 0)}.000Z`,
+		role,
+		content: [{ type: "text", text }],
+	}) as TypesGen.ChatMessage;
+
+const makeQueuedMessage = (
+	id: number,
+	text: string,
+	chatID = "chat-1",
+): TypesGen.ChatQueuedMessage =>
+	({
+		id,
+		chat_id: chatID,
+		created_at: "2025-01-01T00:00:00Z",
+		content: [{ type: "text", text }],
+	}) as TypesGen.ChatQueuedMessage;
+
+const testChatID = "chat-1";
+
+// ---------------------------------------------------------------------------
+// replaceMessages
+// ---------------------------------------------------------------------------
+
+describe("replaceMessages", () => {
+	it("populates messagesByID and orderedMessageIDs", () => {
+		const store = createChatStore();
+		const msg1 = makeMessage(1, "user", "first");
+		const msg2 = makeMessage(2, "assistant", "second");
+
+		store.replaceMessages([msg1, msg2]);
+
+		const state = store.getSnapshot();
+		expect(state.messagesByID.size).toBe(2);
+		expect(state.messagesByID.get(1)).toBe(msg1);
+		expect(state.messagesByID.get(2)).toBe(msg2);
+		expect(state.orderedMessageIDs).toEqual([1, 2]);
+	});
+
+	it("sorts messages by id when created_at disagrees with append order", () => {
+		const store = createChatStore();
+		const first = {
+			...makeMessage(1, "user", "first"),
+			created_at: "2025-01-01T00:00:05.000Z",
+		} as TypesGen.ChatMessage;
+		const second = {
+			...makeMessage(2, "assistant", "second"),
+			created_at: "2025-01-01T00:00:01.000Z",
+		} as TypesGen.ChatMessage;
+
+		// Insert in reverse order.
+		store.replaceMessages([second, first]);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
+	});
+
+	it("treats undefined as empty array", () => {
+		const store = createChatStore();
+		store.replaceMessages([makeMessage(1, "user", "hello")]);
+
+		store.replaceMessages(undefined);
+
+		const state = store.getSnapshot();
+		expect(state.messagesByID.size).toBe(0);
+		expect(state.orderedMessageIDs).toEqual([]);
+	});
+
+	it("does not notify subscribers when content is unchanged", () => {
+		const store = createChatStore();
+		const msg = makeMessage(1, "user", "hello");
+		store.replaceMessages([msg]);
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+
+		// Same object reference — maps compare equal by ref.
+		store.replaceMessages([msg]);
+
+		expect(notified).toBe(false);
+	});
+});
+
+describe("upsertDurableMessages", () => {
+	it("orders merged messages by id rather than by arrival", () => {
+		const store = createChatStore();
+		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
+		const withSharedCreatedAt = (
+			id: number,
+			role: string,
+		): TypesGen.ChatMessage => ({
+			...makeMessage(id, role, `message-${id}`),
+			created_at: sharedCreatedAt,
+		});
+
+		store.replaceMessages([
+			withSharedCreatedAt(3, "assistant"),
+			withSharedCreatedAt(4, "tool"),
+		]);
+		store.upsertDurableMessages([
+			withSharedCreatedAt(1, "user"),
+			withSharedCreatedAt(2, "assistant"),
+		]);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// upsertDurableMessage
+// ---------------------------------------------------------------------------
+
+describe("upsertDurableMessage", () => {
+	it("inserts a new message and reports isDuplicate=false, changed=true", () => {
+		const store = createChatStore();
+		const msg = makeMessage(1, "user", "hello");
+
+		const result = store.upsertDurableMessage(msg);
+
+		expect(result).toEqual({ isDuplicate: false, changed: true });
+		expect(store.getSnapshot().messagesByID.get(1)).toBe(msg);
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1]);
+	});
+
+	it("reports isDuplicate=true, changed=false for value-equal duplicate", () => {
+		const store = createChatStore();
+		const msg = makeMessage(1, "user", "hello");
+		store.upsertDurableMessage(msg);
+
+		// Different object reference, same field values.
+		const dup = makeMessage(1, "user", "hello");
+		const result = store.upsertDurableMessage(dup);
+
+		expect(result).toEqual({ isDuplicate: true, changed: false });
+	});
+
+	it("reports isDuplicate=true, changed=true when content differs", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "assistant", "draft"));
+
+		const updated = makeMessage(1, "assistant", "final");
+		const result = store.upsertDurableMessage(updated);
+
+		expect(result).toEqual({ isDuplicate: true, changed: true });
+		expect(store.getSnapshot().messagesByID.get(1)?.content).toEqual(
+			updated.content,
+		);
+	});
+
+	it("does not reorder when updating an existing message in place", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "first"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "second"));
+		const orderBefore = store.getSnapshot().orderedMessageIDs;
+
+		// Update content of existing message (same ID, same map size).
+		store.upsertDurableMessage(makeMessage(2, "assistant", "edited"));
+
+		// Same reference — no reorder needed because the map size
+		// didn't change and the ID already existed.
+		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setChatStatus
+// ---------------------------------------------------------------------------
+
+describe("setChatStatus", () => {
+	it("updates chatStatus", () => {
+		const store = createChatStore();
+
+		store.setChatStatus("running");
+
+		expect(store.getSnapshot().chatStatus).toBe("running");
+	});
+
+	it("accepts null to clear the status", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+
+		store.setChatStatus(null);
+
+		expect(store.getSnapshot().chatStatus).toBeNull();
+	});
+
+	it("does not notify when setting the same status", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.setChatStatus("running");
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setStreamState
+// ---------------------------------------------------------------------------
+
+describe("setStreamState", () => {
+	it("does not notify when setting the same stream state reference", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "hello" });
+		const streamState = store.getSnapshot().streamState;
+		expect(streamState).not.toBeNull();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+
+		store.setStreamState(streamState);
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setStreamError / clearStreamError
+// ---------------------------------------------------------------------------
+
+describe("setStreamError / clearStreamError", () => {
+	it("stores and clears a stream error", () => {
+		const store = createChatStore();
+
+		store.setStreamError({
+			kind: "generic",
+			message: "connection lost",
+		});
+		expect(store.getSnapshot().streamError).toEqual({
+			kind: "generic",
+			message: "connection lost",
+		});
+
+		store.clearStreamError();
+		expect(store.getSnapshot().streamError).toBeNull();
+	});
+
+	it("does not notify when setting the same error", () => {
+		const store = createChatStore();
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
+		});
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+			detail: "Image exceeds 5 MB maximum.",
+		});
+
+		expect(notified).toBe(false);
+	});
+
+	it("clearStreamError is a no-op when already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearStreamError();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setRetryState / clearRetryState
+// ---------------------------------------------------------------------------
+
+describe("setRetryState / clearRetryState", () => {
+	it("stores and clears retry state", () => {
+		const store = createChatStore();
+
+		store.setRetryState({
+			attempt: 1,
+			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+		expect(store.getSnapshot().retryState).toEqual({
+			attempt: 1,
+			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+
+		store.clearRetryState();
+		expect(store.getSnapshot().retryState).toBeNull();
+	});
+
+	it("clearRetryState is a no-op when already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearRetryState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setReconnectState / clearReconnectState
+// ---------------------------------------------------------------------------
+
+describe("setReconnectState / clearReconnectState", () => {
+	it("stores and clears reconnect state", () => {
+		const store = createChatStore();
+
+		store.setReconnectState({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+		expect(store.getSnapshot().reconnectState).toEqual({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+
+		store.clearReconnectState();
+		expect(store.getSnapshot().reconnectState).toBeNull();
+	});
+
+	it("clearReconnectState is a no-op when already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearReconnectState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setSubagentStatusOverride
+// ---------------------------------------------------------------------------
+
+describe("setSubagentStatusOverride", () => {
+	it("stores per-chatID status overrides", () => {
+		const store = createChatStore();
+
+		store.setSubagentStatusOverride("sub-1", "running");
+		store.setSubagentStatusOverride("sub-2", "error");
+
+		const overrides = store.getSnapshot().subagentStatusOverrides;
+		expect(overrides.get("sub-1")).toBe("running");
+		expect(overrides.get("sub-2")).toBe("error");
+	});
+
+	it("does not notify when the override is unchanged", () => {
+		const store = createChatStore();
+		store.setSubagentStatusOverride("sub-1", "running");
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.setSubagentStatusOverride("sub-1", "running");
+
+		expect(notified).toBe(false);
+	});
+
+	it("overwrites an existing override for the same chatID", () => {
+		const store = createChatStore();
+		store.setSubagentStatusOverride("sub-1", "running");
+		store.setSubagentStatusOverride("sub-1", "waiting");
+
+		expect(store.getSnapshot().subagentStatusOverrides.get("sub-1")).toBe(
+			"waiting",
+		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setQueuedMessages
+// ---------------------------------------------------------------------------
+
+describe("setQueuedMessages", () => {
+	it("stores queued messages", () => {
+		const store = createChatStore();
+		const qm = makeQueuedMessage(10, "queued");
+
+		store.setQueuedMessages([qm]);
+
+		expect(store.getSnapshot().queuedMessages).toEqual([qm]);
+	});
+
+	it("treats undefined as empty array", () => {
+		const store = createChatStore();
+		store.setQueuedMessages([makeQueuedMessage(1, "q")]);
+
+		store.setQueuedMessages(undefined);
+
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("does not notify when queued message IDs are unchanged", () => {
+		const store = createChatStore();
+		const qm = makeQueuedMessage(10, "queued");
+		store.setQueuedMessages([qm]);
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+
+		// Different object reference, same ID.
+		store.setQueuedMessages([{ ...qm }]);
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// suppressQueuedMessageID / applyAuthoritativeQueuedMessages
+// ---------------------------------------------------------------------------
+
+describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
+	it("filters suppressed IDs from authoritative writes and auto-clears", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setQueuedMessages([a, b, c]);
+		store.suppressQueuedMessageID(b.id);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+
+		// Running-case promotion only reorders the queue; the backend still reports the row.
+		store.applyAuthoritativeQueuedMessages([b, a, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([a, c]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
+			false,
+		);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+	});
+
+	it("filters suppressed IDs from REST hydration via applyAuthoritativeQueuedMessages", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.suppressQueuedMessageID(b.id);
+		// REST hydration delivers the unfiltered queue [B, A, C].
+		store.applyAuthoritativeQueuedMessages([b, a, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+	});
+
+	it("still applies newly queued messages while a suppressed message stays queued", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const d = makeQueuedMessage(4, "D");
+
+		store.setQueuedMessages([b]);
+		store.suppressQueuedMessageID(a.id);
+
+		store.applyAuthoritativeQueuedMessages([a, b, d]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, d.id]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("ignores stale snapshots that still list a promoted message", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setQueuedMessages([b, c]);
+		store.markQueuedMessagePromoted(a.id);
+
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([b, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("records queued IDs the server has reported", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
+		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([b]);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
+
+		store.setQueuedMessages([b, c]);
+		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
+
+		store.clearSuppressedQueuedMessageIDs();
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
+	});
+
+	it("counts every server status report, including repeats", () => {
+		const store = createChatStore();
+
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		store.setChatStatus("running");
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(1);
+		expect(store.getSnapshot().chatStatus).toBe("error");
+
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(2);
+		expect(store.getSnapshot().chatStatus).toBe("error");
+	});
+
+	it("restores a promoted head that a fresh snapshot still queues", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store
+				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("ignores a promote refetch that a newer snapshot already superseded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.applyAuthoritativeQueuedMessages([b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("still applies a promote refetch after a stale snapshot was discarded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[b, c],
+				baseline,
+			),
+		).toEqual([b, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+	});
+
+	it("ignores a promote refetch that resolves after switching chats", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.setActiveChatID("chat-other");
+		store.setQueuedMessages([]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.setActiveChatID("chat-other");
+		store.setActiveChatID(testChatID);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("ignores a promote refetch naming another chat even at a matching fence", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				"chat-other",
+				a.id,
+				[a, b],
+				store.getQueueConvergenceFence(),
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("returns the queue it applied, not the raw snapshot", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		store.suppressQueuedMessageID(c.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store
+				.applyPromoteRefetchQueuedMessages(
+					testChatID,
+					a.id,
+					[a, b, c],
+					baseline,
+				)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+	});
+
+	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.markQueuedMessagePromoted(a.id);
+		store.unsuppressQueuedMessageID(a.id);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+	});
+
+	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {
+		const store = createChatStore();
+		store.suppressQueuedMessageID(42);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
+		store.unsuppressQueuedMessageID(42);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
+	});
+
+	it("setQueuedMessages does not auto-clear suppression", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+
+		store.suppressQueuedMessageID(99);
+		// setQueuedMessages is the optimistic path: it must not
+		// touch the suppression set, otherwise the optimistic write
+		// would lift suppression before the authoritative reordered
+		// queue arrives.
+		store.setQueuedMessages([a]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(99)).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// clearStreamState
+// ---------------------------------------------------------------------------
+
+describe("clearStreamState", () => {
+	it("clears stream state to null", () => {
+		const store = createChatStore();
+		// Build up some stream state via applyMessagePart.
+		store.applyMessagePart({ type: "text", text: "hello" });
+		expect(store.getSnapshot().streamState).not.toBeNull();
+
+		store.clearStreamState();
+
+		expect(store.getSnapshot().streamState).toBeNull();
+	});
+
+	it("is a no-op when stream state is already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearStreamState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// applyMessagePart / applyMessageParts
+// ---------------------------------------------------------------------------
+
+describe("applyMessagePart / applyMessageParts", () => {
+	it("creates stream state from a text part", () => {
+		const store = createChatStore();
+
+		store.applyMessagePart({ type: "text", text: "hello" });
+
+		expect(store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "hello" },
+		]);
+	});
+
+	it("appends to existing stream state", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "hello" });
+		store.applyMessagePart({ type: "text", text: " world" });
+
+		expect(store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "hello world" },
+		]);
+	});
+
+	it("applies multiple parts in a single batch", () => {
+		const store = createChatStore();
+
+		store.applyMessageParts([
+			{ type: "text", text: "one" },
+			{ type: "text", text: " two" },
+		]);
+
+		expect(store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "one two" },
+		]);
+	});
+
+	it("is a no-op for an empty parts array", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.applyMessageParts([]);
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resetTransientState
+// ---------------------------------------------------------------------------
+
+describe("resetTransientState", () => {
+	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
+		const store = createChatStore();
+		store.applyMessagePart({ type: "text", text: "stream" });
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
+		store.setRetryState({
+			attempt: 2,
+			error: "rate limit",
+			kind: "rate_limit",
+			provider: "anthropic",
+			retryingAt: "2025-01-01T00:01:00.000Z",
+		});
+		store.setReconnectState({
+			attempt: 1,
+			delayMs: 1000,
+			retryingAt: "2025-01-01T00:00:01.000Z",
+		});
+		store.setSubagentStatusOverride("sub-1", "error");
+
+		store.resetTransientState();
+
+		const state = store.getSnapshot();
+		expect(state.streamState).toBeNull();
+		expect(state.streamError).toBeNull();
+		expect(state.retryState).toBeNull();
+		expect(state.reconnectState).toBeNull();
+		expect(state.subagentStatusOverrides.size).toBe(0);
+	});
+
+	it("preserves messages and queued messages", () => {
+		const store = createChatStore();
+		store.replaceMessages([makeMessage(1, "user", "hello")]);
+		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
+
+		store.resetTransientState();
+
+		const state = store.getSnapshot();
+		expect(state.messagesByID.size).toBe(1);
+		expect(state.queuedMessages).toHaveLength(1);
+	});
+
+	it("is a no-op when all transient state is already clean", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.resetTransientState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// subscribe
+// ---------------------------------------------------------------------------
+
+describe("subscribe", () => {
+	it("returns an unsubscribe function that prevents future notifications", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		const unsubscribe = store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.setChatStatus("running");
+		expect(callCount).toBe(1);
+
+		unsubscribe();
+		store.setChatStatus("error");
+		expect(callCount).toBe(1);
+	});
+
+	it("supports multiple concurrent subscribers", () => {
+		const store = createChatStore();
+		let countA = 0;
+		let countB = 0;
+		store.subscribe(() => {
+			countA += 1;
+		});
+		store.subscribe(() => {
+			countB += 1;
+		});
+
+		store.setChatStatus("running");
+
+		expect(countA).toBe(1);
+		expect(countB).toBe(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// selectIsAwaitingFirstStreamChunk
+// ---------------------------------------------------------------------------
+
+describe("selectIsAwaitingFirstStreamChunk", () => {
+	it("returns true when running with no stream state and no assistant message", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns false when the latest message is from the assistant", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false when stream state is present", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.applyMessagePart({ type: "text", text: "response" });
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false during waiting status when latest message is from user", () => {
+		const store = createChatStore();
+		store.setChatStatus("waiting");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		// "waiting" means the chat is idle; nothing is generating,
+		// so no Thinking indicator should show.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false when chat status is null", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns true when latest message is a tool result during running", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
+		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
+		const store = createChatStore();
+		// Simulate a settled previous turn: assistant replied,
+		// then server transitioned to "waiting".
+		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
+		store.setChatStatus("waiting");
+
+		// Verify baseline: not awaiting while idle.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+
+		// Simulate handleSend after POST returns (non-queued).
+		// This is the exact sequence from AgentChatPage.tsx.
+		store.clearStreamState();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true when WS delivers user message + status:running (fresh send)", () => {
+		const store = createChatStore();
+		// Simulate the WS batch: [message(user), status:running].
+		// This is the event order from the server when the user
+		// sends a message. The Thinking indicator must appear
+		// before the first stream chunk arrives.
+		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
+		store.setChatStatus("running");
+		store.clearStreamState();
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+});
+
+describe("duplicate message deduplication", () => {
+	it("replaceMessages deduplicates orderedMessageIDs when input has duplicate IDs", () => {
+		const store = createChatStore();
+		const msg1 = makeMessage(1, "user", "hello");
+		const msg2 = makeMessage(2, "assistant", "hi");
+		// Simulate cross-page duplication: same ID appears twice.
+		const msg2Copy = makeMessage(2, "assistant", "hi");
+
+		store.replaceMessages([msg1, msg2, msg2Copy]);
+
+		const state = store.getSnapshot();
+		// Map deduplicates by key — only 2 unique entries.
+		expect(state.messagesByID.size).toBe(2);
+		// orderedMessageIDs MUST also have only 2 entries.
+		expect(state.orderedMessageIDs).toEqual([1, 2]);
+	});
+});

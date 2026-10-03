@@ -41,23 +41,25 @@ func TestConnectionLog(t *testing.T) {
 	)
 
 	tests := []struct {
-		name   string
-		id     uuid.UUID
-		action *agentproto.Connection_Action
-		typ    *agentproto.Connection_Type
-		time   time.Time
-		ip     string
-		status int32
-		reason string
+		name            string
+		id              uuid.UUID
+		action          *agentproto.Connection_Action
+		typ             *agentproto.Connection_Type
+		time            time.Time
+		ip              string
+		status          int32
+		reason          string
+		clientSessionID string
 	}{
 		{
-			name:   "SSH Connect",
-			id:     uuid.New(),
-			action: agentproto.Connection_CONNECT.Enum(),
-			typ:    agentproto.Connection_SSH.Enum(),
-			time:   dbtime.Now(),
-			ip:     "127.0.0.1",
-			status: 200,
+			name:            "SSH Connect",
+			id:              uuid.New(),
+			action:          agentproto.Connection_CONNECT.Enum(),
+			typ:             agentproto.Connection_SSH.Enum(),
+			time:            dbtime.Now(),
+			ip:              "127.0.0.1",
+			status:          200,
+			clientSessionID: "0123456789abcdef0123456789abcdef",
 		},
 		{
 			name:   "VS Code Connect",
@@ -101,7 +103,6 @@ func TestConnectionLog(t *testing.T) {
 			reason: "because error says so",
 		},
 	}
-	//nolint:paralleltest // No longer necessary to reinitialise the variable tt.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -114,20 +115,20 @@ func TestConnectionLog(t *testing.T) {
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
 				Database:         mDB,
-				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-					return agent, nil
-				},
-				Workspace: &agentapi.CachedWorkspaceFields{},
+				AgentID:          agent.ID,
+				AgentName:        agent.Name,
+				Workspace:        &agentapi.CachedWorkspaceFields{},
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
-					Id:         tt.id[:],
-					Action:     *tt.action,
-					Type:       *tt.typ,
-					Timestamp:  timestamppb.New(tt.time),
-					Ip:         tt.ip,
-					StatusCode: tt.status,
-					Reason:     &tt.reason,
+					Id:              tt.id[:],
+					Action:          *tt.action,
+					Type:            *tt.typ,
+					Timestamp:       timestamppb.New(tt.time),
+					Ip:              tt.ip,
+					StatusCode:      tt.status,
+					Reason:          &tt.reason,
+					ClientSessionId: tt.clientSessionID,
 				},
 			})
 
@@ -154,7 +155,7 @@ func TestConnectionLog(t *testing.T) {
 					Int32: tt.status,
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
-				Ip:   expectedIP,
+				IP:   expectedIP,
 				Type: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
 				DisconnectReason: sql.NullString{
 					String: tt.reason,
@@ -163,6 +164,10 @@ func TestConnectionLog(t *testing.T) {
 				ConnectionID: uuid.NullUUID{
 					UUID:  tt.id,
 					Valid: tt.id != uuid.Nil,
+				},
+				ClientSessionID: sql.NullString{
+					String: tt.clientSessionID,
+					Valid:  tt.clientSessionID != "",
 				},
 			}))
 		})

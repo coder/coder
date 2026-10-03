@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentrsa"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -54,14 +56,12 @@ const (
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
 )
 
-// MagicSessionType is a type that represents the type of session that is being
-// established.
-type MagicSessionType string
-
 const (
-	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
-	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+	// AppNameEnvironmentVariable carries the name of the app opening an SSH
+	// connection. This is stripped from any commands being executed, and is
+	// counted towards connection stats. The value keeps its original spelling
+	// so existing clients keep working.
+	AppNameEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// ContainerEnvironmentVariable is used to specify the target container for an SSH connection.
 	// This is stripped from any commands being executed.
 	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
@@ -72,23 +72,12 @@ const (
 	ContainerUserEnvironmentVariable = "CODER_CONTAINER_USER"
 )
 
-// MagicSessionType enums.
-const (
-	// MagicSessionTypeUnknown means the session type could not be determined.
-	MagicSessionTypeUnknown MagicSessionType = "unknown"
-	// MagicSessionTypeSSH is the default session type.
-	MagicSessionTypeSSH MagicSessionType = "ssh"
-	// MagicSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
-	MagicSessionTypeVSCode MagicSessionType = "vscode"
-	// MagicSessionTypeJetBrains is set in the SSH config by the JetBrains
-	// extension to identify itself.
-	MagicSessionTypeJetBrains MagicSessionType = "jetbrains"
-)
-
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
-type reportConnectionFunc func(id uuid.UUID, sessionType MagicSessionType, ip string) (disconnected func(code int, reason string))
+// startSessionFunc counts a session until endSession is called, which must
+// happen exactly once.
+type startSessionFunc func(sessionType string) (endSession func())
 
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
@@ -107,13 +96,26 @@ type Config struct {
 	// where users will land when they connect via SSH. Default is the home
 	// directory of the user.
 	WorkingDirectory func() string
+	// EnvInfo sources the session command environment. Default is
+	// usershell.SystemEnvInfo. A container override still applies per
+	// session when ExperimentalContainers is enabled.
+	EnvInfo usershell.EnvInfoer
 	// X11DisplayOffset is the offset to add to the X11 display number.
 	// Default is 10.
 	X11DisplayOffset *int
+	// X11MaxPort overrides the highest port used for X11 forwarding
+	// listeners. Defaults to X11MaxPort (6200). Useful in tests
+	// to shrink the port range and reduce the number of sessions
+	// required.
+	X11MaxPort *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
-	// ReportConnection.
-	ReportConnection reportConnectionFunc
+	// BlockReversePortForwarding disables reverse port forwarding (ssh -R).
+	BlockReversePortForwarding bool
+	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
+	BlockLocalPortForwarding bool
+	// ConnectionReporter reports connect and disconnect events.
+	ConnectionReporter proto.ConnectionReporter
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -136,16 +138,16 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
+	// Kept off mu, which Close holds while closing sessions.
+	sessionCountsMu sync.Mutex
+	sessionCounts   map[string]int64
+
 	Execer       agentexec.Execer
 	logger       slog.Logger
 	srv          *ssh.Server
 	x11Forwarder *x11Forwarder
 
 	config *Config
-
-	connCountVSCode     atomic.Int64
-	connCountJetBrains  atomic.Int64
-	connCountSSHSession atomic.Int64
 
 	metrics *sshServerMetrics
 }
@@ -158,6 +160,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		offset := X11DefaultDisplayOffset
 		config.X11DisplayOffset = &offset
 	}
+	if config.X11MaxPort == nil {
+		maxPort := X11MaxPort
+		config.X11MaxPort = &maxPort
+	}
 	if config.UpdateEnv == nil {
 		config.UpdateEnv = func(current []string) ([]string, error) { return current, nil }
 	}
@@ -168,30 +174,30 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config.AnnouncementBanners = func() *[]codersdk.BannerConfig { return &[]codersdk.BannerConfig{} }
 	}
 	if config.WorkingDirectory == nil {
-		config.WorkingDirectory = func() string {
-			home, err := userHomeDir()
-			if err != nil {
-				return ""
-			}
-			return home
-		}
+		// Empty means unset, so resolveWorkingDirectory falls back to the
+		// EnvInfo home directory.
+		config.WorkingDirectory = func() string { return "" }
 	}
-	if config.ReportConnection == nil {
-		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
+	if config.EnvInfo == nil {
+		config.EnvInfo = &usershell.SystemEnvInfo{}
+	}
+	if config.ConnectionReporter == nil {
+		config.ConnectionReporter = &proto.NoopConnectionReporter{}
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	unixForwardHandler := newForwardedUnixHandler(logger)
+	unixForwardHandler := newForwardedUnixHandler(logger, config.BlockReversePortForwarding)
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
-		Execer:    execer,
-		listeners: make(map[net.Listener]struct{}),
-		fs:        fs,
-		conns:     make(map[net.Conn]struct{}),
-		sessions:  make(map[ssh.Session]struct{}),
-		processes: make(map[*os.Process]struct{}),
-		logger:    logger,
+		Execer:        execer,
+		listeners:     make(map[net.Listener]struct{}),
+		fs:            fs,
+		conns:         make(map[net.Conn]struct{}),
+		sessions:      make(map[ssh.Session]struct{}),
+		processes:     make(map[*os.Process]struct{}),
+		sessionCounts: make(map[string]int64),
+		logger:        logger,
 
 		config: config,
 
@@ -201,6 +207,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			x11HandlerErrors: metrics.x11HandlerErrors,
 			fs:               fs,
 			displayOffset:    *config.X11DisplayOffset,
+			maxPort:          *config.X11MaxPort,
 			sessions:         make(map[*x11Session]struct{}),
 			connections:      make(map[net.Conn]struct{}),
 			network: func() X11Network {
@@ -216,30 +223,65 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// Wrapper is designed to find and track JetBrains Gateway connections.
-				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, &s.connCountJetBrains)
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger,
+					s.config.ConnectionReporter,
+					newChan,
+					s.startSession,
+					clientSessionIDFromContext(ctx),
+				)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
-			"direct-streamlocal@openssh.com": directStreamLocalHandler,
-			"session":                        ssh.DefaultSessionHandler,
+			"direct-streamlocal@openssh.com": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+				if s.config.BlockLocalPortForwarding {
+					s.logger.Warn(ctx, "unix local port forward blocked",
+						slog.F("remote_addr", conn.RemoteAddr()),
+						slog.F("local_addr", conn.LocalAddr()),
+						slog.F("client_session_id", clientSessionIDFromContext(ctx)))
+					_ = newChan.Reject(gossh.Prohibited, "local port forwarding is disabled")
+					return
+				}
+				directStreamLocalHandler(srv, conn, newChan, ctx)
+			},
+			"session": ssh.DefaultSessionHandler,
+		},
+		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
+			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
+			return conn
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			// The conn here is our conn wrapped in a ssh.serverConn, so unwrap to get
+			// the client session ID from the inner conn.
+			clientSessionID := ""
+			val := reflect.ValueOf(conn)
+			if val.Kind() == reflect.Ptr {
+				val = val.Elem()
+			}
+			if val.Kind() == reflect.Struct {
+				f := val.FieldByName("Conn")
+				if f.IsValid() && f.CanInterface() {
+					if inner, ok := f.Interface().(net.Conn); ok {
+						clientSessionID = ClientSessionIDFromConn(inner)
+					}
+				}
+			}
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
+				slog.F("client_session_id", clientSessionID),
 				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
-		},
-		ConnectionCompleteCallback: func(conn *gossh.ServerConn, err error) {
-			s.logger.Info(ctx, "ssh connection complete",
-				slog.F("remote_addr", conn.RemoteAddr()),
-				slog.F("local_addr", conn.LocalAddr()),
-				slog.Error(err))
 		},
 		Handler: s.sessionHandler,
 		// HostSigners are intentionally empty, as the host key will
 		// be set before we start listening.
 		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
+			if s.config.BlockLocalPortForwarding {
+				s.logger.Warn(ctx, "local port forward blocked",
+					slog.F("destination_host", destinationHost),
+					slog.F("destination_port", destinationPort))
+				return false
+			}
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination_host", destinationHost),
@@ -250,6 +292,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
+			if s.config.BlockReversePortForwarding {
+				s.logger.Warn(ctx, "reverse port forward blocked",
+					slog.F("bind_host", bindHost),
+					slog.F("bind_port", bindPort))
+				return false
+			}
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "reverse port forward",
 				slog.F("bind_host", bindHost),
@@ -289,44 +337,50 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	return s, nil
 }
 
-type ConnStats struct {
-	Sessions  int64
-	VSCode    int64
-	JetBrains int64
-}
-
-func (s *Server) ConnStats() ConnStats {
-	return ConnStats{
-		Sessions:  s.connCountSSHSession.Load(),
-		VSCode:    s.connCountVSCode.Load(),
-		JetBrains: s.connCountJetBrains.Load(),
-	}
-}
-
-func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType string, filteredEnv []string) {
-	for _, kv := range env {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
-			continue
+// startSession counts a session until the returned function is called.
+func (s *Server) startSession(appName string) (endSession func()) {
+	key := codersdk.NormalizeAppName(appName)
+	s.sessionCountsMu.Lock()
+	defer s.sessionCountsMu.Unlock()
+	s.sessionCounts[key]++
+	return func() {
+		s.sessionCountsMu.Lock()
+		defer s.sessionCountsMu.Unlock()
+		s.sessionCounts[key]--
+		if s.sessionCounts[key] <= 0 {
+			delete(s.sessionCounts, key)
 		}
+	}
+}
 
-		rawType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
-		// Keep going, we'll use the last instance of the env.
+// SessionCounts returns active sessions per app name, omitting zeroes. Never
+// nil, so callers can merge in other sources.
+func (s *Server) SessionCounts() map[string]int64 {
+	s.sessionCountsMu.Lock()
+	defer s.sessionCountsMu.Unlock()
+	return maps.Clone(s.sessionCounts)
+}
+
+func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
+	// Match the full assignment so a longer variable such as
+	// CODER_SSH_SESSION_TYPE_FOO=bar is not mistaken for this one.
+	prefix := AppNameEnvironmentVariable + "="
+	for _, kv := range env {
+		if value, ok := strings.CutPrefix(kv, prefix); ok {
+			// The last instance of the variable wins.
+			rawAppName = value
+		}
 	}
 
-	// Always force lowercase checking to be case-insensitive.
-	switch MagicSessionType(strings.ToLower(rawType)) {
-	case MagicSessionTypeVSCode:
-		magicType = MagicSessionTypeVSCode
-	case MagicSessionTypeJetBrains:
-		magicType = MagicSessionTypeJetBrains
-	case "", MagicSessionTypeSSH:
-		magicType = MagicSessionTypeSSH
-	default:
-		magicType = MagicSessionTypeUnknown
+	if rawAppName == "" {
+		appName = string(codersdk.AppFamilySSH)
+	} else {
+		// Normalize, don't classify: unknown names flow through.
+		appName = codersdk.NormalizeAppName(rawAppName)
 	}
 
-	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+	return appName, rawAppName, slices.DeleteFunc(env, func(kv string) bool {
+		return strings.HasPrefix(kv, prefix)
 	})
 }
 
@@ -378,17 +432,42 @@ func extractContainerInfo(env []string) (container, containerUser string, filter
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
 	id := uuid.New()
+	clientSessionID := clientSessionIDFromContext(ctx)
 	logger := s.logger.With(
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
 		// logs for the same ssh session.
 		slog.F("id", id.String()),
+		// The client session ID tracks multiple SSH sessions over the lifetime of a
+		// single client (IDE) session, for debugging reconnects/disconnects.
+		slog.F("client_session_id", clientSessionID),
 	)
 	logger.Info(ctx, "handling ssh session")
 
 	env := session.Environ()
-	magicType, magicTypeRaw, env := extractMagicSessionType(env)
+	appName, rawAppName, env := extractAppName(env)
+	family := codersdk.AppNameFamily(appName)
+	if family == codersdk.AppFamilyUnknown {
+		logger.Debug(ctx, "unrecognized ssh session type",
+			slog.F("app_name", appName),
+			slog.F("raw_app_name", rawAppName),
+		)
+	}
+
+	// Connection_Type is a fixed enum, stored as a database enum in the
+	// connection log, so it can only hold a family.
+	var connectionType proto.Connection_Type
+	switch family {
+	case codersdk.AppFamilySSH:
+		connectionType = proto.Connection_SSH
+	case codersdk.AppFamilyVSCode:
+		connectionType = proto.Connection_VSCODE
+	case codersdk.AppFamilyJetBrains:
+		connectionType = proto.Connection_JETBRAINS
+	default:
+		connectionType = proto.Connection_TYPE_UNSPECIFIED
+	}
 
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
 	// handles nil.
@@ -402,8 +481,17 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
-		defer disconnected(1, reason)
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:              id,
+			Type:            connectionType,
+			AppName:         appName,
+			IP:              remoteAddrString,
+			ClientSessionID: clientSessionID,
+		})
+		defer connReporter.Disconnect(proto.DisconnectEvent{
+			Code:   1,
+			Reason: reason,
+		})
 
 		logger.Info(ctx, reason)
 		// See (*Server).Close() for why we call Close instead of Exit.
@@ -414,32 +502,41 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	reportSession := true
 
-	switch magicType {
-	case MagicSessionTypeVSCode:
-		s.connCountVSCode.Add(1)
-		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
+	if family == codersdk.AppFamilyJetBrains {
 		// Do nothing here because JetBrains launches hundreds of ssh sessions.
 		// We instead track JetBrains in the single persistent tcp forwarding channel.
 		reportSession = false
-	case MagicSessionTypeSSH:
-		s.connCountSSHSession.Add(1)
-		defer s.connCountSSHSession.Add(-1)
-	case MagicSessionTypeUnknown:
-		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
+	} else {
+		endSession := s.startSession(appName)
+		defer endSession()
 	}
 
-	closeCause := func(string) {}
+	closeCause := func(_ string) {}
 	if reportSession {
-		var reason string
-		closeCause = func(r string) { reason = r }
+		var reason codersdk.DisconnectReason
+		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:              id,
+			Type:            connectionType,
+			AppName:         appName,
+			IP:              remoteAddrString,
+			ClientSessionID: clientSessionID,
+		})
 		defer func() {
-			disconnected(scr.exitCode(), reason)
+			logger.Info(ctx, "ssh session closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
+				reason.SlogField(),
+				reason.SlogExpectedField(),
+				slog.F("exit_code", scr.exitCode()),
+			)
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:   scr.exitCode(),
+				Reason: string(reason),
+			})
 		}()
 	}
 
@@ -496,7 +593,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
 	}
 
-	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
+	err := s.sessionStart(logger, session, env, appName, container, containerUser)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		code := exitError.ExitCode()
@@ -534,6 +631,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
+	closeCause(string(codersdk.DisconnectReasonGraceful))
 	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
 }
@@ -569,35 +667,35 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
-func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType MagicSessionType, container, containerUser string) (retErr error) {
+func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, appName, container, containerUser string) (retErr error) {
 	ctx := session.Context()
 
-	magicTypeLabel := magicTypeMetricLabel(magicType)
+	appLabel := appNameMetricLabel(appName)
 	sshPty, windowSize, isPty := session.Pty()
 	ptyLabel := "no"
 	if isPty {
 		ptyLabel = "yes"
 	}
 
-	var ei usershell.EnvInfoer
+	ei := s.config.EnvInfo
 	var err error
 	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "container_env_info").Add(1)
 			return err
 		}
 	}
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, ei)
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "create_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "create_command").Add(1)
 		return err
 	}
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "listener").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "listener").Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
@@ -606,13 +704,13 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 	}
 
 	if isPty {
-		return s.startPTYSession(logger, session, magicTypeLabel, cmd, sshPty, windowSize)
+		return s.startPTYSession(logger, session, appLabel, cmd, sshPty, windowSize)
 	}
-	return s.startNonPTYSession(logger, session, magicTypeLabel, cmd.AsExec())
+	return s.startNonPTYSession(logger, session, appLabel, cmd.AsExec())
 }
 
-func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
-	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
+func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, appLabel string, cmd *exec.Cmd) error {
+	s.metrics.sessionsTotal.WithLabelValues(appLabel, "no").Add(1)
 
 	// Create a process group and send SIGHUP to child processes,
 	// otherwise context cancellation will not propagate properly
@@ -631,19 +729,19 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_pipe").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "stdin_pipe").Add(1)
 		return xerrors.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
 		_, err := io.Copy(stdinPipe, session)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_io_copy").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "stdin_io_copy").Add(1)
 		}
 		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "start_command").Add(1)
 		return xerrors.Errorf("start: %w", err)
 	}
 
@@ -664,7 +762,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	}()
 	go func() {
 		for sig := range sigs {
-			handleSignal(logger, sig, cmd.Process, s.metrics, magicTypeLabel)
+			handleSignal(logger, sig, cmd.Process, s.metrics, appLabel)
 		}
 	}()
 	return cmd.Wait()
@@ -680,8 +778,8 @@ type ptySession interface {
 	Signals(chan<- ssh.Signal)
 }
 
-func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTypeLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
-	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "yes").Add(1)
+func (s *Server) startPTYSession(logger slog.Logger, session ptySession, appLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
+	s.metrics.sessionsTotal.WithLabelValues(appLabel, "yes").Add(1)
 
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
@@ -695,18 +793,18 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				err := showAnnouncementBanner(session, banner)
 				if err != nil {
 					logger.Error(ctx, "agent failed to show announcement banner", slog.Error(err))
-					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "announcement_banner").Add(1)
+					s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "announcement_banner").Add(1)
 					break
 				}
 			}
 		}
 	}
 
-	if !isQuietLogin(s.fs, session.RawCommand()) {
+	if !isQuietLogin(s.fs, s.config.EnvInfo, session.RawCommand()) {
 		err := showMOTD(s.fs, session, s.config.MOTDFile())
 		if err != nil {
 			logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "motd").Add(1)
 		}
 	}
 
@@ -718,14 +816,14 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		pty.WithLogger(slog.Stdlib(ctx, logger, slog.LevelInfo)),
 	))
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "start_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "start_command").Add(1)
 		return xerrors.Errorf("start command: %w", err)
 	}
 	defer func() {
 		closeErr := ptty.Close()
 		if closeErr != nil {
 			logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "close").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "close").Add(1)
 			if retErr == nil {
 				retErr = closeErr
 			}
@@ -749,7 +847,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 					sigs = nil
 					continue
 				}
-				handleSignal(logger, sig, process, s.metrics, magicTypeLabel)
+				handleSignal(logger, sig, process, s.metrics, appLabel)
 			case win, ok := <-windowSize:
 				if !ok {
 					windowSize = nil
@@ -760,7 +858,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				// If the pty is closed, then command has exited, no need to log.
 				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
 					logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
-					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "resize").Add(1)
+					s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "resize").Add(1)
 				}
 			}
 		}
@@ -769,7 +867,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	go func() {
 		_, err := io.Copy(ptty.InputWriter(), session)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "input_io_copy").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "input_io_copy").Add(1)
 		}
 	}()
 
@@ -784,7 +882,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	n, err := io.Copy(session, ptty.OutputReader())
 	logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "output_io_copy").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "output_io_copy").Add(1)
 		return xerrors.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
@@ -796,7 +894,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
 		logger.Warn(ctx, "process wait exited with error", slog.Error(err))
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
 		return xerrors.Errorf("process wait: %w", err)
@@ -804,7 +902,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	return nil
 }
 
-func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, magicTypeLabel string) {
+func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, appLabel string) {
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
 	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
@@ -812,7 +910,7 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	err := signaler.Signal(sig)
 	if err != nil {
 		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
-		metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
+		metrics.sessionErrors.WithLabelValues(appLabel, "yes", "signal").Add(1)
 	}
 }
 
@@ -831,13 +929,14 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	// Change current working directory to the configured
 	// directory (or home directory if not set) so that SFTP
 	// connections land there.
-	dir := s.config.WorkingDirectory()
-	if dir == "" {
-		var err error
-		dir, err = userHomeDir()
-		if err != nil {
-			logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
-		}
+	//
+	// The host EnvInfo is used here, not a container's. This is
+	// correct only while SFTP is blocked for container sessions
+	// (see the closeCause guard above). If container SFTP is added,
+	// the container EnvInfo must be resolved and passed here.
+	dir, err := s.resolveWorkingDirectory(s.config.EnvInfo)
+	if err != nil {
+		logger.Warn(ctx, "resolve sftp working directory failed", slog.Error(err))
 	}
 	if dir != "" {
 		opts = append(opts, sftp.WithServerWorkingDirectory(dir))
@@ -869,6 +968,12 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	return xerrors.Errorf("sftp server closed with error: %w", err)
 }
 
+// resolveWorkingDirectory returns the working directory for a session, binding
+// the server filesystem and configured directory to the shared resolver.
+func (s *Server) resolveWorkingDirectory(ei usershell.EnvInfoer) (string, error) {
+	return usershell.ResolveWorkingDirectory(s.fs, ei, s.config.WorkingDirectory())
+}
+
 func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir string, env []string, err error) {
 	if ei == nil {
 		ei = &usershell.SystemEnvInfo{}
@@ -885,18 +990,9 @@ func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir
 		return "", "", nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	dir = s.config.WorkingDirectory()
-
-	// If the metadata directory doesn't exist, we run the command
-	// in the users home directory.
-	_, err = os.Stat(dir)
-	if dir == "" || err != nil {
-		// Default to user home if a directory is not set.
-		homedir, err := ei.HomeDir()
-		if err != nil {
-			return "", "", nil, xerrors.Errorf("get home dir: %w", err)
-		}
-		dir = homedir
+	dir, err = s.resolveWorkingDirectory(ei)
+	if err != nil {
+		return "", "", nil, xerrors.Errorf("resolve working dir: %w", err)
 	}
 	env = append(ei.Environ(), addEnv...)
 	// Set login variables (see `man login`).
@@ -999,8 +1095,10 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
-// Serve starts the server to handle incoming connections on the provided listener.
-// It returns an error if no host keys are set or if there is an issue accepting connections.
+// Serve starts the server to handle incoming connections on the provided
+// listener.  It returns an error if no host keys are set or if there is an
+// issue accepting connections.  If the listener returns UpgradedConn, then the
+// client session ID will be extracted from those connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
 	// Ensure we're not mutating HostSigners as we're reading it.
 	s.mu.RLock()
@@ -1029,11 +1127,19 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 	}
 }
 
+// handleConn serves a single SSH connection.  l is the listener from which the
+// connection was accepted.  If the conn is an UpgradedConn, then the client
+// session ID will be extracted from it.
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	clientSessionID := ClientSessionIDFromConn(c)
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
-		slog.F("listen_addr", l.Addr()))
+		slog.F("listen_addr", l.Addr()),
+		slog.F("client_session_id", clientSessionID))
+
+	defer logger.Info(context.Background(), "ssh connection complete")
+
 	defer c.Close()
 
 	if !s.trackConn(l, c, true) {
@@ -1044,7 +1150,6 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	}
 	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
-	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
 
@@ -1241,7 +1346,7 @@ func isLoginShell(rawCommand string) bool {
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(fs afero.Fs, rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, ei usershell.EnvInfoer, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
 	if !isLoginShell(rawCommand) {
 		return true
@@ -1249,7 +1354,7 @@ func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 
 	// Best effort, if we can't get the home directory,
 	// we can't lookup .hushlogin.
-	homedir, err := userHomeDir()
+	homedir, err := ei.HomeDir()
 	if err != nil {
 		return false
 	}
@@ -1308,23 +1413,6 @@ func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
 	return nil
 }
 
-// userHomeDir returns the home directory of the current user, giving
-// priority to the $HOME environment variable.
-func userHomeDir() (string, error) {
-	// First we check the environment.
-	homedir, err := os.UserHomeDir()
-	if err == nil {
-		return homedir, nil
-	}
-
-	// As a fallback, we try the user information.
-	u, err := user.Current()
-	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
-	}
-	return u.HomeDir, nil
-}
-
 // UpdateHostSigner updates the host signer with a new key generated from the provided seed.
 // If an existing host key exists with the same algorithm, it is overwritten
 func (s *Server) UpdateHostSigner(seed int64) error {
@@ -1351,4 +1439,25 @@ func CoderSigner(seed int64) (gossh.Signer, error) {
 
 	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
 	return coderSigner, err
+}
+
+type clientSessionIDContextKey struct{}
+
+func clientSessionIDFromContext(ctx ssh.Context) string {
+	id, _ := ctx.Value(clientSessionIDContextKey{}).(string)
+	return id
+}
+
+// UpgradedConn is a net.Conn that has a client session ID attached.  Listeners
+// can return these to augment logs for a connection with a client session ID.
+type UpgradedConn interface {
+	net.Conn
+	ClientSessionID() string
+}
+
+func ClientSessionIDFromConn(conn net.Conn) string {
+	if uc, ok := conn.(UpgradedConn); ok {
+		return uc.ClientSessionID()
+	}
+	return ""
 }

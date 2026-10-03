@@ -1,35 +1,36 @@
-import type { SerpentOption } from "api/typesGenerated";
-import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import type { SerpentOption } from "#/api/typesGenerated";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
-} from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type NetworkSettingsPageViewProps = {
 	options: SerpentOption[];
 };
 
-export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
-	options,
-}) => (
-	<Stack direction="column" spacing={6}>
+export const NetworkSettingsPageView: React.FC<
+	NetworkSettingsPageViewProps
+> = ({ options }) => (
+	<div className="flex flex-col gap-12">
 		<div>
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/admin/networking")} />}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Network</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Configure your deployment connectivity.
+					Configure your deployment connectivity.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking")}
+						context="about deployment networking"
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -41,30 +42,28 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 		</div>
 
 		<div>
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink
-						href={docs("/admin/networking/port-forwarding")}
-					/>
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle level="h2" hierarchy="secondary">
 					Port Forwarding
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Port forwarding lets developers securely access processes on their
-					Coder workspace from a local machine.
+					Coder workspace from a local machine.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking/port-forwarding")}
+						context="about port forwarding"
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<Badges>
-				{useDeploymentOptions(options, "wildcard-access-url")[0].value !==
+			<BadgeGroup>
+				{useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
 				"" ? (
 					<EnabledBadge />
 				) : (
 					<DisabledBadge />
 				)}
-			</Badges>
+			</BadgeGroup>
 		</div>
-	</Stack>
+	</div>
 );

@@ -1,48 +1,44 @@
-import type { ConnectionLog } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
+import type { ConnectionLog } from "#/api/typesGenerated";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+} from "#/components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { Paywall } from "components/Paywall/Paywall";
-import { Stack } from "components/Stack/Stack";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { Timeline } from "#/components/Timeline/Timeline";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
-import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
+import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
-const Language = {
-	title: "Connection log",
-	subtitle: "View workspace connection events.",
-};
-
-interface ConnectionLogPageViewProps {
+type ConnectionLogPageViewProps = {
 	connectionLogs?: readonly ConnectionLog[];
 	isNonInitialPage: boolean;
 	isConnectionLogVisible: boolean;
 	error?: unknown;
-	filterProps: ComponentProps<typeof ConnectionLogFilter>;
+	filterProps: React.ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
-}
+	permissions: Permissions;
+};
 
-export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
+export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 	connectionLogs,
 	isNonInitialPage,
 	isConnectionLogVisible,
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
+	permissions,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -55,16 +51,21 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.title}</span>
-						<ConnectionLogHelpTooltip />
-					</Stack>
+					<div className="flex flex-row gap-2 items-center">
+						<span>Connection Log</span>
+						<ConnectionLogHelpPopover />
+					</div>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View workspace connection events.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/monitoring/connection-logs")}
+					/>
+				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<ChooseOne>
-				<Cond condition={isConnectionLogVisible}>
+			{isConnectionLogVisible ? (
+				<>
 					<ConnectionLogFilter {...filterProps} />
 
 					<PaginationContainer
@@ -73,65 +74,72 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					>
 						<Table>
 							<TableBody>
-								<ChooseOne>
-									{/* Error condition should just show an empty table. */}
-									<Cond condition={Boolean(error)}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState message="An error occurred while loading connection logs" />
-											</TableCell>
-										</TableRow>
-									</Cond>
-
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
-
-									<Cond condition={isEmpty}>
-										<ChooseOne>
-											<Cond condition={isNonInitialPage}>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available on this page" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-
-											<Cond>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-										</ChooseOne>
-									</Cond>
-
-									<Cond>
-										{connectionLogs && (
-											<Timeline
-												items={connectionLogs}
-												getDate={(log) => new Date(log.connect_time)}
-												row={(log) => (
-													<ConnectionLogRow key={log.id} connectionLog={log} />
-												)}
-											/>
-										)}
-									</Cond>
-								</ChooseOne>
+								<ConnectionLogTableBody
+									connectionLogs={connectionLogs}
+									error={error}
+									isLoading={isLoading}
+									isEmpty={isEmpty}
+									isNonInitialPage={isNonInitialPage}
+								/>
 							</TableBody>
 						</Table>
 					</PaginationContainer>
-				</Cond>
-
-				<Cond>
-					<Paywall
-						message="Connection logs"
-						description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/monitoring/connection-logs")}
-					/>
-				</Cond>
-			</ChooseOne>
+				</>
+			) : (
+				<PremiumPaywall
+					source="connection_log"
+					message="Connection logs"
+					description="Track every SSH, IDE & port-forward connection."
+					features={[
+						"Full record of SSH, IDE & app sessions",
+						"Filter by organization, user & type",
+						"Export to Splunk & other SIEMs",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
+				/>
+			)}
 		</Margins>
+	);
+};
+
+type ConnectionLogTableBodyProps = {
+	connectionLogs: readonly ConnectionLog[] | undefined;
+	error: unknown;
+	isLoading: boolean;
+	isEmpty: boolean;
+	isNonInitialPage: boolean;
+};
+
+const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
+	connectionLogs,
+	error,
+	isLoading,
+	isEmpty,
+	isNonInitialPage,
+}) => {
+	// An error renders as an empty table.
+	if (error) {
+		return (
+			<TableEmpty message="An error occurred while loading connection logs" />
+		);
+	}
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (isEmpty) {
+		const emptyMessage = isNonInitialPage
+			? "No connection logs available on this page"
+			: "No connection logs available";
+		return <TableEmpty message={emptyMessage} />;
+	}
+	if (!connectionLogs) {
+		return null;
+	}
+	return (
+		<Timeline
+			items={connectionLogs}
+			getDate={(log) => new Date(log.connect_time)}
+			row={(log) => <ConnectionLogRow key={log.id} connectionLog={log} />}
+		/>
 	);
 };

@@ -1,22 +1,21 @@
-import { Button } from "components/Button/Button";
+import { ChevronRightIcon } from "lucide-react";
+import { Link as RouterLink } from "react-router";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Button } from "#/components/Button/Button";
 import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
-} from "components/Chart/Chart";
+} from "#/components/Chart/Chart";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { formatDate } from "utils/time";
+} from "#/components/Collapsible/Collapsible";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { formatDate } from "#/utils/time";
 
 const chartConfig = {
 	users: {
@@ -34,7 +33,9 @@ type UserEngagementChartProps = {
 		| undefined;
 };
 
-export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
+export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
+	data,
+}) => {
 	return (
 		<section className="border border-solid rounded">
 			<div className="p-4">

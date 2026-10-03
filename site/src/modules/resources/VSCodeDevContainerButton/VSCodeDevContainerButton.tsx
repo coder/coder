@@ -1,15 +1,18 @@
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import { API } from "api/api";
-import type { DisplayApp } from "api/typesGenerated";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { ChevronDownIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import { API } from "#/api/api";
+import type { DisplayApp } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDevContainerButtonProps {
+type VSCodeDevContainerButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
@@ -18,89 +21,93 @@ interface VSCodeDevContainerButtonProps {
 	localWorkspaceFolder: string;
 	localConfigFile: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 
 const VARIANT_KEY = "vscode-variant";
 
-export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
-	props,
-) => {
+const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
+	return value === "vscode" || value === "vscode-insiders";
+};
+
+export const VSCodeDevContainerButton: React.FC<
+	VSCodeDevContainerButtonProps
+> = (props) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const previousVariant = localStorage.getItem(VARIANT_KEY);
 	const [variant, setVariant] = useState<VSCodeVariant>(() => {
-		if (!previousVariant) {
-			return "vscode";
-		}
-		return previousVariant as VSCodeVariant;
+		const previousVariant = localStorage.getItem(VARIANT_KEY);
+		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
+	const menuContentId = useId();
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
 
-	const selectVariant = (variant: VSCodeVariant) => {
-		localStorage.setItem(VARIANT_KEY, variant);
-		setVariant(variant);
-		setIsVariantMenuOpen(false);
+	useLayoutEffect(() => {
+		if (isVariantMenuOpen) {
+			setMenuWidth(menuAnchorRef.current?.clientWidth);
+		}
+	}, [isVariantMenuOpen]);
+
+	const selectVariant = (nextVariant: VSCodeVariant) => {
+		localStorage.setItem(VARIANT_KEY, nextVariant);
+		setVariant(nextVariant);
 	};
 
 	const includesVSCodeDesktop = props.displayApps.includes("vscode");
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
 
 	return includesVSCodeDesktop && includesVSCodeInsiders ? (
-		<>
-			<div ref={menuAnchorRef} className="flex items-center gap-1">
-				{variant === "vscode" ? (
-					<VSCodeButton {...props} />
-				) : (
-					<VSCodeInsidersButton {...props} />
-				)}
+		<div ref={menuAnchorRef} className="inline-flex items-center gap-1">
+			{variant === "vscode" ? (
+				<VSCodeButton {...props} />
+			) : (
+				<VSCodeInsidersButton {...props} />
+			)}
 
-				<AgentButton
-					aria-controls={
-						isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
-					}
-					aria-expanded={isVariantMenuOpen ? "true" : undefined}
-					aria-label="select VSCode variant"
-					aria-haspopup="menu"
-					onClick={() => {
-						setIsVariantMenuOpen(true);
-					}}
-					size="icon-lg"
-				>
-					<ChevronDownIcon />
-				</AgentButton>
-			</div>
-
-			<Menu
+			<DropdownMenu
 				open={isVariantMenuOpen}
-				anchorEl={menuAnchorRef.current}
-				onClose={() => setIsVariantMenuOpen(false)}
-				css={{
-					"& .MuiMenu-paper": {
-						width: menuAnchorRef.current?.clientWidth,
-					},
-				}}
+				onOpenChange={setIsVariantMenuOpen}
 			>
-				<MenuItem
-					css={{ fontSize: 14 }}
-					onClick={() => {
-						selectVariant("vscode");
-					}}
+				<DropdownMenuTrigger asChild>
+					<AgentButton
+						aria-controls={isVariantMenuOpen ? menuContentId : undefined}
+						aria-label="select VSCode variant"
+						size="icon-lg"
+					>
+						<ChevronDownIcon open={isVariantMenuOpen} />
+					</AgentButton>
+				</DropdownMenuTrigger>
+
+				<DropdownMenuContent
+					id={menuContentId}
+					align="end"
+					collisionPadding={16}
+					style={{ width: menuWidth }}
 				>
-					<VSCodeIcon css={{ width: 12, height: 12 }} />
-					{DisplayAppNameMap.vscode}
-				</MenuItem>
-				<MenuItem
-					css={{ fontSize: 14 }}
-					onClick={() => {
-						selectVariant("vscode-insiders");
-					}}
-				>
-					<VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
-					{DisplayAppNameMap.vscode_insiders}
-				</MenuItem>
-			</Menu>
-		</>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode");
+						}}
+					>
+						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
+						{DisplayAppNameMap.vscode}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode-insiders");
+						}}
+					>
+						<ExternalImage
+							src="/icon/code-insiders.svg"
+							alt=""
+							className="size-3"
+						/>
+						{DisplayAppNameMap.vscode_insiders}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
 	) : includesVSCodeInsiders ? (
@@ -108,7 +115,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	) : null;
 };
 
-const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
+const VSCodeButton: React.FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
@@ -150,13 +157,13 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeIcon />
+			<ExternalImage src="/icon/code.svg" alt="" />
 			{DisplayAppNameMap.vscode}
 		</AgentButton>
 	);
 };
 
-const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
+const VSCodeInsidersButton: React.FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
@@ -198,7 +205,7 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeInsidersIcon />
+			<ExternalImage src="/icon/code-insiders.svg" alt="" />
 			{DisplayAppNameMap.vscode_insiders}
 		</AgentButton>
 	);

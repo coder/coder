@@ -1,15 +1,22 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
 	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
-	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
-	"ignore": ["**/*Generated.ts"],
-	"ignoreBinaries": ["protoc"],
-	"ignoreDependencies": [
-		"@types/react-virtualized-auto-sizer",
-		"jest_workaround",
-		"ts-proto"
+	"project": [
+		"./src/**/*.ts",
+		"./src/**/*.tsx",
+		"./test/**/*.ts",
+		"./e2e/**/*.ts"
 	],
-	"jest": {
-		"entry": "./src/**/*.jest.{ts,tsx}"
-	}
+	"tags": ["-lintignore"],
+	"ignore": ["**/*Generated.ts"],
+	"ignoreBinaries": ["make", "protoc"],
+	"ignoreDependencies": [
+		"@babel/plugin-syntax-typescript",
+		"@shadcn/lint",
+		"@tailwindcss/typography",
+		"@types/react-virtualized-auto-sizer",
+		"tailwindcss",
+		"tw-animate-css",
+		"ts-proto"
+	]
 }

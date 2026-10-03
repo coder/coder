@@ -1,68 +1,81 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import Skeleton from "@mui/material/Skeleton";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { templateVersion } from "api/queries/templates";
-import type { Workspace } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
-import {
-	HelpTooltip,
-	HelpTooltipAction,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { InfoIcon, RotateCcwIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, type ReactNode, useState } from "react";
+import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
+import { useState } from "react";
 import { useQuery } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { templateVersion } from "#/api/queries/templates";
+import type { Workspace } from "#/api/typesGenerated";
+import {
+	HelpPopover,
+	HelpPopoverAction,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface WorkspaceOutdatedTooltipProps {
+type WorkspaceOutdatedTooltipProps = {
 	workspace: Workspace;
-	children?: ReactNode;
-}
+	children?: React.ReactNode;
+};
 
-export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
-	workspace,
-	children,
-}) => {
+export const WorkspaceOutdatedTooltip: React.FC<
+	WorkspaceOutdatedTooltipProps
+> = ({ workspace, children }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
+	// Keep trigger clicks from triggering a parent clickable row's navigation.
+	// Radix composes its own click handler, so the popover still opens. The
+	// span's key handlers only satisfy Biome's lint/a11y/useKeyWithClickEvents.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
 	return (
-		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
 			{children ? (
-				<HelpTooltipTrigger asChild>
-					<span className="flex items-center gap-1.5 cursor-help">
-						<InfoIcon css={styles.icon} size={14} />
+				<HelpPopoverTrigger asChild>
+					<span
+						className="flex items-center gap-1.5"
+						onClick={stopPropagation}
+						onKeyDown={stopPropagation}
+						onKeyUp={stopPropagation}
+					>
+						<CircleAlertIcon className="text-content-secondary" size={14} />
 						<span>{children}</span>
 					</span>
-				</HelpTooltipTrigger>
+				</HelpPopoverTrigger>
 			) : (
-				<HelpTooltipIconTrigger size="small" hoverEffect={false}>
-					<InfoIcon css={styles.icon} />
+				<HelpPopoverIconTrigger
+					size="small"
+					hoverEffect={false}
+					onClick={stopPropagation}
+				>
+					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>
-				</HelpTooltipIconTrigger>
+				</HelpPopoverIconTrigger>
 			)}
 			<WorkspaceOutdatedTooltipContent isOpen={isOpen} workspace={workspace} />
-		</HelpTooltip>
+		</HelpPopover>
 	);
 };
 
 type TooltipContentProps = WorkspaceOutdatedTooltipProps & { isOpen: boolean };
 
-const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
+const WorkspaceOutdatedTooltipContent: React.FC<TooltipContentProps> = ({
 	workspace,
 	isOpen,
 }) => {
 	const getLink = useLinks();
-	const theme = useTheme();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: isOpen,
@@ -71,9 +84,11 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		workspace,
 		latestVersion: activeVersion,
 		onError: (error) => {
-			displayError(
-				getErrorMessage(error, "Error updating workspace"),
-				getErrorDetail(error),
+			toast.error(
+				getErrorMessage(error, `Error updating workspace "${workspace.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
 			);
 		},
 	});
@@ -84,21 +99,26 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 
 	return (
 		<>
-			<HelpTooltipContent disablePortal={false}>
-				<HelpTooltipTitle>Outdated</HelpTooltipTitle>
-				<HelpTooltipText>
+			<HelpPopoverContent disablePortal={false}>
+				<HelpPopoverTitle>Outdated</HelpPopoverTitle>
+				<HelpPopoverText className="text-xs font-normal">
 					This workspace version is outdated and a newer version is available.
-				</HelpTooltipText>
+				</HelpPopoverText>
 
-				<div css={styles.container}>
-					<div css={{ lineHeight: "1.6" }}>
-						<div css={styles.bold}>New version</div>
+				<div className="flex flex-col gap-2 py-2 text-xs font-normal">
+					<div className="leading-[1.6]">
+						<div className="text-content-primary text-sm font-semibold">
+							New version
+						</div>
 						<div>
 							{activeVersion ? (
 								<Link
 									href={`${versionLink}/versions/${activeVersion.name}`}
 									target="_blank"
-									css={{ color: theme.palette.primary.light }}
+									rel="noreferrer"
+									size="sm"
+									className="p-0"
+									showExternalIcon={false}
 								>
 									{activeVersion.name}
 								</Link>
@@ -108,8 +128,10 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 						</div>
 					</div>
 
-					<div css={{ lineHeight: "1.6" }}>
-						<div css={styles.bold}>Message</div>
+					<div className="leading-[1.6]">
+						<div className="text-content-primary text-sm font-semibold">
+							Message
+						</div>
 						<div>
 							{activeVersion ? (
 								activeVersion.message || "No message"
@@ -120,36 +142,16 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</div>
 				</div>
 
-				<HelpTooltipLinksGroup>
-					<HelpTooltipAction
+				<HelpPopoverLinksGroup>
+					<HelpPopoverAction
 						icon={RotateCcwIcon}
 						onClick={updateWorkspace.update}
 					>
 						Update
-					</HelpTooltipAction>
-				</HelpTooltipLinksGroup>
-			</HelpTooltipContent>
-			<WorkspaceUpdateDialogs {...updateWorkspace.dialogs} />
+					</HelpPopoverAction>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
+			<WorkspaceUpdateDialogs {...updateWorkspace.dialogProps} />
 		</>
 	);
 };
-
-const styles = {
-	icon: (theme) => ({
-		color: theme.roles.notice.outline,
-	}),
-
-	container: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-		paddingTop: 8,
-		paddingBottom: 8,
-		fontSize: 13,
-	},
-
-	bold: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

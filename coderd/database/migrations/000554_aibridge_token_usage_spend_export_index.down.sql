@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_aibridge_token_usages_effective_group_id_created_at;

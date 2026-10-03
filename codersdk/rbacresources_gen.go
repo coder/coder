@@ -5,11 +5,21 @@ type RBACResource string
 
 const (
 	ResourceWildcard                      RBACResource = "*"
+	ResourceAIGatewayKey                  RBACResource = "ai_gateway_key"
+	ResourceAiModelPrice                  RBACResource = "ai_model_price"
+	ResourceAIProvider                    RBACResource = "ai_provider"
+	ResourceAiSeat                        RBACResource = "ai_seat"
 	ResourceAibridgeInterception          RBACResource = "aibridge_interception"
 	ResourceApiKey                        RBACResource = "api_key"
 	ResourceAssignOrgRole                 RBACResource = "assign_org_role"
 	ResourceAssignRole                    RBACResource = "assign_role"
 	ResourceAuditLog                      RBACResource = "audit_log"
+	ResourceBoundaryLog                   RBACResource = "boundary_log"
+	ResourceBoundaryUsage                 RBACResource = "boundary_usage"
+	ResourceChat                          RBACResource = "chat"
+	ResourceChatAutomation                RBACResource = "chat_automation"
+	ResourceChatModelConfig               RBACResource = "chat_model_config"
+	ResourceChatProject                   RBACResource = "chat_project"
 	ResourceConnectionLog                 RBACResource = "connection_log"
 	ResourceCryptoKey                     RBACResource = "crypto_key"
 	ResourceDebugInfo                     RBACResource = "debug_info"
@@ -21,6 +31,7 @@ const (
 	ResourceIdpsyncSettings               RBACResource = "idpsync_settings"
 	ResourceInboxNotification             RBACResource = "inbox_notification"
 	ResourceLicense                       RBACResource = "license"
+	ResourceMCPServerConfig               RBACResource = "mcp_server_config"
 	ResourceNotificationMessage           RBACResource = "notification_message"
 	ResourceNotificationPreference        RBACResource = "notification_preference"
 	ResourceNotificationTemplate          RBACResource = "notification_template"
@@ -35,15 +46,16 @@ const (
 	ResourceReplicas                      RBACResource = "replicas"
 	ResourceSystem                        RBACResource = "system"
 	ResourceTailnetCoordinator            RBACResource = "tailnet_coordinator"
-	ResourceTask                          RBACResource = "task"
 	ResourceTemplate                      RBACResource = "template"
 	ResourceUsageEvent                    RBACResource = "usage_event"
 	ResourceUser                          RBACResource = "user"
 	ResourceUserSecret                    RBACResource = "user_secret"
+	ResourceUserSkill                     RBACResource = "user_skill"
 	ResourceWebpushSubscription           RBACResource = "webpush_subscription"
 	ResourceWorkspace                     RBACResource = "workspace"
 	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
+	ResourceWorkspaceBuildOrchestration   RBACResource = "workspace_build_orchestration"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"
 	ResourceWorkspaceProxy                RBACResource = "workspace_proxy"
 )
@@ -63,6 +75,7 @@ const (
 	ActionShare              RBACAction = "share"
 	ActionUnassign           RBACAction = "unassign"
 	ActionUpdate             RBACAction = "update"
+	ActionUpdateAgent        RBACAction = "update_agent"
 	ActionUpdatePersonal     RBACAction = "update_personal"
 	ActionUse                RBACAction = "use"
 	ActionViewInsights       RBACAction = "view_insights"
@@ -74,11 +87,21 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
+	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
+	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAiSeat:                        {ActionCreate, ActionRead},
 	ResourceAibridgeInterception:          {ActionCreate, ActionRead, ActionUpdate},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
 	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
+	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
+	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
+	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
+	ResourceChatAutomation:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
+	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
@@ -90,6 +113,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceIdpsyncSettings:               {ActionRead, ActionUpdate},
 	ResourceInboxNotification:             {ActionCreate, ActionRead, ActionUpdate},
 	ResourceLicense:                       {ActionCreate, ActionDelete, ActionRead},
+	ResourceMCPServerConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceNotificationMessage:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},
@@ -104,15 +128,16 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceReplicas:                      {ActionRead},
 	ResourceSystem:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTailnetCoordinator:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceTask:                          {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTemplate:                      {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUsageEvent:                    {ActionCreate, ActionRead, ActionUpdate},
 	ResourceUser:                          {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
 	ResourceUserSecret:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceUserSkill:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWebpushSubscription:           {ActionCreate, ActionDelete, ActionRead},
-	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},
-	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceBuildOrchestration:   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 }

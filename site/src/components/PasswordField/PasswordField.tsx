@@ -1,37 +1,38 @@
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { API } from "api/api";
-import { useDebouncedValue } from "hooks/debounce";
-import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { API } from "#/api/api";
+import { FormField } from "#/components/FormField/FormField";
+import { useDebouncedValue } from "#/hooks/debounce";
 
-// TODO: @BrunoQuaresma: Unable to integrate Yup + Formik for validation. The
-// validation was triggering on the onChange event, but the form.errors were not
-// updating accordingly. Tried various combinations of validateOnBlur and
-// validateOnChange without success. Further investigation is needed.
+type PasswordFieldProps = React.ComponentProps<typeof FormField>;
 
 /**
  * A password field component that validates the password against the API with
  * debounced calls. It uses a debounced value to minimize the number of API
  * calls and displays validation errors.
  */
-export const PasswordField: FC<TextFieldProps> = (props) => {
-	const debouncedValue = useDebouncedValue(`${props.value}`, 500);
+export const PasswordField: React.FC<PasswordFieldProps> = ({
+	field,
+	...props
+}) => {
+	const value = field.value === undefined ? "" : String(field.value);
+	const debouncedValue = useDebouncedValue(value, 500);
 	const validatePasswordQuery = useQuery({
 		queryKey: ["validatePassword", debouncedValue],
 		queryFn: () => API.validateUserPassword(debouncedValue),
 		placeholderData: keepPreviousData,
 		enabled: debouncedValue.length > 0,
 	});
-	const valid = validatePasswordQuery.data?.valid ?? true;
+	const invalidPassword = validatePasswordQuery.data?.valid === false;
+	const helperText = invalidPassword
+		? (validatePasswordQuery.data?.details ?? field.helperText)
+		: field.helperText;
+	const mergedField = {
+		...field,
+		error: field.error || invalidPassword,
+		helperText,
+	};
 
 	return (
-		<TextField
-			{...props}
-			type="password"
-			error={!valid || props.error}
-			helperText={
-				!valid ? validatePasswordQuery.data?.details : props.helperText
-			}
-		/>
+		<FormField {...props} type={props.type ?? "password"} field={mergedField} />
 	);
 };

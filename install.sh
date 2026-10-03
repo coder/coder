@@ -5,7 +5,7 @@ set -eu
 # See https://github.com/coder/coder#install
 #
 # To run:
-# curl -L https://coder.com/install.sh | sh
+# curl -fsSL https://coder.com/install.sh | sh
 
 usage() {
 	arg0="$0"
@@ -126,9 +126,12 @@ echo_latest_mainline_version() {
 		exit 1
 	fi
 
+	# Filter to strict semver (MAJOR.MINOR.PATCH) to exclude
+	# pre-release tags like RC builds from version resolution.
 	echo "$body" |
 		awk -F'"' '/"tag_name"/ {print $4}' |
 		tr -d v |
+		grep '^[0-9]\+\.[0-9]\+\.[0-9]\+$' |
 		tr . ' ' |
 		sort -k1,1nr -k2,2nr -k3,3nr |
 		head -n1 |
@@ -273,7 +276,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.14.1"
+	TERRAFORM_VERSION="1.16.2"
 
 	if [ "${TRACE-}" ]; then
 		set -x

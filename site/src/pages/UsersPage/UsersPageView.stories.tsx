@@ -1,21 +1,18 @@
-import {
-	MockAssignableSiteRoles,
-	MockAuthMethodsPasswordOnly,
-	MockUserMember,
-	MockUserOwner,
-	mockApiError,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
-import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import type { ComponentProps } from "react";
+} from "#/components/Filter/storyHelpers";
+import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
+import {
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 
-type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
+type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",
@@ -31,27 +28,36 @@ const meta: Meta<typeof UsersPageView> = {
 	title: "pages/UsersPageView",
 	component: UsersPageView,
 	args: {
-		isNonInitialPage: false,
-		users: [MockUserOwner, MockUserMember],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
+		me: MockUserOwner.id,
 		filterProps: defaultFilterProps,
-		authMethods: MockAuthMethodsPasswordOnly,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 2,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 2,
+				users: [MockUserOwner, MockUserMember],
+			},
+		},
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof UsersPageView>;
 
-export const Admin: Story = {};
+export const Admin: Story = {
+	args: {
+		canCreateUser: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "New user" })).toBeVisible();
+	},
+};
 
 export const SmallViewport: Story = {
 	parameters: {
-		chromatic: { viewports: [600] },
+		pixel: { matrix: { viewports: ["tablet"] } },
 	},
 };
 
@@ -61,32 +67,40 @@ export const Member: Story = {
 
 export const Empty: Story = {
 	args: {
-		users: [],
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 	},
 };
 
 export const EmptyPage: Story = {
 	args: {
-		users: [],
-		isNonInitialPage: true,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		users: undefined,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 		filterProps: {
 			...defaultFilterProps,
 			error: mockApiError({

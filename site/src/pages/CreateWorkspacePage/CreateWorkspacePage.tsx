@@ -1,35 +1,38 @@
-import { API } from "api/api";
-import { type ApiErrorResponse, DetailedError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
 import {
-	templateByName,
-	templateVersionExternalAuth,
-	templateVersionPresets,
-} from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	PreviewParameter,
-	Workspace,
-} from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
-	type FC,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
-import type { AutofillBuildParameter } from "utils/richParameters";
+import { API } from "#/api/api";
+import { type ApiErrorResponse, DetailedError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	templateByName,
+	templateVersion,
+	templateVersionPresets,
+} from "#/api/queries/templates";
+import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	MinimalUser,
+	Workspace,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useExternalAuth } from "#/hooks/useExternalAuth";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { pageTitle } from "#/utils/page";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
+import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
@@ -38,9 +41,8 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
-const CreateWorkspacePage: FC = () => {
+const CreateWorkspacePage: React.FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { user: me } = useAuthenticated();
@@ -49,19 +51,26 @@ const CreateWorkspacePage: FC = () => {
 
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
+	// The current expected response ID.  Starts at -1 because the backend sends
+	// an initial message when the web socket is connected with -1.
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
-	const initialParamsSentRef = useRef(false);
+	const [isConnecting, setIsConnecting] = useState(false);
+	// The expected ID of the init message, so we can wait until the initial
+	// parameters have gone through before rendering the form.
+	const [initId, setInitId] = useState(Number.NaN);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
+	const presetName = searchParams.get("preset") || undefined;
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
-	const defaultOwner = me;
-	const [owner, setOwner] = useState(defaultOwner);
+	const defaultOwner: MinimalUser = me;
+	const [owner, setOwner] = useState<MinimalUser>(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(
@@ -72,78 +81,136 @@ const CreateWorkspacePage: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
+	const realizedVersionId =
+		customVersionId ?? templateQuery.data?.active_version_id;
+
 	const templateVersionPresetsQuery = useQuery({
-		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: !!templateQuery.data,
+		...templateVersionPresets(realizedVersionId ?? ""),
+		enabled: realizedVersionId !== undefined,
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
 			checks: createWorkspaceChecks(
 				templateQuery.data?.organization_id ?? "",
+				me.id,
 				templateQuery.data?.id,
 			),
 		}),
-		enabled: !!templateQuery.data,
+		enabled: Boolean(templateQuery.data),
 	});
-	const realizedVersionId =
-		customVersionId ?? templateQuery.data?.active_version_id;
+	// Scoped to the template's organization and to workspaces owned by the
+	// current user; holding workspace-create permission in other organizations
+	// does not grant access here.
+	const canCreateWorkspaceInOrg = Boolean(
+		permissionsQuery.data?.createWorkspaceForUserID,
+	);
 
-	const autofillParameters = getAutofillParameters(searchParams);
+	const templateVersionQuery = useQuery({
+		...templateVersion(realizedVersionId ?? ""),
+		enabled: realizedVersionId !== undefined,
+	});
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: ownerId ?? owner.id,
-				inputs: formValues,
+	const effectivePresetName = mode === "duplicate" ? undefined : presetName;
+
+	const presets = templateVersionPresetsQuery.data ?? [];
+
+	const urlPresetResult = useMemo(() => {
+		if (!effectivePresetName) return { preset: undefined, error: undefined };
+
+		if (templateVersionPresetsQuery.isError) {
+			return {
+				preset: undefined,
+				error: `Failed to load presets: ${templateVersionPresetsQuery.error?.message ?? "unknown error"}. Please try refreshing the page.`,
 			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
+		}
+
+		if (!templateVersionPresetsQuery.isSuccess) {
+			return { preset: undefined, error: undefined }; // Still loading
+		}
+
+		const found = presets.find((p) => p.Name === effectivePresetName);
+		if (!found) {
+			const versionLabel = templateVersionQuery.data?.name ?? realizedVersionId;
+			return {
+				preset: undefined,
+				error: `Preset "${effectivePresetName}" not found on template version "${versionLabel}". Check that the preset name matches exactly (names are case-sensitive).`,
+			};
+		}
+		return { preset: found, error: undefined };
+	}, [
+		effectivePresetName,
+		presets,
+		templateVersionPresetsQuery.isSuccess,
+		templateVersionPresetsQuery.isError,
+		templateVersionPresetsQuery.error,
+		realizedVersionId,
+		templateVersionQuery.data?.name,
+	]);
+
+	const urlAutofillParameters = useMemo(
+		() => getAutofillParameters(searchParams),
+		[searchParams],
 	);
+	const autofillParameters = useMemo(() => {
+		if (!urlPresetResult.preset) return urlAutofillParameters;
 
-	// On page load, sends all initial parameter values to the websocket
-	// (including defaults and autofilled from the url)
-	// This ensures the backend has the complete initial state of the form,
-	// which is vital for correctly rendering dynamic UI elements where parameter visibility
-	// or options might depend on the initial values of other parameters.
-	const sendInitialParameters = useEffectEvent(
-		(parameters: PreviewParameter[]) => {
-			if (initialParamsSentRef.current) return;
-			if (parameters.length === 0) return;
+		const presetParams: AutofillBuildParameter[] =
+			urlPresetResult.preset.Parameters.map((p) => ({
+				name: p.Name,
+				value: p.Value,
+				source: "url" as const,
+			}));
 
-			const initialFormValues = getInitialParameterValues(
-				parameters,
-				autofillParameters,
+		return presetParams;
+	}, [urlPresetResult.preset, urlAutofillParameters]);
+
+	const hasIgnoredUrlParams =
+		urlAutofillParameters.length > 0 && urlPresetResult.preset !== undefined;
+
+	// sendMessage increments the ID and sends the form values on the web socket
+	// and returns true.  If the socket is not open, it does not increment the ID
+	// and returns false.
+	const sendMessage = (
+		formValues: Record<string, string>,
+		ownerId?: string,
+	): boolean => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: ownerId ?? owner.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			wsResponseId.current = wsResponseId.current + 1;
+			ws.current.send(JSON.stringify(request));
+			return true;
+		}
+		if (ws.current) {
+			console.error(
+				"Tried to send message but the web socket state is %s",
+				ws.current.readyState,
+				request,
 			);
-			if (initialFormValues.length === 0) return;
+		}
+		return false;
+	};
 
-			const initialParamsToSend: Record<string, string> = {};
-			for (const param of initialFormValues) {
-				if (param.name && param.value) {
-					initialParamsToSend[param.name] = param.value;
-				}
-			}
-
-			if (Object.keys(initialParamsToSend).length === 0) return;
-
-			sendMessage(initialParamsToSend);
-			initialParamsSentRef.current = true;
-		},
-	);
-
-	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
-		if (latestResponse && latestResponse?.id >= response.id) {
+	// Send the initial parameters if necessary and mark the ID of the response we
+	// need to wait for until we can finally render the form with the right state.
+	const sendInitialParameters = useEffectEvent(() => {
+		if (!Number.isNaN(initId)) {
 			return;
 		}
-
-		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters([...response.parameters]);
+		if (autofillParameters.length > 0) {
+			const values = Object.fromEntries(
+				autofillParameters.map((afp) => [afp.name, afp.value]),
+			);
+			if (!sendMessage(values)) {
+				return;
+			}
 		}
-
-		setLatestResponse(response);
+		// If there were no parameters to send, this will end up just using the
+		// response we already have.  Otherwise it will wait for the next response.
+		setInitId(wsResponseId.current);
 	});
 
 	// Initialize the WebSocket connection when there is a valid template version ID
@@ -154,14 +221,29 @@ const CreateWorkspacePage: FC = () => {
 			realizedVersionId,
 			defaultOwner.id,
 			{
-				onMessage,
+				// Send initial parameters once the web socket is open.
+				onOpen: () => {
+					if (ws.current === socket) {
+						setIsConnecting(false);
+					}
+					sendInitialParameters();
+				},
+				// Record the latest message every time we get one from the web
+				// socket.  Stale responses are discarded.
+				onMessage: (response: DynamicParametersResponse) => {
+					if (response.id >= wsResponseId.current) {
+						setLatestResponse(response);
+					}
+				},
 				onError: (error) => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(error);
 					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
@@ -173,12 +255,13 @@ const CreateWorkspacePage: FC = () => {
 			},
 		);
 
+		setIsConnecting(true);
 		ws.current = socket;
 
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage, defaultOwner.id]);
+	}, [realizedVersionId, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -187,12 +270,15 @@ const CreateWorkspacePage: FC = () => {
 		externalAuthPollingState,
 		startPollingExternalAuth,
 		isLoadingExternalAuth,
-	} = useExternalAuth(realizedVersionId);
+	} = useExternalAuth(realizedVersionId, owner.id);
 
 	const isLoadingFormData =
-		ws.current?.readyState === WebSocket.CONNECTING ||
+		isConnecting ||
 		templateQuery.isLoading ||
-		permissionsQuery.isLoading;
+		// isPending stays true until the permission data exists, covering the
+		// renders where the query is still disabled or has not started fetching,
+		// during which isLoading would be false.
+		permissionsQuery.isPending;
 	const loadFormDataError = templateQuery.error ?? permissionsQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
@@ -217,10 +303,11 @@ const CreateWorkspacePage: FC = () => {
 			const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
 				organizationId,
 				templateName,
-				buildParameters: autofillParameters,
+				buildParameters: urlPresetResult.preset ? [] : autofillParameters,
 				workspaceName: defaultName ?? generateWorkspaceName(),
 				templateVersionId: realizedVersionId,
 				match: searchParams.get("match"),
+				templateVersionPresetId: urlPresetResult.preset?.ID,
 			});
 
 			onCreateWorkspace(newWorkspace);
@@ -234,11 +321,28 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
-	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
+	const presetResolved =
+		!effectivePresetName ||
+		(templateVersionPresetsQuery.isSuccess &&
+			urlPresetResult.preset !== undefined);
+
+	let autoCreateReady =
+		mode === "auto" &&
+		canCreateWorkspaceInOrg &&
+		hasAllRequiredExternalAuth &&
+		autoCreateConsented &&
+		presetResolved;
+
+	const showAutoCreateConsent =
+		mode === "auto" &&
+		canCreateWorkspaceInOrg &&
+		!autoCreateConsented &&
+		!autoCreateError &&
+		presetResolved;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
-		Boolean(realizedVersionId) &&
+		realizedVersionId &&
 		mode === "auto" &&
 		!isLoadingExternalAuth &&
 		!hasAllRequiredExternalAuth
@@ -261,11 +365,28 @@ const CreateWorkspacePage: FC = () => {
 		});
 	}
 
+	if (
+		mode === "auto" &&
+		hasAllRequiredExternalAuth &&
+		effectivePresetName &&
+		((templateVersionPresetsQuery.isSuccess && !urlPresetResult.preset) ||
+			templateVersionPresetsQuery.isError)
+	) {
+		setMode("form");
+		autoCreateReady = false;
+		setAutoCreateError({
+			message: "Auto-creation has been disabled.",
+			detail:
+				urlPresetResult.error ??
+				"The requested preset could not be resolved. Please check the preset value before continuing.",
+		});
+	}
+
 	useEffect(() => {
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
 		}
-	}, [automateWorkspaceCreation, autoCreateReady]);
+	}, [autoCreateReady]);
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {
@@ -274,116 +395,106 @@ const CreateWorkspacePage: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
+	const isInitializing =
+		!latestResponse ||
+		Number.isNaN(initId) ||
+		latestResponse.id < initId ||
+		isConnecting;
+
 	const shouldShowLoader =
 		!templateQuery.data ||
 		isLoadingFormData ||
 		isLoadingExternalAuth ||
 		autoCreateReady ||
-		(!latestResponse && !wsError);
+		(!latestResponse && !wsError) ||
+		(isInitializing && !wsError) ||
+		(effectivePresetName &&
+			!templateVersionPresetsQuery.isSuccess &&
+			!templateVersionPresetsQuery.isError);
 
 	return (
 		<>
 			<title>{pageTitle(title)}</title>
 
-			{shouldShowLoader ? (
+			<AutoCreateConsentDialog
+				open={showAutoCreateConsent}
+				presetName={effectivePresetName}
+				autofillParameters={autofillParameters}
+				onConfirm={() => setAutoCreateConsented(true)}
+				onDeny={() => setMode("form")}
+			/>
+
+			{loadFormDataError ? (
+				// The view reads the template and permission results
+				// unconditionally, so render query failures as a page-level
+				// error instead of the form.
+				<Margins>
+					<ErrorAlert error={loadFormDataError} className="my-4" />
+				</Margins>
+			) : shouldShowLoader ? (
 				<Loader />
 			) : (
-				<CreateWorkspacePageView
-					mode={mode}
-					defaultName={defaultName}
-					diagnostics={latestResponse?.diagnostics ?? []}
-					disabledParams={disabledParams}
-					defaultOwner={defaultOwner}
-					owner={owner}
-					setOwner={setOwner}
-					autofillParameters={autofillParameters}
-					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
-					error={
-						wsError ||
-						createWorkspaceMutation.error ||
-						autoCreateError ||
-						loadFormDataError ||
-						autoCreateWorkspaceMutation.error
-					}
-					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data}
-					versionId={realizedVersionId}
-					externalAuth={externalAuth ?? []}
-					externalAuthPollingState={externalAuthPollingState}
-					startPollingExternalAuth={startPollingExternalAuth}
-					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					parameters={sortedParams}
-					presets={templateVersionPresetsQuery.data ?? []}
-					creatingWorkspace={createWorkspaceMutation.isPending}
-					sendMessage={sendMessage}
-					onCancel={() => {
-						navigate(-1);
-					}}
-					onSubmit={async (request, owner) => {
-						let workspaceRequest = request;
-						if (realizedVersionId) {
-							workspaceRequest = {
-								...request,
-								template_id: undefined,
-								template_version_id: realizedVersionId,
-							};
+				<RequirePermission isFeatureVisible={canCreateWorkspaceInOrg}>
+					<CreateWorkspacePageView
+						mode={mode}
+						defaultName={defaultName}
+						diagnostics={latestResponse?.diagnostics ?? []}
+						disabledParams={disabledParams}
+						defaultOwner={defaultOwner}
+						owner={owner}
+						setOwner={setOwner}
+						autofillParameters={autofillParameters}
+						canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
+						error={
+							wsError ||
+							createWorkspaceMutation.error ||
+							autoCreateError ||
+							autoCreateWorkspaceMutation.error
 						}
+						resetMutation={createWorkspaceMutation.reset}
+						template={templateQuery.data}
+						versionId={realizedVersionId}
+						versionName={templateVersionQuery.data?.name}
+						externalAuth={externalAuth ?? []}
+						externalAuthPollingState={externalAuthPollingState}
+						startPollingExternalAuth={startPollingExternalAuth}
+						hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
+						permissions={permissionsQuery.data as CreateWorkspacePermissions}
+						parameters={sortedParams}
+						presets={presets}
+						urlPreset={urlPresetResult.preset}
+						urlPresetError={
+							autoCreateError?.detail === urlPresetResult.error
+								? undefined
+								: urlPresetResult.error
+						}
+						hasIgnoredUrlParams={hasIgnoredUrlParams}
+						creatingWorkspace={createWorkspaceMutation.isPending}
+						sendMessage={sendMessage}
+						onCancel={() => {
+							navigate(-1);
+						}}
+						onSubmit={async (request, owner) => {
+							let workspaceRequest = request;
+							if (realizedVersionId) {
+								workspaceRequest = {
+									...request,
+									template_id: undefined,
+									template_version_id: realizedVersionId,
+								};
+							}
 
-						const workspace = await createWorkspaceMutation.mutateAsync({
-							...workspaceRequest,
-							userId: owner.id,
-						});
-						onCreateWorkspace(workspace);
-					}}
-				/>
+							const workspace = await createWorkspaceMutation.mutateAsync({
+								...workspaceRequest,
+								userId: owner.id,
+							});
+							onCreateWorkspace(workspace);
+						}}
+					/>
+				</RequirePermission>
 			)}
 		</>
 	);
-};
-
-const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
-
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
-	}, []);
-
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
-		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: Boolean(versionId),
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
-	});
-
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
-	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
-			return;
-		}
-
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
-		);
-		return () => {
-			clearTimeout(quitPolling);
-		};
-	}, [externalAuthPollingState, allSignedIn]);
-
-	return {
-		startPollingExternalAuth,
-		externalAuth,
-		externalAuthPollingState,
-		isLoadingExternalAuth,
-	};
 };
 
 const getAutofillParameters = (

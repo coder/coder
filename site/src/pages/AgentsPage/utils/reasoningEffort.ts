@@ -1,0 +1,50 @@
+const reasoningEffortStorageKeyPrefix = "agents.reasoning-effort.";
+
+const reasoningEffortStorageKey = (modelID: string) =>
+	`${reasoningEffortStorageKeyPrefix}${modelID}`;
+
+/** Reads the persisted effort for a model, or undefined when none is stored or storage is unavailable. */
+export const getReasoningEffortForModel = (
+	modelID: string,
+): string | undefined => {
+	try {
+		return (
+			localStorage.getItem(reasoningEffortStorageKey(modelID)) ?? undefined
+		);
+	} catch {
+		return undefined;
+	}
+};
+
+/** Persists the effort for a model. Swallows storage errors (private mode, quota) so the caller's in-memory selection is unaffected. */
+export const saveReasoningEffortForModel = (
+	modelID: string,
+	reasoningEffort: string,
+): void => {
+	try {
+		localStorage.setItem(reasoningEffortStorageKey(modelID), reasoningEffort);
+	} catch {
+		// Keep the in-memory selection when storage is unavailable.
+	}
+};
+
+/** Chooses requested effort, then default effort, then the last selectable effort. */
+export const pickReasoningEffort = (
+	value: string | undefined,
+	efforts: readonly string[],
+	defaultValue?: string,
+): string | undefined => {
+	if (efforts.length === 0) {
+		return undefined;
+	}
+
+	if (value && efforts.includes(value)) {
+		return value;
+	}
+
+	if (defaultValue && efforts.includes(defaultValue)) {
+		return defaultValue;
+	}
+
+	return efforts[efforts.length - 1];
+};

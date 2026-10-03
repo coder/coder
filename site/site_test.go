@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -21,20 +22,103 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
+	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type staticAppearanceFetcher struct {
+	cfg codersdk.AppearanceConfig
+}
+
+func (f staticAppearanceFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
+	return f.cfg, nil
+}
+
+func TestInjectionAppearanceEscapesMetaAttributes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		applicationName = `Coder"><script>alert(1)</script>`
+		logoURL         = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+	)
+
+	tests := []struct {
+		name          string
+		authenticated bool
+	}{
+		{
+			name: "unauthenticated",
+		},
+		{
+			name:          "authenticated",
+			authenticated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte(`<meta name="application-name" content="{{ .ApplicationName }}" /><meta property="logo-url" content="{{ .LogoURL }}" />`),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+			fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{
+				ApplicationName: applicationName,
+				LogoURL:         logoURL,
+			}})
+			appearanceFetcher.Store(&fetcher)
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				Database:          db,
+				SiteFS:            siteFS,
+				AppearanceFetcher: &appearanceFetcher,
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			if tt.authenticated {
+				user := dbgen.User(t, db, database.User{})
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: time.Now().Add(time.Hour),
+				})
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+			}
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			body := rw.Body.String()
+
+			require.True(t, strings.Contains(body, html.EscapeString(applicationName)), "application name must be HTML escaped")
+			require.True(t, strings.Contains(body, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
+			require.False(t, strings.Contains(body, applicationName), "raw application name must not be rendered")
+			require.False(t, strings.Contains(body, logoURL), "raw logo URL must not be rendered")
+		})
+	}
+}
 
 func TestInjection(t *testing.T) {
 	t.Parallel()
@@ -44,14 +128,13 @@ func TestInjection(t *testing.T) {
 			Data: []byte("{{ .User }}"),
 		},
 	}
-	binFs := http.FS(fstest.MapFS{})
 	db, _ := dbtestutil.NewDB(t)
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 	})
+	require.NoError(t, err)
 
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
@@ -66,7 +149,7 @@ func TestInjection(t *testing.T) {
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 	var got codersdk.User
-	err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
 	require.NoError(t, err)
 
 	// This will update as part of the request!
@@ -77,6 +160,170 @@ func TestInjection(t *testing.T) {
 	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
 
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
+}
+
+func TestInjectionUserAppearance(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .UserAppearance }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	user := dbgen.User(t, db, database.User{})
+	ctx := context.Background()
+	_, err = db.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+		UserID:          user.ID,
+		ThemePreference: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+		UserID:    user.ID,
+		ThemeMode: string(codersdk.ThemeModeSync),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+		UserID:     user.ID,
+		ThemeLight: "light-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+		UserID:    user.ID,
+		ThemeDark: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+		UserID:       user.ID,
+		TerminalFont: string(codersdk.TerminalFontFiraCode),
+	})
+	require.NoError(t, err)
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got codersdk.UserAppearanceSettings
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserAppearanceSettings{
+		ThemePreference: "dark-tritan",
+		ThemeMode:       codersdk.ThemeModeSync,
+		ThemeLight:      "light-tritan",
+		ThemeDark:       "dark-tritan",
+		TerminalFont:    codersdk.TerminalFontFiraCode,
+	}, got)
+}
+
+func TestRenderPermissionsResolvesMe(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler wired to a real RBAC authorizer and a
+	// template that renders only the SSR permissions JSON.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Permissions }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	handler, err := site.New(&site.Options{
+		Telemetry:  telemetry.NewNoop(),
+		Database:   db,
+		SiteFS:     siteFS,
+		Authorizer: authorizer,
+	})
+	require.NoError(t, err)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	orgMember := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         orgMember.ID,
+	})
+	_, orgMemberToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    orgMember.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, orgMemberToken)
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// The any_org check finds chat permission through the user's membership.
+	var memberPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &memberPerms)
+	require.NoError(t, err)
+	assert.True(t, memberPerms["createChat"], "organization member should have createChat = true")
+	// THEN: createWorkspace = true because the organization-member role
+	// grants creating a workspace owned by the member, and owner_id "me"
+	// resolves to the requesting user.
+	assert.True(t, memberPerms["createWorkspace"], "org member should have createWorkspace = true")
+
+	userWithoutMembership := dbgen.User(t, db, database.User{})
+	_, tokenWithoutMembership := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithoutMembership.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutMembership)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	var permsWithoutMembership codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutMembership)
+	require.NoError(t, err)
+	assert.False(t, permsWithoutMembership["createChat"], "user without an organization membership should have createChat = false")
+	// THEN: createWorkspace = false because the user belongs to no
+	// organization, so the any_org check has no memberships to satisfy it.
+	assert.False(t, permsWithoutMembership["createWorkspace"], "user without an org membership should have createWorkspace = false")
+
+	// GIVEN: an org member whose only membership carries the
+	// workspace-creation ban role.
+	bannedUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         bannedUser.ID,
+		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
+	})
+	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    bannedUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, bannedToken)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createWorkspace = false because the ban's negative permission
+	// overrides the create permission granted by org membership.
+	var bannedPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &bannedPerms)
+	require.NoError(t, err)
+	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
@@ -101,15 +348,13 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		OAuthExpiry:       dbtime.Now().Add(-time.Second),
 	})
 
-	binFs := http.FS(fstest.MapFS{})
 	siteFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("<html>{{ .User }}</html>"),
 		},
 	}
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 
@@ -119,6 +364,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 			OIDC:   nil,
 		},
 	})
+	require.NoError(t, err)
 
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(codersdk.SessionTokenHeader, token)
@@ -131,6 +377,201 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rw.Code)
 	body := rw.Body.String()
 	assert.Equal(t, "<html></html>", body)
+}
+
+func TestOrganizationsMetadata(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler backed by an authz-wrapped database,
+	// matching production wiring, and a template that renders only
+	// the organizations metadata.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Organizations }}"),
+		},
+	}
+	rawDB, _ := dbtestutil.NewDB(t)
+	db := dbauthz.New(
+		rawDB,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		testutil.Logger(t),
+		coderdtest.AccessControlStorePointer(),
+	)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// GIVEN: an org with members, another org, and a soft-deleted org.
+	memberOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	otherOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	deletedOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	err = rawDB.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	fetchOrgIDs := func(t *testing.T, token string) []uuid.UUID {
+		t.Helper()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		var orgs []codersdk.Organization
+		err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &orgs)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(orgs))
+		for _, org := range orgs {
+			ids = append(ids, org.ID)
+		}
+		return ids
+	}
+
+	// WHEN: an owner who is a member of only one org loads the page.
+	owner := dbgen.User(t, rawDB, database.User{
+		RBACRoles: []string{codersdk.RoleOwner},
+	})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+		OrganizationID: memberOrg.ID,
+		UserID:         owner.ID,
+	})
+	_, ownerToken := dbgen.APIKey(t, rawDB, database.APIKey{
+		UserID:    owner.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// THEN: the metadata includes every non-deleted org, not just the
+	// orgs the owner is a member of.
+	ownerOrgIDs := fetchOrgIDs(t, ownerToken)
+	assert.Contains(t, ownerOrgIDs, memberOrg.ID)
+	assert.Contains(t, ownerOrgIDs, otherOrg.ID)
+	assert.NotContains(t, ownerOrgIDs, deletedOrg.ID)
+
+	// WHEN: a regular member of a single org loads the page.
+	member := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+		OrganizationID: memberOrg.ID,
+		UserID:         member.ID,
+	})
+	_, memberToken := dbgen.APIKey(t, rawDB, database.APIKey{
+		UserID:    member.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// THEN: the metadata only includes orgs the member can read.
+	memberOrgIDs := fetchOrgIDs(t, memberToken)
+	assert.Contains(t, memberOrgIDs, memberOrg.ID)
+	assert.NotContains(t, memberOrgIDs, otherOrg.ID)
+	assert.NotContains(t, memberOrgIDs, deletedOrg.ID)
+}
+
+func TestUserSecretFilePathEnabledMetadata(t *testing.T) {
+	t.Parallel()
+
+	// The dashboard reads this as a positive capability, so the
+	// metadata is the negation of the deployment's disable option.
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		expected string
+	}{
+		{name: "Enabled", enabled: true, expected: "true"},
+		{name: "Disabled", enabled: false, expected: "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN: a site handler configured with the capability and a
+			// template that renders only that metadata value.
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte("{{ .UserSecretFilePathEnabled }}"),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			handler, err := site.New(&site.Options{
+				Telemetry:                 telemetry.NewNoop(),
+				Database:                  db,
+				SiteFS:                    siteFS,
+				UserSecretFilePathEnabled: tc.enabled,
+			})
+			require.NoError(t, err)
+
+			user := dbgen.User(t, db, database.User{})
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: time.Now().Add(time.Hour),
+			})
+
+			// WHEN: an authenticated user loads the page.
+			r := httptest.NewRequest("GET", "/", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, token)
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, r)
+
+			// THEN: the metadata renders as a JSON boolean.
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, tc.expected, strings.TrimSpace(rw.Body.String()))
+		})
+	}
+}
+
+func TestExperimentsMetadata(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler whose experiments come from stored rules, and
+	// a template that renders only the experiments metadata.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Experiments }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	evaluator, err := experiments.New(testutil.Logger(t), experiments.NewDBStore(db), codersdk.Experiments{"foo"})
+	require.NoError(t, err)
+	handler, err := site.New(&site.Options{
+		Telemetry:           telemetry.NewNoop(),
+		Database:            db,
+		SiteFS:              siteFS,
+		ExperimentEvaluator: evaluator,
+	})
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	eligible := dbgen.User(t, db, database.User{})
+	other := dbgen.User(t, db, database.User{})
+	_, _, changed, err := experiments.WriteRule(ctx, db, eligible.ID, codersdk.ExperimentExample, experiments.Rule{
+		Mode:      experiments.ModeCondition,
+		Condition: fmt.Sprintf("user.username == %q", eligible.Username),
+	}, 0)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	fetchExperiments := func(t *testing.T, userID uuid.UUID) codersdk.Experiments {
+		t.Helper()
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    userID,
+			ExpiresAt: time.Now().Add(time.Hour),
+		})
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		var got codersdk.Experiments
+		require.NoError(t, json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got))
+		return got
+	}
+
+	// THEN: the metadata reflects the signed-in user's rules.
+	require.Equal(t, codersdk.Experiments{"foo", codersdk.ExperimentExample}, fetchExperiments(t, eligible.ID))
+	require.Equal(t, codersdk.Experiments{"foo"}, fetchExperiments(t, other.ID))
 }
 
 func TestCaching(t *testing.T) {
@@ -153,34 +594,36 @@ func TestCaching(t *testing.T) {
 			Data: []byte("folderFile"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	s, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(s)
 	defer srv.Close()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
+	const immutable = "public, max-age=31536000, immutable"
 	testCases := []struct {
-		path             string
-		isExpectingCache bool
+		path      string
+		wantCache string
 	}{
-		{"/bundle.js", true},
-		{"/image.png", true},
-		{"/static/image.png", true},
-		{"/favicon.ico", true},
+		{"/bundle.js", immutable},
+		{"/image.png", immutable},
+		{"/static/image.png", immutable},
+		{"/favicon.ico", immutable},
 
-		{"/", false},
-		{"/service-worker.js", false},
-		{"/index.html", false},
-		{"/double/nested/terminal.html", false},
+		{"/service-worker.js", ""},
+		// Rendered HTML embeds per-user state and must not be stored.
+		{"/", "no-store"},
+		{"/index.html", "no-store"},
+		{"/double/nested/terminal.html", "no-store"},
 	}
 
 	for _, testCase := range testCases {
@@ -190,12 +633,7 @@ func TestCaching(t *testing.T) {
 		res, err := srv.Client().Do(req)
 		require.NoError(t, err, "get index")
 
-		cache := res.Header.Get("Cache-Control")
-		if testCase.isExpectingCache {
-			require.Equalf(t, "public, max-age=31536000, immutable", cache, "expected %w file to have immutable cache", testCase.path)
-		} else {
-			require.Equalf(t, "", cache, "expected %w file to not have immutable cache header", testCase.path)
-		}
+		require.Equalf(t, testCase.wantCache, res.Header.Get("Cache-Control"), "Cache-Control of %s", testCase.path)
 
 		require.NoError(t, res.Body.Close(), "closing response")
 	}
@@ -222,17 +660,17 @@ func TestServingFiles(t *testing.T) {
 			Data: []byte("install-sh-bytes"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
-	client := &http.Client{}
+	client := srv.Client()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -506,23 +944,22 @@ func TestServingBin(t *testing.T) {
 			t.Parallel()
 
 			dest := t.TempDir()
-			binFS, binHashes, err := site.ExtractOrReadBinFS(dest, tt.fs)
+			testFS := maps.Clone(rootFS)
+			maps.Copy(testFS, tt.fs)
+			handler, err := site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
+				SiteFS:    testFS,
+				CacheDir:  dest,
+			})
 			if !tt.wantErr && err != nil {
 				require.NoError(t, err, "extract or read failed")
 			} else if tt.wantErr {
 				require.Error(t, err, "extraction or read did not fail")
 			}
-
-			site := site.New(&site.Options{
-				Telemetry: telemetry.NewNoop(),
-				BinFS:     binFS,
-				BinHashes: binHashes,
-				SiteFS:    rootFS,
-			})
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
-			srv := httptest.NewServer(compressor.Handler(site))
+			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
-			client := &http.Client{}
+			client := srv.Client()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -564,7 +1001,7 @@ func TestServingBin(t *testing.T) {
 					}
 
 					if tr.wantEtag != "" {
-						assert.NotEmpty(t, resp.Header.Get("ETag"), "etag header is empty")
+						assert.Equal(t, []string{tr.wantEtag}, resp.Header.Values("ETag"), "etag header values did not match")
 						assert.Equal(t, tr.wantEtag, resp.Header.Get("ETag"), "etag did not match")
 					}
 
@@ -572,6 +1009,8 @@ func TestServingBin(t *testing.T) {
 						// This is a custom header that we set to help the
 						// client know the size of the decompressed data. See
 						// the comment in site.go.
+						headerValues := resp.Header.Values("X-Original-Content-Length")
+						assert.Len(t, headerValues, 1, "X-Original-Content-Length should have exactly one value")
 						headerStr := resp.Header.Get("X-Original-Content-Length")
 						assert.NotEmpty(t, headerStr, "X-Original-Content-Length header is empty")
 						originalSize, err := strconv.Atoi(headerStr)

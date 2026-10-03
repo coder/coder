@@ -6,11 +6,11 @@ const meta: Meta<typeof LastSeen> = {
 	title: "components/LastSeen",
 	component: LastSeen,
 	args: {
-		// We typically want this component to be excluded from Chromatic's snapshots,
-		// because it creates a lot of noise when a static dates roles over from eg.
+		// We typically want this component to be excluded from snapshot tests,
+		// because it creates a lot of noise when a static date rolls over from eg.
 		// "2 months ago" to "3 months ago", but these stories use relative dates,
 		// and test specific cases that we want to be validated.
-		"data-chromatic": "",
+		"data-pixel": "",
 	},
 };
 
@@ -38,6 +38,13 @@ export const OneWeekAgo: Story = {
 export const OneMonthAgo: Story = {
 	args: {
 		at: dayjs().subtract(1, "month"),
+	},
+};
+
+export const ExactlyFortyFiveDaysAgo: Story = {
+	args: {
+		at: dayjs().subtract(45, "day"),
+		exactDays: true,
 	},
 };
 

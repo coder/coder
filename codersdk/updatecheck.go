@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 )
 
@@ -30,5 +29,5 @@ func (c *Client) UpdateCheck(ctx context.Context) (UpdateCheckResponse, error) {
 	}
 
 	var buildInfo UpdateCheckResponse
-	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+	return buildInfo, ReadBodyAsJSON(res, &buildInfo)
 }

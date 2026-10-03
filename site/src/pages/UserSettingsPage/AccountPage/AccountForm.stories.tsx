@@ -1,5 +1,5 @@
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { mockApiError } from "#/testHelpers/entities";
 import { AccountForm } from "./AccountForm";
 
 const meta: Meta<typeof AccountForm> = {
@@ -11,6 +11,7 @@ const meta: Meta<typeof AccountForm> = {
 		initialValues: {
 			username: "test-user",
 			name: "Test User",
+			avatar_url: "",
 		},
 		updateProfileError: undefined,
 	},

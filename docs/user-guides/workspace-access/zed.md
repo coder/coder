@@ -1,4 +1,6 @@
-# Zed
+---
+title: Zed
+---
 
 [Zed](https://zed.dev/) is an [open-source](https://github.com/zed-industries/zed)
 multiplayer code editor from the creators of Atom and Tree-sitter.
@@ -19,7 +21,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    Our install script is the fastest way to install Coder on Linux/macOS:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
    Refer to [GitHub releases](https://github.com/coder/coder/releases) for
@@ -36,7 +38,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
    package manager to install Coder:
 
-   ```powershell
+   ```ps1
    winget install Coder.Coder
    ```
 
@@ -46,19 +48,19 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
 1. Log in to your Coder deployment and authenticate when prompted:
 
-   ```shell
+   ```sh
    coder login coder.example.com
    ```
 
 1. Configure Coder SSH:
 
-   ```shell
+   ```sh
    coder config-ssh
    ```
 
 1. Connect to the workspace via SSH:
 
-   ```shell
+   ```sh
    zed ssh://coder.workspace-name
    ```
 

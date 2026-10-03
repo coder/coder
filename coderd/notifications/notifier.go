@@ -172,6 +172,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		// If a notification template has been disabled by the user after a notification was enqueued, mark it as inhibited
 		if msg.Disabled {
 			failure <- n.newInhibitedDispatch(msg)
+			n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 			continue
 		}
 
@@ -184,7 +185,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 				n.log.Error(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
 			}
 			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, decorateHelpersError{}))
-			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
+			n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 			continue
 		}
 
@@ -249,11 +250,19 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, decorateHelpersError{err}
 	}
 
+	// Label and data values are user-controlled while the templates around them
+	// are not, so Markdown structure in a value is neutralized before it reaches
+	// the template. The dispatcher still receives the unescaped payload, because
+	// the webhook contract surfaces enqueued values verbatim. smtp/html.gotmpl
+	// escapes at its own sinks, which it must: PlaintextFromMarkdown strips this
+	// escaping back out of _subject.
+	escaped := payload.EscapedForMarkdown()
+
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, escaped, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, escaped, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
@@ -316,7 +325,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			logger.Debug(ctx, "message dispatch succeeded")
 		}
 	}
-	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
+	n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 
 	return nil
 }

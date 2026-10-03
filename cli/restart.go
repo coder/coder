@@ -36,7 +36,7 @@ func (r *RootCmd) restart() *serpent.Command {
 			ctx := inv.Context()
 			out := inv.Stdout
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}

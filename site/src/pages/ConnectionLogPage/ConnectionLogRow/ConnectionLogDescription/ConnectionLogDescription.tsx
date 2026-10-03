@@ -1,16 +1,15 @@
-import Link from "@mui/material/Link";
-import type { ConnectionLog } from "api/typesGenerated";
-import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
-import { connectionTypeToFriendlyName } from "utils/connection";
+import type { ConnectionLog } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
+import { connectionTypeToFriendlyName } from "#/utils/connection";
 
-interface ConnectionLogDescriptionProps {
+type ConnectionLogDescriptionProps = {
 	connectionLog: ConnectionLog;
-}
+};
 
-export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
-	connectionLog,
-}) => {
+export const ConnectionLogDescription: React.FC<
+	ConnectionLogDescriptionProps
+> = ({ connectionLog }) => {
 	const { type, workspace_owner_username, workspace_name, web_info } =
 		connectionLog;
 
@@ -24,7 +23,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			const presentAction = isPortForward ? "access" : "open";
 			const pastAction = isPortForward ? "accessed" : "opened";
 
-			const target: ReactNode = isPortForward ? (
+			const target: React.ReactNode = isPortForward ? (
 				<>
 					port <strong>{slug_or_port}</strong>
 				</>
@@ -32,7 +31,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				<strong>{slug_or_port}</strong>
 			);
 
-			const actionText: ReactNode = (() => {
+			const actionText: React.ReactNode = (() => {
 				if (status_code === 303) {
 					return (
 						<>
@@ -62,11 +61,10 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				<span>
 					{user ? user.username : "Unauthenticated user"} {actionText} in{" "}
 					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
-					<Link
-						component={RouterLink}
-						to={`/@${workspace_owner_username}/${workspace_name}`}
-					>
-						<strong>{workspace_name}</strong>
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
 					</Link>{" "}
 					workspace
 				</span>
@@ -81,13 +79,35 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			return (
 				<span>
 					{friendlyType} session to {workspace_owner_username}'s{" "}
-					<Link
-						component={RouterLink}
-						to={`/@${workspace_owner_username}/${workspace_name}`}
-					>
-						<strong>{workspace_name}</strong>
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
 					</Link>{" "}
 					workspace{" "}
+				</span>
+			);
+		}
+
+		case "tunnel": {
+			if (!web_info) return null;
+			const { user, status_code } = web_info;
+			const actor = user?.username ?? "Unknown user";
+			const action =
+				status_code >= 400
+					? "was denied a tunnel to"
+					: "established a tunnel to";
+			const isOwnWorkspace = workspace_owner_username === user?.username;
+			return (
+				<span>
+					{actor} {action}{" "}
+					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace
 				</span>
 			);
 		}

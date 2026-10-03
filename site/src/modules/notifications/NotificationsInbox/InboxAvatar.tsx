@@ -1,18 +1,17 @@
 import {
-	InboxNotificationFallbackIconAccount,
-	InboxNotificationFallbackIconOther,
-	InboxNotificationFallbackIconTemplate,
-	InboxNotificationFallbackIconWorkspace,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import {
 	InfoIcon,
 	LaptopIcon,
 	LayoutTemplateIcon,
 	UserIcon,
 } from "lucide-react";
 import type React from "react";
-import type { FC } from "react";
+import {
+	InboxNotificationFallbackIconAccount,
+	InboxNotificationFallbackIconOther,
+	InboxNotificationFallbackIconTemplate,
+	InboxNotificationFallbackIconWorkspace,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 
 const InboxNotificationFallbackIcons = [
 	InboxNotificationFallbackIconAccount,
@@ -35,7 +34,7 @@ type InboxAvatarProps = {
 	icon: string;
 };
 
-export const InboxAvatar: FC<InboxAvatarProps> = ({ icon }) => {
+export const InboxAvatar: React.FC<InboxAvatarProps> = ({ icon }) => {
 	if (icon === "") {
 		return <Avatar variant="icon">{fallbackIcons.DEFAULT_ICON_OTHER}</Avatar>;
 	}

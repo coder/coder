@@ -1,4 +1,4 @@
-// Package agentssh_test provides tests for basic functinoality of the agentssh
+// Package agentssh_test provides tests for basic functionality of the agentssh
 // package, more test coverage can be found in the `agent` and `cli` package(s).
 package agentssh_test
 
@@ -28,52 +28,148 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+type testConnectionReporter struct {
+	mu          sync.Mutex
+	connects    []proto.ConnectEvent
+	disconnects []proto.DisconnectEvent
+}
+
+func (r *testConnectionReporter) Connect(connectEvent proto.ConnectEvent) proto.DisconnectionReporter {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.connects = append(r.connects, connectEvent)
+	return &testDisconnectionReporter{
+		callback: func(disconnectEvent proto.DisconnectEvent) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.disconnects = append(r.disconnects, disconnectEvent)
+		},
+	}
+}
+
+type testDisconnectionReporter struct {
+	callback func(proto.DisconnectEvent)
+}
+
+func (r *testDisconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent) {
+	r.callback(disconnectEvent)
+}
+
 func TestNewServer_ServeClient(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
-	require.NoError(t, err)
-	defer s.Close()
-	err = s.UpdateHostSigner(42)
-	assert.NoError(t, err)
+	tests := []struct {
+		name            string
+		clientSessionID string
+	}{
+		{
+			name: "NoClientSessionID",
+		},
+		{
+			name:            "WithClientSessionID",
+			clientSessionID: "0123456789abcdef0123456789abcdef",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+			var (
+				ctx    = context.Background()
+				logger = testutil.Logger(t)
+			)
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		err := s.Serve(ln)
-		assert.Error(t, err) // Server is closed.
-	}()
+			reporter := &testConnectionReporter{}
 
-	c := sshClient(t, ln.Addr().String())
+			s, err := agentssh.NewServer(ctx, logger,
+				prometheus.NewRegistry(),
+				afero.NewMemMapFs(),
+				agentexec.DefaultExecer,
+				&agentssh.Config{
+					ConnectionReporter: reporter,
+				},
+			)
+			require.NoError(t, err)
+			defer s.Close()
+			err = s.UpdateHostSigner(42)
+			assert.NoError(t, err)
 
-	var b bytes.Buffer
-	sess, err := c.NewSession()
-	require.NoError(t, err)
-	sess.Stdout = &b
-	err = sess.Start("echo hello")
-	require.NoError(t, err)
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
 
-	err = sess.Wait()
-	require.NoError(t, err)
+			if tc.clientSessionID != "" {
+				ln = &wrappedListener{
+					ln,
+					tc.clientSessionID,
+				}
+			}
 
-	require.Equal(t, "hello", strings.TrimSpace(b.String()))
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				err := s.Serve(ln)
+				assert.Error(t, err) // Server is closed.
+			}()
 
-	err = s.Close()
-	require.NoError(t, err)
-	<-done
+			c := sshClient(t, ln.Addr().String())
+
+			var b bytes.Buffer
+			sess, err := c.NewSession()
+			require.NoError(t, err)
+			sess.Stdout = &b
+			err = sess.Start("echo hello")
+			require.NoError(t, err)
+
+			err = sess.Wait()
+			require.NoError(t, err)
+
+			require.Equal(t, "hello", strings.TrimSpace(b.String()))
+
+			err = s.Close()
+			require.NoError(t, err)
+			<-done
+
+			// The server will not close until the disconnect has been reported, so
+			// these reports should be populated and safe to access now.
+			require.Len(t, reporter.connects, 1)
+			require.Len(t, reporter.disconnects, 1)
+			// We only need to check the connect report's client session ID;
+			// disconnect inherit the connect report's ID via the closure, so they
+			// will always be the same.
+			require.Equal(t, tc.clientSessionID, reporter.connects[0].ClientSessionID, "connect client session id")
+		})
+	}
+}
+
+// wrappedListener wraps a net.Listener to augment all connections with the
+// provided client session ID.
+type wrappedListener struct {
+	net.Listener
+	clientSessionID string
+}
+
+type wrappedConn struct {
+	net.Conn
+	clientSessionID string
+}
+
+func (w wrappedConn) ClientSessionID() string { return w.clientSessionID }
+
+func (ln *wrappedListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	return wrappedConn{
+		Conn:            conn,
+		clientSessionID: ln.clientSessionID,
+	}, err
 }
 
 func TestNewServer_ExecuteShebang(t *testing.T) {
@@ -182,10 +278,8 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				c := sshClient(t, ln.Addr().String())
 				sess, err := c.NewSession()
 				assert.NoError(t, err)
-				pty := ptytest.New(t)
-				sess.Stdin = pty.Input()
-				sess.Stdout = pty.Output()
-				sess.Stderr = pty.Output()
+				stdout := expecter.NewAttachedToSSHSession(t, sess)
+				stdout.Rename(fmt.Sprintf("sess%d", i))
 
 				// Every other session will request a PTY.
 				if i%2 == 0 {
@@ -203,7 +297,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Allow the session to settle (i.e. reach echo).
-				pty.ExpectMatchContext(ctx, "started")
+				stdout.ExpectMatch(ctx, "started")
 				// Sleep a bit to ensure the sleep has started.
 				time.Sleep(testutil.IntervalMedium)
 
@@ -353,17 +447,10 @@ func TestNewServer_Signal(t *testing.T) {
 
 		c := sshClient(t, ln.Addr().String())
 
-		pty := ptytest.New(t)
-
 		sess, err := c.NewSession()
 		require.NoError(t, err)
 		r, err := sess.StdoutPipe()
 		require.NoError(t, err)
-
-		// Note, we request pty but don't use ptytest here because we can't
-		// easily test for no text before EOF.
-		sess.Stdin = pty.Input()
-		sess.Stderr = pty.Output()
 
 		err = sess.RequestPty("xterm", 80, 80, nil)
 		require.NoError(t, err)

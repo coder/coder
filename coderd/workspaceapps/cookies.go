@@ -68,26 +68,29 @@ func SubdomainAppSessionTokenCookie(hostname string) string {
 // the wrong value.
 //
 // We use different cookie names for:
-// - path apps on primary access URL: coder_session_token
-// - path apps on proxies: coder_path_app_session_token
+// - path apps: coder_path_app_session_token
 // - subdomain apps: coder_subdomain_app_session_token_{unique_hash}
 //
-// First we try the default function to get a token from request, which supports
-// query parameters, the Coder-Session-Token header and the coder_session_token
-// cookie.
-//
-// Then we try the specific cookie name for the access method.
+// We prefer the access-method-specific cookie first, then fall back to standard
+// Coder token extraction (query parameters, Coder-Session-Token header, etc.).
 func (c AppCookies) TokenFromRequest(r *http.Request, accessMethod AccessMethod) string {
-	// Try the default function first.
-	token := httpmw.APITokenFromRequest(r)
-	if token != "" {
-		return token
-	}
-
-	// Then try the specific cookie name for the access method.
+	// Prefer the access-method-specific cookie first.
+	//
+	// Workspace app requests commonly include an `Authorization` header intended
+	// for the upstream app (e.g. API calls). `httpmw.APITokenFromRequest` supports
+	// RFC 6750 bearer tokens, so if we consult it first we'd incorrectly treat
+	// that upstream header as a Coder session token and ignore the app session
+	// cookie, breaking token renewal for subdomain apps.
 	cookie, err := r.Cookie(c.CookieNameForAccessMethod(accessMethod))
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
+	}
+
+	// Fall back to standard Coder token extraction (session cookie, query param,
+	// Coder-Session-Token header, and then Authorization: Bearer).
+	token := httpmw.APITokenFromRequest(r)
+	if token != "" {
+		return token
 	}
 
 	return ""

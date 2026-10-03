@@ -2,11 +2,9 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"slices"
 	"strings"
 	"time"
@@ -144,13 +142,14 @@ type ProvisionerJobInput struct {
 
 // ProvisionerJobMetadata contains metadata for the job.
 type ProvisionerJobMetadata struct {
-	TemplateVersionName string     `json:"template_version_name" table:"template version name"`
-	TemplateID          uuid.UUID  `json:"template_id" format:"uuid" table:"template id"`
-	TemplateName        string     `json:"template_name" table:"template name"`
-	TemplateDisplayName string     `json:"template_display_name" table:"template display name"`
-	TemplateIcon        string     `json:"template_icon" table:"template icon"`
-	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
-	WorkspaceName       string     `json:"workspace_name,omitempty" table:"workspace name"`
+	TemplateVersionName      string              `json:"template_version_name" table:"template version name"`
+	TemplateID               uuid.UUID           `json:"template_id" format:"uuid" table:"template id"`
+	TemplateName             string              `json:"template_name" table:"template name"`
+	TemplateDisplayName      string              `json:"template_display_name" table:"template display name"`
+	TemplateIcon             string              `json:"template_icon" table:"template icon"`
+	WorkspaceID              *uuid.UUID          `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
+	WorkspaceName            string              `json:"workspace_name,omitempty" table:"workspace name"`
+	WorkspaceBuildTransition WorkspaceTransition `json:"workspace_build_transition,omitempty" table:"workspace build transition"`
 }
 
 // ProvisionerJobType represents the type of job.
@@ -167,6 +166,7 @@ type JobErrorCode string
 
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	InsufficientQuota         JobErrorCode = "INSUFFICIENT_QUOTA"
 )
 
 // JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
@@ -181,6 +181,13 @@ func JobIsMissingRequiredTemplateVariableErrorCode(code JobErrorCode) bool {
 	return string(code) == runner.RequiredTemplateVariablesErrorCode
 }
 
+// JobIsInsufficientQuotaErrorCode returns whether the error is an insufficient
+// quota error. This can indicate to consumers that they should explain quota
+// recovery options instead of treating the failure as a generic build error.
+func JobIsInsufficientQuotaErrorCode(code JobErrorCode) bool {
+	return string(code) == runner.InsufficientQuotaErrorCode
+}
+
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID               uuid.UUID              `json:"id" format:"uuid" table:"id"`
@@ -189,7 +196,7 @@ type ProvisionerJob struct {
 	CompletedAt      *time.Time             `json:"completed_at,omitempty" format:"date-time" table:"completed at"`
 	CanceledAt       *time.Time             `json:"canceled_at,omitempty" format:"date-time" table:"canceled at"`
 	Error            string                 `json:"error,omitempty" table:"error"`
-	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES" table:"error code"`
+	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES,INSUFFICIENT_QUOTA" table:"error code"`
 	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
 	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
 	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`
@@ -216,6 +223,19 @@ type ProvisionerJobLog struct {
 	Output    string    `json:"output"`
 }
 
+// Text formats the log entry as human-readable text.
+func (l ProvisionerJobLog) Text() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(l.CreatedAt.Format(time.RFC3339))
+	_, _ = sb.WriteString(" [")
+	_, _ = sb.WriteString(string(l.Level))
+	_, _ = sb.WriteString("] [provisioner|")
+	_, _ = sb.WriteString(l.Stage)
+	_, _ = sb.WriteString("] ")
+	_, _ = sb.WriteString(l.Output)
+	return sb.String()
+}
+
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
 func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	afterQuery := ""
@@ -226,20 +246,14 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	if err != nil {
 		return nil, nil, err
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(followURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
+		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
+		},
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
@@ -312,16 +326,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
 	}
 	if req.ProvisionerKey == "" && req.PreSharedKey == "" {
-		// use session token if we don't have a PSK or provisioner key.
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  SessionTokenCookie,
-			Value: c.SessionToken(),
-		}})
-		httpClient.Jar = jar
+		// Use session token if we don't have a PSK or provisioner key.
+		headers.Set(SessionTokenHeader, c.SessionToken())
 	}
 
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
@@ -336,13 +342,11 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		}
 		return nil, ReadBodyAsError(res)
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	// Use background context because caller should close the client.
 	_, wsNetConn := WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 	session, err := yamux.Client(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
@@ -404,6 +408,25 @@ func ReservedProvisionerKeyNames() []string {
 	}
 }
 
+// IsReservedProvisionerKey reports whether the given ID is one of the reserved
+// provisioner keys (built-in, user-auth, PSK). Reserved keys are created by the
+// system and cannot be deleted.
+func IsReservedProvisionerKey(id uuid.UUID) bool {
+	switch id {
+	case ProvisionerKeyUUIDBuiltIn, ProvisionerKeyUUIDUserAuth, ProvisionerKeyUUIDPSK:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsDeletableProvisionerKey reports whether the given ID identifies a
+// provisioner key that can be deleted. The zero value and reserved keys cannot
+// be deleted.
+func IsDeletableProvisionerKey(id uuid.UUID) bool {
+	return id != uuid.Nil && !IsReservedProvisionerKey(id)
+}
+
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`
@@ -428,7 +451,7 @@ func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.U
 		return CreateProvisionerKeyResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateProvisionerKeyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ListProvisionerKeys lists all provisioner keys for an organization.
@@ -446,7 +469,7 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetProvisionerKey returns the provisioner key.
@@ -466,7 +489,7 @@ func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerK
 		return ProvisionerKey{}, ReadBodyAsError(res)
 	}
 	var resp ProvisionerKey
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ListProvisionerKeyDaemons lists all provisioner keys with their associated daemons for an organization.
@@ -484,7 +507,7 @@ func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID u
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKeyDaemons
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteProvisionerKey deletes a provisioner key.

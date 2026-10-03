@@ -52,7 +52,7 @@ func (c *Client) GetNotificationsSettings(ctx context.Context) (NotificationsSet
 		return NotificationsSettings{}, ReadBodyAsError(res)
 	}
 	var settings NotificationsSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, ReadBodyAsJSON(res, &settings)
 }
 
 // PutNotificationsSettings modifies the notifications settings, which currently just controls whether all
@@ -224,7 +224,9 @@ type WebpushMessage struct {
 	Icon    string                 `json:"icon"`
 	Title   string                 `json:"title"`
 	Body    string                 `json:"body"`
+	Tag     string                 `json:"tag,omitempty"`
 	Actions []WebpushMessageAction `json:"actions"`
+	Data    map[string]string      `json:"data,omitempty"`
 }
 
 type WebpushSubscription struct {

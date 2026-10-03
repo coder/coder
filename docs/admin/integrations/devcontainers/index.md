@@ -1,4 +1,6 @@
-# Dev Containers
+---
+title: Dev Containers
+---
 
 Dev containers allow developers to define their development environment
 as code using the [Dev Container specification](https://containers.dev/).

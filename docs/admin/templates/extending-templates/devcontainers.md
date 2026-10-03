@@ -1,4 +1,6 @@
-# Dev Containers
+---
+title: Dev Containers
+---
 
 Dev containers extend your template with containerized development environments,
 allowing developers to work in consistent, reproducible setups defined by

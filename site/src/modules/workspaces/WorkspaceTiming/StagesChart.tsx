@@ -1,12 +1,10 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import type { TimingStage } from "api/typesGenerated";
+import { CircleAlertIcon, InfoIcon } from "lucide-react";
+import type { TimingStage } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
@@ -42,6 +40,11 @@ export type Stage = {
 	 */
 	section: string;
 	/**
+	 * The agent ID for agent-related stages. Used to filter timings correctly
+	 * when multiple agents exist.
+	 */
+	agentId?: string;
+	/**
 	 * The tooltip is used to provide additional information about the stage.
 	 */
 	tooltip: {
@@ -76,7 +79,7 @@ type StagesChartProps = {
 	onSelectStage: (stage: Stage) => void;
 };
 
-export const StagesChart: FC<StagesChartProps> = ({
+export const StagesChart: React.FC<StagesChartProps> = ({
 	timings,
 	onSelectStage,
 }) => {
@@ -105,14 +108,11 @@ export const StagesChart: FC<StagesChartProps> = ({
 											key={stage.name}
 											id={encodeURIComponent(stage.name)}
 										>
-											<span css={styles.stageLabel}>
+											<span className="flex items-center justify-end gap-0.5">
 												{stage.label}
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<InfoIcon
-															className="size-icon-xs"
-															css={styles.info}
-														/>
+														<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
 													</TooltipTrigger>
 													<TooltipContent
 														side="bottom"
@@ -172,13 +172,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
-														<CircleAlertIcon
-															className="size-icon-sm"
-															css={{
-																color: "#F87171",
-																marginRight: 4,
-															}}
-														/>
+														<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
 													)}
 													<Blocks count={t.visibleResources} />
 												</ClickableBar>
@@ -188,11 +182,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 											{validDuration ? (
 												<span>{formatTime(value)}</span>
 											) : (
-												<span
-													css={(theme) => ({
-														color: theme.palette.error.main,
-													})}
-												>
+												<span className="text-content-destructive">
 													Invalid
 												</span>
 											)}
@@ -207,24 +197,6 @@ export const StagesChart: FC<StagesChartProps> = ({
 		</Chart>
 	);
 };
-
-const styles = {
-	stageLabel: {
-		display: "flex",
-		alignItems: "center",
-		gap: 2,
-		justifyContent: "flex-end",
-	},
-	stageDescription: {
-		maxWidth: 300,
-	},
-	info: (theme) => ({
-		width: 12,
-		height: 12,
-		color: theme.palette.text.secondary,
-		cursor: "pointer",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export const provisioningStages: Stage[] = [
 	{
@@ -268,12 +240,13 @@ export const provisioningStages: Stage[] = [
 	},
 ];
 
-export const agentStages = (section: string): Stage[] => {
+export const agentStages = (section: string, agentId: string): Stage[] => {
 	return [
 		{
 			name: "connect",
 			label: "connect",
 			section,
+			agentId,
 			tooltip: {
 				heading: "Connect",
 				description: "Establish an RPC connection with the control plane.",
@@ -283,6 +256,7 @@ export const agentStages = (section: string): Stage[] => {
 			name: "start",
 			label: "run startup scripts",
 			section,
+			agentId,
 			tooltip: {
 				heading: "Run startup scripts",
 				description: "Execute each agent startup script.",

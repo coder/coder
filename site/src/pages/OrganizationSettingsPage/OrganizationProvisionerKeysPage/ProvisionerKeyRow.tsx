@@ -1,17 +1,17 @@
-import type { ProvisionerDaemon, ProvisionerKey } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { TableCell, TableRow } from "components/Table/Table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
+import { useState } from "react";
+import { Link as RouterLink } from "react-router";
+import type { ProvisionerDaemon, ProvisionerKey } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
+} from "#/modules/provisioners/ProvisionerTags";
+import { relativeTime } from "#/utils/time";
 
 type ProvisionerKeyRowProps = {
 	readonly provisionerKey: ProvisionerKey;
@@ -19,7 +19,7 @@ type ProvisionerKeyRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
+export const ProvisionerKeyRow: React.FC<ProvisionerKeyRowProps> = ({
 	provisionerKey,
 	provisioners,
 	defaultIsOpen = false,
@@ -39,7 +39,9 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 						])}
 						onClick={() => setIsOpen((v) => !v)}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{provisionerKey.name}
 					</Button>
@@ -76,7 +78,7 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 							])}
 						>
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{provisionerKey.created_at}</dd>
+							<dd data-pixel="ignore">{provisionerKey.created_at}</dd>
 
 							<dt>Tags:</dt>
 							<dd>
@@ -121,7 +123,7 @@ type TruncateProvisionersProps = {
 	provisioners: readonly ProvisionerDaemon[];
 };
 
-const TruncateProvisioners: FC<TruncateProvisionersProps> = ({
+const TruncateProvisioners: React.FC<TruncateProvisionersProps> = ({
 	provisioners,
 }) => {
 	const firstProvisioner = provisioners[0];

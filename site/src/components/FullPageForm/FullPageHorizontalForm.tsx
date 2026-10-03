@@ -1,20 +1,19 @@
-import { Button } from "components/Button/Button";
-import { Margins } from "components/Margins/Margins";
+import { Button } from "#/components/Button/Button";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, ReactNode } from "react";
+} from "#/components/PageHeader/PageHeader";
 
-interface FullPageHorizontalFormProps {
+type FullPageHorizontalFormProps = {
 	title: string;
-	detail?: ReactNode;
+	detail?: React.ReactNode;
 	onCancel?: () => void;
-	children?: ReactNode;
-}
+	children?: React.ReactNode;
+};
 
-export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
+export const FullPageHorizontalForm: React.FC<FullPageHorizontalFormProps> = ({
 	title,
 	detail,
 	onCancel,
@@ -35,7 +34,7 @@ export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>
 
-			<main>{children}</main>
+			<div>{children}</div>
 		</Margins>
 	);
 };

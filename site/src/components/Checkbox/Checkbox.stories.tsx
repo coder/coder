@@ -51,15 +51,17 @@ export const DisabledChecked: Story = {
 
 export const CustomStyling: Story = {
 	args: {
-		className: "h-6 w-6 rounded-full",
+		className: "size-6 rounded-full",
 	},
 };
 
 export const WithLabel: Story = {
 	render: () => (
-		<div className="flex gap-3">
-			<Checkbox id="terms" />
-			<div className="grid">
+		<div className="flex gap-2.5">
+			<div className="pt-0.5">
+				<Checkbox id="terms" />
+			</div>
+			<div className="grid pt-0.5">
 				<label
 					htmlFor="terms"
 					className="text-sm font-medium peer-disabled:cursor-not-allowed peer-disabled:text-content-disabled"
@@ -75,7 +77,7 @@ export const WithLabel: Story = {
 };
 
 export const Indeterminate: Story = {
-	render: () => {
+	render: function IndeterminateRender() {
 		const [checked, setChecked] = React.useState<boolean | "indeterminate">(
 			"indeterminate",
 		);

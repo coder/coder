@@ -8,6 +8,26 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	ai_gateway_key: {
+		create: "create an AI Gateway key",
+		delete: "delete an AI Gateway key",
+		read: "read AI Gateway keys",
+		update: "update an AI Gateway key",
+	},
+	ai_model_price: {
+		read: "read AI model prices",
+		update: "update AI model prices",
+	},
+	ai_provider: {
+		create: "create an AI provider",
+		delete: "delete an AI provider",
+		read: "read AI provider configuration",
+		update: "update an AI provider",
+	},
+	ai_seat: {
+		create: "record AI seat usage",
+		read: "read AI seat state",
+	},
 	aibridge_interception: {
 		create: "create aibridge interceptions & related records",
 		read: "read aibridge interceptions & related records",
@@ -17,7 +37,7 @@ export const RBACResourceActions: Partial<
 		create: "create an api key",
 		delete: "delete an api key",
 		read: "read api key details (secrets are not stored)",
-		update: "update an api key, eg expires",
+		update: "update an api key, for example its expiry",
 	},
 	assign_org_role: {
 		assign: "assign org scoped roles",
@@ -35,6 +55,42 @@ export const RBACResourceActions: Partial<
 	audit_log: {
 		create: "create new audit log entries",
 		read: "read audit logs",
+	},
+	boundary_log: {
+		create: "create boundary log records",
+		delete: "delete boundary logs",
+		read: "read boundary logs and session metadata",
+	},
+	boundary_usage: {
+		delete: "delete boundary usage statistics",
+		read: "read boundary usage statistics",
+		update: "upsert boundary usage statistics",
+	},
+	chat: {
+		create: "create a new chat",
+		delete: "delete a chat",
+		read: "read chat messages and metadata",
+		share: "share a chat with other users or groups",
+		update: "update chat title or settings",
+	},
+	chat_automation: {
+		create: "create a new chat automation",
+		delete: "delete a chat automation",
+		read: "read chat automations",
+		update: "update a chat automation",
+	},
+	chat_model_config: {
+		create: "create a new chat model config",
+		delete: "delete a chat model config",
+		read: "read chat model configs",
+		share: "share a chat model config with other users or groups",
+		update: "update a chat model config",
+	},
+	chat_project: {
+		create: "create a new chat project",
+		delete: "delete a chat project",
+		read: "read chat projects",
+		update: "update a chat project",
 	},
 	connection_log: {
 		read: "read connection logs",
@@ -82,6 +138,13 @@ export const RBACResourceActions: Partial<
 		create: "create a license",
 		delete: "delete license",
 		read: "read licenses",
+	},
+	mcp_server_config: {
+		create: "create a new MCP server config",
+		delete: "delete MCP server config",
+		read: "read MCP server config",
+		share: "share MCP server config with other users or groups",
+		update: "update MCP server config",
 	},
 	notification_message: {
 		create: "create notification messages",
@@ -156,12 +219,6 @@ export const RBACResourceActions: Partial<
 		read: "view info about a Tailnet coordinator",
 		update: "update a Tailnet coordinator",
 	},
-	task: {
-		create: "create a new task",
-		delete: "delete task",
-		read: "read task data or output to view on the UI or CLI",
-		update: "edit task settings or send input to an existing task",
-	},
 	template: {
 		create: "create a template",
 		delete: "delete a template",
@@ -189,6 +246,12 @@ export const RBACResourceActions: Partial<
 		read: "read user secret metadata and value",
 		update: "update user secret metadata and value",
 	},
+	user_skill: {
+		create: "create a user skill",
+		delete: "delete a user skill",
+		read: "read user skill metadata and content",
+		update: "update user skill metadata and content",
+	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",
 		delete: "delete webpush subscriptions",
@@ -203,9 +266,10 @@ export const RBACResourceActions: Partial<
 		read: "read workspace data to view on the UI",
 		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
-		start: "allows starting a workspace",
-		stop: "allows stopping a workspace",
+		start: "start a workspace",
+		stop: "stop a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
+		update_agent: "update an existing workspace agent",
 	},
 	workspace_agent_devcontainers: {
 		create: "create workspace agent devcontainers",
@@ -214,6 +278,12 @@ export const RBACResourceActions: Partial<
 		create: "create workspace agent resource monitor",
 		read: "read workspace agent resource monitor",
 		update: "update workspace agent resource monitor",
+	},
+	workspace_build_orchestration: {
+		create: "create a workspace build orchestration",
+		delete: "delete a workspace build orchestration",
+		read: "read a workspace build orchestration",
+		update: "update a workspace build orchestration",
 	},
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",
@@ -224,9 +294,10 @@ export const RBACResourceActions: Partial<
 		read: "read workspace data to view on the UI",
 		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
-		start: "allows starting a workspace",
-		stop: "allows stopping a workspace",
+		start: "start a workspace",
+		stop: "stop a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
+		update_agent: "update an existing workspace agent",
 	},
 	workspace_proxy: {
 		create: "create a workspace proxy",

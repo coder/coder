@@ -1,13 +1,12 @@
-import { Slot, Slottable } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
-import { forwardRef } from "react";
-import { cn } from "utils/cn";
+import { Slot } from "radix-ui";
 
 const linkVariants = cva(
 	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
-	 after:hover:content-[''] after:hover:absolute after:hover:left-0 after:hover:w-full after:hover:h-px after:hover:bg-current after:hover:bottom-px
-	 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	 hover:after:content-[''] hover:after:absolute hover:after:left-0 hover:after:w-full hover:after:h-px hover:after:bg-current hover:after:bottom-px
+	 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm
 	 visited:text-content-link pl-0.5`, //pl-0.5 adjusts the underline spacing to align with the icon on the right.
 	{
@@ -23,28 +22,25 @@ const linkVariants = cva(
 	},
 );
 
-interface LinkProps
-	extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
-		VariantProps<typeof linkVariants> {
-	asChild?: boolean;
-	showExternalIcon?: boolean;
-}
+export type LinkProps = React.ComponentProps<"a"> &
+	VariantProps<typeof linkVariants> & {
+		asChild?: boolean;
+		showExternalIcon?: boolean;
+	};
 
-export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
-	(
-		{ className, children, size, asChild, showExternalIcon = true, ...props },
-		ref,
-	) => {
-		const Comp = asChild ? Slot : "a";
-		return (
-			<Comp
-				className={cn(linkVariants({ size }), className)}
-				ref={ref}
-				{...props}
-			>
-				<Slottable>{children}</Slottable>
-				{showExternalIcon && <SquareArrowOutUpRightIcon aria-hidden="true" />}
-			</Comp>
-		);
-	},
-);
+export const Link: React.FC<LinkProps> = ({
+	className,
+	children,
+	size,
+	asChild,
+	showExternalIcon = true,
+	...props
+}) => {
+	const Comp = asChild ? Slot.Root : "a";
+	return (
+		<Comp className={cn(linkVariants({ size }), className)} {...props}>
+			<Slot.Slottable>{children}</Slot.Slottable>
+			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+		</Comp>
+	);
+};

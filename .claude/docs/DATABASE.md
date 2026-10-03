@@ -34,6 +34,48 @@
 - **MUST DO**: Queries are grouped in files relating to context - e.g. `prebuilds.sql`, `users.sql`, `oauth2.sql`
 - After making changes to any `coderd/database/queries/*.sql` files you must run `make gen` to generate respective ORM changes
 
+### Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
+### Enum Changes Run in a Single Transaction
+
+All migrations run inside one transaction (`pgTxnDriver`). Postgres forbids
+*using* an enum value added by `ALTER TYPE ... ADD VALUE` within the same
+transaction that added it, so it fails with `unsafe use of new value`.
+
+Adding the value is fine; using it in the same batch is not. "Using it"
+includes a later migration that casts to it (`col::my_enum`), inserts or
+updates a row with it, or sets it as a column default. This only fails when a
+row actually materializes the new value, so fresh databases and CI pass while
+deployments with existing data break.
+
+**MUST DO**: If any migration uses a newly added enum value, recreate the type
+instead of using `ADD VALUE`. A freshly created enum's values are usable
+immediately in the same transaction. Precedent: `000144_user_status_dormant`.
+
+```sql
+CREATE TYPE new_my_enum AS ENUM ('existing', 'value', 'new_value');
+
+ALTER TABLE my_table
+    ALTER COLUMN col TYPE new_my_enum USING (col::text::new_my_enum);
+
+DROP TYPE my_enum;
+
+ALTER TYPE new_my_enum RENAME TO my_enum;
+```
+
+Recreating produces an identical schema, so `make gen` yields no `dump.sql`
+diff and databases that already applied the migration see no drift.
+
+**Testing**: `migrations.Stepper` commits each migration separately, so tests
+built on it cannot surface this. To catch it, seed a row using the new value,
+then apply the affected migrations in a single transaction (see
+`TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
+
 ## Handling Nullable Fields
 
 Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:
@@ -46,6 +88,13 @@ CodeChallenge: sql.NullString{
 ```
 
 Set `.Valid = true` when providing values.
+
+## Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
 
 ## Audit Table Updates
 
@@ -117,7 +166,7 @@ func TestDatabaseFunction(t *testing.T) {
 
 ### Schema Design
 
-1. **Use appropriate data types**: VARCHAR for strings, TIMESTAMP for times
+1. **Match existing column types**: `text` for strings, `timestamp with time zone` for times (see `coderd/database/dump.sql`)
 2. **Add constraints**: NOT NULL, UNIQUE, FOREIGN KEY as appropriate
 3. **Create indexes**: For frequently queried columns
 4. **Consider performance**: Normalize appropriately but avoid over-normalization
@@ -128,6 +177,19 @@ func TestDatabaseFunction(t *testing.T) {
 2. **Handle errors appropriately**: Check for specific error types
 3. **Use transactions**: For related operations that must succeed together
 4. **Optimize queries**: Use EXPLAIN to understand query performance
+
+### Transaction Safety with `InTx`
+
+- Inside `db.InTx(...)` closures, do not use the outer store
+  (`api.Database`, `p.db`, etc.) directly or indirectly. Use the `tx`
+  handle for DB work inside the closure, or fetch read-only inputs before
+  opening the transaction.
+- Watch for helper methods on a receiver that hide outer-store access. A
+  call like `p.someHelper(ctx)` is still unsafe inside `InTx` if that
+  helper uses `p.db` internally.
+- Using the outer store while a transaction is open can hold one
+  connection and then block on another pool checkout, which can cause
+  pool starvation and `idle in transaction` incidents under load.
 
 ### Migration Writing
 
@@ -141,56 +203,55 @@ func TestDatabaseFunction(t *testing.T) {
 ### Complex Queries
 
 ```sql
--- Example: Complex join with aggregation
+-- name: GetWorkspaceCountsPerUser :many
 SELECT
     u.id,
     u.username,
-    COUNT(w.id) as workspace_count
+    COUNT(w.id) AS workspace_count
 FROM users u
 LEFT JOIN workspaces w ON u.id = w.owner_id
-WHERE u.created_at > $1
+WHERE u.created_at > @created_after
 GROUP BY u.id, u.username
 ORDER BY workspace_count DESC;
 ```
 
 ### Conditional Queries
 
+sqlc makes cast parameters non-nullable, so an optional filter compares
+against the zero value instead of `IS NULL`. Use `sqlc.narg` when the caller
+must pass a real NULL. `GetTemplatesWithFilter` in
+`coderd/database/queries/templates.sql` is a complete example.
+
 ```sql
--- Example: Dynamic filtering
-SELECT * FROM oauth2_provider_apps
+-- name: GetTemplatesFiltered :many
+SELECT * FROM templates
 WHERE
-    ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
-    AND ($2::uuid IS NULL OR organization_id = $2)
+    CASE
+        WHEN @fuzzy_name :: text != '' THEN name ILIKE '%' || @fuzzy_name || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN organization_id = @organization_id
+        ELSE true
+    END
 ORDER BY created_at DESC;
 ```
 
 ### Audit Patterns
 
-```go
-// Example: Auditable database operation
-func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-    // Implementation here
-
-    // Audit the change
-    if auditor := audit.FromContext(ctx); auditor != nil {
-        auditor.Record(audit.UserUpdate{
-            UserID: arg.ID,
-            Old:    oldUser,
-            New:    newUser,
-        })
-    }
-
-    return newUser, nil
-}
-```
+Auditable resources are tracked field by field in `enterprise/audit/table.go`.
+When you add a column to an auditable type, add it there with an action and
+rerun `make gen`. HTTP handlers record audit entries with
+`audit.InitRequest[T]`; read a nearby handler such as `coderd/ai_providers.go`
+for the pattern.
 
 ## Debugging Database Issues
 
 ### Common Debug Commands
 
 ```bash
-# Check database connection
-make test-postgres
+# Run tests (starts Postgres automatically if needed)
+make test
 
 # Run specific database tests
 go test ./coderd/database/... -run TestSpecificFunction

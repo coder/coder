@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp sync list [flags]
+
+  List all registered units and their statuses
+
+  List all units currently registered with the workspace agent. Shows each
+  unit's name, status, and whether it is ready to start.
+
+OPTIONS:
+  -c, --column [unit|status|ready] (default: unit,status,ready)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

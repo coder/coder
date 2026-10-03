@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStripSlashesMW(t *testing.T) {
@@ -64,4 +65,16 @@ func TestStripSlashesMW(t *testing.T) {
 			assert.Nil(t, chi.RouteContext(req.Context()))
 		})
 	}
+}
+
+// TestChatDaemonPublishDiffStatusChangeFunc verifies that
+// chatDaemonPublishDiffStatusChangeFunc returns a true nil, not a method
+// value bound to a nil receiver, when chatDaemon is nil. See that function
+// for why the distinction matters. The non-nil path is covered by
+// coderd/exp_chats_test.go.
+func TestChatDaemonPublishDiffStatusChangeFunc(t *testing.T) {
+	t.Parallel()
+
+	fn := chatDaemonPublishDiffStatusChangeFunc(nil)
+	require.Nil(t, fn, "func value must be a true nil, not a bound method on a nil receiver")
 }

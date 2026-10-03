@@ -1,4 +1,4 @@
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { disabledRefetchOptions } from "./util";
 
 export const deploymentConfigQueryKey = ["deployment", "config"];
@@ -18,9 +18,11 @@ export const deploymentDAUs = () => {
 	};
 };
 
+export const deploymentStatsQueryKey = ["deployment", "stats"];
+
 export const deploymentStats = () => {
 	return {
-		queryKey: ["deployment", "stats"],
+		queryKey: deploymentStatsQueryKey,
 		queryFn: API.getDeploymentStats,
 	};
 };

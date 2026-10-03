@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -32,11 +33,12 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/fullsailor/pkcs7"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/cases"
@@ -55,13 +57,14 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -69,6 +72,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -81,13 +85,16 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -103,35 +110,41 @@ import (
 	"github.com/coder/quartz"
 )
 
+const DefaultDERPMeshKey = "test-key"
+
 const defaultTestDaemonName = "test-daemon"
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL                      *url.URL
-	AppHostname                    string
-	AWSCertificates                awsidentity.Certificates
-	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
-	GithubOAuth2Config             *coderd.GithubOAuth2Config
-	RealIPConfig                   *httpmw.RealIPConfig
-	OIDCConfig                     *coderd.OIDCConfig
-	GoogleTokenValidator           *idtoken.Validator
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	AutobuildTicker                <-chan time.Time
-	AutobuildStats                 chan<- autobuild.Stats
-	Auditor                        audit.Auditor
-	TLSCertificates                []tls.Certificate
-	ExternalAuthConfigs            []*externalauth.Config
-	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	AccessURL            *url.URL
+	AppHostname          string
+	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
+	AzureCertificates    azureidentity.Options
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	RealIPConfig         *httpmw.RealIPConfig
+	OIDCConfig           *coderd.OIDCConfig
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- autobuild.Stats
+	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
+	ExternalAuthConfigs  []*externalauth.Config
+	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
+	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
+	// tests can serve mock MCP and authorization servers via httptest.
+	MCPAllowedPrivateCIDRs         []netip.Prefix
 	RefreshEntitlements            func(ctx context.Context) error
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 	ConnectionLogger               connectionlog.ConnectionLogger
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
+	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -144,7 +157,11 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon    bool
+	IncludeProvisionerDaemon bool
+	ChatProviderAPIKeys      *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker. Used in tests.
+	ChatWorkerDisabled          bool
 	ProvisionerDaemonVersion    string
 	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
@@ -157,8 +174,9 @@ type Options struct {
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
-	Database database.Store
-	Pubsub   pubsub.Pubsub
+	Database          database.Store
+	Pubsub            pubsub.Pubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -170,8 +188,9 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger       *slog.Logger
-	StatsBatcher workspacestats.Batcher
+	Logger                 *slog.Logger
+	StatsBatcher           workspacestats.Batcher
+	MetadataBatcherOptions []metadatabatcher.Option
 
 	WebpushDispatcher                  webpush.Dispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
@@ -183,10 +202,14 @@ type Options struct {
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache              cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	WorkspaceBuilderMetrics   *wsbuilder.Metrics
+	UsageInserter             usage.Inserter
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -267,11 +290,45 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		}
 	}
 
-	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	var usageInserter *atomic.Pointer[usage.Inserter]
+	if options.UsageInserter != nil {
+		usageInserter = &atomic.Pointer[usage.Inserter]{}
+		usageInserter.Store(&options.UsageInserter)
 	}
+	if options.Database == nil {
+		var ps pubsub.Pubsub
+		options.Database, ps = dbtestutil.NewDB(t)
+		var ok bool
+		options.ReplicaSyncPubsub, ok = ps.(*pubsub.PGPubsub)
+		require.True(t, ok)
+	}
+	if options.ReplicaSyncPubsub == nil {
+		// To get here, the database must have been passed in, but not the ReplicSyncPubsub. We can't create a PGPubsub
+		// just from the database.Store since it could be anything including a mock. We need this to be independent from
+		// the main Pubsub in case it's NATS, since that uses the ReplicaSync to bootstrap the cluster. The in-mem
+		// pubsub satisfies these requirements.
+		options.ReplicaSyncPubsub = pubsub.NewInMemory()
+	}
+	if options.Pubsub == nil {
+		natsCtx, natsCancel := context.WithCancel(context.Background())
+		t.Cleanup(natsCancel)
+		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = natPS.Close() })
+		options.Pubsub = natPS
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
+	}
+
+	if options.MCPAllowedPrivateCIDRs == nil {
+		// Tests allow loopback for mock MCP and OAuth servers. Pass a non-nil
+		// allowlist, including an empty one, to exercise the guard.
+		options.MCPAllowedPrivateCIDRs = []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}
 	}
 
 	if options.NotificationsEnqueuer == nil {
@@ -389,6 +446,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
 		experiments,
+		options.WorkspaceBuilderMetrics,
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()
@@ -500,8 +558,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
-	derpServer.SetMeshKey("test-key")
+	const derpMeshKey = "test-key"
+	// Technically AGPL coderd servers don't set this value, but it doesn't
+	// change any behavior. It's useful for enterprise tests.
+	err = options.Database.InsertDERPMeshKey(dbauthz.AsSystemRestricted(ctx), derpMeshKey) //nolint:gocritic // test
+	if !database.IsUniqueViolation(err, database.UniqueSiteConfigsKeyKey) {
+		require.NoError(t, err, "insert DERP mesh key")
+	}
+	var derpServer *derp.Server
+	if options.DeploymentValues.DERP.Server.Enable.Value() {
+		derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
+		derpServer.SetMeshKey(derpMeshKey)
+	}
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
@@ -524,6 +592,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Name:     fmt.Sprintf("%db", options.DeploymentValues.DERP.Server.RegionID),
 			RegionID: int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			IPv4:     "127.0.0.1",
+			// Skip the IPv6 dial. The server only listens on IPv4, and the
+			// failed IPv6 dial can leave a goroutine behind that goleak reports.
+			IPv6:     "none",
 			DERPPort: derpPort,
 			// STUN port is added as a separate node by tailnet.NewDERPMap() if
 			// direct connections are enabled.
@@ -535,12 +606,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses,
-		options.DeploymentValues.DERP.Config.URL.Value(),
-		options.DeploymentValues.DERP.Config.Path.Value(),
-		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	)
-	require.NoError(t, err)
+	derpConfigURL := options.DeploymentValues.DERP.Config.URL.Value()
+	derpConfigPath := options.DeploymentValues.DERP.Config.Path.Value()
+	var derpMap *tailcfg.DERPMap
+	if region == nil && derpConfigURL == "" && derpConfigPath == "" {
+		derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+	} else {
+		derpMap, err = tailnet.NewDERPMap(
+			ctx, region, stunAddresses,
+			derpConfigURL, derpConfigPath,
+			options.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		)
+		require.NoError(t, err)
+	}
 
 	return func(h http.Handler) {
 			mutex.Lock()
@@ -551,6 +629,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			MCPAllowedPrivateCIDRs:         options.MCPAllowedPrivateCIDRs,
+			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
@@ -559,7 +640,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
+			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
@@ -597,6 +680,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
 			StatsBatcher:                       options.StatsBatcher,
+			MetadataBatcherOptions:             options.MetadataBatcherOptions,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
@@ -605,9 +689,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
+			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}
 }
 
@@ -633,7 +720,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -641,6 +728,46 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		client.HTTPClient.CloseIdleConnections()
 	})
 	return client, provisionerCloser, coderAPI
+}
+
+// NewIsolatedHTTPClient returns a test client with its own transport.
+// Closing idle connections at test cleanup must not close http.DefaultTransport
+// while another parallel test is using it.
+func NewIsolatedHTTPClient(serverURL *url.URL) *http.Client {
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
+	if serverURL == nil || serverURL.Scheme != "https" {
+		transport.TLSClientConfig = nil
+		return &http.Client{Transport: transport}
+	}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if transport.TLSClientConfig.MinVersion == 0 {
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+	//nolint:gosec // The coderdtest server uses test-only TLS certificates.
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	return &http.Client{Transport: transport}
+}
+
+// newHTTPClientWithTransportFrom returns a fresh client that shares the base
+// transport without sharing mutable per-client state like CheckRedirect.
+func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
+	if base == nil {
+		return NewIsolatedHTTPClient(nil)
+	}
+	if base.Transport == nil {
+		client := NewIsolatedHTTPClient(nil)
+		client.Timeout = base.Timeout
+		return client
+	}
+	return &http.Client{
+		Transport: base.Transport,
+		Timeout:   base.Timeout,
+	}
 }
 
 // ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
@@ -821,6 +948,16 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 	require.NoError(t, err)
 	for _, org := range orgs {
 		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+		// The implicit role set (organization-member plus the org's
+		// default_org_member_roles) is unioned at request time by
+		// GetAuthorizationUserRoles. Subjects built directly here bypass
+		// that SQL union, so mirror it explicitly.
+		for _, name := range org.DefaultOrgMemberRoles {
+			roles = append(roles, rbac.RoleIdentifier{
+				Name:           name,
+				OrganizationID: org.ID,
+			})
+		}
 	}
 
 	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
@@ -846,10 +983,19 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		OrganizationIDs: organizationIDs,
 		// Always create users as active in tests to ignore an extra audit log
 		// when logging in.
-		UserStatus: ptr.Ref(codersdk.UserStatusActive),
+		UserStatus: new(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)
+	}
+
+	// Service accounts cannot have a password or email and must
+	// use login_type=none. Enforce this after mutators so callers
+	// only need to set ServiceAccount=true.
+	if req.ServiceAccount {
+		req.Password = ""
+		req.Email = ""
+		req.UserLoginType = codersdk.LoginTypeNone
 	}
 
 	user, err := client.CreateUserWithOrgs(context.Background(), req)
@@ -864,9 +1010,10 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	var sessionToken string
-	if req.UserLoginType == codersdk.LoginTypeNone {
-		// Cannot log in with a disabled login user. So make it an api key from
-		// the client making this user.
+	switch req.UserLoginType {
+	case codersdk.LoginTypeNone, codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
+		// Cannot log in with a non-password user. So make it an api key from the
+		// client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
 			Lifetime:  time.Hour * 24,
 			Scope:     codersdk.APIKeyScopeAll,
@@ -874,7 +1021,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
-	} else {
+	default:
 		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
 			Password: req.Password,
@@ -891,10 +1038,11 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
-	t.Cleanup(func() {
-		other.HTTPClient.CloseIdleConnections()
-	})
+	other := codersdk.New(
+		client.URL,
+		codersdk.WithSessionToken(sessionToken),
+		codersdk.WithHTTPClient(newHTTPClientWithTransportFrom(client.HTTPClient)),
+	)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
@@ -922,7 +1070,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			return role.Name
 		}
 
-		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: slice.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
 		// isMember keeps track of which orgs the user was added to as a member
@@ -941,7 +1089,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			}
 
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
+				codersdk.UpdateRoles{Roles: slice.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
 			isMember[orgID] = true
 		}
@@ -1111,35 +1259,59 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 }
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
-// from cancelation, an error, or from completing successfully.
+// from cancelation, an error, or from completing successfully. The wait is bounded by
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+// AwaitTemplateVersionJobCompletedWithTimeout waits up to timeout for the template
+// version build job to complete, polling at testutil.IntervalFast. Transient API errors
+// are logged and retried. Fails the test if the job does not complete in time.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			t.Logf("failed to get template version %s: %v", version, err)
+			return false
+		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+		return templateVersion.Job.CompletedAt != nil
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
+// status. The wait is bounded by testutil.WaitMedium; use
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+// AwaitWorkspaceBuildJobCompletedWithTimeout waits up to timeout for a workspace
+// provision job to reach completed status, polling at testutil.IntervalFast. Transient
+// API errors are logged and retried. Fails the test if the job does not complete in time.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1151,7 +1323,10 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalMedium)
+	}, testutil.IntervalFast, "workspace build %s did not complete", build)
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
@@ -1185,6 +1360,22 @@ func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID 
 		client:      client,
 		workspaceID: workspaceID,
 	}
+}
+
+// RequireWorkspaceAgentByName avoids weak nil UUID assertions when a fixture requires a specific agent.
+func RequireWorkspaceAgentByName(t testing.TB, resources []codersdk.WorkspaceResource, name string) codersdk.WorkspaceAgent {
+	t.Helper()
+
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			if agent.Name == name {
+				return agent
+			}
+		}
+	}
+
+	require.FailNowf(t, "workspace agent not found", "workspace agent %q not found in resources", name)
+	return codersdk.WorkspaceAgent{}
 }
 
 // AgentNames instructs the waiter to wait for the given, named agents to be connected and will
@@ -1224,11 +1415,6 @@ type WaitForAgentFn func(agent codersdk.WorkspaceAgent) bool
 // AgentsReady checks that the latest lifecycle state of an agent is "Ready".
 func AgentsReady(agent codersdk.WorkspaceAgent) bool {
 	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
-}
-
-// AgentsNotReady checks that the latest lifecycle state of an agent is anything except "Ready".
-func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
-	return !AgentsReady(agent)
 }
 
 // WaitFor waits for the given criteria and fails the test if they are not met before the
@@ -1275,7 +1461,7 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 			}
 		}
 		return true
-	}, testutil.IntervalMedium)
+	}, testutil.IntervalFast)
 }
 
 // Wait waits for the agent(s) to connect and fails the test if they do not connect before the
@@ -1327,7 +1513,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 			return true
 		}
 		return w.resourcesMatcher(resources)
-	}, testutil.IntervalMedium)
+	}, testutil.IntervalFast)
 	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }
@@ -1340,8 +1526,8 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              RandomUsername(t),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutostartSchedule: new("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:         new((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
@@ -1424,10 +1610,11 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Google Cloud.
 // nolint:revive
-func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
+func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool, audience string) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
 	claims := jwt.MapClaims{
+		"aud": audience,
 		"google": map[string]interface{}{
 			"compute_engine": map[string]string{
 				"instance_id": instanceID,
@@ -1544,27 +1731,63 @@ func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certif
 		}
 }
 
-// NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
-// instance authentication for Azure.
-func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptions, *http.Client) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+// NewAzureInstanceIdentity returns a metadata client and ID token
+// validator for faking instance authentication for Azure. It builds
+// a realistic 3-level certificate chain (Root CA -> Intermediate ->
+// Signing Cert) to match the real Azure trust hierarchy.
+func NewAzureInstanceIdentity(t testing.TB, instanceID string) (azureidentity.Options, *http.Client) {
+	// Root CA (self-signed, trusted).
+	rootKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	rootTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Test Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}
+	rootDER, err := x509.CreateCertificate(rand.Reader, rootTmpl, rootTmpl, &rootKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(rootDER)
 	require.NoError(t, err)
 
-	rawCertificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
-		SerialNumber: big.NewInt(2022),
+	// Intermediate CA (signed by root).
+	interKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	interTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               pkix.Name{CommonName: "Test Intermediate CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().AddDate(5, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}
+	interDER, err := x509.CreateCertificate(rand.Reader, interTmpl, rootCert, &interKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	interCert, err := x509.ParseCertificate(interDER)
+	require.NoError(t, err)
+
+	// Signing cert (leaf, signed by intermediate).
+	signKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	signTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject:      pkix.Name{CommonName: "metadata.azure.com"},
+		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().AddDate(1, 0, 0),
-		Subject: pkix.Name{
-			CommonName: "metadata.azure.com",
-		},
-	}, &x509.Certificate{}, &privateKey.PublicKey, privateKey)
+	}
+	signDER, err := x509.CreateCertificate(rand.Reader, signTmpl, interCert, &signKey.PublicKey, interKey)
+	require.NoError(t, err)
+	signCert, err := x509.ParseCertificate(signDER)
 	require.NoError(t, err)
 
-	certificate, err := x509.ParseCertificate(rawCertificate)
-	require.NoError(t, err)
-
+	// Build PKCS7 signed data with only the signing cert.
 	signed, err := pkcs7.NewSignedData([]byte(`{"vmId":"` + instanceID + `"}`))
 	require.NoError(t, err)
-	err = signed.AddSigner(certificate, privateKey, pkcs7.SignerInfoConfig{})
+	err = signed.AddSigner(signCert, signKey, pkcs7.SignerInfoConfig{})
 	require.NoError(t, err)
 	signatureRaw, err := signed.Finish()
 	require.NoError(t, err)
@@ -1577,12 +1800,12 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 	})
 	require.NoError(t, err)
 
-	certPool := x509.NewCertPool()
-	certPool.AddCert(certificate)
+	roots := x509.NewCertPool()
+	roots.AddCert(rootCert)
 
-	return x509.VerifyOptions{
-			Intermediates: certPool,
-			Roots:         certPool,
+	return azureidentity.Options{
+			Roots:         roots,
+			Intermediates: []*x509.Certificate{interCert},
 		}, &http.Client{
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 				// Only handle metadata server requests.
@@ -1637,6 +1860,9 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
+	// The OAuth2 provider is off by default in production. Tests turn it on
+	// so OAuth2 routes are reachable without extra setup.
+	cfg.OAuth2.Provider.Enable = true
 	for _, fn := range mut {
 		fn(cfg)
 	}
@@ -1691,6 +1917,18 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 	})
 	require.NoError(t, err)
 	t.Logf("Successfully updated provisioner LastSeenAt")
+}
+
+// NextAutostartTick returns workspace.NextStartAt for use as the autobuild
+// tick. The executor's eligibility query checks next_start_at <= tick.
+// Computing from build.CreatedAt is racy: next_start_at derives from build
+// completion time, so it can advance past sched.Next(build.CreatedAt) and
+// the workspace misses the eligibility window.
+func NextAutostartTick(t testing.TB, workspace codersdk.Workspace) time.Time {
+	t.Helper()
+	require.NotNil(t, workspace.NextStartAt,
+		"workspace next_start_at is nil; ensure autostart is enabled and the latest build has completed before calling NextAutostartTick")
+	return *workspace.NextStartAt
 }
 
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {

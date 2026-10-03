@@ -1,0 +1,794 @@
+package coderd
+
+import (
+	"cmp"
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"slices"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/templatebuilder"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisionersdk"
+)
+
+// @Summary List template builder base templates
+// @ID list-template-builder-base-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags TemplateBuilder
+// @Success 200 {object} codersdk.TemplateBuilderBasesResponse
+// @Router /api/v2/templatebuilder/bases [get]
+func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	exampleList, err := examples.List()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing examples.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	examplesByID := make(map[string]codersdk.TemplateExample, len(exampleList))
+	for _, ex := range exampleList {
+		examplesByID[ex.ID] = ex
+	}
+
+	bases := make([]codersdk.TemplateBuilderBase, 0, len(templatebuilder.BaseTemplateIDs()))
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		ex, ok := examplesByID[id]
+		if !ok {
+			api.Logger.Warn(ctx, "base template has no matching example",
+				slog.F("base_template_id", id))
+			continue
+		}
+		vars := baseVariablesToSDK(templatebuilder.BaseVariables(id))
+		bases = append(bases, codersdk.TemplateBuilderBase{
+			ID:            ex.ID,
+			Name:          ex.Name,
+			Description:   ex.Description,
+			Icon:          ex.Icon,
+			OS:            string(templatebuilder.BaseTemplateOS(id)),
+			Variables:     vars,
+			Prerequisites: templatebuilder.BasePrerequisites(id),
+			Agents:        baseAgentsToSDK(templatebuilder.BaseAgents(id)),
+		})
+	}
+
+	// Order bases by display name, tiebreaking on ID so the order is total and
+	// deterministic even if two bases ever share a display name.
+	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.ID, b.ID),
+		)
+	})
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
+		Bases: bases,
+	})
+}
+
+// baseAgentsToSDK converts base template agents to the SDK type.
+func baseAgentsToSDK(agents []templatebuilder.BaseAgent) []codersdk.TemplateBuilderBaseAgent {
+	out := make([]codersdk.TemplateBuilderBaseAgent, 0, len(agents))
+	for _, a := range agents {
+		out = append(out, codersdk.TemplateBuilderBaseAgent{
+			Name:        a.Name,
+			DisplayName: a.DisplayName,
+			Default:     a.Default,
+		})
+	}
+	return out
+}
+
+// baseVariablesToSDK converts base template variables to the SDK type,
+// filtering out computed variables that the builder wires automatically.
+func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.TemplateBuilderModuleVariable {
+	out := make([]codersdk.TemplateBuilderModuleVariable, 0, len(vars))
+	for _, v := range vars {
+		if v.Computed {
+			continue
+		}
+		out = append(out, codersdk.TemplateBuilderModuleVariable{
+			Name:        v.Name,
+			Type:        codersdk.TemplateBuilderVariableType(v.Type),
+			Description: v.Description,
+			Default:     v.Default,
+			Required:    v.Required,
+			Sensitive:   v.Sensitive,
+		})
+	}
+	return out
+}
+
+// @Summary List template builder modules
+// @ID list-template-builder-modules
+// @Security CoderSessionToken
+// @Produce json
+// @Tags TemplateBuilder
+// @Param base query string false "Base template example ID for OS-compatibility filtering"
+// @Success 200 {object} codersdk.TemplateBuilderModulesResponse
+// @Router /api/v2/templatebuilder/modules [get]
+func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	manifests, err := templatebuilder.LoadModules()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading module catalog.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Resolve OS filter and base-included modules from the base query param.
+	var (
+		filterOS    templatebuilder.BaseOS
+		baseModules map[string]bool
+	)
+	if base := r.URL.Query().Get("base"); base != "" {
+		filterOS = templatebuilder.BaseTemplateOS(base)
+		if filterOS == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unknown base template.",
+				Detail:  "The \"base\" query parameter must be a valid base template ID.",
+			})
+			return
+		}
+		included := templatebuilder.BaseIncludedModules(base)
+		baseModules = make(map[string]bool, len(included))
+		for _, id := range included {
+			baseModules[id] = true
+		}
+	}
+
+	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
+	for _, m := range manifests {
+		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		// Skip modules the base already includes (see BaseIncludedModules).
+		if baseModules[m.ID] {
+			continue
+		}
+		modules = append(modules, m.ToSDK())
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderModulesResponse{
+		Modules: modules,
+	})
+}
+
+// @Summary Compose template from base and modules
+// @ID compose-template-from-base-and-modules
+// @Security CoderSessionToken
+// @Accept json
+// @Produce application/x-tar
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderComposeRequest true "Compose request"
+// @Success 200
+// @Router /api/v2/templatebuilder/compose [post]
+func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderComposeRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.BaseTemplateID == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing base_template_id.",
+		})
+		return
+	}
+
+	composeReq := templatebuilder.ComposeRequest{
+		BaseTemplateID:     req.BaseTemplateID,
+		BaseVariableValues: req.BaseVariableValues,
+		RegistryURL:        api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
+	}
+	for _, m := range req.Modules {
+		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
+			ID:        m.ID,
+			AgentName: m.AgentName,
+			Variables: m.Variables,
+		})
+	}
+
+	result, err := templatebuilder.Compose(composeReq)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to compose template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	tarData, err := templatebuilder.BundleTar(result)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error bundling template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/x-tar")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(tarData)
+}
+
+// templateBuilderCreateTemplateTimeout is the maximum time the handler waits
+// for the provisioner import job to complete.
+const templateBuilderCreateTemplateTimeout = 2 * time.Minute
+
+// reportTemplateBuilderBuildFailure reports why a template builder create
+// request failed. The wizard session ID doubles as the event ID, so a failure
+// joins to the wizard_entry and compose_completion events of the same visit.
+// A request without a session ID did not come from the wizard, so there is
+// nothing to join to and nothing is reported. Only catalog identifiers are
+// reported, never variable values or error text.
+func (api *API) reportTemplateBuilderBuildFailure(req codersdk.TemplateBuilderCreateTemplateRequest, userID uuid.UUID, reason string) {
+	if req.SessionID == uuid.Nil {
+		return
+	}
+
+	moduleIDs := make([]string, 0, len(req.Modules))
+	for _, m := range req.Modules {
+		moduleIDs = append(moduleIDs, m.ID)
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:             req.SessionID,
+				EventType:      telemetry.TemplateBuilderSessionEventBuildFailure,
+				UserID:         userID,
+				BaseTemplateID: req.BaseTemplateID,
+				ModuleIDs:      moduleIDs,
+				FailureReason:  reason,
+				CreatedAt:      dbtime.Now(),
+			},
+		},
+	})
+}
+
+// templateBuilderProvisionerFailureReason maps a classified provisioner import
+// failure to the telemetry failure reason reported for it.
+func templateBuilderProvisionerFailureReason(category templatebuilder.ProvisionerErrorCategory) string {
+	switch category {
+	case templatebuilder.ProvisionerErrorNetwork:
+		return telemetry.TemplateBuilderFailureProvisionerNetwork
+	case templatebuilder.ProvisionerErrorAuth:
+		return telemetry.TemplateBuilderFailureProvisionerAuth
+	default:
+		return telemetry.TemplateBuilderFailureProvisionerUnknown
+	}
+}
+
+// @Summary Compose and create a template
+// @ID compose-and-create-a-template
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderCreateTemplateRequest true "Create template request"
+// @Success 201 {object} codersdk.TemplateBuilderCreateTemplateResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
+// @Failure 504 {object} codersdk.Response
+// @Router /api/v2/templatebuilder/compose/template [post]
+func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	var req codersdk.TemplateBuilderCreateTemplateRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.BaseTemplateID == "" {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInvalidRequest)
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing base_template_id.",
+		})
+		return
+	}
+
+	// Resolve and authorize against the organization.
+	organization, err := api.Database.GetOrganizationByID(ctx, req.OrganizationID)
+	if httpapi.Is404Error(err) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInvalidRequest)
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Organization not found.",
+		})
+		return
+	}
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organization.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Check template name uniqueness early.
+	_, err = api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
+		OrganizationID: organization.ID,
+		Name:           req.Name,
+		Deleted:        false,
+	})
+	if err == nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A template with this name already exists in the organization.",
+		})
+		return
+	}
+	if !xerrors.Is(err, sql.ErrNoRows) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking template name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Compose the template.
+	composeReq := templatebuilder.ComposeRequest{
+		BaseTemplateID:     req.BaseTemplateID,
+		BaseVariableValues: req.BaseVariableValues,
+		RegistryURL:        api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
+	}
+	for _, m := range req.Modules {
+		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
+			ID:        m.ID,
+			AgentName: m.AgentName,
+			Variables: m.Variables,
+		})
+	}
+
+	result, err := templatebuilder.Compose(composeReq)
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureComposeInvalid)
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to compose template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	tarData, err := templatebuilder.BundleTar(result)
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error bundling template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Insert the tar as a file with hash-based dedup.
+	hashBytes := sha256.Sum256(tarData)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: apiKey.UserID,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if xerrors.Is(err, sql.ErrNoRows) {
+		file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      hash,
+			CreatedAt: dbtime.Now(),
+			CreatedBy: apiKey.UserID,
+			Mimetype:  codersdk.ContentTypeTar,
+			Data:      tarData,
+		})
+		if err != nil {
+			api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error saving file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	tags := provisionersdk.MutateTags(apiKey.UserID, nil, req.ProvisionerTags)
+	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error marshaling trace metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Create template version and provisioner import job.
+	var (
+		provisionerJob  database.ProvisionerJob
+		templateVersion database.TemplateVersion
+	)
+	err = api.Database.InTx(func(tx database.Store) error {
+		jobID := uuid.New()
+		templateVersionID := uuid.New()
+
+		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateVersionID: templateVersionID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal job input: %w", err)
+		}
+
+		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             jobID,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			OrganizationID: organization.ID,
+			InitiatorID:    apiKey.UserID,
+			Provisioner:    database.ProvisionerTypeTerraform,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          jobInput,
+			Tags:           tags,
+			TraceMetadata: pqtype.NullRawMessage{
+				Valid:      true,
+				RawMessage: traceMetadataRaw,
+			},
+			LogsOverflowed: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+
+		versionName := namesgenerator.NameDigitWith("_")
+		err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:              templateVersionID,
+			TemplateID:      uuid.NullUUID{},
+			OrganizationID:  organization.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			Name:            versionName,
+			Message:         "",
+			Readme:          string(result.Readme),
+			JobID:           provisionerJob.ID,
+			CreatedBy:       apiKey.UserID,
+			SourceExampleID: sql.NullString{},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template version: %w", err)
+		}
+
+		templateVersion, err = tx.GetTemplateVersionByID(ctx, templateVersionID)
+		if err != nil {
+			return xerrors.Errorf("get template version: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Notify provisioner of the new job.
+	err = provisionerjobs.PostJob(api.Pubsub, provisionerJob)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to post provisioner job",
+			slog.F("job_id", provisionerJob.ID),
+			slog.Error(err))
+	}
+
+	// Wait for the import job to complete.
+	jobCtx, jobCancel := context.WithTimeout(ctx, templateBuilderCreateTemplateTimeout)
+	defer jobCancel()
+
+	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureImportTimeout)
+			httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
+				Message: "Timed out waiting for template import to complete.",
+				Detail:  "The template version is still being imported. You can check its status manually.",
+			})
+			return
+		}
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error waiting for template import.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Check if the job was canceled.
+	if completedJob.CanceledAt.Valid {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureImportCanceled)
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template import was canceled.",
+		})
+		return
+	}
+
+	// Check if the job failed.
+	if completedJob.Error.Valid {
+		// Fetch logs to help classify the error.
+		jobLogs, logErr := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        completedJob.ID,
+			CreatedAfter: 0,
+		})
+		var logLines []string
+		if logErr == nil {
+			for _, l := range jobLogs {
+				logLines = append(logLines, l.Output)
+			}
+		}
+
+		classified := templatebuilder.ClassifyProvisionerError(completedJob.Error.String, logLines)
+		category := templatebuilder.ClassifyProvisionerErrorCategory(completedJob.Error.String, logLines)
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, templateBuilderProvisionerFailureReason(category))
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Template import failed.",
+			Detail:  classified,
+		})
+		return
+	}
+
+	// Audit logging for template and template version creation.
+	var (
+		auditor                            = *api.Auditor.Load()
+		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
+			OrganizationID: organization.ID,
+		})
+		templateVersionAudit, commitTemplateVersionAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: organization.ID,
+		})
+	)
+	defer commitTemplateAudit()
+	defer commitTemplateVersionAudit()
+
+	// Import succeeded. Create the template.
+	defaultGroups := database.TemplateACL{
+		organization.ID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
+	}
+
+	var dbTemplate database.Template
+	err = api.Database.InTx(func(tx database.Store) error {
+		now := dbtime.Now()
+		templateID := uuid.New()
+
+		err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
+			ID:                           templateID,
+			CreatedAt:                    now,
+			UpdatedAt:                    now,
+			OrganizationID:               organization.ID,
+			Name:                         req.Name,
+			Provisioner:                  database.ProvisionerTypeTerraform,
+			ActiveVersionID:              templateVersion.ID,
+			Description:                  req.Description,
+			CreatedBy:                    apiKey.UserID,
+			UserACL:                      database.TemplateACL{},
+			GroupACL:                     defaultGroups,
+			DisplayName:                  req.DisplayName,
+			Icon:                         req.Icon,
+			AllowUserCancelWorkspaceJobs: false,
+			MaxPortSharingLevel:          database.AppSharingLevelOwner,
+			UseClassicParameterFlow:      false,
+			CorsBehavior:                 database.CorsBehaviorSimple,
+			AgentsAllowed:                true,
+			AllowWorkspaceRenames:        false,
+		})
+		if err != nil {
+			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
+				api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: "A template with this name already exists in the organization.",
+				})
+				return nil
+			}
+			return xerrors.Errorf("insert template: %w", err)
+		}
+
+		dbTemplate, err = tx.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return xerrors.Errorf("get template: %w", err)
+		}
+
+		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
+			UserAutostartEnabled: true,
+			UserAutostopEnabled:  true,
+		})
+		if err != nil {
+			return xerrors.Errorf("set template schedule options: %w", err)
+		}
+
+		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+			ID: templateVersion.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  dbTemplate.ID,
+				Valid: true,
+			},
+			UpdatedAt: dbtime.Now(),
+			Name:      templateVersion.Name,
+			Message:   templateVersion.Message,
+		})
+		if err != nil {
+			return xerrors.Errorf("link template version to template: %w", err)
+		}
+
+		templateAudit.New = dbTemplate
+		newTemplateVersion := templateVersion
+		newTemplateVersion.TemplateID = uuid.NullUUID{
+			UUID:  dbTemplate.ID,
+			Valid: true,
+		}
+		templateVersionAudit.New = newTemplateVersion
+
+		return nil
+	}, nil)
+	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.TemplateBuilderCreateTemplateResponse{
+		Template: api.convertTemplate(dbTemplate),
+	})
+}
+
+// waitForProvisionerJob polls until the job completes or the context expires.
+func (api *API) waitForProvisionerJob(
+	ctx context.Context,
+	jobID uuid.UUID,
+) (database.ProvisionerJob, error) {
+	initialIntervals := []time.Duration{
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		500 * time.Millisecond,
+	}
+	const steadyInterval = time.Second
+
+	for i := 0; ; i++ {
+		var delay time.Duration
+		if i < len(initialIntervals) {
+			delay = initialIntervals[i]
+		} else {
+			delay = steadyInterval
+		}
+
+		select {
+		case <-ctx.Done():
+			return database.ProvisionerJob{}, ctx.Err()
+		case <-time.After(delay):
+		}
+
+		job, err := api.Database.GetProvisionerJobByID(ctx, jobID)
+		if err != nil {
+			return database.ProvisionerJob{}, xerrors.Errorf("get provisioner job: %w", err)
+		}
+
+		if job.CompletedAt.Valid {
+			return job, nil
+		}
+	}
+}
+
+// @Summary Report a template builder session event
+// @ID report-a-template-builder-session-event
+// @Security CoderSessionToken
+// @Accept json
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
+// @Success 204
+// @Router /api/v2/templatebuilder/sessions [post]
+func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Only template admins should be able to use this flow and submit
+	// session telemetry, matching the compose endpoint's authorization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderSessionRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:              req.SessionID,
+				EventType:       string(req.EventType),
+				UserID:          apiKey.UserID,
+				BaseTemplateID:  req.BaseTemplateID,
+				ModuleIDs:       req.ModuleIDs,
+				DurationSeconds: req.DurationSeconds,
+				Success:         req.Success,
+				CreatedAt:       dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
+}

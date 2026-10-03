@@ -1,5 +1,5 @@
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton";
 
 const meta: Meta<typeof VSCodeDevContainerButton> = {

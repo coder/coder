@@ -12,10 +12,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -33,7 +31,7 @@ func (AGPLIDPSync) GroupSyncEntitled() bool {
 
 func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
-	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
+	err := s.Group.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
 		return xerrors.Errorf("update group sync settings: %w", err)
 	}
@@ -43,7 +41,7 @@ func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUI
 
 func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error) {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
-	settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
+	settings, err := s.Group.Resolve(ctx, orgResolver)
 	if err != nil {
 		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve group sync settings: %w", err)
@@ -53,13 +51,13 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 		settings = &GroupSyncSettings{}
 
 		// Check for legacy settings if the default org.
-		if s.DeploymentSyncSettings.Legacy.GroupField != "" {
+		if s.Legacy.GroupField != "" {
 			defaultOrganization, err := db.GetDefaultOrganization(ctx)
 			if err != nil {
 				return nil, xerrors.Errorf("get default organization: %w", err)
 			}
 			if defaultOrganization.ID == orgID {
-				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
+				settings = new(GroupSyncSettings(codersdk.GroupSyncSettings{
 					Field:             s.Legacy.GroupField,
 					LegacyNameMapping: s.Legacy.GroupMapping,
 					RegexFilter:       s.Legacy.GroupFilter,
@@ -202,7 +200,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// determine if we have to do any group updates to sync the user's
 			// state.
 			existingGroups := userOrgs[orgID]
-			existingGroupsTyped := db2sdk.List(existingGroups, func(f database.GetGroupsRow) ExpectedGroup {
+			existingGroupsTyped := slice.List(existingGroups, func(f database.GetGroupsRow) ExpectedGroup {
 				return ExpectedGroup{
 					OrganizationID: orgID,
 					GroupID:        &f.Group.ID,

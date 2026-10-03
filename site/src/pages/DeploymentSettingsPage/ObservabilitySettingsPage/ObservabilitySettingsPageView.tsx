@@ -1,87 +1,62 @@
-import type { SerpentOption } from "api/typesGenerated";
-import {
-	Badges,
-	EnterpriseBadge,
-	PremiumBadge,
-} from "components/Badges/Badges";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import { deploymentGroupHasParent } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
-	featureAIBridgeEnabled: boolean;
-	isPremium: boolean;
+	canViewPremium: boolean;
 };
 
-export const ObservabilitySettingsPageView: FC<
+export const ObservabilitySettingsPageView: React.FC<
 	ObservabilitySettingsPageViewProps
-> = ({
-	options,
-	featureAuditLogEnabled,
-	isPremium,
-	featureAIBridgeEnabled,
-}) => {
+> = ({ options, featureAuditLogEnabled, canViewPremium }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						Audit Logging
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Allow auditors to monitor user operations in your deployment.
+						Allow auditors to monitor user operations in your deployment.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security/audit-logs")}
+							context="about audit logging"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>
-					<Tooltip>
-						{featureAuditLogEnabled && !isPremium ? (
-							<EnterpriseBadge />
-						) : (
-							<TooltipTrigger asChild>
-								<span>
-									<PremiumBadge />
-								</span>
-							</TooltipTrigger>
-						)}
-
-						<TooltipContent
-							sideOffset={-28}
-							collisionPadding={16}
-							className="p-0"
-						>
-							<PopoverPaywall
-								message="Observability"
-								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink="https://coder.com/docs/admin/appearance"
-							/>
-						</TooltipContent>
-					</Tooltip>
-				</Badges>
+				{featureAuditLogEnabled ? (
+					<OptionsTable
+						options={options.filter((o) => o.name === "Audit Logs Retention")}
+					/>
+				) : (
+					<PremiumPaywall
+						source="observability"
+						message="Audit Logging"
+						description="Monitor user operations across your deployment."
+						features={[
+							"Track user actions across deployment",
+							"Observe developer and agent activity",
+							"Configurable audit log retention period",
+							"Support compliance and security reviews",
+						]}
+						canViewPremium={canViewPremium}
+					/>
+				)}
 			</div>
 
 			<div>
@@ -90,7 +65,11 @@ export const ObservabilitySettingsPageView: FC<
 						Monitoring
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitoring your Coder application with logs and metrics.
+						Monitoring your Coder application with logs and metrics.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/monitoring")}
+							context="about monitoring"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -100,29 +79,6 @@ export const ObservabilitySettingsPageView: FC<
 					)}
 				/>
 			</div>
-
-			{featureAIBridgeEnabled && (
-				<div>
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-						}
-					>
-						<SettingsHeaderTitle hierarchy="secondary" level="h2">
-							AI Bridge
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Monitor and manage AI requests across your deployment.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-
-					<OptionsTable
-						options={options
-							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
-							.filter((o) => !o.annotations?.secret === true)}
-					/>
-				</div>
-			)}
-		</Stack>
+		</div>
 	);
 };

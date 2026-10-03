@@ -27,6 +27,7 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
 )
@@ -54,8 +55,8 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	// Workspace provisioning. Start & stop are different so dormant workspaces can be
 	// stopped, but not stared.
-	ActionWorkspaceStart: "allows starting a workspace",
-	ActionWorkspaceStop:  "allows stopping a workspace",
+	ActionWorkspaceStart: "start a workspace",
+	ActionWorkspaceStop:  "stop a workspace",
 
 	// Running a workspace
 	ActionSSH:                "ssh into a given workspace",
@@ -63,16 +64,48 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+	ActionUpdateAgent: "update an existing workspace agent",
 
 	// Sharing a workspace
 	ActionShare: "share a workspace with other users or groups",
 }
 
-var taskActions = map[Action]ActionDefinition{
-	ActionCreate: "create a new task",
-	ActionRead:   "read task data or output to view on the UI or CLI",
-	ActionUpdate: "edit task settings or send input to an existing task",
-	ActionDelete: "delete task",
+var chatActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat",
+	ActionRead:   "read chat messages and metadata",
+	ActionUpdate: "update chat title or settings",
+	ActionDelete: "delete a chat",
+	ActionShare:  "share a chat with other users or groups",
+}
+
+var chatAutomationActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat automation",
+	ActionRead:   "read chat automations",
+	ActionUpdate: "update a chat automation",
+	ActionDelete: "delete a chat automation",
+}
+
+var chatProjectActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat project",
+	ActionRead:   "read chat projects",
+	ActionUpdate: "update a chat project",
+	ActionDelete: "delete a chat project",
+}
+
+var mcpServerConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new MCP server config",
+	ActionRead:   "read MCP server config",
+	ActionUpdate: "update MCP server config",
+	ActionShare:  "share MCP server config with other users or groups",
+	ActionDelete: "delete MCP server config",
+}
+
+var chatModelConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat model config",
+	ActionRead:   "read chat model configs",
+	ActionUpdate: "update a chat model config",
+	ActionDelete: "delete a chat model config",
+	ActionShare:  "share a chat model config with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -98,8 +131,17 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"workspace": {
 		Actions: workspaceActions,
 	},
-	"task": {
-		Actions: taskActions,
+	"chat": {
+		Actions: chatActions,
+	},
+	"chat_project": {
+		Actions: chatProjectActions,
+	},
+	"chat_model_config": {
+		Actions: chatModelConfigActions,
+	},
+	"chat_automation": {
+		Actions: chatAutomationActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
@@ -125,6 +167,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a workspace proxy",
 			ActionUpdate: "update a workspace proxy",
 			ActionRead:   "read and use a workspace proxy",
+		},
+	},
+	"workspace_build_orchestration": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a workspace build orchestration",
+			ActionRead:   "read a workspace build orchestration",
+			ActionUpdate: "update a workspace build orchestration",
+			ActionDelete: "delete a workspace build orchestration",
 		},
 	},
 	"license": {
@@ -246,7 +296,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create an api key",
 			ActionRead:   "read api key details (secrets are not stored)",
 			ActionDelete: "delete an api key",
-			ActionUpdate: "update an api key, eg expires",
+			ActionUpdate: "update an api key, for example its expiry",
 		},
 	},
 	"tailnet_coordinator": {
@@ -366,6 +416,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a user secret",
 		},
 	},
+	"user_skill": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a user skill",
+			ActionRead:   "read user skill metadata and content",
+			ActionUpdate: "update user skill metadata and content",
+			ActionDelete: "delete a user skill",
+		},
+	},
 	"usage_event": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a usage event",
@@ -379,5 +437,53 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update aibridge interceptions & related records",
 			ActionCreate: "create aibridge interceptions & related records",
 		},
+	},
+	"ai_model_price": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI model prices",
+			ActionUpdate: "update AI model prices",
+		},
+	},
+	"ai_provider": {
+		Name: "AIProvider",
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI provider configuration",
+			ActionCreate: "create an AI provider",
+			ActionUpdate: "update an AI provider",
+			ActionDelete: "delete an AI provider",
+		},
+	},
+	"ai_seat": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "record AI seat usage",
+			ActionRead:   "read AI seat state",
+		},
+	},
+	"boundary_log": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create boundary log records",
+			ActionRead:   "read boundary logs and session metadata",
+			ActionDelete: "delete boundary logs",
+		},
+	},
+	"ai_gateway_key": {
+		Name: "AIGatewayKey",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an AI Gateway key",
+			ActionRead:   "read AI Gateway keys",
+			ActionUpdate: "update an AI Gateway key",
+			ActionDelete: "delete an AI Gateway key",
+		},
+	},
+	"boundary_usage": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read boundary usage statistics",
+			ActionUpdate: "upsert boundary usage statistics",
+			ActionDelete: "delete boundary usage statistics",
+		},
+	},
+	"mcp_server_config": {
+		Name:    "MCPServerConfig",
+		Actions: mcpServerConfigActions,
 	},
 }

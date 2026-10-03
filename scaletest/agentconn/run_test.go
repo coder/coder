@@ -264,14 +264,12 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 func testServer(t *testing.T) (string, func() int64) {
 	t.Helper()
 
-	var count int64
+	var count atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&count, 1)
+		count.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(srv.Close)
 
-	return srv.URL, func() int64 {
-		return atomic.LoadInt64(&count)
-	}
+	return srv.URL, count.Load
 }

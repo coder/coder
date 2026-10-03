@@ -1,48 +1,67 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { cn } from "cn";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIcon,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
+	TOOLTIP_DELAY_DURATION,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
-interface InfoTooltipProps {
-	type?: ThemeRole;
-	title: ReactNode;
-	message: ReactNode;
-}
+export type InfoTooltipType = "info" | "warning";
 
-export const InfoTooltip: FC<InfoTooltipProps> = ({
-	title,
-	message,
-	type = "info",
-}) => {
-	const theme = useTheme();
-	const iconColor = theme.roles[type].outline;
+type InfoTooltipSize = "small" | "medium";
 
-	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" css={styles.button}>
-				<HelpTooltipIcon css={{ color: iconColor }} />
-			</HelpTooltipIconTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>{title}</HelpTooltipTitle>
-				<HelpTooltipText>{message}</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
-	);
+type InfoTooltipProps = {
+	type?: InfoTooltipType;
+	size?: InfoTooltipSize;
+	ariaLabel?: string;
+	children: React.ReactNode;
 };
 
-const styles = {
-	button: css`
-		opacity: 1;
+const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
+	info: InfoIcon,
+	warning: TriangleAlertIcon,
+};
 
-		&:hover {
-			opacity: 1;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;
+const typeIconColor: Record<InfoTooltipType, string> = {
+	info: "text-content-secondary",
+	warning: "text-content-warning",
+};
+
+const sizeClasses: Record<InfoTooltipSize, string> = {
+	small: "[&_svg]:size-3",
+	medium: "[&_svg]:size-4",
+};
+
+export const InfoTooltip: React.FC<InfoTooltipProps> = ({
+	children,
+	type = "info",
+	size = "medium",
+	ariaLabel = "More info",
+}) => {
+	const Icon = typeIcon[type];
+
+	return (
+		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+			<Tooltip>
+				<TooltipTrigger
+					type="button"
+					aria-label={ariaLabel}
+					className={cn(
+						"flex items-center justify-center p-0",
+						"border-0 border-none bg-transparent cursor-default",
+						"opacity-75 hover:opacity-100 transition-opacity",
+						sizeClasses[size],
+						typeIconColor[type],
+					)}
+				>
+					<Icon />
+				</TooltipTrigger>
+				<TooltipContent side="right" align="center" className="max-w-xs">
+					{children}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+};

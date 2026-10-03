@@ -13,18 +13,15 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
-type EnterpriseClaimer struct {
-	store database.Store
+type EnterpriseClaimer struct{}
+
+func NewEnterpriseClaimer() *EnterpriseClaimer {
+	return &EnterpriseClaimer{}
 }
 
-func NewEnterpriseClaimer(store database.Store) *EnterpriseClaimer {
-	return &EnterpriseClaimer{
-		store: store,
-	}
-}
-
-func (c EnterpriseClaimer) Claim(
+func (EnterpriseClaimer) Claim(
 	ctx context.Context,
+	store database.Store,
 	now time.Time,
 	userID uuid.UUID,
 	name string,
@@ -33,7 +30,7 @@ func (c EnterpriseClaimer) Claim(
 	nextStartAt sql.NullTime,
 	ttl sql.NullInt64,
 ) (*uuid.UUID, error) {
-	result, err := c.store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+	result, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID:         userID,
 		NewName:           name,
 		Now:               now,

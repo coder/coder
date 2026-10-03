@@ -18,7 +18,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.UpdateCheckResponse
-// @Router /updatecheck [get]
+// @Router /api/v2/updatecheck [get]
 func (api *API) updateCheck(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

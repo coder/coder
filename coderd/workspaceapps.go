@@ -29,7 +29,7 @@ import (
 // @Produce json
 // @Tags Applications
 // @Success 200 {object} codersdk.AppHostResponse
-// @Router /applications/host [get]
+// @Router /api/v2/applications/host [get]
 // @Deprecated use api/v2/regions and see the primary proxy.
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
@@ -50,7 +50,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // @Tags Applications
 // @Param redirect_uri query string false "Redirect destination"
 // @Success 307
-// @Router /applications/auth-redirect [get]
+// @Router /api/v2/applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

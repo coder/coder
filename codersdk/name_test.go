@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -284,6 +285,44 @@ func TestGroupNameValid(t *testing.T) {
 				testCase.Valid,
 				err,
 			)
+		})
+	}
+}
+
+func TestOAuth2AppNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"", false},
+		{"a", true},
+		{"my-app", true},
+		// DCR-registered clients use spaces and other characters that the
+		// slug-style name validator rejects.
+		{"VS Code Coder Extension", true},
+		{"Cursor (MCP)", true},
+		{"new", true},
+		{"create", true},
+		{" leading", false},
+		{"trailing ", false},
+		{" ", false},
+		{strings.Repeat("a", codersdk.OAuth2AppNameMaxBytes), true},
+		{strings.Repeat("a", codersdk.OAuth2AppNameMaxBytes+1), false},
+		{strings.Repeat("é", codersdk.OAuth2AppNameMaxBytes/2), true},
+		{strings.Repeat("é", codersdk.OAuth2AppNameMaxBytes/2+1), false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.OAuth2AppNameValid(testCase.Name)
+			assert.Equal(t, testCase.Valid, err == nil,
+				"Test case %q failed: expected valid=%t but got error: %v",
+				testCase.Name, testCase.Valid, err)
+			if len(testCase.Name) > codersdk.OAuth2AppNameMaxBytes {
+				assert.EqualError(t, err, fmt.Sprintf("must be <= %d bytes", codersdk.OAuth2AppNameMaxBytes))
+			}
 		})
 	}
 }

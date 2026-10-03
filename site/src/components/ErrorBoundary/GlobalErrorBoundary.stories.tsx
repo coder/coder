@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
 import type { ErrorResponse } from "react-router";
-import { expect, userEvent } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { GlobalErrorBoundaryInner } from "./GlobalErrorBoundary";
 
 /**
@@ -68,7 +67,7 @@ export const ReactRouterErrorResponse: Story = {
 
 export const UnparsableError: Story = {
 	args: {
-		error: class WellThisIsDefinitelyWrong {},
+		error: { thisIsDefinitelyWrong: true },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

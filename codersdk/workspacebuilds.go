@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +17,10 @@ const (
 	WorkspaceTransitionStop   WorkspaceTransition = "stop"
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
 )
+
+func WorkspaceTransitionEnums() []WorkspaceTransition {
+	return []WorkspaceTransition{WorkspaceTransitionStart, WorkspaceTransitionStop, WorkspaceTransitionDelete}
+}
 
 type WorkspaceStatus string
 
@@ -88,9 +91,7 @@ type WorkspaceBuild struct {
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
-	// Deprecated: This field has been deprecated in favor of Task WorkspaceID.
-	HasAITask        *bool `json:"has_ai_task,omitempty"`
-	HasExternalAgent *bool `json:"has_external_agent,omitempty"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
@@ -134,7 +135,30 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
+}
+
+// WorkspaceBuildDebugEventRequest is the request body for
+// POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
+type WorkspaceBuildDebugEventRequest struct {
+	// ID identifies this click so a later step of the funnel can be
+	// attributed to it.
+	ID uuid.UUID `json:"id" format:"uuid" validate:"required"`
+}
+
+// ReportWorkspaceBuildDebugClick reports a click on the "Debug with Coder
+// Agents" action of a failed workspace build for telemetry purposes. It is a
+// no-op on deployments with telemetry disabled.
+func (c *Client) ReportWorkspaceBuildDebugClick(ctx context.Context, buildID uuid.UUID, req WorkspaceBuildDebugEventRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspacebuilds/%s/debug-events", buildID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 type CancelWorkspaceBuildStatus string
@@ -220,7 +244,7 @@ func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx cont
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) ([]WorkspaceBuildParameter, error) {
@@ -233,7 +257,7 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 		return nil, ReadBodyAsError(res)
 	}
 	var params []WorkspaceBuildParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+	return params, ReadBodyAsJSON(res, &params)
 }
 
 type TimingStage string
@@ -300,5 +324,5 @@ func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (Wo
 		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
 	}
 	var timings WorkspaceBuildTimings
-	return timings, json.NewDecoder(res.Body).Decode(&timings)
+	return timings, ReadBodyAsJSON(res, &timings)
 }

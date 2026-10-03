@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { Button } from "components/Button/Button";
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -7,14 +7,8 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	forwardRef,
-	type PropsWithChildren,
-	type ReactNode,
-	useState,
-} from "react";
-import { cn } from "utils/cn";
+import { useState } from "react";
+import { Button } from "#/components/Button/Button";
 
 const alertVariants = cva(
 	"relative w-full rounded-lg border border-solid p-4 text-left",
@@ -69,16 +63,16 @@ const severityIcons = {
 export type AlertColor = "info" | "success" | "warning" | "error";
 
 export type AlertProps = {
-	actions?: ReactNode;
+	actions?: React.ReactNode;
 	dismissible?: boolean;
 	onDismiss?: () => void;
 	severity?: AlertColor;
 	prominent?: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	className?: string;
 };
 
-export const Alert: FC<AlertProps> = ({
+export const Alert: React.FC<AlertProps> = ({
 	children,
 	actions,
 	dismissible,
@@ -102,50 +96,59 @@ export const Alert: FC<AlertProps> = ({
 			className={cn(alertVariants({ severity, prominent }), className)}
 			{...props}
 		>
-			<div className="flex items-center justify-between gap-4 text-sm">
-				<div className="flex flex-row items-start gap-3">
+			<div
+				className={cn(
+					"relative flex flex-col justify-between gap-4 text-sm",
+					dismissible ? "pr-8" : undefined,
+				)}
+			>
+				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
 					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
-					<div className="flex-1">{children}</div>
-				</div>
-				<div className="flex items-center gap-2">
-					{actions}
-
-					{dismissible && (
-						<Button
-							variant="subtle"
-							size="icon"
-							className="!size-auto !min-w-0 !p-0"
-							onClick={() => {
-								setOpen(false);
-								onDismiss?.();
-							}}
-							data-testid="dismiss-banner-btn"
-							aria-label="Dismiss"
-						>
-							<XIcon className="!size-icon-sm !p-0" />
-						</Button>
-					)}
+					<div className="flex min-w-0 flex-1 flex-col gap-4">
+						<div className="min-w-0 flex-1">{children}</div>
+						{actions && (
+							<div className="flex items-center gap-2">{actions}</div>
+						)}
+					</div>
 				</div>
 			</div>
+			{dismissible && (
+				<Button
+					variant="subtle"
+					size="icon"
+					className="size-8 min-w-0! p-0! absolute top-3 right-3"
+					onClick={() => {
+						setOpen(false);
+						onDismiss?.();
+					}}
+					data-testid="dismiss-banner-btn"
+					aria-label="Dismiss"
+				>
+					<XIcon className="p-0! size-icon-lg" />
+				</Button>
+			)}
 		</div>
 	);
 };
 
-export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
+export const AlertDescription: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return (
-		<span className="m-0 text-sm" data-chromatic="ignore">
+		<span className="m-0 text-sm" data-pixel="ignore">
 			{children}
 		</span>
 	);
 };
 
-export const AlertTitle = forwardRef<
-	HTMLHeadingElement,
-	React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-	<h1
-		ref={ref}
-		className={cn("m-0 mb-1 text-sm font-medium", className)}
-		{...props}
-	/>
-));
+export const AlertTitle: React.FC<React.ComponentProps<"h2">> = ({
+	className,
+	children,
+	...props
+}) => {
+	return (
+		<h2 className={cn("m-0 text-sm", className)} {...props}>
+			{children}
+		</h2>
+	);
+};

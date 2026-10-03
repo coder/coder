@@ -48,7 +48,8 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 			require.NoError(t, err)
 
 			// Convert to upload format
-			upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
+			upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
+			require.NoError(t, err)
 
 			stream := newMockUploadStream(upload, chunks...)
 
@@ -93,7 +94,8 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	_, err := crand.Read(moduleData)
 	require.NoError(t, err)
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
+	require.NoError(t, err)
 
 	t.Run("chunk_before_upload", func(t *testing.T) {
 		t.Parallel()

@@ -16,10 +16,10 @@ jobs:
     # when changing runner sizes
     runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     # This timeout must be greater than the timeout set by `go test` in
-    # `make test-postgres` to ensure we receive a trace of running
-    # goroutines. Setting this to the timeout +5m should work quite well
-    # even if some of the preceding steps are slow.
-    timeout-minutes: 25
+    # `make test` to ensure we receive a trace of running goroutines.
+    # Setting this to the timeout +5m should work quite well even if
+    # some of the preceding steps are slow.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +28,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -54,21 +54,26 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          # Runners have Go baked-in and Go will automatically
-          # download the toolchain configured in go.mod, so we don't
-          # need to reinstall it. It's faster on Windows runners.
-          use-preinstalled-go: ${{ runner.os == 'Windows' }}
+      - name: Setup GNU tools (macOS)
+        uses: ./.github/actions/setup-gnu-tools
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go terraform"
+
+      - name: Install Go mise tools
+        # retry.sh is a bash script, so an explicit shell is required for the
+        # Windows matrix entry. Under the default PowerShell shell the step
+        # reports success without running the install, so gotestsum is
+        # silently missing whenever the mise cache misses (coder/internal#1630).
+        shell: bash
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Setup Embedded Postgres Cache Paths
         id: embedded-pg-cache
@@ -98,9 +103,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our macOS runners have 8 cores.
+          # Our macOS runners have 8 cores. test-parallelism-tests matches
+          # Linux's rather than the previous 16, to rule out scheduler
+          # contention as a contributor to the macOS test-go-pg timeouts
+          # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
+          test-parallelism-tests: "8"
           test-count: "1"
           embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}

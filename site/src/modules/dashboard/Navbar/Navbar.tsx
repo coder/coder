@@ -1,22 +1,33 @@
-import { buildInfo } from "api/queries/buildInfo";
-import type { LinkConfig } from "api/typesGenerated";
-import { useProxy } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { canViewDeploymentSettings } from "modules/permissions";
-import type { FC } from "react";
 import { useQuery } from "react-query";
+import { aiSpendOrganizations } from "#/api/queries/aiBridge";
+import { buildInfo } from "#/api/queries/buildInfo";
+import type { LinkConfig } from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	canAccessAnyChatModelConfig,
+	canViewDeploymentSettings,
+} from "#/modules/permissions";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
+import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
-export const Navbar: FC = () => {
+export const Navbar: React.FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const {
+		appearance,
+		canViewOrganizationSettings,
+		entitlements,
+		organizations,
+	} = useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
+	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
@@ -27,6 +38,30 @@ export const Navbar: FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
+	const canViewSiteWideAISettings =
+		permissions.viewAnyAIProvider ||
+		permissions.viewAIGatewayKeys ||
+		permissions.editDeploymentConfig ||
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.createAnyMCPServerConfig ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig ||
+		permissions.updateAnyTemplate ||
+		canAccessAnyModel;
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !canViewSiteWideAISettings },
+	);
+	const spendOrganizationsQuery = useQuery({
+		...aiSpendOrganizations(),
+		enabled:
+			entitlements.features.aibridge.enabled && !canViewSiteWideAISettings,
+	});
+	const canViewAISettings =
+		canViewSiteWideAISettings ||
+		organizationMCPSharing.canShare ||
+		canViewAISpend(entitlements, spendOrganizationsQuery.data);
+	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -37,16 +72,21 @@ export const Navbar: FC = () => {
 	return (
 		<NavbarView
 			user={me}
-			logo_url={appearance.logo_url}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
+			codernautsEnabled={appearance.codernauts_enabled}
 			onSignOut={signOut}
-			canViewDeployment={canViewDeployment}
-			canViewOrganizations={canViewOrganizations}
-			canViewHealth={canViewHealth}
-			canViewAuditLog={canViewAuditLog}
-			canViewConnectionLog={canViewConnectionLog}
-			canViewAIBridge={canViewAIBridge}
+			adminPermissions={{
+				canViewDeployment,
+				canViewOrganizations,
+				canViewAISettings,
+				canViewAuditLog,
+				canViewConnectionLog,
+				canViewAIBridge,
+				canViewHealth,
+			}}
+			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

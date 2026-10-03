@@ -8,8 +8,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var hideForceUnixSlashes = true
-
 // sshConfigMatchExecEscape prepares the path for use in `Match exec` statement.
 //
 // OpenSSH parses the Match line with a very simple tokenizer that accepts "-enclosed strings for the exec command, and

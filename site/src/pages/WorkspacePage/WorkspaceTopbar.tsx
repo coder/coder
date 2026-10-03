@@ -1,10 +1,12 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import { workspaceQuota } from "api/queries/workspaceQuota";
-import type * as TypesGen from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { CopyButton } from "components/CopyButton/CopyButton";
+import { cn } from "cn";
+import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
+import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router";
+import { workspaceQuota } from "#/api/queries/workspaceQuota";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -12,32 +14,35 @@ import {
 	TopbarDivider,
 	TopbarIcon,
 	TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
+} from "#/components/FullPageLayout/Topbar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
-import { displayDormantDeletion } from "utils/dormant";
-import { formatDate } from "utils/time";
+} from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { displayDormantDeletion } from "#/utils/dormant";
+import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-interface WorkspaceProps {
+const BREADCRUMB_SEGMENT_CLASS = cn(
+	"flex items-center flex-row flex-nowrap gap-2",
+	"max-w-40 whitespace-nowrap cursor-default",
+);
+const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
+
+type WorkspaceTopbarProps = {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
@@ -53,9 +58,9 @@ interface WorkspaceProps {
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleToggleFavorite: () => void;
-}
+};
 
-export const WorkspaceTopbar: FC<WorkspaceProps> = ({
+export const WorkspaceTopbar: React.FC<WorkspaceTopbarProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -74,7 +79,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
-	const theme = useTheme();
 
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;
@@ -112,18 +116,20 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	);
 
 	return (
-		<Topbar css={{ gridArea: "topbar" }}>
+		<Topbar className="[grid-area:topbar] flex-wrap gap-y-2">
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<TopbarIconButton component={RouterLink} to="/workspaces">
-						<ChevronLeftIcon className="size-icon-sm" />
+					<TopbarIconButton asChild>
+						<RouterLink to="/workspaces" aria-label="Back to workspaces">
+							<ChevronLeftIcon className="size-icon-sm" />
+						</RouterLink>
 					</TopbarIconButton>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Back to workspaces</TooltipContent>
 			</Tooltip>
 
-			<div css={styles.topbarLeft}>
-				<TopbarData>
+			<div className="flex items-center gap-y-6 gap-x-2 flex-wrap px-3 py-2 mr-auto">
+				<TopbarData className="flex-wrap">
 					<OwnerBreadcrumb
 						ownerName={workspace.owner_name}
 						ownerAvatarUrl={workspace.owner_avatar_url}
@@ -157,9 +163,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				</TopbarData>
 
 				{quota && quota.budget > 0 && (
-					<Link
-						component={RouterLink}
-						css={{ color: "inherit" }}
+					<RouterLink
 						to={
 							showOrganizations
 								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
@@ -170,10 +174,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 								? `See affected workspaces for ${orgDisplayName}`
 								: "See affected workspaces"
 						}
+						className="text-inherit no-underline"
 					>
 						<TopbarData>
 							<TopbarIcon>
-								<CircleDollarSign
+								<CircleDollarSignIcon
 									className="size-icon-sm"
 									aria-label="Daily usage"
 								/>
@@ -181,13 +186,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 							<span>
 								{workspace.latest_build.daily_cost}{" "}
-								<span css={{ color: theme.palette.text.secondary }}>
-									credits of
-								</span>{" "}
+								<span className="text-content-secondary">credits of</span>{" "}
 								{quota.budget}
 							</span>
 						</TopbarData>
-					</Link>
+					</RouterLink>
 				)}
 
 				{shouldDisplayDormantData && (
@@ -195,24 +198,23 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						<TopbarIcon>
 							<TrashIcon />
 						</TopbarIcon>
-						<Link
-							component={RouterLink}
+						<RouterLink
 							to={`${templateLink}/settings/schedule`}
 							title="Schedule settings"
-							css={{ color: "inherit" }}
+							className="text-inherit no-underline"
 						>
 							{workspace.deleting_at ? (
 								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
 							) : (
 								"Deletion soon"
 							)}
-						</Link>
+						</RouterLink>
 					</TopbarData>
 				)}
 			</div>
 
 			{!isImmutable && (
-				<div className="flex items-center gap-4">
+				<div className="flex flex-wrap grow items-center justify-end gap-x-4 gap-y-2 min-h-12">
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
@@ -257,23 +259,23 @@ type OwnerBreadcrumbProps = Readonly<{
 	ownerAvatarUrl: string;
 }>;
 
-const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
+const OwnerBreadcrumb: React.FC<OwnerBreadcrumbProps> = ({
 	ownerName,
 	ownerAvatarUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
-					<Avatar size="md" fallback={ownerName} src={ownerAvatarUrl} />
-					<span css={styles.breadcrumbText}>{ownerName}</span>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
+				<span className={BREADCRUMB_SEGMENT_CLASS}>
+					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
+					<span className={BREADCRUMB_TEXT_CLASS}>{ownerName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -283,35 +285,31 @@ type OrganizationBreadcrumbProps = Readonly<{
 	orgIconUrl?: string;
 }>;
 
-const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
+const OrganizationBreadcrumb: React.FC<OrganizationBreadcrumbProps> = ({
 	orgName,
 	orgPageUrl,
 	orgIconUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
+				<span className={BREADCRUMB_SEGMENT_CLASS}>
 					<Avatar
-						size="md"
+						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
 					/>
-					<span css={styles.breadcrumbText}>{orgName}</span>
+					<span className={BREADCRUMB_TEXT_CLASS}>{orgName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData
 					title={
 						orgPageUrl ? (
-							<Link
-								component={RouterLink}
-								to={orgPageUrl}
-								css={{ color: "inherit" }}
-							>
-								{orgName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink to={orgPageUrl}>{orgName}</RouterLink>
 							</Link>
 						) : (
 							orgName
@@ -330,8 +328,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					}
 					imgFallbackText={orgName}
 				/>
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -344,7 +342,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	templateDisplayName: string;
 }>;
 
-const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
+const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 	workspaceName,
 	templateIconUrl,
 	rootTemplateUrl,
@@ -354,38 +352,36 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 }) => {
 	return (
 		<div className="flex items-center">
-			<HelpTooltip>
-				<HelpTooltipTrigger asChild>
-					<span css={styles.breadcrumbSegment}>
+			<HelpPopover>
+				<HelpPopoverTrigger asChild>
+					<span className={BREADCRUMB_SEGMENT_CLASS}>
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
 						/>
 
-						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+						<span className={cn(BREADCRUMB_TEXT_CLASS, "font-medium")}>
 							{workspaceName}
 						</span>
 					</span>
-				</HelpTooltipTrigger>
+				</HelpPopoverTrigger>
 
-				<HelpTooltipContent align="center">
+				<HelpPopoverContent align="center">
 					<AvatarData
 						title={
-							<Link
-								component={RouterLink}
-								to={rootTemplateUrl}
-								css={{ color: "inherit" }}
-							>
-								{templateDisplayName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink to={rootTemplateUrl}>
+									{templateDisplayName}
+								</RouterLink>
 							</Link>
 						}
 						subtitle={
-							<Link
-								component={RouterLink}
-								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-								css={{ color: "inherit" }}
-							>
-								Version: {latestBuildVersionName}
+							<Link asChild showExternalIcon={false} className="text-inherit">
+								<RouterLink
+									to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
+								>
+									Version: {latestBuildVersionName}
+								</RouterLink>
 							</Link>
 						}
 						avatar={
@@ -398,37 +394,9 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						}
 						imgFallbackText={templateDisplayName}
 					/>
-				</HelpTooltipContent>
-			</HelpTooltip>
+				</HelpPopoverContent>
+			</HelpPopover>
 			<CopyButton text={workspaceName} label="Copy workspace name" />
 		</div>
 	);
 };
-
-const styles = {
-	topbarLeft: {
-		display: "flex",
-		alignItems: "center",
-		columnGap: 24,
-		rowGap: 8,
-		flexWrap: "wrap",
-		// 12px - It is needed to keep vertical spacing when the content is wrapped
-		padding: "12px",
-		marginRight: "auto",
-	},
-
-	breadcrumbSegment: {
-		display: "flex",
-		alignItems: "center",
-		flexFlow: "row nowrap",
-		gap: "8px",
-		maxWidth: "160px",
-		whiteSpace: "nowrap",
-		cursor: "default",
-	},
-
-	breadcrumbText: {
-		overflowX: "hidden",
-		textOverflow: "ellipsis",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

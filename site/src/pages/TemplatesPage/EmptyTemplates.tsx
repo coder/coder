@@ -1,23 +1,20 @@
-import Link from "@mui/material/Link";
-import type { TemplateExample } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Stack } from "components/Stack/Stack";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Link } from "#/components/Link/Link";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import { docs } from "#/utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
-	"tasks-docker",
+	"quickstart",
 	"docker",
 	"kubernetes",
 	"aws-linux",
-	"aws-windows",
 	"gcp-linux",
-	"gcp-windows",
+	"azure-linux",
 ];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
@@ -35,14 +32,16 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
 	return featuredExamples;
 };
 
-interface EmptyTemplatesProps {
+type EmptyTemplatesProps = {
 	canCreateTemplates: boolean;
+	templateBuilderEnabled: boolean;
 	examples: TemplateExample[];
 	isUsingFilter: boolean;
-}
+};
 
-export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	canCreateTemplates,
+	templateBuilderEnabled,
 	examples,
 	isUsingFilter,
 }) => {
@@ -64,6 +63,8 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							href={docs("/admin/templates/creating-templates")}
 							target="_blank"
 							rel="noreferrer"
+							showExternalIcon={false}
+							className="p-0 text-xs"
 						>
 							create your own
 						</Link>
@@ -71,19 +72,28 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					</>
 				}
 				cta={
-					<Stack alignItems="center" spacing={4}>
+					<div className="flex flex-col gap-8 items-center">
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
-								<TemplateExampleCard example={example} key={example.id} />
+								<TemplateExampleCard
+									example={example}
+									key={example.id}
+									templateBuilderEnabled={templateBuilderEnabled}
+								/>
 							))}
 						</div>
-
-						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
-							<RouterLink to="/starter-templates">
+						<Button size="sm" asChild className="rounded-full">
+							<RouterLink
+								to={
+									templateBuilderEnabled
+										? "/templates/new/builder"
+										: "/starter-templates"
+								}
+							>
 								View all starter templates
 							</RouterLink>
 						</Button>
-					</Stack>
+					</div>
 				}
 			/>
 		);

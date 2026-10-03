@@ -1,0 +1,486 @@
+import { Command as CommandPrimitive } from "cmdk";
+import { cn } from "cn";
+import { XIcon } from "lucide-react";
+import {
+	createContext,
+	useContext,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
+import { Badge } from "#/components/Badge/Badge";
+import { InputGroup } from "#/components/InputGroup/InputGroup";
+import {
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "#/components/Popover/Popover";
+
+// Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
+// navigation) and Radix Popover (positioning, dismissal). These are prefixed
+// `FilterCombobox*` and kept single-consumer to avoid shadowing the unrelated
+// `components/Combobox` single-select primitives. They overlap cosmetically
+// with `components/Command`; a future consolidation into a variant-driven
+// `Command*` layer could remove the duplication.
+
+/**
+ * Height cap for the popup, bounded only by the space Radix reports to the
+ * viewport edge, and for each menu inside it when the caller makes the popup
+ * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
+ */
+export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
+
+const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
+// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
+const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
+
+/** Whether cmdk moves the highlighted row for this key press. */
+export const isListNavigationKey = (event: { key: string; ctrlKey: boolean }) =>
+	LIST_NAVIGATION_KEYS.has(event.key) ||
+	(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
+
+const FilterComboboxAnchorContext =
+	createContext<React.RefObject<HTMLDivElement | null> | null>(null);
+
+type FilterComboboxStateValue = {
+	inputValue: string;
+	onInputValueChange?: (value: string) => void;
+	onRemoveValue?: (value: string) => void;
+};
+
+const FilterComboboxStateContext =
+	createContext<FilterComboboxStateValue | null>(null);
+
+function useFilterComboboxState(): FilterComboboxStateValue {
+	const context = useContext(FilterComboboxStateContext);
+	if (!context) {
+		throw new Error(
+			"FilterCombobox primitives must be used within a <FilterComboboxRoot />",
+		);
+	}
+	return context;
+}
+
+/** Imperative handle to `FilterComboboxRoot`'s highlighted row. */
+export type FilterComboboxHighlight = {
+	get: () => string;
+	set: (value: string) => void;
+};
+
+type FilterComboboxRootProps = {
+	open?: boolean;
+	/**
+	 * Whether cmdk highlights the first row on its own. When false, a row is
+	 * highlighted only by Up, Down, Home, End, cmdk's Ctrl+N/J/P/K, the pointer,
+	 * or `highlightRef`.
+	 */
+	autoHighlight?: boolean;
+	/** Fired when Radix requests a close (escape / outside press). */
+	onDismiss?: () => void;
+	onRemoveValue?: (value: string) => void;
+	inputValue?: string;
+	onInputValueChange?: (value: string) => void;
+	/**
+	 * The highlighted row lives here, so moving it re-renders only this root
+	 * and the rows whose highlight changes, not the caller's option lists.
+	 */
+	highlightRef?: React.Ref<FilterComboboxHighlight>;
+	/**
+	 * Called when cmdk moves the highlight, with the new value and the one it
+	 * replaced ("" when none). While `autoHighlight` is off, a row cmdk
+	 * highlights on its own is cleared at once, and this is called with "" as
+	 * the new value. Not called for `highlightRef.set`.
+	 */
+	onHighlightedValueChange?: (value: string, previous: string) => void;
+	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
+	label?: string;
+	className?: string;
+	children?: React.ReactNode;
+};
+
+/**
+ * Controlled root for the filter combobox. `open` is caller-owned (there is no
+ * PopoverTrigger), so the only event Radix originates is a close request,
+ * surfaced as `onDismiss`. Dropdown rows are actions that fire their own
+ * `onSelect`; committed chip removal is surfaced through `onRemoveValue`.
+ *
+ * Note: `FilterComboboxContent` renders in-flow (`disablePortal`, required so
+ * cmdk can DOM-query its list). A consumer mounting this inside an
+ * `overflow: hidden`/`auto` ancestor or a Radix `Dialog` may see the popup
+ * clipped or z-index-inverted.
+ */
+export function FilterComboboxRoot({
+	open = false,
+	autoHighlight = true,
+	onDismiss,
+	onRemoveValue,
+	inputValue = "",
+	onInputValueChange,
+	highlightRef,
+	onHighlightedValueChange,
+	label,
+	className,
+	children,
+}: FilterComboboxRootProps) {
+	const anchorRef = useRef<HTMLDivElement | null>(null);
+	// cmdk only reports highlight changes when its value is controlled.
+	const [highlightedValue, setHighlightedValue] = useState("");
+	const highlightedValueRef = useRef("");
+	// Set by list navigation keys and pointer moves just before cmdk handles
+	// them, so only those highlight a row while `autoHighlight` is off.
+	const userNavigatingRef = useRef(false);
+	useImperativeHandle(
+		highlightRef,
+		() => ({
+			get: () => highlightedValueRef.current,
+			set: (value) => {
+				highlightedValueRef.current = value;
+				setHighlightedValue(value);
+			},
+		}),
+		[],
+	);
+
+	const state: FilterComboboxStateValue = {
+		inputValue,
+		onInputValueChange,
+		onRemoveValue,
+	};
+
+	return (
+		<FilterComboboxAnchorContext value={anchorRef}>
+			<FilterComboboxStateContext value={state}>
+				<CommandPrimitive
+					shouldFilter={false}
+					loop
+					label={label}
+					className={cn("flex w-full flex-col", className)}
+					value={highlightedValue}
+					onKeyDown={(event) => {
+						// On Enter the cmdk root selects the highlighted row and cancels
+						// the focused button's click. A button takes Enter as a click
+						// instead; preventDefault makes the root skip the key.
+						if (
+							event.key === "Enter" &&
+							event.target instanceof HTMLButtonElement
+						) {
+							event.preventDefault();
+							event.target.click();
+						}
+					}}
+					onKeyDownCapture={(event) => {
+						userNavigatingRef.current = isListNavigationKey(event);
+					}}
+					onPointerMoveCapture={() => {
+						userNavigatingRef.current = true;
+					}}
+					// Runs after the row's own handler, so the flag covers only the
+					// highlight that pointer move causes.
+					onPointerMove={() => {
+						userNavigatingRef.current = false;
+					}}
+					onValueChange={(value) => {
+						const navigating = userNavigatingRef.current;
+						userNavigatingRef.current = false;
+						const previous = highlightedValueRef.current;
+						if (!autoHighlight && !navigating) {
+							// cmdk has already stored the row it picked and only re-reads
+							// a controlled value when it changes. It trims the value, so
+							// switching between "" and " " resets it to nothing.
+							setHighlightedValue((current) => (current === "" ? " " : ""));
+							highlightedValueRef.current = "";
+							// Lets the caller re-highlight after the highlighted row unmounts.
+							onHighlightedValueChange?.("", previous);
+							return;
+						}
+						highlightedValueRef.current = value;
+						setHighlightedValue(value);
+						onHighlightedValueChange?.(value, previous);
+					}}
+				>
+					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
+					    originates close requests, forwarded as `onDismiss`. */}
+					<Popover
+						open={open}
+						onOpenChange={(nextOpen) => {
+							if (!nextOpen) {
+								onDismiss?.();
+							}
+						}}
+						modal={false}
+					>
+						{children}
+					</Popover>
+				</CommandPrimitive>
+			</FilterComboboxStateContext>
+		</FilterComboboxAnchorContext>
+	);
+}
+
+type FilterComboboxContentProps = React.ComponentProps<typeof PopoverContent>;
+
+export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
+	className,
+	align = "start",
+	sideOffset = 6,
+	...props
+}) => {
+	const anchorRef = useContext(FilterComboboxAnchorContext);
+	return (
+		<PopoverContent
+			disablePortal
+			align={align}
+			sideOffset={sideOffset}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onInteractOutside={(event) => {
+				if (
+					event.target instanceof Node &&
+					anchorRef?.current?.contains(event.target)
+				) {
+					event.preventDefault();
+				}
+			}}
+			className={cn(
+				menuMaxHeightClassName,
+				"flex w-(--radix-popover-trigger-width) flex-col overflow-y-hidden p-0",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxListProps = React.ComponentProps<
+	typeof CommandPrimitive.List
+>;
+
+export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<CommandPrimitive.List
+			data-slot="combobox-list"
+			className={cn(
+				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxItemProps = React.ComponentProps<
+	typeof CommandPrimitive.Item
+>;
+
+/**
+ * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
+ * click and on Enter for the highlighted row.
+ */
+export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<CommandPrimitive.Item
+			data-slot="combobox-item"
+			className={cn(
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxGroupProps = React.ComponentProps<
+	typeof CommandPrimitive.Group
+>;
+
+export const FilterComboboxGroup: React.FC<FilterComboboxGroupProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<CommandPrimitive.Group
+			data-slot="combobox-group"
+			className={cn("group/combobox-group", className)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxLabelProps = React.ComponentProps<"div">;
+
+export const FilterComboboxLabel: React.FC<FilterComboboxLabelProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div
+			data-slot="combobox-label"
+			// The first header relies on the list's own padding for its top space.
+			className={cn(
+				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxStatusProps = React.ComponentProps<"div">;
+
+export const FilterComboboxStatus: React.FC<FilterComboboxStatusProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div
+			data-slot="combobox-status"
+			role="status"
+			aria-live="polite"
+			className={cn("sr-only", className)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxInputGroupProps = React.ComponentProps<"div">;
+
+export const FilterComboboxInputGroup: React.FC<
+	FilterComboboxInputGroupProps
+> = ({ className, ...props }) => {
+	const anchorRef = useContext(FilterComboboxAnchorContext);
+
+	return (
+		<PopoverAnchor asChild>
+			<InputGroup
+				ref={anchorRef ?? undefined}
+				className={cn("h-auto min-h-10 w-full items-start", className)}
+				{...props}
+			/>
+		</PopoverAnchor>
+	);
+};
+
+type FilterComboboxChipsProps = React.ComponentProps<"div">;
+
+export const FilterComboboxChips: React.FC<FilterComboboxChipsProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div
+			data-slot="combobox-chips"
+			className={cn(
+				"flex min-h-9.5 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1.25 pr-2",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
+type FilterComboboxChipProps = React.ComponentProps<typeof Badge> & {
+	/**
+	 * Token passed to `onRemoveValue` when the chip is removed. Decoupled from
+	 * `children` so the chip can render richer content than a bare string.
+	 * Falls back to the string/number children for convenience.
+	 */
+	value?: string;
+	showRemove?: boolean;
+	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
+	removeLabel?: string;
+	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
+	onRemove?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
+
+/** Height shared by chips and controls that sit in the chip row. */
+export const chipRowItemHeightClassName = "h-7";
+
+export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
+	className,
+	children,
+	value,
+	showRemove = true,
+	removeLabel,
+	onRemove,
+	...props
+}) => {
+	const { onRemoveValue } = useFilterComboboxState();
+	const childText =
+		typeof children === "string" || typeof children === "number"
+			? String(children)
+			: undefined;
+	const removeValue = value ?? childText;
+	const resolvedRemoveLabel =
+		removeLabel ?? (removeValue ? `Remove ${removeValue}` : "Remove filter");
+
+	return (
+		<Badge
+			data-slot="combobox-chip"
+			svgSize="sm"
+			className={cn(
+				"group/chip min-w-0 max-w-full pl-2 font-medium text-content-secondary hover:text-content-primary",
+				chipRowItemHeightClassName,
+				className,
+			)}
+			{...props}
+		>
+			{children}
+			{showRemove && (
+				<button
+					type="button"
+					data-slot="combobox-chip-remove"
+					aria-label={resolvedRemoveLabel}
+					className={cn(
+						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
+					)}
+					onMouseDown={(event) => event.preventDefault()}
+					onClick={(event) => {
+						event.stopPropagation();
+						if (onRemove) {
+							onRemove(event);
+						} else if (removeValue) {
+							onRemoveValue?.(removeValue);
+						}
+					}}
+				>
+					<XIcon aria-hidden />
+				</button>
+			)}
+		</Badge>
+	);
+};
+
+type FilterComboboxChipsInputProps = React.ComponentProps<
+	typeof CommandPrimitive.Input
+>;
+
+export const FilterComboboxChipsInput: React.FC<
+	FilterComboboxChipsInputProps
+> = ({ className, ref, ...props }) => {
+	const { inputValue, onInputValueChange } = useFilterComboboxState();
+
+	return (
+		<CommandPrimitive.Input
+			ref={ref}
+			data-slot="combobox-chip-input"
+			value={inputValue}
+			onValueChange={(next) => onInputValueChange?.(next)}
+			// Content-sized so an empty input fits in the space after the last chip
+			// instead of forcing a new row; `size={1}` is the fallback intrinsic
+			// width. Height matches a chip so the box stays the same height with or
+			// without chips.
+			size={1}
+			className={cn(
+				chipRowItemHeightClassName,
+				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};

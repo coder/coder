@@ -1,13 +1,15 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
-import type { WorkspaceResource } from "api/typesGenerated";
+import { useState } from "react";
+import type { WorkspaceResource } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Sidebar,
 	SidebarCaption,
 	SidebarItem,
-} from "components/FullPageLayout/Sidebar";
-import type { FC } from "react";
-import { getResourceIconPath } from "utils/workspace";
+} from "#/components/FullPageLayout/Sidebar";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { getResourceIconPath } from "#/utils/workspace";
 
 type ResourcesSidebarProps = {
 	failed: boolean;
@@ -16,27 +18,23 @@ type ResourcesSidebarProps = {
 	isSelected: (resource: WorkspaceResource) => boolean;
 };
 
-export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
+export const ResourcesSidebar: React.FC<ResourcesSidebarProps> = ({
 	failed,
 	onChange,
 	isSelected,
 	resources,
 }) => {
-	const theme = useTheme();
+	const [showHiddenResources, setShowHiddenResources] = useState(false);
+	const hasHiddenResources = resources.some((r) => r.hide);
+	const displayedResources = resources.filter(
+		(r) => !r.hide || showHiddenResources || isSelected(r),
+	);
 
 	return (
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p
-					css={{
-						margin: 0,
-						padding: "0 16px",
-						fontSize: 13,
-						color: theme.palette.text.secondary,
-						lineHeight: "1.5",
-					}}
-				>
+				<p className="m-0 py-4 text-sm font-normal text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>
@@ -48,66 +46,51 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 						<ResourceSidebarItemSkeleton />
 					</SidebarItem>
 				))}
-			{resources.map((r) => (
+			{displayedResources.map((r) => (
 				<SidebarItem
 					onClick={() => onChange(r)}
 					isActive={isSelected(r)}
 					key={r.id}
-					css={styles.root}
+					className="leading-normal flex items-center gap-3"
 				>
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							lineHeight: 0,
-							width: 16,
-							height: 16,
-							padding: 2,
-						}}
-					>
-						<img
-							css={{ width: "100%", height: "100%", objectFit: "contain" }}
+					<div className="flex items-center justify-center leading-none size-4 p-0.5">
+						<ExternalImage
+							className="w-full h-full object-contain"
 							src={getResourceIconPath(r.type)}
 							alt=""
 						/>
 					</div>
-					<div
-						css={{ display: "flex", flexDirection: "column", fontWeight: 500 }}
-					>
+					<div className="flex flex-col font-medium">
 						<span>{r.name}</span>
-						<span css={{ fontSize: 12, color: theme.palette.text.secondary }}>
-							{r.type}
-						</span>
+						<span className="text-sm text-content-secondary">{r.type}</span>
 					</div>
 				</SidebarItem>
 			))}
+			{hasHiddenResources && (
+				<div className="flex items-center justify-center mt-4 px-4">
+					<Button
+						variant="outline"
+						size="sm"
+						className="rounded-full w-full"
+						onClick={() => setShowHiddenResources((v) => !v)}
+					>
+						{showHiddenResources ? "Hide" : "Show hidden"} resources
+						<ChevronDownIcon open={showHiddenResources} className="ml-2" />
+					</Button>
+				</div>
+			)}
 		</Sidebar>
 	);
 };
 
-const ResourceSidebarItemSkeleton: FC = () => {
+const ResourceSidebarItemSkeleton: React.FC = () => {
 	return (
-		<div css={[styles.root, { pointerEvents: "none" }]}>
+		<div className="leading-normal flex items-center gap-3 pointer-events-none">
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton
-					variant="text"
-					width={60}
-					height={14}
-					css={{ marginTop: 2 }}
-				/>
+				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
 			</div>
 		</div>
 	);
 };
-
-const styles = {
-	root: {
-		lineHeight: "1.5",
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

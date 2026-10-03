@@ -4,12 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -29,9 +32,11 @@ type LifecycleAPI struct {
 	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
+	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
 
-	TimeNowFn func() time.Time // defaults to dbtime.Now()
+	TimeNowFn       func() time.Time // defaults to dbtime.Now()
+	Metrics         *LifecycleMetrics
+	emitMetricsOnce sync.Once
 }
 
 func (a *LifecycleAPI) now() time.Time {
@@ -42,6 +47,10 @@ func (a *LifecycleAPI) now() time.Time {
 }
 
 func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
+	if req.GetLifecycle() == nil {
+		return nil, drpcerr.WithCode(xerrors.New("lifecycle is required"), uint64(codes.InvalidArgument))
+	}
+
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
@@ -119,9 +128,23 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, workspaceAgent.ID, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
+	}
+
+	// Emit build duration metric when agent transitions to a terminal startup state.
+	// We only emit once per agent connection to avoid duplicate metrics.
+	switch lifecycleState {
+	case database.WorkspaceAgentLifecycleStateReady,
+		database.WorkspaceAgentLifecycleStateStartTimeout,
+		database.WorkspaceAgentLifecycleStateStartError:
+		// Only emit metrics for the parent agent, this metric is not intended to measure devcontainer durations.
+		if !workspaceAgent.ParentID.Valid {
+			a.emitMetricsOnce.Do(func() {
+				a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
+			})
 		}
 	}
 
@@ -129,6 +152,10 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 }
 
 func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	if req.GetStartup() == nil {
+		return nil, drpcerr.WithCode(xerrors.New("startup is required"), uint64(codes.InvalidArgument))
+	}
+
 	apiVersion, ok := ctx.Value(contextKeyAPIVersion{}).(string)
 	if !ok {
 		return nil, xerrors.Errorf("internal error; api version unspecified")

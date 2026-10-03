@@ -39,7 +39,7 @@ func (e EnterpriseIDPSync) SiteRoleSyncEnabled() bool {
 	if !e.RoleSyncEntitled() {
 		return false
 	}
-	return e.AGPLIDPSync.SiteRoleField != ""
+	return e.SiteRoleField != ""
 }
 
 func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.RoleParams, *idpsync.HTTPError) {
@@ -48,15 +48,15 @@ func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt
 	}
 
 	var claimRoles []string
-	if e.AGPLIDPSync.SiteRoleField != "" {
+	if e.SiteRoleField != "" {
 		var err error
 		// TODO: Smoke test this error for org and site
-		claimRoles, err = e.AGPLIDPSync.RolesFromClaim(e.AGPLIDPSync.SiteRoleField, mergedClaims)
+		claimRoles, err = e.RolesFromClaim(e.SiteRoleField, mergedClaims)
 		if err != nil {
-			rawType := mergedClaims[e.AGPLIDPSync.SiteRoleField]
+			rawType := mergedClaims[e.SiteRoleField]
 			e.Logger.Error(ctx, "oidc claims user roles field was an unknown type",
 				slog.F("type", fmt.Sprintf("%T", rawType)),
-				slog.F("field", e.AGPLIDPSync.SiteRoleField),
+				slog.F("field", e.SiteRoleField),
 				slog.F("raw_value", rawType),
 				slog.Error(err),
 			)

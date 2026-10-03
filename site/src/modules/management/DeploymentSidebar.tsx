@@ -1,24 +1,21 @@
-import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 /**
  * A sidebar for deployment settings.
  */
-export const DeploymentSidebar: FC = () => {
+export const DeploymentSidebar: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, showOrganizations, experiments, buildInfo } =
-		useDashboard();
-	const hasPremiumLicense =
-		entitlements.features.multiple_organizations.enabled;
+	const { entitlements, showOrganizations, buildInfo } = useDashboard();
+	// Trialing deployments keep the Premium tab so they can convert.
+	const hidePremiumTab = entitlements.has_license && !entitlements.trial;
 
 	return (
 		<DeploymentSidebarView
 			permissions={permissions}
 			showOrganizations={showOrganizations}
-			hasPremiumLicense={hasPremiumLicense}
-			experiments={experiments}
+			hidePremiumTab={hidePremiumTab}
 			buildInfo={buildInfo}
 		/>
 	);

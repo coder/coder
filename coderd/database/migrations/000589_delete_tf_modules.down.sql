@@ -1,0 +1,3 @@
+-- no-op. The deleted module archives and the template version rows that
+-- referenced them cannot be reconstructed. Affected template versions
+-- repopulate their cache on the next template import.

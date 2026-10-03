@@ -15,13 +15,11 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -357,7 +355,7 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		}
 
-		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+		defOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 		SetupOrganization(t, s, db, user, defOrg.ID, def)
 		asserts = append(asserts, func(t *testing.T) {
@@ -555,7 +553,6 @@ func TestApplyGroupDifference(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			ctx = dbauthz.AsSystemRestricted(ctx)
 
 			org := dbgen.Organization(t, db, database.Organization{})
 			_, err := db.InsertAllUsersGroup(ctx, org.ID)
@@ -590,7 +587,7 @@ func TestApplyGroupDifference(t *testing.T) {
 			require.NoError(t, err)
 
 			// assert
-			found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
+			found := slice.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 				return g.Group.ID
 			})
 
@@ -620,12 +617,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentOrgs",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: uuid.New(),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: uuid.New(),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			Equal: false,
@@ -634,12 +631,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "SameID",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			Equal: true,
@@ -648,12 +645,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentIDs",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(uuid.New()),
+				GroupID:        new(uuid.New()),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(uuid.New()),
+				GroupID:        new(uuid.New()),
 				GroupName:      nil,
 			},
 			Equal: false,
@@ -663,12 +660,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			Equal: true,
 		},
@@ -677,12 +674,12 @@ func TestExpectedGroupEqual(t *testing.T) {
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("foo"),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("bar"),
+				GroupName:      new("bar"),
 			},
 			Equal: false,
 		},
@@ -695,13 +692,13 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "DifferentIDSameName",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
-				GroupName:      ptr.Ref("foo"),
+				GroupID:        new(ids.ID("g1")),
+				GroupName:      new("foo"),
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
-				GroupName:      ptr.Ref("bar"),
+				GroupID:        new(ids.ID("g1")),
+				GroupName:      new("bar"),
 			},
 			Equal: true,
 		},
@@ -709,13 +706,13 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "MixedNils",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
 				GroupID:        nil,
-				GroupName:      ptr.Ref("bar"),
+				GroupName:      new("bar"),
 			},
 			Equal: false,
 		},
@@ -723,7 +720,7 @@ func TestExpectedGroupEqual(t *testing.T) {
 			Name: "NoComparable",
 			A: idpsync.ExpectedGroup{
 				OrganizationID: ids.ID("org"),
-				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupID:        new(ids.ID("g1")),
 				GroupName:      nil,
 			},
 			B: idpsync.ExpectedGroup{
@@ -751,7 +748,8 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	org, err := db.GetOrganizationByID(context.Background(), orgID)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		org = dbgen.Organization(t, db, database.Organization{
-			ID: orgID,
+			ID:                    orgID,
+			DefaultOrgMemberRoles: def.DefaultOrgMemberRoles,
 		})
 	}
 
@@ -838,6 +836,9 @@ type orgSetupDefinition struct {
 	GroupNames        map[string]bool
 	OrganizationRoles []string
 	CustomRoles       []string
+	// DefaultOrgMemberRoles overrides the organization's default member
+	// roles when non-empty.
+	DefaultOrgMemberRoles []string
 	// NotMember if true will ensure the user is not a member of the organization.
 	NotMember bool
 
@@ -910,14 +911,14 @@ func (o *orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store
 	})
 
 	if len(o.ExpectedGroupNames) > 0 {
-		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) string {
+		found := slice.List(userGroups, func(g database.GetGroupsRow) string {
 			return g.Group.Name
 		})
 		require.ElementsMatch(t, o.ExpectedGroupNames, found, "user groups by name")
 		require.Len(t, o.ExpectedGroups, 0, "ExpectedGroups should be empty")
 	} else {
 		// Check by ID, recommended
-		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
+		found := slice.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 			return g.Group.ID
 		})
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")

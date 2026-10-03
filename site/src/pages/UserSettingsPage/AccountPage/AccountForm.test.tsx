@@ -1,7 +1,7 @@
-import { MockUserMember } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
-import type { UpdateUserProfileRequest } from "api/typesGenerated";
+import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
+import { MockUserMember } from "#/testHelpers/entities";
+import { render } from "#/testHelpers/renderHelpers";
 import { AccountForm } from "./AccountForm";
 
 // NOTE: it does not matter what the role props of MockUser are set to,
@@ -14,6 +14,7 @@ describe("AccountForm", () => {
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
 				name: MockUserMember.name ?? MockUserMember.username,
+				avatar_url: MockUserMember.avatar_url ?? "",
 			};
 
 			// When
@@ -23,9 +24,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						return;
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 
@@ -39,12 +38,36 @@ describe("AccountForm", () => {
 		});
 	});
 
+	it("sets name autocomplete to name", async () => {
+		// Given
+		const mockInitialValues: UpdateUserProfileRequest = {
+			username: MockUserMember.username,
+			name: MockUserMember.name ?? MockUserMember.username,
+			avatar_url: MockUserMember.avatar_url ?? "",
+		};
+
+		// When
+		render(
+			<AccountForm
+				editable
+				email={MockUserMember.email}
+				initialValues={mockInitialValues}
+				isLoading={false}
+				onSubmit={vi.fn()}
+			/>,
+		);
+
+		// Then
+		const nameInput = await screen.findByLabelText("Name");
+		expect(nameInput).toHaveAttribute("autocomplete", "name");
+	});
 	describe("when editable is set to false", () => {
 		it("does not allow updating username", async () => {
 			// Given
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
 				name: MockUserMember.name ?? MockUserMember.username,
+				avatar_url: MockUserMember.avatar_url ?? "",
 			};
 
 			// When
@@ -54,9 +77,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						return;
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 

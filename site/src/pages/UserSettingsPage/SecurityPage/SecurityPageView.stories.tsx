@@ -1,14 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import set from "lodash/fp/set";
+import { action } from "storybook/actions";
 import {
 	MockAuthMethodsAll,
 	MockAuthMethodsPasswordOnly,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import set from "lodash/fp/set";
-import type { ComponentProps } from "react";
-import { action } from "storybook/actions";
+} from "#/testHelpers/entities";
 import { SecurityPageView } from "./SecurityPage";
 
-const defaultArgs: ComponentProps<typeof SecurityPageView> = {
+const defaultArgs: React.ComponentProps<typeof SecurityPageView> = {
 	security: {
 		form: {
 			disabled: false,
@@ -65,4 +64,34 @@ export const ConfirmingOIDCConversion: Story = {
 		},
 		defaultArgs,
 	),
+};
+
+export const AuthenticatedWithGithub: Story = {
+	args: {
+		...defaultArgs,
+		oidc: {
+			section: {
+				...defaultArgs.oidc!.section,
+				userLoginType: {
+					login_type: "github",
+				},
+				authMethods: MockAuthMethodsAll,
+			},
+		},
+	},
+};
+
+export const AuthenticatedWithOIDC: Story = {
+	args: {
+		...defaultArgs,
+		oidc: {
+			section: {
+				...defaultArgs.oidc!.section,
+				userLoginType: {
+					login_type: "oidc",
+				},
+				authMethods: MockAuthMethodsAll,
+			},
+		},
+	},
 };

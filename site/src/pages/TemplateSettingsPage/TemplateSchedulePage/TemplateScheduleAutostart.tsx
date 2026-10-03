@@ -1,34 +1,22 @@
-import FormHelperText from "@mui/material/FormHelperText";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
-} from "utils/schedule";
+} from "#/utils/schedule";
 
-interface TemplateScheduleAutostartProps {
+type TemplateScheduleAutostartProps = {
 	enabled: boolean;
 	value: TemplateAutostartRequirementDaysValue[];
 	isSubmitting: boolean;
 	onChange: (value: TemplateAutostartRequirementDaysValue[]) => void;
-}
+};
 
-export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
-	value,
-	isSubmitting,
-	enabled,
-	onChange,
-}) => {
+export const TemplateScheduleAutostart: React.FC<
+	TemplateScheduleAutostartProps
+> = ({ value, isSubmitting, enabled, onChange }) => {
 	return (
-		<Stack width="100%" alignItems="start" spacing={1}>
-			<Stack
-				direction="row"
-				spacing={0}
-				alignItems="baseline"
-				justifyContent="center"
-				className="w-full gap-0.5"
-			>
+		<div className="flex flex-col gap-2 items-start">
+			<div className="flex flex-row items-baseline justify-center w-full gap-0.5">
 				{(
 					[
 						{ value: "monday", key: "Mon" },
@@ -60,20 +48,20 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 						{day.key}
 					</Button>
 				))}
-			</Stack>
-			<FormHelperText>
+			</div>
+			<div className="text-xs text-content-secondary">
 				<AutostartHelperText allowed={enabled} days={value} />
-			</FormHelperText>
-		</Stack>
+			</div>
+		</div>
 	);
 };
 
-interface AutostartHelperTextProps {
+type AutostartHelperTextProps = {
 	allowed?: boolean;
 	days: TemplateAutostartRequirementDaysValue[];
-}
+};
 
-const AutostartHelperText: FC<AutostartHelperTextProps> = ({
+const AutostartHelperText: React.FC<AutostartHelperTextProps> = ({
 	allowed,
 	days: unsortedDays,
 }) => {

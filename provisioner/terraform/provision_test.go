@@ -938,59 +938,6 @@ func TestProvision(t *testing.T) {
 			},
 		},
 		{
-			Name: "ai-task-multiple-allowed-in-plan",
-			Files: map[string]string{
-				"main.tf": `terraform {
-					required_providers {
-					  coder = {
-						source  = "coder/coder"
-						version = ">= 2.13.0"
-					  }
-					}
-				}
-				data "coder_task" "me" {}
-				resource "coder_ai_task" "a" {
-				  sidebar_app {
-					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
-				  }
-				}
-				resource "coder_ai_task" "b" {
-				  sidebar_app {
-					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
-				  }
-				}
-				`,
-			},
-			Request: &proto.PlanRequest{},
-			Response: &proto.GraphComplete{
-				Resources: []*proto.Resource{
-					{
-						Name: "a",
-						Type: "coder_ai_task",
-					},
-					{
-						Name: "b",
-						Type: "coder_ai_task",
-					},
-				},
-				AiTasks: []*proto.AITask{
-					{
-						Id: "a",
-						SidebarApp: &proto.AITaskSidebarApp{
-							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
-						},
-					},
-					{
-						Id: "b",
-						SidebarApp: &proto.AITaskSidebarApp{
-							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
-						},
-					},
-				},
-				HasAiTasks: true,
-			},
-		},
-		{
 			Name: "external-agent",
 			Files: map[string]string{
 				"main.tf": `terraform {
@@ -1013,40 +960,6 @@ func TestProvision(t *testing.T) {
 				}},
 				HasExternalAgents: true,
 			},
-			SkipCacheProviders: true,
-		},
-		{
-			Name: "ai-task-app-id",
-			Files: map[string]string{
-				"main.tf": `terraform {
-					required_providers {
-						coder = {
-							source  = "coder/coder"
-							version = ">= 2.12.0"
-						}
-					}
-				}
-				resource "coder_ai_task" "my-task" {
-				  app_id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
-				}
-				`,
-			},
-			Response: &proto.GraphComplete{
-				Resources: []*proto.Resource{
-					{
-						Name: "my-task",
-						Type: "coder_ai_task",
-					},
-				},
-				AiTasks: []*proto.AITask{
-					{
-						Id:    "my-task",
-						AppId: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
-					},
-				},
-				HasAiTasks: true,
-			},
-			SkipCacheProviders: true,
 		},
 		{
 			Name: "malicious-tar",
@@ -1107,6 +1020,7 @@ func TestProvision(t *testing.T) {
 				require.Contains(t, initComplete.Error, testCase.InitErrorContains)
 				return
 			}
+			require.Empty(t, initComplete.Error, "unexpected init error")
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: testCase.Metadata,
@@ -1174,7 +1088,6 @@ func TestProvision(t *testing.T) {
 					require.Equal(t, string(modulesWant), string(modulesGot))
 				}
 
-				require.Equal(t, graphComplete.HasAiTasks, testCase.Response.HasAiTasks)
 				require.Equal(t, graphComplete.HasExternalAgents, testCase.Response.HasExternalAgents)
 			}
 
@@ -1297,6 +1210,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+	require.Contains(t, log, "AWS_SDK_UA_APP_ID=APN_1.1/pc_cdfmjwn8i6u8l9fwz8h82e4w3$")
 
 	apply := applyComplete.Type.(*proto.Response_Apply)
 	require.NotEmpty(t, apply.Apply.State, "state exists")

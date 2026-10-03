@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder login token
+
+  Print the current session token
+
+  Print the session token for use in scripts and automation.
+
+———
+Run `coder --help` for a list of global options.

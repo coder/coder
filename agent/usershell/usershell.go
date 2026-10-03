@@ -4,13 +4,15 @@ import (
 	"os"
 	"os/user"
 
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 )
 
-// HomeDir returns the home directory of the current user, giving
-// priority to the $HOME environment variable.
-// Deprecated: use EnvInfoer.HomeDir() instead.
-func HomeDir() (string, error) {
+// homeDir returns the home directory of the current user, giving
+// priority to the $HOME environment variable. It backs
+// SystemEnvInfo.HomeDir. Callers outside this package resolve the home
+// directory through an EnvInfoer so the injected environment is honored.
+func homeDir() (string, error) {
 	// First we check the environment.
 	homedir, err := os.UserHomeDir()
 	if err == nil {
@@ -23,6 +25,20 @@ func HomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// ResolveWorkingDirectory returns dir when it is non-empty and an existing
+// directory on fs. Otherwise it falls back to the home directory
+// reported by ei. SSH sessions and the process API share this so their
+// working directory resolution cannot drift, and the home fallback goes
+// through the injected EnvInfoer rather than the host directly.
+func ResolveWorkingDirectory(fs afero.Fs, ei EnvInfoer, dir string) (string, error) {
+	if dir != "" {
+		if info, err := fs.Stat(dir); err == nil && info.IsDir() {
+			return dir, nil
+		}
+	}
+	return ei.HomeDir()
 }
 
 // EnvInfoer encapsulates external information about the environment.
@@ -64,11 +80,11 @@ func (SystemEnvInfo) Environ() []string {
 }
 
 func (SystemEnvInfo) HomeDir() (string, error) {
-	return HomeDir()
+	return homeDir()
 }
 
 func (SystemEnvInfo) Shell(username string) (string, error) {
-	return Get(username)
+	return get(username)
 }
 
 func (SystemEnvInfo) ModifyCommand(name string, args ...string) (string, []string) {

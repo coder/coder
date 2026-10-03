@@ -1,5 +1,6 @@
-import type { TemplateVersionParameter } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { useNavigate } from "react-router";
+import type { TemplateVersionParameter } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -7,11 +8,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import type { FC } from "react";
-import { useNavigate } from "react-router";
+} from "#/components/Dialog/Dialog";
 
-interface EphemeralParametersDialogProps {
+type EphemeralParametersDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onContinue: () => void;
@@ -19,9 +18,11 @@ interface EphemeralParametersDialogProps {
 	workspaceOwner: string;
 	workspaceName: string;
 	templateVersionId: string;
-}
+};
 
-export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
+export const EphemeralParametersDialog: React.FC<
+	EphemeralParametersDialogProps
+> = ({
 	open,
 	onClose,
 	onContinue,

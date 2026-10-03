@@ -1,12 +1,12 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
@@ -14,14 +14,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	component: PortForwardPopoverView,
 	decorators: [
 		(Story) => (
-			<div
-				css={(theme) => ({
-					width: 404,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-					backgroundColor: theme.palette.background.paper,
-				})}
-			>
+			<div className="w-[404px] rounded-lg border border-solid border-border bg-surface-primary">
 				<Story />
 			</div>
 		),
@@ -34,16 +27,52 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
 		host: "*.coder.com",
+		refetchSharedPorts: () => {},
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof PortForwardPopoverView>;
 
+const listeningPortsWithSubstringMatch = [
+	...MockListeningPortsResponse.ports,
+	{ process_name: "substring-match", network: "", port: 18080 },
+];
+
+const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
+	userEvent.type(
+		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
+		text,
+	);
+
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
 		sharedPorts: MockSharedPortsResponse.shares,
+	},
+};
+
+export const FilterPorts: Story = {
+	args: {
+		listeningPorts: listeningPortsWithSubstringMatch,
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.port !== 8081,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "808");
+	},
+};
+
+export const NoMatchingPorts: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "1234");
+	},
+};
+
+export const InvalidPort: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "5");
 	},
 };
 

@@ -13,8 +13,8 @@ Content-Type: text/plain; charset=UTF-8
 Hi Bobby,
 
 Your workspace bobby-workspace has been marked as dormant (https://coder.co=
-m/docs/templates/schedule#dormancy-threshold-enterprise) due to inactivity =
-exceeding the dormancy threshold.
+m/docs/admin/templates/managing-templates/schedule#dormancy-threshold) due =
+to inactivity exceeding the dormancy threshold.
 
 This workspace will be automatically deleted in 24 hours if it remains inac=
 tive.
@@ -34,7 +34,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Workspace "bobby-workspace" marked as dormant</title>
+    <title>Workspace &#34;bobby-workspace&#34; marked as dormant</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -49,14 +49,14 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Workspace "bobby-workspace" marked as dormant
+        Workspace &#34;bobby-workspace&#34; marked as dormant
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>Your workspace <strong>bobby-workspace</strong> has been marked =
-as <a href=3D"https://coder.com/docs/templates/schedule#dormancy-threshold-=
-enterprise"><strong>dormant</strong></a> due to inactivity exceeding the do=
-rmancy threshold.</p>
+as <a href=3D"https://coder.com/docs/admin/templates/managing-templates/sch=
+edule#dormancy-threshold"><strong>dormant</strong></a> due to inactivity ex=
+ceeding the dormancy threshold.</p>
 
 <p>This workspace will be automatically deleted in 24 hours if it remains i=
 nactive.</p>

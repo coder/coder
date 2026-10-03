@@ -1,4 +1,6 @@
-# API & Session Tokens
+---
+title: API & session tokens
+---
 
 Users can generate tokens to make API requests on behalf of themselves.
 
@@ -9,14 +11,25 @@ The [Coder CLI](../../install/cli.md) and
 token to authenticate. To generate a short-lived session token on behalf of your
 account, visit the following URL: `https://coder.example.com/cli-auth`
 
+### Retrieve the current session token
+
+If you're already logged in with the CLI, you can retrieve your current session
+token for use in scripts and automation:
+
+```sh
+coder login token
+```
+
+This is useful for passing your session token to other tools:
+
+```sh
+export CODER_SESSION_TOKEN=$(coder login token)
+```
+
 ### Session Durations
 
-By default, sessions last 24 hours and are automatically refreshed. You can
-configure
-[`CODER_SESSION_DURATION`](../../reference/cli/server.md#--session-duration) to
-change the duration and
-[`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server.md#--disable-session-expiry-refresh)
-to configure this behavior.
+By default, sessions last 24&nbsp;hours and are automatically refreshed.
+You can configure [`CODER_SESSION_DURATION`](../../reference/cli/server/index.md#--session-duration) to change the duration and [`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server/index.md#--disable-session-expiry-refresh) to configure this behavior.
 
 ## Long-Lived Tokens (API Tokens)
 
@@ -24,6 +37,8 @@ Users can create long lived tokens. We refer to these as "API tokens" in the
 product.
 
 ### Generate a long-lived API token on behalf of yourself
+
+Use a unique name for each token.
 
 <div class="tabs">
 
@@ -45,7 +60,7 @@ coder tokens create --name=my-token --lifetime=720h
 ```
 
 See the help docs for
-[`coder tokens create`](../../reference/cli/tokens_create.md) for more info.
+[`coder tokens create`](../../reference/cli/tokens/create.md) for more info.
 
 </div>
 
@@ -65,7 +80,7 @@ coder tokens create --name my-token --user <username>
 ```
 
 See the full CLI reference for
-[`coder tokens create`](../../reference/cli/tokens_create.md)
+[`coder tokens create`](../../reference/cli/tokens/create.md)
 
 #### API
 
@@ -77,17 +92,44 @@ Use our API reference for more information on how to
 ### Set max token length
 
 You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/reference/cli/server#--max-token-lifetime)
+[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server/index.md#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
 
+### Remove or expire a token
+
+You can remove a token using the CLI or the API. By default, `coder tokens remove`
+expires the token, (soft-delete):
+
+```console
+coder tokens remove <name|id>
+```
+
+Expired tokens can no longer be used for authentication and are hidden from
+token listings by default. To include expired tokens, use the
+`--include-expired` flag:
+
+```console
+coder tokens list --include-expired
+```
+
+To hard-delete a token, use the `--delete` flag:
+
+```console
+coder tokens remove --delete <name|id>
+```
+
+Deleting the user that owns a token revokes every token that user holds at the same time.
+
 ## API Key Scopes
 
-API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
+API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `coder:all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
 
 Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
 
-### Creating tokens with scopes
+<a id="creating-tokens-with-scopes"></a>
+
+### Create tokens with scopes
 
 You can specify scopes when creating a token using the `--scope` flag:
 
@@ -105,9 +147,14 @@ Common scope examples include:
 - `workspace:*` - Full workspace access (create, read, update, delete)
 - `template:read` - View template information
 - `api_key:read` - View API keys (useful for automation)
-- `application_connect` - Connect to workspace applications
+- `coder:application_connect` - Connect to workspace applications
 
-For a complete list of available scopes, see the API reference documentation.
+For every scope a token can request, including the composite `coder:` scopes and
+the permissions each one grants, refer to the
+[API key scopes reference](../../reference/api-key-scopes.md). Coder rejects any
+other scope name with a `400` response.
+
+Coder accepts deprecated scope names for backward compatibility. Refer to the [Deprecated scope names](../../reference/api-key-scopes.md#deprecated-scope-names) section of the API key scopes reference.
 
 ### Allow lists (advanced)
 

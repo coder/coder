@@ -23,7 +23,10 @@ func (r *RootCmd) organizations() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.showOrganization(orgContext),
+			r.listOrganizations(),
 			r.createOrganization(),
+			r.editOrganization(orgContext),
+			r.deleteOrganization(orgContext),
 			r.organizationMembers(orgContext),
 			r.organizationRoles(orgContext),
 			r.organizationSettings(orgContext),
@@ -58,21 +61,20 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 			"Using \"me\" will show all organizations you are a member of.",
 		Long: FormatExamples(
 			Example{
-				Description: "coder org show selected",
-				Command: "Shows the organizations selected with '--org=<org_name>'. " +
-					"This organization is the organization used by the cli.",
+				Description: "Show the organization selected with '--org=<org_name>', which the CLI uses",
+				Command:     "coder org show selected",
 			},
 			Example{
-				Description: "coder org show me",
-				Command:     "List of all organizations you are a member of.",
+				Description: "List all organizations you are a member of",
+				Command:     "coder org show me",
 			},
 			Example{
-				Description: "coder org show developers",
-				Command:     "Show organization with name 'developers'",
+				Description: "Show the organization named 'developers'",
+				Command:     "coder org show developers",
 			},
 			Example{
-				Description: "coder org show 90ee1875-3db5-43b3-828e-af3687522e43",
-				Command:     "Show organization with the given ID.",
+				Description: "Show the organization with the given ID",
+				Command:     "coder org show 90ee1875-3db5-43b3-828e-af3687522e43",
 			},
 		),
 		Middleware: serpent.Chain(

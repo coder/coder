@@ -77,7 +77,7 @@ func WriteWorkspaceApp500(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 	})
 }
 
-// WriteWorkspaceAppOffline writes a HTML 502 error page for a workspace app. If
+// WriteWorkspaceAppOffline writes a HTML 404 error page for a workspace app. If
 // appReq is not nil, it will be used to log the request details at debug level.
 func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
 	if appReq != nil {
@@ -94,7 +94,7 @@ func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.Respo
 	}
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:      http.StatusBadGateway,
+		Status:      http.StatusNotFound,
 		Title:       "Application Unavailable",
 		Description: msg,
 		Actions: []site.Action{

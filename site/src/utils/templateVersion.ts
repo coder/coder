@@ -1,5 +1,5 @@
 import set from "lodash/set";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import type { FileTree } from "./filetree";
 import { TarFileTypeCodes, TarReader } from "./tar";
 
@@ -30,7 +30,7 @@ export const createTemplateVersionFileTree = (
 	for (const file of tarReader.fileInfo) {
 		fileTree = set(
 			fileTree,
-			file.name.split("/"),
+			file.name.split("/").filter((part) => part !== ""),
 			file.type === TarFileTypeCodes.Dir
 				? {}
 				: (tarReader.getTextFile(file.name) as string),

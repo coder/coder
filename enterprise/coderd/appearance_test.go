@@ -55,6 +55,52 @@ func TestCustomLogoAndCompanyName(t *testing.T) {
 	require.Equal(t, uac.LogoURL, got.LogoURL)
 }
 
+func TestCodernautsEnabled(t *testing.T) {
+	t.Parallel()
+
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+	basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// With no stored setting, as after an upgrade, the game defaults to
+	// enabled. This deployment has no license, so the default appearance
+	// fetcher serves the value.
+	got, err := basicUserClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.True(t, got.CodernautsEnabled)
+
+	// The setting can be disabled without any license entitlement.
+	err = adminClient.UpdateAppearance(ctx, codersdk.UpdateAppearanceConfig{
+		CodernautsEnabled: false,
+	})
+	require.NoError(t, err)
+
+	got, err = basicUserClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.False(t, got.CodernautsEnabled)
+
+	// The stored value survives switching to the licensed fetcher.
+	coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
+	})
+
+	got, err = basicUserClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.False(t, got.CodernautsEnabled)
+
+	err = adminClient.UpdateAppearance(ctx, codersdk.UpdateAppearanceConfig{
+		CodernautsEnabled: true,
+	})
+	require.NoError(t, err)
+
+	got, err = basicUserClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.True(t, got.CodernautsEnabled)
+}
+
 func TestAnnouncementBanners(t *testing.T) {
 	t.Parallel()
 

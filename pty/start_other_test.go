@@ -26,9 +26,10 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		pty, ps := ptytest.Start(t, pty.Command("echo", "test"))
 
-		pty.ExpectMatch("test")
+		pty.ExpectMatch(ctx, "test")
 		err := ps.Wait()
 		require.NoError(t, err)
 		err = pty.Close()
@@ -63,6 +64,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("SSH_TTY", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		opts := pty.WithPTYOption(pty.WithSSHRequest(ssh.Pty{
 			Window: ssh.Window{
 				Width:  80,
@@ -70,7 +72,7 @@ func TestStart(t *testing.T) {
 			},
 		}))
 		pty, ps := ptytest.Start(t, pty.Command(`/bin/sh`, `-c`, `env | grep SSH_TTY`), opts)
-		pty.ExpectMatch("SSH_TTY=/dev/")
+		pty.ExpectMatch(ctx, "SSH_TTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)
 		err = pty.Close()

@@ -1,12 +1,13 @@
-import { type Theme, useTheme } from "@emotion/react";
+import { ExternalLinkIcon } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { Link } from "react-router";
+} from "#/components/Tooltip/Tooltip";
+import type { Theme } from "#/theme";
+import { useTheme } from "#/theme/context";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,
@@ -48,7 +49,7 @@ type ResourcesChartProps = {
 	onBack: () => void;
 };
 
-export const ResourcesChart: FC<ResourcesChartProps> = ({
+export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 	stage,
 	timings,
 	onBack,

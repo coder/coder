@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder oauth2-provider dcr
+
+  Manage OAuth2 dynamic client registration (RFC 7591)
+
+SUBCOMMANDS:
+    disable    Disable OAuth2 dynamic client registration
+    enable     Enable OAuth2 dynamic client registration
+
+———
+Run `coder --help` for a list of global options.

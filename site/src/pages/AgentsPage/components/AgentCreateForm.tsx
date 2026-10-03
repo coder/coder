@@ -1,0 +1,935 @@
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useQuery } from "react-query";
+import { toast } from "sonner";
+import { isApiError } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import {
+	chatModels,
+	mcpServerConfigs,
+	userChatPersonalModelOverrides,
+} from "#/api/queries/chats";
+import { permittedOrganizations } from "#/api/queries/organizations";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { getWorkspaceAgents } from "#/utils/workspace";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	useWorkspaceFileUploads,
+	type WorkspaceFileUpload,
+} from "../hooks/useWorkspaceFileUploads";
+import { parseStoredDraft } from "../utils/draftStorage";
+import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "../utils/mcpSelection";
+import {
+	countConfiguredProviderConfigs,
+	getModelSelectorPlaceholder,
+	getProviderForModelOption,
+	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
+	hasUserFixableProviders,
+	resolveModelSelector,
+} from "../utils/modelOptions";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
+import { AgentChatInput } from "./AgentChatInput";
+import { useAutomationsEnabled } from "./Automations/automationsFlag";
+import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
+import {
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
+} from "./ChatConversation/chatError";
+import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
+import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
+import { getModelSelectorHelp } from "./ModelSelectorHelp";
+
+/** @internal Exported for testing. */
+export const emptyInputStorageKey = "agents.empty-input";
+/** @internal Exported for testing. */
+export const selectedOrganizationIdStorageKey =
+	"agents.selected-organization-id";
+const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+// Deferred uploads need a selected workspace with a connected agent;
+// the same copy covers attaching without one and submitting after a
+// same-workspace status flap.
+const workspaceUploadUnavailableMessage =
+	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
+const attachDuringSubmitMessage =
+	"Wait for the current message to finish sending, then add the file again.";
+
+export type CreateChatOptions = {
+	message: string;
+	fileIDs?: string[];
+	workspaceId?: string;
+	model?: string;
+	reasoningEffort?: string;
+	mcpServerIds?: string[];
+	organizationId: string;
+	planMode?: TypesGen.ChatPlanMode;
+	manageAutomationsEnabled: boolean;
+	// When present, the submit carries files destined for the chat's
+	// workspace. The page creates the chat without content, runs this
+	// callback to upload against the new chat ID, then sends the first
+	// message with the returned references.
+	uploadWorkspaceFiles?: (
+		chatId: string,
+	) => Promise<readonly WorkspaceFileUpload[]>;
+};
+
+/**
+ * Prefilled content for a chat opened from a deep link. The form reads it on
+ * mount (remount with a new `key` to change it), uploads any attachment
+ * without sending, and neither reads nor writes the saved draft or
+ * attachments.
+ */
+export type AgentCreatePrefill = {
+	message: string;
+	attachment?: {
+		name: string;
+		text: string;
+	};
+	/** Shown in the composer until the user edits the message or sends it. */
+	warning?: string;
+};
+
+/**
+ * Persists the empty-state input to localStorage so the draft survives
+ * reloads.
+ *
+ * `submitDraft` removes the stored draft and stops persisting until
+ * `resetDraft` (e.g. after a failed send).
+ *
+ * When `prefilledText` is given, it is the initial value and the stored
+ * draft is neither read nor modified.
+ *
+ * @internal Exported for testing.
+ */
+export function useEmptyStateDraft(prefilledText?: string) {
+	const [{ initialInputValue, initialEditorState }] = useState(() => {
+		if (prefilledText !== undefined) {
+			return {
+				initialInputValue: prefilledText,
+				initialEditorState: undefined,
+			};
+		}
+		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		return {
+			initialInputValue: draft.text,
+			initialEditorState: draft.editorState,
+		};
+	});
+	const inputValueRef = useRef(initialInputValue);
+	const sentRef = useRef(false);
+	const persists = prefilledText === undefined;
+
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
+		inputValueRef.current = content;
+		if (persists && !sentRef.current) {
+			const shouldPersist = content.trim() || hasFileReferences;
+			if (shouldPersist) {
+				try {
+					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+				} catch {
+					// QuotaExceededError, silently discard the draft.
+				}
+			} else {
+				localStorage.removeItem(emptyInputStorageKey);
+			}
+		}
+	};
+
+	const submitDraft = () => {
+		// Mark as sent so that editor change events firing during
+		// the async gap cannot re-persist the draft.
+		sentRef.current = true;
+		if (persists) {
+			localStorage.removeItem(emptyInputStorageKey);
+		}
+	};
+
+	const resetDraft = () => {
+		sentRef.current = false;
+	};
+
+	const getCurrentContent = () => inputValueRef.current;
+
+	return {
+		initialInputValue,
+		initialEditorState,
+		getCurrentContent,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	};
+}
+
+type AgentCreateFormProps = {
+	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	isCreating: boolean;
+	createError: unknown;
+	canCreateChat: boolean;
+	canConfigureAgentSetup: boolean;
+	aiGatewayDisabled?: boolean;
+	workspaceCount: number | undefined;
+	workspaceOptions: readonly TypesGen.Workspace[];
+	workspacesError: unknown;
+	isWorkspacesLoading: boolean;
+	prefill?: AgentCreatePrefill;
+};
+
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
+	onCreateChat,
+	isCreating,
+	createError,
+	canCreateChat,
+	canConfigureAgentSetup,
+	aiGatewayDisabled,
+	workspaceCount: _workspaceCount,
+	workspaceOptions,
+	workspacesError,
+	isWorkspacesLoading,
+	prefill,
+}) => {
+	const { organizations, showOrganizations } = useDashboard();
+	const {
+		initialInputValue,
+		initialEditorState,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	} = useEmptyStateDraft(prefill?.message);
+	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
+	// effectiveWorkspaceId nulls a stored selection outside the effective org's
+	// filtered workspace list without deleting it. Preserve the stored value
+	// because the permitted-organizations query may resolve after mount and
+	// change the effective org.
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+	);
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		() => {
+			const storedOrganizationId = localStorage.getItem(
+				selectedOrganizationIdStorageKey,
+			);
+			return (
+				organizations.find(
+					(organization) => organization.id === storedOrganizationId,
+				) ?? null
+			);
+		},
+	);
+	const [pendingOrgChange, setPendingOrgChange] =
+		useState<TypesGen.Organization | null>(null);
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
+	);
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			// "me" resolves to the caller ID for owner-scoped permissions.
+			object: { resource_type: "chat", owner_id: "me" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	// Disabled queries retain cached data. When the dashboard hides organization
+	// selection, its organization list is authoritative so a removed org cannot
+	// remain selected for submission.
+	const permittedOrgs = showOrganizations
+		? (permittedOrgsQuery.data ?? [])
+		: organizations;
+	// Treat the dashboard org as provisional until permissions resolve so
+	// sends and persisted attachments cannot use an unpermitted org.
+	const orgSelectionSettled =
+		!showOrganizations || permittedOrgsQuery.data !== undefined;
+	// Keep an authoritative empty permission set distinct from pending data.
+	const noPermittedOrgs =
+		showOrganizations && permittedOrgsQuery.data?.length === 0;
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	// Clear invalid selections during render so re-permission cannot silently
+	// restore them and switch attachment state. effectiveOrg already ignores
+	// the invalid selection in this render.
+	if (selectedOrg && orgSelectionSettled && !selectedOrgIsPermitted) {
+		setSelectedOrg(null);
+	}
+	// Same rule for a pending change awaiting confirmation: closing the
+	// dialog prevents confirming into an org that was just revoked.
+	if (
+		pendingOrgChange &&
+		orgSelectionSettled &&
+		!permittedOrgs.some((org) => org.id === pendingOrgChange.id)
+	) {
+		setPendingOrgChange(null);
+	}
+	const effectiveOrg =
+		selectedOrg && selectedOrgIsPermitted
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				null);
+	const organizationId = effectiveOrg?.id ?? "";
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the MCP list resolves would silently drop default-on
+	// selections. Gate on missing data, not isSuccess: a failed background
+	// refetch flips isSuccess off while cached data stays usable.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && mcpServersQuery.data === undefined;
+	// Adopt a permitted fallback so later refetches cannot switch the form to a
+	// re-permitted default. The permission guard also avoids a render loop.
+	if (
+		orgSelectionSettled &&
+		!selectedOrg &&
+		effectiveOrg &&
+		permittedOrgs.some((org) => org.id === effectiveOrg.id)
+	) {
+		setSelectedOrg(effectiveOrg);
+	}
+	// Clear a workspace after a settled org change, before its localStorage value
+	// is cleared post-commit. An empty permission set has no selectable org, so
+	// preserve the workspace until its org is re-permitted.
+	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	if (
+		orgSelectionSettled &&
+		!noPermittedOrgs &&
+		organizationId !== lastSettledOrgId
+	) {
+		setLastSettledOrgId(organizationId);
+		if (lastSettledOrgId !== null) {
+			setSelectedWorkspaceId(null);
+			setUserMCPServerIds(null);
+		}
+	}
+	useEffect(() => {
+		if (!orgSelectionSettled) {
+			return;
+		}
+		if (selectedOrg) {
+			localStorage.setItem(selectedOrganizationIdStorageKey, selectedOrg.id);
+		} else {
+			localStorage.removeItem(selectedOrganizationIdStorageKey);
+		}
+	}, [orgSelectionSettled, selectedOrg]);
+	useEffect(() => {
+		if (selectedWorkspaceId === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		}
+	}, [selectedWorkspaceId]);
+	const modelsQuery = useQuery(chatModels(organizationId));
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const organizationRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
+	const effectiveRootPersonalModelOverride =
+		organizationRootPersonalModelOverride;
+	// A failed overrides fetch must keep the form blocked: submitting with an
+	// undefined override would send a catalog fallback as an explicit
+	// model_config_id, silently bypassing the user's saved root override.
+	const isPersonalModelOverridesUnresolved =
+		organizationId !== "" && personalModelOverridesQuery.data === undefined;
+	const availableModelConfigs = modelsQuery.data?.models ?? [];
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canConfigureAgentSetup,
+	});
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(organizationId, modelsQuery);
+	const modelConfigs = availableModelConfigs;
+	/*
+	 * Model precedence: user click > root override (specific model) > root
+	 * override (chat_default, resolved) > default > first available.
+	 */
+	const defaultModelID = getUsableDefaultModelIDForOrganization(
+		modelConfigs,
+		modelOptions,
+		organizationId,
+	);
+	const isUsableRootPersonalOverride =
+		effectiveRootPersonalModelOverride?.is_set === true;
+	const rootOverrideModelID =
+		isUsableRootPersonalOverride &&
+		effectiveRootPersonalModelOverride.mode === "model" &&
+		modelOptions.some(
+			(option) =>
+				option.id === effectiveRootPersonalModelOverride.model_config_id,
+		)
+			? effectiveRootPersonalModelOverride.model_config_id
+			: "";
+	const isRootOverrideChatDefault =
+		isUsableRootPersonalOverride &&
+		effectiveRootPersonalModelOverride.mode === "chat_default";
+	const rootOverrideDisplayModelID = isRootOverrideChatDefault
+		? defaultModelID || (modelOptions[0]?.id ?? "")
+		: rootOverrideModelID;
+	const fallbackModelID = defaultModelID || (modelOptions[0]?.id ?? "");
+	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
+	const [userSelectedModel, setUserSelectedModel] = useState("");
+	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	const hasValidUserSelectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
+	// Derive the effective model every render so we never reference
+	// a stale model id and can honor fallback precedence.
+	const selectedModel = hasValidUserSelectedModel
+		? userSelectedModel
+		: preferredModelID;
+	const submittedModel = (() => {
+		if (hasValidUserSelectedModel) {
+			return userSelectedModel;
+		}
+		if (rootOverrideModelID) {
+			return rootOverrideModelID;
+		}
+		return selectedModel || undefined;
+	})();
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? effectiveRootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
+	const effectiveReasoningEffort = selectedModelOption
+		? pickReasoningEffort(
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
+				selectedModelOption.reasoningEfforts ?? [],
+				selectedModelOption.reasoningEffortDefault,
+			)
+		: undefined;
+	const [planModeEnabled, setPlanModeEnabled] = useState(false);
+	const automationsExperimentEnabled = useAutomationsEnabled();
+	const [manageAutomationsEnabled, setManageAutomationsEnabled] =
+		useState(false);
+	const hasModelOptions = modelOptions.length > 0;
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	// Treat the unsettled-organization window as pending so the model selector
+	// keeps its loading state instead of flashing the provisional organization's
+	// catalog before permissions resolve.
+	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
+	const isForbidden = !canCreateChat || noPermittedOrgs;
+	// A forbidden user may have no organization to read models from, and the
+	// catalog-based placeholder would then wrongly report that none exist.
+	const modelSelectorPlaceholder = isForbidden
+		? "Select model"
+		: getModelSelectorPlaceholder(
+				modelOptions,
+				isModelDataPending,
+				hasConfiguredModels,
+				modelCatalog,
+			);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading: isModelDataPending,
+		hasModelOptions,
+		hasConfiguredModels,
+		hasUserFixableModelProviders,
+	});
+	const providerCount =
+		canConfigureAgentSetup && chatProviderConfigsQuery.data && modelsQuery.data
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					modelsQuery.data,
+				)
+			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		modelsQuery.data,
+	);
+
+	const effectiveMCPServerIds = (() => {
+		if (userMCPServerIds !== null) {
+			return userMCPServerIds;
+		}
+		const saved = getSavedMCPSelection(
+			organizationId,
+			mcpServers,
+			effectiveOrg?.is_default,
+		);
+		if (saved !== null) {
+			return saved;
+		}
+		return getDefaultMCPSelection(mcpServers);
+	})();
+	const handleWorkspaceChange = (value: string | null) => {
+		if (value === null) {
+			setSelectedWorkspaceId(null);
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			return;
+		}
+		setSelectedWorkspaceId(value);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+	};
+
+	const selectOrganization = (organization: TypesGen.Organization) => {
+		setUserMCPServerIds(null);
+		setSelectedOrg(organization);
+	};
+
+	const handleModelChange = (value: string) => {
+		setHasUserSelectedModel(true);
+		setUserSelectedModel(value);
+	};
+
+	// Filter workspaces by the selected organization. We use
+	// client-side filtering of the full "owner:me" fetch rather
+	// than re-querying with an org filter because it avoids
+	// extra loading/error states on org change. The full list is
+	// already small (user's own workspaces) and limit: 0
+	// guarantees completeness. If workspace counts grow large
+	// enough to warrant pagination, this should switch to a
+	// server-side organization:<name> query filter.
+	const filteredWorkspaces = showOrganizations
+		? effectiveOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
+			: []
+		: workspaceOptions;
+
+	const effectiveWorkspaceId =
+		selectedWorkspaceId !== null &&
+		(isWorkspacesLoading ||
+			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
+			? selectedWorkspaceId
+			: null;
+	// A stored workspace cannot be validated against the effective org
+	// until the list loads; sending then would silently drop the
+	// association, so Send stays disabled instead.
+	const workspaceValidationPending =
+		selectedWorkspaceId !== null && isWorkspacesLoading;
+
+	const {
+		organizationAdopted,
+		attachments,
+		textContents,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment,
+		resetAttachments,
+	} = useFileAttachments(
+		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
+		// that would prune attachments persisted for other orgs.
+		orgSelectionSettled && !noPermittedOrgs
+			? organizationId || undefined
+			: undefined,
+		{
+			// persist also restores saved draft files into this send.
+			persist: prefill === undefined,
+			provider: getProviderForModelOption(modelOptions, selectedModel),
+		},
+	);
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
+	// Deferred uploads eventually hit the same agent endpoint as the
+	// chat view, which rejects unless the agent is connected. No chat
+	// exists yet to carry the server-selected agent ID, so gate the
+	// affordance on any connected root agent: a stopped workspace then
+	// fails at attach time instead of after creating a chat destined
+	// for an upload failure, and the rare mismatch with the server's
+	// pick still surfaces as an upload error on submit.
+	const selectedWorkspace = filteredWorkspaces.find(
+		(ws) => ws.id === effectiveWorkspaceId,
+	);
+	const canUploadWorkspaceFiles =
+		selectedWorkspace !== undefined &&
+		getWorkspaceAgents(selectedWorkspace).some(
+			(agent) => !agent.parent_id && agent.status === "connected",
+		);
+
+	const handleSend = async (
+		message: string,
+		fileIDs?: string[],
+		uploadWorkspaceFiles?: CreateChatOptions["uploadWorkspaceFiles"],
+	) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+			// The experiments query refetches while the form stays mounted, so the
+			// experiment can turn off after the user enabled the toggle.
+			manageAutomationsEnabled:
+				automationsExperimentEnabled && manageAutomationsEnabled,
+			uploadWorkspaceFiles,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
+
+	// Deferred workspace uploads: no chat exists yet, so files queue
+	// locally and upload during submit against the just-created chat.
+	// Scope arguments stay undefined so workspace switches never drop
+	// the queue; queued files carry no uploaded bytes and target
+	// whichever workspace is bound at submit time.
+	const workspaceUploads = useWorkspaceFileUploads(undefined, undefined);
+	const {
+		uploads: workspaceUploadEntries,
+		reset: resetWorkspaceUploads,
+		uploadQueued: uploadQueuedWorkspaceFiles,
+	} = workspaceUploads;
+	// Locks the composer from submit until the page navigates away, which
+	// spans more than the create mutation's pending window. The ref blocks
+	// a second submit or attach landing before the state update renders;
+	// only a failed submit releases either, since success navigates.
+	const [isSubmitSequencePending, setIsSubmitSequencePending] = useState(false);
+	const submitInFlightRef = useRef(false);
+	const isSubmitPending = isCreating || isSubmitSequencePending;
+
+	// Workspace files can only upload into a workspace whose agent is
+	// connected. An explicit scope change that loses that (deselecting,
+	// an org change, or switching to a stopped workspace) drops the
+	// queued files; keeping them would let a submit create an idle chat
+	// whose uploads are guaranteed to fail. A status flap on the same
+	// workspace (a passive refetch reporting the agent disconnected)
+	// keeps the queue and only blocks submit until it reconnects: the
+	// queued File objects cannot be restored once dropped.
+	const workspaceUploadCount = workspaceUploadEntries.length;
+	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
+	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
+	useEffect(() => {
+		if (
+			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
+		) {
+			return;
+		}
+		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
+		if (canUploadWorkspaceFiles || workspaceUploadCount === 0) {
+			return;
+		}
+		resetWorkspaceUploads();
+		toast.warning(
+			workspaceUploadCount === 1
+				? "Removed 1 file that uploads to the workspace"
+				: `Removed ${workspaceUploadCount} files that upload to the workspace`,
+		);
+	}, [
+		workspaceUploadScopeKey,
+		canUploadWorkspaceFiles,
+		workspaceUploadCount,
+		resetWorkspaceUploads,
+	]);
+
+	const handleAttachWhenIdle = (files: File[]) => {
+		if (submitInFlightRef.current) {
+			toast.error(attachDuringSubmitMessage);
+			return;
+		}
+		handleAttach(files);
+	};
+
+	const handleSendWithAttachments = async (message: string) => {
+		if (submitInFlightRef.current) {
+			return;
+		}
+		if (workspaceUploadCount > 0 && !canUploadWorkspaceFiles) {
+			toast.error(workspaceUploadUnavailableMessage);
+			return;
+		}
+		submitInFlightRef.current = true;
+		setIsSubmitSequencePending(true);
+		const fileIds: string[] = [];
+		let skippedErrors = 0;
+		for (const file of attachments) {
+			const state = uploadStates.get(file);
+			if (state?.status === "error") {
+				skippedErrors++;
+				continue;
+			}
+			if (state?.status === "uploaded" && state.fileId) {
+				fileIds.push(state.fileId);
+			}
+		}
+		if (skippedErrors > 0) {
+			toast.warning(
+				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+			);
+		}
+		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		// Deferred workspace files ride along: hand the page an upload
+		// callback bound to this hook. It re-uploads every entry, so a
+		// retry after failure targets the fresh chat.
+		const uploadWorkspaceFiles =
+			workspaceUploadEntries.length > 0
+				? uploadQueuedWorkspaceFiles
+				: undefined;
+		try {
+			await handleSend(message, fileArg, uploadWorkspaceFiles);
+		} catch {
+			// Attachments and queued files preserved for retry.
+			submitInFlightRef.current = false;
+			setIsSubmitSequencePending(false);
+			return;
+		}
+		resetAttachments();
+		resetWorkspaceUploads();
+	};
+
+	const [prefillFile] = useState(() =>
+		prefill?.attachment
+			? new File([prefill.attachment.text], prefill.attachment.name, {
+					type: "text/plain",
+				})
+			: null,
+	);
+	// Attached once, after adoption, because adoption replaces the attachment
+	// list. An org change after that drops the logs, and they are not attached
+	// again.
+	const prefillAttachRequestedRef = useRef(false);
+	const attachPrefillFile = useEffectEvent((file: File) => {
+		handleAttach([file]);
+	});
+	const canAttachPrefillFile = organizationAdopted && !isForbidden;
+	useEffect(() => {
+		if (
+			prefillFile &&
+			canAttachPrefillFile &&
+			!prefillAttachRequestedRef.current
+		) {
+			prefillAttachRequestedRef.current = true;
+			attachPrefillFile(prefillFile);
+		}
+	}, [prefillFile, canAttachPrefillFile]);
+
+	return (
+		<>
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+					{isForbidden ? (
+						<ChatAccessDeniedAlert />
+					) : createError ? (
+						isApiError(createError) &&
+						createError.response.status === 502 &&
+						isChatHookDispatchFailedResponse(createError.response.data) ? (
+							<Alert severity="error">
+								<AlertTitle>
+									{getErrorTitle("hook_dispatch_failed", "error")}
+								</AlertTitle>
+								<AlertDescription>
+									<span>{createError.response.data.message}</span>
+									{createError.response.data.detail && (
+										<span className="mt-1 block text-content-secondary">
+											{createError.response.data.detail}
+										</span>
+									)}
+								</AlertDescription>
+							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 403 &&
+							isChatHookDeniedResponse(createError.response.data) ? (
+							<Alert severity="info">
+								<AlertDescription>
+									{createError.response.data.message}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<ErrorAlert error={createError} />
+						)
+					) : null}
+					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{mcpServersQuery.data === undefined &&
+						mcpServersQuery.error != null && (
+							<ErrorAlert error={mcpServersQuery.error} />
+						)}
+					{permittedOrgsQuery.error != null && (
+						<ErrorAlert error={permittedOrgsQuery.error} />
+					)}
+					{modelsQuery.error != null && (
+						<ErrorAlert error={modelsQuery.error} />
+					)}
+					{personalModelOverridesQuery.error != null && (
+						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
+					{showOrganizations &&
+						orgSelectionSettled &&
+						permittedOrgs.length > 1 && (
+							<CompactOrgSelector
+								value={effectiveOrg}
+								options={permittedOrgs}
+								disabled={isSubmitPending}
+								onChange={(newOrg) => {
+									const orgChanged = newOrg.id !== effectiveOrg?.id;
+									// Queued workspace files are dropped alongside DB
+									// attachments when the org changes (the workspace
+									// deselect effect clears them), so they get the
+									// same confirmation.
+									if (
+										orgChanged &&
+										(attachments.length > 0 || workspaceUploadCount > 0)
+									) {
+										setPendingOrgChange(newOrg);
+										return;
+									}
+									if (orgChanged) {
+										handleWorkspaceChange(null);
+										selectOrganization(newOrg);
+										return;
+									}
+									setSelectedOrg(newOrg);
+								}}
+							/>
+						)}
+					<AgentChatInput
+						onSend={handleSendWithAttachments}
+						placeholder="Ask Coder to build, fix bugs, or explore your project..."
+						isDisabled={
+							isSubmitPending ||
+							isForbidden ||
+							!orgSelectionSettled ||
+							// Sending before adoption would omit persisted files not yet restored.
+							!organizationAdopted ||
+							workspaceValidationPending ||
+							isPersonalModelOverridesUnresolved ||
+							isMCPSelectionUnresolved ||
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
+						}
+						isReadOnly={isForbidden}
+						isLoading={isSubmitPending}
+						initialValue={initialInputValue}
+						initialEditorState={initialEditorState}
+						onContentChange={(content, serializedEditorState, hasRefs) => {
+							if (content !== prefill?.message) {
+								setIsPrefillEdited(true);
+							}
+							handleContentChange(content, serializedEditorState, hasRefs);
+						}}
+						warning={isPrefillEdited ? undefined : prefill?.warning}
+						selectedModel={selectedModel}
+						onModelChange={handleModelChange}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						reasoningEffort={effectiveReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
+						isModelCatalogLoading={isModelDataPending}
+						hasModelOptions={hasModelOptions}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={setPlanModeEnabled}
+						manageAutomationsEnabled={manageAutomationsEnabled}
+						onManageAutomationsToggle={
+							automationsExperimentEnabled
+								? setManageAutomationsEnabled
+								: undefined
+						}
+						attachments={attachments}
+						// Files attached before org adoption cannot upload and would be discarded
+						// when restoration completes.
+						onAttach={organizationAdopted ? handleAttachWhenIdle : undefined}
+						onRemoveAttachment={handleRemoveAttachment}
+						uploadStates={uploadStates}
+						previewUrls={previewUrls}
+						textContents={textContents}
+						workspaceUploads={{
+							uploads: workspaceUploadEntries,
+							onAttach: canUploadWorkspaceFiles
+								? workspaceUploads.attach
+								: undefined,
+							onRemove: workspaceUploads.remove,
+							unavailableMessage: workspaceUploadUnavailableMessage,
+							deferred: true,
+						}}
+						mcpServers={mcpServers}
+						chatOrganizationId={organizationId}
+						selectedMCPServerIds={effectiveMCPServerIds}
+						onMCPSelectionChange={(ids) => {
+							setUserMCPServerIds(ids);
+							saveMCPSelection(organizationId, ids);
+						}}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
+						workspaceOptions={filteredWorkspaces}
+						selectedWorkspaceId={effectiveWorkspaceId}
+						// Do not persist a workspace until its organization is authorized.
+						onWorkspaceChange={
+							orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
+								? handleWorkspaceChange
+								: undefined
+						}
+						isWorkspaceLoading={isWorkspacesLoading}
+						canConfigureAgentSetup={canConfigureAgentSetup}
+						providerCount={providerCount}
+						modelCount={modelCount}
+						unsupportedProviderNames={unsupportedProviderNames}
+						aiGatewayDisabled={aiGatewayDisabled}
+					/>
+					{modelSelectorHelp ? (
+						<div className="px-3 pt-1 text-2xs text-content-secondary">
+							{modelSelectorHelp}
+						</div>
+					) : null}
+				</div>
+			</div>
+			<ConfirmDialog
+				open={pendingOrgChange !== null}
+				title="Change organization?"
+				description="Changing organization will remove your current attachments."
+				type="info"
+				hideCancel={false}
+				confirmText="Continue"
+				onConfirm={() => {
+					if (!pendingOrgChange) {
+						return;
+					}
+					setPendingOrgChange(null);
+					// Recheck authorization because a refetch may revoke the pending org
+					// after this render created the closure.
+					if (!permittedOrgs.some((org) => org.id === pendingOrgChange.id)) {
+						return;
+					}
+					resetAttachments();
+					handleWorkspaceChange(null);
+					selectOrganization(pendingOrgChange);
+				}}
+				onClose={() => setPendingOrgChange(null)}
+			/>
+		</>
+	);
+};

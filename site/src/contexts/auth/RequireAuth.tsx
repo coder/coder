@@ -1,11 +1,11 @@
-import { API } from "api/api";
-import { isApiError } from "api/errors";
-import { Loader } from "components/Loader/Loader";
-import { ProxyProvider as ProductionProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider as ProductionDashboardProvider } from "modules/dashboard/DashboardProvider";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
-import { embedRedirect } from "utils/redirect";
+import { API } from "#/api/api";
+import { isApiError } from "#/api/errors";
+import { Loader } from "#/components/Loader/Loader";
+import { ProxyProvider as ProductionProxyProvider } from "#/contexts/ProxyContext";
+import { DashboardProvider as ProductionDashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import { embedRedirect } from "#/utils/redirect";
 import { useAuthContext } from "./AuthProvider";
 
 type RequireAuthProps = Readonly<{
@@ -21,7 +21,7 @@ type RequireAuthProps = Readonly<{
  * props at all. But to make testing easier, you can call this component with
  * specific providers to mock them out.
  */
-export const RequireAuth: FC<RequireAuthProps> = ({
+export const RequireAuth: React.FC<RequireAuthProps> = ({
 	DashboardProvider = ProductionDashboardProvider,
 	ProxyProvider = ProductionProxyProvider,
 }) => {

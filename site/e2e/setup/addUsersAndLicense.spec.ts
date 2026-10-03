@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API } from "api/api";
-import { Language } from "pages/CreateUserPage/Language";
+import { API } from "#/api/api";
 import { coderPort, license, premiumTestsRequired, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { createUser } from "../helpers";
@@ -16,12 +15,14 @@ test("setup deployment", async ({ page }) => {
 	}
 
 	// Setup first user
-	await page.getByLabel(Language.emailLabel).fill(users.owner.email);
-	await page.getByLabel(Language.passwordLabel).fill(users.owner.password);
+	await page.getByLabel("Email").fill(users.owner.email);
+	await page.getByLabel("Password").fill(users.owner.password);
 	await page.getByTestId("create").click();
 
-	await expectUrl(page).toHavePathName("/templates");
-	await page.getByTestId("button-select-template").isVisible();
+	await expectUrl(page).toHavePathName("/templates/new/builder");
+	await expect(
+		page.getByRole("heading", { name: "Create new template" }),
+	).toBeVisible();
 
 	for (const user of Object.values(users)) {
 		// Already created as first user
@@ -47,7 +48,7 @@ test("setup deployment", async ({ page }) => {
 		await page.getByText("Upload License").click();
 
 		await expect(
-			page.getByText("You have successfully added a license"),
+			page.getByText("You have successfully added a license."),
 		).toBeVisible();
 	}
 });

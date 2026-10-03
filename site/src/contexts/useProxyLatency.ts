@@ -1,11 +1,11 @@
-import { API } from "api/api";
-import type { Region } from "api/typesGenerated";
 import { useEffect, useReducer, useState } from "react";
-import { generateRandomString } from "utils/random";
+import { API } from "#/api/api";
+import type { Region } from "#/api/typesGenerated";
+import { generateRandomBase64String } from "#/utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
 
-export interface ProxyLatencyReport {
+export type ProxyLatencyReport = {
 	// accurate identifies if the latency was calculated using the
 	// PerformanceResourceTiming API. If this is false, then the
 	// latency is calculated using the total duration of the request
@@ -19,14 +19,14 @@ export interface ProxyLatencyReport {
 	 * https://developer.mozilla.org/docs/Web/API/PerformanceResourceTiming/nextHopProtocol
 	 */
 	nextHopProtocol?: string;
-}
+};
 
-interface ProxyLatencyAction {
+type ProxyLatencyAction = {
 	proxyID: string;
 	// cached indicates if the latency was loaded from a cache (local storage)
 	cached: boolean;
 	report: ProxyLatencyReport;
-}
+};
 
 const proxyLatenciesReducer = (
 	state: Record<string, ProxyLatencyReport>,
@@ -133,7 +133,7 @@ export const useProxyLatency = (
 				// Add a random query param to the url to make sure we don't get a cached response.
 				// This is important in case there is some caching layer between us and the proxy.
 				const url = new URL(
-					`/latency-check?cache_bust=${generateRandomString(6)}`,
+					`/latency-check?cache_bust=${generateRandomBase64String(6)}`,
 					proxy.path_app_url,
 				);
 				acc[url.toString()] = proxy;

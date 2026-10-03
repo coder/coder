@@ -31,7 +31,7 @@ func (api *API) shouldBlockNonBrowserConnections(rw http.ResponseWriter) bool {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param agent path string true "Agent name"
 // @Success 200 {object} codersdk.ExternalAgentCredentials
-// @Router /workspaces/{workspace}/external-agent/{agent}/credentials [get]
+// @Router /api/v2/workspaces/{workspace}/external-agent/{agent}/credentials [get]
 func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)

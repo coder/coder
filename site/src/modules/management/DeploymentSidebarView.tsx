@@ -1,32 +1,28 @@
-import type { BuildInfoResponse, Experiment } from "api/typesGenerated";
+import { ArrowUpRightIcon } from "lucide-react";
+import type { BuildInfoResponse } from "#/api/typesGenerated";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
-} from "components/Sidebar/Sidebar";
-import { Stack } from "components/Stack/Stack";
-import { ArrowUpRight } from "lucide-react";
-import type { Permissions } from "modules/permissions";
-import type { FC } from "react";
-import { isDevBuild } from "utils/buildInfo";
+} from "#/components/Sidebar/Sidebar";
+import type { Permissions } from "#/modules/permissions";
 
-interface DeploymentSidebarViewProps {
+type DeploymentSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	showOrganizations: boolean;
-	hasPremiumLicense: boolean;
-	experiments: Experiment[];
+	hidePremiumTab: boolean;
 	buildInfo: BuildInfoResponse;
-}
+};
 
 /**
  * Displays navigation for deployment settings.  If active, highlight the main
  * menu heading.
  */
-export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
+export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 	permissions,
 	showOrganizations,
-	hasPremiumLicense,
-	experiments,
+	hidePremiumTab,
 	buildInfo,
 }) => {
 	return (
@@ -53,12 +49,11 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						External Authentication
 					</SidebarNavItem>
 				)}
-				{permissions.viewDeploymentConfig &&
-					(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
-						<SidebarNavItem href="/deployment/oauth2-provider/apps">
-							OAuth2 Applications
-						</SidebarNavItem>
-					)}
+				{permissions.viewDeploymentConfig && buildInfo.oauth2_provider && (
+					<SidebarNavItem href="/deployment/oauth2-provider/apps">
+						OAuth2 Applications
+					</SidebarNavItem>
+				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/network">Network</SidebarNavItem>
 				)}
@@ -75,14 +70,15 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						Observability
 					</SidebarNavItem>
 				)}
+
 				{permissions.viewAllUsers && (
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<Stack direction="row" alignItems="center" spacing={0.5}>
-							Groups {showOrganizations && <ArrowUpRight size={16} />}
-						</Stack>
+						<div className="flex flex-row items-center gap-1">
+							Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
+						</div>
 					</SidebarNavItem>
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (
@@ -97,8 +93,10 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						</div>
 					</SidebarNavItem>
 				)}
-				{!hasPremiumLicense && (
-					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
+				{!hidePremiumTab && (
+					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
+						Trial Upgrade
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

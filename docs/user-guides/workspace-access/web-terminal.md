@@ -1,4 +1,6 @@
-# Web Terminal
+---
+title: Web Terminal
+---
 
 The Web Terminal is a browser-based terminal interface that provides instant
 access to your workspace's shell environment directly from the Coder dashboard.
@@ -15,7 +17,7 @@ and feature-rich terminal experience in your browser.
 
 ### Key Features
 
-- **Instant Access**: Click the terminal icon in your workspace to open a shell
+- **Instant Access**: Select the terminal icon in your workspace to open a shell
   session
 - **Persistent Sessions**: Sessions are maintained using reconnection tokens,
   allowing you to resume your terminal even after page refreshes or network
@@ -27,12 +29,14 @@ and feature-rich terminal experience in your browser.
 - **Multiple Rendering Options**: Choose between different rendering engines for
   optimal performance
 
-## Accessing the Terminal
+<a id="accessing-the-terminal"></a>
+
+## Access the terminal
 
 ### From the Dashboard
 
 1. Navigate to your workspace in the Coder dashboard
-2. Click the **Terminal** button or icon
+2. Select the **Terminal** button or icon
 3. The terminal will open in a new browser tab or window
 
 The terminal automatically connects to your workspace agent using an optimized
@@ -42,13 +46,13 @@ WebSocket connection.
 
 You can also bookmark or share direct terminal URLs:
 
-```text
+```txt
 https://coder.example.com/@username/workspace-name/terminal
 ```
 
 To access a specific agent in a multi-agent workspace:
 
-```text
+```txt
 https://coder.example.com/@username/workspace-name.agent-name/terminal
 ```
 
@@ -61,11 +65,11 @@ workspace:
 
 1. **Browser**: Renders the terminal using xterm.js
 2. **WebSocket**: Maintains a persistent, low-latency connection
-3. **Coder Server**: Routes traffic between browser and workspace
+3. **Control plane**: Routes traffic between browser and workspace
 4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
 5. **Shell Process**: Your actual bash/zsh/fish shell
 
-The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Agent ↔ Shell Process
+The connection flow is: Browser ↔ WebSocket ↔ Control plane ↔ Workspace Agent ↔ Shell Process
 
 ### Reconnection & Persistence
 
@@ -82,10 +86,11 @@ The terminal uses reconnection tokens to maintain session state:
 
 You can customize the terminal font through your user settings:
 
-1. Click your avatar in the top-right corner
+1. Select your avatar in the top-right corner
 2. Select **Settings** → **Appearance**
 3. Choose from available fonts:
-   - **IBM Plex Mono** (default)
+   - **Geist Mono** (default)
+   - **IBM Plex Mono**
    - **Fira Code** (with ligatures)
    - **JetBrains Mono**
    - **Source Code Pro**
@@ -103,7 +108,7 @@ webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
 
 Or via environment variable:
 
-```bash
+```sh
 CODER_WEB_TERMINAL_RENDERER=canvas
 ```
 
@@ -114,7 +119,7 @@ CODER_WEB_TERMINAL_RENDERER=canvas
   complex rendering
 - **`dom`**: Fallback option, useful for accessibility tools or older browsers
 
-> **Note:** The renderer setting is deployment-wide and requires a Coder server
+> **Note:** The renderer setting is deployment-wide and requires a control plane
 > restart to take effect.
 
 ## Keyboard Shortcuts
@@ -138,8 +143,8 @@ The Web Terminal supports standard terminal keybindings:
 
 ## URL Handling
 
-The terminal automatically detects URLs and makes them clickable. When you click
-a URL:
+The terminal automatically detects URLs and makes them clickable.
+When you select a URL:
 
 - **External URLs** (e.g., `https://example.com`) open in a new tab
 - **Localhost URLs** (e.g., `http://localhost:3000`) are automatically
@@ -154,24 +159,32 @@ This makes it seamless to open development servers running in your workspace.
 
 You can open a terminal with a specific command by adding a query parameter:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?command=htop
 ```
 
-This will execute `htop` immediately when the terminal opens.
+When a `?command=` parameter is present, a confirmation dialog is shown before
+the command executes. The user must select **Run command** to proceed or
+**Cancel** to close the terminal window. This prevents external links from
+silently executing arbitrary commands in a workspace.
+
+Template-configured apps that use the `command` attribute in
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+are trusted and bypass the confirmation dialog. These apps use the `?app=`
+parameter internally, which resolves the command from the agent's app list.
 
 ### Container Selection
 
 For workspaces with multiple Docker containers, specify which container to
 connect to:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?container=sidecar
 ```
 
 You can also specify the container user:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?container=app&container_user=node
 ```
 
@@ -181,7 +194,7 @@ https://coder.example.com/@user/workspace/terminal?container=app&container_user=
 
 Enable debug information to monitor connection latency:
 
-```text
+```txt
 https://coder.example.com/@user/workspace/terminal?debug
 ```
 
@@ -206,7 +219,7 @@ End-users can customize:
 
 The terminal respects your shell's configuration files:
 
-```bash
+```sh
 # ~/.bashrc or ~/.zshrc
 export PS1="\u@\h:\w\$ "  # Custom prompt
 alias ll="ls -lah"         # Custom aliases

@@ -1,130 +1,80 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import type { TemplateExample } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Pill } from "components/Pill/Pill";
-import type { FC, HTMLAttributes } from "react";
+import { cn } from "cn";
 import { Link as RouterLink } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Link } from "#/components/Link/Link";
 
-type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
+type TemplateExampleCardProps = React.ComponentProps<"div"> & {
 	example: TemplateExample;
 	activeTag?: string;
+	templateBuilderEnabled?: boolean;
 };
 
-export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
+export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	templateBuilderEnabled,
+	className,
 	...divProps
 }) => {
+	const useTemplateLink = templateBuilderEnabled
+		? `/templates/new/builder?base=${example.id}`
+		: `/templates/new?exampleId=${example.id}`;
+
 	return (
-		<div css={styles.card} {...divProps}>
-			<div css={styles.header}>
-				<div css={styles.icon}>
+		<div
+			className={cn(
+				"flex w-[320px] flex-col rounded-md border border-solid border-border p-6 text-left text-inherit",
+				className,
+			)}
+			{...divProps}
+		>
+			<div className="mb-6 flex items-center justify-between">
+				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
-						css={{ width: "100%", height: "100%", objectFit: "contain" }}
+						className="w-full h-full object-contain"
 					/>
 				</div>
 
-				<div css={styles.tags}>
+				<div className="flex flex-wrap justify-end gap-2">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill css={[styles.tag, activeTag === tag && styles.activeTag]}>
+							<Badge
+								variant={activeTag === tag ? "info" : "default"}
+								className="cursor-pointer no-underline hover:border-content-primary"
+							>
 								{tag}
-							</Pill>
+							</Badge>
 						</RouterLink>
 					))}
 				</div>
 			</div>
 
 			<div>
-				<h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
-					{example.name}
-				</h4>
-				<span css={styles.description}>
+				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
+				<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
-						component={RouterLink}
-						to={`/starter-templates/${example.id}`}
-						css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+						size="sm"
+						className="inline-block mt-1 p-0"
+						asChild
+						showExternalIcon={false}
 					>
-						Read more
+						<RouterLink to={`/starter-templates/${example.id}`}>
+							Read more
+						</RouterLink>
 					</Link>
 				</span>
 			</div>
 
-			<div css={styles.useButtonContainer}>
+			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
-						Use template
-					</RouterLink>
+					<RouterLink to={useTemplateLink}>Use template</RouterLink>
 				</Button>
 			</div>
 		</div>
 	);
 };
-
-const styles = {
-	card: (theme) => ({
-		width: "320px",
-		padding: 24,
-		borderRadius: 6,
-		border: `1px solid ${theme.palette.divider}`,
-		textAlign: "left",
-		color: "inherit",
-		display: "flex",
-		flexDirection: "column",
-	}),
-
-	header: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		marginBottom: 24,
-	},
-
-	icon: {
-		flexShrink: 0,
-		paddingTop: 4,
-		width: 32,
-		height: 32,
-	},
-
-	tags: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: 8,
-		justifyContent: "end",
-	},
-
-	tag: (theme) => ({
-		borderColor: theme.palette.divider,
-		textDecoration: "none",
-		cursor: "pointer",
-		"&: hover": {
-			borderColor: theme.palette.primary.main,
-		},
-	}),
-
-	activeTag: (theme) => ({
-		borderColor: theme.roles.active.outline,
-		backgroundColor: theme.roles.active.background,
-	}),
-
-	description: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
-	useButtonContainer: {
-		display: "flex",
-		gap: 12,
-		flexDirection: "column",
-		paddingTop: 24,
-		marginTop: "auto",
-		alignItems: "center",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

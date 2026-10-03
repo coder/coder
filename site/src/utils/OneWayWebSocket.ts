@@ -46,7 +46,7 @@ type OneWayEventCallback<TData, TEvent extends WebSocketEventType> = (
 	payload: OneWayEventPayloadMap<TData>[TEvent],
 ) => void;
 
-interface OneWayWebSocketApi<TData> {
+export type OneWayWebSocketApi<TData> = {
 	get url(): string;
 
 	addEventListener: <TEvent extends WebSocketEventType>(
@@ -60,7 +60,7 @@ interface OneWayWebSocketApi<TData> {
 	) => void;
 
 	close: (closeCode?: number, reason?: string) => void;
-}
+};
 
 type OneWayWebSocketInit = Readonly<{
 	apiRoute: string;
@@ -98,8 +98,13 @@ export class OneWayWebSocket<TData = unknown>
 			websocketInit = defaultInit,
 		} = init;
 
-		if (!apiRoute.startsWith("/api/v2/")) {
-			throw new Error(`API route '${apiRoute}' does not begin with '/api/v2/'`);
+		if (
+			!apiRoute.startsWith("/api/v2/") &&
+			!apiRoute.startsWith("/api/experimental")
+		) {
+			throw new Error(
+				`API route '${apiRoute}' does not begin with '/api/v2/' or '/api/experimental'`,
+			);
 		}
 
 		const formattedParams =

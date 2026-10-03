@@ -1,26 +1,21 @@
-import IconButton from "@mui/material/IconButton";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { useState } from "react";
+import { Button } from "#/components/Button/Button";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 
-const Language = {
-	showLabel: "Show value",
-	hideLabel: "Hide value",
+type SensitiveValueProps = {
+	value: string;
 };
 
-interface SensitiveValueProps {
-	value: string;
-}
-
-export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
+export const SensitiveValue: React.FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);
 	const displayValue = shouldDisplay ? value : "••••••••";
-	const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
+	const buttonLabel = shouldDisplay ? "Hide value" : "Show value";
 	const icon = shouldDisplay ? (
 		<EyeOffIcon className="size-icon-xs" />
 	) : (
@@ -37,16 +32,17 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			</CopyableValue>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
-						className="text-inherit"
+					<Button
 						onClick={() => {
 							setShouldDisplay((value) => !value);
 						}}
-						size="small"
+						size="icon"
+						variant="subtle"
+						className="size-6"
 						aria-label={buttonLabel}
 					>
 						{icon}
-					</IconButton>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">{buttonLabel}</TooltipContent>
 			</Tooltip>

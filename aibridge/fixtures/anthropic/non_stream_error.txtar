@@ -1,0 +1,35 @@
+Simple request + error which occurs before streaming begins (where applicable).
+
+-- request --
+{
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "yo"
+        }
+      ]
+    }
+  ],
+  "model": "claude-sonnet-4-0",
+  "temperature": 1
+}
+
+-- streaming --
+HTTP/2.0 400 Bad Request
+Content-Length: 164
+Content-Type: application/json
+
+{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 205429 tokens > 200000 maximum"},"request_id":"req_011CV5Jab6gR3ZNs9Sj6apiD"}
+
+
+-- non-streaming --
+HTTP/2.0 400 Bad Request
+Content-Length: 164
+Content-Type: application/json
+
+{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 205429 tokens > 200000 maximum"},"request_id":"req_011CV5Jab6gR3ZNs9Sj6apiD"}
+

@@ -9,7 +9,7 @@ tags: [container, kubernetes, devcontainer]
 
 # Remote Development on Kubernetes Pods (with Devcontainers)
 
-Provision Devcontainers as [Coder workspaces](https://coder.com/docs/workspaces) on Kubernetes with this example template.
+Provision Devcontainers as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) on Kubernetes with this example template.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ This template authenticates using a `~/.kube/config`, if present on the server, 
 
 ## Architecture
 
-Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/admin/integrations/devcontainers).
 
 This template provisions the following resources:
 

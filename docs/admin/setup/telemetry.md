@@ -1,4 +1,6 @@
-# Telemetry
+---
+title: Telemetry
+---
 
 > [!NOTE]
 > TL;DR: disable telemetry by setting <code>CODER_TELEMETRY_ENABLE=false</code>.
@@ -10,7 +12,7 @@ the data.
 ## What we collect
 
 You can find a full list of the data we collect in our source code
-[here](https://github.com/coder/coder/blob/main/coderd/telemetry/telemetry.go).
+[here](../../../coderd/telemetry/telemetry.go).
 In particular, look at the struct types such as `Template` or `Workspace`.
 
 As a rule, we **do not collect** the following types of information:
@@ -20,6 +22,8 @@ As a rule, we **do not collect** the following types of information:
 
 For example, we do not collect parameters, environment variables, or user email
 addresses. We do collect the administrator email.
+
+Workspace agent statistics include session counts keyed by normalized application names, which can include custom IDE names that workspace agents report.
 
 ## Why we collect
 
@@ -37,7 +41,9 @@ build self-hosted, open-source software.
 In the event we discover a critical security issue with Coder, we will use
 telemetry to identify affected installations and notify their administrators.
 
-## Toggling
+<a id="toggling"></a>
+
+## Turn telemetry on or off
 
 You can turn telemetry on or off using either the
 `CODER_TELEMETRY_ENABLE=[true|false]` environment variable or the

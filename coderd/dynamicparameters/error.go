@@ -3,7 +3,7 @@ package dynamicparameters
 import (
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 
@@ -94,7 +94,7 @@ func (e *DiagnosticError) Response() (int, codersdk.Response) {
 	for name := range e.KeyedDiagnostics {
 		sortedNames = append(sortedNames, name)
 	}
-	sort.Strings(sortedNames)
+	slices.Sort(sortedNames)
 
 	for _, name := range sortedNames {
 		diag := e.KeyedDiagnostics[name]
@@ -117,10 +117,10 @@ func DiagnosticErrorString(d *hcl.Diagnostic) string {
 
 func DiagnosticsErrorString(d hcl.Diagnostics) string {
 	count := len(d)
-	switch {
-	case count == 0:
+	switch count {
+	case 0:
 		return "no diagnostics"
-	case count == 1:
+	case 1:
 		return DiagnosticErrorString(d[0])
 	default:
 		for _, d := range d {

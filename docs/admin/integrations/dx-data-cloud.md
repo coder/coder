@@ -1,4 +1,6 @@
-# DX
+---
+title: DX
+---
 
 [DX](https://getdx.com) is a developer intelligence platform used by engineering
 leaders and platform engineers.
@@ -30,19 +32,20 @@ If your organization already uses the Coder-DX integration, you can find a list 
 
 ### CLI
 
-Use `users list` to export the list of users to a CSV file:
+Use `users list` with `jq` to export the list of users to a CSV file:
 
-```shell
-coder users list > users.csv
+```sh
+coder users list --output json | \
+  jq -r '["username","email","created_at","status"], (.[] | [.username, .email, .created_at, .status]) | @csv' > users.csv
 ```
 
-Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+Visit the [users list](../../reference/cli/users/list.md) documentation for more options.
 
 ### API
 
 Use [get users](../../reference/api/users.md#get-users):
 
-```bash
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -50,7 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
 
 To export the results to a CSV file, you can use the `jq` tool to process the JSON response:
 
-```bash
+```sh
 curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY' | \
@@ -81,7 +84,7 @@ After the attribute is uploaded, you'll have a Coder filter option within your D
 
 ## Related Resources
 
-- [DX Data Cloud Documentation](https://help.getdx.com/en/)
-- [Coder CLI](../../reference/cli/users.md)
+- [DX Data Cloud Documentation](https://docs.getdx.com/)
+- [Coder CLI](../../reference/cli/users/index.md)
 - [Coder API](../../reference/api/users.md)
 - [PlatformX Integration](./platformx.md)

@@ -64,7 +64,7 @@ func TestWebhook(t *testing.T) {
 				assert.Equal(t, bodyMarkdown, payload.BodyMarkdown)
 
 				w.WriteHeader(http.StatusOK)
-				_, err = w.Write([]byte(fmt.Sprintf("received %s", payload.MsgID)))
+				_, err = fmt.Fprintf(w, "received %s", payload.MsgID)
 				assert.NoError(t, err)
 			},
 			expectSuccess: true,

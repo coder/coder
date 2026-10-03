@@ -1,11 +1,18 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockWorkspace,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
 const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
@@ -37,9 +44,9 @@ const Example: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(body.getByRole("button"));
+			await userEvent.click(body.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplateVersion.message,
 				),
 			);
@@ -48,3 +55,63 @@ const Example: Story = {
 };
 
 export { Example as WorkspaceOutdatedTooltip };
+
+// Regression coverage for the `useClickableTableRow` usage on the workspaces
+// list. The trigger must stop click propagation so the popover opens instead
+// of the parent row's onClick swallowing the activation and navigating away.
+type ClickableRowArgs = React.ComponentProps<
+	typeof WorkspaceOutdatedTooltip
+> & {
+	onRowClick: () => void;
+};
+
+export const InsideClickableRow: StoryObj<ClickableRowArgs> = {
+	args: {
+		onRowClick: fn(),
+	},
+	decorators: [
+		(Story, { args }) => {
+			const clickableProps = useClickableTableRow({
+				onClick: args.onRowClick,
+			});
+			return (
+				<Table>
+					<TableBody>
+						<TableRow {...clickableProps}>
+							<TableCell>
+								<Story />
+							</TableCell>
+						</TableRow>
+					</TableBody>
+				</Table>
+			);
+		},
+	],
+	play: async ({ args, canvasElement, step }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await step("mouse click opens the popover", async () => {
+			await userEvent.click(body.getByRole("button", { name: "More info" }));
+			await waitFor(() =>
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					MockTemplateVersion.message,
+				),
+			);
+			await userEvent.keyboard("{Escape}");
+		});
+
+		await step("keyboard activation via Space opens the popover", async () => {
+			body.getByRole("button", { name: "More info" }).focus();
+			await userEvent.keyboard(" ");
+			await waitFor(() =>
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					MockTemplateVersion.message,
+				),
+			);
+		});
+
+		await step("the row's onClick was never called", async () => {
+			expect(args.onRowClick).not.toHaveBeenCalled();
+		});
+	},
+};

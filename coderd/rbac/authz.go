@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ammario/tlru"
+	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -74,12 +75,21 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
+	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"   // #nosec G101, not a credential.
+	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter"  // #nosec G101, not a credential.
+	SubjectTypeChatdTokenOwner              SubjectType = "chatd_token_owner" // #nosec G101, not a credential.
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
 	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
 	SubjectAibridged                        SubjectType = "aibridged"
 	SubjectTypeDBPurge                      SubjectType = "dbpurge"
+	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
+	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
+	SubjectTypeChatd                        SubjectType = "chatd"
+	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
+	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
+	SubjectTypeExternalAuthCoordinator      SubjectType = "external_auth_coordinator"
 )
 
 const (
@@ -169,6 +179,25 @@ func (s Subject) SafeRoleNames() []RoleIdentifier {
 	return s.Roles.Names()
 }
 
+// HasOrganizationMembership reports whether the subject has explicit
+// membership in organizationID through an org-scoped role. Site-wide roles
+// alone do not count as organization membership.
+func (s Subject) HasOrganizationMembership(organizationID uuid.UUID) (bool, error) {
+	roles, err := s.Roles.Expand()
+	if err != nil {
+		return false, xerrors.Errorf("expand user authorization roles: %w", err)
+	}
+
+	organizationIDString := organizationID.String()
+	for _, role := range roles {
+		if _, ok := role.ByOrgID[organizationIDString]; ok {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 type Authorizer interface {
 	// Authorize will authorize the given subject to perform the given action
 	// on the given object. Authorize is pure and deterministic with respect to
@@ -182,13 +211,32 @@ type PreparedAuthorized interface {
 	CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error)
 }
 
+// DefaultFilterThreshold is the object count at or above which Filter switches
+// from a full evaluation per object to a single partial evaluation (Prepare)
+// reused across the set. Benchmarks show Authorize is faster than the Prepare
+// overhead below ~10 objects. Callers whose Prepare cost grows with the input
+// size (for example a subject carrying one role per object) should pass a
+// higher threshold.
+const DefaultFilterThreshold = 10
+
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
 //
+// prepareThreshold is the object count at or above which Filter uses a single
+// partial evaluation reused across the set instead of a full evaluation per
+// object. Pass DefaultFilterThreshold unless the caller has a reason to tune
+// it.
+//
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O, prepareThreshold int) ([]O, error) {
+	if prepareThreshold <= 0 {
+		// A non-positive threshold would force the Prepare path for every
+		// non-empty input, the opposite of what a caller passing 0 as a stand-in
+		// for "default" expects. Fail loudly on an authorization function.
+		return nil, xerrors.New("prepareThreshold must be positive; pass DefaultFilterThreshold")
+	}
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -199,22 +247,17 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 	// Start the span after the object type is detected. If we are filtering 0
 	// objects, then the span is not interesting. It would just add excessive
 	// 0 time spans that provide no insight.
-	ctx, span := tracing.StartSpan(ctx,
-		rbacTraceAttributes(subject, action, objectType,
-			// For filtering, we are only measuring the total time for the entire
-			// set of objects. This and the 'Prepare' span time
-			// is all that is required to measure the performance of this
-			// function on a per-object basis.
-			attribute.Int("num_objects", len(objects)),
-		),
-	)
+	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+	// For filtering, we are only measuring the total time for the entire set of
+	// objects. This and the 'Prepare' span time is all that is required to
+	// measure the performance of this function on a per-object basis.
+	setRBACAttributes(span, subject, action, objectType,
+		attribute.Int("num_objects", len(objects)))
 
-	// Running benchmarks on this function, it is **always** faster to call
-	// auth.Authorize on <10 objects. This is because the overhead of
-	// 'Prepare'. Once we cross 10 objects, then it starts to become
-	// faster
-	if len(objects) < 10 {
+	// Below the threshold, a full evaluation per object is faster than paying
+	// the Prepare overhead once and reusing it.
+	if len(objects) < prepareThreshold {
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
@@ -292,6 +335,15 @@ func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	auth := NewAuthorizer(registry)
 	auth.strict = true
 	return Cacher(auth)
+}
+
+// NewStrictAuthorizer is for testing only. It skips the caching layer,
+// which is useful when every authorize call is unique (0% cache hit
+// rate) and the cache overhead dominates.
+func NewStrictAuthorizer(registry prometheus.Registerer) Authorizer {
+	auth := NewAuthorizer(registry)
+	auth.strict = true
+	return auth
 }
 
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
@@ -389,14 +441,13 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
-		rbacTraceAttributes(subject, action, object.Type,
-			// For authorizing a single object, this data is useful to know how
-			// complex our objects are getting.
-			attribute.Int("object_num_groups", len(object.ACLGroupList)),
-			attribute.Int("object_num_users", len(object.ACLUserList)),
-		),
 	)
 	defer span.End()
+	// For authorizing a single object, this data is useful to know how complex
+	// our objects are getting.
+	setRBACAttributes(span, subject, action, object.Type,
+		attribute.Int("object_num_groups", len(object.ACLGroupList)),
+		attribute.Int("object_num_users", len(object.ACLUserList)))
 
 	err := a.authorize(ctx, subject, action, object)
 	authorized := err == nil
@@ -427,7 +478,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
-	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+	if object.AnyOrgOwner && object.OrgID != "" && object.OrgID != "00000000-0000-0000-0000-000000000000" {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
@@ -454,9 +505,9 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action pol
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
-		rbacTraceAttributes(subject, action, objectType),
 	)
 	defer span.End()
+	setRBACAttributes(span, subject, action, objectType)
 
 	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
@@ -668,17 +719,29 @@ func ConfigWithACL() regosql.ConvertConfig {
 	}
 }
 
-// ConfigWithoutACL is the basic configuration for converting rego to SQL when
-// the object has no ACL fields.
-func ConfigWithoutACL() regosql.ConvertConfig {
+// ConfigChats uses a resource converter so SQL filters qualify chat
+// ACL columns consistently with GetChats.
+func ConfigChats() regosql.ConvertConfig {
+	converter := regosql.ChatConverter()
+	if ChatACLDisabled() {
+		converter = regosql.ChatNoACLConverter()
+	}
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.NoACLConverter(),
+		VariableConverter: converter,
 	}
 }
 
 func ConfigWorkspaces() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.WorkspaceConverter(),
+	}
+}
+
+// ConfigChatModelConfigs uses a resource converter so SQL filters qualify
+// chat model config columns consistently with GetChatModelConfigs.
+func ConfigChatModelConfigs() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.ChatModelConfigConverter(),
 	}
 }
 
@@ -759,18 +822,24 @@ func (c *authCache) Prepare(ctx context.Context, subject Subject, action policy.
 	return c.authz.Prepare(ctx, subject, action, objectType)
 }
 
-// rbacTraceAttributes are the attributes that are added to all spans created by
-// the rbac package. These attributes should help to debug slow spans.
-func rbacTraceAttributes(actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+// setRBACAttributes attaches the attributes added to all spans created by the
+// rbac package, to help debug slow spans. It only does the work when the span
+// is recording: materializing the subject's role names allocates one string
+// per role, so untraced calls (benchmarks, unsampled spans) skip the O(roles)
+// cost entirely.
+func setRBACAttributes(span trace.Span, actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) {
+	if !span.IsRecording() {
+		return
+	}
 	uniqueRoleNames := actor.SafeRoleNames()
 	roleStrings := make([]string, 0, len(uniqueRoleNames))
 	for _, roleName := range uniqueRoleNames {
 		roleStrings = append(roleStrings, roleName.String())
 	}
-	return trace.WithAttributes(
+	span.SetAttributes(
 		append(extra,
 			attribute.StringSlice("subject_roles", roleStrings),
-			attribute.Int("num_subject_roles", len(actor.SafeRoleNames())),
+			attribute.Int("num_subject_roles", len(uniqueRoleNames)),
 			attribute.Int("num_groups", len(actor.Groups)),
 			attribute.String("scope", actor.SafeScopeName()),
 			attribute.String("action", string(action)),

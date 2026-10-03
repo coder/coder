@@ -23,6 +23,7 @@ func TestInboxNotifications_ensureNotificationIcon(t *testing.T) {
 		{"WorkspaceCreated", "", notifications.TemplateWorkspaceCreated, codersdk.InboxNotificationFallbackIconWorkspace},
 		{"UserAccountCreated", "", notifications.TemplateUserAccountCreated, codersdk.InboxNotificationFallbackIconAccount},
 		{"TemplateDeleted", "", notifications.TemplateTemplateDeleted, codersdk.InboxNotificationFallbackIconTemplate},
+		{"ChatShared", "", notifications.TemplateChatShared, codersdk.InboxNotificationFallbackIconOther},
 		{"TestNotification", "", notifications.TemplateTestNotification, codersdk.InboxNotificationFallbackIconOther},
 		{"TestExistingIcon", "https://cdn.coder.com/icon_notif.png", notifications.TemplateTemplateDeleted, "https://cdn.coder.com/icon_notif.png"},
 		{"UnknownTemplate", "", uuid.New(), codersdk.InboxNotificationFallbackIconOther},

@@ -1,4 +1,6 @@
-# Dev Containers
+---
+title: Dev Containers
+---
 
 [Dev containers](https://containers.dev/) define your development environment
 as code using a `devcontainer.json` file. Coder's Dev Containers integration
@@ -31,11 +33,14 @@ for setup details.
 - Seamless container startup during workspace initialization
 - Change detection with outdated status indicator
 - On-demand container rebuild via dashboard button
+- Template-defined apps, scripts, and environment variables via Terraform (see [limitations](../../admin/integrations/devcontainers/integration.md#interaction-with-devcontainerjson-customizations))
 - Integrated IDE experience with VS Code
 - Direct SSH access to containers
 - Automatic port detection
 
-## Getting started
+<a id="getting-started"></a>
+
+## Get started
 
 ### Add a devcontainer.json
 
@@ -95,12 +100,15 @@ containers within your Coder workspace.
 
 When a workspace with Dev Containers integration starts:
 
+1. If the template defines `coder_app`, `coder_script`, or `coder_env` resources
+   attached to the dev container, a sub-agent is pre-created with these resources.
 1. The workspace initializes the Docker environment.
 1. The integration detects repositories with dev container configurations.
 1. Detected dev containers appear in the Coder dashboard.
 1. If auto-start is configured (via `coder_devcontainer` or autostart settings),
    the integration builds and starts the dev container automatically.
-1. Coder creates a sub-agent for the running container, enabling direct access.
+1. Coder creates a sub-agent (or updates the pre-created one) for the running
+   container, enabling direct access.
 
 Without auto-start, users can manually start discovered dev containers from the
 dashboard.

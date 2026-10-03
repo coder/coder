@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -32,9 +33,11 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 // @Summary Get workspace build
@@ -44,13 +47,13 @@ import (
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspacebuilds/{workspacebuild} [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild} [get]
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -81,15 +84,17 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		newWorkspaceBuildIndex(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+			nil,
+		),
 		data.templateVersions[0],
-		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -113,7 +118,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 // @Param offset query int false "Page offset"
 // @Param since query string false "Since timestamp" format(date-time)
 // @Success 200 {array} codersdk.WorkspaceBuild
-// @Router /workspaces/{workspace}/builds [get]
+// @Router /api/v2/workspaces/{workspace}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -187,7 +192,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaceBuilds)
+	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -197,6 +202,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		wsrelated.AllLatestBuild(),
 		workspaceBuilds,
 		[]database.Workspace{workspace},
 		data.jobs,
@@ -230,7 +236,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacename path string true "Workspace name"
 // @Param buildnumber path string true "Build number" format(number)
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
+// @Router /api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	mems := httpmw.OrganizationMembersParam(r)
@@ -278,7 +284,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -291,15 +297,17 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		newWorkspaceBuildIndex(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+			data.provisionerDaemons,
+		),
 		data.templateVersions[0],
-		data.provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -323,8 +331,8 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Tags Builds
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
-// @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspaces/{workspace}/builds [post]
+// @Success 201 {object} codersdk.WorkspaceBuild
+// @Router /api/v2/workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -375,6 +383,30 @@ func (api *API) postWorkspaceBuildsInternal(
 	codersdk.WorkspaceBuild,
 	error,
 ) {
+	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
+
+	var childParameterValuesJSON json.RawMessage
+	if createBuild.OnSuccess != nil {
+		childParameterValues := createBuild.OnSuccess.RichParameterValues
+		if childParameterValues == nil {
+			childParameterValues = []codersdk.WorkspaceBuildParameter{}
+		}
+
+		var err error
+		childParameterValuesJSON, err = json.Marshal(childParameterValues)
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
+				http.StatusInternalServerError,
+				codersdk.Response{
+					Message: "Internal error preparing follow-up workspace build parameters",
+					Detail:  err.Error(),
+				},
+			)
+		}
+	}
+
 	transition := database.WorkspaceTransition(createBuild.Transition)
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
@@ -382,9 +414,10 @@ func (api *API) postWorkspaceBuildsInternal(
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
-		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
+		TemplateVersionPresetID(createBuild.TemplateVersionPresetID).
+		BuildMetrics(api.WorkspaceBuilderMetrics)
 
-	if transition == database.WorkspaceTransitionStart && createBuild.Reason != "" {
+	if (transition == database.WorkspaceTransitionStart || transition == database.WorkspaceTransitionStop) && createBuild.Reason != "" {
 		builder = builder.Reason(database.BuildReason(createBuild.Reason))
 	}
 
@@ -480,7 +513,62 @@ func (api *API) postWorkspaceBuildsInternal(
 			},
 			workspaceBuildBaggage,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if createBuild.OnSuccess != nil {
+			onSuccessReq := createBuild.OnSuccess
+			// Reuse the parent build's timestamps so the orchestration row and
+			// the parent build agree on created_at.
+			_, err = tx.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+				ID:              uuid.New(),
+				CreatedAt:       workspaceBuild.CreatedAt,
+				UpdatedAt:       workspaceBuild.UpdatedAt,
+				ParentBuildID:   workspaceBuild.ID,
+				ChildTransition: database.WorkspaceTransition(onSuccessReq.Transition),
+				ChildTemplateVersionID: uuid.NullUUID{
+					UUID:  onSuccessReq.TemplateVersionID,
+					Valid: onSuccessReq.TemplateVersionID != uuid.Nil,
+				},
+				ChildTemplateVersionPresetID: uuid.NullUUID{
+					UUID:  onSuccessReq.TemplateVersionPresetID,
+					Valid: onSuccessReq.TemplateVersionPresetID != uuid.Nil,
+				},
+				ChildRichParameterValues: childParameterValuesJSON,
+				ChildLogLevel:            string(createBuild.LogLevel),
+				ChildReason: database.NullBuildReason{
+					BuildReason: database.BuildReason(createBuild.Reason),
+					Valid:       createBuild.Reason != "",
+				},
+			})
+			if err != nil {
+				if dbauthz.IsNotAuthorizedError(err) {
+					detail := "Queuing the follow-up workspace build requires permission to start the workspace."
+					if onSuccessReq.TemplateVersionID != uuid.Nil {
+						detail = "Pinning a template version on the follow-up build requires template update permission. Omit template_version_id to use the active version."
+					}
+					return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+						Message: "Unauthorized to queue follow-up workspace build.",
+						Detail:  detail,
+					})
+				}
+				api.Logger.Error(ctx, "failed to queue follow-up workspace build",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.Error(err),
+				)
+				return httperror.NewResponseError(
+					http.StatusInternalServerError,
+					codersdk.Response{
+						Message: "Internal error queueing follow-up workspace build",
+						Detail:  err.Error(),
+					},
+				)
+			}
+		}
+
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
@@ -536,15 +624,8 @@ func (api *API) postWorkspaceBuildsInternal(
 		*workspaceBuild,
 		workspace,
 		queuePos,
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
-		[]database.WorkspaceAgentLogSource{},
+		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, nil, provisionerDaemons),
 		database.TemplateVersion{},
-		provisionerDaemons,
 	)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
@@ -581,6 +662,48 @@ func (api *API) postWorkspaceBuildsInternal(
 	})
 
 	return apiBuild, nil
+}
+
+// validateCreateWorkspaceBuildOnSuccess enforces the subset of build options
+// that currently has well-defined stop-then-start semantics.
+func validateCreateWorkspaceBuildOnSuccess(createBuild codersdk.CreateWorkspaceBuildRequest) error {
+	onSuccess := createBuild.OnSuccess
+	if onSuccess == nil {
+		return nil
+	}
+
+	if createBuild.Transition != codersdk.WorkspaceTransitionStop {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess is only permitted when stopping a workspace.",
+		})
+	}
+	if onSuccess.Transition != codersdk.WorkspaceTransitionStart {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess transition must be start.",
+		})
+	}
+	if createBuild.DryRun {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside DryRun.",
+		})
+	}
+	if createBuild.Orphan {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside Orphan.",
+		})
+	}
+	if len(createBuild.ProvisionerState) > 0 {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside ProvisionerState.",
+		})
+	}
+	if onSuccess.TemplateVersionPresetID != uuid.Nil && onSuccess.TemplateVersionID == uuid.Nil {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess TemplateVersionPresetID requires TemplateVersionID.",
+		})
+	}
+
+	return nil
 }
 
 func (api *API) notifyWorkspaceUpdated(
@@ -652,6 +775,68 @@ func (api *API) notifyWorkspaceUpdated(
 	}
 }
 
+// @Summary Report a workspace build debug click
+// @ID report-a-workspace-build-debug-click
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Param request body codersdk.WorkspaceBuildDebugEventRequest true "Debug event"
+// @Success 204
+// @Router /api/v2/workspacebuilds/{workspacebuild}/debug-events [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	if !api.Experiments.Enabled(codersdk.ExperimentEnableAIWorkspaceDebug) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).AnyOrganization()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if job.JobStatus != database.ProvisionerJobStatusFailed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Only failed workspace builds can be debugged.",
+		})
+		return
+	}
+
+	var req codersdk.WorkspaceBuildDebugEventRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		WorkspaceBuildDebugEvents: []telemetry.WorkspaceBuildDebugEvent{
+			{
+				ID:               req.ID,
+				EventType:        telemetry.WorkspaceBuildDebugEventClick,
+				UserID:           apiKey.UserID,
+				WorkspaceID:      workspaceBuild.WorkspaceID,
+				WorkspaceBuildID: workspaceBuild.ID,
+				Transition:       string(workspaceBuild.Transition),
+				Reason:           string(workspaceBuild.Reason),
+				CreatedAt:        dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Cancel workspace build
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
@@ -660,7 +845,7 @@ func (api *API) notifyWorkspaceUpdated(
 // @Param workspacebuild path string true "Workspace build ID"
 // @Param expect_status query string false "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation." Enums(running, pending)
 // @Success 200 {object} codersdk.Response
-// @Router /workspacebuilds/{workspacebuild}/cancel [patch]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -764,6 +949,25 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
+	err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, api.Pubsub)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
+	}
+
+	// Publish workspace build update to the all builds channel if the experiment is enabled.
+	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, api.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusCanceled),
+			BuildNumber:   workspaceBuild.BuildNumber,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+		}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
@@ -800,7 +1004,7 @@ func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Stor
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {array} codersdk.WorkspaceBuildParameter
-// @Router /workspacebuilds/{workspacebuild}/parameters [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/parameters [get]
 func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -826,8 +1030,9 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 // @Param before query int false "Before log id"
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
+// @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
-// @Router /workspacebuilds/{workspacebuild}/logs [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/logs [get]
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -850,36 +1055,28 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspacebuilds/{workspacebuild}/state [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/state [get]
 func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "No workspace exists for this job.",
-		})
+
+	// The dbauthz layer enforces policy.ActionUpdate on the template.
+	row, err := api.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get template",
+			Message: "Internal error fetching provisioner state.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// You must have update permissions on the template to get the state.
-	// This matches a push!
-	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+	_, _ = rw.Write(row.ProvisionerState)
 }
 
 // @Summary Update workspace build state
@@ -890,7 +1087,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
 // @Success 204
-// @Router /workspacebuilds/{workspacebuild}/state [put]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/state [put]
 func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -946,7 +1143,7 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceBuildTimings
-// @Router /workspacebuilds/{workspacebuild}/timings [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/timings [get]
 func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -973,44 +1170,91 @@ type workspaceBuildsData struct {
 	agents             []database.WorkspaceAgent
 	apps               []database.WorkspaceApp
 	appStatuses        []database.WorkspaceAppStatus
-	scripts            []database.WorkspaceAgentScript
+	scripts            []database.GetWorkspaceAgentScriptsByAgentIDsRow
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+// provisionerJobsByIDs fetches provisioner jobs by ID, shaped as
+// GetProvisionerJobsByIDsWithQueuePositionRow so callers can treat the result
+// uniformly. When the selection requests the queue position it uses
+// GetProvisionerJobsByIDsWithQueuePosition, whose queue position and size are
+// computed with window functions over pending jobs and provisioner daemons and
+// are comparatively expensive. Otherwise, it uses the cheaper
+// GetProvisionerJobsByIDs and leaves QueuePosition and QueueSize zero.
+func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg wsrelated.Job) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	if cfg.QueuePosition {
+		return api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	}
+
+	provisionerJobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0, len(provisionerJobs))
+	for _, job := range provisionerJobs {
+		jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ID:             job.ID,
+			CreatedAt:      job.CreatedAt,
+			ProvisionerJob: job,
+		})
+	}
+	return jobs, nil
+}
+
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg wsrelated.LatestBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
-		IDs:             jobIDs,
-		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
-	}
-	pendingJobIDs := []uuid.UUID{}
-	for _, job := range jobs {
-		if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+
+	var (
+		jobs                   []database.GetProvisionerJobsByIDsWithQueuePositionRow
+		pendingJobProvisioners []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	)
+	if cfg.Job != nil {
+		var err error
+		jobs, err = api.provisionerJobsByIDs(ctx, jobIDs, *cfg.Job)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+		}
+		pendingJobIDs := []uuid.UUID{}
+		for _, job := range jobs {
+			if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+				pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+			}
+		}
+
+		pendingJobProvisioners, err = api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
 		}
 	}
 
-	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
+	var templateVersions []database.TemplateVersion
+	if cfg.TemplateVersion {
+		templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+		for _, build := range workspaceBuilds {
+			templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
+		}
+
+		var err error
+		// nolint:gocritic // Getting template versions by ID is a system function.
+		templateVersions, err = api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+		}
 	}
 
-	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
-	}
-
-	// nolint:gocritic // Getting template versions by ID is a system function.
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+	if cfg.Resources == nil {
+		return workspaceBuildsData{
+			jobs:               jobs,
+			templateVersions:   templateVersions,
+			provisionerDaemons: pendingJobProvisioners,
+		}, nil
 	}
 
 	// nolint:gocritic // Getting workspace resources by job ID is a system function.
@@ -1032,19 +1276,36 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	var (
+		metadata []database.WorkspaceResourceMetadatum
+		agents   []database.WorkspaceAgent
+		egRes    errgroup.Group
+	)
+	if cfg.Resources.Metadata {
+		egRes.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+			metadata, err = api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("fetching resource metadata: %w", err)
+			}
+			return nil
+		})
+	}
+	if cfg.Resources.Agents != nil {
+		egRes.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+			agents, err = api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace agents: %w", err)
+			}
+			return nil
+		})
+	}
+	if err := egRes.Wait(); err != nil {
+		return workspaceBuildsData{}, err
 	}
 
-	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
-	}
-
-	if len(resources) == 0 {
+	if cfg.Resources.Agents == nil || len(agents) == 0 {
 		return workspaceBuildsData{
 			jobs:               jobs,
 			templateVersions:   templateVersions,
@@ -1053,6 +1314,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
+	agentsCfg := cfg.Resources.Agents
 
 	agentIDs := make([]uuid.UUID, 0)
 	for _, agent := range agents {
@@ -1061,40 +1323,49 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 
 	var (
 		apps       []database.WorkspaceApp
-		scripts    []database.WorkspaceAgentScript
+		scripts    []database.GetWorkspaceAgentScriptsByAgentIDsRow
 		logSources []database.WorkspaceAgentLogSource
 	)
 
 	var eg errgroup.Group
-	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
-		apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	eg.Go(func() (err error) {
-		// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	eg.Go(func() error {
-		// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
-		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-		return err
-	})
-	err = eg.Wait()
-	if err != nil {
+	if agentsCfg.Apps != nil {
+		eg.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+			apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if agentsCfg.Scripts {
+		eg.Go(func() (err error) {
+			// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
+			scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if agentsCfg.LogSources {
+		eg.Go(func() error {
+			var err error
+			// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
+			logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+			return err
+		})
+	}
+	if err := eg.Wait(); err != nil {
 		return workspaceBuildsData{}, err
 	}
 
-	appIDs := make([]uuid.UUID, 0)
-	for _, app := range apps {
-		appIDs = append(appIDs, app.ID)
-	}
+	var statuses []database.WorkspaceAppStatus
+	if cfg.AppStatuses() {
+		appIDs := make([]uuid.UUID, 0)
+		for _, app := range apps {
+			appIDs = append(appIDs, app.ID)
+		}
 
-	// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
-	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+		// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
+		statuses, err = api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+		}
 	}
 
 	return workspaceBuildsData{
@@ -1111,7 +1382,80 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}, nil
 }
 
+// workspaceBuildIndex groups build rows by the ID they are looked up with.
+// Conversion reorders rows within a bucket in place, so an index must be read
+// by a single goroutine.
+type workspaceBuildIndex struct {
+	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
+	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
+	agentsByResourceID   map[uuid.UUID][]database.WorkspaceAgent
+	appsByAgentID        map[uuid.UUID][]database.WorkspaceApp
+	statusesByAgentID    map[uuid.UUID][]database.WorkspaceAppStatus
+	scriptsByAgentID     map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow
+	logSourcesByAgentID  map[uuid.UUID][]database.WorkspaceAgentLogSource
+	daemonsByJobID       map[uuid.UUID][]database.ProvisionerDaemon
+}
+
+// newWorkspaceBuildIndex makes one pass over each slice, copying rows into
+// per-ID buckets. The input slices are neither modified nor aliased.
+func newWorkspaceBuildIndex(
+	workspaceResources []database.WorkspaceResource,
+	resourceMetadata []database.WorkspaceResourceMetadatum,
+	resourceAgents []database.WorkspaceAgent,
+	agentApps []database.WorkspaceApp,
+	agentAppStatuses []database.WorkspaceAppStatus,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
+	agentLogSources []database.WorkspaceAgentLogSource,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+) *workspaceBuildIndex {
+	index := &workspaceBuildIndex{
+		resourcesByJobID:     make(map[uuid.UUID][]database.WorkspaceResource),
+		metadataByResourceID: make(map[uuid.UUID][]database.WorkspaceResourceMetadatum),
+		agentsByResourceID:   make(map[uuid.UUID][]database.WorkspaceAgent),
+		appsByAgentID:        make(map[uuid.UUID][]database.WorkspaceApp),
+		statusesByAgentID:    make(map[uuid.UUID][]database.WorkspaceAppStatus),
+		scriptsByAgentID:     make(map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow),
+		logSourcesByAgentID:  make(map[uuid.UUID][]database.WorkspaceAgentLogSource),
+		daemonsByJobID:       make(map[uuid.UUID][]database.ProvisionerDaemon),
+	}
+	for _, resource := range workspaceResources {
+		index.resourcesByJobID[resource.JobID] = append(index.resourcesByJobID[resource.JobID], resource)
+	}
+	for _, metadata := range resourceMetadata {
+		index.metadataByResourceID[metadata.WorkspaceResourceID] = append(index.metadataByResourceID[metadata.WorkspaceResourceID], metadata)
+	}
+	for _, agent := range resourceAgents {
+		index.agentsByResourceID[agent.ResourceID] = append(index.agentsByResourceID[agent.ResourceID], agent)
+	}
+	for _, app := range agentApps {
+		index.appsByAgentID[app.AgentID] = append(index.appsByAgentID[app.AgentID], app)
+	}
+	for _, status := range agentAppStatuses {
+		index.statusesByAgentID[status.AgentID] = append(index.statusesByAgentID[status.AgentID], status)
+	}
+	for _, script := range agentScripts {
+		index.scriptsByAgentID[script.WorkspaceAgentID] = append(index.scriptsByAgentID[script.WorkspaceAgentID], script)
+	}
+	for _, logSource := range agentLogSources {
+		index.logSourcesByAgentID[logSource.WorkspaceAgentID] = append(index.logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
+	}
+	for _, daemon := range provisionerDaemons {
+		index.daemonsByJobID[daemon.JobID] = append(index.daemonsByJobID[daemon.JobID], daemon.ProvisionerDaemon)
+	}
+	// Agents within a resource are ordered by display order, then name.
+	for _, agents := range index.agentsByResourceID {
+		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
+			return cmp.Or(
+				cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+				cmp.Compare(a.Name, b.Name),
+			)
+		})
+	}
+	return index
+}
+
 func (api *API) convertWorkspaceBuilds(
+	cfg wsrelated.LatestBuild,
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
@@ -1120,7 +1464,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 	agentAppStatuses []database.WorkspaceAppStatus,
-	agentScripts []database.WorkspaceAgentScript,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
@@ -1138,11 +1482,22 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
+	index := newWorkspaceBuildIndex(
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+		agentAppStatuses,
+		agentScripts,
+		agentLogSources,
+		provisionerDaemons,
+	)
+
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
-		if !exists {
+		if !exists && cfg.Job != nil {
 			return nil, xerrors.New("build job not found")
 		}
 		workspace, exists := workspaceByID[build.WorkspaceID]
@@ -1150,7 +1505,7 @@ func (api *API) convertWorkspaceBuilds(
 			return nil, xerrors.New("workspace not found")
 		}
 		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
-		if !exists {
+		if !exists && cfg.TemplateVersion {
 			return nil, xerrors.New("template version not found")
 		}
 
@@ -1158,15 +1513,8 @@ func (api *API) convertWorkspaceBuilds(
 			build,
 			workspace,
 			job,
-			workspaceResources,
-			resourceMetadata,
-			resourceAgents,
-			agentApps,
-			agentAppStatuses,
-			agentScripts,
-			agentLogSources,
+			index,
 			templateVersion,
-			provisionerDaemons,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -1182,64 +1530,16 @@ func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
-	workspaceResources []database.WorkspaceResource,
-	resourceMetadata []database.WorkspaceResourceMetadatum,
-	resourceAgents []database.WorkspaceAgent,
-	agentApps []database.WorkspaceApp,
-	agentAppStatuses []database.WorkspaceAppStatus,
-	agentScripts []database.WorkspaceAgentScript,
-	agentLogSources []database.WorkspaceAgentLogSource,
+	index *workspaceBuildIndex,
 	templateVersion database.TemplateVersion,
-	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
-	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
-	for _, resource := range workspaceResources {
-		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
-	}
-	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
-	for _, metadata := range resourceMetadata {
-		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
-	}
-	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
-	for _, agent := range resourceAgents {
-		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
-	}
-	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
-	for _, app := range agentApps {
-		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
-	}
-	scriptsByAgentID := map[uuid.UUID][]database.WorkspaceAgentScript{}
-	for _, script := range agentScripts {
-		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
-	}
-	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
-	for _, logSource := range agentLogSources {
-		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
-	}
-	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
-	for _, provisionerDaemon := range provisionerDaemons {
-		if provisionerDaemon.JobID != job.ProvisionerJob.ID {
-			continue
-		}
-		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
-	}
-	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	statusesByAgentID := map[uuid.UUID][]database.WorkspaceAppStatus{}
-	for _, status := range agentAppStatuses {
-		statusesByAgentID[status.AgentID] = append(statusesByAgentID[status.AgentID], status)
-	}
+	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[build.JobID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 
-	resources := resourcesByJobID[job.ProvisionerJob.ID]
+	resources := index.resourcesByJobID[build.JobID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
-		agents := agentsByResourceID[resource.ID]
-		sort.Slice(agents, func(i, j int) bool {
-			if agents[i].DisplayOrder != agents[j].DisplayOrder {
-				return agents[i].DisplayOrder < agents[j].DisplayOrder
-			}
-			return agents[i].Name < agents[j].Name
-		})
+		agents := index.agentsByResourceID[resource.ID]
 
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
@@ -1247,12 +1547,12 @@ func (api *API) convertWorkspaceBuild(
 		for _, agent := range agents {
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
-			apps := appsByAgentID[agent.ID]
-			scripts := scriptsByAgentID[agent.ID]
-			statuses := statusesByAgentID[agent.ID]
-			logSources := logSourcesByAgentID[agent.ID]
+			apps := index.appsByAgentID[agent.ID]
+			scripts := index.scriptsByAgentID[agent.ID]
+			statuses := index.statusesByAgentID[agent.ID]
+			logSources := index.logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -1260,7 +1560,7 @@ func (api *API) convertWorkspaceBuild(
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
-		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
+		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), index.metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
 	sort.Slice(apiResources, func(i, j int) bool {
@@ -1275,10 +1575,6 @@ func (api *API) convertWorkspaceBuild(
 	var presetID *uuid.UUID
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
-	}
-	var hasAITask *bool
-	if build.HasAITask.Valid {
-		hasAITask = &build.HasAITask.Bool
 	}
 	var hasExternalAgent *bool
 	if build.HasExternalAgent.Valid {
@@ -1311,7 +1607,6 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
-		HasAITask:               hasAITask,
 		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }

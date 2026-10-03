@@ -1,0 +1,21 @@
+-- request --
+{
+  "input": "hello_wrong_format",
+  "model": "gpt-6.7",
+  "stream": true
+}
+
+-- streaming --
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_123","object":"response","status":"in_progress","error":null,"output":[]},"sequence_number":1}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_123","object":"response","status":"in_progress","error":null,"output":[]},"sequence_number":2}
+
+event: response.output_text.delta
+da
+ta: { "wrong format": should be forwarded as received
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_123","object":"response","created_at":1767874658,"status":"completed","background":false,"completed_at":1767874660,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4o-mini-2024-07-18","output":[{"id":"msg_0f9c4b2f224d858000695fa063d4708197af73c2f37cb0b9d3","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Why did the scarecrow win an award?\n\nBecause he was outstanding in his field!"}],"role":"assistant"}],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":11,"input_tokens_details":{"cached_tokens":0},"output_tokens":18,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":29},"user":null,"metadata":{}},"sequence_number":24}
+

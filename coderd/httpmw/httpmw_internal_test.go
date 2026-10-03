@@ -106,7 +106,6 @@ func TestNormalizeAudienceURI(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := normalizeAudienceURI(tc.input)
@@ -157,7 +156,6 @@ func TestNormalizeHost(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := normalizeHost(tc.input)
@@ -203,7 +201,6 @@ func TestNormalizePathSegments(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := normalizePathSegments(tc.input)
@@ -247,7 +244,6 @@ func TestExtractExpectedAudience(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var req *http.Request

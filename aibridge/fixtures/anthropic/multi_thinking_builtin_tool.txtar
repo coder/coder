@@ -1,0 +1,152 @@
+Claude Code has builtin tools to (e.g.) explore the filesystem.
+This fixture has two thinking blocks before the tool_use block.
+
+-- request --
+{
+	"model": "claude-sonnet-4-20250514",
+	"max_tokens": 1024,
+	"tools": [
+		{
+			"name": "Read",
+			"description": "Read the contents of a file at the given path.",
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"file_path": {
+						"type": "string",
+						"description": "The absolute path to the file to read"
+					}
+				},
+				"required": ["file_path"]
+			}
+		}
+	],
+	"messages": [
+		{
+			"role": "user",
+			"content": "read the foo file"
+		}
+	]
+}
+
+-- streaming --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_015SQewixvT9s4cABCVvUE6g","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":22,"cache_read_input_tokens":13993,"output_tokens":5,"service_tier":"standard"}}             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The user wants me to read a file called \"foo\". Let me find and read it."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"Eu8BCkYICxgCKkBR++kFr7Za2JhF/9OCpjEc46/EcipL75RK+MEbxJ/VBJPWQTWrNGfwb5khWYJtKEpjjkH07cR/MQvThfb7t7CkEgwU4pKwL7NuZXd1/wgaDILyd0bYMqQovWo3dyIw95Ny7yZPljNBDLsvMBdBr7w+RtbU+AlSftjBuBZHp0VzI54/W+9u6f7qfx0JXsVBKldqqOjFvewT8Xm6Qp/77g6/j0zBiuAQABj/6vS1qATjd8KSIFDg9G/tCtzwmV/T/egmzswWd5CBiAhW6lgJgEDRr+gRUrFSOB7o3hypW8FUnUrr1JtzzwMYAQ=="}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"thinking_delta","thinking":"I should use the Read tool to access the file contents."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"signature_delta","signature":"Aa1BCkYICxgCKkBR++kFr7Za2JhF/9OCpjEc46/EcipL75RK+MEbxJ/VBJPWQTWrNGfwb5khWYJtKEpjjkH07cR/MQvThfb7t7CkEgwU4pKwL7NuZXd1/wgaDILyd0bYMqQovWo3dyIw95Ny7yZPljNBDLsvMBdBr7w+RtbU+AlSftjBuBZHp0VzI54/W+9u6f7qfx0JXsVBKldqqOjFvewT8Xm6Qp/77g6/j0zBiuAQABj/6vS1qATjd8KSIFDg9G/tCtzwmV/T/egmzswWd5CBiAhW6lgJgEDRr+gRUrFSOB7o3hypW8FUnUrr1JtzzwMYAQ=="}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: content_block_start
+data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01RX68weRSquLx6HUTj65iBo","name":"Read","input":{}}}
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/tmp/blah/foo"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\"}"}  }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2          }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":61}              }
+
+event: message_stop
+data: {"type":"message_stop"              }
+
+
+-- non-streaming --
+{
+  "id": "msg_01JHKqEmh7wYuPXqUWUvusfL",
+  "container": {
+    "id": "",
+    "expires_at": "0001-01-01T00:00:00Z"
+  },
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "The user wants me to read a file called \"foo\". Let me find and read it.",
+      "signature": "Eu8BCkYICxgCKkBR++kFr7Za2JhF/9OCpjEc46/EcipL75RK+MEbxJ/VBJPWQTWrNGfwb5khWYJtKEpjjkH07cR/MQvThfb7t7CkEgwU4pKwL7NuZXd1/wgaDILyd0bYMqQovWo3dyIw95Ny7yZPljNBDLsvMBdBr7w+RtbU+AlSftjBuBZHp0VzI54/W+9u6f7qfx0JXsVBKldqqOjFvewT8Xm6Qp/77g6/j0zBiuAQABj/6vS1qATjd8KSIFDg9G/tCtzwmV/T/egmzswWd5CBiAhW6lgJgEDRr+gRUrFSOB7o3hypW8FUnUrr1JtzzwMYAQ=="
+    },
+    {
+      "type": "thinking",
+      "thinking": "I should use the Read tool to access the file contents.",
+      "signature": "Aa1BCkYICxgCKkBR++kFr7Za2JhF/9OCpjEc46/EcipL75RK+MEbxJ/VBJPWQTWrNGfwb5khWYJtKEpjjkH07cR/MQvThfb7t7CkEgwU4pKwL7NuZXd1/wgaDILyd0bYMqQovWo3dyIw95Ny7yZPljNBDLsvMBdBr7w+RtbU+AlSftjBuBZHp0VzI54/W+9u6f7qfx0JXsVBKldqqOjFvewT8Xm6Qp/77g6/j0zBiuAQABj/6vS1qATjd8KSIFDg9G/tCtzwmV/T/egmzswWd5CBiAhW6lgJgEDRr+gRUrFSOB7o3hypW8FUnUrr1JtzzwMYAQ=="
+    },
+    {
+      "citations": null,
+      "text": "",
+      "type": "tool_use",
+      "id": "toolu_01AusGgY5aKFhzWrFBv9JfHq",
+      "input": {
+        "file_path": "/tmp/blah/foo"
+      },
+      "name": "Read",
+      "content": {
+        "OfWebSearchResultBlockArray": null,
+        "OfString": "",
+        "OfMCPToolResultBlockContent": null,
+        "error_code": "",
+        "type": "",
+        "content": null,
+        "return_code": 0,
+        "stderr": "",
+        "stdout": ""
+      },
+      "tool_use_id": "",
+      "server_name": "",
+      "is_error": false,
+      "file_id": "",
+      "signature": "",
+      "thinking": "",
+      "data": ""
+    }
+  ],
+  "model": "claude-sonnet-4-20250514",
+  "role": "assistant",
+  "stop_reason": "tool_use",
+  "stop_sequence": "",
+  "type": "message",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 23490,
+    "input_tokens": 5,
+    "output_tokens": 84,
+    "server_tool_use": {
+      "web_search_requests": 0
+    },
+    "service_tier": "standard"
+  }
+}
+

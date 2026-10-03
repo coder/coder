@@ -9,6 +9,7 @@
 package namesgenerator
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -34,17 +35,14 @@ func NameWith(delim string) string {
 	return adjective + delim + last
 }
 
-// NameDigitWith returns a random name with a single random digit suffix (1-9),
-// in the format "[adjective][delim][surname][digit]" e.g. "happy_smith9".
+// NameDigitWith returns a random name with a two-digit suffix (00-99),
+// in the format "[adjective][delim][surname][digit]" e.g. "happy_smith42".
 // Provides some collision resistance while keeping names short and clean.
 // Not guaranteed to be unique.
 func NameDigitWith(delim string) string {
-	const (
-		minDigit = 1
-		maxDigit = 9
-	)
 	//nolint:gosec // The random digit doesn't need to be cryptographically secure.
-	return NameWith(delim) + strconv.Itoa(rand.IntN(maxDigit-minDigit+1))
+	name := NameWith(delim) + fmt.Sprintf("%02d", rand.IntN(100))
+	return truncate(name, maxNameLen)
 }
 
 // UniqueName returns a random name with a monotonically increasing suffix,

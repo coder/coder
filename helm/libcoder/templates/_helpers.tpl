@@ -240,3 +240,9 @@ Usage:
   - watch
 {{- end }}
 
+{{/*
+Component annotation for pod metadata.
+This should be overridden in each chart to specify the component type.
+*/}}
+{{- define "coder.componentAnnotation" -}}
+{{- end }}

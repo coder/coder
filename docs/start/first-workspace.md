@@ -1,4 +1,6 @@
-# Creating your first coder workspace
+<a id="creating-your-first-coder-workspace"></a>
+
+# Create your first Coder workspace
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use
@@ -35,7 +37,7 @@ After a few seconds, your workspace is ready to use.
 
 ## 2. Try out your new workspace
 
-The Docker starter template lets you connect to your workspace in a few ways:
+The Docker template lets you connect to your workspace in a few ways:
 
 - VS Code Desktop: Loads your workspace into
   [VS Code Desktop](https://code.visualstudio.com/Download) installed on your

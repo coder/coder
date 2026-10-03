@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -34,6 +35,7 @@ type ParameterResolver struct {
 
 	promptRichParameters      bool
 	promptEphemeralParameters bool
+	useParameterDefaults      bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -86,16 +88,29 @@ func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParame
 	return pr
 }
 
-// Resolve gathers workspace build parameters in a layered fashion, applying values from various sources
-// in order of precedence: parameter file < CLI/ENV < source build < last build < preset < user input.
+func (pr *ParameterResolver) WithUseParameterDefaults(useParameterDefaults bool) *ParameterResolver {
+	pr.useParameterDefaults = useParameterDefaults
+	return pr
+}
+
+// Resolve gathers workspace build parameters in a layered fashion, applying
+// values from various sources in order of precedence:
+// 1. template defaults (if auto-accepting defaults)
+// 2. cli parameter defaults (if auto-accepting defaults)
+// 3. parameter file
+// 4. CLI/ENV
+// 5. source build
+// 6. last build
+// 7. preset
+// 8. user input (unless auto-accepting defaults)
 func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
-	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
-	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
+	staged = pr.resolveWithSourceBuildParametersInParameters(staged, templateVersionParameters)
+	staged = pr.resolveWithLastBuildParametersInParameters(staged, templateVersionParameters)
 	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
@@ -104,6 +119,18 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 		return nil, err
 	}
 	return staged, nil
+}
+
+func (pr *ParameterResolver) InitialValues() []codersdk.WorkspaceBuildParameter {
+	var staged []codersdk.WorkspaceBuildParameter
+
+	staged = pr.resolveWithParametersMapFile(staged)
+	staged = pr.resolveWithCommandLineOrEnv(staged)
+	staged = pr.resolveWithSourceBuildParameters(staged)
+	staged = pr.resolveWithLastBuildParameters(staged)
+	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
+
+	return staged
 }
 
 func (pr *ParameterResolver) resolveWithPreset(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
@@ -166,7 +193,26 @@ nextEphemeralParameter:
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	if pr.promptRichParameters {
+		return resolved // don't pull parameters from last build
+	}
+
+next:
+	for _, buildParameter := range pr.lastBuildParameters {
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithLastBuildParametersInParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 	if pr.promptRichParameters {
 		return resolved // don't pull parameters from last build
 	}
@@ -186,7 +232,7 @@ next:
 			continue // immutables should not be passed to consecutive builds
 		}
 
-		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, tvp.Options) {
+		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, *tvp) {
 			continue // do not propagate invalid options
 		}
 
@@ -202,7 +248,22 @@ next:
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+next:
+	for _, buildParameter := range pr.sourceWorkspaceParameters {
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithSourceBuildParametersInParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 next:
 	for _, buildParameter := range pr.sourceWorkspaceParameters {
 		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
@@ -237,7 +298,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 			return xerrors.Errorf("ephemeral parameter %q can be used only with --prompt-ephemeral-parameters or --ephemeral-parameter flag", r.Name)
 		}
 
-		if !tvp.Mutable && action != WorkspaceCreate {
+		if !tvp.Mutable && action != WorkspaceCreate && !pr.isFirstTimeUse(r.Name) {
 			return xerrors.Errorf("parameter %q is immutable and cannot be updated", r.Name)
 		}
 	}
@@ -262,9 +323,32 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
-			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
-			if err != nil {
-				return nil, err
+			name := tvp.Name
+			if tvp.DisplayName != "" {
+				name = tvp.DisplayName
+			}
+
+			parameterValue := tvp.DefaultValue
+			cliDefault, cliDefaultProvided := pr.richParametersDefaults[tvp.Name]
+			if cliDefaultProvided {
+				parameterValue = cliDefault
+			}
+
+			// Auto-accept the default value when one exists.
+			// A parameter has a usable default if a CLI
+			// default was provided via --parameter-default, or
+			// the template parameter is not required (meaning
+			// a default was set in Terraform, even if it is
+			// an empty string).
+			hasDefault := cliDefaultProvided || !tvp.Required
+			if pr.useParameterDefaults && hasDefault {
+				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
+			} else {
+				var err error
+				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			resolved = append(resolved, codersdk.WorkspaceBuildParameter{
@@ -289,7 +373,7 @@ func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionPa
 
 	for _, buildParameter := range pr.lastBuildParameters {
 		if buildParameter.Name == templateVersionParameter.Name {
-			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter.Options)
+			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter)
 		}
 	}
 	return false
@@ -313,8 +397,31 @@ func findWorkspaceBuildParameter(parameterName string, params []codersdk.Workspa
 	return nil
 }
 
-func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, options []codersdk.TemplateVersionParameterOption) bool {
-	for _, opt := range options {
+func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, templateVersionParameter codersdk.TemplateVersionParameter) bool {
+	// Multi-select parameters store values as a JSON array (e.g.
+	// '["vim","emacs"]'), so we need to parse the array and validate
+	// each element individually against the allowed options.
+	if templateVersionParameter.Type == "list(string)" {
+		var values []string
+		if err := json.Unmarshal([]byte(buildParameter.Value), &values); err != nil {
+			return false
+		}
+		for _, v := range values {
+			found := false
+			for _, opt := range templateVersionParameter.Options {
+				if opt.Value == v {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	}
+
+	for _, opt := range templateVersionParameter.Options {
 		if opt.Value == buildParameter.Value {
 			return true
 		}

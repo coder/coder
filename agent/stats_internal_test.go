@@ -23,7 +23,9 @@ func TestStatsReporter(t *testing.T) {
 	fSource := newFakeNetworkStatsSource(ctx, t)
 	fCollector := newFakeCollector(t)
 	fDest := newFakeStatsDest()
-	uut := newStatsReporter(logger, fSource, fCollector)
+	uut := newStatsReporter(logger, fSource, fCollector, DefaultStatsReportInterval)
+
+	_ = testutil.TryReceive(ctx, t, fSource.period) // drain construction-time install
 
 	loopErr := make(chan error, 1)
 	loopCtx, loopCancel := context.WithCancel(ctx)
@@ -157,7 +159,7 @@ func newFakeNetworkStatsSource(ctx context.Context, t testing.TB) *fakeNetworkSt
 	f := &fakeNetworkStatsSource{
 		ctx:    ctx,
 		t:      t,
-		period: make(chan time.Duration),
+		period: make(chan time.Duration, 1),
 	}
 	return f
 }

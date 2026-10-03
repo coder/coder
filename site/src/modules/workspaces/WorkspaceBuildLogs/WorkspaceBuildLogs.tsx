@@ -1,20 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
-import type { Line } from "components/Logs/LogLine";
-import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
+import { cn } from "cn";
 import dayjs from "dayjs";
-import {
-	type FC,
-	Fragment,
-	type HTMLAttributes,
-	useLayoutEffect,
-	useRef,
-} from "react";
-import { BODY_FONT_FAMILY } from "theme/constants";
-
-const Language = {
-	seconds: "seconds",
-};
+import { Fragment, useLayoutEffect, useRef } from "react";
+import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
+import type { Line } from "#/components/Logs/LogLine";
+import { Logs, LogsHeader } from "#/components/Logs/Logs";
 
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
@@ -44,15 +33,15 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
+type WorkspaceBuildLogsProps = Omit<React.ComponentProps<"div">, "ref"> & {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
 	disableAutoscroll?: boolean;
-}
+};
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
+export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({
 	hideTimestamps,
 	sticky,
 	logs,
@@ -74,7 +63,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	return (
 		<div
 			ref={ref}
-			className="font-mono border border-border rounded-lg"
+			className={cn("font-mono border border-border rounded-lg", className)}
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
@@ -87,59 +76,25 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 					sourceId: log.log_source,
 				}));
 				const duration = getStageDurationInSeconds(logs);
-				const shouldDisplayDuration = duration !== undefined;
 
 				return (
 					<Fragment key={stage}>
-						<div
-							css={[styles.header, sticky && styles.sticky]}
-							className="logs-header"
-						>
-							<div>{stage}</div>
-							{shouldDisplayDuration && (
-								<div css={styles.duration}>
-									{duration} {Language.seconds}
-								</div>
-							)}
-						</div>
-						{!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}
+						<LogsHeader
+							title={stage}
+							detail={
+								duration === undefined ? undefined : `${duration} seconds`
+							}
+						/>
+						{!isEmpty && (
+							<Logs
+								className="min-h-0 border-b-border"
+								hideTimestamps={hideTimestamps}
+								lines={lines}
+							/>
+						)}
 					</Fragment>
 				);
 			})}
 		</div>
 	);
 };
-
-const styles = {
-	header: (theme) => ({
-		fontSize: 13,
-		fontWeight: 600,
-		padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
-		display: "flex",
-		alignItems: "center",
-		fontFamily: BODY_FONT_FAMILY,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		background: theme.palette.background.default,
-		lineHeight: "1",
-
-		"&:last-child": {
-			borderBottom: 0,
-			borderRadius: "0 0 8px 8px",
-		},
-
-		"&:first-of-type": {
-			borderRadius: "8px 8px 0 0",
-		},
-	}),
-
-	sticky: {
-		position: "sticky",
-		top: 0,
-	},
-
-	duration: (theme) => ({
-		marginLeft: "auto",
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

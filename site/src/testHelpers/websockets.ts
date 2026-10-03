@@ -1,4 +1,6 @@
-import type { WebSocketEventType } from "utils/OneWayWebSocket";
+import type { Mock } from "vitest";
+import { API } from "#/api/api";
+import type { WebSocketEventType } from "#/utils/OneWayWebSocket";
 
 type SocketSendData = Parameters<WebSocket["send"]>[0];
 
@@ -16,18 +18,18 @@ type CallbackStore = {
 	[K in keyof WebSocketEventMap]: Set<(event: WebSocketEventMap[K]) => void>;
 };
 
-type MockWebSocket = Omit<WebSocket, "send"> & {
+export type MockWebSocket = Omit<WebSocket, "send"> & {
 	/**
 	 * A version of the WebSocket `send` method that has been pre-wrapped inside
-	 * a Jest mock.
+	 * a vitest mock.
 	 *
-	 * The Jest mock functionality should be used at a minimum. Basically:
+	 * The vitest mock functionality should be used at a minimum. Basically:
 	 * 1. If you want to check that the mock socket sent something to the mock
 	 *    server: call the `send` method as a function, and then check the
 	 *    `clientSentData` on `MockWebSocketServer` to see what data got
 	 *    received.
 	 * 2. If you need to make sure that the client-side `send` method got called
-	 *    at all: you can use the Jest mock functionality, but you should
+	 *    at all: you can use the vitest mock functionality, but you should
 	 *    probably also be checking `clientSentData` still and making additional
 	 *    assertions with it.
 	 *
@@ -35,7 +37,7 @@ type MockWebSocket = Omit<WebSocket, "send"> & {
 	 * communication was successful, not whether the client-side method was
 	 * called.
 	 */
-	send: jest.Mock<void, [SocketSendData], unknown>;
+	send: Mock<(data: SocketSendData) => void>;
 };
 
 export function createMockWebSocket(
@@ -51,6 +53,7 @@ export function createMockWebSocket(
 		: (protocol ?? "");
 
 	let isOpen = true;
+	let readyStateValue: 0 | 1 | 2 | 3 = 0; // CONNECTING
 	const store: CallbackStore = {
 		message: new Set(),
 		error: new Set(),
@@ -68,7 +71,9 @@ export function createMockWebSocket(
 
 		url,
 		protocol: activeProtocol,
-		readyState: 1,
+		get readyState() {
+			return readyStateValue;
+		},
 		binaryType: "blob",
 		bufferedAmount: 0,
 		extensions: "",
@@ -76,9 +81,9 @@ export function createMockWebSocket(
 		onerror: null,
 		onmessage: null,
 		onopen: null,
-		dispatchEvent: jest.fn(),
+		dispatchEvent: vi.fn(),
 
-		send: jest.fn((data) => {
+		send: vi.fn((data) => {
 			if (!isOpen) {
 				return;
 			}
@@ -125,6 +130,7 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
+			readyStateValue = 1; // OPEN
 			for (const sub of store.open) {
 				sub(event);
 			}
@@ -159,4 +165,31 @@ export function createMockWebSocket(
 	};
 
 	return [mockSocket, publisher] as const;
+}
+
+export function mockDynamicParameterWebSocket(): readonly [
+	MockWebSocket,
+	MockWebSocketServer,
+] {
+	const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+	vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+		(_versionId, _ownerId, callbacks) => {
+			mockWebSocket.addEventListener("open", () => {
+				callbacks.onOpen?.();
+			});
+			mockWebSocket.addEventListener("message", (event) => {
+				callbacks.onMessage(JSON.parse(event.data));
+			});
+			mockWebSocket.addEventListener("error", () => {
+				callbacks.onError(
+					new Error("Connection for dynamic parameters failed."),
+				);
+			});
+			mockWebSocket.addEventListener("close", () => {
+				callbacks.onClose();
+			});
+			return mockWebSocket;
+		},
+	);
+	return [mockWebSocket, mockPublisher];
 }

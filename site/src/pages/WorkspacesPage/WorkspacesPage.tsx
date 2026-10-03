@@ -1,24 +1,21 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { workspacePermissionsByOrganization } from "api/queries/organizations";
-import { templates, templateVersionRoot } from "api/queries/templates";
-import { workspaces } from "api/queries/workspaces";
-import { useFilter } from "components/Filter/Filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { usePagination } from "hooks/usePagination";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
-import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
-import { type FC, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { chatsByWorkspace } from "#/api/queries/chats";
+import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
+import { templates, templateVersionRoot } from "#/api/queries/templates";
+import { workspaces } from "#/api/queries/workspaces";
+import { useFilter } from "#/components/Filter/Filter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePagination } from "#/hooks/usePagination";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { pageTitle } from "#/utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
+import { BatchStopConfirmation } from "./BatchStopConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
-import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 // To reduce the number of fetches, we reduce the fetch interval if there are no
@@ -27,22 +24,27 @@ const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
 const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
 
 function useSafeSearchParams() {
-	// Have to wrap setSearchParams because React Router doesn't make sure that
-	// the function's memory reference stays stable on each render, even though
-	// its logic never changes, and even though it has function update support
+	// Have to wrap setSearchParams because React Router doesn't guarantee
+	// a stable reference for setSearchParams across renders.
 	const [searchParams, setSearchParams] = useSearchParams();
-	const stableSetSearchParams = useEffectEvent(setSearchParams);
-
-	// Need this to be a tuple type, but can't use "as const", because that would
-	// make the whole array readonly and cause type mismatches downstream
+	const setterRef = useRef(setSearchParams);
+	useLayoutEffect(() => {
+		setterRef.current = setSearchParams;
+	}, [setSearchParams]);
+	const stableSetSearchParams = useCallback(
+		(...args: Parameters<typeof setSearchParams>) => setterRef.current(...args),
+		[],
+	);
+	// Need this to return a tuple, not a plain array. Using "as const"
+	// would make it readonly and cause type mismatches at call sites.
 	return [searchParams, stableSetSearchParams] as ReturnType<
 		typeof useSearchParams
 	>;
 }
 
-type BatchAction = "delete" | "update";
+type BatchAction = "delete" | "stop" | "update";
 
-const WorkspacesPage: FC = () => {
+const WorkspacesPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	// We have to be careful with how we use useSearchParams or any other
 	// derived hooks. The URL is global state, but each call to useSearchParams
@@ -70,7 +72,6 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
-	const { entitlements } = useDashboard();
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -92,10 +93,11 @@ const WorkspacesPage: FC = () => {
 		});
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
-	const filterState = useWorkspacesFilter({
+	const filter = useFilter({
+		fallbackFilter: "user:me",
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onFilterChange: () => {
+		onUpdate: () => {
 			pagination.goToPage(1);
 			resetChecked();
 		},
@@ -104,7 +106,7 @@ const WorkspacesPage: FC = () => {
 	const workspacesQueryOptions = workspaces({
 		limit: pagination.limit,
 		offset: pagination.offset,
-		q: filterState.filter.query,
+		q: filter.query,
 	});
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
@@ -128,9 +130,20 @@ const WorkspacesPage: FC = () => {
 		refetchOnWindowFocus: "always",
 	});
 
+	const workspaceIds = useMemo(
+		() => data?.workspaces?.map((w) => w.id) ?? [],
+		[data?.workspaces],
+	);
+	const chatsByWorkspaceQuery = useQuery({
+		...chatsByWorkspace(workspaceIds),
+		// Only fetch chat lookups for users who can actually create chats;
+		// the endpoint still runs a DB query + RBAC post-filter and the
+		// AgentsNavItem / chat link UI is already hidden for users without
+		// this permission, so the query would return nothing useful for them.
+		enabled: permissions.createChat && workspaceIds.length > 0,
+	});
+
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
-	const canCheckWorkspaces =
-		entitlements.features.workspace_batch_actions.enabled;
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();
@@ -141,14 +154,23 @@ const WorkspacesPage: FC = () => {
 	const checkedWorkspaces =
 		data?.workspaces.filter((w) => checkedWorkspaceIds.has(w.id)) ?? [];
 
+	// Bulk stop only affects running workspaces, so the confirmation dialog and
+	// the mutation should both operate on that subset to avoid over-reporting
+	// how many workspaces will actually be stopped.
+	const workspacesToStop = checkedWorkspaces.filter(
+		(w) => w.latest_build.status === "running",
+	);
+
 	return (
 		<>
 			<title>{pageTitle("Workspaces")}</title>
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
+				canCreateWorkspace={permissions.createWorkspace}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
+				chatsByWorkspace={chatsByWorkspaceQuery.data}
 				onCheckChange={(newWorkspaces) => {
 					setCheckedWorkspaceIds((current) => {
 						const newIds = newWorkspaces.map((ws) => ws.id);
@@ -161,7 +183,6 @@ const WorkspacesPage: FC = () => {
 						return new Set(newIds);
 					});
 				}}
-				canCheckWorkspaces={canCheckWorkspaces}
 				templates={filteredTemplates}
 				templatesFetchStatus={templatesQuery.status}
 				workspaces={data?.workspaces}
@@ -170,11 +191,11 @@ const WorkspacesPage: FC = () => {
 				page={pagination.page}
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
-				filterState={filterState}
+				filter={filter}
 				isRunningBatchAction={batchActions.isProcessing}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
-				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
+				onBatchStopTransition={() => setActiveBatchAction("stop")}
 				onBatchUpdateTransition={() => {
 					// Just because batch-updating can be really dangerous
 					// action for running workspaces, we're going to invalidate
@@ -201,10 +222,9 @@ const WorkspacesPage: FC = () => {
 					});
 				}}
 				onActionError={(error) => {
-					displayError(
-						getErrorMessage(error, "Failed to perform action"),
-						getErrorDetail(error),
-					);
+					toast.error(getErrorMessage(error, "Failed to perform action."), {
+						description: getErrorDetail(error),
+					});
 				}}
 			/>
 
@@ -219,6 +239,17 @@ const WorkspacesPage: FC = () => {
 				}}
 			/>
 
+			<BatchStopConfirmation
+				isLoading={batchActions.isProcessing}
+				workspacesToStop={workspacesToStop}
+				open={activeBatchAction === "stop"}
+				onClose={() => setActiveBatchAction(undefined)}
+				onConfirm={async () => {
+					await batchActions.stop(workspacesToStop);
+					setActiveBatchAction(undefined);
+				}}
+			/>
+
 			<BatchUpdateModalForm
 				open={activeBatchAction === "update"}
 				workspacesToUpdate={checkedWorkspaces}
@@ -227,7 +258,6 @@ const WorkspacesPage: FC = () => {
 				onSubmit={async () => {
 					await batchActions.updateTemplateVersions({
 						workspaces: checkedWorkspaces,
-						isDynamicParametersEnabled: false,
 					});
 					setActiveBatchAction(undefined);
 				}}
@@ -237,64 +267,3 @@ const WorkspacesPage: FC = () => {
 };
 
 export default WorkspacesPage;
-
-type UseWorkspacesFilterOptions = {
-	searchParams: URLSearchParams;
-	onSearchParamsChange: (newParams: URLSearchParams) => void;
-	onFilterChange: () => void;
-};
-
-const useWorkspacesFilter = ({
-	searchParams,
-	onSearchParamsChange,
-	onFilterChange,
-}: UseWorkspacesFilterOptions) => {
-	const filter = useFilter({
-		fallbackFilter: "owner:me",
-		searchParams,
-		onSearchParamsChange,
-		onUpdate: onFilterChange,
-	});
-
-	const { permissions } = useAuthenticated();
-	const canFilterByUser = permissions.viewDeploymentConfig;
-	const userMenu = useUserFilterMenu({
-		value: filter.values.owner,
-		onChange: (option) =>
-			filter.update({ ...filter.values, owner: option?.value }),
-		enabled: canFilterByUser,
-	});
-
-	const templateMenu = useTemplateFilterMenu({
-		value: filter.values.template,
-		onChange: (option) =>
-			filter.update({ ...filter.values, template: option?.value }),
-	});
-
-	const statusMenu = useStatusFilterMenu({
-		value: filter.values.status,
-		onChange: (option) =>
-			filter.update({ ...filter.values, status: option?.value }),
-	});
-
-	const { showOrganizations } = useDashboard();
-	const organizationsMenu = useOrganizationsFilterMenu({
-		value: filter.values.organization,
-		onChange: (option) => {
-			filter.update({
-				...filter.values,
-				organization: option?.value,
-			});
-		},
-	});
-
-	return {
-		filter,
-		menus: {
-			user: canFilterByUser ? userMenu : undefined,
-			template: templateMenu,
-			status: statusMenu,
-			organizations: showOrganizations ? organizationsMenu : undefined,
-		},
-	};
-};

@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+# Create the user if it doesn't exist.
+if ! id -u "${linux_user}" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "${linux_user}"
+fi
+
+# Start main agent with disambiguation name.
+CODER_AGENT_NAME=main sudo -u '${linux_user}' sh -c '${main_init_script}' \
+  >/tmp/coder-agent-main.log 2>&1 &
+
+# Start dev agent with disambiguation name.
+CODER_AGENT_NAME=dev sudo -u '${linux_user}' sh -c '${dev_init_script}' \
+  >/tmp/coder-agent-dev.log 2>&1 &
+
+# Wait for both agent processes to start.
+wait

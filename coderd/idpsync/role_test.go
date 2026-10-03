@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -32,6 +31,9 @@ func TestRoleSyncTable(t *testing.T) {
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
 			"legacy-bar", rbac.RoleOrgAuditor(),
+			// Some arbitrary values to attempt to trip up the SQL in the matching.
+			"Role with (Special Characters)",
+			"NULL",
 		},
 		// bad-claim is a number, and will fail any role sync
 		"bad-claim": 100,
@@ -162,6 +164,42 @@ func TestRoleSyncTable(t *testing.T) {
 			},
 		},
 		{
+			// agents-access removed from the org defaults is granted
+			// through role sync like any other role.
+			Name:                  "AgentsAccessNotDefault",
+			OrganizationRoles:     []string{},
+			DefaultOrgMemberRoles: []string{rbac.RoleOrgWorkspaceAccess()},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "roles",
+				Mapping: map[string][]string{
+					"foo": {rbac.RoleAgentsAccess()},
+				},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+					rbac.RoleAgentsAccess(),
+				},
+			},
+		},
+		{
+			// While agents-access is a default it is implicit, so role
+			// sync neither stores nor strips it.
+			Name:              "AgentsAccessDefault",
+			OrganizationRoles: []string{},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "roles",
+				Mapping: map[string][]string{
+					"foo": {rbac.RoleAgentsAccess()},
+				},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+				},
+			},
+		},
+		{
 			Name:              "NonExistentClaim",
 			OrganizationRoles: []string{rbac.RoleOrgAuditor()},
 			RoleSettings: &idpsync.RoleSyncSettings{
@@ -273,7 +311,7 @@ func TestRoleSyncTable(t *testing.T) {
 		}
 
 		// Also assert site wide roles
-		allRoles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+		allRoles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
 		require.NoError(t, err)
 
 		allRoleIDs, err := allRoles.RoleNames()
@@ -332,6 +370,12 @@ func TestNoopNoDiff(t *testing.T) {
 				Roles:          orgRoles,
 			},
 		},
+	}, nil)
+
+	// SyncRoles fetches the org to union implicit roles into the diff filter.
+	mDB.EXPECT().GetOrganizationByID(gomock.Any(), orgID).Return(database.Organization{
+		ID:                    orgID,
+		DefaultOrgMemberRoles: []string{},
 	}, nil)
 
 	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), gomock.Any()).Return(

@@ -1,25 +1,28 @@
-import { AuditActions, ResourceTypes } from "api/typesGenerated";
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
+import capitalize from "lodash/capitalize";
+import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
+import {
+	Filter,
+	MenuSkeleton,
+	type useFilter,
+} from "#/components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
+} from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
+} from "#/components/Filter/SelectFilter";
 import {
 	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,
 	UserMenu,
-} from "components/Filter/UserFilter";
-import capitalize from "lodash/capitalize";
+} from "#/components/Filter/UserFilter";
 import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
-} from "modules/tableFiltering/options";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/modules/tableFiltering/options";
+import { docs } from "#/utils/docs";
 
 const PRESET_FILTERS = [
 	{
@@ -38,7 +41,7 @@ const PRESET_FILTERS = [
 	},
 ];
 
-interface AuditFilterProps {
+type AuditFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
@@ -48,13 +51,19 @@ interface AuditFilterProps {
 		// The organization menu is only provided in a multi-org setup.
 		organization?: OrganizationsFilterMenu;
 	};
-}
+};
 
-export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+export const AuditFilter: React.FC<AuditFilterProps> = ({
+	filter,
+	error,
+	menus,
+}) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
-			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
+			learnMoreLink={docs(
+				"/admin/security/audit-logs#how-to-filter-audit-logs",
+			)}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}
@@ -108,12 +117,12 @@ export const useActionFilterMenu = ({
 
 type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
-interface ActionMenuProps {
+type ActionMenuProps = {
 	menu: ActionFilterMenu;
 	width?: number;
-}
+};
 
-const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
+const ActionMenu: React.FC<ActionMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select an action"
@@ -149,6 +158,18 @@ export const useResourceTypeFilterMenu = ({
 			label = "Workspace build";
 		}
 
+		if (type === "chat_instruction_settings") {
+			label = "Chat Instruction Settings";
+		}
+
+		if (type === "chat_operational_settings") {
+			label = "Chat Operational Settings";
+		}
+
+		if (type === "experiment_rule") {
+			label = "Experiment Rule";
+		}
+
 		return {
 			value: type,
 			label,
@@ -166,12 +187,12 @@ export const useResourceTypeFilterMenu = ({
 
 type ResourceTypeFilterMenu = ReturnType<typeof useResourceTypeFilterMenu>;
 
-interface ResourceTypeMenuProps {
+type ResourceTypeMenuProps = {
 	menu: ResourceTypeFilterMenu;
 	width?: number;
-}
+};
 
-const ResourceTypeMenu: FC<ResourceTypeMenuProps> = ({ menu, width }) => {
+const ResourceTypeMenu: React.FC<ResourceTypeMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select a resource type"

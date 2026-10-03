@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor, within } from "storybook/test";
 import { Avatar } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {
@@ -52,6 +53,26 @@ export const NonSquaredIcon: Story = {
 	},
 };
 
+export const BuiltInEmojiLgSize: Story = {
+	args: {
+		size: "lg",
+		src: "/emojis/1f64c.png",
+	},
+};
+
+export const BuiltInEmojiMdSize: Story = {
+	args: {
+		src: "/emojis/1f64c.png",
+	},
+};
+
+export const BuiltInEmojiSmSize: Story = {
+	args: {
+		size: "sm",
+		src: "/emojis/1f64c.png",
+	},
+};
+
 export const FallbackLgSize: Story = {
 	args: {
 		src: "",
@@ -72,5 +93,21 @@ export const FallbackSmSize: Story = {
 		src: "",
 		size: "sm",
 		fallback: "Adriana Rodrigues",
+	},
+};
+
+export const WithAlt: Story = {
+	args: {
+		variant: "icon",
+		src: "/icon/code.svg",
+		alt: "Visual Studio Code template",
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(async () => {
+			const img = await within(canvasElement).findByAltText(
+				"Visual Studio Code template",
+			);
+			expect(img.tagName).toBe("IMG");
+		});
 	},
 };

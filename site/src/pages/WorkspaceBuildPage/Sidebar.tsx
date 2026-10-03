@@ -1,17 +1,15 @@
-import type { FC, HTMLAttributes } from "react";
-export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
+import { cn } from "cn";
+
+export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
 	children,
 	...attrs
 }) => {
 	return (
 		<nav
-			css={(theme) => ({
-				width: 256,
-				flexShrink: 0,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflowY: "auto",
-			})}
+			className={cn(
+				"w-64 shrink-0 border-solid border-0 border-r",
+				"h-full py-2 overflow-y-auto",
+			)}
 			{...attrs}
 		>
 			{children}
@@ -19,36 +17,24 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLElement> {
+type SidebarItemProps = React.ComponentProps<"button"> & {
 	active?: boolean;
-}
+};
 
-export const SidebarItem: FC<SidebarItemProps> = ({
+export const SidebarItem: React.FC<SidebarItemProps> = ({
 	children,
 	active,
 	...attrs
 }) => {
 	return (
 		<button
-			css={(theme) => ({
-				background: active ? theme.experimental.l2.background : "none",
-				border: "none",
-				fontSize: 14,
-				width: "100%",
-				textAlign: "left",
-				padding: "0 24px",
-				cursor: "pointer",
-				pointerEvents: active ? "none" : "auto",
-				color: active
-					? theme.palette.text.primary
-					: theme.palette.text.secondary,
-				"&:hover": {
-					background: theme.palette.action.hover,
-					color: theme.palette.text.primary,
-				},
-				paddingTop: 10,
-				paddingBottom: 10,
-			})}
+			className={cn(
+				"py-2.5 px-6 border-0 text-sm w-full text-left cursor-pointer",
+				"hover:bg-surface-tertiary hover:text-content-primary",
+				active
+					? "text-content-primary pointer-events-none bg-surface-secondary"
+					: "text-content-secondary pointer-events-auto bg-transparent",
+			)}
 			{...attrs}
 		>
 			{children}
@@ -56,20 +42,17 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const SidebarCaption: React.FC<React.ComponentProps<"div">> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
 		<div
-			css={(theme) => ({
-				fontSize: 10,
-				textTransform: "uppercase",
-				fontWeight: 500,
-				color: theme.palette.text.secondary,
-				padding: "12px 24px",
-				letterSpacing: "0.5px",
-			})}
+			className={cn(
+				"text-[10px] uppercase font-medium text-content-secondary",
+				"px-6 py-3 tracking-[0.5px]",
+			)}
 			{...attrs}
 		>
 			{children}

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -107,7 +106,7 @@ func (c *Client) CreateOrganizationRole(ctx context.Context, role Role) (Role, e
 		return Role{}, ReadBodyAsError(res)
 	}
 	var r Role
-	return r, json.NewDecoder(res.Body).Decode(&r)
+	return r, ReadBodyAsJSON(res, &r)
 }
 
 // UpdateOrganizationRole will update an existing custom organization role
@@ -131,7 +130,7 @@ func (c *Client) UpdateOrganizationRole(ctx context.Context, role Role) (Role, e
 		return Role{}, ReadBodyAsError(res)
 	}
 	var r Role
-	return r, json.NewDecoder(res.Body).Decode(&r)
+	return r, ReadBodyAsJSON(res, &r)
 }
 
 // DeleteOrganizationRole will delete a custom organization role
@@ -159,7 +158,7 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var roles []AssignableRoles
-	return roles, json.NewDecoder(res.Body).Decode(&roles)
+	return roles, ReadBodyAsJSON(res, &roles)
 }
 
 // ListOrganizationRoles lists all assignable roles for a given organization.
@@ -173,7 +172,7 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]As
 		return nil, ReadBodyAsError(res)
 	}
 	var roles []AssignableRoles
-	return roles, json.NewDecoder(res.Body).Decode(&roles)
+	return roles, ReadBodyAsJSON(res, &roles)
 }
 
 // CreatePermissions is a helper function to quickly build permissions.

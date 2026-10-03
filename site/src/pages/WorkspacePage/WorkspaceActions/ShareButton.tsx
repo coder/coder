@@ -1,23 +1,22 @@
-import type { Workspace } from "api/typesGenerated";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { Share2Icon } from "lucide-react";
+import type { Workspace } from "#/api/typesGenerated";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { UsersIcon } from "lucide-react";
-import { isGroup } from "modules/groups";
-import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
-import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
-import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
-import type { FC } from "react";
+} from "#/components/Popover/Popover";
+import { isGroup } from "#/modules/groups";
+import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
+import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
+import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
-interface ShareButtonProps {
+type ShareButtonProps = {
 	workspace: Workspace;
 	canUpdatePermissions: boolean;
-}
+};
 
-export const ShareButton: FC<ShareButtonProps> = ({
+export const ShareButton: React.FC<ShareButtonProps> = ({
 	workspace,
 	canUpdatePermissions,
 }) => {
@@ -27,12 +26,16 @@ export const ShareButton: FC<ShareButtonProps> = ({
 		<Popover>
 			<PopoverTrigger asChild>
 				<TopbarButton data-testid="workspace-share-button">
-					<UsersIcon />
+					<Share2Icon />
 					Share
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
+				<div className="flex items-center gap-2 mb-4">
+					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
+				</div>
 				<WorkspaceSharingForm
+					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
 					canUpdatePermissions={canUpdatePermissions}
 					error={sharing.error ?? sharing.mutationError}
@@ -42,6 +45,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					updatingGroupId={sharing.updatingGroupId}
 					onUpdateGroup={sharing.updateGroup}
 					onRemoveGroup={sharing.removeGroup}
+					showRestartWarning={sharing.hasRemovedMember}
 					isCompact
 					addMemberForm={
 						<AddWorkspaceUserOrGroup

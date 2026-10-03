@@ -1,4 +1,6 @@
-# Reusing template code
+---
+title: Reuse template code
+---
 
 To reuse code across different Coder templates, such as common scripts or
 resource definitions, we suggest using
@@ -52,34 +54,70 @@ across templates. Some of the modules we publish are,
 For a full list of available modules please check
 [Coder module registry](https://registry.coder.com/modules).
 
+## Module caching
+
+Module caching is enabled by default for all templates. When you publish a
+new template version, Coder runs `terraform init` to resolve every module the
+template references, then archives the resulting `.terraform/modules`
+directory and stores it alongside that template version. On every subsequent
+workspace build, Coder provisioners reuse this cached archive instead of
+re-fetching modules from their original sources (a git repository, the Coder
+registry, or another Terraform registry). This avoids redundant network and
+disk I/O on each build and prevents build failures caused by a module source
+being slow or temporarily unavailable.
+
+Coder limits cached module archives to 20&nbsp;MB per template version.
+If your modules exceed this limit, some are skipped and unavailable for [Dynamic Parameters](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters) evaluation, though builds still fetch the skipped modules directly.
+Template versions published before Coder started archiving modules have no cache at all, which produces the same ["Module not loaded"](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters) warnings for every module in the workspace creation form; publishing a new template version fixes this.
+
+To force Coder to re-download modules on every workspace build instead of
+using the cached archive, select **Disable Terraform module caching** in a
+template's **Settings** > **General** page, or set `disable_module_cache` to
+`true` with the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+
+> [!WARNING]
+> Disabling module caching makes workspace builds slower and less
+> predictable, since Terraform re-resolves and downloads every module on each
+> build. This isn't recommended for production templates.
+
 ## Offline installations
 
-In offline and restricted deployments, there are two ways to fetch modules.
+In offline and restricted deployments, there are three ways to fetch modules.
 
-1. Artifactory
-2. Private git repository
+1. Artifactory Remote Terraform Repository (Recommended)
+2. Artifactory Local Repository (manual publishing)
+3. Private git repository
 
-### Artifactory
+### Artifactory Remote Terraform Repository (Recommended)
 
-Air gapped users can clone the [coder/registry](https://github.com/coder/registry/)
+Configure Artifactory as a **Remote Terraform Repository** that proxies and
+caches the Coder registry. This approach provides automatic updates and
+requires no manual synchronization.
+
+See [Mirror the Coder Registry with JFrog Artifactory](../../../install/prepare/registry-mirror.md)
+for complete setup instructions.
+
+### Artifactory Local Repository
+
+Air-gapped users can clone the [coder/registry](https://github.com/coder/registry/)
 repo and publish a
-[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
+[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
 1. Create a local-terraform-repository with name `coder-modules-local`
-2. Create a virtual repository with name `tf`
-3. Follow the below instructions to publish coder modules to Artifactory
+1. Create a virtual repository with name `tf`
+1. Follow the below instructions to publish coder modules to Artifactory
 
-   ```shell
+   ```sh
    git clone https://github.com/coder/registry
-   cd registry/coder/modules
+   cd registry/registry/coder/modules
    jf tfc
    jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
    ```
 
-4. Generate a token with access to the `tf` repo and set an `ENV` variable
+1. Generate a token with access to the `tf` repo and set an `ENV` variable
    `TF_TOKEN_example.jfrog.io="XXXXXXXXXXXXXXX"` on the Coder provisioner.
-5. Create a file `.terraformrc` with following content and mount at
+1. Create a file `.terraformrc` with following content and mount at
    `/home/coder/.terraformrc` within the Coder provisioner.
 
    ```tf
@@ -93,7 +131,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-6. Update module source as:
+1. Update module source as:
 
    ```tf
    module "module-name" {
@@ -112,15 +150,15 @@ Based on the instructions
 #### Example template
 
 We have an example template
-[here](https://github.com/coder/coder/blob/main/examples/jfrog/remote/main.tf)
+[here](../../../../examples/jfrog/remote/main.tf)
 that uses our
-[JFrog Docker](https://github.com/coder/coder/blob/main/examples/jfrog/docker/main.tf)
+[JFrog Docker](../../../../examples/jfrog/docker/main.tf)
 template as the underlying module.
 
 ### Private git repository
 
-If you are importing a module from a private git repository, the Coder server or
-[provisioner](../../provisioners/index.md) needs git credentials. Since this token
+If you are importing a module from a private git repository, the control plane or
+[provisioner](../../../install/operate/provisioners/index.md) needs git credentials. Since this token
 will only be used for cloning your repositories with modules, it is best to
 create a token with access limited to the repository and no extra permissions.
 In GitHub, you can generate a
@@ -130,13 +168,13 @@ with read only access to the necessary repos.
 If you are running Coder on a VM, make sure that you have `git` installed and
 the `coder` user has access to the following files:
 
-```shell
+```sh
 # /home/coder/.gitconfig
 [credential]
   helper = store
 ```
 
-```shell
+```sh
 # /home/coder/.git-credentials
 
 # GitHub example:
@@ -147,7 +185,7 @@ If you are running Coder on Docker or Kubernetes, `git` is pre-installed in the
 Coder image. However, you still need to mount credentials. This can be done via
 a Docker volume mount or Kubernetes secrets.
 
-#### Passing git credentials in Kubernetes
+#### Pass git credentials in Kubernetes
 
 First, create a `.gitconfig` and `.git-credentials` file on your local machine.
 You might want to do this in a temporary directory to avoid conflicting with
@@ -156,7 +194,7 @@ your own git credentials.
 Next, create the secret in Kubernetes. Be sure to do this in the same namespace
 that Coder is installed in.
 
-```shell
+```sh
 export NAMESPACE=coder
 kubectl apply -f - <<EOF
 apiVersion: v1
@@ -193,6 +231,6 @@ coder:
 ### Next steps
 
 - JFrog's
-  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 - [Configuring the JFrog toolchain inside a workspace](../../integrations/jfrog-artifactory.md)
 - [Coder Module Registry](https://registry.coder.com/modules)

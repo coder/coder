@@ -1,5 +1,5 @@
-import type { SerpentGroup, SerpentOption } from "api/typesGenerated";
 import { useMemo } from "react";
+import type { SerpentGroup, SerpentOption } from "#/api/typesGenerated";
 
 /**
  * Looks up deployment options by their CLI flag (e.g., "access-url").

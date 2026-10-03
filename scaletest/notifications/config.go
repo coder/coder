@@ -8,15 +8,17 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/scaletest/createusers"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type Config struct {
-	// User is the configuration for the user to create.
-	User createusers.Config `json:"user"`
+	// SessionToken authenticates the runner as PreCreatedUser.
+	SessionToken string `json:"-"`
 
-	// Roles are the roles to assign to the user.
-	Roles []string `json:"roles"`
+	// PreCreatedUser is the existing user to run as. It must already hold any
+	// role needed to receive the notifications under test. Only ID, Username and
+	// Email are used.
+	PreCreatedUser codersdk.User `json:"-"`
 
 	// NotificationTimeout is how long to wait for notifications after triggering.
 	NotificationTimeout time.Duration `json:"notification_timeout"`
@@ -24,8 +26,14 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
-	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
+	// IsTemplateAdmin marks a runner that watches for and counts notifications.
+	// Regular users leave it false and only hold a websocket connection open.
+	IsTemplateAdmin bool `json:"-"`
+
+	// ExpectedDeletions is how many TemplateTemplateDeleted notifications a
+	// template admin waits for (one per template deletion). It is ignored unless
+	// IsTemplateAdmin is set, in which case it must be at least 1.
+	ExpectedDeletions int `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 
@@ -46,13 +54,12 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	// The runner always needs an org; ensure we propagate it into the user config.
-	if c.User.OrganizationID == uuid.Nil {
-		return xerrors.New("user organization_id must be set")
+	// The runner always reuses an existing user; it never creates one.
+	if c.SessionToken == "" {
+		return xerrors.New("session_token must be set")
 	}
-
-	if err := c.User.Validate(); err != nil {
-		return xerrors.Errorf("user config: %w", err)
+	if c.PreCreatedUser.ID == uuid.Nil {
+		return xerrors.New("pre_created_user must be set")
 	}
 
 	if c.DialBarrier == nil {
@@ -65,6 +72,10 @@ func (c Config) Validate() error {
 
 	if c.NotificationTimeout <= 0 {
 		return xerrors.New("notification_timeout must be greater than 0")
+	}
+
+	if c.IsTemplateAdmin && c.ExpectedDeletions < 1 {
+		return xerrors.New("expected_deletions must be at least 1 for a template admin")
 	}
 
 	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {

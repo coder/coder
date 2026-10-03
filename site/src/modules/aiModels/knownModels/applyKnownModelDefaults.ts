@@ -1,0 +1,130 @@
+import {
+	deepGet,
+	deepSet,
+	type ModelFormValues,
+} from "../modelConfigFormLogic";
+import type { KnownModel } from "./types";
+
+export type ApplyKnownModelDefaultsResult = {
+	values: ModelFormValues;
+	appliedFields: readonly string[];
+};
+
+export type ApplyKnownModelDefaultsParameters = {
+	values: ModelFormValues;
+	initialValues: ModelFormValues;
+	provider: string;
+	knownModel: KnownModel;
+};
+
+const thinkingBudgetTokensPathByProvider: Record<string, string> = {
+	anthropic: "config.anthropic.thinking.budgetTokens",
+};
+
+const maybeApplyDefault = ({
+	appliedFields,
+	initialValues,
+	nextValues,
+	path,
+	value,
+	values,
+}: {
+	appliedFields: string[];
+	initialValues: ModelFormValues;
+	nextValues: ModelFormValues;
+	path: string;
+	value: string;
+	values: ModelFormValues;
+}): void => {
+	const segments = path.split(".");
+	if (deepGet(values, segments) !== deepGet(initialValues, segments)) {
+		return;
+	}
+
+	deepSet(nextValues as Record<string, unknown>, segments, value);
+	appliedFields.push(path);
+};
+
+// Writes Known Model defaults only to fields still at their initial value;
+// never overrides user edits. Pure helper independent of Formik touched state.
+export const applyKnownModelDefaults = ({
+	values,
+	initialValues,
+	provider,
+	knownModel,
+}: ApplyKnownModelDefaultsParameters): ApplyKnownModelDefaultsResult => {
+	if (provider.trim() === "" || knownModel.provider !== provider) {
+		return { values, appliedFields: [] };
+	}
+
+	const nextValues = structuredClone(values);
+	const appliedFields: string[] = [];
+
+	maybeApplyDefault({
+		appliedFields,
+		initialValues,
+		nextValues,
+		path: "displayName",
+		value: knownModel.displayName,
+		values,
+	});
+
+	if (knownModel.contextLimit !== undefined) {
+		maybeApplyDefault({
+			appliedFields,
+			initialValues,
+			nextValues,
+			path: "contextLimit",
+			value: String(knownModel.contextLimit),
+			values,
+		});
+	}
+
+	if (knownModel.maxOutputTokens !== undefined) {
+		maybeApplyDefault({
+			appliedFields,
+			initialValues,
+			nextValues,
+			path:
+				provider === "openai"
+					? "config.openai.maxCompletionTokens"
+					: "config.maxOutputTokens",
+			value: String(knownModel.maxOutputTokens),
+			values,
+		});
+	}
+
+	if (knownModel.reasoningEffort !== undefined) {
+		// The catalog carries a single curated effort value. Write both
+		// reasoning_effort bounds because the API requires default and max.
+		for (const path of [
+			"config.reasoningEffort.default",
+			"config.reasoningEffort.max",
+		]) {
+			maybeApplyDefault({
+				appliedFields,
+				initialValues,
+				nextValues,
+				path,
+				value: knownModel.reasoningEffort,
+				values,
+			});
+		}
+	}
+
+	if (knownModel.thinkingBudgetTokens !== undefined) {
+		const path = thinkingBudgetTokensPathByProvider[provider];
+		if (path !== undefined) {
+			maybeApplyDefault({
+				appliedFields,
+				initialValues,
+				nextValues,
+				path,
+				value: String(knownModel.thinkingBudgetTokens),
+				values,
+			});
+		}
+	}
+
+	return { values: nextValues, appliedFields };
+};

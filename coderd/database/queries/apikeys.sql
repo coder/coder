@@ -21,14 +21,34 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetChatGatewayAPIKey :one
+SELECT
+	*
+FROM
+	api_keys
+WHERE
+	user_id = @user_id AND
+	token_name = @token_name AND
+	-- Token names are unvalidated user input, so a user could create a token
+	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
+	-- never picks up (and extends) a real bearer token. Synthetic gateway
+	-- keys are minted with the owner's login type, which is never 'token'.
+	login_type != 'token'
+ORDER BY
+	created_at ASC, id ASC
+LIMIT
+	1;
+
 -- name: GetAPIKeysLastUsedAfter :many
 SELECT * FROM api_keys WHERE last_used > $1;
 
 -- name: GetAPIKeysByLoginType :many
-SELECT * FROM api_keys WHERE login_type = $1;
+SELECT * FROM api_keys WHERE login_type = $1
+AND (@include_expired::bool OR expires_at > now());
 
 -- name: GetAPIKeysByUserID :many
-SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
+SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2
+AND (@include_expired::bool OR expires_at > now());
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -71,6 +91,20 @@ DELETE FROM
 	api_keys
 WHERE
 	id = $1;
+
+-- name: DeleteAPIKeyByIDReturningRow :one
+-- Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+-- this the arbiter of single use. A prior read cannot arbitrate: its result is
+-- stale the moment it returns.
+--
+-- Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+-- level: the second transaction waits for the first, then removes nothing.
+-- SERIALIZABLE would abort and retry it instead.
+DELETE FROM
+	api_keys
+WHERE
+	id = $1
+RETURNING *;
 
 -- name: DeleteApplicationConnectAPIKeysByUserID :exec
 DELETE FROM

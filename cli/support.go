@@ -1,14 +1,20 @@
 package cli
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -40,31 +46,49 @@ func (r *RootCmd) support() *serpent.Command {
 	return supportCmd
 }
 
-var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
-	`  - Coder deployment version
+func supportBundleBlurb(workspaceFilePatterns []string) string {
+	blurb := cliui.Bold("This will collect the following information:\n") +
+		`  - Coder deployment version
   - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
+  - Coder deployment stats (aggregated workspace/session metrics)
+  - Entitlements (if available)
+  - Health settings (dismissed healthchecks)
   - Coder deployment Network troubleshooting information
+  - Workspace list accessible to the user (sanitized)
   - Workspace configuration, parameters, and build logs
   - Template version and source code for the given workspace
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
-  - License status
+`
+	if len(workspaceFilePatterns) > 0 {
+		blurb += "  - Workspace files matching:\n"
+		for _, pattern := range workspaceFilePatterns {
+			blurb += "    - " + pattern + "\n"
+		}
+	}
+	return blurb + `  - License status
+  - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
-	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
-	cliui.Bold("Please confirm that you will:\n") +
-	"  - Review the support bundle before distribution\n" +
-	"  - Only distribute it via trusted channels\n" +
-	cliui.Bold("Continue? ")
+		cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
+		cliui.Bold("Please confirm that you will:\n") +
+		"  - Review the support bundle before distribution\n" +
+		"  - Only distribute it via trusted channels\n" +
+		cliui.Bold("Continue? ")
+}
 
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
+	var workspacesTotalCap64 int64 = 10
+	var templateName string
+	var workspaceFilePatterns []string
+	var pprof bool
 	cmd := &serpent.Command{
-		Use:   "bundle <workspace> [<agent>]",
+		Use:   "bundle [<workspace>] [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
-		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
+		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You may specify a single workspace (and optionally an agent name). When run inside a workspace, the workspace and agent are inferred from the environment if not provided.`,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 2),
 		),
@@ -80,7 +104,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				cliLog = cliLog.AppendSinks(sloghuman.Sink(inv.Stderr))
 			}
 			ans, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      supportBundleBlurb,
+				Text:      supportBundleBlurb(workspaceFilePatterns),
 				Secret:    false,
 				IsConfirm: true,
 			})
@@ -104,6 +128,20 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			)
 			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
 
+			// Bypass rate limiting for support bundle collection since it makes many API calls.
+			// Note: this can only be done by the owner user.
+			if ok, err := support.CanGenerateFull(inv.Context(), client); err == nil && ok {
+				cliLog.Debug(inv.Context(), "running as owner")
+				client.HTTPClient.Transport = &codersdk.HeaderTransport{
+					Transport: client.HTTPClient.Transport,
+					Provider:  codersdk.StaticHeaderProvider{Header: http.Header{codersdk.BypassRatelimitHeader: {"true"}}},
+				}
+			} else if !ok {
+				cliLog.Warn(inv.Context(), "not running as owner, not all information available")
+			} else {
+				cliLog.Error(inv.Context(), "failed to look up current user", slog.Error(err))
+			}
+
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
 				cliui.Warn(inv.Stderr, "Running inside Coder workspace; this can affect results!")
@@ -121,15 +159,48 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 
 			var (
-				wsID  uuid.UUID
-				agtID uuid.UUID
+				wsID       uuid.UUID
+				agtID      uuid.UUID
+				templateID uuid.UUID
 			)
+
+			if len(inv.Args) == 0 {
+				// When running inside a workspace, infer the workspace
+				// and agent from environment variables set by the agent.
+				// Prefer CODER_WORKSPACE_ID for a direct UUID lookup;
+				// fall back to owner/name for older agents that do not
+				// set the ID variable.
+				if inv.Environ.Get("CODER") == "true" {
+					var wsArg string
+					if v := inv.Environ.Get("CODER_WORKSPACE_ID"); v != "" {
+						wsArg = v
+					} else {
+						wsOwner := inv.Environ.Get("CODER_WORKSPACE_OWNER_NAME")
+						wsName := inv.Environ.Get("CODER_WORKSPACE_NAME")
+						if wsOwner != "" && wsName != "" {
+							wsArg = wsOwner + "/" + wsName
+						}
+					}
+					agtName := inv.Environ.Get("CODER_WORKSPACE_AGENT_NAME")
+					if wsArg != "" {
+						cliLog.Info(inv.Context(), "detected workspace from environment",
+							slog.F("workspace_arg", wsArg),
+							slog.F("agent_name", agtName),
+						)
+						cliui.Info(inv.Stderr, "Detected workspace from environment: "+wsArg)
+						inv.Args = append(inv.Args, wsArg)
+						if agtName != "" {
+							inv.Args = append(inv.Args, agtName)
+						}
+					}
+				}
+			}
 
 			if len(inv.Args) == 0 {
 				cliLog.Warn(inv.Context(), "no workspace specified")
 				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
-				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("invalid workspace: %w", err)
 				}
@@ -155,6 +226,16 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				}
 			}
 
+			// Resolve template by name if provided (captures active version)
+			// Fallback: if canonical name lookup fails, match DisplayName (case-insensitive).
+			if templateName != "" {
+				id, err := resolveTemplateID(inv.Context(), client, templateName)
+				if err != nil {
+					return err
+				}
+				templateID = id
+			}
+
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
 				if err != nil {
@@ -176,12 +257,20 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if r.verbose {
 				clientLog.AppendSinks(sloghuman.Sink(inv.Stderr))
 			}
+			if pprof {
+				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
+			}
+
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
-				Log:         clientLog,
-				WorkspaceID: wsID,
-				AgentID:     agtID,
+				Log:                   clientLog,
+				WorkspaceID:           wsID,
+				AgentID:               agtID,
+				WorkspacesTotalCap:    int(workspacesTotalCap64),
+				TemplateID:            templateID,
+				WorkspaceFilePatterns: workspaceFilePatterns,
+				CollectPprof:          pprof,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -217,9 +306,106 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Description: "Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.",
 			Value:       serpent.StringOf(&coderURLOverride),
 		},
+		{
+			Flag:        "workspaces-total-cap",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP",
+			Description: "Maximum number of workspaces to include in the support bundle. Set to 0 or negative value to disable the cap. Defaults to 10.",
+			Value:       serpent.Int64Of(&workspacesTotalCap64),
+		},
+		{
+			Flag:        "template",
+			Env:         "CODER_SUPPORT_BUNDLE_TEMPLATE",
+			Description: "Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.",
+			Value:       serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "workspace-file",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACE_FILE",
+			Description: "File path or glob to collect from inside the remote workspace. Environment variables are expanded in the workspace; paths must then be absolute or start with ~/, which resolves against the agent user's home directory. Files local to the machine running this command are not collected. Can be specified multiple times.",
+			Value:       serpent.StringArrayOf(&workspaceFilePatterns),
+		},
+		{
+			Flag:        "pprof",
+			Env:         "CODER_SUPPORT_BUNDLE_PPROF",
+			Description: "Collect pprof profiling data from the Coder server and agent. Requires Coder server version 2.28.0 or newer.",
+			Value:       serpent.BoolOf(&pprof),
+		},
 	}
 
 	return cmd
+}
+
+// Resolve a template to its ID, supporting:
+// - org/name form
+// - slug or display name match (case-insensitive) across all memberships
+func resolveTemplateID(ctx context.Context, client *codersdk.Client, templateArg string) (uuid.UUID, error) {
+	orgPart := ""
+	namePart := templateArg
+	if slash := strings.IndexByte(templateArg, '/'); slash > 0 && slash < len(templateArg)-1 {
+		orgPart = templateArg[:slash]
+		namePart = templateArg[slash+1:]
+	}
+
+	resolveInOrg := func(orgID uuid.UUID) (codersdk.Template, bool, error) {
+		if t, err := client.TemplateByName(ctx, orgID, namePart); err == nil {
+			return t, true, nil
+		}
+		tpls, err := client.TemplatesByOrganization(ctx, orgID)
+		if err != nil {
+			return codersdk.Template{}, false, nil
+		}
+		for _, t := range tpls {
+			if strings.EqualFold(t.Name, namePart) || strings.EqualFold(t.DisplayName, namePart) {
+				return t, true, nil
+			}
+		}
+		return codersdk.Template{}, false, nil
+	}
+
+	if orgPart != "" {
+		org, err := client.OrganizationByName(ctx, orgPart)
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("get organization %q: %w", orgPart, err)
+		}
+		t, found, err := resolveInOrg(org.ID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if !found {
+			return uuid.Nil, xerrors.Errorf("template %q not found in organization %q", namePart, orgPart)
+		}
+		return t.ID, nil
+	}
+
+	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get organizations: %w", err)
+	}
+	var (
+		foundTpl  codersdk.Template
+		foundOrgs []string
+	)
+	for _, org := range orgs {
+		if t, found, err := resolveInOrg(org.ID); err == nil && found {
+			if len(foundOrgs) == 0 {
+				foundTpl = t
+			}
+			foundOrgs = append(foundOrgs, org.Name)
+		}
+	}
+	switch len(foundOrgs) {
+	case 0:
+		return uuid.Nil, xerrors.Errorf("template %q not found in your organizations", namePart)
+	case 1:
+		return foundTpl.ID, nil
+	default:
+		return uuid.Nil, xerrors.Errorf(
+			"template %q found in multiple organizations (%s); use --template \"<org_name/%s>\" to target desired template.",
+			namePart,
+			strings.Join(foundOrgs, ", "),
+			namePart,
+		)
+	}
 }
 
 // summarizeBundle makes a best-effort attempt to write a short summary
@@ -230,19 +416,20 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		return
 	}
 
-	if bun.Deployment.Config == nil {
-		cliui.Error(inv.Stdout, "No deployment configuration available!")
-		return
+	var docsURL string
+	if bun.Deployment.Config != nil {
+		docsURL = bun.Deployment.Config.Values.DocsURL.String()
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment configuration available. This may require the Owner role.")
 	}
 
-	docsURL := bun.Deployment.Config.Values.DocsURL.String()
-	if bun.Deployment.HealthReport == nil {
-		cliui.Error(inv.Stdout, "No deployment health report available!")
-		return
-	}
-	deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
-	if len(deployHealthSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+	if bun.Deployment.HealthReport != nil {
+		deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
+		if len(deployHealthSummary) > 0 {
+			cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+		}
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment health report available.")
 	}
 
 	if bun.Network.Netcheck == nil {
@@ -283,6 +470,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"deployment/config.json":          src.Deployment.Config,
 		"deployment/experiments.json":     src.Deployment.Experiments,
 		"deployment/health.json":          src.Deployment.HealthReport,
+		"deployment/stats.json":           src.Deployment.Stats,
+		"deployment/entitlements.json":    src.Deployment.Entitlements,
+		"deployment/health_settings.json": src.Deployment.HealthSettings,
+		"deployment/workspaces.json":      src.Deployment.Workspaces,
 		"network/connection_info.json":    src.Network.ConnectionInfo,
 		"network/netcheck.json":           src.Network.Netcheck,
 		"network/interfaces.json":         src.Network.Interfaces,
@@ -302,6 +493,49 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
+	// Include named template artifacts (if requested)
+	if src.NamedTemplate.Template.ID != uuid.Nil {
+		name := src.NamedTemplate.Template.Name
+		// JSON files
+		for k, v := range map[string]any{
+			"templates/" + name + "/template.json":         src.NamedTemplate.Template,
+			"templates/" + name + "/template_version.json": src.NamedTemplate.TemplateVersion,
+		} {
+			f, err := dest.Create(k)
+			if err != nil {
+				return xerrors.Errorf("create file %q in archive: %w", k, err)
+			}
+			enc := json.NewEncoder(f)
+			enc.SetIndent("", "    ")
+			if err := enc.Encode(v); err != nil {
+				return xerrors.Errorf("write json to %q: %w", k, err)
+			}
+		}
+		// Binary template file (zip)
+		if namedZipBytes, err := base64.StdEncoding.DecodeString(src.NamedTemplate.TemplateFileBase64); err == nil {
+			k := "templates/" + name + "/template_file.zip"
+			f, err := dest.Create(k)
+			if err != nil {
+				return xerrors.Errorf("create file %q in archive: %w", k, err)
+			}
+			if _, err := f.Write(namedZipBytes); err != nil {
+				return xerrors.Errorf("write file %q in archive: %w", k, err)
+			}
+		}
+	}
+
+	var buildInfoRef string
+	if src.Deployment.BuildInfo != nil {
+		if raw, err := json.Marshal(src.Deployment.BuildInfo); err == nil {
+			buildInfoRef = base64.StdEncoding.EncodeToString(raw)
+		}
+	}
+
+	tailnetHTML := src.Network.TailnetDebug
+	if buildInfoRef != "" {
+		tailnetHTML += "\n<!-- trace " + buildInfoRef + " -->"
+	}
+
 	templateVersionBytes, err := base64.StdEncoding.DecodeString(src.Workspace.TemplateFileBase64)
 	if err != nil {
 		return xerrors.Errorf("decode template zip from base64")
@@ -319,10 +553,11 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
 		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
 		"agent/prometheus.txt":           string(src.Agent.Prometheus),
+		"deployment/prometheus.txt":      string(src.Deployment.Prometheus),
 		"cli_logs.txt":                   string(src.CLILogs),
 		"logs.txt":                       strings.Join(src.Logs, "\n"),
 		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"network/tailnet_debug.html":     tailnetHTML,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"workspace/template_file.zip":    string(templateVersionBytes),
 		"license-status.txt":             licenseStatus,
@@ -335,9 +570,175 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 			return xerrors.Errorf("write file %q in archive: %w", k, err)
 		}
 	}
+
+	if err := writeWorkspaceFilesArchive(src.Agent.WorkspaceFilesArchive, dest, supportBundleWorkspaceFilesMaxBytes); err != nil {
+		return xerrors.Errorf("write workspace files: %w", err)
+	}
+
+	// Write pprof binary data
+	if err := writePprofData(src.Pprof, dest); err != nil {
+		return xerrors.Errorf("write pprof data: %w", err)
+	}
+
 	if err := dest.Close(); err != nil {
 		return xerrors.Errorf("close zip file: %w", err)
 	}
+	return nil
+}
+
+// supportBundleWorkspaceFilesMaxBytes guards against a misbehaving agent;
+// the agent itself caps collection at 100 MiB.
+const supportBundleWorkspaceFilesMaxBytes int64 = 110 * 1024 * 1024
+
+// writeWorkspaceFilesArchive unpacks the agent's tar into the bundle under
+// agent/workspace_files/; dropped entries are recorded in collection_errors.txt.
+func writeWorkspaceFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) error {
+	if len(src) == 0 {
+		return nil
+	}
+	tr := tar.NewReader(bytes.NewReader(src))
+	remaining := maxBytes
+	var skipped []string
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			// A malformed archive shouldn't sink the rest of the bundle.
+			skipped = append(skipped, fmt.Sprintf("read workspace files archive: %s", err))
+			break
+		}
+		name, ok := safeWorkspaceFilesArchiveEntryName(hdr.Name)
+		if !ok || hdr.Typeflag != tar.TypeReg {
+			skipped = append(skipped, fmt.Sprintf("%s: unexpected entry", hdr.Name))
+			continue
+		}
+		if hdr.Size > remaining {
+			// Only a misbehaving agent exceeds the budget; stop trusting
+			// the rest of the archive.
+			skipped = append(skipped, fmt.Sprintf("%s: %d bytes exceeds remaining %d byte budget, aborting", name, hdr.Size, remaining))
+			break
+		}
+		// A failed create means the output zip itself is broken.
+		f, err := dest.Create(path.Join("agent/workspace_files", name))
+		if err != nil {
+			return xerrors.Errorf("create workspace files entry %q: %w", name, err)
+		}
+		// io.CopyN bounds the copy at hdr.Size so a header lying about
+		// size cannot make us read past the entry; copy failures are
+		// recorded, not fatal.
+		n, err := io.CopyN(f, tr, hdr.Size)
+		remaining -= n
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s: copy: %s (entry may be truncated)", name, err))
+		}
+	}
+	return writeWorkspaceFilesCollectionErrors(dest, skipped)
+}
+
+// writeWorkspaceFilesCollectionErrors records dropped workspace file entries in the
+// bundle instead of failing it.
+func writeWorkspaceFilesCollectionErrors(dest *zip.Writer, skipped []string) error {
+	if len(skipped) == 0 {
+		return nil
+	}
+	f, err := dest.Create("agent/workspace_files/collection_errors.txt")
+	if err != nil {
+		return xerrors.Errorf("create workspace files errors: %w", err)
+	}
+	body := "# workspace file entries dropped while assembling the support bundle\n" +
+		strings.Join(skipped, "\n") + "\n"
+	if _, err := f.Write([]byte(body)); err != nil {
+		return xerrors.Errorf("write workspace files errors: %w", err)
+	}
+	return nil
+}
+
+// safeWorkspaceFilesArchiveEntryName returns name when it is safe to embed in
+// the bundle: a valid slash path within the expected layout. Backslashes
+// are rejected; some Windows extractors treat them as separators.
+func safeWorkspaceFilesArchiveEntryName(name string) (string, bool) {
+	if strings.Contains(name, `\`) || !fs.ValidPath(name) {
+		return "", false
+	}
+	if name != "manifest.json" && !strings.HasPrefix(name, "files/") {
+		return "", false
+	}
+	return name, true
+}
+
+func writePprofData(pprof support.Pprof, dest *zip.Writer) error {
+	// Write server pprof data directly to pprof directory
+	if pprof.Server != nil {
+		if err := writePprofCollection("pprof", pprof.Server, dest); err != nil {
+			return xerrors.Errorf("write server pprof data: %w", err)
+		}
+	}
+
+	// Write agent pprof data
+	if pprof.Agent != nil {
+		if err := writePprofCollection("pprof/agent", pprof.Agent, dest); err != nil {
+			return xerrors.Errorf("write agent pprof data: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func writePprofCollection(basePath string, collection *support.PprofCollection, dest *zip.Writer) error {
+	// Define the pprof files to write with their extensions
+	files := map[string][]byte{
+		"allocs.prof.gz":       collection.Allocs,
+		"heap.prof.gz":         collection.Heap,
+		"profile.prof.gz":      collection.Profile,
+		"block.prof.gz":        collection.Block,
+		"mutex.prof.gz":        collection.Mutex,
+		"goroutine.prof.gz":    collection.Goroutine,
+		"threadcreate.prof.gz": collection.Threadcreate,
+		"trace.gz":             collection.Trace,
+	}
+
+	// Write binary pprof files
+	for filename, data := range files {
+		if len(data) > 0 {
+			filePath := basePath + "/" + filename
+			f, err := dest.Create(filePath)
+			if err != nil {
+				return xerrors.Errorf("create pprof file %q: %w", filePath, err)
+			}
+			if _, err := f.Write(data); err != nil {
+				return xerrors.Errorf("write pprof file %q: %w", filePath, err)
+			}
+		}
+	}
+
+	// Write cmdline as text file
+	if collection.Cmdline != "" {
+		filePath := basePath + "/cmdline.txt"
+		f, err := dest.Create(filePath)
+		if err != nil {
+			return xerrors.Errorf("create cmdline file %q: %w", filePath, err)
+		}
+		if _, err := f.Write([]byte(collection.Cmdline)); err != nil {
+			return xerrors.Errorf("write cmdline file %q: %w", filePath, err)
+		}
+	}
+
+	if collection.Symbol != "" {
+		filePath := basePath + "/symbol.txt"
+		f, err := dest.Create(filePath)
+		if err != nil {
+			return xerrors.Errorf("create symbol file %q: %w", filePath, err)
+		}
+		if _, err := f.Write([]byte(collection.Symbol)); err != nil {
+			return xerrors.Errorf("write symbol file %q: %w", filePath, err)
+		}
+	}
+
 	return nil
 }
 

@@ -1,13 +1,14 @@
 -- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path, subagent_id)
 SELECT
 	@workspace_agent_id::uuid AS workspace_agent_id,
 	@created_at::timestamptz AS created_at,
 	unnest(@id::uuid[]) AS id,
 	unnest(@name::text[]) AS name,
 	unnest(@workspace_folder::text[]) AS workspace_folder,
-	unnest(@config_path::text[]) AS config_path
+	unnest(@config_path::text[]) AS config_path,
+	NULLIF(unnest(@subagent_id::uuid[]), '00000000-0000-0000-0000-000000000000')::uuid AS subagent_id
 RETURNING workspace_agent_devcontainers.*;
 
 -- name: GetWorkspaceAgentDevcontainersByAgentID :many

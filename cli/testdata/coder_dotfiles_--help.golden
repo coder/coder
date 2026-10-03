@@ -24,7 +24,7 @@ OPTIONS:
           empty, will use $HOME.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

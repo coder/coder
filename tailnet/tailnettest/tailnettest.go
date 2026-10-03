@@ -24,10 +24,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-//go:generate mockgen -destination ./coordinatormock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinator
-//go:generate mockgen -destination ./coordinateemock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinatee
-//go:generate mockgen -destination ./workspaceupdatesprovidermock.go -package tailnettest github.com/coder/coder/v2/tailnet WorkspaceUpdatesProvider
-//go:generate mockgen -destination ./subscriptionmock.go -package tailnettest github.com/coder/coder/v2/tailnet Subscription
+//go:generate go tool mockgen -destination ./coordinatormock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinator
+//go:generate go tool mockgen -destination ./coordinateemock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinatee
+//go:generate go tool mockgen -destination ./workspaceupdatesprovidermock.go -package tailnettest github.com/coder/coder/v2/tailnet WorkspaceUpdatesProvider
+//go:generate go tool mockgen -destination ./subscriptionmock.go -package tailnettest github.com/coder/coder/v2/tailnet Subscription
 
 type derpAndSTUNCfg struct {
 	DisableSTUN    bool
@@ -115,7 +115,7 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 		}
 		if r.Header.Get("Upgrade") != "websocket" {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(fmt.Sprintf(`Invalid "Upgrade" header: %s`, html.EscapeString(r.Header.Get("Upgrade")))))
+			_, _ = fmt.Fprintf(w, `Invalid "Upgrade" header: %s`, html.EscapeString(r.Header.Get("Upgrade")))
 			return
 		}
 		handler.ServeHTTP(w, r)

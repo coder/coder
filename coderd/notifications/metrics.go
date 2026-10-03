@@ -3,6 +3,7 @@ package notifications
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -17,8 +18,28 @@ type Metrics struct {
 	InflightDispatches    *prometheus.GaugeVec
 	DispatcherSendSeconds *prometheus.HistogramVec
 
-	PendingUpdates prometheus.Gauge
+	PendingUpdates prometheus.Collector
 	SyncedUpdates  prometheus.Counter
+
+	pendingUpdatesGauge *pendingUpdatesGauge
+}
+
+// pendingUpdatesGauge serializes count evaluation with the gauge write,
+// preventing stale snapshots when concurrent goroutines race to update
+// the metric.
+type pendingUpdatesGauge struct {
+	gauge prometheus.Gauge
+	mu    sync.Mutex
+}
+
+// set evaluates count under the lock and writes the result to the gauge.
+// count is a function, not a value, so the channel length is read atomically
+// with the write; passing a pre-evaluated int would reintroduce the race.
+func (g *pendingUpdatesGauge) set(count func() int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.gauge.Set(float64(count()))
 }
 
 const (
@@ -35,6 +56,11 @@ const (
 )
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
+	pendingUpdates := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		Name: "pending_updates", Namespace: ns, Subsystem: subsystem,
+		Help: "The number of dispatch attempt results waiting to be flushed to the store.",
+	})
+
 	return &Metrics{
 		DispatchAttempts: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Name: "dispatch_attempts_total", Namespace: ns, Subsystem: subsystem,
@@ -68,10 +94,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		}, []string{LabelMethod}),
 
 		// Currently no requirement to discriminate between success and failure updates which are pending.
-		PendingUpdates: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
-			Name: "pending_updates", Namespace: ns, Subsystem: subsystem,
-			Help: "The number of dispatch attempt results waiting to be flushed to the store.",
-		}),
+		PendingUpdates: pendingUpdates,
+		pendingUpdatesGauge: &pendingUpdatesGauge{
+			gauge: pendingUpdates,
+		},
 		SyncedUpdates: promauto.With(reg).NewCounter(prometheus.CounterOpts{
 			Name: "synced_updates_total", Namespace: ns, Subsystem: subsystem,
 			Help: "The number of dispatch attempt results flushed to the store.",

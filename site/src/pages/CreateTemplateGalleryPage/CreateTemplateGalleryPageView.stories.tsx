@@ -1,17 +1,18 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getTemplatesByTag } from "utils/starterTemplates";
+} from "#/testHelpers/entities";
+import { getTemplatesByTag } from "#/utils/starterTemplates";
 import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
 
 const meta: Meta<typeof CreateTemplateGalleryPageView> = {
 	title: "pages/CreateTemplateGalleryPage",
-	parameters: { chromatic },
 	component: CreateTemplateGalleryPageView,
+	args: {
+		templateBuilderEnabled: true,
+	},
 };
 
 export default meta;

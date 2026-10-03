@@ -1,15 +1,14 @@
-import { API } from "api/api";
-import type { InvalidatePresetsResponse } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { RefreshCw } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import type { FC } from "react";
+import { RefreshCwIcon } from "lucide-react";
 import { useMutation } from "react-query";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import type { InvalidatePresetsResponse } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { pageTitle } from "#/utils/page";
 
-const TemplatePrebuildsPage: FC = () => {
+const TemplatePrebuildsPage: React.FC = () => {
 	const { template } = useTemplateLayoutContext();
 
 	return (
@@ -20,18 +19,18 @@ const TemplatePrebuildsPage: FC = () => {
 	);
 };
 
-interface TemplatePrebuildsPageViewProps {
+type TemplatePrebuildsPageViewProps = {
 	templateId: string;
-}
+};
 
-export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
-	templateId,
-}) => {
+export const TemplatePrebuildsPageView: React.FC<
+	TemplatePrebuildsPageViewProps
+> = ({ templateId }) => {
 	const invalidateMutation = useMutation({
 		mutationFn: () => API.invalidateTemplatePresets(templateId),
 		onSuccess: (data: InvalidatePresetsResponse) => {
 			if (data.invalidated.length === 0) {
-				displaySuccess("No template presets required invalidation.");
+				toast.success("No template presets required invalidation.");
 				return;
 			}
 
@@ -39,8 +38,8 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 			const { template_version_name } = data.invalidated[0];
 			const count = data.invalidated.length;
 
-			displaySuccess(
-				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version ${template_version_name}.`,
+			toast.success(
+				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version "${template_version_name}".`,
 			);
 		},
 	});
@@ -68,7 +67,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 						disabled={invalidateMutation.isPending}
 						className="gap-2"
 					>
-						<RefreshCw className="size-4" />
+						<RefreshCwIcon className="size-4" />
 						Invalidate now
 					</Button>
 				</div>

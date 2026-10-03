@@ -1,21 +1,29 @@
-import { mockApiError } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { mockApiError } from "#/testHelpers/entities";
+import { withToaster } from "#/testHelpers/storybook";
 import ChangePasswordPage from "./ChangePasswordPage";
 
 const meta: Meta<typeof ChangePasswordPage> = {
 	title: "pages/ResetPasswordPage/ChangePasswordPage",
 	component: ChangePasswordPage,
 	args: { redirect: false },
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 };
 
 export default meta;
 type Story = StoryObj<typeof ChangePasswordPage>;
 
 export const Default: Story = {};
+
+export const EmptySubmission: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
 
 export const Success: Story = {
 	play: async ({ canvasElement }) => {
@@ -28,7 +36,7 @@ export const Success: Story = {
 			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
-		await canvas.findByText("Password reset successfully");
+		await canvas.findByText("Password reset successfully.");
 	},
 };
 

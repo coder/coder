@@ -1,18 +1,21 @@
-import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { cn } from "cn";
+import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteWorkspaceAgentDevcontainer,
 	workspaceAgentContainersKey,
-} from "api/queries/workspaces";
+} from "#/api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogClose,
@@ -21,23 +24,18 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/Dialog/Dialog";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useProxy } from "contexts/ProxyContext";
-import { Container, ExternalLinkIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { cn } from "utils/cn";
-import { portForwardURL } from "utils/portForward";
+} from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
+import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
@@ -58,7 +56,7 @@ type AgentDevcontainerCardProps = {
 	wildcardHostname: string;
 };
 
-export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
+export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 	parentAgent,
 	subAgents,
 	devcontainer,
@@ -145,7 +143,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
-			displayError(`Failed to rebuild devcontainer: ${errorMessage}`);
+			toast.error(`Failed to rebuild devcontainer "${devcontainer.name}".`, {
+				description: errorMessage,
+			});
 			console.error("Failed to rebuild devcontainer:", error);
 		},
 	});
@@ -170,12 +170,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
 	return (
-		<Stack
+		<div
 			key={devcontainer.id}
-			direction="column"
-			spacing={0}
 			className={cn(
-				"relative py-4 border border-dashed border-border rounded",
+				"flex flex-col max-w-full relative py-4 border border-dashed border-border rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>
@@ -185,26 +183,37 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				bg-surface-primary px-2
 				text-xs text-content-secondary"
 			>
-				<Container size={12} className="mr-1.5" />
-				<span>dev container</span>
+				<ContainerIcon size={12} className="mr-1.5" />
+				{devcontainer.subagent_id ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span>dev container (terraform agent)</span>
+						</TooltipTrigger>
+						<TooltipContent>
+							This dev container agent is defined in Terraform and has limited
+							configurability via the devcontainer.json file.
+						</TooltipContent>
+					</Tooltip>
+				) : (
+					<span>dev container</span>
+				)}
 			</div>
 			<header
 				className="flex items-center justify-between flex-wrap
 				gap-6 px-4 pl-8 leading-6
 				md:gap-4"
 			>
-				<div className="flex items-center gap-6 text-xs text-content-secondary">
-					<div className="flex items-center gap-4 md:w-full">
+				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
+					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}
 							parentAgent={parentAgent}
 							agent={subAgent}
 						/>
 						<span
-							className="max-w-xs shrink-0
+							className="flex-1 shrink-0
 							overflow-hidden text-ellipsis whitespace-nowrap
-							text-sm font-semibold text-content-primary
-							md:overflow-visible"
+							text-sm font-semibold text-content-primary"
 						>
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}
@@ -242,7 +251,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={isTransitioning}
 					>
 						<Spinner loading={isTransitioning} />
-
 						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
@@ -364,23 +372,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showSubAgentAppsPlaceholders && (
 						<section className={appsClasses}>
-							<Skeleton
-								width={80}
-								height={32}
-								variant="rectangular"
-								className="rounded"
-							/>
-							<Skeleton
-								width={110}
-								height={32}
-								variant="rectangular"
-								className="rounded"
-							/>
+							<Skeleton width={80} height={32} className="rounded" />
+							<Skeleton width={110} height={32} className="rounded" />
 						</section>
 					)}
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -406,11 +404,9 @@ type DevcontainerDeleteErrorDialogProps = {
 	onClose: () => void;
 };
 
-const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
-	open,
-	error,
-	onClose,
-}) => {
+const DevcontainerDeleteErrorDialog: React.FC<
+	DevcontainerDeleteErrorDialogProps
+> = ({ open, error, onClose }) => {
 	const errorDetail = getErrorDetail(error);
 	const errorMessage = getErrorMessage(
 		error,
@@ -436,10 +432,7 @@ const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
 					{errorDetail && (
 						<DialogDescription className="flex flex-row gap-9">
 							<strong className="text-content-primary">Detail</strong>{" "}
-							{/* TODO(DanielleMaywood): `[overflow-wrap:anywhere]` should be replaced with `wrap-anywhere` when we hit tailwind v4 */}
-							<span className="[overflow-wrap:anywhere] break-normal">
-								{errorDetail}
-							</span>
+							<span className="wrap-anywhere break-normal">{errorDetail}</span>
 						</DialogDescription>
 					)}
 				</DialogHeader>

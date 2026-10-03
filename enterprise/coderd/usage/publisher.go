@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -39,6 +41,62 @@ const (
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
 
+const (
+	publisherMetricsNamespace = "coderd"
+	publisherMetricsSubsystem = "usage_events"
+
+	publishResultLabelResult    = "result"
+	publishResultLabelEventType = "event_type"
+
+	publishResultAccepted            = "accepted"
+	publishResultRejectedTemporarily = "rejected_temporarily"
+	publishResultRejectedPermanently = "rejected_permanently"
+)
+
+type publisherMetrics struct {
+	publishResults          *prometheus.CounterVec
+	sendErrors              prometheus.Counter
+	pendingEvents           prometheus.Gauge
+	pendingOldestAgeSeconds prometheus.Gauge
+	expiredEvents           prometheus.Gauge
+}
+
+func newPublisherMetrics(reg prometheus.Registerer) publisherMetrics {
+	factory := promauto.With(reg)
+	return publisherMetrics{
+		publishResults: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "publish_results_total",
+			Help:      "Total usage events accepted or rejected after a valid Tallyman response, by result and event type.",
+		}, []string{publishResultLabelResult, publishResultLabelEventType}),
+		sendErrors: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "publish_send_errors_total",
+			Help:      "Total usage event publish attempts that did not receive a valid Tallyman response. Does not reset after a valid response.",
+		}),
+		pendingEvents: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "pending",
+			Help:      "Number of unpublished usage events within the 30-day publishing window.",
+		}),
+		pendingOldestAgeSeconds: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "pending_oldest_age_seconds",
+			Help:      "Age in seconds of the oldest unpublished usage event within the 30-day publishing window. Zero when no events are pending.",
+		}),
+		expiredEvents: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "expired",
+			Help:      "Number of unpublished usage events aged 30 to 60 days. Events older than 60 days are not counted.",
+		}),
+	}
+}
+
 // Publisher publishes usage events ***somewhere***.
 type Publisher interface {
 	// Close closes the publisher and waits for it to finish.
@@ -56,10 +114,13 @@ type tallymanPublisher struct {
 	done        chan struct{}
 
 	// Configured with options:
-	ingestURL    string
-	httpClient   *http.Client
-	clock        quartz.Clock
-	initialDelay time.Duration
+	ingestURL            string
+	httpClient           *http.Client
+	clock                quartz.Clock
+	initialDelay         time.Duration
+	prometheusRegisterer prometheus.Registerer
+
+	metrics publisherMetrics
 }
 
 var _ Publisher = &tallymanPublisher{}
@@ -85,6 +146,7 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 	for _, opt := range opts {
 		opt(publisher)
 	}
+	publisher.metrics = newPublisherMetrics(publisher.prometheusRegisterer)
 	return publisher
 }
 
@@ -122,6 +184,13 @@ func PublisherWithInitialDelay(initialDelay time.Duration) TallymanPublisherOpti
 	}
 }
 
+// PublisherWithPrometheusRegisterer registers publisher metrics with reg.
+func PublisherWithPrometheusRegisterer(reg prometheus.Registerer) TallymanPublisherOption {
+	return func(p *tallymanPublisher) {
+		p.prometheusRegisterer = reg
+	}
+}
+
 // Start implements Publisher.
 func (p *tallymanPublisher) Start() error {
 	ctx := p.ctx
@@ -149,6 +218,7 @@ func (p *tallymanPublisher) Start() error {
 		return xerrors.New("no license keys provided")
 	}
 
+	p.updateGauges(ctx)
 	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTallymanPublisher), func(ctx context.Context) {
 		p.publishLoop(ctx, deploymentUUID)
 	})
@@ -174,8 +244,28 @@ func (p *tallymanPublisher) publishLoop(ctx context.Context, deploymentID uuid.U
 		if err != nil {
 			p.log.Warn(ctx, "publish usage events to tallyman", slog.Error(err))
 		}
+		p.updateGauges(ctx)
 		ticker.Reset(tallymanPublishInterval)
 	}
+}
+
+func (p *tallymanPublisher) updateGauges(ctx context.Context) {
+	if p.prometheusRegisterer == nil {
+		return
+	}
+	now := dbtime.Time(p.clock.Now())
+	stats, err := p.db.GetUsageEventsStats(ctx, now)
+	if err != nil {
+		p.log.Warn(ctx, "get usage events stats for metrics", slog.Error(err))
+		return
+	}
+	p.metrics.pendingEvents.Set(float64(stats.PendingCount))
+	var oldestAgeSeconds float64
+	if !stats.OldestPendingCreatedAt.IsZero() {
+		oldestAgeSeconds = max(0, now.Sub(stats.OldestPendingCreatedAt).Seconds())
+	}
+	p.metrics.pendingOldestAgeSeconds.Set(oldestAgeSeconds)
+	p.metrics.expiredEvents.Set(float64(stats.ExpiredCount))
 }
 
 // publish publishes usage events to Tallyman in a loop until there is an error
@@ -244,6 +334,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
 	allFailed := err != nil
 	if err != nil {
+		p.metrics.sendErrors.Inc()
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))
 		// Fake a response with all events temporarily rejected.
 		resp = usagetypes.TallymanV1IngestResponse{
@@ -282,18 +373,31 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	}
 	for i, event := range events {
 		dbUpdate.IDs[i] = event.ID
+		recordResult := func(result string) {
+			if allFailed {
+				return
+			}
+			p.metrics.publishResults.WithLabelValues(result, event.EventType).Inc()
+		}
 		if _, ok := acceptedEvents[event.ID]; ok {
+			recordResult(publishResultAccepted)
 			dbUpdate.FailureMessages[i] = ""
 			dbUpdate.SetPublishedAts[i] = true
 			continue
 		}
 		if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
+			if rejectedEvent.Permanent {
+				recordResult(publishResultRejectedPermanently)
+			} else {
+				recordResult(publishResultRejectedTemporarily)
+			}
 			dbUpdate.FailureMessages[i] = rejectedEvent.Message
 			dbUpdate.SetPublishedAts[i] = rejectedEvent.Permanent
 			continue
 		}
 		// It's not good if this path gets hit, but we'll handle it as if it
 		// was a temporary rejection.
+		recordResult(publishResultRejectedTemporarily)
 		dbUpdate.FailureMessages[i] = "tallyman did not include the event in the response"
 		dbUpdate.SetPublishedAts[i] = false
 	}
@@ -372,7 +476,7 @@ func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, erro
 
 		// Otherwise, if it's issued more recently, it's the best license.
 		// IssuedAt is verified to be non-nil in license.ParseClaims.
-		if bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time) {
+		if bestLicense.Claims == nil || claims.IssuedAt.After(bestLicense.Claims.IssuedAt.Time) {
 			bestLicense = licenseJWTWithClaims{
 				Claims: claims,
 				Raw:    dbLicense.JWT,

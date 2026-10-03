@@ -1,6 +1,3 @@
-import type { Theme } from "@emotion/react";
-import type * as TypesGen from "api/typesGenerated";
-import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
@@ -12,69 +9,16 @@ import {
 	SquareIcon,
 } from "lucide-react";
 import semver from "semver";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
 dayjs.extend(minMax);
 
-const DisplayWorkspaceBuildStatusLanguage = {
-	succeeded: "Succeeded",
-	pending: "Pending",
-	running: "Running",
-	canceling: "Canceling",
-	canceled: "Canceled",
-	failed: "Failed",
-};
-
 const DisplayAgentVersionLanguage = {
 	unknown: "Unknown",
-};
-
-export const getDisplayWorkspaceBuildStatus = (
-	theme: Theme,
-	build: TypesGen.WorkspaceBuild,
-) => {
-	switch (build.job.status) {
-		case "succeeded":
-			return {
-				type: "success",
-				color: theme.roles.success.text,
-				status: DisplayWorkspaceBuildStatusLanguage.succeeded,
-			} as const;
-		case "pending":
-			return {
-				type: "inactive",
-				color: theme.roles.active.text,
-				status: DisplayWorkspaceBuildStatusLanguage.pending,
-			} as const;
-		case "running":
-			return {
-				type: "active",
-				color: theme.roles.active.text,
-				status: DisplayWorkspaceBuildStatusLanguage.running,
-			} as const;
-		// Just handle unknown as failed
-		case "unknown":
-		case "failed":
-			return {
-				type: "error",
-				color: theme.roles.error.text,
-				status: DisplayWorkspaceBuildStatusLanguage.failed,
-			} as const;
-		case "canceling":
-			return {
-				type: "warning",
-				color: theme.roles.warning.text,
-				status: DisplayWorkspaceBuildStatusLanguage.canceling,
-			} as const;
-		case "canceled":
-			return {
-				type: "inactive",
-				color: theme.roles.warning.text,
-				status: DisplayWorkspaceBuildStatusLanguage.canceled,
-			} as const;
-	}
 };
 
 export const getDisplayWorkspaceBuildInitiatedBy = (
@@ -93,12 +37,18 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "dormancy":
 			return "Coder";
 	}
+	if (legacySystemBuildReasons.includes(build.reason)) {
+		return "Coder";
+	}
+	if (legacyUserBuildReasons.includes(build.reason)) {
+		return build.initiator_name;
+	}
 	return undefined;
 };
 
 export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
 
-export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
+const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
 	initiator: "API",
 	dashboard: "Dashboard",
@@ -111,6 +61,30 @@ export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
+};
+
+// Build reasons removed from the API that can still appear on retained
+// workspace builds and their audit logs.
+const legacyBuildReasonLabels: Record<string, string> = {
+	task_resume: "Task Resume",
+};
+
+// Retained audit rows and workspace builds for automatic task pauses were
+// system-initiated; manual pauses and resumes were authenticated user
+// requests.
+export const legacySystemBuildReasons = ["task_auto_pause"];
+const legacyUserBuildReasons = ["task_manual_pause", "task_resume"];
+
+const isKnownBuildReason = (reason: string): reason is TypesGen.BuildReason =>
+	Object.hasOwn(buildReasonLabels, reason);
+
+export const getBuildReasonLabel = (reason: string): string | undefined => {
+	if (isKnownBuildReason(reason)) {
+		return buildReasonLabels[reason];
+	}
+	return Object.hasOwn(legacyBuildReasonLabels, reason)
+		? legacyBuildReasonLabels[reason]
+		: undefined;
 };
 
 const getWorkspaceBuildDurationInSeconds = (
@@ -217,7 +191,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				text: "Loading",
 				type: "active",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "running":
 			return {
@@ -229,13 +203,13 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "active",
 				text: "Starting",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "stopping":
 			return {
 				type: "inactive",
 				text: "Stopping",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "stopped":
 			return {
@@ -247,7 +221,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "danger",
 				text: "Deleting",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "deleted":
 			return {
@@ -259,7 +233,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Canceling",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "canceled":
 			return {
@@ -282,25 +256,30 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
-export const paramsUsedToCreateWorkspace = (
-	param: TypesGen.TemplateVersionParameter,
-) => !param.ephemeral;
+export const getWorkspaceAgents = (
+	workspace: TypesGen.Workspace,
+): TypesGen.WorkspaceAgent[] => {
+	return workspace.latest_build.resources.flatMap(
+		(resource) => resource.agents ?? [],
+	);
+};
+
+export const findWorkspaceAgent = (
+	workspace: TypesGen.Workspace,
+	agentId: string,
+): TypesGen.WorkspaceAgent | undefined => {
+	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
+};
 
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	return workspace.latest_build.resources
-		.map((resource) => {
-			if (!resource.agents || resource.agents.length === 0) {
-				return;
-			}
-			if (!agentName) {
-				return resource.agents[0];
-			}
-			return resource.agents.find((agent) => agent.name === agentName);
-		})
-		.filter((a) => a)[0];
+	const agents = getWorkspaceAgents(workspace);
+	if (!agentName) {
+		return agents[0];
+	}
+	return agents.find((agent) => agent.name === agentName);
 };
 
 export const mustUpdateWorkspace = (

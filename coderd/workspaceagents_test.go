@@ -2,12 +2,15 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -23,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -33,11 +38,15 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -49,7 +58,6 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -87,7 +95,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
 		_, err = anotherClient.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
-		require.True(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
+		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
 	t.Run("HasFallbackTroubleshootingURL", func(t *testing.T) {
 		t.Parallel()
@@ -256,6 +264,50 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		require.Equal(t, "testing", logChunk[0].Output)
 		require.Equal(t, "testing2", logChunk[1].Output)
 	})
+	t.Run("SanitizesNulBytesAndTracksSanitizedLength", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		rawOutput := "before\x00after"
+		sanitizedOutput := agentsdk.SanitizeLogOutput(rawOutput)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
+				{
+					CreatedAt: dbtime.Now(),
+					Output:    rawOutput,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
+		require.NoError(t, err)
+		require.EqualValues(t, len(sanitizedOutput), agent.LogsLength)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID, 0, true)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+
+		var logChunk []codersdk.WorkspaceAgentLog
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk, 1)
+		require.Equal(t, sanitizedOutput, logChunk[0].Output)
+	})
 	t.Run("Close logs on outdated build", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -334,6 +386,97 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestWorkspaceAgentLogsFormat(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	workspaceAgent := r.Agents[0]
+	logSource := dbgen.WorkspaceAgentLogSource(t, db, database.WorkspaceAgentLogSource{
+		WorkspaceAgentID: workspaceAgent.ID,
+		DisplayName:      "startup_script",
+	})
+	agentLog := dbgen.WorkspaceAgentLog(t, db, database.WorkspaceAgentLog{
+		AgentID:     workspaceAgent.ID,
+		LogSourceID: logSource.ID,
+		Output:      "test log output",
+		Level:       database.LogLevelInfo,
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(body string) {
+				assert.NotEmpty(t, body)
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(body string) {
+				expected := db2sdk.WorkspaceAgentLog(agentLog).Text(workspaceAgent.Name, logSource.DisplayName)
+				assert.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(body string) {
+				assert.Contains(t, body, "Invalid format")
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(body string) {
+				assert.Contains(t, body, "not supported with follow mode")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/workspaceagents/%s/logs%s", workspaceAgent.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(string(body))
+			}
+		})
+	}
 }
 
 func TestWorkspaceAgentAppStatus(t *testing.T) {
@@ -423,6 +566,173 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
+}
+
+func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tests := []struct {
+		name       string
+		prevState  *codersdk.WorkspaceAppStatusState // nil means no previous state
+		newState   codersdk.WorkspaceAppStatusState
+		shouldBump bool
+	}{
+		{
+			name:       "FirstStatusBumps",
+			prevState:  nil,
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+		{
+			name:       "WorkingToIdleBumps",
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: true,
+		},
+		{
+			name:       "WorkingToCompleteBumps",
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: true,
+		},
+		{
+			name:       "CompleteToIdleNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "CompleteToCompleteNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: false,
+		},
+		{
+			name:       "FailureToIdleNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "FailureToFailureNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateFailure,
+			shouldBump: false,
+		},
+		{
+			name:       "CompleteToWorkingBumps",
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+		{
+			name:       "FailureToCompleteNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: false,
+		},
+		{
+			name:       "WorkingToFailureBumps",
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateFailure,
+			shouldBump: true,
+		},
+		{
+			name:       "IdleToIdleNoBump",
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "IdleToWorkingBumps",
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create workspace with agent and app.
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+				a[0].Apps = []*proto.App{{Slug: "test-app"}}
+				return a
+			}).Do()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			// Configure template with activity_bump to enable deadline bumping.
+			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
+				ActivityBumpMillis: new(time.Hour.Milliseconds()),
+			})
+			require.NoError(t, err)
+
+			// Set the workspace build deadline to the past to ensure the 5%
+			// threshold is met for activity bumping.
+			pastDeadline := dbtime.Now().Add(-30 * time.Minute)
+			err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          r.Build.ID,
+				UpdatedAt:   dbtime.Now(),
+				Deadline:    pastDeadline,
+				MaxDeadline: time.Time{},
+			})
+			require.NoError(t, err)
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+			// If there's a previous state, report it first.
+			if tt.prevState != nil {
+				err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+					AppSlug: "test-app",
+					State:   *tt.prevState,
+					Message: "previous state",
+				})
+				require.NoError(t, err)
+
+				// Reset deadline to past again to meet 5% threshold for next bump.
+				err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          r.Build.ID,
+					UpdatedAt:   dbtime.Now(),
+					Deadline:    pastDeadline,
+					MaxDeadline: time.Time{},
+				})
+				require.NoError(t, err)
+			}
+
+			// Get the deadline before the new status report.
+			beforeBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+			require.NoError(t, err)
+			beforeDeadline := beforeBuild.Deadline
+
+			// Report the new state.
+			err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+				AppSlug: "test-app",
+				State:   tt.newState,
+				Message: "new state",
+			})
+			require.NoError(t, err)
+
+			// Check if deadline changed.
+			afterBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+			require.NoError(t, err)
+			afterDeadline := afterBuild.Deadline
+
+			didBump := afterDeadline.After(beforeDeadline)
+			if tt.shouldBump {
+				require.True(t, didBump, "wanted deadline to bump but it didn't")
+			} else {
+				require.False(t, didBump, "wanted deadline not to bump but it did")
+			}
+		})
+	}
 }
 
 func TestWorkspaceAgentConnectRPC(t *testing.T) {
@@ -610,6 +920,55 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
+func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
+	t.Parallel()
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client"),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+	require.True(t, conn.AwaitReachable(ctx))
+
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			OrganizationID:   user.OrganizationID,
+			WorkspaceOwnerID: user.UserID,
+			WorkspaceID:      r.Workspace.ID,
+			WorkspaceName:    r.Workspace.Name,
+			AgentName:        resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code: sql.NullInt32{
+				Int32: http.StatusSwitchingProtocols,
+				Valid: true,
+			},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			UserID: uuid.NullUUID{
+				UUID:  user.UserID,
+				Valid: true,
+			},
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = conn.Close()
+	require.NoError(t, err)
+}
+
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)
@@ -623,7 +982,7 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	ao, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
 	require.NoError(t, err)
 
 	//nolint: bodyclose // closed by ReadBodyAsError
@@ -713,7 +1072,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -785,7 +1144,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -1570,6 +1929,51 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentRecreateDevcontainerAuthorization(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		role func(uuid.UUID) rbac.RoleIdentifier
+	}{
+		{
+			name: "TemplateAdmin",
+			role: func(uuid.UUID) rbac.RoleIdentifier {
+				return rbac.RoleTemplateAdmin()
+			},
+		},
+		{
+			name: "OrgTemplateAdmin",
+			role: rbac.ScopedRoleOrgTemplateAdmin,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx                    = testutil.Context(t, testutil.WaitMedium)
+				client, db             = coderdtest.NewWithDatabase(t, nil)
+				admin                  = coderdtest.CreateFirstUser(t, client)
+				_, workspaceOwner      = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				templateAdminClient, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, tc.role(admin.OrganizationID))
+				workspace              = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        workspaceOwner.ID,
+				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+					return agents
+				}).Do()
+			)
+
+			_, err := templateAdminClient.WorkspaceAgentRecreateDevcontainer(ctx, workspace.Agents[0].ID, uuid.NewString())
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	}
+}
+
 func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 	t.Parallel()
 
@@ -1658,7 +2062,6 @@ func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1937,7 +2340,11 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 func TestWorkspaceAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		MetadataBatcherOptions: []metadatabatcher.Option{
+			metadatabatcher.WithInterval(100 * time.Millisecond),
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
@@ -2064,7 +2471,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	update = recvUpdate()
 	require.Len(t, update, 3)
-	check(wantMetadata1, update[0], false)
+	check(wantMetadata1, update[0], true)
 	// The second metadata result is not yet posted.
 	require.Zero(t, update[1].Result.CollectedAt)
 
@@ -2520,12 +2927,12 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		const providerID = "fake-idp"
 
 		// Count all the times we call validate
-		validateCalls := 0
+		var validateCalls atomic.Int32
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithMiddlewares(func(handler http.Handler) http.Handler {
 			return http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Count all the validate calls
 				if strings.Contains(r.URL.Path, "/external-auth-validate/") {
-					validateCalls++
+					validateCalls.Add(1)
 				}
 				handler.ServeHTTP(w, r)
 			}))
@@ -2588,7 +2995,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		// other should be skipped.
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
-		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")
+		require.EqualValues(t, 1, validateCalls.Load(), "validate calls duplicated on same token")
 	})
 }
 
@@ -2675,6 +3082,87 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	})
 }
 
+func TestUserTailnetConnectionLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	connLogger := connectionlog.NewFake()
+	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+		Coordinator:      tailnet.NewCoordinator(logger),
+		Logger:           &logger,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID)
+
+	allowedWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
+	allowedSDKWorkspace, err := member.Workspace(ctx, allowedWorkspace.ID)
+	require.NoError(t, err)
+	allowedAgentID := allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	deniedWorkspace := buildWorkspaceWithAgent(t, firstClient, firstUser.OrganizationID, firstUser.UserID, api.Database, api.Pubsub)
+	deniedSDKWorkspace, err := firstClient.Workspace(ctx, deniedWorkspace.ID)
+	require.NoError(t, err)
+	deniedAgentID := deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	dial := func() (*websocket.Conn, tailnetproto.DRPCTailnet_CoordinateClient) {
+		u, err := member.URL.Parse("/api/v2/tailnet?version=2.0")
+		require.NoError(t, err)
+		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
+		wsConn, response, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil && response != nil {
+			err = codersdk.ReadBodyAsError(response)
+		}
+		require.NoError(t, err)
+		rpcClient, err := tailnet.NewDRPCClient(
+			websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+			logger,
+		)
+		require.NoError(t, err)
+		stream, err := rpcClient.Coordinate(ctx)
+		require.NoError(t, err)
+		return wsConn, stream
+	}
+
+	acceptedConn, acceptedStream := dial()
+	require.NoError(t, acceptedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(allowedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      allowedWorkspace.ID,
+			AgentName:        allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			UserAgent:        sql.NullString{},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, acceptedConn.Close(websocket.StatusNormalClosure, "done"))
+
+	deniedConn, deniedStream := dial()
+	require.NoError(t, deniedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(deniedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      deniedWorkspace.ID,
+			AgentName:        deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, deniedConn.Close(websocket.StatusNormalClosure, "done"))
+}
+
 func TestUserTailnetTelemetry(t *testing.T) {
 	t.Parallel()
 
@@ -2703,9 +3191,9 @@ func TestUserTailnetTelemetry(t *testing.T) {
 				codersdk.CoderDesktopTelemetryHeader: string(fullHeader),
 			},
 			expected: telemetry.UserTailnetConnection{
-				DeviceOS:            ptr.Ref("Windows"),
-				DeviceID:            ptr.Ref("device001"),
-				CoderDesktopVersion: ptr.Ref("0.22.1"),
+				DeviceOS:            new("Windows"),
+				DeviceID:            new("device001"),
+				CoderDesktopVersion: new("0.22.1"),
 			},
 		},
 		{
@@ -2757,7 +3245,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			q.Set("version", "2.0")
 			u.RawQuery = q.Encode()
 
-			predialTime := time.Now()
+			predialTime := dbtime.Now()
 
 			//nolint:bodyclose // websocket package closes this for you
 			wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
@@ -2777,13 +3265,13 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			telemetryConnection := snapshot.UserTailnetConnections[0]
 			require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
 			require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
-			require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
+			require.LessOrEqual(t, telemetryConnection.ConnectedAt, dbtime.Now())
 			require.NotEmpty(t, telemetryConnection.PeerID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
 
-			beforeDisconnectTime := time.Now()
+			beforeDisconnectTime := dbtime.Now()
 			err = wsConn.Close(websocket.StatusNormalClosure, "done")
 			require.NoError(t, err)
 
@@ -2796,7 +3284,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
 			require.NotNil(t, telemetryDisconnection.DisconnectedAt)
 			require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
-			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
+			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, dbtime.Now())
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
@@ -2821,6 +3309,119 @@ func buildWorkspaceWithAgent(
 	return r.Workspace
 }
 
+// TestWorkspaceAgentPushContextState exercises the full agent RPC path
+// for PushContextState: agent token auth middleware, the v2.10 DRPC
+// API, the dbauthz workspace authorization boundary, and persistence.
+// The push must succeed using only the agent's own token subject.
+func TestWorkspaceAgentPushContextState(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := aAPI.DRPCConn().Close()
+		require.NoError(t, cErr)
+	}()
+
+	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{0x01, 0x02},
+		Resources: []*agentproto.ContextResource{
+			{
+				Source:      "/workspace/AGENTS.md",
+				ContentHash: []byte{0x03, 0x04},
+				SizeBytes:   5,
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte("hello")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	snapshot, err := db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+	require.NoError(t, err)
+	require.EqualValues(t, 1, snapshot.Version)
+	resources, err := db.ListWorkspaceAgentContextResources(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Same as above.
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Equal(t, "/workspace/AGENTS.md", resources[0].Source)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, resources[0].BodyKind)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, resources[0].Status)
+
+	// A non-initial replay of the same version is dropped without error.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       false,
+		AggregateHash: []byte{0x01, 0x02},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.GetAccepted())
+}
+
+// TestWorkspaceAgentPushContextStateDisabled verifies the
+// --disable-workspace-agent-context-sync kill switch end to end over a
+// real dRPC connection: the handler's Unimplemented code must survive
+// the transport and be translated by the agent's DRPCPusher into
+// ErrPushUnimplemented, which is what terminates the agent's RunPush
+// loop instead of retrying with backoff. Nothing may be persisted.
+func TestWorkspaceAgentPushContextStateDisabled(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.DisableWorkspaceAgentContextSync = true
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := aAPI.DRPCConn().Close()
+		require.NoError(t, cErr)
+	}()
+
+	// Push through the same adapter the agent's RunPush loop uses so
+	// the test breaks if either side of the Unimplemented contract
+	// changes.
+	pusher := agentcontext.NewDRPCPusher(aAPI)
+	resp, err := pusher.PushContextState(ctx, &agentcontext.PushRequest{
+		Version: 1,
+		Initial: true,
+	})
+	require.ErrorIs(t, err, agentcontext.ErrPushUnimplemented)
+	require.Nil(t, resp)
+
+	// The rejected push must not have persisted anything.
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
@@ -2829,13 +3430,16 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 	return manifest
 }
 
-func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC27(ctx)
+func postStartup(ctx context.Context, t testing.TB, client *agentsdk.Client, startup *agentproto.Startup) error {
+	// Connect at the current agent API version so the recorded APIVersion
+	// tracks proto.CurrentVersion as it is bumped.
+	conn, err := client.ConnectRPCWithRole(ctx, "")
 	require.NoError(t, err)
 	defer func() {
-		cErr := aAPI.DRPCConn().Close()
+		cErr := conn.Close()
 		require.NoError(t, cErr)
 	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
 }
@@ -3014,51 +3618,253 @@ func TestAgentConnectionInfo(t *testing.T) {
 func TestReinit(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	pubsubSpy := pubsubReinitSpy{
-		Pubsub:           ps,
-		triedToSubscribe: make(chan string),
+	// Helper to create the prebuilds system user's workspace (an
+	// unclaimed prebuild) and return the build result. The first
+	// build's InitiatorID defaults to PrebuildsSystemUserID via
+	// dbfake.
+	setupPrebuildWorkspace := func(t *testing.T, db database.Store, orgID uuid.UUID) dbfake.WorkspaceResponse {
+		t.Helper()
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		}).WithAgent().Do()
 	}
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   &pubsubSpy,
+
+	// Helper to simulate claiming a prebuild: change the workspace
+	// owner to the real user and create a second (claim) build.
+	claimPrebuild := func(t *testing.T, db database.Store, sqlDB *sql.DB, ws database.WorkspaceTable, claimerID uuid.UUID, templateVersionID uuid.UUID, complete bool) dbfake.WorkspaceResponse {
+		t.Helper()
+		// Change the workspace owner to the claiming user.
+		_, err := sqlDB.Exec("UPDATE workspaces SET owner_id = $1 WHERE id = $2", claimerID, ws.ID)
+		require.NoError(t, err)
+
+		// Update the in-memory workspace to reflect the new owner
+		// so that dbfake uses it for the second build.
+		ws.OwnerID = claimerID
+
+		builder := dbfake.WorkspaceBuild(t, db, ws).
+			Seed(database.WorkspaceBuild{
+				TemplateVersionID: templateVersionID,
+				BuildNumber:       2,
+				InitiatorID:       claimerID,
+				Transition:        database.WorkspaceTransitionStart,
+			}).
+			MarkPrebuiltWorkspaceClaim().
+			WithAgent()
+		if !complete {
+			builder = builder.Starting()
+		}
+		return builder.Do()
+	}
+
+	t.Run("unclaimed prebuild receives reinit via pubsub", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		pubsubSpy := pubsubReinitSpy{
+			Pubsub:           ps,
+			triedToSubscribe: make(chan string),
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:          db,
+			Pubsub:            &pubsubSpy,
+			ReplicaSyncPubsub: ps.(*pubsub.PGPubsub),
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+
+		pubsubSpy.Lock()
+		pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+		pubsubSpy.Unlock()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		// We need to subscribe before we publish, lest we miss the
+		// event.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+
+		// Now that we're subscribed, publish the event.
+		err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+			WorkspaceID: r.Workspace.ID,
+			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		})
+		require.NoError(t, err)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 	})
-	user := coderdtest.CreateFirstUser(t, client)
 
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	// Verifies the durable claim check: when an agent reconnects
+	// after missing the pubsub event, the handler detects that the
+	// workspace was originally a prebuild (first build initiated by
+	// PrebuildsSystemUserID), is now claimed (owner changed), and
+	// the claim build completed, so it sends a one-shot reinit
+	// event immediately.
+	t.Run("claimed prebuild receives one-shot reinit on reconnect", func(t *testing.T) {
+		t.Parallel()
 
-	pubsubSpy.Lock()
-	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
-	pubsubSpy.Unlock()
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
 
-	agentCtx := testutil.Context(t, testutil.WaitShort)
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		// Create an unclaimed prebuild (build 1, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
 
-	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
-	go func() {
-		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-		assert.NoError(t, err)
-		agentReinitializedCh <- reinitEvent
-	}()
+		// Claim it: change owner + create build 2 (completed).
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
 
-	// We need to subscribe before we publish, lest we miss the event
-	ctx := testutil.Context(t, testutil.WaitShort)
-	testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
 
-	// Now that we're subscribed, publish the event
-	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-		WorkspaceID: r.Workspace.ID,
-		Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		// The agent should receive a reinit event immediately from
+		// the durable claim check — no pubsub publish needed.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
+		require.Equal(t, user.UserID, reinitEvent.OwnerID)
 	})
-	require.NoError(t, err)
 
-	ctx = testutil.Context(t, testutil.WaitShort)
-	reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
-	require.NotNil(t, reinitEvent)
-	require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+	// Verifies that the durable claim check only applies while the
+	// latest build is the claim build. A workspace that was claimed
+	// in the past and has since had user-initiated builds must get a
+	// 409 instead of another reinit, otherwise its agent would be
+	// restarted on every /reinit reconnection for the rest of the
+	// workspace's life.
+	t.Run("workspace claimed in the past gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an unclaimed prebuild (build 1, completed) and claim
+		// it (build 2, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+		claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
+
+		// A later build initiated by the owner (e.g. a restart) means
+		// the claim has already been handled.
+		ws := r.Workspace
+		ws.OwnerID = user.UserID
+		laterR := dbfake.WorkspaceBuild(t, db, ws).
+			Seed(database.WorkspaceBuild{
+				TemplateVersionID: r.TemplateVersion.ID,
+				BuildNumber:       3,
+				InitiatorID:       user.UserID,
+				Transition:        database.WorkspaceTransitionStart,
+			}).
+			WithAgent().
+			Do()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(laterR.AgentToken))
+
+		// WaitForReinit should return an error wrapping a 409.
+		_, err := agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	// Verifies that when the claim build completed with an error,
+	// the handler returns 409 so the agent treats it as terminal
+	// and stops retrying (WaitForReinitLoop exits on any 409).
+	t.Run("failed claim build returns terminal 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an unclaimed prebuild (build 1, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+
+		// Claim it: create build 2 as completed (so agent rows
+		// exist and the token is valid for auth).
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
+
+		// Simulate a claim build failure: set an error on the
+		// provisioner job. This models the case where terraform
+		// apply partially succeeded (creating resources/agents)
+		// but ultimately errored.
+		_, err := sqlDB.Exec(
+			"UPDATE provisioner_jobs SET error = 'simulated claim failure' WHERE id = $1",
+			claimR.Build.JobID,
+		)
+		require.NoError(t, err)
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
+
+		_, err = agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	// Verifies that a regular workspace (never a prebuild) gets a
+	// 409 Conflict response, causing the agent's reinit loop to
+	// close the channel gracefully.
+	t.Run("regular workspace gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a regular workspace (not a prebuild). The first
+		// build's initiator will be the user, not the prebuilds
+		// system user.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		// WaitForReinit should return an error wrapping a 409.
+		_, err := agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
 }
 
 type pubsubReinitSpy struct {
@@ -3076,4 +3882,438 @@ func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (can
 	}
 	p.Unlock()
 	return cancel, err
+}
+
+// TestWorkspaceAgentsExternalAuthExpiresAt verifies that the expiry stored on
+// an ExternalAuthLink is returned in ExternalAuthResponse.ExpiresAt via the
+// full HTTP round-trip, covering both a non-zero and zero expiry.
+func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	const providerID = "test-provider"
+
+	// seedToken is both the access token value stored in the DB and the one
+	// the fake OAuth2 provider returns. When they match, RefreshToken detects
+	// no change and skips the DB update, preserving the seeded OAuthExpiry.
+	const seedToken = "seed-token"
+
+	// newSetup creates a coderdtest server with a minimal external-auth
+	// provider that has no ValidateURL (all tokens accepted as valid) and
+	// returns seedToken so that RefreshToken does not overwrite the link.
+	newSetup := func(t *testing.T) (agentToken string, agentClient *agentsdk.Client, db database.Store, ownerID uuid.UUID) {
+		t.Helper()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{
+					// Return seedToken so token.AccessToken == originalAccessToken
+					// in RefreshToken, preventing a DB update that would overwrite
+					// the seeded OAuthExpiry.
+					Token: &oauth2.Token{
+						AccessToken:  seedToken,
+						RefreshToken: "refresh-token",
+						Expiry:       dbtime.Now().Add(24 * time.Hour),
+					},
+				},
+				ID:    providerID,
+				Regex: regexp.MustCompile(`.*`),
+				Type:  codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				// ValidateURL intentionally omitted: tokens are always valid.
+				RefreshGroup: new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+
+		ac := agentsdk.New(ownerClient.URL, agentsdk.WithFixedToken(r.AgentToken))
+		return r.AgentToken, ac, db, user.ID
+	}
+
+	t.Run("NonZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// Seed a link with an 8-hour expiry and verify the response carries it.
+		want := dbtime.Now().Add(8 * time.Hour).UTC().Truncate(time.Second)
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      want,
+		})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL, "token should be valid, no redirect URL expected")
+		require.Equal(t, want, resp.ExpiresAt.UTC().Truncate(time.Second),
+			"ExpiresAt should match the expiry stored in the database")
+	})
+
+	t.Run("ZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// dbgen.ExternalAuthLink uses takeFirst which skips zero time.Time
+		// values and fills in a 24-hour default. Insert the link directly to
+		// store an explicit zero OAuthExpiry (token never expires).
+		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      time.Time{},
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL)
+		require.True(t, resp.ExpiresAt.IsZero(),
+			"ExpiresAt should be zero when the token has no expiry")
+	})
+}
+
+// fakeExternalAuthConfig builds a minimal, network-free external auth
+// provider config: RefreshToken short-circuits because the seeded link's
+// AccessToken already matches what the fake OAuth2 config would return, and
+// ValidateURL is omitted so the token is always treated as valid.
+func fakeExternalAuthConfig(id, token string, regex *regexp.Regexp) *externalauth.Config {
+	return &externalauth.Config{
+		InstrumentedOAuth2Config: &testutil.OAuth2Config{
+			Token: &oauth2.Token{
+				AccessToken:  token,
+				RefreshToken: "refresh-" + id,
+				Expiry:       dbtime.Now().Add(24 * time.Hour),
+			},
+		},
+		ID:           id,
+		Regex:        regex,
+		Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+		RefreshGroup: new(singleflight.Group),
+	}
+}
+
+// TestWorkspaceAgentsExternalAuthTemplateScoped covers PLAT-190: when a
+// GIT_ASKPASS-style request supplies only a hostname (never an ID), the
+// server must prefer the requesting workspace's own template-declared
+// providers over a blind, order-dependent scan of every deployment-configured
+// provider.
+func TestWorkspaceAgentsExternalAuthTemplateScoped(t *testing.T) {
+	t.Parallel()
+
+	const (
+		matchHost = "https://github.com"
+		idBroad   = "provider-broad"
+		idDot     = "provider-dotfiles"
+		idOther   = "provider-other"
+	)
+	githubRegex := regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`)
+	gitlabRegex := regexp.MustCompile(`^(https?://)?gitlab\.com(/.*)?$`)
+
+	// setup creates a deployment with the given providers (in the given
+	// order), a workspace built from a template version declaring
+	// declaredIDs, and seeds a valid ExternalAuthLink for every provider in
+	// linkProviderIDs so any of them could be returned if selection picked
+	// the wrong one. Providers omitted from linkProviderIDs are left
+	// unauthenticated (no link), to exercise the authenticate-URL flow.
+	setup := func(t *testing.T, providers []*externalauth.Config, declaredIDs, linkProviderIDs []string) (agentClient *agentsdk.Client) {
+		t.Helper()
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: providers,
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		declared, err := json.Marshal(func() []database.ExternalAuthProvider {
+			out := make([]database.ExternalAuthProvider, len(declaredIDs))
+			for i, id := range declaredIDs {
+				out[i] = database.ExternalAuthProvider{ID: id}
+			}
+			return out
+		}())
+		require.NoError(t, err)
+
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: first.OrganizationID,
+			CreatedBy:      first.UserID,
+		}).Do()
+		err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(dbauthz.AsProvisionerd(context.Background()), database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 tv.TemplateVersion.JobID,
+			ExternalAuthProviders: declared,
+			UpdatedAt:             dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		for _, id := range linkProviderIDs {
+			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ProviderID:       id,
+				UserID:           user.ID,
+				OAuthAccessToken: id + "-token",
+				OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+			})
+		}
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+			TemplateID:     tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+		}).WithAgent().Do()
+
+		return agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	}
+
+	// A template declaring only idDot must always resolve to
+	// idDot's token for a host both providers match, regardless of which
+	// order the two providers are configured in deployment-wide.
+	for _, tc := range []struct {
+		name  string
+		order []string
+	}{
+		{"DeclaredProviderLast", []string{idBroad, idDot}},
+		{"DeclaredProviderFirst", []string{idDot, idBroad}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			providers := make([]*externalauth.Config, len(tc.order))
+			for i, id := range tc.order {
+				providers[i] = fakeExternalAuthConfig(id, id+"-token", githubRegex)
+			}
+			agentClient := setup(t, providers, []string{idDot}, []string{idBroad, idDot})
+
+			resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+			require.NoError(t, err)
+			require.Equal(t, idDot+"-token", resp.AccessToken,
+				"must resolve to the template-declared provider regardless of deployment config order")
+		})
+	}
+
+	// A template declaring no providers at all falls back to today's
+	// existing full-deployment scan (unchanged, potentially ambiguous
+	// behavior in that specific case remains explicitly out of scope).
+	t.Run("NoDeclaredProvidersFallsBackToFullScan", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, nil, []string{idBroad, idDot})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.NoError(t, err)
+		// Legacy behavior: last matching entry in deployment config order wins.
+		require.Equal(t, idDot+"-token", resp.AccessToken)
+	})
+
+	// A template declaring only a provider for an unrelated host must
+	// still resolve a genuinely different host via the fallback scan,
+	// rather than losing access to hosts the template never mentioned.
+	t.Run("UnrelatedHostStillResolvesViaFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+			fakeExternalAuthConfig(idOther, idOther+"-token", gitlabRegex),
+		}
+		// Template only declares idDot (for github.com); idOther (gitlab.com)
+		// is never declared, but must still work for its own host.
+		agentClient := setup(t, providers, []string{idDot}, []string{idDot, idOther})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: "https://gitlab.com"})
+		require.NoError(t, err)
+		require.Equal(t, idOther+"-token", resp.AccessToken)
+	})
+
+	// When several of the template's own declared providers match a
+	// hostname, the server must return a clear error rather than silently
+	// pick one. 404 specifically, so `coder gitaskpass` warns and defers to
+	// git's own credential behavior.
+	t.Run("AmbiguousDeclaredSetReturnsError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, []string{idBroad, idDot}, []string{idBroad, idDot})
+
+		_, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, idBroad)
+		require.Contains(t, sdkErr.Message, idDot)
+	})
+
+	// A declared provider that the deployment no longer configures must not
+	// let another provider for the same host stand in for it, even though
+	// that provider would satisfy a deployment-wide scan.
+	t.Run("MissingDeclaredProviderDoesNotFallBack", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Only idBroad is configured. The template declares idDot, which an
+		// administrator has since removed from the deployment config.
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, []string{idDot}, []string{idBroad})
+
+		_, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, idDot,
+			"should name the declared provider the deployment no longer configures")
+		require.NotContains(t, sdkErr.Message, idBroad,
+			"must not offer an undeclared provider as a substitute")
+	})
+
+	// A stale declaration for one host must not block an unambiguous
+	// declared match for a different host. Only the fallback is withheld.
+	t.Run("MissingDeclaredProviderDoesNotBlockOtherDeclaredMatch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idOther, idOther+"-token", gitlabRegex),
+		}
+		// idDot (github.com) is declared but no longer configured, while
+		// idOther (gitlab.com) is both declared and configured.
+		agentClient := setup(t, providers, []string{idDot, idOther}, []string{idOther})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: "https://gitlab.com"})
+		require.NoError(t, err)
+		require.Equal(t, idOther+"-token", resp.AccessToken)
+	})
+
+	// Once narrowed to a single declared candidate, the existing
+	// authenticate-URL flow must still work unchanged for a provider the
+	// owner has not yet authenticated with.
+	t.Run("OptionalUnauthenticatedDeclaredProviderReturnsAuthURL", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		// idDot is declared and matches the hostname, but has no seeded link.
+		agentClient := setup(t, providers, []string{idDot}, []string{idBroad})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.NoError(t, err)
+		require.Empty(t, resp.AccessToken)
+		require.Contains(t, resp.URL, "/external-auth/"+idDot,
+			"should prompt for the declared provider specifically, not idBroad")
+	})
+}
+
+// TestWorkspaceAgentsExternalAuthMultipleTemplates covers the headline
+// scenario from PLAT-190: two workspaces, built from two different
+// templates that each declare a different single provider, must each
+// independently resolve to their own template's provider - never each
+// other's - regardless of deployment config order or concurrent activity.
+func TestWorkspaceAgentsExternalAuthMultipleTemplates(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	const (
+		matchHost = "https://github.com"
+		id1       = "provider-1"
+		id2       = "provider-2"
+	)
+	githubRegex := regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ExternalAuthConfigs: []*externalauth.Config{
+			fakeExternalAuthConfig(id1, id1+"-token", githubRegex),
+			fakeExternalAuthConfig(id2, id2+"-token", githubRegex),
+		},
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	declare := func(t *testing.T, id string) dbfake.TemplateVersionResponse {
+		t.Helper()
+		declared, err := json.Marshal([]database.ExternalAuthProvider{{ID: id}})
+		require.NoError(t, err)
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: first.OrganizationID,
+			CreatedBy:      first.UserID,
+		}).Do()
+		err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(dbauthz.AsProvisionerd(context.Background()), database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 tv.TemplateVersion.JobID,
+			ExternalAuthProviders: declared,
+			UpdatedAt:             dbtime.Now(),
+		})
+		require.NoError(t, err)
+		return tv
+	}
+	tv1 := declare(t, id1)
+	tv2 := declare(t, id2)
+
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID: id1, UserID: user.ID, OAuthAccessToken: id1 + "-token", OAuthExpiry: dbtime.Now().Add(24 * time.Hour),
+	})
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID: id2, UserID: user.ID, OAuthAccessToken: id2 + "-token", OAuthExpiry: dbtime.Now().Add(24 * time.Hour),
+	})
+
+	build := func(t *testing.T, tv dbfake.TemplateVersionResponse) *agentsdk.Client {
+		t.Helper()
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+			TemplateID:     tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+		}).WithAgent().Do()
+		return agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	}
+	agent1 := build(t, tv1)
+	agent2 := build(t, tv2)
+
+	var wg sync.WaitGroup
+	var resp1, resp2 agentsdk.ExternalAuthResponse
+	var err1, err2 error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		resp1, err1 = agent1.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+	}()
+	go func() {
+		defer wg.Done()
+		resp2, err2 = agent2.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+	}()
+	wg.Wait()
+
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	require.Equal(t, id1+"-token", resp1.AccessToken, "workspace built from template 1 must always get provider 1's token")
+	require.Equal(t, id2+"-token", resp2.AccessToken, "workspace built from template 2 must always get provider 2's token")
 }

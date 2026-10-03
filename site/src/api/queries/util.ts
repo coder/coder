@@ -1,5 +1,5 @@
-import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 import type { QueryKey, UseQueryOptions } from "react-query";
+import type { MetadataState, MetadataValue } from "#/hooks/useEmbeddedMetadata";
 
 export const disabledRefetchOptions = {
 	gcTime: Number.POSITIVE_INFINITY,

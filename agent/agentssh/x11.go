@@ -57,6 +57,7 @@ type x11Forwarder struct {
 	x11HandlerErrors *prometheus.CounterVec
 	fs               afero.Fs
 	displayOffset    int
+	maxPort          int
 
 	// network creates X11 listener sockets. Defaults to osNet{}.
 	network X11Network
@@ -314,7 +315,7 @@ func (x *x11Forwarder) evictLeastRecentlyUsedSession() {
 // the next available port starting from X11StartPort and displayOffset.
 func (x *x11Forwarder) createX11Listener(ctx context.Context) (ln net.Listener, display int, err error) {
 	// Look for an open port to listen on.
-	for port := X11StartPort + x.displayOffset; port <= X11MaxPort; port++ {
+	for port := X11StartPort + x.displayOffset; port <= x.maxPort; port++ {
 		if ctx.Err() != nil {
 			return nil, -1, ctx.Err()
 		}

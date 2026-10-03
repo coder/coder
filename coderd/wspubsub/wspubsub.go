@@ -7,12 +7,81 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
+
+// AllWorkspaceEventChannel is a global channel that receives events for all
+// workspaces. This is useful when you need to watch N workspaces without
+// creating N separate subscriptions.
+const AllWorkspaceEventChannel = "workspace_updates:all"
+
+// WorkspaceBuildOrchestrationWakeChannel wakes the internal worker that
+// processes pending workspace build orchestration rows.
+const WorkspaceBuildOrchestrationWakeChannel = "workspace_build_orchestrations:wake"
+
+// HandleWorkspaceBuildUpdate wraps a callback to parse WorkspaceBuildUpdate
+// messages from the pubsub.
+func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
+	return func(ctx context.Context, message []byte, err error) {
+		if err != nil {
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("workspace build update pubsub: %w", err))
+			return
+		}
+		var payload codersdk.WorkspaceBuildUpdate
+		if err := json.Unmarshal(message, &payload); err != nil {
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("unmarshal workspace build update: %w", err))
+			return
+		}
+		cb(ctx, payload, nil)
+	}
+}
+
+// PublishWorkspaceBuildUpdate is a helper to publish a workspace build update
+// to the AllWorkspaceEventChannel. This should be called when a build
+// completes (succeeds, fails, or is canceled).
+func PublishWorkspaceBuildUpdate(_ context.Context, ps pubsub.Pubsub, update codersdk.WorkspaceBuildUpdate) error {
+	msg, err := json.Marshal(update)
+	if err != nil {
+		return xerrors.Errorf("marshal workspace build update: %w", err)
+	}
+	if err := ps.Publish(AllWorkspaceEventChannel, msg); err != nil {
+		return xerrors.Errorf("publish workspace build update: %w", err)
+	}
+	return nil
+}
+
+// PublishWorkspaceBuildOrchestrationWake wakes coderd instances that can
+// process pending workspace build orchestration rows. Call this after any
+// workspace build reaches a terminal state: succeeded, failed, or canceled.
+func PublishWorkspaceBuildOrchestrationWake(_ context.Context, ps pubsub.Pubsub) error {
+	if err := ps.Publish(WorkspaceBuildOrchestrationWakeChannel, []byte("{}")); err != nil {
+		return xerrors.Errorf("publish workspace build orchestration wake: %w", err)
+	}
+	return nil
+}
 
 // WorkspaceEventChannel can be used to subscribe to events for
 // workspaces owned by the provided user ID.
 func WorkspaceEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("workspace_owner:%s", ownerID)
+}
+
+// PublishWorkspaceEvent validates and publishes a workspace event to
+// the owner's event channel.
+func PublishWorkspaceEvent(_ context.Context, ps pubsub.Pubsub, ownerID uuid.UUID, event WorkspaceEvent) error {
+	if err := event.Validate(); err != nil {
+		return xerrors.Errorf("validate workspace event: %w", err)
+	}
+	msg, err := json.Marshal(event)
+	if err != nil {
+		return xerrors.Errorf("marshal workspace event: %w", err)
+	}
+	if err := ps.Publish(WorkspaceEventChannel(ownerID), msg); err != nil {
+		return xerrors.Errorf("publish workspace event: %w", err)
+	}
+	return nil
 }
 
 func HandleWorkspaceEvent(cb func(ctx context.Context, payload WorkspaceEvent, err error)) func(ctx context.Context, message []byte, err error) {

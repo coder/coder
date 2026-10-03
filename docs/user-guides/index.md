@@ -1,4 +1,6 @@
-# User Guides
+---
+title: User Guides
+---
 
 These guides contain information on workspace management, workspace access via
 IDEs, environment personalization, and workspace scheduling.

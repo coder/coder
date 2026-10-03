@@ -1,7 +1,7 @@
-import type { HealthcheckReport } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import { useOutletContext } from "react-router";
-import { pageTitle } from "utils/page";
+import type { HealthcheckReport } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { pageTitle } from "#/utils/page";
 import {
 	GridData,
 	GridDataLabel,
@@ -12,7 +12,7 @@ import {
 	HealthyDot,
 	Main,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const AccessURLPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -27,7 +27,7 @@ const AccessURLPage = () => {
 					<HealthyDot severity={accessUrl.severity} />
 					Access URL
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="AccessURL" />
+				<MuteWarningsButton healthcheck="AccessURL" />
 			</Header>
 
 			<Main>
@@ -40,6 +40,7 @@ const AccessURLPage = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>

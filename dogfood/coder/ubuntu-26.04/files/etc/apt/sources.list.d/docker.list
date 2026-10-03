@@ -1,0 +1,6 @@
+# Intentionally use Docker's Ubuntu 22.04 (jammy) repository on this Ubuntu
+# 26.04 image. Docker's resolute repo no longer carries the Docker 27 packages
+# we need, and Docker 28+ requires containerd.io >= 1.7.27. We pin
+# containerd.io to 1.7.23 for sysbox / Docker-in-Docker compatibility, so the
+# older jammy repo is required until that constraint is removed.
+deb [signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable

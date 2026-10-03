@@ -1,4 +1,4 @@
-import { determineGroupDiff } from "./auditUtils";
+import { determineGroupDiff, formatAuditDiffValue } from "./auditUtils";
 
 const auditDiffForNewGroup = {
 	id: {
@@ -118,5 +118,72 @@ describe("determineAuditDiff", () => {
 		};
 
 		expect(determineGroupDiff(AuditDiffForDeletedGroup)).toEqual(result);
+	});
+});
+
+describe("formatAuditDiffValue", () => {
+	it.each([
+		{ name: "string", value: "hello", expected: '"hello"' },
+		{
+			name: "string containing double quotes",
+			value: 'he said "hello"',
+			expected: '"he said \\"hello\\""',
+		},
+		{
+			name: "array of primitives",
+			value: ["admin", "auditor"],
+			expected: '["admin", "auditor"]',
+		},
+		{ name: "boolean true", value: true, expected: "true" },
+		{ name: "boolean false", value: false, expected: "false" },
+		{ name: "number", value: 42, expected: "42" },
+		{ name: "null", value: null, expected: "null" },
+		{ name: "undefined", value: undefined, expected: "null" },
+		{
+			name: "invalid SQL time",
+			value: { Time: "0001-01-01T00:00:00Z", Valid: false },
+			expected: "null",
+		},
+	])("preserves current behavior for $name", ({ value, expected }) => {
+		expect(formatAuditDiffValue(value)).toBe(expected);
+	});
+
+	it("preserves current behavior for valid SQL time objects", () => {
+		const value = { Time: "2024-10-22T09:03:23.961702Z", Valid: true };
+
+		expect(formatAuditDiffValue(value)).toBe(
+			new Date(value.Time).toLocaleString(),
+		);
+	});
+
+	it("formats plain objects as deterministic compact JSON", () => {
+		expect(
+			formatAuditDiffValue({
+				z: ["read"],
+				a: { permissions: ["read"] },
+			}),
+		).toBe('{"a":{"permissions":["read"]},"z":["read"]}');
+	});
+
+	it("formats chat ACL objects as deterministic compact JSON", () => {
+		expect(
+			formatAuditDiffValue({
+				"user-2": { permissions: ["read"] },
+				"user-1": { permissions: ["read"] },
+			}),
+		).toBe(
+			'{"user-1":{"permissions":["read"]},"user-2":{"permissions":["read"]}}',
+		);
+	});
+
+	it("formats arrays containing objects without object string coercion", () => {
+		expect(
+			formatAuditDiffValue([
+				{ user_id: "user-2", permissions: ["read"] },
+				{ permissions: ["read"], user_id: "user-1" },
+			]),
+		).toBe(
+			'[{"permissions":["read"],"user_id":"user-2"}, {"permissions":["read"],"user_id":"user-1"}]',
+		);
 	});
 });

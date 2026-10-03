@@ -56,11 +56,10 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 	}
 	rpty.circularBuffer = circularBuffer
 
-	// Add TERM then start the command with a pty.  pty.Cmd duplicates Path as the
-	// first argument so remove it.
+	// Add terminal environment then start the command with a pty.  pty.Cmd
+	// duplicates Path as the first argument so remove it.
 	cmdWithEnv := execer.PTYCommandContext(ctx, cmd.Path, cmd.Args[1:]...)
-	//nolint:gocritic
-	cmdWithEnv.Env = append(rpty.command.Env, "TERM=xterm-256color")
+	cmdWithEnv.Env = withTerminalEnv(rpty.command.Env)
 	cmdWithEnv.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmdWithEnv)
 	if err != nil {

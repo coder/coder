@@ -1,18 +1,20 @@
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
-import { templateByNameKey } from "api/queries/templates";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	invalidateTemplateListQueries,
+	templateByNameKey,
+} from "#/api/queries/templates";
+import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
-const TemplateSettingsPage: FC = () => {
+const TemplateSettingsPage: React.FC = () => {
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();
@@ -40,18 +42,24 @@ const TemplateSettingsPage: FC = () => {
 			if (!data) {
 				data = template;
 			} else {
-				// Only invalid the query if data is returned, indicating at least one field was updated.
-				//
-				// we use data.name because an admin may have updated templateName to something new
-				await queryClient.invalidateQueries({
-					queryKey: templateByNameKey(template.organization_name, data.name),
-				});
+				// Use data.name because an admin may have renamed the template.
+				await Promise.all([
+					invalidateTemplateListQueries(queryClient),
+					queryClient.invalidateQueries({
+						queryKey: templateByNameKey(template.organization_name, data.name),
+					}),
+				]);
 			}
-			displaySuccess("Template updated successfully");
+			toast.success(`Template "${data.name}" updated successfully.`);
 			navigate(getLink(linkToTemplate(data.organization_name, data.name)));
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to update template"));
+			toast.error(
+				getErrorMessage(error, `Failed to update template "${template.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

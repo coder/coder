@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cp ../docs/images public/images --recursive
+cp -r ../docs/images/ public/images

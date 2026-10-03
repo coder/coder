@@ -1,23 +1,28 @@
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import type { ComponentProps, FC } from "react";
+import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
-interface TemplateSettingsPageViewProps {
+type TemplateSettingsPageViewProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
 	isSubmitting: boolean;
 	submitError?: unknown;
-	initialTouched?: ComponentProps<
+	initialTouched?: React.ComponentProps<
 		typeof TemplateSettingsForm
 	>["initialTouched"];
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
-}
+};
 
-export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
+export const TemplateSettingsPageView: React.FC<
+	TemplateSettingsPageViewProps
+> = ({
 	template,
 	onCancel,
 	onSubmit,
@@ -29,10 +34,13 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 	sharedPortControlsEnabled,
 }) => {
 	return (
-		<>
-			<PageHeader css={{ paddingTop: 0 }}>
-				<PageHeaderTitle>General settings</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>General</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update template metadata and workspace policies.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<TemplateSettingsForm
 				initialTouched={initialTouched}
@@ -45,6 +53,6 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
 			/>
-		</>
+		</div>
 	);
 };

@@ -1,0 +1,9 @@
+module "antigravity" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/antigravity/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  folder = {{ .Variables.folder }}
+  mcp = {{ .Variables.mcp }}
+  open_recent = {{ .Variables.open_recent }}
+}

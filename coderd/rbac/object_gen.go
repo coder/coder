@@ -15,6 +15,42 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAIGatewayKey
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI Gateway key
+	//  - "ActionDelete" :: delete an AI Gateway key
+	//  - "ActionRead" :: read AI Gateway keys
+	//  - "ActionUpdate" :: update an AI Gateway key
+	ResourceAIGatewayKey = Object{
+		Type: "ai_gateway_key",
+	}
+
+	// ResourceAiModelPrice
+	// Valid Actions
+	//  - "ActionRead" :: read AI model prices
+	//  - "ActionUpdate" :: update AI model prices
+	ResourceAiModelPrice = Object{
+		Type: "ai_model_price",
+	}
+
+	// ResourceAIProvider
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI provider
+	//  - "ActionDelete" :: delete an AI provider
+	//  - "ActionRead" :: read AI provider configuration
+	//  - "ActionUpdate" :: update an AI provider
+	ResourceAIProvider = Object{
+		Type: "ai_provider",
+	}
+
+	// ResourceAiSeat
+	// Valid Actions
+	//  - "ActionCreate" :: record AI seat usage
+	//  - "ActionRead" :: read AI seat state
+	ResourceAiSeat = Object{
+		Type: "ai_seat",
+	}
+
 	// ResourceAibridgeInterception
 	// Valid Actions
 	//  - "ActionCreate" :: create aibridge interceptions & related records
@@ -29,7 +65,7 @@ var (
 	//  - "ActionCreate" :: create an api key
 	//  - "ActionDelete" :: delete an api key
 	//  - "ActionRead" :: read api key details (secrets are not stored)
-	//  - "ActionUpdate" :: update an api key, eg expires
+	//  - "ActionUpdate" :: update an api key, for example its expiry
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
@@ -61,6 +97,66 @@ var (
 	//  - "ActionRead" :: read audit logs
 	ResourceAuditLog = Object{
 		Type: "audit_log",
+	}
+
+	// ResourceBoundaryLog
+	// Valid Actions
+	//  - "ActionCreate" :: create boundary log records
+	//  - "ActionDelete" :: delete boundary logs
+	//  - "ActionRead" :: read boundary logs and session metadata
+	ResourceBoundaryLog = Object{
+		Type: "boundary_log",
+	}
+
+	// ResourceBoundaryUsage
+	// Valid Actions
+	//  - "ActionDelete" :: delete boundary usage statistics
+	//  - "ActionRead" :: read boundary usage statistics
+	//  - "ActionUpdate" :: upsert boundary usage statistics
+	ResourceBoundaryUsage = Object{
+		Type: "boundary_usage",
+	}
+
+	// ResourceChat
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat
+	//  - "ActionDelete" :: delete a chat
+	//  - "ActionRead" :: read chat messages and metadata
+	//  - "ActionShare" :: share a chat with other users or groups
+	//  - "ActionUpdate" :: update chat title or settings
+	ResourceChat = Object{
+		Type: "chat",
+	}
+
+	// ResourceChatAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat automation
+	//  - "ActionDelete" :: delete a chat automation
+	//  - "ActionRead" :: read chat automations
+	//  - "ActionUpdate" :: update a chat automation
+	ResourceChatAutomation = Object{
+		Type: "chat_automation",
+	}
+
+	// ResourceChatModelConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat model config
+	//  - "ActionDelete" :: delete a chat model config
+	//  - "ActionRead" :: read chat model configs
+	//  - "ActionShare" :: share a chat model config with other users or groups
+	//  - "ActionUpdate" :: update a chat model config
+	ResourceChatModelConfig = Object{
+		Type: "chat_model_config",
+	}
+
+	// ResourceChatProject
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat project
+	//  - "ActionDelete" :: delete a chat project
+	//  - "ActionRead" :: read chat projects
+	//  - "ActionUpdate" :: update a chat project
+	ResourceChatProject = Object{
+		Type: "chat_project",
 	}
 
 	// ResourceConnectionLog
@@ -152,6 +248,17 @@ var (
 	//  - "ActionRead" :: read licenses
 	ResourceLicense = Object{
 		Type: "license",
+	}
+
+	// ResourceMCPServerConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a new MCP server config
+	//  - "ActionDelete" :: delete MCP server config
+	//  - "ActionRead" :: read MCP server config
+	//  - "ActionShare" :: share MCP server config with other users or groups
+	//  - "ActionUpdate" :: update MCP server config
+	ResourceMCPServerConfig = Object{
+		Type: "mcp_server_config",
 	}
 
 	// ResourceNotificationMessage
@@ -286,16 +393,6 @@ var (
 		Type: "tailnet_coordinator",
 	}
 
-	// ResourceTask
-	// Valid Actions
-	//  - "ActionCreate" :: create a new task
-	//  - "ActionDelete" :: delete task
-	//  - "ActionRead" :: read task data or output to view on the UI or CLI
-	//  - "ActionUpdate" :: edit task settings or send input to an existing task
-	ResourceTask = Object{
-		Type: "task",
-	}
-
 	// ResourceTemplate
 	// Valid Actions
 	//  - "ActionCreate" :: create a template
@@ -339,6 +436,16 @@ var (
 		Type: "user_secret",
 	}
 
+	// ResourceUserSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create a user skill
+	//  - "ActionDelete" :: delete a user skill
+	//  - "ActionRead" :: read user skill metadata and content
+	//  - "ActionUpdate" :: update user skill metadata and content
+	ResourceUserSkill = Object{
+		Type: "user_skill",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -358,9 +465,10 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
+	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
@@ -381,6 +489,16 @@ var (
 		Type: "workspace_agent_resource_monitor",
 	}
 
+	// ResourceWorkspaceBuildOrchestration
+	// Valid Actions
+	//  - "ActionCreate" :: create a workspace build orchestration
+	//  - "ActionDelete" :: delete a workspace build orchestration
+	//  - "ActionRead" :: read a workspace build orchestration
+	//  - "ActionUpdate" :: update a workspace build orchestration
+	ResourceWorkspaceBuildOrchestration = Object{
+		Type: "workspace_build_orchestration",
+	}
+
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -391,9 +509,10 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
+	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspaceDormant = Object{
 		Type: "workspace_dormant",
 	}
@@ -412,11 +531,21 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAIGatewayKey,
+		ResourceAiModelPrice,
+		ResourceAIProvider,
+		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceBoundaryLog,
+		ResourceBoundaryUsage,
+		ResourceChat,
+		ResourceChatAutomation,
+		ResourceChatModelConfig,
+		ResourceChatProject,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
@@ -428,6 +557,7 @@ func AllResources() []Objecter {
 		ResourceIdpsyncSettings,
 		ResourceInboxNotification,
 		ResourceLicense,
+		ResourceMCPServerConfig,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,
@@ -442,15 +572,16 @@ func AllResources() []Objecter {
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
-		ResourceTask,
 		ResourceTemplate,
 		ResourceUsageEvent,
 		ResourceUser,
 		ResourceUserSecret,
+		ResourceUserSkill,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,
+		ResourceWorkspaceBuildOrchestration,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}
@@ -470,6 +601,7 @@ func AllActions() []policy.Action {
 		policy.ActionShare,
 		policy.ActionUnassign,
 		policy.ActionUpdate,
+		policy.ActionUpdateAgent,
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,
 		policy.ActionViewInsights,

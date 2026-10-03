@@ -2,33 +2,64 @@ package mcp_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
+// mcpGeneratePKCE creates a PKCE verifier and S256 challenge for MCP
+// e2e tests.
+func mcpGeneratePKCE() (verifier, challenge string) {
+	verifier = uuid.NewString() + uuid.NewString()
+	h := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(h[:])
+	return verifier, challenge
+}
+
+// mcpDeploymentValues turns on the mcp-server-http experiment. The MCP HTTP
+// endpoint has no development-build bypass, so every test that reaches it
+// must opt in.
+func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	return coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.Experiments = []string{string(codersdk.ExperimentMCPServerHTTP)}
+	})
+}
+
 func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server with authentication
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
@@ -36,11 +67,13 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	// Create MCP client pointing to our endpoint
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	// Configure client with authentication headers using RFC 6750 Bearer token
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + coderClient.SessionToken(),
-		}))
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
 	require.NoError(t, err)
 	defer func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
@@ -48,85 +81,101 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Start client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	// Initialize connection
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client",
-				Version: "1.0.0",
-			},
-		},
-	}
-
-	result, err := mcpClient.Initialize(ctx, initReq)
-	require.NoError(t, err)
+	result := mcpClient.InitializeResult()
 	require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
-	require.Equal(t, mcp.LATEST_PROTOCOL_VERSION, result.ProtocolVersion)
+	require.Equal(t, "2026-07-28", result.ProtocolVersion)
 	require.NotNil(t, result.Capabilities)
 
 	// Test tool listing
-	tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+	tools, err := mcpClient.ListTools(ctx, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tools.Tools)
 
 	// Verify we have some expected Coder tools
 	var foundTools []string
+	var userTool *mcp.Tool
+	var writeFileTool *mcp.Tool
 	for _, tool := range tools.Tools {
 		foundTools = append(foundTools, tool.Name)
+		switch tool.Name {
+		case toolsdk.ToolNameGetAuthenticatedUser:
+			userTool = tool
+		case toolsdk.ToolNameWorkspaceWriteFile:
+			writeFileTool = tool
+		}
 	}
 
 	// Check for some basic tools that should be available
 	assert.Contains(t, foundTools, toolsdk.ToolNameGetAuthenticatedUser, "Should have authenticated user tool")
 
-	// Find and execute the authenticated user tool
-	var userTool *mcp.Tool
-	for _, tool := range tools.Tools {
-		if tool.Name == toolsdk.ToolNameGetAuthenticatedUser {
-			userTool = &tool
-			break
-		}
+	prompts, err := mcpClient.ListPrompts(ctx, nil)
+	require.NoError(t, err)
+	var foundPrompts []string
+	for _, prompt := range prompts.Prompts {
+		foundPrompts = append(foundPrompts, prompt.Name)
 	}
+	for _, prompt := range toolsdk.AllPrompts {
+		require.Contains(t, foundPrompts, prompt.Name)
+	}
+
+	promptResult, err := mcpClient.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      toolsdk.PromptNameAgentsDelegate,
+		Arguments: map[string]string{"task": "Fix the flaky test."},
+	})
+	require.NoError(t, err)
+	require.Len(t, promptResult.Messages, 1)
+	require.Equal(t, mcp.Role("user"), promptResult.Messages[0].Role)
+	promptText, ok := promptResult.Messages[0].Content.(*mcp.TextContent)
+	require.True(t, ok)
+	require.Contains(t, promptText.Text, "Fix the flaky test.")
+	require.Contains(t, promptText.Text, toolsdk.ToolNameCreateChat)
+
+	_, err = mcpClient.GetPrompt(ctx, &mcp.GetPromptParams{Name: toolsdk.PromptNameAgentsDelegate})
+	require.ErrorContains(t, err, "missing required prompt argument: task")
+	require.NotNil(t, userTool)
+	require.NotNil(t, writeFileTool)
+	require.NotNil(t, userTool.Annotations)
+	require.NotNil(t, userTool.Annotations.DestructiveHint)
+	require.NotNil(t, userTool.Annotations.OpenWorldHint)
+	assert.True(t, userTool.Annotations.ReadOnlyHint)
+	assert.False(t, *userTool.Annotations.DestructiveHint)
+	assert.True(t, userTool.Annotations.IdempotentHint)
+	assert.False(t, *userTool.Annotations.OpenWorldHint)
+	require.NotNil(t, writeFileTool.Annotations)
+	require.NotNil(t, writeFileTool.Annotations.DestructiveHint)
+	require.NotNil(t, writeFileTool.Annotations.OpenWorldHint)
+	assert.False(t, writeFileTool.Annotations.ReadOnlyHint)
+	assert.True(t, *writeFileTool.Annotations.DestructiveHint)
+	assert.False(t, writeFileTool.Annotations.IdempotentHint)
+	assert.False(t, *writeFileTool.Annotations.OpenWorldHint)
+
+	// Execute the authenticated user tool.
 	require.NotNil(t, userTool, "Expected to find "+toolsdk.ToolNameGetAuthenticatedUser+" tool")
 
 	// Execute the tool
-	toolReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      userTool.Name,
-			Arguments: map[string]any{},
-		},
-	}
-
-	toolResult, err := mcpClient.CallTool(ctx, toolReq)
+	toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      userTool.Name,
+		Arguments: map[string]any{},
+	})
 	require.NoError(t, err)
 	require.NotEmpty(t, toolResult.Content)
 
 	// Verify the result contains user information
 	assert.Len(t, toolResult.Content, 1)
-	if textContent, ok := toolResult.Content[0].(mcp.TextContent); ok {
-		assert.Equal(t, "text", textContent.Type)
+	if textContent, ok := toolResult.Content[0].(*mcp.TextContent); ok {
 		assert.NotEmpty(t, textContent.Text)
 	} else {
 		t.Errorf("Expected TextContent type, got %T", toolResult.Content[0])
 	}
-
-	// Test ping functionality
-	err = mcpClient.Ping(ctx)
-	require.NoError(t, err)
 }
 
 func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	_, closer, api := coderdtest.NewWithAPI(t, nil)
+	_, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -150,59 +199,43 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Should get HTTP 401 for unauthenticated access")
 
 	// Also test with MCP client to ensure it handles the error gracefully
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL)
-	require.NoError(t, err, "Should be able to create MCP client without authentication")
-	defer func() {
-		if closeErr := mcpClient.Close(); closeErr != nil {
-			t.Logf("Failed to close MCP client: %v", closeErr)
-		}
-	}()
-
-	// Start client and try to initialize - this should fail due to authentication
-	err = mcpClient.Start(ctx)
-	if err != nil {
-		// Authentication failed at transport level - this is expected
-		t.Logf("Unauthenticated access test successful: Transport-level authentication error: %v", err)
-		return
-	}
-
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client-unauth",
-				Version: "1.0.0",
-			},
-		},
-	}
-
-	_, err = mcpClient.Initialize(ctx, initReq)
+	_, err = newIsolatedMCPClient(ctx, mcpURL, "test-client-unauth", nil)
 	require.Error(t, err, "Should fail during MCP initialization without authentication")
 }
 
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	t.Parallel()
 
-	// Setup Coder server with full workspace environment
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	defer closer.Close()
 
 	user := coderdtest.CreateFirstUser(t, coderClient)
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "myworkspace",
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
 
-	// Create template and workspace for testing
-	version := coderdtest.CreateTemplateVersion(t, coderClient, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, coderClient, version.ID)
-	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, coderClient, template.ID)
+	fs := afero.NewMemMapFs()
+	tmpdir := os.TempDir()
+	require.NoError(t, fs.MkdirAll(tmpdir, 0o755))
+	filePath := filepath.Join(tmpdir, "mcp-http-test.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("hello from mcp"), 0o644))
 
-	// Create MCP client
+	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
+		opts.Filesystem = fs
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, coderClient, r.Workspace.ID).Wait()
+
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + coderClient.SessionToken(),
-		}))
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-workspace", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
 	require.NoError(t, err)
 	defer func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
@@ -210,63 +243,25 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Start and initialize client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client-workspace",
-				Version: "1.0.0",
-			},
+	toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: toolsdk.ToolNameWorkspaceLS,
+		Arguments: map[string]any{
+			"workspace": r.Workspace.Name,
+			"path":      tmpdir,
 		},
-	}
-
-	_, err = mcpClient.Initialize(ctx, initReq)
+	})
 	require.NoError(t, err)
+	require.NotEmpty(t, toolResult.Content)
 
-	// Test workspace-related tools
-	tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
-	require.NoError(t, err)
+	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected TextContent type, got %T", toolResult.Content[0])
 
-	// Find workspace listing tool
-	var workspaceTool *mcp.Tool
-	for _, tool := range tools.Tools {
-		if tool.Name == toolsdk.ToolNameListWorkspaces {
-			workspaceTool = &tool
-			break
-		}
-	}
-
-	if workspaceTool != nil {
-		// Execute workspace listing tool
-		toolReq := mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      workspaceTool.Name,
-				Arguments: map[string]any{},
-			},
-		}
-
-		toolResult, err := mcpClient.CallTool(ctx, toolReq)
-		require.NoError(t, err)
-		require.NotEmpty(t, toolResult.Content)
-
-		// Verify the result mentions our workspace
-		if textContent, ok := toolResult.Content[0].(mcp.TextContent); ok {
-			assert.Contains(t, textContent.Text, workspace.Name, "Workspace listing should include our test workspace")
-		} else {
-			t.Error("Expected TextContent type from workspace tool")
-		}
-
-		t.Logf("Workspace tool test successful: Found workspace %s in results", workspace.Name)
-	} else {
-		t.Skip("Workspace listing tool not available, skipping workspace-specific test")
-	}
+	var response toolsdk.WorkspaceLSResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	assert.Contains(t, response.Contents, toolsdk.WorkspaceLSFile{
+		Path:  filePath,
+		IsDir: false,
+	})
 }
 
 func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
@@ -274,6 +269,7 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 
 	// Setup Coder server
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -282,10 +278,12 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 
 	// Create MCP client
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + coderClient.SessionToken(),
-		}))
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-errors", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
 	require.NoError(t, err)
 	defer func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
@@ -293,35 +291,11 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Start and initialize client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client-errors",
-				Version: "1.0.0",
-			},
-		},
-	}
-
-	_, err = mcpClient.Initialize(ctx, initReq)
-	require.NoError(t, err)
-
 	// Test calling non-existent tool
-	toolReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name:      "nonexistent_tool",
-			Arguments: map[string]any{},
-		},
-	}
-
-	_, err = mcpClient.CallTool(ctx, toolReq)
+	_, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "nonexistent_tool",
+		Arguments: map[string]any{},
+	})
 	require.Error(t, err, "Should get error when calling non-existent tool")
 	require.Contains(t, err.Error(), "nonexistent_tool", "Should mention the tool name in error message")
 
@@ -333,6 +307,7 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 
 	// Setup Coder server
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -341,36 +316,18 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 
 	// Create MCP client
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + coderClient.SessionToken(),
-		}))
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-concurrent", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
 	require.NoError(t, err)
 	defer func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
 			t.Logf("Failed to close MCP client: %v", closeErr)
 		}
 	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Start and initialize client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client-concurrent",
-				Version: "1.0.0",
-			},
-		},
-	}
-
-	_, err = mcpClient.Initialize(ctx, initReq)
-	require.NoError(t, err)
 
 	// Test concurrent tool listings
 	const numConcurrent = 5
@@ -381,7 +338,7 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 			reqCtx, reqCancel := context.WithTimeout(egCtx, testutil.WaitLong)
 			defer reqCancel()
 
-			tools, err := mcpClient.ListTools(reqCtx, mcp.ListToolsRequest{})
+			tools, err := mcpClient.ListTools(reqCtx, nil)
 			if err != nil {
 				return err
 			}
@@ -405,7 +362,9 @@ func TestMCPHTTP_E2E_RFC6750_UnauthenticatedRequest(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	_, closer, api := coderdtest.NewWithAPI(t, nil)
+	_, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	// Make a request without any authentication headers
@@ -436,10 +395,13 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server with OAuth2 provider enabled
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	t.Cleanup(func() { closer.Close() })
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
+	oauth2providertest.EnableDCR(t, coderClient)
 
 	ctx := t.Context()
 
@@ -495,10 +457,12 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		sessionToken := coderClient.SessionToken()
 
 		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-		mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-			transport.WithHTTPHeaders(map[string]string{
-				"Authorization": "Bearer " + sessionToken,
-			}))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-oauth2-client", map[string]string{
+			"Authorization": "Bearer " + sessionToken,
+		})
 		require.NoError(t, err)
 		defer func() {
 			if closeErr := mcpClient.Close(); closeErr != nil {
@@ -506,29 +470,10 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Start and initialize MCP client with Bearer token
-		err = mcpClient.Start(ctx)
-		require.NoError(t, err)
-
-		initReq := mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "test-oauth2-client",
-					Version: "1.0.0",
-				},
-			},
-		}
-
-		result, err := mcpClient.Initialize(ctx, initReq)
-		require.NoError(t, err)
-		require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
+		require.Equal(t, mcpserver.MCPServerName, mcpClient.InitializeResult().ServerInfo.Name)
 
 		// Test tool listing with OAuth2 Bearer token
-		tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+		tools, err := mcpClient.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, tools.Tools)
 
@@ -553,31 +498,32 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		// In a real flow, this would be done through the browser consent page
 		// For testing, we'll create the code directly using the internal API
 
-		// First, we need to authorize the app (simulating user consent)
-		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=test_state",
-			api.AccessURL.String(), app.ID, "http://localhost:3000/callback")
+		// First, we need to authorize the app (simulating user consent).
+		staticVerifier, staticChallenge := mcpGeneratePKCE()
+		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=test_state&code_challenge=%s&code_challenge_method=S256",
+			api.AccessURL.String(), app.ID, "http://localhost:3000/callback", staticChallenge)
 
-		// Create an HTTP client that follows redirects but captures the final redirect
+		// Create an HTTP client that follows redirects but captures the final redirect.
 		client := &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse // Stop following redirects
 			},
 		}
 
-		// Make the authorization request (this would normally be done in a browser)
+		// Make the authorization request (this would normally be done in a browser).
 		req, err := http.NewRequestWithContext(ctx, "GET", authURL, nil)
 		require.NoError(t, err)
-		// Use RFC 6750 Bearer token for authentication
+		// Use RFC 6750 Bearer token for authentication.
 		req.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// The response should be a redirect to the consent page or directly to callback
-		// For testing purposes, let's simulate the POST consent approval
+		// The response should be a redirect to the consent page or directly to callback.
+		// For testing purposes, let's simulate the POST consent approval.
 		if resp.StatusCode == http.StatusOK {
-			// This means we got the consent page, now we need to POST consent
+			// This means we got the consent page, now we need to POST consent.
 			consentReq, err := http.NewRequestWithContext(ctx, "POST", authURL, nil)
 			require.NoError(t, err)
 			consentReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
@@ -588,7 +534,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			defer resp.Body.Close()
 		}
 
-		// Extract authorization code from redirect URL
+		// Extract authorization code from redirect URL.
 		require.True(t, resp.StatusCode >= 300 && resp.StatusCode < 400, "Expected redirect response")
 		location := resp.Header.Get("Location")
 		require.NotEmpty(t, location, "Expected Location header in redirect")
@@ -600,13 +546,14 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully obtained authorization code: %s", authCode[:10]+"...")
 
-		// Step 2: Exchange authorization code for access token and refresh token
+		// Step 2: Exchange authorization code for access token and refresh token.
 		tokenRequestBody := url.Values{
 			"grant_type":    {"authorization_code"},
 			"client_id":     {app.ID.String()},
 			"client_secret": {secret.ClientSecretFull},
 			"code":          {authCode},
 			"redirect_uri":  {"http://localhost:3000/callback"},
+			"code_verifier": {staticVerifier},
 		}
 
 		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
@@ -642,10 +589,9 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		// Step 3: Use access token to authenticate with MCP endpoint
 		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-		mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-			transport.WithHTTPHeaders(map[string]string{
-				"Authorization": "Bearer " + accessToken,
-			}))
+		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-oauth2-flow-client", map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		})
 		require.NoError(t, err)
 		defer func() {
 			if closeErr := mcpClient.Close(); closeErr != nil {
@@ -653,26 +599,10 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			}
 		}()
 
-		// Initialize and test the MCP connection with OAuth2 access token
-		err = mcpClient.Start(ctx)
-		require.NoError(t, err)
-
-		initReq := mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "test-oauth2-flow-client",
-					Version: "1.0.0",
-				},
-			},
-		}
-
-		result, err := mcpClient.Initialize(ctx, initReq)
-		require.NoError(t, err)
-		require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
+		require.Equal(t, mcpserver.MCPServerName, mcpClient.InitializeResult().ServerInfo.Name)
 
 		// Test tool execution with OAuth2 access token
-		tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+		tools, err := mcpClient.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, tools.Tools)
 
@@ -680,17 +610,15 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		var userTool *mcp.Tool
 		for _, tool := range tools.Tools {
 			if tool.Name == toolsdk.ToolNameGetAuthenticatedUser {
-				userTool = &tool
+				userTool = tool
 				break
 			}
 		}
 		require.NotNil(t, userTool, "Expected to find "+toolsdk.ToolNameGetAuthenticatedUser+" tool")
 
-		toolReq := mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      userTool.Name,
-				Arguments: map[string]any{},
-			},
+		toolReq := &mcp.CallToolParams{
+			Name:      userTool.Name,
+			Arguments: map[string]any{},
 		}
 
 		toolResult, err := mcpClient.CallTool(ctx, toolReq)
@@ -735,37 +663,20 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Successfully refreshed token: %s...", newAccessToken[:10])
 
 		// Step 5: Use new access token to create another MCP connection
-		newMcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-			transport.WithHTTPHeaders(map[string]string{
-				"Authorization": "Bearer " + newAccessToken,
-			}))
+		newMcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-refreshed-token-client", map[string]string{
+			"Authorization": "Bearer " + newAccessToken,
+		})
 		require.NoError(t, err)
 		defer func() {
 			if closeErr := newMcpClient.Close(); closeErr != nil {
-				t.Logf("Failed to close new MCP client: %v", closeErr)
+				t.Logf("Failed to close MCP client: %v", closeErr)
 			}
 		}()
 
-		// Test the new token works
-		err = newMcpClient.Start(ctx)
-		require.NoError(t, err)
-
-		newInitReq := mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "test-refreshed-token-client",
-					Version: "1.0.0",
-				},
-			},
-		}
-
-		newResult, err := newMcpClient.Initialize(ctx, newInitReq)
-		require.NoError(t, err)
-		require.Equal(t, mcpserver.MCPServerName, newResult.ServerInfo.Name)
+		require.Equal(t, mcpserver.MCPServerName, newMcpClient.InitializeResult().ServerInfo.Name)
 
 		// Verify we can still execute tools with the refreshed token
-		newTools, err := newMcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+		newTools, err := newMcpClient.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, newTools.Tools)
 
@@ -868,41 +779,44 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully registered dynamic client: %s", clientID)
 
-		// Step 3: Perform OAuth2 authorization code flow with dynamically registered client
-		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=dynamic_state",
-			api.AccessURL.String(), clientID, "http://localhost:3000/callback")
+		// Step 3: Perform OAuth2 authorization code flow with dynamically registered client.
+		dynamicVerifier, dynamicChallenge := mcpGeneratePKCE()
+		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=dynamic_state&code_challenge=%s&code_challenge_method=S256",
+			api.AccessURL.String(), clientID, "http://localhost:3000/callback", dynamicChallenge)
 
-		// Create an HTTP client that captures redirects
+		// Create an HTTP client that captures redirects.
 		authClient := &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse // Stop following redirects
 			},
 		}
 
-		// Make the authorization request with authentication
+		// Make the authorization request with authentication.
 		authReq, err := http.NewRequestWithContext(ctx, "GET", authURL, nil)
 		require.NoError(t, err)
 		authReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
+		authReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 
 		authResp, err := authClient.Do(authReq)
 		require.NoError(t, err)
 		defer authResp.Body.Close()
 
-		// Handle the response - check for error first
+		// Handle the response - check for error first.
 		if authResp.StatusCode == http.StatusBadRequest {
-			// Read error response for debugging
+			// Read error response for debugging.
 			bodyBytes, err := io.ReadAll(authResp.Body)
 			require.NoError(t, err)
 			t.Logf("OAuth2 authorization error: %s", string(bodyBytes))
 			t.FailNow()
 		}
 
-		// Handle consent flow if needed
+		// Handle consent flow if needed.
 		if authResp.StatusCode == http.StatusOK {
-			// This means we got the consent page, now we need to POST consent
+			// This means we got the consent page, now we need to POST consent.
 			consentReq, err := http.NewRequestWithContext(ctx, "POST", authURL, nil)
 			require.NoError(t, err)
 			consentReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
+			consentReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 			consentReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			authResp, err = authClient.Do(consentReq)
@@ -910,7 +824,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			defer authResp.Body.Close()
 		}
 
-		// Extract authorization code from redirect
+		// Extract authorization code from redirect.
 		require.True(t, authResp.StatusCode >= 300 && authResp.StatusCode < 400,
 			"Expected redirect response, got %d", authResp.StatusCode)
 		location := authResp.Header.Get("Location")
@@ -923,13 +837,14 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully obtained authorization code: %s", authCode[:10]+"...")
 
-		// Step 4: Exchange authorization code for access token
+		// Step 4: Exchange authorization code for access token.
 		tokenRequestBody := url.Values{
 			"grant_type":    {"authorization_code"},
 			"client_id":     {clientID},
 			"client_secret": {clientSecret},
 			"code":          {authCode},
 			"redirect_uri":  {"http://localhost:3000/callback"},
+			"code_verifier": {dynamicVerifier},
 		}
 
 		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
@@ -959,10 +874,9 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Successfully obtained access token: %s...", accessToken[:10])
 
 		// Step 5: Use access token to get user information via MCP
-		mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-			transport.WithHTTPHeaders(map[string]string{
-				"Authorization": "Bearer " + accessToken,
-			}))
+		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-dynamic-client", map[string]string{
+			"Authorization": "Bearer " + accessToken,
+		})
 		require.NoError(t, err)
 		defer func() {
 			if closeErr := mcpClient.Close(); closeErr != nil {
@@ -970,26 +884,10 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			}
 		}()
 
-		// Initialize MCP connection
-		err = mcpClient.Start(ctx)
-		require.NoError(t, err)
-
-		initReq := mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "test-dynamic-client",
-					Version: "1.0.0",
-				},
-			},
-		}
-
-		result, err := mcpClient.Initialize(ctx, initReq)
-		require.NoError(t, err)
-		require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
+		require.Equal(t, mcpserver.MCPServerName, mcpClient.InitializeResult().ServerInfo.Name)
 
 		// Get user information
-		tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+		tools, err := mcpClient.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, tools.Tools)
 
@@ -997,17 +895,15 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		var userTool *mcp.Tool
 		for _, tool := range tools.Tools {
 			if tool.Name == toolsdk.ToolNameGetAuthenticatedUser {
-				userTool = &tool
+				userTool = tool
 				break
 			}
 		}
 		require.NotNil(t, userTool, "Expected to find "+toolsdk.ToolNameGetAuthenticatedUser+" tool")
 
-		toolReq := mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      userTool.Name,
-				Arguments: map[string]any{},
-			},
+		toolReq := &mcp.CallToolParams{
+			Name:      userTool.Name,
+			Arguments: map[string]any{},
 		}
 
 		toolResult, err := mcpClient.CallTool(ctx, toolReq)
@@ -1016,7 +912,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		// Extract user info from first token
 		var firstUserInfo string
-		if textContent, ok := toolResult.Content[0].(mcp.TextContent); ok {
+		if textContent, ok := toolResult.Content[0].(*mcp.TextContent); ok {
 			firstUserInfo = textContent.Text
 		} else {
 			t.Errorf("Expected TextContent type, got %T", toolResult.Content[0])
@@ -1057,37 +953,20 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Successfully refreshed token: %s...", newAccessToken[:10])
 
 		// Step 7: Use refreshed token to get user information again via MCP
-		newMcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-			transport.WithHTTPHeaders(map[string]string{
-				"Authorization": "Bearer " + newAccessToken,
-			}))
+		newMcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-dynamic-client-refreshed", map[string]string{
+			"Authorization": "Bearer " + newAccessToken,
+		})
 		require.NoError(t, err)
 		defer func() {
 			if closeErr := newMcpClient.Close(); closeErr != nil {
-				t.Logf("Failed to close new MCP client: %v", closeErr)
+				t.Logf("Failed to close MCP client: %v", closeErr)
 			}
 		}()
 
-		// Initialize new MCP connection
-		err = newMcpClient.Start(ctx)
-		require.NoError(t, err)
-
-		newInitReq := mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "test-dynamic-client-refreshed",
-					Version: "1.0.0",
-				},
-			},
-		}
-
-		newResult, err := newMcpClient.Initialize(ctx, newInitReq)
-		require.NoError(t, err)
-		require.Equal(t, mcpserver.MCPServerName, newResult.ServerInfo.Name)
+		require.Equal(t, mcpserver.MCPServerName, newMcpClient.InitializeResult().ServerInfo.Name)
 
 		// Get user information with refreshed token
-		newTools, err := newMcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+		newTools, err := newMcpClient.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, newTools.Tools)
 
@@ -1098,7 +977,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		// Extract user info from refreshed token
 		var secondUserInfo string
-		if textContent, ok := newToolResult.Content[0].(mcp.TextContent); ok {
+		if textContent, ok := newToolResult.Content[0].(*mcp.TextContent); ok {
 			secondUserInfo = textContent.Text
 		} else {
 			t.Errorf("Expected TextContent type, got %T", newToolResult.Content[0])
@@ -1222,6 +1101,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 
 	// Setup Coder server with authentication
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -1236,11 +1116,13 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	// Create MCP client pointing to the ChatGPT endpoint
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=chatgpt"
 
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	defer cancel()
+
 	// Configure client with authentication headers using RFC 6750 Bearer token
-	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + coderClient.SessionToken(),
-		}))
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-chatgpt-client", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
@@ -1248,32 +1130,13 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 		}
 	})
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-	defer cancel()
-
-	// Start client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	// Initialize connection
-	initReq := mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-chatgpt-client",
-				Version: "1.0.0",
-			},
-		},
-	}
-
-	result, err := mcpClient.Initialize(ctx, initReq)
-	require.NoError(t, err)
+	result := mcpClient.InitializeResult()
 	require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
-	require.Equal(t, mcp.LATEST_PROTOCOL_VERSION, result.ProtocolVersion)
+	require.Equal(t, "2026-07-28", result.ProtocolVersion)
 	require.NotNil(t, result.Capabilities)
 
 	// Test tool listing - should only have search and fetch tools for ChatGPT
-	tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+	tools, err := mcpClient.ListTools(ctx, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tools.Tools)
 
@@ -1298,19 +1161,17 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	var searchTool *mcp.Tool
 	for _, tool := range tools.Tools {
 		if tool.Name == toolsdk.ToolNameChatGPTSearch {
-			searchTool = &tool
+			searchTool = tool
 			break
 		}
 	}
 	require.NotNil(t, searchTool, "Expected to find search tool")
 
 	// Execute search for templates
-	searchReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: searchTool.Name,
-			Arguments: map[string]any{
-				"query": "templates",
-			},
+	searchReq := &mcp.CallToolParams{
+		Name: searchTool.Name,
+		Arguments: map[string]any{
+			"query": "templates",
 		},
 	}
 
@@ -1320,8 +1181,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 
 	// Verify the search result contains our template
 	assert.Len(t, searchResult.Content, 1)
-	if textContent, ok := searchResult.Content[0].(mcp.TextContent); ok {
-		assert.Equal(t, "text", textContent.Type)
+	if textContent, ok := searchResult.Content[0].(*mcp.TextContent); ok {
 		assert.Contains(t, textContent.Text, template.ID.String(), "Search result should contain our test template")
 		t.Logf("Search result: %s", textContent.Text)
 	} else {
@@ -1332,19 +1192,17 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	var fetchTool *mcp.Tool
 	for _, tool := range tools.Tools {
 		if tool.Name == toolsdk.ToolNameChatGPTFetch {
-			fetchTool = &tool
+			fetchTool = tool
 			break
 		}
 	}
 	require.NotNil(t, fetchTool, "Expected to find fetch tool")
 
 	// Execute fetch for the template
-	fetchReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: fetchTool.Name,
-			Arguments: map[string]any{
-				"id": fmt.Sprintf("template:%s", template.ID.String()),
-			},
+	fetchReq := &mcp.CallToolParams{
+		Name: fetchTool.Name,
+		Arguments: map[string]any{
+			"id": fmt.Sprintf("template:%s", template.ID.String()),
 		},
 	}
 
@@ -1354,8 +1212,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 
 	// Verify the fetch result contains template details
 	assert.Len(t, fetchResult.Content, 1)
-	if textContent, ok := fetchResult.Content[0].(mcp.TextContent); ok {
-		assert.Equal(t, "text", textContent.Type)
+	if textContent, ok := fetchResult.Content[0].(*mcp.TextContent); ok {
 		assert.Contains(t, textContent.Text, template.Name, "Fetch result should contain template name")
 		assert.Contains(t, textContent.Text, template.ID.String(), "Fetch result should contain template ID")
 		t.Logf("Fetch result contains template data")
@@ -1367,8 +1224,173 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 }
 
 // Helper function to parse URL safely in tests
+// TestMCPHTTP_E2E_WorkspaceSSHAuthz verifies that users who can read
+// a workspace but lack ActionSSH are denied when calling workspace
+// tools through the MCP HTTP endpoint.
+func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	defer closer.Close()
+
+	admin := coderdtest.CreateFirstUser(t, coderClient)
+
+	// Create a workspace owned by the admin.
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "authz-test-ws",
+		OrganizationID: admin.OrganizationID,
+		OwnerID:        admin.UserID,
+	}).WithAgent().Do()
+
+	fs := afero.NewMemMapFs()
+	require.NoError(t, fs.MkdirAll("/tmp", 0o755))
+	require.NoError(t, afero.WriteFile(fs, "/tmp/secret.txt", []byte("secret-content"), 0o644))
+
+	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
+		opts.Filesystem = fs
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, coderClient, r.Workspace.ID).Wait()
+
+	// Create a second user with template-admin role. This role grants
+	// ActionRead on workspaces but not ActionSSH.
+	tmplAdminClient, _ := coderdtest.CreateAnotherUser(
+		t, coderClient, admin.OrganizationID, rbac.RoleTemplateAdmin(),
+	)
+
+	// Connect with the template-admin user.
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
+		"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
+	})
+	require.NoError(t, err)
+	defer func() {
+		_ = mcpClient.Close()
+	}()
+
+	// Calling a workspace tool that requires an agent connection
+	// should fail because the template-admin user lacks ActionSSH.
+	// Use owner/workspace format so the lookup resolves to the
+	// admin's workspace rather than defaulting to "me".
+	workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
+	toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: toolsdk.ToolNameWorkspaceReadFile,
+		Arguments: map[string]any{
+			"workspace": workspaceIdent,
+			"path":      "/tmp/secret.txt",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+	require.Len(t, toolResult.Content, 1)
+	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
+}
+
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
 	require.NoError(t, err, "Failed to parse URL %q", rawURL)
 	return u
+}
+
+// newIsolatedMCPClient connects through a transport isolated from
+// http.DefaultTransport, preventing parallel httptest cleanup from closing
+// the client's idle connections.
+func newIsolatedMCPClient(ctx context.Context, mcpURL, name string, headers map[string]string) (*mcp.ClientSession, error) {
+	isolated := coderdtest.NewIsolatedHTTPClient(nil)
+	if len(headers) > 0 {
+		isolated.Transport = &headerRoundTripper{
+			base:    isolated.Transport,
+			headers: headers,
+		}
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: name, Version: "1.0.0"}, nil)
+	return client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:   mcpURL,
+		HTTPClient: isolated,
+	}, nil)
+}
+
+type headerRoundTripper struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	for key, value := range h.headers {
+		clone.Header.Set(key, value)
+	}
+	return h.base.RoundTrip(clone)
+}
+
+// sentinelTransport wraps an http.RoundTripper and counts how many
+// requests flow through it. Used as a test sentinel to verify
+// whether a client is (or is not) using http.DefaultTransport.
+type sentinelTransport struct {
+	inner http.RoundTripper
+	hits  atomic.Int64
+}
+
+func (s *sentinelTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	s.hits.Add(1)
+	return s.inner.RoundTrip(req)
+}
+
+//nolint:paralleltest // Mutates http.DefaultTransport.
+func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
+	// Construct the API before swapping DefaultTransport: coderd's guarded
+	// MCP client clones http.DefaultTransport at construction, and safedial
+	// panics on a non-*http.Transport rather than guessing.
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	t.Cleanup(func() { closer.Close() })
+	_ = coderdtest.CreateFirstUser(t, coderClient)
+
+	// Replace DefaultTransport with a counting sentinel.
+	original := http.DefaultTransport
+	sentinel := &sentinelTransport{inner: original}
+	http.DefaultTransport = sentinel
+	t.Cleanup(func() { http.DefaultTransport = original })
+
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+	authHeaders := map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	t.Run("RawClientUsesDefaultTransport", func(t *testing.T) {
+		sentinel.hits.Store(0)
+		rawClient := mcp.NewClient(&mcp.Implementation{Name: "sentinel-test", Version: "1.0.0"}, nil)
+		rawSession, err := rawClient.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint: mcpURL,
+			HTTPClient: &http.Client{Transport: &headerRoundTripper{
+				base:    http.DefaultTransport,
+				headers: authHeaders,
+			}},
+		}, nil)
+		require.NoError(t, err)
+		defer func() { _ = rawSession.Close() }()
+
+		require.Greater(t, sentinel.hits.Load(), int64(0),
+			"raw client should route requests through http.DefaultTransport")
+	})
+
+	t.Run("IsolatedClientBypassesDefaultTransport", func(t *testing.T) {
+		sentinel.hits.Store(0)
+		isoClient, err := newIsolatedMCPClient(ctx, mcpURL, "sentinel-test", authHeaders)
+		require.NoError(t, err)
+		defer func() { _ = isoClient.Close() }()
+
+		require.Equal(t, int64(0), sentinel.hits.Load(),
+			"isolated client must NOT route requests through http.DefaultTransport")
+	})
 }

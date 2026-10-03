@@ -1,19 +1,19 @@
+import { useState } from "react";
 import type {
 	Group,
 	User,
 	WorkspaceACL,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
-} from "modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
+} from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import {
 	AddWorkspaceMemberForm,
 	RoleSelectField,
-} from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
-import { type FC, useState } from "react";
+} from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
 type AddWorkspaceUserOrGroupProps = {
 	organizationID: string;
@@ -26,12 +26,9 @@ type AddWorkspaceUserOrGroupProps = {
 	) => void;
 };
 
-export const AddWorkspaceUserOrGroup: FC<AddWorkspaceUserOrGroupProps> = ({
-	organizationID,
-	isLoading,
-	workspaceACL,
-	onSubmit,
-}) => {
+export const AddWorkspaceUserOrGroup: React.FC<
+	AddWorkspaceUserOrGroupProps
+> = ({ organizationID, isLoading, workspaceACL, onSubmit }) => {
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 	const [selectedRole, setSelectedRole] = useState<WorkspaceRole>("use");

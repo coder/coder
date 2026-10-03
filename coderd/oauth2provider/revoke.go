@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -25,7 +26,39 @@ var (
 	ErrTokenNotBelongsToClient = xerrors.New("token does not belong to requesting client")
 	// ErrInvalidTokenFormat is returned when a token has an invalid format
 	ErrInvalidTokenFormat = xerrors.New("invalid token format")
+	// ErrTokenNotRevocable is returned when the presented token is not an
+	// OAuth2 token this client can revoke.
+	ErrTokenNotRevocable = xerrors.New("token not revocable")
 )
+
+func extractRevocationRequest(r *http.Request) (codersdk.OAuth2TokenRevocationRequest, error) {
+	if err := r.ParseForm(); err != nil {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.Errorf("invalid form data: %w", err)
+	}
+
+	req := codersdk.OAuth2TokenRevocationRequest{
+		Token:         r.Form.Get("token"),
+		TokenTypeHint: codersdk.OAuth2RevocationTokenTypeHint(r.Form.Get("token_type_hint")),
+		ClientID:      r.Form.Get("client_id"),
+		ClientSecret:  r.Form.Get("client_secret"),
+	}
+
+	// RFC 7009 §2.1 defers to RFC 6749 §2.3 for client authentication, so a
+	// confidential client may present its credentials as HTTP Basic here as
+	// it does at the token endpoint.
+	var err error
+	req.ClientID, req.ClientSecret, err = mergeBasicClientAuth(r, req.ClientID, req.ClientSecret)
+	if err != nil {
+		return codersdk.OAuth2TokenRevocationRequest{}, err
+	}
+
+	// RFC 7009 requires 'token' parameter.
+	if req.Token == "" {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.New("missing token parameter")
+	}
+
+	return req, nil
+}
 
 // RevokeToken implements RFC 7009 OAuth2 Token Revocation
 // Authentication is unique for this endpoint in that it does not use the
@@ -41,35 +74,76 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		// RFC 7009 requires POST method with application/x-www-form-urlencoded
 		if r.Method != http.MethodPost {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, "invalid_request", "Method not allowed")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, codersdk.OAuth2ErrorCodeInvalidRequest, "Method not allowed")
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid form data")
+		if clientSecretInQuery(r.URL.Query()) {
+			logger.Warn(ctx, "oauth2 revocation refused: client_secret in the URL query string",
+				append(requestSource(r),
+					slog.F("app_id", app.ID),
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))...)
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}
 
-		// RFC 7009 requires 'token' parameter
-		token := r.Form.Get("token")
-		if token == "" {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Missing token parameter")
+		req, err := extractRevocationRequest(r)
+		if errors.Is(err, errConflictingClientAuth) {
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
 			return
+		}
+		if err != nil {
+			// ExtractOAuth2ProviderAppWithOAuth2Errors bounds the body, but it
+			// parses the form only when client_id is absent from the query
+			// string. When it is present, extractRevocationRequest performs the
+			// first read and the bound trips here rather than in the middleware.
+			if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
+				return
+			}
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
+		}
+
+		// RFC 7009 §2.1: "The authorization server first validates the client
+		// credentials (in case of a confidential client) and then verifies
+		// whether the token was issued to the client making the revocation
+		// request." A public client has no credentials to validate; the AppID
+		// checks in both revoke branches are its binding. Authenticating before
+		// the token is examined also keeps an unauthenticated caller from
+		// learning anything about the token it presents.
+		if !app.IsPublic() {
+			if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
+				if errors.Is(err, errBadSecret) {
+					logger.Warn(ctx, "oauth2 revocation refused: client authentication failed",
+						slog.F("client_id", app.ID.String()),
+						slog.F("app_name", app.Name))
+					httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
+					return
+				}
+				logger.Error(ctx, "token revocation failed with internal server error",
+					slog.Error(err),
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Internal server error")
+				return
+			}
 		}
 
 		// Determine if this is a refresh token (starts with "coder_") or API key
 		// APIKeys do not have the SecretIdentifier prefix.
 		const coderPrefix = SecretIdentifier + "_"
-		isRefreshToken := strings.HasPrefix(token, coderPrefix)
+		isRefreshToken := strings.HasPrefix(req.Token, coderPrefix)
 
 		// Revoke the token with ownership verification
-		err := db.InTx(func(tx database.Store) error {
+		err = db.InTx(func(tx database.Store) error {
 			if isRefreshToken {
 				// Handle refresh token revocation
-				return revokeRefreshTokenInTx(ctx, tx, token, app.ID)
+				return revokeRefreshTokenInTx(ctx, tx, req.Token, app.ID)
 			}
 			// Handle API key revocation
-			return revokeAPIKeyInTx(ctx, tx, token, app.ID)
+			return revokeAPIKeyInTx(ctx, tx, req.Token, app.ID)
 		}, nil)
 		if err != nil {
 			if errors.Is(err, ErrTokenNotBelongsToClient) {
@@ -80,19 +154,28 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				rw.WriteHeader(http.StatusOK)
 				return
 			}
+			if errors.Is(err, ErrTokenNotRevocable) {
+				// RFC 7009 §2.2 answers 200 for an invalid token, so the reply
+				// says nothing about which tokens exist.
+				logger.Debug(ctx, "token revocation failed: presented token is not a revocable OAuth2 token",
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))
+				rw.WriteHeader(http.StatusOK)
+				return
+			}
 			if errors.Is(err, ErrInvalidTokenFormat) {
 				// Invalid token format should return 400 bad request
 				logger.Debug(ctx, "token revocation failed: invalid token format",
 					slog.F("client_id", app.ID.String()),
 					slog.F("app_name", app.Name))
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid token format")
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid token format")
 				return
 			}
 			logger.Error(ctx, "token revocation failed with internal server error",
 				slog.Error(err),
 				slog.F("client_id", app.ID.String()),
 				slog.F("app_name", app.Name))
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Internal server error")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Internal server error")
 			return
 		}
 
@@ -121,16 +204,12 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 
 	equal := apikey.ValidateHash(dbToken.RefreshHash, parsedToken.Secret)
 	if !equal {
-		return xerrors.Errorf("invalid refresh token")
+		return ErrTokenNotRevocable
 	}
 
-	// Verify ownership
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
-	if err != nil {
-		return xerrors.Errorf("get oauth2 provider app secret: %w", err)
-	}
-	if appSecret.AppID != appID {
+	// Verify ownership via AppID. AppSecretID is NULL for public clients, so
+	// don't join through it.
+	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
 
@@ -165,12 +244,12 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	// Checking to see if the provided secret matches the stored hashed secret
 	hashedSecret := sha256.Sum256([]byte(secret))
 	if subtle.ConstantTimeCompare(apiKey.HashedSecret, hashedSecret[:]) != 1 {
-		return xerrors.Errorf("invalid api key")
+		return ErrTokenNotRevocable
 	}
 
 	// Verify the API key was created by OAuth2
 	if apiKey.LoginType != database.LoginTypeOAuth2ProviderApp {
-		return xerrors.New("api key is not an oauth2 token")
+		return ErrTokenNotRevocable
 	}
 
 	// Find the associated OAuth2 token to verify ownership
@@ -184,14 +263,9 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 		return xerrors.Errorf("get oauth2 provider app token by api key id: %w", err)
 	}
 
-	// Verify the token belongs to the requesting app
-	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
-	if err != nil {
-		return xerrors.Errorf("get oauth2 provider app secret for api key verification: %w", err)
-	}
-
-	if appSecret.AppID != appID {
+	// Verify the token belongs to the requesting app via AppID. AppSecretID is
+	// NULL for public clients, so don't join through it.
+	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
 

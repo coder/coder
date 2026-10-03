@@ -1,82 +1,88 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
+import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Link as RouterLink } from "react-router";
+import * as Yup from "yup";
+import type * as TypesGen from "#/api/typesGenerated";
+import type {
+	FriendlyDiagnostic,
+	PreviewParameter,
+} from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
 import {
 	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
-import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
-import { nameValidator } from "utils/formUtils";
-import type { AutofillBuildParameter } from "utils/richParameters";
-import * as Yup from "yup";
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { docs } from "#/utils/docs";
+import { nameValidator } from "#/utils/formUtils";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-interface CreateWorkspacePageViewProps {
+type CreateWorkspacePageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
-	defaultOwner: TypesGen.User;
+	defaultOwner: TypesGen.MinimalUser;
 	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
-	externalAuthPollingState: ExternalAuthPollingState;
+	externalAuthPollingState: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
+	hasIgnoredUrlParams?: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
+	urlPreset?: TypesGen.Preset;
+	urlPresetError?: string;
 	versionId?: string;
+	versionName?: string;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
-		owner: TypesGen.User,
+		owner: TypesGen.MinimalUser,
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
-	startPollingExternalAuth: () => void;
-	owner: TypesGen.User;
-	setOwner: (user: TypesGen.User) => void;
-}
+	startPollingExternalAuth: (providerId: string) => void;
+	owner: TypesGen.MinimalUser;
+	setOwner: (user: TypesGen.MinimalUser) => void;
+};
 
-export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+export const CreateWorkspacePageView: React.FC<
+	CreateWorkspacePageViewProps
+> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,
@@ -88,12 +94,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	externalAuth,
 	externalAuthPollingState,
 	hasAllRequiredExternalAuth,
+	hasIgnoredUrlParams,
 	mode,
 	parameters,
 	permissions,
 	presets = [],
 	template,
+	urlPreset,
+	urlPresetError,
 	versionId,
+	versionName,
 	onSubmit,
 	onCancel,
 	resetMutation,
@@ -119,12 +129,17 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const initialTouched = Object.fromEntries(
 		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
 	);
+	if (defaultName) {
+		initialTouched.name = true;
+	}
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
 	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
-	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response
+	//    in the useSyncFormParameters hook, unless they have been touched by the
+	//    user or auto-filled.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -170,21 +185,30 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ displayName: "None", value: "undefined", icon: "", description: "" },
+		{ label: "None", value: "undefined", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			{ label: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
-				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 				icon: preset.Icon,
 				description: preset.Description,
 			})),
 		];
 		setPresetOptions(options);
+
+		// URL preset takes precedence over default preset.
+		if (urlPreset) {
+			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", urlPreset.ID);
+			return;
+		}
+
 		const defaultPreset = presets.find((p) => p.Default);
 		if (defaultPreset) {
 			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
@@ -194,7 +218,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			setSelectedPresetIndex(0); // Explicitly set to "None"
 			form.setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets, form.setFieldValue]);
+	}, [presets, form.setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
@@ -227,7 +251,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 			sendMessage(formInputs, ownerId);
 		},
-		500,
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			_ownerId?: string,
+		) => {
+			// Return a debounce for string fields (those that involve typing) and
+			// zero debounce for all others (so the UI can react immediately).
+			return parameters.some(
+				({ parameter }) =>
+					parameter.form_type === "input" || parameter.form_type === "textarea",
+			)
+				? 500
+				: 0;
+		},
 	);
 
 	useEffect(() => {
@@ -240,7 +276,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			}
 		}
 
-		if (!selectedPreset || !selectedPreset.Parameters) {
+		if (!selectedPreset?.Parameters) {
 			setPresetParameterNames([]);
 			return;
 		}
@@ -305,7 +341,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		sendDynamicParamsRequest,
 	]);
 
-	const handleOwnerChange = (user: TypesGen.User) => {
+	const handleOwnerChange = (user: TypesGen.MinimalUser) => {
 		setOwner(user);
 		sendDynamicParamsRequest([], user.id);
 	};
@@ -334,6 +370,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -347,19 +384,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			),
 		);
 
+	// External auth is connected to the workspace owner. When creating a
+	// workspace for another user, the form reflects that owner's auth state and
+	// the requester cannot authenticate on their behalf.
+	const isCreatingForSelf = owner.id === defaultOwner.id;
+
 	return (
-		<>
-			<div className="sticky top-5 ml-10">
-				<button
-					onClick={onCancel}
-					type="button"
-					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
-				>
-					<ArrowLeft size={20} />
-					Go back
-				</button>
+		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,800px)_1fr] gap-x-4 gap-y-6">
+			<div>
+				<Button variant="subtle" onClick={onCancel} className="-ml-3">
+					<ArrowLeftIcon />
+					<span>Go back</span>
+				</Button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
+			<div className="flex flex-col gap-6 w-full max-w-(--breakpoint-md) mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">
@@ -380,10 +418,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								</Badge>
 							)}
 						</span>
-						{canUpdateTemplate && (
+						{canUpdateTemplate && versionName && (
 							<Button asChild size="sm" variant="outline">
 								<RouterLink
-									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionName}/edit`}
 								>
 									<ExternalLinkIcon />
 									View source
@@ -394,24 +432,22 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleHelp className="size-icon-xs text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-xs text-sm">
+						<InfoTooltip>
+							<TooltipMessage>
 								Dynamic Parameters enhances Coder's existing parameter system
 								with real-time validation, conditional parameter behavior, and
 								richer input types.
 								<br />
 								<Link
+									size="sm"
 									href={docs(
 										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs
 								</Link>
-							</TooltipContent>
-						</Tooltip>
+							</TooltipMessage>
+						</InfoTooltip>
 					</span>
 				</header>
 
@@ -419,8 +455,58 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
 					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
+
+					{template.use_classic_parameter_flow && (
+						<Alert
+							severity="warning"
+							prominent
+							actions={
+								canUpdateTemplate && (
+									<Button asChild size="sm">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+										>
+											Open template settings
+										</RouterLink>
+									</Button>
+								)
+							}
+						>
+							<AlertTitle>This template uses deprecated parameters</AlertTitle>
+							<AlertDescription>
+								Some features like real-time validation and conditional
+								parameters won&apos;t work here until the template is switched
+								to dynamic parameters.{" "}
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+									<span className="sr-only"> (opens in new tab)</span>
+								</Link>
+							</AlertDescription>
+						</Alert>
+					)}
+
+					{urlPresetError && (
+						<Alert severity="warning" dismissible>
+							{urlPresetError}
+						</Alert>
+					)}
+
+					{hasIgnoredUrlParams && urlPreset && (
+						<Alert severity="info" dismissible>
+							Preset selected. <code>param.*</code> URL parameters have been
+							ignored. Use either <code>preset</code> or <code>param.*</code>,
+							not both.
+						</Alert>
+					)}
 
 					{mode === "duplicate" && (
 						<Alert
@@ -495,12 +581,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 											Owner
 										</Label>
-										<UserAutocomplete
+										<WorkspaceUserAutocomplete
+											organizationId={template.organization_id}
 											value={owner}
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
 											}}
-											size="medium"
 										/>
 									</div>
 								)}
@@ -525,14 +611,24 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										all required external authentication providers listed below.
 									</Alert>
 								)}
+								{!isCreatingForSelf && (
+									<Alert severity="info">
+										This shows the external authentication state for{" "}
+										{owner.username}. They must connect any required providers
+										themselves; you can't authenticate on their behalf.
+									</Alert>
+								)}
 								{externalAuth.map((auth) => (
 									<ExternalAuthButton
 										key={auth.id}
 										error={error}
 										auth={auth}
-										isLoading={externalAuthPollingState === "polling"}
-										onStartPolling={startPollingExternalAuth}
-										displayRetry={externalAuthPollingState === "abandoned"}
+										canAuthenticate={isCreatingForSelf}
+										isLoading={externalAuthPollingState[auth.id] === "polling"}
+										onStartPolling={() => startPollingExternalAuth(auth.id)}
+										displayRetry={
+											externalAuthPollingState[auth.id] === "abandoned"
+										}
 									/>
 								))}
 							</div>
@@ -570,12 +666,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Combobox
-												value={
-													presetOptions[selectedPresetIndex]?.displayName || ""
-												}
-												options={presetOptions}
-												placeholder="Select a preset"
-												onSelect={(value) => {
+												value={presetOptions[selectedPresetIndex]?.value}
+												onValueChange={(value) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === value,
 													);
@@ -585,14 +677,44 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// "undefined" string is equivalent to using None option
-														// Combobox requires a value in order to correctly highlight the None option
+														// "undefined" string is equivalent to using None option.
+														// Combobox requires a value in order to correctly
+														// highlight the None option.
 														presetOptions[index].value === "undefined"
 															? undefined
 															: presetOptions[index].value,
 													);
 												}}
-											/>
+											>
+												<ComboboxTrigger asChild>
+													<ComboboxButton
+														selectedOption={{
+															label:
+																presetOptions[selectedPresetIndex]?.label || "",
+															value:
+																presetOptions[selectedPresetIndex]?.value || "",
+														}}
+														placeholder="Select a preset"
+													/>
+												</ComboboxTrigger>
+												<ComboboxContent align="start">
+													{presetOptions.map((preset) => (
+														<ComboboxItem
+															key={preset.value}
+															value={preset.value}
+														>
+															{preset.icon && (
+																<ExternalImage
+																	src={preset.icon}
+																	alt={preset.label}
+																	className="size-4"
+																/>
+															)}
+															{preset.label}
+														</ComboboxItem>
+													))}
+												</ComboboxContent>
+											</Combobox>
 										</div>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
 										{presetParameterNames.length > 0 && (
@@ -658,7 +780,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											autofill={autofillByName[parameter.name] !== undefined}
+											autofill={
+												!isPresetParameter &&
+												autofillByName[parameter.name] !== undefined
+											}
 											value={formValue}
 										/>
 									);
@@ -675,6 +800,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					</div>
 				</form>
 			</div>
-		</>
+		</section>
 	);
 };

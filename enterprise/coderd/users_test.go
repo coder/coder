@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -87,7 +90,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.False(t, sched1.UserSet)
 		require.Equal(t, defaultScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched1.Time)
 		require.Equal(t, defaultScheduleParsed.Location().String(), sched1.Timezone)
-		require.WithinDuration(t, defaultScheduleParsed.Next(time.Now()), sched1.Next, 15*time.Second)
+		require.WithinDuration(t, defaultScheduleParsed.Next(dbtime.Now()), sched1.Next, 15*time.Second)
 
 		// Set their quiet hours.
 		customQuietHoursSchedule := "CRON_TZ=Australia/Sydney 0 0 * * *"
@@ -110,7 +113,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched2.UserSet)
 		require.Equal(t, customScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched2.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched2.Timezone)
-		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
+		require.WithinDuration(t, customScheduleParsed.Next(dbtime.Now()), sched2.Next, 15*time.Second)
 
 		// Get quiet hours for a user that has them set.
 		sched3, err := client.UserQuietHoursSchedule(ctx, user.ID.String())
@@ -119,7 +122,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched3.UserSet)
 		require.Equal(t, customScheduleParsed.TimeParsed().Format(TimeFormatHHMM), sched3.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched3.Timezone)
-		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
+		require.WithinDuration(t, customScheduleParsed.Next(dbtime.Now()), sched3.Next, 15*time.Second)
 
 		// Try setting a garbage schedule.
 		_, err = client.UpdateUserQuietHoursSchedule(ctx, user.ID.String(), codersdk.UpdateUserQuietHoursScheduleRequest{
@@ -356,7 +359,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: uuid.NewString(),
 			Roles:        []string{codersdk.RoleOwner},
 			Error:        true,
-			StatusCode:   http.StatusBadRequest,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			Name:         "MemberCannotUpdateRoles",
@@ -364,7 +367,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: first.UserID.String(),
 			Roles:        []string{},
 			Error:        true,
-			StatusCode:   http.StatusBadRequest,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			// Cannot update your own roles
@@ -613,4 +616,230 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Len(t, memberedOrgs, 2)
 		require.ElementsMatch(t, []uuid.UUID{second.ID, third.ID}, []uuid.UUID{memberedOrgs[0].ID, memberedOrgs[1].ID})
 	})
+
+	t.Run("ServiceAccount/OK", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-ok",
+			UserLoginType:   codersdk.LoginTypeNone,
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
+		require.Empty(t, user.Email)
+		require.Equal(t, "service-acct-ok", user.Username)
+		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+	})
+
+	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-email",
+			Email:           "should-not-have@email.com",
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Email cannot be set for service accounts")
+	})
+
+	t.Run("ServiceAccount/WithPassword", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-password",
+			Password:        "ShouldNotHavePassword123!",
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Password cannot be set for service accounts")
+	})
+
+	t.Run("ServiceAccount/WithInvalidLoginType", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-login-type",
+			UserLoginType:   codersdk.LoginTypePassword,
+			ServiceAccount:  true,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Service accounts must use login type 'none'")
+	})
+
+	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-default-login",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+
+		found, err := client.User(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeNone, found.LoginType)
+		require.Empty(t, found.Email)
+	})
+
+	t.Run("ServiceAccount/MultipleWithoutEmail", func(t *testing.T) {
+		t.Parallel()
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:gocritic
+		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-1",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user1.Email)
+
+		user2, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-multi-2",
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+		require.Empty(t, user2.Email)
+		require.NotEqual(t, user1.ID, user2.ID)
+	})
+}
+
+// TestServiceAccountNotifications asserts that every account lifecycle
+// notification describes a service account as such, so the wording cannot
+// regress to "user account" for one of the events.
+func TestServiceAccountNotifications(t *testing.T) {
+	t.Parallel()
+
+	notifyEnq := &notificationstest.FakeEnqueuer{}
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureServiceAccounts: 1,
+			},
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// requireServiceAccountNotification asserts the owner was notified about the
+	// service account, and that the notification carries the service wording.
+	requireServiceAccountNotification := func(t *testing.T, templateID uuid.UUID, serviceAccountID uuid.UUID) {
+		t.Helper()
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(templateID))
+		require.Len(t, sent, 1)
+		require.Equal(t, first.UserID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, serviceAccountID)
+		require.Equal(t, "service", sent[0].Labels["account_type"])
+	}
+
+	//nolint:gocritic // The owner is the only user admin, so it is the recipient under test.
+	serviceAccount, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		OrganizationIDs: []uuid.UUID{first.OrganizationID},
+		Username:        "service-acct-lifecycle",
+		UserLoginType:   codersdk.LoginTypeNone,
+		ServiceAccount:  true,
+	})
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountCreated, serviceAccount.ID)
+
+	// Service accounts are created dormant, so activation comes before
+	// suspension.
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can change another account's status here.
+	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusActive)
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountActivated, serviceAccount.ID)
+
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can change another account's status here.
+	_, err = client.UpdateUserStatus(ctx, serviceAccount.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountSuspended, serviceAccount.ID)
+
+	notifyEnq.Clear()
+	//nolint:gocritic // Only the owner can delete another account here.
+	require.NoError(t, client.DeleteUser(ctx, serviceAccount.ID))
+	requireServiceAccountNotification(t, notifications.TemplateUserAccountDeleted, serviceAccount.ID)
 }

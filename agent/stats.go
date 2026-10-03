@@ -42,13 +42,22 @@ type statsReporter struct {
 	logger    slog.Logger
 }
 
-func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector) *statsReporter {
-	return &statsReporter{
-		Cond:      sync.NewCond(&sync.Mutex{}),
-		logger:    logger,
-		source:    source,
-		collector: collector,
+// DefaultStatsReportInterval matches coderd.Options.AgentStatsRefreshInterval.
+const DefaultStatsReportInterval = 5 * time.Minute
+
+func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector, interval time.Duration) *statsReporter {
+	s := &statsReporter{
+		Cond:         sync.NewCond(&sync.Mutex{}),
+		logger:       logger,
+		source:       source,
+		collector:    collector,
+		lastInterval: interval,
 	}
+	// Install the callback immediately so traffic is tracked before
+	// reportLoop starts. reportLoop replaces it only if the
+	// server-negotiated interval differs.
+	source.SetConnStatsCallback(interval, maxConns, s.callback)
+	return s
 }
 
 func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
@@ -67,8 +76,10 @@ func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Conne
 	s.Broadcast()
 }
 
-// reportLoop programs the source (tailnet.Conn) to send it stats via the
-// callback, then reports them to the dest.
+// reportLoop reports collected stats to the server.
+//
+// The connstats callback is already installed by newStatsReporter;
+// reportLoop only replaces it if the server returns a different interval.
 //
 // It's intended to be called within the larger retry loop that establishes a
 // connection to the agent API, then passes that connection to go routines like
@@ -80,8 +91,11 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 	if err != nil {
 		return xerrors.Errorf("initial update: %w", err)
 	}
-	s.lastInterval = resp.ReportInterval.AsDuration()
-	s.source.SetConnStatsCallback(s.lastInterval, maxConns, s.callback)
+	interval := resp.ReportInterval.AsDuration()
+	if interval != s.lastInterval {
+		s.lastInterval = interval
+		s.source.SetConnStatsCallback(s.lastInterval, maxConns, s.callback)
+	}
 
 	// use a separate goroutine to monitor the context so that we notice immediately, rather than
 	// waiting for the next callback (which might never come if we are closing!)

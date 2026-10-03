@@ -11,7 +11,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -36,7 +35,7 @@ func (AGPLIDPSync) OrganizationSyncEnabled(_ context.Context, _ database.Store) 
 
 func (s AGPLIDPSync) UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
 	rlv := s.Manager.Resolver(db)
-	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
+	err := s.Organization.SetRuntimeValue(ctx, rlv, &settings)
 	if err != nil {
 		return xerrors.Errorf("update organization sync settings: %w", err)
 	}
@@ -48,7 +47,7 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 	// If this logic is ever updated, make sure to update the corresponding
 	// checkIDPOrgSync in coderd/telemetry/telemetry.go.
 	rlv := s.Manager.Resolver(db)
-	orgSettings, err := s.SyncSettings.Organization.Resolve(ctx, rlv)
+	orgSettings, err := s.Organization.Resolve(ctx, rlv)
 	if err != nil {
 		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve org sync settings: %w", err)
@@ -56,9 +55,9 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 
 		// Default to the statically assigned settings if they exist.
 		orgSettings = &OrganizationSyncSettings{
-			Field:         s.DeploymentSyncSettings.OrganizationField,
-			Mapping:       s.DeploymentSyncSettings.OrganizationMapping,
-			AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
+			Field:         s.OrganizationField,
+			Mapping:       s.OrganizationMapping,
+			AssignDefault: s.OrganizationAssignDefault,
 		}
 	}
 	return orgSettings, nil
@@ -107,7 +106,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return xerrors.Errorf("failed to get user organizations: %w", err)
 	}
 
-	existingOrgIDs := db2sdk.List(existingOrgs, func(org database.Organization) uuid.UUID {
+	existingOrgIDs := slice.List(existingOrgs, func(org database.Organization) uuid.UUID {
 		return org.ID
 	})
 
@@ -127,7 +126,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		if err != nil {
 			return xerrors.Errorf("failed to get expected organizations: %w", err)
 		}
-		finalExpected = db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
+		finalExpected = slice.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
 			return org.ID
 		})
 	}

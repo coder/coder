@@ -1,29 +1,20 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
+import { cn } from "cn";
+import isEqual from "lodash/isEqual";
+import { createElement, isValidElement, memo } from "react";
+import ReactMarkdown, { type Options } from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import gfm from "remark-gfm";
+import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import isEqual from "lodash/isEqual";
-import {
-	type FC,
-	type HTMLProps,
-	isValidElement,
-	memo,
-	type PropsWithChildren,
-	type ReactNode,
-} from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import gfm from "remark-gfm";
-import colors from "theme/tailwindColors";
-import { cn } from "utils/cn";
+} from "#/components/Table/Table";
 
-interface MarkdownProps {
+type MarkdownProps = {
 	/**
 	 * The Markdown text to parse and render
 	 */
@@ -35,36 +26,40 @@ interface MarkdownProps {
 	 * Can override the behavior of the generated elements
 	 */
 	components?: Options["components"];
-}
+};
 
-export const Markdown: FC<MarkdownProps> = (props) => {
+export const Markdown: React.FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;
 
 	return (
 		<ReactMarkdown
-			css={markdownStyles}
-			className={className}
+			className={cn(markdownClassName, className)}
 			remarkPlugins={[gfm]}
 			components={{
 				a: ({ href, children }) => {
 					const isExternal = href?.startsWith("http");
 
 					return (
-						<Link href={href} target={isExternal ? "_blank" : undefined}>
+						<Link
+							href={href}
+							target={isExternal ? "_blank" : undefined}
+							showExternalIcon={isExternal}
+							className="text-[length:inherit] p-0"
+						>
 							{children}
 						</Link>
 					);
 				},
 
 				pre: ({ node, children }) => {
-					if (!node || !node.children) {
+					if (!node?.children) {
 						return <pre>{children}</pre>;
 					}
 					const firstChild = node.children[0];
 					// When pre is wrapping a code, the SyntaxHighlighter is already going
 					// to wrap it with a pre so we don't need it
 					if (firstChild.type === "element" && firstChild.tagName === "code") {
-						return <>{children}</>;
+						return children;
 					}
 					return <pre>{children}</pre>;
 				},
@@ -84,14 +79,8 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 						</SyntaxHighlighter>
 					) : (
 						<code
-							css={(theme) => ({
-								padding: "1px 4px",
-								background: theme.palette.divider,
-								borderRadius: 4,
-								color: theme.palette.text.primary,
-								fontSize: 14,
-							})}
-							{...props}
+							className="rounded-sm bg-border px-1 py-px text-sm text-content-primary"
+							{...restProps}
 						>
 							{children}
 						</code>
@@ -154,80 +143,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 	);
 };
 
-interface InlineMarkdownProps {
-	/**
-	 * The Markdown text to parse and render
-	 */
-	children: string;
-
-	/**
-	 * Additional element types to allow.
-	 * Allows italic, bold, links, and inline code snippets by default.
-	 * eg. `["ol", "ul", "li"]` to support lists.
-	 */
-	allowedElements?: readonly string[];
-
-	className?: string;
-
-	/**
-	 * Can override the behavior of the generated elements
-	 */
-	components?: Options["components"];
-}
-
-/**
- * Supports a strict subset of Markdown that behaves well as inline/confined content.
- */
-export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
-	const { children, allowedElements = [], className, components = {} } = props;
-
-	return (
-		<ReactMarkdown
-			className={className}
-			allowedElements={[
-				"p",
-				"em",
-				"strong",
-				"a",
-				"pre",
-				"code",
-				...allowedElements,
-			]}
-			unwrapDisallowed
-			components={{
-				p: ({ children }) => <>{children}</>,
-
-				a: ({ href, target, children }) => (
-					<Link href={href} target={target}>
-						{children}
-					</Link>
-				),
-
-				code: ({ node, className, children, style, ...props }) => (
-					<code
-						css={(theme) => ({
-							padding: "1px 4px",
-							background: theme.palette.divider,
-							borderRadius: 4,
-							color: theme.palette.text.primary,
-							fontSize: 14,
-						})}
-						{...props}
-					>
-						{children}
-					</code>
-				),
-
-				...components,
-			}}
-		>
-			{children}
-		</ReactMarkdown>
-	);
-};
-
 export const MemoizedMarkdown = memo(Markdown, isEqual);
-export const MemoizedInlineMarkdown = memo(InlineMarkdown, isEqual);
 
 const githubFlavoredMarkdownAlertTypes = [
 	"tip",
@@ -239,11 +155,11 @@ const githubFlavoredMarkdownAlertTypes = [
 
 type AlertContent = Readonly<{
 	type: string;
-	children: readonly ReactNode[];
+	children: readonly React.ReactNode[];
 }>;
 
 function parseChildrenAsAlertContent(
-	jsxChildren: ReactNode,
+	jsxChildren: React.ReactNode,
 ): AlertContent | null {
 	// Have no idea why the plugin parses the data by mixing node types
 	// like this. Have to do a good bit of nested filtering.
@@ -251,13 +167,16 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find(isValidElement<PropsWithChildren>);
+	const mainParentNode = jsxChildren.find(
+		isValidElement<React.PropsWithChildren>,
+	);
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
 		// content that can be turned into HTML. If there aren't any, you
-		// just get one big string
-		parentChildren = parentChildren.split("\n");
+		// just get one big string. Wrap it rather than splitting so that
+		// embedded newlines are preserved for line-break conversion later.
+		parentChildren = [parentChildren];
 	}
 	if (!Array.isArray(parentChildren)) {
 		return null;
@@ -279,7 +198,7 @@ function parseChildrenAsAlertContent(
 			}
 
 			const recastProps = el.props as Record<string, unknown> & {
-				children?: ReactNode;
+				children?: React.ReactNode;
 			};
 			if (recastProps.target === "_blank") {
 				return el;
@@ -304,7 +223,17 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const alertType = firstEl
+	// The alert marker (e.g., "[!IMPORTANT]") may share a string node
+	// with subsequent content when inline formatting follows on the
+	// next blockquote line. Split on the first newline so we only
+	// test the marker portion.
+	const firstNewline = firstEl.indexOf("\n");
+	const alertCandidate =
+		firstNewline === -1 ? firstEl : firstEl.substring(0, firstNewline);
+	const trailingContent =
+		firstNewline === -1 ? null : firstEl.substring(firstNewline + 1);
+
+	const alertType = alertCandidate
 		.trim()
 		.toLowerCase()
 		.replace("!", "")
@@ -314,25 +243,52 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
+	if (trailingContent) {
+		remainingChildren.unshift(trailingContent);
+	}
+
 	const hasLeadingLinebreak =
 		isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
 	if (hasLeadingLinebreak) {
 		remainingChildren.shift();
 	}
 
+	// GitHub's GFM alerts preserve line breaks within alert content,
+	// but the markdown parser treats them as soft wraps (spaces).
+	// Convert embedded newlines in text nodes to <br/> elements to
+	// match GitHub's rendering behavior.
+	const withLineBreaks: React.ReactNode[] = remainingChildren.flatMap(
+		(child, i) => {
+			if (typeof child !== "string" || !child.includes("\n")) {
+				return [child];
+			}
+			const parts = child.split("\n");
+			const result: React.ReactNode[] = [];
+			for (let j = 0; j < parts.length; j++) {
+				if (j > 0) {
+					result.push(createElement("br", { key: `alert-br-${i}-${j}` }));
+				}
+				if (parts[j]) {
+					result.push(parts[j]);
+				}
+			}
+			return result;
+		},
+	);
+
 	return {
 		type: alertType,
-		children: remainingChildren,
+		children: withLineBreaks,
 	};
 }
 
 type MarkdownGfmAlertProps = Readonly<
-	HTMLProps<HTMLElement> & {
+	React.HTMLProps<HTMLElement> & {
 		alertType: string;
 	}
 >;
 
-const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
+const MarkdownGfmAlert: React.FC<MarkdownGfmAlertProps> = ({
 	alertType,
 	children,
 	...delegatedProps
@@ -342,7 +298,7 @@ const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
 			<aside
 				{...delegatedProps}
 				className={cn(
-					"border-0 border-l-4 border-solid border-border p-4 text-white",
+					"border-0 border-l-4 border-solid border-border p-4 text-content-primary",
 					"[&_p]:m-0 [&_p]:mb-2",
 
 					alertType === "important" &&
@@ -370,57 +326,18 @@ const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
 	);
 };
 
-const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
-	fontSize: 16,
-	lineHeight: "24px",
-
-	"& h1, & h2, & h3, & h4, & h5, & h6": {
-		marginTop: 32,
-		marginBottom: 16,
-		lineHeight: "1.25",
-	},
-
-	"& p": {
-		marginTop: 0,
-		marginBottom: 16,
-	},
-
-	"& p:only-child": {
-		marginTop: 0,
-		marginBottom: 0,
-	},
-
-	"& ul, & ol": {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-		marginBottom: 16,
-	},
-
-	"& li > ul, & li > ol": {
-		marginTop: 16,
-	},
-
-	"& li > p": {
-		marginBottom: 0,
-	},
-
-	"& .prismjs": {
-		background: theme.palette.background.paper,
-		borderRadius: 8,
-		padding: "16px 24px",
-		overflowX: "auto",
-
-		"& code": {
-			color: theme.palette.text.secondary,
-		},
-
-		"& .key, & .property, & .inserted, .keyword": {
-			color: colors.teal[300],
-		},
-
-		"& .deleted": {
-			color: theme.palette.error.light,
-		},
-	},
-});
+const markdownClassName = cn(
+	"text-base",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:mt-8",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:mb-4",
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:leading-tight",
+	"[&_p]:mt-0 [&_p]:mb-4 [&_p:only-child]:my-0",
+	"[&_ul]:mb-4 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-2",
+	"[&_ol]:mb-4 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-2",
+	"[&_li>ul]:mt-4 [&_li>ol]:mt-4 [&_li>p]:mb-0",
+	"[&_.prismjs]:overflow-x-auto [&_.prismjs]:rounded-lg [&_.prismjs]:bg-surface-secondary [&_.prismjs]:px-6 [&_.prismjs]:py-4",
+	"[&_.prismjs_code]:text-content-secondary",
+	"[&_.prismjs_.key]:text-syntax-key [&_.prismjs_.property]:text-syntax-key",
+	"[&_.prismjs_.inserted]:text-syntax-key [&_.prismjs_.keyword]:text-syntax-key",
+	"[&_.prismjs_.deleted]:text-content-destructive",
+);

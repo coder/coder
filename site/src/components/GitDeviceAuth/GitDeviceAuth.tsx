@@ -1,18 +1,17 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
-import type { ApiErrorResponse } from "api/errors";
-import type { ExternalAuthDevice } from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
-import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
+import type { ApiErrorResponse } from "#/api/errors";
+import type { ExternalAuthDevice } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "../Spinner/Spinner";
 
-interface GitDeviceAuthProps {
+type GitDeviceAuthProps = {
 	externalAuthDevice?: ExternalAuthDevice;
 	deviceExchangeError?: ApiErrorResponse;
-}
+};
 
 const DeviceExchangeError = {
 	AuthorizationPending: "authorization_pending",
@@ -67,13 +66,13 @@ export const newRetryDelay = (initialInterval: number | undefined) => {
 	};
 };
 
-export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
+export const GitDeviceAuth: React.FC<GitDeviceAuthProps> = ({
 	externalAuthDevice,
 	deviceExchangeError,
 }) => {
 	let status = (
-		<p css={styles.status}>
-			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
+		<p className="flex items-center justify-center gap-2 text-content-disabled">
+			<Spinner size="sm" loading />
 			Checking for authentication...
 		</p>
 	);
@@ -111,7 +110,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 					<Alert severity="error">
 						<AlertTitle>{deviceExchangeError.message}</AlertTitle>
 						{deviceExchangeError.detail && (
-							<AlertDetail>{deviceExchangeError.detail}</AlertDetail>
+							<AlertDescription>{deviceExchangeError.detail}</AlertDescription>
 						)}
 					</Alert>
 				);
@@ -126,30 +125,33 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	}
 
 	if (!externalAuthDevice) {
-		return <CircularProgress />;
+		return <Loader />;
 	}
 
 	return (
 		<div>
-			<p css={styles.text}>
+			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
-				<div css={styles.copyCode}>
-					<span css={styles.code}>{externalAuthDevice.user_code}</span>
+				<span className="inline-flex items-center">
+					<span className="font-bold text-content-primary">
+						{externalAuthDevice.user_code}
+					</span>
 					&nbsp;{" "}
 					<CopyButton
 						text={externalAuthDevice.user_code}
 						label="Copy user code"
 					/>
-				</div>
+				</span>
 				<br />
 				Then open the link below and paste it:
 			</p>
-			<div css={styles.links}>
+			<div className="m-4 flex justify-center">
 				<Link
-					css={styles.link}
+					className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
+					showExternalIcon={false}
 				>
 					<ExternalLinkIcon className="size-icon-xs" />
 					Open and Paste
@@ -160,46 +162,3 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	text: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		lineHeight: "160%",
-		margin: 0,
-	}),
-
-	copyCode: {
-		display: "inline-flex",
-		alignItems: "center",
-	},
-
-	code: (theme) => ({
-		fontWeight: "bold",
-		color: theme.palette.text.primary,
-	}),
-
-	links: {
-		display: "flex",
-		gap: 4,
-		margin: 16,
-		flexDirection: "column",
-	},
-
-	link: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		fontSize: 16,
-		gap: 8,
-	},
-
-	status: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		gap: 8,
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

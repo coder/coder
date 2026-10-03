@@ -1,10 +1,11 @@
-import { type Theme, useTheme } from "@emotion/react";
+import { useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { type FC, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
+import type { Theme } from "#/theme";
+import { useTheme } from "#/theme/context";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,
@@ -46,7 +47,7 @@ type ScriptsChartProps = {
 	onBack: () => void;
 };
 
-export const ScriptsChart: FC<ScriptsChartProps> = ({
+export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	stage,
 	timings,
 	onBack,

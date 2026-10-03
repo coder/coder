@@ -1,47 +1,63 @@
-import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { type ApiError, getErrorMessage, isApiError } from "api/errors";
+import {
+	CopyIcon,
+	DownloadIcon,
+	EllipsisVerticalIcon,
+	HistoryIcon,
+	RotateCcwIcon,
+	SettingsIcon,
+	SquareIcon,
+	TrashIcon,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
+import { ParameterValidationError } from "#/api/api";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
 	workspacePermissions,
-} from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
-import {
-	CopyIcon,
-	DownloadIcon,
-	EllipsisVertical,
-	HistoryIcon,
-	SettingsIcon,
-	TrashIcon,
-} from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
+import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
-import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
 	disabled: boolean;
+	onStop?: () => void;
+	isStopping?: boolean;
+	onRestart?: () => void;
+	isRestarting?: boolean;
+	onActionSuccess?: () => Promise<void> | void;
 };
 
-export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
+export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
+	onStop,
+	isStopping,
+	onRestart,
+	isRestarting,
+	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -59,11 +75,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(
-			workspace,
-			queryClient,
-			!workspace.template_use_classic_parameter_flow,
-		),
+		changeVersion(workspace, queryClient),
 	);
 
 	const handleError = (error: unknown) => {
@@ -73,14 +85,27 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				error: error,
 			});
 		} else {
-			displayError(getErrorMessage(error, "Failed to delete workspace."));
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to delete workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
 	const deleteWorkspaceMutation = useMutation({
-		...deleteWorkspace(workspace, queryClient),
+		...deleteWorkspaceOptions,
+		onSuccess: async (build) => {
+			await deleteWorkspaceOptions.onSuccess?.(build);
+			await onActionSuccess?.();
+		},
 		onError: (error: unknown) => {
 			handleError(error);
 		},
@@ -109,12 +134,26 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						aria-controls="workspace-options"
 						disabled={disabled}
 					>
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Workspace actions</span>
 					</Button>
 				</DropdownMenuTrigger>
 
 				<DropdownMenuContent id="workspace-options" align="end">
+					{onStop && (
+						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
+							<SquareIcon />
+							Stop&hellip;
+						</DropdownMenuItem>
+					)}
+
+					{onRestart && (
+						<DropdownMenuItem onClick={onRestart} disabled={isRestarting}>
+							<RotateCcwIcon />
+							Restart&hellip;
+						</DropdownMenuItem>
+					)}
+
 					<DropdownMenuItem asChild>
 						<RouterLink
 							to={`/@${workspace.owner_name}/${workspace.name}/settings`}
@@ -169,44 +208,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{workspace.template_use_classic_parameter_flow ? (
+			{changeVersionMutation.error instanceof ParameterValidationError && (
 				<UpdateBuildParametersDialog
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
-							: []
-					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					workspace={workspace}
+					error={changeVersionMutation.error}
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
-					onUpdate={(buildParameters) => {
-						if (changeVersionMutation.error instanceof MissingBuildParameters) {
-							changeVersionMutation.mutate({
-								versionId: changeVersionMutation.error.versionId,
-								buildParameters,
-							});
-						}
-					}}
-				/>
-			) : (
-				<UpdateBuildParametersDialogExperimental
-					validations={
-						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error.validations
-							: []
-					}
-					open={changeVersionMutation.error instanceof ParameterValidationError}
-					onClose={() => {
-						changeVersionMutation.reset();
-					}}
-					workspaceOwnerName={workspace.owner_name}
-					workspaceName={workspace.name}
-					templateVersionId={
-						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error.versionId
-							: undefined
-					}
 				/>
 			)}
 
@@ -224,7 +232,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canDeleteFailedWorkspace={!!permissions?.deleteFailedWorkspace}
+				canDeleteFailedWorkspace={Boolean(permissions?.deleteFailedWorkspace)}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);
@@ -239,11 +247,10 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				open={workspaceErrorDialog.open}
 				error={workspaceErrorDialog.error}
 				onClose={() => setWorkspaceErrorDialog({ open: false })}
-				showDetail={workspace.template_use_classic_parameter_flow}
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
-				isDeleting={true}
+				isDeleting
 			/>
 		</>
 	);

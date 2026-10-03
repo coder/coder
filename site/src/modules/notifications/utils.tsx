@@ -1,8 +1,8 @@
+import { MailIcon, WebhookIcon } from "lucide-react";
 import type {
 	NotificationPreference,
 	NotificationTemplate,
-} from "api/typesGenerated";
-import { MailIcon, WebhookIcon } from "lucide-react";
+} from "#/api/typesGenerated";
 
 // TODO: This should be provided by the auto generated types from codersdk
 const notificationMethods = ["smtp", "webhook"] as const;
@@ -30,10 +30,6 @@ export const castNotificationMethod = (value: string) => {
 		)}`,
 	);
 };
-
-export function isTaskNotification(tmpl: NotificationTemplate): boolean {
-	return tmpl.group?.toLowerCase() === "task events";
-}
 
 // Determines if a notification is disabled based on user preferences and system defaults
 // A notification is considered disabled if:

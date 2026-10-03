@@ -13,8 +13,16 @@ const (
 	// TestResourceURI is used for testing resource parameter
 	TestResourceURI = "https://api.example.com"
 
-	// Invalid PKCE verifier for negative testing
-	InvalidCodeVerifier = "wrong-verifier"
+	// InvalidCodeVerifier is well-formed (43 characters, RFC 7636 §4.1's
+	// unreserved set) but does not hash to any issued challenge, so it
+	// exercises the PKCE comparison failure (invalid_grant) rather than the
+	// length/charset check (invalid_request).
+	InvalidCodeVerifier = "wrong-verifier-that-is-well-formed-43-chars"
+
+	// MalformedCodeVerifier is below RFC 7636 §4.1's 43-character floor, so
+	// it exercises the length/charset check (invalid_request) instead of the
+	// PKCE comparison.
+	MalformedCodeVerifier = "too-short"
 )
 
 // OAuth2ErrorTypes contains standard OAuth2 error codes

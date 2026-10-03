@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -24,6 +25,7 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	var o agent.Options
 	log := testutil.Logger(t).Named("agent")
 	o.Logger = log
+	o.SocketPath = testutil.AgentSocketPath(t)
 
 	for _, opt := range opts {
 		opt(&o)
@@ -45,4 +47,12 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	})
 
 	return agt
+}
+
+// WithContextConfigFromEnv returns an agent option that
+// populates ContextConfig from the current environment.
+func WithContextConfigFromEnv() func(*agent.Options) {
+	return func(o *agent.Options) {
+		o.ContextConfig = agentcontextconfig.ReadEnvConfig()
+	}
 }

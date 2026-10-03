@@ -1,1 +1,1 @@
-export default jest.fn();
+export default vi.fn();

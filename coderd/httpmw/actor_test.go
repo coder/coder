@@ -50,13 +50,13 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		var called int64
+		var called atomic.Int64
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(
 			httpmw.RequireAPIKeyOrWorkspaceProxyAuth()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				atomic.AddInt64(&called, 1)
+				called.Add(1)
 				rw.WriteHeader(http.StatusOK)
 			}))).
 			ServeHTTP(rw, r)
@@ -68,7 +68,7 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 		t.Log(string(dump))
 
 		require.Equal(t, http.StatusOK, rw.Code)
-		require.Equal(t, int64(1), atomic.LoadInt64(&called))
+		require.Equal(t, int64(1), called.Load())
 	})
 
 	t.Run("WorkspaceProxy", func(t *testing.T) {
@@ -122,12 +122,12 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 		)
 		r.Header.Set(httpmw.WorkspaceProxyAuthTokenHeader, fmt.Sprintf("%s:%s", proxy.ID, token))
 
-		var called int64
+		var called atomic.Int64
 		httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
 			DB: db,
 		})(
 			httpmw.RequireAPIKeyOrWorkspaceProxyAuth()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				atomic.AddInt64(&called, 1)
+				called.Add(1)
 				rw.WriteHeader(http.StatusOK)
 			}))).
 			ServeHTTP(rw, r)
@@ -139,6 +139,6 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 		t.Log(string(dump))
 
 		require.Equal(t, http.StatusOK, rw.Code)
-		require.Equal(t, int64(1), atomic.LoadInt64(&called))
+		require.Equal(t, int64(1), called.Load())
 	})
 }

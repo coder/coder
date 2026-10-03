@@ -1,19 +1,4 @@
-import { Button } from "components/Button/Button";
-import {
-	type ChartConfig,
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
-} from "components/Chart/Chart";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import {
 	Area,
@@ -23,8 +8,22 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { docs } from "utils/docs";
-import { formatDate } from "utils/time";
+import { Button } from "#/components/Button/Button";
+import {
+	type ChartConfig,
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "#/components/Chart/Chart";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { docs } from "#/utils/docs";
+import { formatDate } from "#/utils/time";
 
 const chartConfig = {
 	users: {
@@ -43,7 +42,7 @@ type LicenseSeatConsumptionChartProps = {
 		| undefined;
 };
 
-export const LicenseSeatConsumptionChart: FC<
+export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (
@@ -94,7 +93,7 @@ export const LicenseSeatConsumptionChart: FC<
 									<span className="sr-only">
 										Legend for license seat limit in the chart
 									</span>
-									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
+									<div className="w-full border-dashed border-content-disabled" />
 								</div>
 								Current license seat limit, or the maximum number of allowed
 								Active accounts.

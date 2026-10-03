@@ -1,22 +1,21 @@
-import type { FC, HTMLAttributes, ReactNode } from "react";
-import { cn } from "utils/cn";
+import { cn } from "cn";
 
-export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
+export type EmptyStateProps = React.ComponentProps<"div"> & {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
-	description?: string | ReactNode;
-	cta?: ReactNode;
-	image?: ReactNode;
+	description?: string | React.ReactNode;
+	cta?: React.ReactNode;
+	image?: React.ReactNode;
 	isCompact?: boolean;
-}
+};
 
 /**
  * Component to place on screens or in lists that have no content. Optionally
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
  */
-export const EmptyState: FC<EmptyStateProps> = ({
+export const EmptyState: React.FC<EmptyStateProps> = ({
 	message,
 	description,
 	cta,
@@ -34,9 +33,11 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			<h5 className="text-2xl font-medium m-0">{message}</h5>
+			<h5 className="m-0 font-medium text-content-primary text-lg">
+				{message}
+			</h5>
 			{description && (
-				<p className="mt-4 line-height-[140%] max-w-md text-content-secondary">
+				<p className="mt-4 max-w-md text-content-secondary text-sm">
 					{description}
 				</p>
 			)}

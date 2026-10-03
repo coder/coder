@@ -114,9 +114,10 @@ func Test_buildAppLinkURL(t *testing.T) {
 				Name: "a-workspace-agent",
 			},
 			app: codersdk.WorkspaceApp{
+				Slug:    "my-terminal",
 				Command: "ls -la",
 			},
-			expectedLink: "https://coder.tld/@username/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la",
+			expectedLink: "https://coder.tld/@username/Test-Workspace.a-workspace-agent/terminal?app=my-terminal",
 		},
 		{
 			name:    "with subdomain",

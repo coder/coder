@@ -1,4 +1,6 @@
-# Quotas
+---
+title: Quotas
+---
 
 Quotas are a mechanism for controlling spend by associating costs with workspace
 templates and assigning budgets to users. Users that exceed their budget will be
@@ -19,7 +21,9 @@ Quotas are scoped to [Groups](./groups-roles.md) in Enterprise and
 - **Budget** is the per-user, enforced, upper limit to credit spend.
 - **Allowance** is a grant of credits to the budget.
 
-## Establishing Costs
+<a id="establishing-costs"></a>
+
+## Establish costs
 
 Templates describe their cost through the `daily_cost` attribute in
 [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
@@ -29,7 +33,7 @@ quota than an online workspace.
 A common use case is separating costs for a persistent volume and ephemeral
 compute:
 
-```hcl
+```tf
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}-root"
 }
@@ -66,7 +70,9 @@ removed on the `docker_volume` above, the template would consume 0 credits when
 it's offline. This technique is good for incentivizing users to shut down their
 unused workspaces and freeing up compute in the cluster.
 
-## Establishing Budgets
+<a id="establishing-budgets"></a>
+
+## Establish budgets
 
 Each group has a configurable Quota Allowance. A user's budget is calculated as
 the sum of their allowances.

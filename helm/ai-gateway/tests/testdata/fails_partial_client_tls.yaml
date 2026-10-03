@@ -1,0 +1,10 @@
+coder:
+  image:
+    tag: v2.36.0
+aigateway:
+  keySecret:
+    name: key
+  coderTLS:
+    clientSecret:
+      name: client
+      certKey: ""

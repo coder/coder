@@ -1,0 +1,433 @@
+package agentmcp
+
+import (
+	"bufio"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+)
+
+// TestToolInputSchemaMapPreservesEmptyProperties verifies that a tool
+// schema with an empty "properties" object (for example
+// {"type": "object", "properties": {}}) keeps "properties" in the wire
+// copy. Dropping it collapses the schema to nil by the time coderd
+// rebuilds the tool definition, and a nil properties serializes to JSON
+// null, which OpenAI rejects with "None is not of type 'object'".
+func TestToolInputSchemaMapPreservesEmptyProperties(t *testing.T) {
+	t.Parallel()
+
+	out := toolInputSchemaMap(map[string]any{
+		"type":       "object",
+		"properties": map[string]any{},
+	})
+	require.NotNil(t, out, "schema must not collapse to nil")
+	properties, ok := out["properties"].(map[string]any)
+	require.True(t, ok, "properties must be preserved as a map, got %T", out["properties"])
+	require.NotNil(t, properties, "properties must not be nil")
+
+	// Verify it serializes to {} not null or absent.
+	bs, err := json.Marshal(out)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{}}`, string(bs))
+}
+
+func TestSplitToolName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		input      string
+		wantServer string
+		wantTool   string
+		wantErr    bool
+	}{
+		{
+			name:       "Valid",
+			input:      "server__tool",
+			wantServer: "server",
+			wantTool:   "tool",
+		},
+		{
+			name:       "ValidWithUnderscoresInTool",
+			input:      "server__my_tool",
+			wantServer: "server",
+			wantTool:   "my_tool",
+		},
+		{
+			name:    "MissingSeparator",
+			input:   "servertool",
+			wantErr: true,
+		},
+		{
+			name:    "EmptyServer",
+			input:   "__tool",
+			wantErr: true,
+		},
+		{
+			name:    "EmptyTool",
+			input:   "server__",
+			wantErr: true,
+		},
+		{
+			name:    "JustSeparator",
+			input:   "__",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, tool, err := splitToolName(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, ErrInvalidToolName)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantServer, server)
+			assert.Equal(t, tt.wantTool, tool)
+		})
+	}
+}
+
+func TestConvertResult(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// input is a pointer so we can test nil.
+		input *mcp.CallToolResult
+		want  workspacesdk.CallMCPToolResponse
+	}{
+		{
+			name:  "NilInput",
+			input: nil,
+			want:  workspacesdk.CallMCPToolResponse{},
+		},
+		{
+			name: "TextContent",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "hello"},
+				},
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "text", Text: "hello"},
+				},
+			},
+		},
+		{
+			name: "ImageContent",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.ImageContent{
+						Data:     []byte("rawdata"),
+						MIMEType: "image/png",
+					},
+				},
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "image", Data: base64.StdEncoding.EncodeToString([]byte("rawdata")), MediaType: "image/png"},
+				},
+			},
+		},
+		{
+			name: "AudioContent",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.AudioContent{
+						Data:     []byte("rawaudio"),
+						MIMEType: "audio/mp3",
+					},
+				},
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "audio", Data: base64.StdEncoding.EncodeToString([]byte("rawaudio")), MediaType: "audio/mp3"},
+				},
+			},
+		},
+		{
+			name: "IsErrorPropagation",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "fail"},
+				},
+				IsError: true,
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "text", Text: "fail"},
+				},
+				IsError: true,
+			},
+		},
+		{
+			name: "MultipleContentItems",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "caption"},
+					&mcp.ImageContent{
+						Data:     []byte("imgdata"),
+						MIMEType: "image/jpeg",
+					},
+				},
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "text", Text: "caption"},
+					{Type: "image", Data: base64.StdEncoding.EncodeToString([]byte("imgdata")), MediaType: "image/jpeg"},
+				},
+			},
+		},
+		{
+			name: "ResourceLink",
+			input: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.ResourceLink{
+						URI: "file:///tmp/test.txt",
+					},
+				},
+			},
+			want: workspacesdk.CallMCPToolResponse{
+				Content: []workspacesdk.MCPToolContent{
+					{Type: "resource", Text: "[resource link: file:///tmp/test.txt]"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := convertResult(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestConnectServer_StdioProcessSurvivesConnect verifies that a stdio MCP
+// server subprocess remains alive after connectServer returns. This is a
+// regression test for a bug where the subprocess was tied to a short-lived
+// connectCtx and killed as soon as the context was canceled.
+func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		// Child process: act as a minimal MCP server over stdio.
+		runFakeMCPServer()
+		return
+	}
+
+	// Get the path to the test binary so we can re-exec ourselves
+	// as a fake MCP server subprocess.
+	testBin, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := ServerConfig{
+		Name:      "fake",
+		Transport: "stdio",
+		Command:   testBin,
+		Args:      []string{"-test.run=^TestConnectServer_StdioProcessSurvivesConnect$"},
+		Env:       map[string]string{"TEST_MCP_FAKE_SERVER": "1"},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
+	client, err := m.connectServer(ctx, cfg)
+	require.NoError(t, err, "connectServer should succeed")
+	t.Cleanup(func() { _ = client.Close() })
+
+	// At this point connectServer has returned and its internal
+	// connectCtx has been canceled. The subprocess must still be
+	// alive. Verify by listing tools (requires a live server).
+	listCtx, listCancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer listCancel()
+	result, err := client.ListTools(listCtx, nil)
+	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
+	require.Len(t, result.Tools, 1)
+	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+func TestManager_WaitReloadTimeout(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
+	defer timerTrap.Close()
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	m.clock = clock
+	t.Cleanup(func() { _ = m.Close() })
+
+	done := make(chan error, 1)
+	go func() {
+		done <- m.waitReload(ctx, make(chan reloadResult), time.Minute)
+	}()
+
+	call := timerTrap.MustWait(ctx)
+	require.Equal(t, time.Minute, call.Duration)
+	call.MustRelease(ctx)
+
+	clock.Advance(time.Minute).MustWait(ctx)
+	err := testutil.RequireReceive(ctx, t, done)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
+}
+
+// TestCreateTransport_StdioSetsWorkingDir verifies a stdio server's command
+// is launched in the workspace dir, so relative Args resolve there rather
+// than the agent's cwd.
+func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	workDir := t.TempDir()
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil,
+		func() string { return workDir })
+	t.Cleanup(func() { _ = m.Close() })
+
+	transport, err := m.createTransport(ctx, ServerConfig{
+		Name:      "fake",
+		Transport: "stdio",
+		Command:   "true",
+	})
+	require.NoError(t, err)
+
+	cmdTransport, ok := transport.(*mcp.CommandTransport)
+	require.True(t, ok)
+	assert.Equal(t, workDir, cmdTransport.Command.Dir)
+}
+
+// TestResolveWorkingDir covers resolveWorkingDir's fallback: nil/empty,
+// a missing path, or a file all fall back to home; an existing dir is used.
+func TestResolveWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	envInfo := &usershell.SystemEnvInfo{}
+	home, err := envInfo.HomeDir()
+	require.NoError(t, err)
+
+	existing := t.TempDir()
+	file := filepath.Join(existing, "a-file")
+	require.NoError(t, os.WriteFile(file, []byte("x"), 0o600))
+	missing := filepath.Join(existing, "does-not-exist")
+
+	tests := []struct {
+		name       string
+		workingDir func() string
+		want       string
+	}{
+		{name: "NilCallback", workingDir: nil, want: home},
+		{name: "EmptyResult", workingDir: func() string { return "" }, want: home},
+		{name: "ExistingDir", workingDir: func() string { return existing }, want: existing},
+		{name: "MissingDir", workingDir: func() string { return missing }, want: home},
+		{name: "PathIsFile", workingDir: func() string { return file }, want: home},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &Manager{fs: afero.NewOsFs(), envInfo: envInfo, workingDir: tt.workingDir}
+			assert.Equal(t, tt.want, m.resolveWorkingDir())
+		})
+	}
+}
+
+// runFakeMCPServer implements a minimal JSON-RPC / MCP server over
+// stdin/stdout, just enough for initialize + tools/list.
+func runFakeMCPServer() {
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		var req struct {
+			JSONRPC string          `json:"jsonrpc"`
+			ID      json.RawMessage `json:"id"`
+			Method  string          `json:"method"`
+		}
+		if err := json.Unmarshal(line, &req); err != nil {
+			continue
+		}
+
+		var resp any
+		switch req.Method {
+		case "initialize":
+			resp = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"protocolVersion": "2025-03-26",
+					"capabilities": map[string]any{
+						"tools": map[string]any{},
+					},
+					"serverInfo": map[string]any{
+						"name":    "fake-server",
+						"version": "0.0.1",
+					},
+				},
+			}
+		case "notifications/initialized":
+			// No response needed for notifications.
+			continue
+		case "tools/list":
+			resp = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{
+						{
+							"name":        "echo",
+							"description": "echoes input",
+							"inputSchema": map[string]any{
+								"type":       "object",
+								"properties": map[string]any{},
+							},
+						},
+					},
+				},
+			}
+		default:
+			resp = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"error": map[string]any{
+					"code":    -32601,
+					"message": "method not found",
+				},
+			}
+		}
+
+		out, err := json.Marshal(resp)
+		if err != nil {
+			continue
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", out)
+	}
+}

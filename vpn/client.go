@@ -2,6 +2,7 @@ package vpn
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -31,6 +32,7 @@ type Conn interface {
 	Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error)
 	Node() *tailnet.Node
 	DERPMap() *tailcfg.DERPMap
+	Rebind()
 	Close() error
 }
 
@@ -74,6 +76,8 @@ type Options struct {
 	TUNDevice        tun.Device
 	WireguardMonitor *netmon.Monitor
 	UpdateHandler    tailnet.UpdatesHandler
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 type derpMapRewriter struct {
@@ -103,7 +107,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	sdk.SetSessionToken(token)
 	sdk.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    headers.Clone(),
+		Provider:  codersdk.StaticHeaderProvider{Header: headers.Clone()},
 	}
 
 	// New context, separate from initCtx. We don't want to cancel the
@@ -158,6 +162,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &clonedHeaders,
+		DERPTLSConfig:       options.DERPTLSConfig,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,

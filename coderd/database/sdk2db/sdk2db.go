@@ -3,7 +3,7 @@ package sdk2db
 
 import (
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -12,5 +12,5 @@ func ProvisionerDaemonStatus(status codersdk.ProvisionerDaemonStatus) database.P
 }
 
 func ProvisionerDaemonStatuses(params []codersdk.ProvisionerDaemonStatus) []database.ProvisionerDaemonStatus {
-	return db2sdk.List(params, ProvisionerDaemonStatus)
+	return slice.List(params, ProvisionerDaemonStatus)
 }

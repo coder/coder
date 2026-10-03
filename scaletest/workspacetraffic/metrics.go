@@ -86,7 +86,7 @@ type connMetrics struct {
 	addError       func(float64)
 	observeLatency func(float64)
 	addTotal       func(float64)
-	total          int64
+	total          atomic.Int64
 }
 
 func (c *connMetrics) AddError(f float64) {
@@ -98,10 +98,10 @@ func (c *connMetrics) ObserveLatency(f float64) {
 }
 
 func (c *connMetrics) AddTotal(f float64) {
-	atomic.AddInt64(&c.total, int64(f))
+	c.total.Add(int64(f))
 	c.addTotal(f)
 }
 
 func (c *connMetrics) GetTotalBytes() int64 {
-	return c.total
+	return c.total.Load()
 }

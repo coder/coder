@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -46,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -262,8 +262,6 @@ func TestWebhookDispatch(t *testing.T) {
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
 	require.Equal(t, payload.Payload.UserUsername, username)
-	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
-	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)
 }
 
@@ -551,8 +549,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		leasedIDs = append(leasedIDs, msg.ID.String())
 	}
 
-	sort.Strings(msgs)
-	sort.Strings(leasedIDs)
+	slices.Sort(msgs)
+	slices.Sort(leasedIDs)
 	require.EqualValues(t, msgs, leasedIDs)
 
 	// Wait out the lease period; all messages should be eligible to be re-acquired.
@@ -730,15 +728,7 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
 
-	const (
-		username = "bob"
-		password = "🤫"
-
-		hello = "localhost"
-
-		from = "system@coder.com"
-		hint = "run \"make gen/golden-files\" and commit the changes"
-	)
+	const hint = "run \"make gen/golden-files\" and commit the changes"
 
 	tests := []struct {
 		name    string
@@ -791,11 +781,29 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"name":           "bobby-workspace",
-					"reason":         "breached the template's threshold for inactivity",
-					"initiator":      "autobuild",
-					"dormancyHours":  "24",
-					"timeTilDormant": "24 hours",
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
+					"timeTilDelete": "24 hours",
+				},
+			},
+		},
+		{
+			// TemplateWorkspaceDormant body should not promise auto-deletion
+			// when the template has no `time_til_dormant_autodelete` set, in
+			// which case the enqueue sites leave `timeTilDelete` unset.
+			name: "TemplateWorkspaceDormant_NoAutoDelete",
+			id:   notifications.TemplateWorkspaceDormant,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
 				},
 			},
 		},
@@ -829,7 +837,52 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateWorkspaceAutostopReminder",
+			id:   notifications.TemplateWorkspaceAutostopReminder,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace":       "bobby-workspace",
+					"timeTilShutdown": "1 hour from now",
+				},
+			},
+		},
+		{
 			name: "TemplateUserAccountCreated",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"created_account_name":      "bobby",
+					"created_account_user_name": "William Tables",
+					"initiator":                 "rob",
+					"account_type":              "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountCreatedServiceAccount",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"created_account_name":      "ci-bot",
+					"created_account_user_name": "CI Bot",
+					"initiator":                 "rob",
+					"account_type":              "service",
+				},
+			},
+		},
+		{
+			// Messages enqueued before the account_type label existed
+			// must still render the user wording.
+			name: "TemplateUserAccountCreatedWithoutAccountType",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -853,6 +906,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"deleted_account_name":      "bobby",
 					"deleted_account_user_name": "William Tables",
 					"initiator":                 "rob",
+					"account_type":              "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountDeletedServiceAccount",
+			id:   notifications.TemplateUserAccountDeleted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"deleted_account_name":      "ci-bot",
+					"deleted_account_user_name": "CI Bot",
+					"initiator":                 "rob",
+					"account_type":              "service",
 				},
 			},
 		},
@@ -867,6 +936,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"suspended_account_name":      "bobby",
 					"suspended_account_user_name": "William Tables",
 					"initiator":                   "rob",
+					"account_type":                "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountSuspendedServiceAccount",
+			id:   notifications.TemplateUserAccountSuspended,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"suspended_account_name":      "ci-bot",
+					"suspended_account_user_name": "CI Bot",
+					"initiator":                   "rob",
+					"account_type":                "service",
 				},
 			},
 		},
@@ -881,6 +966,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"activated_account_name":      "bobby",
 					"activated_account_user_name": "William Tables",
 					"initiator":                   "rob",
+					"account_type":                "user",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountActivatedServiceAccount",
+			id:   notifications.TemplateUserAccountActivated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"activated_account_name":      "ci-bot",
+					"activated_account_user_name": "CI Bot",
+					"initiator":                   "rob",
+					"account_type":                "service",
 				},
 			},
 		},
@@ -1075,7 +1176,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"initiator": "autobuild",
 				},
 			},
-			appName: "Custom Application Name",
+			appName: "Custom Application",
 			logoURL: "https://custom.application/logo.png",
 		},
 		{
@@ -1249,59 +1350,199 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateTaskWorking",
-			id:   notifications.TemplateTaskWorking,
+			name: "TemplateChatShared",
+			id:   notifications.TemplateChatShared,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
+					"chat_id":    "00000000-0000-0000-0000-000000000001",
+					"chat_title": "Onboarding kickoff",
+					"initiator":  "alice",
 				},
 				Data: map[string]any{},
 			},
 		},
 		{
-			name: "TemplateTaskIdle",
-			id:   notifications.TemplateTaskIdle,
+			// Default branch: multiple visible chats, retention enabled,
+			// no overflow. Body phrasing is number-neutral so this also
+			// covers the n>1 grammar shape without a dedicated branch in
+			// the template.
+			name: "TemplateChatAutoArchiveDigest",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Pins the n=1 rendering so future edits to the body cannot
+			// reintroduce a count-conditional that breaks the singular
+			// case. The list-introduction sentence and retention sentence
+			// both use plural-form pronouns ("them", "they") that read
+			// naturally for a single item.
+			name: "TemplateChatAutoArchiveDigestSingular",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the retention_days="0" indefinite-retention branch.
+			name: "TemplateChatAutoArchiveDigestRetentionZero",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "0",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the additional_archived_count overflow sentence.
+			name: "TemplateChatAutoArchiveDigestOverflow",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+					"additional_archived_count": "6",
+				},
+			},
+		},
+		{
+			name: "TemplateAIBudgetWarningUser",
+			id:   notifications.TemplateAIBudgetWarningUser,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
+					"threshold":            "85",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
 				},
 				Data: map[string]any{},
 			},
 		},
 		{
-			name: "TemplateTaskCompleted",
-			id:   notifications.TemplateTaskCompleted,
+			name: "TemplateAIBudgetLimitReachedUser",
+			id:   notifications.TemplateAIBudgetLimitReachedUser,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
+					"threshold":            "100",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"effective_group_name": "Engineering",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
 				},
 				Data: map[string]any{},
 			},
 		},
 		{
-			name: "TemplateTaskFailed",
-			id:   notifications.TemplateTaskFailed,
+			name: "TemplateAIBudgetWarningAdmin",
+			id:   notifications.TemplateAIBudgetWarningAdmin,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"task":      "my-task",
-					"workspace": "my-workspace",
+					"username":             "alice",
+					"threshold":            "85",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"limit_source":         "group",
+					"effective_group_name": "Engineering",
+					"organization_name":    "coder",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
 				},
 				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIBudgetLimitReachedAdmin",
+			id:   notifications.TemplateAIBudgetLimitReachedAdmin,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"username":             "alice",
+					"limit":                "$1000.00",
+					"period":               "monthly",
+					"limit_source":         "user_override",
+					"effective_group_name": "Engineering",
+					"organization_name":    "coder",
+					"period_start":         "July 1, 2026",
+					"period_end":           "August 1, 2026",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateAIModelsUnpricedReport",
+			id:   notifications.TemplateAIModelsUnpricedReport,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
+				Data: map[string]any{
+					"report_frequency": "week",
+					"models": []map[string]any{
+						{"provider": "anthropic", "model": "claude-opus-4-8"},
+						{"provider": "openai", "model": "gpt-5.7"},
+						{"provider": "openrouter", "model": "z-ai/glm-5.4"},
+					},
+					"total_count": 15.0,
+					"truncated":   true,
+				},
 			},
 		},
 	}
@@ -1320,178 +1561,40 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		require.Truef(t, found, "could not find test case for %q", name)
 	}
 
+	// The recipient row and the appearance settings are the only deployment
+	// state a golden depends on, so every template shares one pipeline unless
+	// it renders different values for them.
+	var templateIDs []uuid.UUID
+	for _, tc := range tests {
+		if !slices.Contains(templateIDs, tc.id) {
+			templateIDs = append(templateIDs, tc.id)
+		}
+	}
+	sharedUser := database.User{Name: "Bobby", Email: "bobby@coder.com", Username: "bobby"}
+	shared := newGoldenFixture(t, sharedUser, "", "", templateIDs)
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			fixture := shared
+			sameRecipient := tc.payload.UserName == sharedUser.Name &&
+				tc.payload.UserEmail == sharedUser.Email &&
+				tc.payload.UserUsername == sharedUser.Username
+			if !sameRecipient || tc.appName != "" || tc.logoURL != "" {
+				user := database.User{Name: tc.payload.UserName, Email: tc.payload.UserEmail, Username: tc.payload.UserUsername}
+				fixture = newGoldenFixture(t, user, tc.appName, tc.logoURL, templateIDs)
+			}
+
 			t.Run("smtp", func(t *testing.T) {
 				t.Parallel()
 
-				// Spin up the DB
-				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
-					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
-					db := api.Database
-					firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-					_, user := coderdtest.CreateAnotherUserMutators(
-						t,
-						adminClient,
-						firstUser.OrganizationID,
-						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
-						func(r *codersdk.CreateUserRequestWithOrgs) {
-							r.Username = tc.payload.UserUsername
-							r.Email = tc.payload.UserEmail
-							r.Name = tc.payload.UserName
-						},
-					)
-
-					// With the introduction of notifications that can be disabled
-					// by default, we want to make sure the user preferences have
-					// the notification enabled.
-					_, err := adminClient.UpdateUserNotificationPreferences(
-						context.Background(),
-						user.ID,
-						codersdk.UpdateUserNotificationPreferences{
-							TemplateDisabledMap: map[string]bool{
-								tc.id.String(): false,
-							},
-						})
-					require.NoError(t, err)
-
-					return &db, &api.Logger, &user
-				}()
-
-				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-
-				_, pubsub := dbtestutil.NewDB(t)
-
-				// smtp config shared between client and server
-				smtpConfig := codersdk.NotificationsEmailConfig{
-					Hello: hello,
-					From:  from,
-
-					Auth: codersdk.NotificationsEmailAuthConfig{
-						Username: username,
-						Password: password,
-					},
-				}
-
-				// Spin up the mock SMTP server
-				backend := smtptest.NewBackend(smtptest.Config{
-					AuthMechanisms: []string{sasl.Login},
-
-					AcceptedIdentity: smtpConfig.Auth.Identity.String(),
-					AcceptedUsername: username,
-					AcceptedPassword: password,
-				})
-
-				// Create a mock SMTP server which conditionally listens for plain or TLS connections.
-				srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
-				require.NoError(t, err)
-				t.Cleanup(func() {
-					err := srv.Shutdown(ctx)
-					require.NoError(t, err)
-				})
-
-				var hp serpent.HostPort
-				require.NoError(t, hp.Set(listen.Addr().String()))
-				smtpConfig.Smarthost = serpent.String(hp.String())
-
-				// Start mock SMTP server in the background.
-				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					assert.NoError(t, srv.Serve(listen))
-				}()
-
-				// Wait for the server to become pingable.
-				require.Eventually(t, func() bool {
-					cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
-					if err != nil {
-						t.Logf("smtp not yet dialable: %s", err)
-						return false
-					}
-
-					if err = cl.Noop(); err != nil {
-						t.Logf("smtp not yet noopable: %s", err)
-						return false
-					}
-
-					if err = cl.Close(); err != nil {
-						t.Logf("smtp didn't close properly: %s", err)
-						return false
-					}
-
-					return true
-				}, testutil.WaitShort, testutil.IntervalFast)
-
-				smtpCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-				smtpCfg.SMTP = smtpConfig
-
-				smtpManager, err := notifications.NewManager(
-					smtpCfg,
-					*db,
-					pubsub,
-					defaultHelpers(),
-					createMetrics(),
-					logger.Named("manager"),
-				)
-				require.NoError(t, err)
-
-				// we apply ApplicationName and LogoURL changes directly in the db
-				// as appearance changes are enterprise features and we do not want to mix those
-				// can't use the api
-				if tc.appName != "" {
-					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
-					require.NoError(t, err)
-				}
-
-				if tc.logoURL != "" {
-					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
-					require.NoError(t, err)
-				}
-
-				smtpManager.Run(ctx)
-
-				notificationCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-
-				smtpEnqueuer, err := notifications.NewStoreEnqueuer(
-					notificationCfg,
-					*db,
-					defaultHelpers(),
-					logger.Named("enqueuer"),
-					quartz.NewReal(),
-				)
-				require.NoError(t, err)
-
-				_, err = smtpEnqueuer.EnqueueWithData(
-					ctx,
-					user.ID,
-					tc.id,
-					tc.payload.Labels,
-					tc.payload.Data,
-					user.Username,
-					tc.payload.Targets...,
-				)
-				require.NoError(t, err)
-
-				// Wait for the message to be fetched
-				var msg *smtptest.Message
-				require.Eventually(t, func() bool {
-					msg = backend.LastMessage()
-					return msg != nil && len(msg.Contents) > 0
-				}, testutil.WaitShort, testutil.IntervalFast)
-
-				body := normalizeGoldenEmail([]byte(msg.Contents))
-
-				err = smtpManager.Stop(ctx)
-				require.NoError(t, err)
+				body := fixture.deliverSMTP(t, tc.id, tc.payload)
 
 				partialName := strings.Split(t.Name(), "/")[1]
 				goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", partialName+".html.golden")
 				if *updateGoldenFiles {
-					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					err := os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 					require.NoError(t, err, "want no error creating golden file directory")
 					err = os.WriteFile(goldenFile, body, 0o600)
 					require.NoError(t, err, "want no error writing body golden file")
@@ -1510,114 +1613,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			t.Run("webhook", func(t *testing.T) {
 				t.Parallel()
 
-				// Spin up the DB
-				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
-					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
-					db := api.Database
-					firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-					_, user := coderdtest.CreateAnotherUserMutators(
-						t,
-						adminClient,
-						firstUser.OrganizationID,
-						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
-						func(r *codersdk.CreateUserRequestWithOrgs) {
-							r.Username = tc.payload.UserUsername
-							r.Email = tc.payload.UserEmail
-							r.Name = tc.payload.UserName
-						},
-					)
-
-					// With the introduction of notifications that can be disabled
-					// by default, we want to make sure the user preferences have
-					// the notification enabled.
-					_, err := adminClient.UpdateUserNotificationPreferences(
-						context.Background(),
-						user.ID,
-						codersdk.UpdateUserNotificationPreferences{
-							TemplateDisabledMap: map[string]bool{
-								tc.id.String(): false,
-							},
-						})
-					require.NoError(t, err)
-
-					return &db, &api.Logger, &user
-				}()
-
-				_, pubsub := dbtestutil.NewDB(t)
-				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
-
-				// Spin up the mock webhook server
-				var body []byte
-				var readErr error
-				webhookReceived := make(chan struct{})
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-
-					body, readErr = io.ReadAll(r.Body)
-					close(webhookReceived)
-				}))
-				t.Cleanup(server.Close)
-
-				endpoint, err := url.Parse(server.URL)
-				require.NoError(t, err)
-
-				webhookCfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
-
-				webhookCfg.Webhook = codersdk.NotificationsWebhookConfig{
-					Endpoint: *serpent.URLOf(endpoint),
-				}
-
-				webhookManager, err := notifications.NewManager(
-					webhookCfg,
-					*db,
-					pubsub,
-					defaultHelpers(),
-					createMetrics(),
-					logger.Named("manager"),
-				)
-				require.NoError(t, err)
-
-				webhookManager.Run(ctx)
-
-				httpEnqueuer, err := notifications.NewStoreEnqueuer(
-					defaultNotificationsConfig(database.NotificationMethodWebhook),
-					*db,
-					defaultHelpers(),
-					logger.Named("enqueuer"),
-					quartz.NewReal(),
-				)
-				require.NoError(t, err)
-
-				_, err = httpEnqueuer.EnqueueWithData(
-					ctx,
-					user.ID,
-					tc.id,
-					tc.payload.Labels,
-					tc.payload.Data,
-					user.Username,
-					tc.payload.Targets...,
-				)
-				require.NoError(t, err)
-
-				select {
-				case <-time.After(testutil.WaitShort):
-					require.Fail(t, "timed out waiting for webhook to be received")
-				case <-webhookReceived:
-				}
-				// Handle the body that was read in the http server here.
-				// We need to do it here because we can't call require.* in a separate goroutine, such as the http server handler
-				require.NoError(t, readErr)
-				var prettyJSON bytes.Buffer
-				err = json.Indent(&prettyJSON, body, "", "  ")
-				require.NoError(t, err)
-
-				content := normalizeGoldenWebhook(prettyJSON.Bytes())
+				content := fixture.deliverWebhook(t, tc.id, tc.payload)
 
 				partialName := strings.Split(t.Name(), "/")[1]
 				goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
 				if *updateGoldenFiles {
-					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					err := os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 					require.NoError(t, err, "want no error creating golden file directory")
 					err = os.WriteFile(goldenFile, content, 0o600)
 					require.NoError(t, err, "want no error writing body golden file")
@@ -1631,6 +1632,258 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			})
 		})
 	}
+}
+
+// goldenFixture is the delivery pipeline shared by the templates of a golden
+// run: one database, one recipient, and one manager dispatching to a mock SMTP
+// server and a mock webhook server.
+type goldenFixture struct {
+	ctx  context.Context
+	user database.User
+
+	smtpMu       sync.Mutex
+	smtpBackend  *smtptest.Backend
+	smtpEnqueuer *notifications.StoreEnqueuer
+
+	webhookMu       sync.Mutex
+	webhookReceived chan []byte
+	webhookEnqueuer *notifications.StoreEnqueuer
+}
+
+func newGoldenFixture(t *testing.T, user database.User, appName, logoURL string, templateIDs []uuid.UUID) *goldenFixture {
+	t.Helper()
+
+	const (
+		username = "bob"
+		password = "🤫"
+
+		hello = "localhost"
+
+		from = "system@coder.com"
+	)
+
+	db, pubsub := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+
+	user = dbgen.User(t, db, user)
+
+	// With the introduction of notifications that can be disabled
+	// by default, we want to make sure the user preferences have
+	// the notification enabled.
+	_, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: templateIDs,
+		Disableds:               make([]bool, len(templateIDs)),
+	})
+	require.NoError(t, err)
+
+	// we apply ApplicationName and LogoURL changes directly in the db
+	// as appearance changes are enterprise features and we do not want to mix those
+	// can't use the api
+	if appName != "" {
+		err = db.UpsertApplicationName(ctx, appName)
+		require.NoError(t, err)
+	}
+
+	if logoURL != "" {
+		err = db.UpsertLogoURL(ctx, logoURL)
+		require.NoError(t, err)
+	}
+
+	// smtp config shared between client and server
+	smtpConfig := codersdk.NotificationsEmailConfig{
+		Hello: hello,
+		From:  from,
+
+		Auth: codersdk.NotificationsEmailAuthConfig{
+			Username: username,
+			Password: password,
+		},
+	}
+
+	// Spin up the mock SMTP server
+	backend := smtptest.NewBackend(smtptest.Config{
+		AuthMechanisms: []string{sasl.Login},
+
+		AcceptedIdentity: smtpConfig.Auth.Identity.String(),
+		AcceptedUsername: username,
+		AcceptedPassword: password,
+	})
+
+	// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+	srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := srv.Shutdown(ctx)
+		require.NoError(t, err)
+	})
+
+	var hp serpent.HostPort
+	require.NoError(t, hp.Set(listen.Addr().String()))
+	smtpConfig.Smarthost = serpent.String(hp.String())
+
+	// Start mock SMTP server in the background.
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		assert.NoError(t, srv.Serve(listen))
+	})
+
+	// Wait for the server to become pingable.
+	require.Eventually(t, func() bool {
+		cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
+		if err != nil {
+			t.Logf("smtp not yet dialable: %s", err)
+			return false
+		}
+
+		if err = cl.Noop(); err != nil {
+			t.Logf("smtp not yet noopable: %s", err)
+			return false
+		}
+
+		if err = cl.Close(); err != nil {
+			t.Logf("smtp didn't close properly: %s", err)
+			return false
+		}
+
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Spin up the mock webhook server
+	webhookReceived := make(chan []byte, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		webhookReceived <- body
+	}))
+	t.Cleanup(server.Close)
+
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	// The notifier acquires messages of every method, so one manager with both
+	// dispatchers configured delivers the SMTP and webhook messages.
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	cfg.SMTP = smtpConfig
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+	// Deliveries are serialized per method, so the fetch interval bounds the
+	// whole run.
+	cfg.FetchInterval = serpent.Duration(10 * time.Millisecond)
+
+	manager, err := notifications.NewManager(
+		cfg,
+		db,
+		pubsub,
+		defaultHelpers(),
+		createMetrics(),
+		logger.Named("manager"),
+	)
+	require.NoError(t, err)
+
+	manager.Run(ctx)
+	t.Cleanup(func() {
+		err := manager.Stop(ctx)
+		require.NoError(t, err)
+	})
+
+	smtpEnqueuer, err := notifications.NewStoreEnqueuer(
+		defaultNotificationsConfig(database.NotificationMethodSmtp),
+		db,
+		defaultHelpers(),
+		logger.Named("enqueuer"),
+		quartz.NewReal(),
+	)
+	require.NoError(t, err)
+
+	webhookEnqueuer, err := notifications.NewStoreEnqueuer(
+		defaultNotificationsConfig(database.NotificationMethodWebhook),
+		db,
+		defaultHelpers(),
+		logger.Named("enqueuer"),
+		quartz.NewReal(),
+	)
+	require.NoError(t, err)
+
+	return &goldenFixture{
+		ctx:             ctx,
+		user:            user,
+		smtpBackend:     backend,
+		smtpEnqueuer:    smtpEnqueuer,
+		webhookReceived: webhookReceived,
+		webhookEnqueuer: webhookEnqueuer,
+	}
+}
+
+// deliverSMTP enqueues one message and returns the normalized email received
+// for it by the mock SMTP server.
+func (f *goldenFixture) deliverSMTP(t *testing.T, templateID uuid.UUID, payload types.MessagePayload) []byte {
+	t.Helper()
+
+	// The mock backend only records the last message, so deliveries are
+	// serialized.
+	f.smtpMu.Lock()
+	defer f.smtpMu.Unlock()
+
+	f.smtpBackend.Reset()
+	_, err := f.smtpEnqueuer.EnqueueWithData(
+		f.ctx,
+		f.user.ID,
+		templateID,
+		payload.Labels,
+		payload.Data,
+		f.user.Username,
+		payload.Targets...,
+	)
+	require.NoError(t, err)
+
+	// Wait for the message to be fetched
+	var msg *smtptest.Message
+	require.Eventually(t, func() bool {
+		msg = f.smtpBackend.LastMessage()
+		return msg != nil && len(msg.Contents) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	return normalizeGoldenEmail([]byte(msg.Contents))
+}
+
+// deliverWebhook enqueues one message and returns the normalized body the mock
+// webhook server received for it.
+func (f *goldenFixture) deliverWebhook(t *testing.T, templateID uuid.UUID, payload types.MessagePayload) []byte {
+	t.Helper()
+
+	// A single receive channel cannot attribute bodies to templates, so
+	// deliveries are serialized.
+	f.webhookMu.Lock()
+	defer f.webhookMu.Unlock()
+
+	_, err := f.webhookEnqueuer.EnqueueWithData(
+		f.ctx,
+		f.user.ID,
+		templateID,
+		payload.Labels,
+		payload.Data,
+		f.user.Username,
+		payload.Targets...,
+	)
+	require.NoError(t, err)
+
+	var body []byte
+	select {
+	case <-time.After(testutil.WaitShort):
+		require.Fail(t, "timed out waiting for webhook to be received")
+	case body = <-f.webhookReceived:
+	}
+
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, body, "", "  ")
+	require.NoError(t, err)
+
+	return normalizeGoldenWebhook(prettyJSON.Bytes())
 }
 
 // normalizeLineEndings ensures that all line endings are normalized to \n.
@@ -2179,4 +2432,91 @@ func (n *acquireSignalingInterceptor) AcquireNotificationMessages(ctx context.Co
 	messages, err := n.Store.AcquireNotificationMessages(ctx, params)
 	n.acquiredChan <- struct{}{}
 	return messages, err
+}
+
+// renderCapture records what the notifier renders, so a test can assert on what
+// a dispatcher would receive.
+type renderCapture struct {
+	mu          sync.Mutex
+	title, body string
+	captured    chan struct{}
+	once        sync.Once
+}
+
+func newRenderCapture() *renderCapture {
+	return &renderCapture{captured: make(chan struct{})}
+}
+
+func (c *renderCapture) Dispatcher(_ types.MessagePayload, title, body string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
+	return func(_ context.Context, _ uuid.UUID) (bool, error) {
+		c.mu.Lock()
+		c.title, c.body = title, body
+		c.mu.Unlock()
+		c.once.Do(func() { close(c.captured) })
+		return false, nil
+	}, nil
+}
+
+func (c *renderCapture) wait(t *testing.T) (title, body string) {
+	t.Helper()
+	testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, c.captured)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.title, c.body
+}
+
+// TestNotificationMarkdownInjection is the end-to-end regression test for
+// https://linear.app/codercom/issue/SEC-93.
+func TestNotificationMarkdownInjection(t *testing.T) {
+	t.Parallel()
+
+	const payload = "Eve\n## URGENT: SSO certificate expiring\n" +
+		"[Re-authenticate now](https://coder-sso.attacker.example/login)"
+
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+	store, pubsub := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+	capture := newRenderCapture()
+
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           capture,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	require.NoError(t, err)
+	user := createSampleUser(t, store)
+
+	// WHEN: the notification interpolates an attacker-controlled display name
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateUserAccountSuspended, map[string]string{
+		"suspended_account_name":      "eve",
+		"suspended_account_user_name": payload,
+		"initiator":                   "admin",
+		"account_type":                "user",
+	}, "test")
+	require.NoError(t, err)
+
+	mgr.Run(ctx)
+	_, body := capture.wait(t)
+
+	// THEN: the rendered Markdown carries no structure from the display name.
+	html := markdown.HTMLFromNotificationMarkdown(body)
+	plain, err := markdown.PlaintextFromMarkdown(body)
+	require.NoError(t, err)
+
+	for _, tag := range []string{"<a ", "<img ", "<h1", "<h2", "<h3"} {
+		require.NotContains(t, html, tag, "rendered HTML: %s", html)
+	}
+	// The attacker's text still appears, as inert text.
+	require.Contains(t, html, "URGENT: SSO certificate expiring")
+	require.Contains(t, html, "Re-authenticate now")
+	require.NotContains(t, plain, `\`, "escapes must be consumed by the renderer")
 }

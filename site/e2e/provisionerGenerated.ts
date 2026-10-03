@@ -287,6 +287,12 @@ export interface DisplayApps {
 export interface Env {
   name: string;
   value: string;
+  /**
+   * merge_strategy controls how this env var is merged when multiple
+   * coder_env resources define the same name. Valid values: "replace"
+   * (default), "append", "prepend", "error".
+   */
+  mergeStrategy: string;
 }
 
 /** Script represents a script to be run on the workspace. */
@@ -306,6 +312,11 @@ export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
   name: string;
+  id: string;
+  subagentId: string;
+  apps: App[];
+  scripts: Script[];
+  envs: Env[];
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -376,16 +387,6 @@ export interface RunningAgentAuthToken {
   token: string;
 }
 
-export interface AITaskSidebarApp {
-  id: string;
-}
-
-export interface AITask {
-  id: string;
-  sidebarApp?: AITaskSidebarApp | undefined;
-  appId: string;
-}
-
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -410,8 +411,6 @@ export interface Metadata {
   /** Indicates that a prebuilt workspace is being built. */
   prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
   runningAgentAuthTokens: RunningAgentAuthToken[];
-  taskId: string;
-  taskPrompt: string;
   templateVersionId: string;
   templateVersionModulesFile: string;
 }
@@ -484,7 +483,6 @@ export interface PlanComplete {
   plan: Uint8Array;
   dailyCost: number;
   resourceReplacements: ResourceReplacement[];
-  aiTaskCount: number;
 }
 
 /**
@@ -514,15 +512,6 @@ export interface GraphComplete {
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
-  /**
-   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-   * still need to know that such resources are defined.
-   *
-   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-   */
-  hasAiTasks: boolean;
-  aiTasks: AITask[];
   hasExternalAgents: boolean;
 }
 
@@ -1047,6 +1036,9 @@ export const Env = {
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
     }
+    if (message.mergeStrategy !== "") {
+      writer.uint32(26).string(message.mergeStrategy);
+    }
     return writer;
   },
 };
@@ -1094,6 +1086,21 @@ export const Devcontainer = {
     }
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
+    }
+    if (message.id !== "") {
+      writer.uint32(34).string(message.id);
+    }
+    if (message.subagentId !== "") {
+      writer.uint32(42).string(message.subagentId);
+    }
+    for (const v of message.apps) {
+      App.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.envs) {
+      Env.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
@@ -1258,30 +1265,6 @@ export const RunningAgentAuthToken = {
   },
 };
 
-export const AITaskSidebarApp = {
-  encode(message: AITaskSidebarApp, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    return writer;
-  },
-};
-
-export const AITask = {
-  encode(message: AITask, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    if (message.sidebarApp !== undefined) {
-      AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.appId !== "") {
-      writer.uint32(26).string(message.appId);
-    }
-    return writer;
-  },
-};
-
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1346,12 +1329,6 @@ export const Metadata = {
     }
     for (const v of message.runningAgentAuthTokens) {
       RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
-    }
-    if (message.taskId !== "") {
-      writer.uint32(178).string(message.taskId);
-    }
-    if (message.taskPrompt !== "") {
-      writer.uint32(186).string(message.taskPrompt);
     }
     if (message.templateVersionId !== "") {
       writer.uint32(194).string(message.templateVersionId);
@@ -1491,9 +1468,6 @@ export const PlanComplete = {
     for (const v of message.resourceReplacements) {
       ResourceReplacement.encode(v!, writer.uint32(42).fork()).ldelim();
     }
-    if (message.aiTaskCount !== 0) {
-      writer.uint32(48).int32(message.aiTaskCount);
-    }
     return writer;
   },
 };
@@ -1553,12 +1527,6 @@ export const GraphComplete = {
     }
     for (const v of message.presets) {
       Preset.encode(v!, writer.uint32(50).fork()).ldelim();
-    }
-    if (message.hasAiTasks !== false) {
-      writer.uint32(56).bool(message.hasAiTasks);
-    }
-    for (const v of message.aiTasks) {
-      AITask.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);

@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/pubsub"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
 
@@ -38,6 +37,7 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutostopReminder:  codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
@@ -55,6 +55,10 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
 	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
 	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.InboxNotificationFallbackIconTemplate,
+
+	// chat related notifications
+	notifications.TemplateChatAutoArchiveDigest: codersdk.InboxNotificationFallbackIconOther,
+	notifications.TemplateChatShared:            codersdk.InboxNotificationFallbackIconOther,
 }
 
 func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
@@ -113,7 +117,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
-// @Router /notifications/inbox/watch [get]
+// @Router /api/v2/notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
@@ -126,6 +130,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		templates  = p.UUIDs(vals, []uuid.UUID{}, "templates")
 		readStatus = p.String(vals, "all", "read_status")
 		format     = p.String(vals, notificationFormatMarkdown, "format")
+		logger     = api.Logger.Named("inbox_notifications_watcher")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -213,11 +218,17 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	go httpapi.Heartbeat(ctx, conn)
-	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	encoder := wsjson.NewEncoder[codersdk.GetInboxNotificationResponse](conn, websocket.MessageText)
-	defer encoder.Close(websocket.StatusNormalClosure)
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
+
+	encoder := json.NewEncoder(wsNetConn)
 
 	// Log the request immediately instead of after it completes.
 	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
@@ -226,8 +237,12 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 	for {
 		select {
+		case <-api.ctx.Done():
+			return
+
 		case <-ctx.Done():
 			return
+
 		case notif := <-notificationCh:
 			unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 			if err != nil {
@@ -273,7 +288,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
-// @Router /notifications/inbox [get]
+// @Router /api/v2/notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
@@ -359,7 +374,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Tags Notifications
 // @Param id path string true "id of the notification"
 // @Success 200 {object} codersdk.Response
-// @Router /notifications/inbox/{id}/read-status [put]
+// @Router /api/v2/notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -427,7 +442,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 // @Security CoderSessionToken
 // @Tags Notifications
 // @Success 204
-// @Router /notifications/inbox/mark-all-as-read [put]
+// @Router /api/v2/notifications/inbox/mark-all-as-read [put]
 func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

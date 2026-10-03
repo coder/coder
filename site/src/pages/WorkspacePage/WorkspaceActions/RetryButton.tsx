@@ -1,7 +1,6 @@
-import type { Workspace } from "api/typesGenerated";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
 import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
 
@@ -10,7 +9,7 @@ type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
 	workspace: Workspace;
 };
 
-export const RetryButton: FC<RetryButtonProps> = ({
+export const RetryButton: React.FC<RetryButtonProps> = ({
 	handleAction,
 	workspace,
 	enableBuildParameters,
@@ -32,7 +31,6 @@ export const RetryButton: FC<RetryButtonProps> = ({
 			<BuildParametersPopover
 				label="Retry with build parameters"
 				workspace={workspace}
-				onSubmit={handleAction}
 			/>
 		</div>
 	);

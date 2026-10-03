@@ -3,6 +3,7 @@ package healthcheck_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/quartz"
 )
 
 type testChecker struct {
@@ -45,6 +47,37 @@ func (c *testChecker) ProvisionerDaemons(context.Context, *healthcheck.Provision
 	return c.ProvisionerDaemonsReport
 }
 
+// healthyChecker returns a testChecker where all reports are healthy
+// with SeverityOK. Tests override individual fields to test failure
+// scenarios.
+func healthyChecker() *testChecker {
+	return &testChecker{
+		DERPReport: healthsdk.DERPHealthReport{
+			Healthy:    true,
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		AccessURLReport: healthsdk.AccessURLReport{
+			Healthy:    true,
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		WebsocketReport: healthsdk.WebsocketReport{
+			Healthy:    true,
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		DatabaseReport: healthsdk.DatabaseReport{
+			Healthy:    true,
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
+			Healthy:    true,
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+	}
+}
+
 func TestHealthcheck(t *testing.T) {
 	t.Parallel()
 
@@ -53,461 +86,168 @@ func TestHealthcheck(t *testing.T) {
 		checker  *testChecker
 		healthy  bool
 		severity health.Severity
-	}{{
-		name: "OK",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+	}{
+		{
+			name:     "OK",
+			checker:  healthyChecker(),
+			healthy:  true,
+			severity: health.SeverityOK,
 		},
-		healthy:  true,
-		severity: health.SeverityOK,
-	}, {
-		name: "DERPFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "DERPFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.DERPReport = healthsdk.DERPHealthReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
 		},
-		healthy:  false,
-		severity: health.SeverityError,
-	}, {
-		name: "DERPWarning",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
-					Severity: health.SeverityWarning,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "DERPWarning",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.DERPReport = healthsdk.DERPHealthReport{
+					Healthy: true,
+					BaseReport: healthsdk.BaseReport{
+						Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
+						Severity: health.SeverityWarning,
+					},
+				}
+				return c
+			}(),
+			healthy:  true,
+			severity: health.SeverityWarning,
 		},
-		healthy:  true,
-		severity: health.SeverityWarning,
-	}, {
-		name: "AccessURLFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityWarning,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "AccessURLFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.AccessURLReport = healthsdk.AccessURLReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityWarning},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityWarning,
 		},
-		healthy:  false,
-		severity: health.SeverityWarning,
-	}, {
-		name: "WebsocketFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "WebsocketFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.WebsocketReport = healthsdk.WebsocketReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
 		},
-		healthy:  false,
-		severity: health.SeverityError,
-	}, {
-		name: "DatabaseFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "DatabaseFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.DatabaseReport = healthsdk.DatabaseReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
 		},
-		healthy:  false,
-		severity: health.SeverityError,
-	}, {
-		name: "ProxyFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "ProxyFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.WorkspaceProxyReport = healthsdk.WorkspaceProxyReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
 		},
-		severity: health.SeverityError,
-		healthy:  false,
-	}, {
-		name: "ProxyWarn",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
-					Severity: health.SeverityWarning,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
+		{
+			name: "ProxyWarn",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.WorkspaceProxyReport = healthsdk.WorkspaceProxyReport{
+					Healthy: true,
+					BaseReport: healthsdk.BaseReport{
+						Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
+						Severity: health.SeverityWarning,
+					},
+				}
+				return c
+			}(),
+			healthy:  true,
+			severity: health.SeverityWarning,
 		},
-		severity: health.SeverityWarning,
-		healthy:  true,
-	}, {
-		name: "ProvisionerDaemonsFail",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
+		{
+			name: "ProvisionerDaemonsFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.ProvisionerDaemonsReport = healthsdk.ProvisionerDaemonsReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
 		},
-		severity: health.SeverityError,
-		healthy:  false,
-	}, {
-		name: "ProvisionerDaemonsWarn",
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: true,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityOK,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityWarning,
-					Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
-				},
-			},
+		{
+			name: "ProvisionerDaemonsWarn",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.ProvisionerDaemonsReport = healthsdk.ProvisionerDaemonsReport{
+					BaseReport: healthsdk.BaseReport{
+						Severity: health.SeverityWarning,
+						Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
+					},
+				}
+				return c
+			}(),
+			healthy:  true,
+			severity: health.SeverityWarning,
 		},
-		severity: health.SeverityWarning,
-		healthy:  true,
-	}, {
-		name:    "AllFail",
-		healthy: false,
-		checker: &testChecker{
-			DERPReport: healthsdk.DERPHealthReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
+		{
+			name:    "AllFail",
+			healthy: false,
+			checker: &testChecker{
+				DERPReport: healthsdk.DERPHealthReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
+				AccessURLReport: healthsdk.AccessURLReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
+				WebsocketReport: healthsdk.WebsocketReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
+				DatabaseReport: healthsdk.DatabaseReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
+				WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
+					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				},
+				ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
 				},
 			},
-			AccessURLReport: healthsdk.AccessURLReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			WebsocketReport: healthsdk.WebsocketReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			DatabaseReport: healthsdk.DatabaseReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			WorkspaceProxyReport: healthsdk.WorkspaceProxyReport{
-				Healthy: false,
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
-			ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
-				BaseReport: healthsdk.BaseReport{
-					Severity: health.SeverityError,
-				},
-			},
+			severity: health.SeverityError,
 		},
-		severity: health.SeverityError,
-	}} {
+	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -532,4 +272,70 @@ func TestHealthcheck(t *testing.T) {
 			assert.NotZero(t, report.CoderVersion)
 		})
 	}
+}
+
+func TestCheckProgress(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Summary", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+
+		// Start some checks
+		progress.Start("Database")
+		progress.Start("DERP")
+		progress.Start("AccessURL")
+
+		// Advance time to simulate check duration
+		mClock.Advance(100 * time.Millisecond)
+
+		// Complete some checks
+		progress.Complete("Database")
+		progress.Complete("AccessURL")
+
+		summary := progress.Summary()
+
+		// Verify completed and running checks are listed with duration / elapsed
+		assert.Equal(t, summary, "Completed: AccessURL (100ms), Database (100ms). Still running: DERP (elapsed: 100ms)")
+	})
+
+	t.Run("EmptyProgress", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		summary := progress.Summary()
+
+		// Should be empty string when nothing tracked
+		assert.Empty(t, summary)
+	})
+
+	t.Run("AllCompleted", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		progress.Start("Database")
+		progress.Start("DERP")
+		mClock.Advance(50 * time.Millisecond)
+		progress.Complete("Database")
+		progress.Complete("DERP")
+
+		summary := progress.Summary()
+		assert.Equal(t, summary, "Completed: DERP (50ms), Database (50ms)")
+	})
+
+	t.Run("AllRunning", func(t *testing.T) {
+		t.Parallel()
+
+		mClock := quartz.NewMock(t)
+		progress := healthcheck.Progress{Clock: mClock}
+		progress.Start("Database")
+		progress.Start("DERP")
+
+		summary := progress.Summary()
+		assert.Equal(t, summary, "Still running: DERP (elapsed: 0ms), Database (elapsed: 0ms)")
+	})
 }

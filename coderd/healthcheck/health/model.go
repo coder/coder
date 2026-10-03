@@ -3,8 +3,6 @@ package health
 import (
 	"fmt"
 	"strings"
-
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 const (
@@ -36,6 +34,7 @@ const (
 
 	CodeDERPNodeUsesWebsocket Code = `EDERP01`
 	CodeDERPOneNodeUnhealthy  Code = `EDERP02`
+	CodeDERPNoNodes           Code = `EDERP03`
 	CodeSTUNNoNodes                = `ESTUN01`
 	CodeSTUNMapVaryDest            = `ESTUN02`
 
@@ -112,5 +111,5 @@ func Messagef(code Code, msg string, args ...any) Message {
 
 // Errorf is a convenience function for returning a stringly-typed version of a Message.
 func Errorf(code Code, msg string, args ...any) *string {
-	return ptr.Ref(Messagef(code, msg, args...).String())
+	return new(Messagef(code, msg, args...).String())
 }

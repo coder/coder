@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -375,7 +375,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		const description = "wow, this organization description is so updated!"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Description: ptr.Ref(description),
+			Description: new(description),
 		})
 
 		require.NoError(t, err)
@@ -405,7 +405,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		const icon = "/emojis/1f48f-1f3ff.png"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Icon: ptr.Ref(icon),
+			Icon: new(icon),
 		})
 
 		require.NoError(t, err)
@@ -444,9 +444,112 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		// Verify functionality is lost.
 		const icon = "/emojis/1f48f-1f3ff.png"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Icon: ptr.Ref(icon),
+			Icon: new(icon),
 		})
 		require.ErrorContains(t, err, "Multiple Organizations is a Premium feature")
+	})
+
+	t.Run("DefaultOrgMemberRoles", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("EqualToDefaultAllowed", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// Writing exactly the deployment default is a no-op and must be allowed.
+			//nolint:gocritic // Only owners can update organization settings.
+			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: new(rbac.DefaultOrgMemberRoles()),
+			})
+			require.NoError(t, err)
+			require.Equal(t, rbac.DefaultOrgMemberRoles(), updated.DefaultOrgMemberRoles)
+		})
+
+		t.Run("DeviationAllowed", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// Empty array represents a Gateway Accounts organization.
+			//nolint:gocritic // Only owners can update organization settings.
+			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: new([]string{}),
+			})
+			require.NoError(t, err)
+			require.Empty(t, updated.DefaultOrgMemberRoles)
+		})
+
+		t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// A name that does not resolve via rbac.RoleByName (no such
+			// built-in role) must be rejected. This blocks both custom roles
+			// and malformed names like "foo:bar" that would otherwise break
+			// RoleNameFromString downstream.
+			//nolint:gocritic // Only owners can update organization settings.
+			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: new([]string{"not-a-built-in-role"}),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "Invalid default_org_member_roles entry")
+		})
+
+		t.Run("DuplicateRoleRejected", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			//nolint:gocritic // Only owners can update organization settings.
+			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: new([]string{
+					codersdk.RoleOrganizationWorkspaceAccess,
+					codersdk.RoleAgentsAccess,
+					codersdk.RoleAgentsAccess,
+				}),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Detail, "listed more than once")
+
+			//nolint:gocritic // The owner verifies the stored defaults are unchanged.
+			got, err := client.Organization(ctx, o.ID)
+			require.NoError(t, err)
+			require.Equal(t, rbac.DefaultOrgMemberRoles(), got.DefaultOrgMemberRoles)
+		})
 	})
 }
 

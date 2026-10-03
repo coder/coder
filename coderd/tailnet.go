@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 var tailnetTransport *http.Transport
@@ -298,6 +299,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
 		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
+		Logger:    s.logger,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error
@@ -395,13 +397,13 @@ type MultiAgentController struct {
 }
 
 func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.CloserWaiter {
-	b := m.BasicCoordinationController.NewCoordination(client)
+	b := m.NewCoordination(client)
 	// resync all destinations
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.coordination = b
 	for agentID := range m.connectionTimes {
-		err := client.Send(&proto.CoordinateRequest{
+		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 		})
 		if err != nil {
@@ -426,13 +428,13 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 		m.logger.Debug(context.Background(),
 			"subscribing to agent", slog.F("agent_id", agentID))
 		if m.coordination != nil {
-			err := m.coordination.Client.Send(&proto.CoordinateRequest{
+			err := m.coordination.SendRequest(&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 			})
 			if err != nil {
 				err = xerrors.Errorf("subscribe agent: %w", err)
 				m.coordination.SendErr(err)
-				_ = m.coordination.Client.Close()
+				_ = m.coordination.CloseClient()
 				m.coordination = nil
 				return err
 			}
@@ -494,7 +496,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(m.tickets[agentID]) == 0 {
 			if m.coordination != nil {
-				err := m.coordination.Client.Send(&proto.CoordinateRequest{
+				err := m.coordination.SendRequest(&proto.CoordinateRequest{
 					RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 				})
 				if err != nil {
@@ -502,7 +504,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					m.coordination.SendErr(xerrors.Errorf("unsubscribe expired agent: %w", err))
 					// close the client because we do not want to do a graceful disconnect by
 					// closing the coordination.
-					_ = m.coordination.Client.Close()
+					_ = m.coordination.CloseClient()
 					m.coordination = nil
 					// Here we continue deleting any inactive agents: there is no point in
 					// re-establishing tunnels to expired agents when we eventually reconnect.
@@ -529,6 +531,8 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false, // we are a client, connecting to multiple agents
+			Initiator:   codersdk.DisconnectInitiatorServer,
+			Direction:   codersdk.ConnectionDirectionServerToAgent,
 		},
 		logger:              logger,
 		tracer:              tracer,
@@ -554,6 +558,8 @@ type InmemTailnetDialer struct {
 	ClientID uuid.UUID
 	// DatabaseHealthCheck is used to validate that the store is reachable.
 	DatabaseHealthCheck Pinger
+	// Clock is optional and defaults to the real clock.
+	Clock quartz.Clock
 }
 
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
@@ -569,7 +575,11 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}
 	coordClient := tailnet.NewInMemoryCoordinatorClient(
 		a.Logger, a.ClientID, tailnet.SingleTailnetCoordinateeAuth{}, *coord)
-	derpClient := newPollingDERPClient(a.DERPFn, a.Logger)
+	clock := a.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	derpClient := newPollingDERPClient(a.DERPFn, a.Logger, clock)
 	return tailnet.ControlProtocolClients{
 		Closer:      closeAll{coord: coordClient, derp: derpClient},
 		Coordinator: coordClient,
@@ -577,13 +587,14 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}, nil
 }
 
-func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) tailnet.DERPClient {
+func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger, clock quartz.Clock) tailnet.DERPClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &pollingDERPClient{
 		fn:       derpFn,
 		ctx:      ctx,
 		cancel:   cancel,
 		logger:   logger,
+		clock:    clock,
 		ch:       make(chan *tailcfg.DERPMap),
 		loopDone: make(chan struct{}),
 	}
@@ -596,6 +607,7 @@ func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) ta
 type pollingDERPClient struct {
 	fn          func() *tailcfg.DERPMap
 	logger      slog.Logger
+	clock       quartz.Clock
 	ctx         context.Context
 	cancel      context.CancelFunc
 	loopDone    chan struct{}
@@ -623,16 +635,12 @@ func (a *pollingDERPClient) pollDERP() {
 	defer close(a.loopDone)
 	defer a.logger.Debug(a.ctx, "polling DERPMap exited")
 
-	ticker := time.NewTicker(5 * time.Second)
+	// Fetch immediately so the tailnet can publish its node without waiting
+	// for the first tick.
+	ticker := a.clock.NewTicker(5*time.Second, "pollDERP")
 	defer ticker.Stop()
 
 	for {
-		select {
-		case <-a.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
 		newDerpMap := a.fn()
 		if !tailnet.CompareDERPMaps(a.lastDERPMap, newDerpMap) {
 			select {
@@ -640,6 +648,12 @@ func (a *pollingDERPClient) pollDERP() {
 				return
 			case a.ch <- newDerpMap:
 			}
+		}
+
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

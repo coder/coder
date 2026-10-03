@@ -5,25 +5,24 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { Link } from "components/Link/Link";
-import type { FC, ReactNode } from "react";
+} from "#/components/Dialog/Dialog";
+import { Link } from "#/components/Link/Link";
 
-interface RequirePermissionProps {
-	children?: ReactNode;
+type RequirePermissionProps = {
+	children?: React.ReactNode;
 	isFeatureVisible: boolean;
-}
+};
 
 /**
  * Wraps routes that are available based on RBAC or licensing.
  */
-export const RequirePermission: FC<RequirePermissionProps> = ({
+export const RequirePermission: React.FC<RequirePermissionProps> = ({
 	children,
 	isFeatureVisible,
 }) => {
 	if (!isFeatureVisible) {
 		return (
-			<Dialog open={true}>
+			<Dialog open>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>
@@ -42,5 +41,5 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 		);
 	}
 
-	return <>{children}</>;
+	return children;
 };

@@ -138,43 +138,43 @@ func (t *fakeT) Context() context.Context {
 
 // Error implements testing.TB. Error is equivalent to Log followed by Fail.
 func (t *fakeT) Error(args ...any) {
-	t.T.Helper()
-	t.T.Log(args...)
+	t.Helper()
+	t.Log(args...)
 	t.Fail()
 }
 
 // Errorf implements testing.TB. Errorf is equivalent to Logf followed by Fail.
 func (t *fakeT) Errorf(format string, args ...any) {
-	t.T.Helper()
-	t.T.Logf(format, args...)
+	t.Helper()
+	t.Logf(format, args...)
 	t.Fail()
 }
 
 // Fail implements testing.TB. Fail marks the function as having failed but
 // continues execution.
 func (t *fakeT) Fail() {
-	t.T.Helper()
+	t.Helper()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.failed = true
-	t.T.Log("testutil.RunRetry: t.Fail called in testutil.RunRetry closure")
+	t.Log("testutil.RunRetry: t.Fail called in testutil.RunRetry closure")
 }
 
 // FailNow implements testing.TB. FailNow marks the function as having failed
 // and stops its execution by calling runtime.Goexit (which then runs all the
 // deferred calls in the current goroutine).
 func (t *fakeT) FailNow() {
-	t.T.Helper()
+	t.Helper()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.failed = true
-	t.T.Log("testutil.RunRetry: t.FailNow called in testutil.RunRetry closure")
+	t.Log("testutil.RunRetry: t.FailNow called in testutil.RunRetry closure")
 	runtime.Goexit()
 }
 
 // Failed implements testing.TB. Failed reports whether the function has failed.
 func (t *fakeT) Failed() bool {
-	t.T.Helper()
+	t.Helper()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.failed
@@ -182,16 +182,16 @@ func (t *fakeT) Failed() bool {
 
 // Fatal implements testing.TB. Fatal is equivalent to Log followed by FailNow.
 func (t *fakeT) Fatal(args ...any) {
-	t.T.Helper()
-	t.T.Log(args...)
+	t.Helper()
+	t.Log(args...)
 	t.FailNow()
 }
 
 // Fatalf implements testing.TB. Fatalf is equivalent to Logf followed by
 // FailNow.
 func (t *fakeT) Fatalf(format string, args ...any) {
-	t.T.Helper()
-	t.T.Logf(format, args...)
+	t.Helper()
+	t.Logf(format, args...)
 	t.FailNow()
 }
 

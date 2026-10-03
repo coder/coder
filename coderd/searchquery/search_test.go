@@ -27,6 +27,7 @@ func TestSearchWorkspace(t *testing.T) {
 		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
 		Setup                 func(t *testing.T, db database.Store)
+		ActorID               uuid.UUID
 	}{
 		{
 			Name:     "Empty",
@@ -223,36 +224,6 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
-			Name:  "HasAITaskTrue",
-			Query: "has-ai-task:true",
-			Expected: database.GetWorkspacesParams{
-				HasAITask: sql.NullBool{
-					Bool:  true,
-					Valid: true,
-				},
-			},
-		},
-		{
-			Name:  "HasAITaskFalse",
-			Query: "has-ai-task:false",
-			Expected: database.GetWorkspacesParams{
-				HasAITask: sql.NullBool{
-					Bool:  false,
-					Valid: true,
-				},
-			},
-		},
-		{
-			Name:  "HasAITaskMissing",
-			Query: "",
-			Expected: database.GetWorkspacesParams{
-				HasAITask: sql.NullBool{
-					Bool:  false,
-					Valid: false,
-				},
-			},
-		},
-		{
 			Name:  "HasExternalAgentTrue",
 			Query: "has_external_agent:true",
 			Expected: database.GetWorkspacesParams{
@@ -313,6 +284,54 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HealthyTrue",
+			Query: "healthy:true",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"connected"},
+			},
+		},
+		{
+			Name:  "HealthyFalse",
+			Query: "healthy:false",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"disconnected", "timeout"},
+			},
+		},
+		{
+			Name:  "HealthyMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{},
+			},
+		},
+		{
+			Name:  "HealthyAndHasAgent",
+			Query: "has-agent:connecting healthy:true",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"connecting", "connected"},
+			},
+		},
+		{
+			Name:  "IncludeAgentMetadata",
+			Query: `include_agent_metadata:"task_status" include_agent_metadata:"cpu"`,
+			Expected: database.GetWorkspacesParams{
+				IncludeAgentMetadata: []string{"task_status", "cpu"},
+			},
+		},
+		{
+			Name:  "SharedWithMe",
+			Query: `shared_with_user:me`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -335,6 +354,32 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 			Expected: database.GetWorkspacesParams{
 				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "UserMe",
+			Query: `user:me`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			Expected: database.GetWorkspacesParams{
+				UserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "UserByName",
+			Query: `user:wibble`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+					Username: "wibble",
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				UserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 			},
 		},
 		{
@@ -372,6 +417,27 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 			Expected: database.GetWorkspacesParams{
 				SharedWithGroupID: uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+			},
+		},
+		{
+			Name: "SharedWithGroupInOrgMixedCase",
+			// The parser lowercases the whole query, so a group whose stored
+			// name contains uppercase letters must still resolve. See
+			// GetGroupByOrgAndName, which matches the name case-insensitively.
+			Query: "shared_with_group:wibble/SupportShare",
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("b5f9d1f4-6d0e-4f6a-9a4a-7b2c3d4e5f60"),
+					Name: "wibble",
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
+					Name:           "SupportShare",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
 			},
 		},
 		{
@@ -457,7 +523,7 @@ func TestSearchWorkspace(t *testing.T) {
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
-			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0, c.ActorID)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -474,6 +540,14 @@ func TestSearchWorkspace(t *testing.T) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasParam = values.HasParam
 				}
+				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.HasAgentStatuses = values.HasAgentStatuses
+				}
+				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
+				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
 			}
@@ -485,7 +559,7 @@ func TestSearchWorkspace(t *testing.T) {
 		query := ``
 		timeout := 1337 * time.Second
 		db, _ := dbtestutil.NewDB(t)
-		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout, uuid.Nil)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -754,6 +828,69 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 
+		// Name filter tests
+		{
+			Name:  "NameFilter",
+			Query: "name:John",
+			Expected: database.GetUsersParams{
+				Name:      "john",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterQuoted",
+			Query: `name:"John Doe"`,
+			Expected: database.GetUsersParams{
+				Name:      "john doe",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterWithSearch",
+			Query: "name:John search:johnd",
+			Expected: database.GetUsersParams{
+				Search:    "johnd",
+				Name:      "john",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "UsernameFilter",
+			Query: "username:Alice",
+			Expected: database.GetUsersParams{
+				ExactUsername: "alice",
+				Status:        []database.UserStatus{},
+				RbacRole:      []string{},
+				LoginType:     []database.LoginType{},
+			},
+		},
+		{
+			Name:  "EmailFilter",
+			Query: "email:Alice@Example.com",
+			Expected: database.GetUsersParams{
+				ExactEmail: "alice@example.com",
+				Status:     []database.UserStatus{},
+				RbacRole:   []string{},
+				LoginType:  []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterWithOtherParams",
+			Query: "name:John status:active role:owner",
+			Expected: database.GetUsersParams{
+				Name:      "john",
+				Status:    []database.UserStatus{database.UserStatusActive},
+				RbacRole:  []string{codersdk.RoleOwner},
+				LoginType: []database.LoginType{},
+			},
+		},
+
 		// Failures
 		{
 			Name:                  "ExtraColon",
@@ -813,33 +950,24 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
-			Name:  "HasAITaskTrue",
-			Query: "has-ai-task:true",
+			Name:  "UseClassicParameterFlowTrue",
+			Query: "compatibility_mode:true",
 			Expected: database.GetTemplatesWithFilterParams{
-				HasAITask: sql.NullBool{
-					Bool:  true,
-					Valid: true,
-				},
+				UseClassicParameterFlow: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
-			Name:  "HasAITaskFalse",
-			Query: "has-ai-task:false",
+			Name:  "UseClassicParameterFlowFalse",
+			Query: "compatibility_mode:false",
 			Expected: database.GetTemplatesWithFilterParams{
-				HasAITask: sql.NullBool{
-					Bool:  false,
-					Valid: true,
-				},
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
-			Name:  "HasAITaskMissing",
+			Name:  "UseClassicParameterFlowMissing",
 			Query: "",
 			Expected: database.GetTemplatesWithFilterParams{
-				HasAITask: sql.NullBool{
-					Bool:  false,
-					Valid: false,
-				},
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: false},
 			},
 		},
 		{
@@ -870,6 +998,20 @@ func TestSearchTemplates(t *testing.T) {
 					Bool:  false,
 					Valid: false,
 				},
+			},
+		},
+		{
+			Name:  "AgentsAllowedTrue",
+			Query: "agents-allowed:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "AgentsAllowedFalse",
+			Query: "agents-allowed:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
@@ -945,189 +1087,586 @@ func TestSearchTemplates(t *testing.T) {
 	}
 }
 
-func TestSearchTasks(t *testing.T) {
+func TestSearchChatsFrontendEmitted(t *testing.T) {
 	t.Parallel()
 
-	userID := uuid.MustParse("10000000-0000-0000-0000-000000000001")
-	orgID := uuid.MustParse("20000000-0000-0000-0000-000000000001")
+	// These query shapes must match the emitters in
+	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts,
+	// site/src/api/queries/chats.ts and site/src/api/queries/chatAutomations.ts.
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{name: "SearchSingleWord", query: `search:"fix"`},
+		{name: "SearchMultipleWords", query: `search:"fix auth"`},
+		{name: "SearchColon", query: `search:"fix:lint"`},
+		{name: "SearchURL", query: `search:"http://example.com"`},
+		{name: "SearchUnicode", query: `search:"日本語"`},
+		{name: "SearchOperators", query: `search:"fix race OR deadlock -timeout"`},
+		{name: "SearchPunctuationOnly", query: `search:"!!!"`},
+		{name: "SearchOperatorWord", query: `search:"or"`},
+		{name: "HasUnread", query: "has_unread:true"},
+		{name: "Archived", query: "archived:true"},
+		{name: "AutomationHistory", query: "archived:any"},
+		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "ChatStatuses", query: "status:error,running"},
+		{name: "PRStatusNone", query: "pr_status:none"},
+		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
+		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
+		{name: "SidebarDefault", query: "archived:false"},
+		{name: "SidebarUnread", query: "archived:false has_unread:true"},
+		{name: "SidebarStatus", query: "archived:false status:requires_action,running,interrupting"},
+		{name: "SidebarUnreadStatus", query: "archived:false has_unread:true status:requires_action,running,interrupting"},
+		{
+			name:  "SidebarFiltered",
+			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
+		},
+		{name: "SidebarNoPR", query: "archived:false pr_status:none"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(testCase.query)
+			require.Empty(t, errs)
+		})
+	}
+
+	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe", "status:working"}
+	for _, query := range rejectedQueries {
+		t.Run("Rejects"+query, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(query)
+			require.NotEmpty(t, errs)
+		})
+	}
+}
+
+func TestSearchChats(t *testing.T) {
+	t.Parallel()
 
 	testCases := []struct {
 		Name                  string
 		Query                 string
-		ActorID               uuid.UUID
-		Expected              database.ListTasksParams
+		Expected              database.GetChatsParams
 		ExpectedErrorContains string
-		Setup                 func(t *testing.T, db database.Store)
+		// When non-zero, asserts the exact number of validation errors.
+		ExpectedErrorCount int
 	}{
 		{
-			Name:     "Empty",
-			Query:    "",
-			Expected: database.ListTasksParams{},
-		},
-		{
-			Name:  "OwnerUsername",
-			Query: "owner:alice",
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.User(t, db, database.User{
-					ID:       userID,
-					Username: "alice",
-				})
-			},
-			Expected: database.ListTasksParams{
-				OwnerID: userID,
+			Name:  "Empty",
+			Query: "",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:    "OwnerMe",
-			Query:   "owner:me",
-			ActorID: userID,
-			Expected: database.ListTasksParams{
-				OwnerID: userID,
+			Name:  "ArchivedTrue",
+			Query: "archived:true",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:  "OwnerUUID",
-			Query: fmt.Sprintf("owner:%s", userID),
-			Expected: database.ListTasksParams{
-				OwnerID: userID,
+			// Documents that uppercase boolean values still parse. The Chats
+			// parser intentionally does not pre-lowercase the query because
+			// diff_url path segments are case-meaningful, so this guards
+			// against regressions if the blanket lowercase is ever re-added.
+			Name:  "ArchivedTrueUpperCase",
+			Query: "archived:TRUE",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:  "StatusActive",
-			Query: "status:active",
-			Expected: database.ListTasksParams{
-				Status: "active",
+			Name:  "ArchivedFalse",
+			Query: "archived:false",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:  "StatusPending",
-			Query: "status:pending",
-			Expected: database.ListTasksParams{
-				Status: "pending",
+			Name:  "ArchivedAny",
+			Query: "archived:any",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:  "Organization",
-			Query: "organization:acme",
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.Organization(t, db, database.Organization{
-					ID:   orgID,
-					Name: "acme",
-				})
-			},
-			Expected: database.ListTasksParams{
-				OrganizationID: orgID,
+			Name:  "ArchivedAnyUpperCase",
+			Query: "archived:ANY",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
 			},
 		},
 		{
-			Name:  "OrganizationUUID",
-			Query: fmt.Sprintf("organization:%s", orgID),
-			Expected: database.ListTasksParams{
-				OrganizationID: orgID,
+			Name:                  "ArchivedAnyRepeated",
+			Query:                 "archived:any archived:true",
+			ExpectedErrorContains: "archived",
+		},
+		{
+			Name:  "HasUnreadTrue",
+			Query: "has_unread:true",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				HasUnread: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
-			Name:  "Combined",
-			Query: "owner:alice organization:acme status:active",
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.Organization(t, db, database.Organization{
-					ID:   orgID,
-					Name: "acme",
-				})
-				dbgen.User(t, db, database.User{
-					ID:       userID,
-					Username: "alice",
-				})
-			},
-			Expected: database.ListTasksParams{
-				OwnerID:        userID,
-				OrganizationID: orgID,
-				Status:         "active",
+			Name:  "HasUnreadFalse",
+			Query: "has_unread:false",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				HasUnread: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
-			Name:  "QuotedOwner",
-			Query: `owner:"alice"`,
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.User(t, db, database.User{
-					ID:       userID,
-					Username: "alice",
-				})
-			},
-			Expected: database.ListTasksParams{
-				OwnerID: userID,
+			Name:                  "HasUnreadInvalid",
+			Query:                 "has_unread:bogus",
+			ExpectedErrorContains: "has_unread",
+		},
+		{
+			Name:  "ChatStatusRunning",
+			Query: "status:running",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"running"},
 			},
 		},
 		{
-			Name:  "QuotedStatus",
-			Query: `status:"pending"`,
-			Expected: database.ListTasksParams{
-				Status: "pending",
+			Name:  "ChatStatusMultiple",
+			Query: "status:waiting,error",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"waiting", "error"},
 			},
 		},
 		{
-			Name:  "DefaultToOwner",
-			Query: "alice",
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.User(t, db, database.User{
-					ID:       userID,
-					Username: "alice",
-				})
-			},
-			Expected: database.ListTasksParams{
-				OwnerID: userID,
+			Name:                  "ChatStatusInvalid",
+			Query:                 "status:working",
+			ExpectedErrorContains: "status",
+		},
+		{
+			Name:  "PRStatusDraft",
+			Query: "pr_status:draft",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"draft"},
 			},
 		},
 		{
-			Name:                  "InvalidOwner",
-			Query:                 "owner:nonexistent",
-			ExpectedErrorContains: "does not exist",
-		},
-		{
-			Name:                  "InvalidOrganization",
-			Query:                 "organization:nonexistent",
-			ExpectedErrorContains: "does not exist",
-		},
-		{
-			Name:  "ExtraParam",
-			Query: "owner:alice invalid:param",
-			Setup: func(t *testing.T, db database.Store) {
-				dbgen.User(t, db, database.User{
-					ID:       userID,
-					Username: "alice",
-				})
+			Name:  "PRStatusOpen",
+			Query: "pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"open"},
 			},
+		},
+		{
+			Name:  "PRStatusMerged",
+			Query: "pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"merged"},
+			},
+		},
+		{
+			Name:  "PRStatusClosed",
+			Query: "pr_status:closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusNone",
+			Query: "pr_status:none",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none"},
+			},
+		},
+		{
+			Name:  "PRStatusNoneAndOpen",
+			Query: "pr_status:none,open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none", "open"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleRepeated",
+			Query: "pr_status:draft pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"draft", "merged"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleCSV",
+			Query: "pr_status:draft,closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"draft", "closed"},
+			},
+		},
+		{
+			Name:  "PRStatusValueCaseInsensitive",
+			Query: "pr_status:DRAFT",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:                  "PRStatusInvalid",
+			Query:                 "pr_status:review",
+			ExpectedErrorContains: "pr_status",
+		},
+		{
+			Name:  "PRStatusWithArchived",
+			Query: "archived:true pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
+			Name:  "SourceCreatedByMe",
+			Query: "source:created_by_me",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceSharedWithMe",
+			Query: "source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:                  "SourceAllInvalid",
+			Query:                 "source:all",
+			ExpectedErrorContains: "source",
+		},
+		{
+			Name:                  "SourceInvalid",
+			Query:                 "source:mine",
+			ExpectedErrorContains: "source",
+		},
+		{
+			Name:  "SourceCreatedByMeAndSharedWithMe",
+			Query: "source:created_by_me,shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceRepeated",
+			Query: "source:created_by_me source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:                  "ExtraParam",
+			Query:                 "archived:true invalid:param",
 			ExpectedErrorContains: "is not a valid query param",
 		},
 		{
 			Name:                  "ExtraColon",
-			Query:                 "owner:alice:extra",
+			Query:                 "archived:true:extra",
 			ExpectedErrorContains: "can only contain 1 ':'",
 		},
 		{
 			Name:                  "PrefixColon",
-			Query:                 ":owner",
+			Query:                 ":archived",
 			ExpectedErrorContains: "cannot start or end with ':'",
 		},
 		{
 			Name:                  "SuffixColon",
-			Query:                 "owner:",
+			Query:                 "archived:",
 			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:  "DiffURL",
+			Query: `diff_url:"https://github.com/coder/coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				DiffURL: sql.NullString{
+					String: "https://github.com/coder/coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLPreservesValueCase",
+			Query: `diff_url:"https://github.com/Coder/Coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				DiffURL: sql.NullString{
+					String: "https://github.com/Coder/Coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLKeyCaseInsensitive",
+			Query: `Diff_URL:"https://github.com/coder/coder/pull/1"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				DiffURL: sql.NullString{
+					String: "https://github.com/coder/coder/pull/1",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLWithArchived",
+			Query: `archived:true diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
+				DiffURL: sql.NullString{
+					String: "https://gitlab.com/foo/bar/-/merge_requests/9",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:                  "DiffURLInvalidScheme",
+			Query:                 `diff_url:"ftp://example.com/x"`,
+			ExpectedErrorContains: "http or https scheme",
+		},
+		{
+			Name:                  "DiffURLMissingHost",
+			Query:                 `diff_url:"https:///pull/1"`,
+			ExpectedErrorContains: "must include a host",
+		},
+		{
+			Name:                  "DiffURLMalformed",
+			Query:                 `diff_url:"http://%41:8080/"`,
+			ExpectedErrorContains: "not a valid URL",
+		},
+		{
+			Name:  "TitleSearch",
+			Query: `title:"hello world"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				TitleQuery: "hello world",
+			},
+		},
+		{
+			Name:  "TitleSearchWithArchived",
+			Query: `title:"my chat" archived:true`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:  true,
+				TitleQuery: "my chat",
+			},
+		},
+		{
+			Name:  "TitleSearchSingleWord",
+			Query: "title:deploy",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				TitleQuery: "deploy",
+			},
+		},
+		{
+			Name:  "TitleSearchWithDiffURL",
+			Query: `title:deploy diff_url:"https://github.com/coder/coder/pull/456"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				TitleQuery: "deploy",
+				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
+			},
+		},
+		{
+			Name:  "PrNumber",
+			Query: "pr:42",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				PrNumber:  42,
+			},
+		},
+		{
+			Name:                  "PrNumberInvalid",
+			Query:                 "pr:abc",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:                  "PrNumberZero",
+			Query:                 "pr:0",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:                  "PrNumberNegative",
+			Query:                 "pr:-1",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:  "RepoQuery",
+			Query: "repo:coder/coder",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				RepoQuery: "coder/coder",
+			},
+		},
+		{
+			Name:  "PrTitleQuery",
+			Query: `pr_title:"fix auth bug"`,
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				PrTitleQuery: "fix auth bug",
+			},
+		},
+		{
+			Name:  "CombinedPRRepoTitle",
+			Query: "pr:99 repo:coder/coder pr_title:deploy",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				PrNumber:     99,
+				RepoQuery:    "coder/coder",
+				PrTitleQuery: "deploy",
+			},
+		},
+		{
+			Name:                  "BareTermsRejected",
+			Query:                 "some random words",
+			ExpectedErrorContains: `unsupported search term: "some random words"`,
+		},
+		{
+			Name:  "Search",
+			Query: "search:foo",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				Search:    "foo",
+			},
+		},
+		{
+			Name:  "SearchQuoted",
+			Query: `search:"foo bar"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				Search:    "foo bar",
+			},
+		},
+		{
+			Name:  "SearchWithStructuralFilters",
+			Query: `repo:coder/coder archived:true search:"foo bar"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
+				RepoQuery: "coder/coder",
+				Search:    "foo bar",
+			},
+		},
+		{
+			Name:  "SearchWithAllStructuralFilters",
+			Query: `search:foo archived:true repo:coder/coder diff_url:"https://github.com/coder/coder/pull/1" has_unread:true pr_status:open source:created_by_me`,
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:           true,
+				RepoQuery:           "coder/coder",
+				DiffURL:             sql.NullString{String: "https://github.com/coder/coder/pull/1", Valid: true},
+				HasUnread:           sql.NullBool{Bool: true, Valid: true},
+				PullRequestStatuses: []string{"open"},
+				Search:              "foo",
+			},
+		},
+		{
+			Name:                  "SearchRepeated",
+			Query:                 "search:foo search:bar",
+			ExpectedErrorContains: `search: Query param "search" provided more than once`,
+			ExpectedErrorCount:    1,
+		},
+		{
+			Name:                  "SearchConflictsWithTitle",
+			Query:                 "search:foo title:bar",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithPrTitle",
+			Query:                 "search:foo pr_title:bar",
+			ExpectedErrorContains: `search: "search" cannot be combined with "pr_title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithPr",
+			Query:                 "search:foo pr:12",
+			ExpectedErrorContains: `search: "search" cannot be combined with "pr"`,
+		},
+		{
+			Name:                  "SearchConflictsOrderIndependent",
+			Query:                 "title:bar search:foo",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithMultiple",
+			Query:                 "search:foo title:bar pr:12",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title", "pr"`,
+		},
+		{
+			// The tokenizer rejects trailing colons before search validation runs.
+			Name:                  "SearchBareKey",
+			Query:                 "search:",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:                  "SearchEmptyQuoted",
+			Query:                 `search:""`,
+			ExpectedErrorContains: `search: Query param "search" is required and cannot be empty`,
+			ExpectedErrorCount:    1,
 		},
 	}
 
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			db, _ := dbtestutil.NewDB(t)
 
-			if c.Setup != nil {
-				c.Setup(t, db)
-			}
-
-			values, errs := searchquery.Tasks(context.Background(), db, c.Query, c.ActorID)
+			values, errs := searchquery.Chats(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
+				if c.ExpectedErrorCount > 0 {
+					require.Len(t, errs, c.ExpectedErrorCount, "expected exact error count")
+				}
 				var s strings.Builder
 				for _, err := range errs {
 					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
@@ -1139,4 +1678,106 @@ func TestSearchTasks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSearchGroups(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              string
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: "",
+		},
+		{
+			Name:     "SingleWord",
+			Query:    "alpha",
+			Expected: "alpha",
+		},
+		{
+			// Groups support free-text search, so an unquoted multi-word query
+			// is joined into a single search value instead of being rejected as
+			// a duplicate param.
+			Name:     "MultiWord",
+			Query:    "front end",
+			Expected: "front end",
+		},
+		{
+			Name:     "CaseInsensitive",
+			Query:    "AlPhA",
+			Expected: "alpha",
+		},
+		{
+			Name:     "MultiWordCaseInsensitive",
+			Query:    "Front End",
+			Expected: "front end",
+		},
+		{
+			Name:     "TrimsSurroundingSpaces",
+			Query:    "   alpha   ",
+			Expected: "alpha",
+		},
+		{
+			// Structured key:value queries are not supported for groups; the
+			// unrecognized key surfaces as an invalid query param. Rejecting
+			// unknown keys leaves room for real key:value filters later.
+			Name:                  "StructuredKeyValueRejected",
+			Query:                 "name:alpha",
+			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			// The explicit search key is supported.
+			Name:     "SearchKey",
+			Query:    "search:alpha",
+			Expected: "alpha",
+		},
+		{
+			// A colon-containing name is searchable when quoted via the search
+			// key, since group display names may legally contain colons.
+			Name:     "QuotedColonValue",
+			Query:    `search:"team: frontend"`,
+			Expected: "team: frontend",
+		},
+		{
+			// An unquoted colon is treated as a key:value delimiter, so a bare
+			// colon term is rejected. Users must quote it (see QuotedColonValue).
+			Name:                  "BareColonRejected",
+			Query:                 "team: frontend",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			search, errs := searchquery.Groups(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, search, "expected search value")
+			}
+		})
+	}
+}
+
+func TestAIBridgeSessions(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	page := codersdk.Pagination{Limit: 25}
+
+	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, "acme-openai", filter.ProviderName)
 }

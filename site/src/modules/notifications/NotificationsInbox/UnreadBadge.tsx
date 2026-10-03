@@ -1,11 +1,10 @@
-import type { FC, HTMLProps } from "react";
-import { cn } from "utils/cn";
+import { cn } from "cn";
 
 type UnreadBadgeProps = {
 	count: number;
-} & HTMLProps<HTMLSpanElement>;
+} & React.HTMLProps<HTMLSpanElement>;
 
-export const UnreadBadge: FC<UnreadBadgeProps> = ({
+export const UnreadBadge: React.FC<UnreadBadgeProps> = ({
 	count,
 	className,
 	...props
@@ -13,7 +12,7 @@ export const UnreadBadge: FC<UnreadBadgeProps> = ({
 	return (
 		<span
 			className={cn([
-				"[--unread-badge-size:18px] min-w-[--unread-badge-size] h-[--unread-badge-size]",
+				"[--unread-badge-size:18px] min-w-(--unread-badge-size) h-(--unread-badge-size)",
 				"flex w-fit px-1 rounded text-2xs items-center justify-center",
 				"bg-surface-sky text-highlight-sky",
 				className,

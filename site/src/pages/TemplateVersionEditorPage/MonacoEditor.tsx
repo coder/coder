@@ -1,18 +1,32 @@
-import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { type FC, useEffect } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { useEffect } from "react";
+import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
+import { useTheme } from "#/theme/context";
 
 loader.config({ monaco });
 
-export interface MonacoEditorProps {
+export type MonacoEditorProps = {
 	value?: string;
 	path?: string;
 	onChange?: (value: string) => void;
-}
+};
 
-export const MonacoEditor: FC<MonacoEditorProps> = ({
+// Monaco exposes the keybinding service only as a private field, so we describe
+// the shape we use instead of reaching for `any`.
+type StandaloneKeybindingService = {
+	addDynamicKeybinding(
+		commandId: string,
+		keybinding: number,
+		handler: () => void,
+	): void;
+};
+
+type EditorWithKeybindingService = monaco.editor.IStandaloneCodeEditor & {
+	readonly _standaloneKeybindingService: StandaloneKeybindingService;
+};
+
+export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 	onChange,
 	value,
 	path,
@@ -49,15 +63,16 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
 			}}
 			path={path}
 			onChange={(newValue) => {
-				if (onChange && newValue) {
+				if (onChange && newValue !== undefined) {
 					onChange(newValue);
 				}
 			}}
 			onMount={(editor) => {
 				// This jank allows for Ctrl + Enter to work outside the editor.
 				// We use this keybind to trigger a build.
-				// biome-ignore lint/suspicious/noExplicitAny: Private type in Monaco!
-				(editor as any)._standaloneKeybindingService.addDynamicKeybinding(
+				(
+					editor as EditorWithKeybindingService
+				)._standaloneKeybindingService.addDynamicKeybinding(
 					"-editor.action.insertLineAfter",
 					monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
 					() => {},

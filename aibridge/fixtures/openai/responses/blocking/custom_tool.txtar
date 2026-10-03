@@ -1,0 +1,93 @@
+-- request --
+{
+  "input": "Use the code_exec tool to print hello world to the console.",
+  "model": "gpt-5",
+  "tools": [
+    {
+      "type": "custom",
+      "name": "code_exec",
+      "description": "Executes arbitrary Python code."
+    }
+  ]
+}
+
+-- non-streaming --
+{
+  "id": "resp_09c614364030cdf000696942589da081a0af07f5859acb7308",
+  "object": "response",
+  "created_at": 1768505944,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1768505948,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-2025-08-07",
+  "output": [
+    {
+      "id": "rs_09c614364030cdf00069694258e45881a0b8d5f198cde47d58",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "ctc_09c614364030cdf0006969425bf33481a09cc0f9522af2d980",
+      "type": "custom_tool_call",
+      "status": "completed",
+      "call_id": "call_haf8njtwrVZ1754Gm6fjAtuA",
+      "input": "print(\"hello world\")",
+      "name": "code_exec"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "custom",
+      "description": "Executes arbitrary Python code.",
+      "format": {
+        "type": "text"
+      },
+      "name": "code_exec"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 64,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 148,
+    "output_tokens_details": {
+      "reasoning_tokens": 128
+    },
+    "total_tokens": 212
+  },
+  "user": null,
+  "metadata": {}
+}

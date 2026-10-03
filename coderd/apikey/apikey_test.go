@@ -1,6 +1,7 @@
 package apikey_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -169,6 +170,70 @@ func TestGenerate(t *testing.T) {
 			if tc.params.LoginType != "" {
 				assert.Equal(t, tc.params.LoginType, key.LoginType)
 			}
+		})
+	}
+}
+
+func TestGenerateCanonicalizesScopeAliases(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		params apikey.CreateParams
+		want   database.APIKeyScopes
+		fail   bool
+	}{
+		{
+			name:   "SingularAlias",
+			params: apikey.CreateParams{Scope: "all"},
+			want:   database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		},
+		{
+			name:   "PluralAlias",
+			params: apikey.CreateParams{Scopes: database.APIKeyScopes{"application_connect"}},
+			want:   database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
+		},
+		{
+			name: "PluralAliasAndCanonical",
+			params: apikey.CreateParams{
+				Scopes: database.APIKeyScopes{"all", database.ApiKeyScopeCoderAll},
+			},
+			want: database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		},
+		{
+			name: "PluralMixed",
+			params: apikey.CreateParams{
+				Scopes: database.APIKeyScopes{"all", database.ApiKeyScopeWorkspaceRead},
+			},
+			want: database.APIKeyScopes{database.ApiKeyScopeCoderAll, database.ApiKeyScopeWorkspaceRead},
+		},
+		{
+			name:   "PluralInvalid",
+			params: apikey.CreateParams{Scopes: database.APIKeyScopes{"not_a_real_scope"}},
+			fail:   true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			params := tc.params
+			params.UserID = uuid.New()
+			params.LoginType = database.LoginTypePassword
+			params.DefaultLifetime = time.Hour
+
+			requested := slices.Clone(params.Scopes)
+
+			key, _, err := apikey.Generate(params)
+			if tc.fail {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, key.Scopes)
+			// Generate must not canonicalize through the caller's slice.
+			require.Equal(t, requested, params.Scopes)
 		})
 	}
 }

@@ -1,23 +1,19 @@
-import type { ProvisionerJob } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { TableCell, TableRow } from "components/Table/Table";
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
-import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
+import { cn } from "cn";
+import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
+import { Link as RouterLink } from "react-router";
+import type { ProvisionerJob } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { TableCell, TableRow } from "#/components/Table/Table";
+import { JobStatusIndicator } from "#/modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
+} from "#/modules/provisioners/ProvisionerTags";
+import { relativeTime } from "#/utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 
 type JobRowProps = {
@@ -25,7 +21,10 @@ type JobRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
+export const JobRow: React.FC<JobRowProps> = ({
+	job,
+	defaultIsOpen = false,
+}) => {
 	const metadata = job.metadata;
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const queue = {
@@ -48,7 +47,9 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						<span className="block first-letter:uppercase">
 							{relativeTime(new Date(job.created_at))}
@@ -56,7 +57,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 					</Button>
 				</TableCell>
 				<TableCell>
-					<Badge size="sm">{job.type}</Badge>
+					<Badge>{job.type}</Badge>
 				</TableCell>
 				<TableCell>
 					{job.metadata.template_name !== "" ? (
@@ -138,7 +139,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							<dd>{job.metadata.workspace_name ?? "null"}</dd>
 
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{job.created_at}</dd>
+							<dd data-pixel="ignore">{job.created_at}</dd>
 
 							{job.queue_position > 0 && (
 								<>

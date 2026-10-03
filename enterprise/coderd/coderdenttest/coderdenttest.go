@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -67,6 +66,7 @@ type Options struct {
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
+	UseLegacySCIM              bool
 	UserWorkspaceQuota         int
 	ProxyHealthInterval        time.Duration
 	LicenseOptions             *LicenseOptions
@@ -108,8 +108,9 @@ func NewWithAPI(t *testing.T, options *Options) (
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		UseLegacySCIM:              options.UseLegacySCIM,
 		DERPServerRelayAddress:     serverURL.String(),
-		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
+		DERPServerRegionID:         int(oop.DeploymentValues.DERP.Server.RegionID.Value()),
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,
@@ -185,6 +186,7 @@ type LicenseOptions struct {
 	// past.
 	IssuedAt time.Time
 	Features license.Features
+	Addons   []codersdk.Addon
 
 	AllowEmpty bool
 }
@@ -225,11 +227,23 @@ func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
 }
 
-func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {
-	// These don't use named or exported feature names, see
-	// enterprise/coderd/license/license.go.
-	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_soft"), soft)
-	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_hard"), hard)
+func (opts *LicenseOptions) AIGovernanceAddon(limit int64) *LicenseOptions {
+	opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
+	return opts.Feature(codersdk.FeatureAIGovernanceUserLimit, limit)
+}
+
+func (opts *LicenseOptions) ManagedAgentLimit(limit int64) *LicenseOptions {
+	return opts.Feature(codersdk.FeatureManagedAgentLimit, limit)
+}
+
+func (opts *LicenseOptions) AgentRuntimeHours(allocation int64, softLimit, hardLimit *int64) *LicenseOptions {
+	opts.Feature(license.ClaimAgentRuntimeHoursAllocation, allocation)
+	if softLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitSoft, *softLimit)
+	}
+	if hardLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitHard, *hardLimit)
+	}
 	return opts
 }
 
@@ -243,11 +257,6 @@ func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *Lic
 
 func (opts *LicenseOptions) Generate(t *testing.T) string {
 	return GenerateLicense(t, *opts)
-}
-
-// AddFullLicense generates a license with all features enabled.
-func AddFullLicense(t *testing.T, client *codersdk.Client) codersdk.License {
-	return AddLicense(t, client, LicenseOptions{AllFeatures: true})
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -301,6 +310,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AllFeatures:      options.AllFeatures,
 		FeatureSet:       options.FeatureSet,
 		Features:         options.Features,
+		Addons:           options.Addons,
 		PublishUsageData: options.PublishUsageData,
 	}
 	return GenerateLicenseRaw(t, c)
@@ -537,7 +547,7 @@ func MustClaimPrebuild(
 		TemplateVersionID:       version.ID,
 		Name:                    workspaceName,
 		TemplateVersionPresetID: presetID,
-		AutostartSchedule:       ptr.Ref(startSchedule),
+		AutostartSchedule:       &startSchedule,
 	})
 	require.NoError(t, err)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)

@@ -1,0 +1,54 @@
+{
+  "id": "kasmvnc",
+  "display_name": "KasmVNC",
+  "description": "A modern open source VNC server",
+  "icon": "/icon/kasmvnc.svg",
+  "category": "Utility",
+  "tags": [
+    "vnc",
+    "desktop",
+    "kasmvnc"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "namespace": "coder",
+  "pinned_version": "1.3.0",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "desktop_environment",
+      "type": "string",
+      "description": "Specifies the desktop environment of the workspace. This should be pre-installed on the workspace.",
+      "required": true,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "kasm_version",
+      "type": "string",
+      "description": "Version of KasmVNC to install.",
+      "default": "1.4.0",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port to run KasmVNC on.",
+      "default": 6800,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

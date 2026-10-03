@@ -1,17 +1,19 @@
-import { buildInfo } from "api/queries/buildInfo";
-import type { WorkspaceAgent } from "api/typesGenerated";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import type { FC } from "react";
 import { useQuery } from "react-query";
-import { agentVersionStatus, getDisplayVersionStatus } from "utils/workspace";
+import { buildInfo } from "#/api/queries/buildInfo";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { agentVersionStatus, getDisplayVersionStatus } from "#/utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
-interface AgentVersionProps {
+type AgentVersionProps = {
 	agent: WorkspaceAgent;
 	onUpdate: () => void;
-}
+};
 
-export const AgentVersion: FC<AgentVersionProps> = ({ agent, onUpdate }) => {
+export const AgentVersion: React.FC<AgentVersionProps> = ({
+	agent,
+	onUpdate,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { data: build } = useQuery(buildInfo(metadata["build-info"]));
 	const serverVersion = build?.version ?? "";

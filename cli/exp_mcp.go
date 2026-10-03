@@ -1,28 +1,32 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+	coderdmcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
 
@@ -131,7 +135,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
-	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
 		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
@@ -149,13 +152,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentClient, err := agentAuth.CreateClient()
-			if err != nil {
-				cliui.Warnf(inv.Stderr, "failed to create agent client: %s", err)
-			} else {
-				configureClaudeEnv[envAgentURL] = agentClient.SDK.URL.String()
-				configureClaudeEnv[envAgentToken] = agentClient.SDK.SessionToken()
-			}
 
 			if deprecatedCoderMCPClaudeAPIKey != "" {
 				cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
@@ -194,12 +190,11 @@ func mcpConfigureClaudeCode() *serpent.Command {
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 
-			// Determine if we should include the reportTaskPrompt
+			// Include the report task prompt when an app status slug is
+			// configured. The agent socket is available at runtime, so we
+			// only check the slug here.
 			var reportTaskPrompt string
-			if agentClient != nil && appStatusSlug != "" {
-				// Only include the report task prompt if both the agent client and app
-				// status slug are defined. Otherwise, reporting a task will fail and
-				// confuse the agent (and by extension, the user).
+			if appStatusSlug != "" {
 				reportTaskPrompt = defaultReportTaskPrompt
 			}
 
@@ -293,7 +288,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 			},
 		},
 	}
-	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -390,11 +384,14 @@ type taskReport struct {
 }
 
 type mcpServer struct {
-	agentClient      *agentsdk.Client
+	socketClient     *agentsocket.Client
 	appStatusSlug    string
 	client           *codersdk.Client
 	aiAgentAPIClient *agentapi.Client
 	queue            *cliutil.Queue[taskReport]
+	// wg tracks the reporter and watcher goroutines, which write to
+	// inv.Stderr and must not outlive the handler.
+	wg sync.WaitGroup
 }
 
 func (r *RootCmd) mcpServer() *serpent.Command {
@@ -403,8 +400,8 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		allowedTools  []string
 		appStatusSlug string
 		aiAgentAPIURL url.URL
+		socketPath    string
 	)
-	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
@@ -500,22 +497,26 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				cliui.Infof(inv.Stderr, "Authentication : None")
 			}
 
-			// Try to create an agent client for status reporting.  Not validated.
-			agentClient, err := agentAuth.CreateClient()
-			if err == nil {
-				cliui.Infof(inv.Stderr, "Agent URL      : %s", agentClient.SDK.URL.String())
-				srv.agentClient = agentClient
-			}
-			if err != nil || appStatusSlug == "" {
+			// Try to connect to the agent socket for status reporting.
+			if appStatusSlug == "" {
 				cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
-				if err != nil {
-					cliui.Warnf(inv.Stderr, "%s", err)
-				}
-				if appStatusSlug == "" {
-					cliui.Warnf(inv.Stderr, "%s must be set", envAppStatusSlug)
-				}
+				cliui.Warnf(inv.Stderr, "%s must be set", envAppStatusSlug)
 			} else {
-				cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
+				socketClient, err := agentsocket.NewClient(
+					inv.Context(),
+					agentsocket.WithPath(socketPath),
+				)
+				if err != nil {
+					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
+					cliui.Warnf(inv.Stderr, "Failed to connect to agent socket: %s", err)
+				} else if err := socketClient.Ping(inv.Context()); err != nil {
+					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
+					cliui.Warnf(inv.Stderr, "Agent socket ping failed: %s", err)
+					_ = socketClient.Close()
+				} else {
+					cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
+					srv.socketClient = socketClient
+				}
 			}
 
 			// Try to create a client for the AI AgentAPI, which is used to get the
@@ -537,19 +538,25 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-			defer srv.queue.Close()
 
-			cliui.Infof(inv.Stderr, "Failed to watch screen events")
 			// Start the reporter, watcher, and server.  These are all tied to the
 			// lifetime of the MCP server, which is itself tied to the lifetime of the
 			// AI agent.
-			if srv.agentClient != nil && appStatusSlug != "" {
+			if srv.socketClient != nil && appStatusSlug != "" {
 				srv.startReporter(ctx, inv)
 				if srv.aiAgentAPIClient != nil {
 					srv.startWatcher(ctx, inv)
 				}
 			}
-			return srv.startServer(ctx, inv, instructions, allowedTools)
+			serveErr := srv.startServer(ctx, inv, instructions, allowedTools)
+
+			cancel()
+			srv.queue.Close()
+			if srv.socketClient != nil {
+				_ = srv.socketClient.Close()
+			}
+			srv.wg.Wait()
+			return serveErr
 		},
 		Short: "Start the Coder MCP server.",
 		Options: []serpent.Option{
@@ -581,14 +588,21 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Env:         envAIAgentAPIURL,
 				Value:       serpent.URLOf(&aiAgentAPIURL),
 			},
+			{
+				Flag:        "socket-path",
+				Description: "Specify the path for the agent socket.",
+				Env:         "CODER_AGENT_SOCKET_PATH",
+				Value:       serpent.StringOf(&socketPath),
+			},
 		},
 	}
-	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		for {
 			// TODO: Even with the queue, there is still the potential that a message
 			// from the screen watcher and a message from the AI agent could arrive
@@ -599,12 +613,17 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 				return
 			}
 
-			err := s.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			req, err := agentsdk.ProtoFromPatchAppStatus(agentsdk.PatchAppStatus{
 				AppSlug: s.appStatusSlug,
 				Message: item.summary,
 				URI:     item.link,
 				State:   item.state,
 			})
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Failed to convert task status: %s", err)
+				continue
+			}
+			_, err = s.socketClient.UpdateAppStatus(ctx, req)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				cliui.Warnf(inv.Stderr, "Failed to report task status: %s", err)
 			}
@@ -613,48 +632,53 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 }
 
 func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
-	eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
-	if err != nil {
-		cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
-		return
-	}
+	s.wg.Add(1)
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event := <-eventsCh:
-				switch ev := event.(type) {
-				case agentapi.EventStatusChange:
-					// If the screen is stable, report idle.
-					state := codersdk.WorkspaceAppStatusStateWorking
-					if ev.Status == agentapi.StatusStable {
-						state = codersdk.WorkspaceAppStatusStateIdle
-					}
-					err := s.queue.Push(taskReport{
-						state: state,
-					})
-					if err != nil {
-						cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+		defer s.wg.Done()
+		for retrier := retry.New(time.Second, 30*time.Second); retrier.Wait(ctx); {
+			eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
+			if err == nil {
+				retrier.Reset()
+			loop:
+				for {
+					select {
+					case <-ctx.Done():
 						return
-					}
-				case agentapi.EventMessageUpdate:
-					if ev.Role == agentapi.RoleUser {
-						err := s.queue.Push(taskReport{
-							messageID: &ev.Id,
-							state:     codersdk.WorkspaceAppStatusStateWorking,
-						})
-						if err != nil {
-							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-							return
+					case event := <-eventsCh:
+						switch ev := event.(type) {
+						case agentapi.EventStatusChange:
+							state := codersdk.WorkspaceAppStatusStateWorking
+							if ev.Status == agentapi.StatusStable {
+								state = codersdk.WorkspaceAppStatusStateIdle
+							}
+							err := s.queue.Push(taskReport{
+								state: state,
+							})
+							if err != nil {
+								cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+								return
+							}
+						case agentapi.EventMessageUpdate:
+							if ev.Role == agentapi.RoleUser {
+								err := s.queue.Push(taskReport{
+									messageID: &ev.Id,
+									state:     codersdk.WorkspaceAppStatusStateWorking,
+								})
+								if err != nil {
+									cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+									return
+								}
+							}
 						}
+					case err := <-errCh:
+						if !errors.Is(err, context.Canceled) {
+							cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
+						}
+						break loop
 					}
 				}
-			case err := <-errCh:
-				if !errors.Is(err, context.Canceled) {
-					cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
-				}
-				return
+			} else {
+				cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
 			}
 		}
 	}()
@@ -668,37 +692,30 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		cliui.Infof(inv.Stderr, "Allowed Tools  : %v", allowedTools)
 	}
 
-	// Capture the original stdin, stdout, and stderr.
-	invStdin := inv.Stdin
-	invStdout := inv.Stdout
-	invStderr := inv.Stderr
-	defer func() {
-		inv.Stdin = invStdin
-		inv.Stdout = invStdout
-		inv.Stderr = invStderr
-	}()
+	mcpSrv := mcp.NewServer(&mcp.Implementation{
+		Name:    "Coder Agent",
+		Version: buildinfo.Version(),
+	}, &mcp.ServerOptions{
+		Instructions: instructions,
+	})
 
-	mcpSrv := server.NewMCPServer(
-		"Coder Agent",
-		buildinfo.Version(),
-		server.WithInstructions(instructions),
-	)
-
-	// If both clients are unauthorized, there are no tools we can enable.
-	if s.client == nil && s.agentClient == nil {
+	// If neither the user client nor the agent socket is available, there
+	// are no tools we can enable.
+	if s.client == nil && s.socketClient == nil {
 		return xerrors.New(notLoggedInMessage)
 	}
 
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			// The agent does not reliably report its status correctly.  If AgentAPI
-			// is enabled, we will always set the status to "working" when we get an
-			// MCP message, and rely on the screen watcher to eventually catch the
-			// idle state.
-			state := codersdk.WorkspaceAppStatusStateWorking
-			if s.aiAgentAPIClient == nil {
-				state = codersdk.WorkspaceAppStatusState(args.State)
+			state := codersdk.WorkspaceAppStatusState(args.State)
+			// The agent does not reliably report idle, so when AgentAPI is
+			// enabled we override idle to working and let the screen watcher
+			// detect the real idle via StatusStable.  Final states (failure,
+			// complete) are trusted from the agent since the screen watcher
+			// cannot produce them.
+			if s.aiAgentAPIClient != nil && state == codersdk.WorkspaceAppStatusStateIdle {
+				state = codersdk.WorkspaceAppStatusStateWorking
 			}
 			return s.queue.Push(taskReport{
 				link:         args.Link,
@@ -715,34 +732,49 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	}
 
 	// Register tools based on the allowlist.  Zero length means allow everything.
+	registeredTools := make(map[string]bool, len(toolsdk.All))
 	for _, tool := range toolsdk.All {
 		// Skip if not allowed.
 		if len(allowedTools) > 0 && !slices.ContainsFunc(allowedTools, func(t string) bool {
-			return t == tool.Tool.Name
+			return t == tool.Name
 		}) {
 			continue
 		}
 
 		// Skip user-dependent tools if no authenticated user client.
 		if !tool.UserClientOptional && s.client == nil {
-			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Tool.Name)
+			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Name)
 			continue
 		}
 
-		// Skip the coder_report_task tool if there is no agent client or slug.
-		if tool.Tool.Name == "coder_report_task" && (s.agentClient == nil || s.appStatusSlug == "") {
-			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Tool.Name)
+		// Skip the coder_report_task tool if there is no socket client or slug.
+		if tool.Name == "coder_report_task" && (s.socketClient == nil || s.appStatusSlug == "") {
+			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Name)
 			continue
 		}
 
-		mcpSrv.AddTools(mcpFromSDK(tool, toolDeps))
+		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps)
+		registeredTools[tool.Name] = true
 	}
 
-	srv := server.NewStdioServer(mcpSrv)
+	// Skip prompts whose referenced tools are unavailable so clients are
+	// not offered workflows they cannot run.
+	for _, prompt := range toolsdk.AllPrompts {
+		if slices.ContainsFunc(prompt.RequiredTools, func(name string) bool {
+			return !registeredTools[name]
+		}) {
+			continue
+		}
+		coderdmcp.RegisterSDKPrompt(mcpSrv, prompt)
+	}
+
 	done := make(chan error)
 	go func() {
 		defer close(done)
-		srvErr := srv.Listen(ctx, invStdin, invStdout)
+		srvErr := mcpSrv.Run(ctx, &mcp.IOTransport{
+			Reader: io.NopCloser(inv.Stdin),
+			Writer: nopWriteCloser{inv.Stdout},
+		})
 		done <- srvErr
 	}()
 
@@ -755,6 +787,14 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 
 	return nil
 }
+
+// nopWriteCloser adapts the invocation's stdout to the WriteCloser
+// the SDK transport requires without closing the underlying stream.
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }
 
 type ClaudeConfig struct {
 	ConfigPath       string
@@ -967,40 +1007,4 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
-}
-
-// mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
-// It assumes that the tool responds with a valid JSON object.
-func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
-	// NOTE: some clients will silently refuse to use tools if there is an issue
-	// with the tool's schema or configuration.
-	if sdkTool.Schema.Properties == nil {
-		panic("developer error: schema properties cannot be nil")
-	}
-	return server.ServerTool{
-		Tool: mcp.Tool{
-			Name:        sdkTool.Tool.Name,
-			Description: sdkTool.Description,
-			InputSchema: mcp.ToolInputSchema{
-				Type:       "object", // Default of mcp.NewTool()
-				Properties: sdkTool.Schema.Properties,
-				Required:   sdkTool.Schema.Required,
-			},
-		},
-		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(request.Params.Arguments); err != nil {
-				return nil, xerrors.Errorf("failed to encode request arguments: %w", err)
-			}
-			result, err := sdkTool.Handler(ctx, tb, buf.Bytes())
-			if err != nil {
-				return nil, err
-			}
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.NewTextContent(string(result)),
-				},
-			}, nil
-		},
-	}
 }

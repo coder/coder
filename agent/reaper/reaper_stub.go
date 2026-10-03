@@ -7,6 +7,6 @@ func IsInitProcess() bool {
 	return false
 }
 
-func ForkReap(_ ...Option) error {
-	return nil
+func ForkReap(_ ...Option) (int, error) {
+	return 0, nil
 }

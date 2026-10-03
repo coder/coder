@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -35,10 +34,13 @@ const (
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
 	LoginTypeToken    LoginType = "token"
-	// LoginTypeNone is used if no login method is available for this user.
-	// If this is set, the user has no method of logging in.
+	// LoginTypeNone is used if no login method is available for this
+	// user. If this is set, the user has no method of logging in.
 	// API keys can still be created by an owner and used by the user.
 	// These keys would use the `LoginTypeToken` type.
+	//
+	// Deprecated: Use service accounts (Premium) for headless/machine
+	// access, or password/github/oidc login types for regular users.
 	LoginTypeNone LoginType = "none"
 )
 
@@ -71,7 +73,7 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 	}
 
 	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
@@ -90,11 +92,12 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	}
 
 	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 type TokensFilter struct {
-	IncludeAll bool `json:"include_all"`
+	IncludeAll     bool `json:"include_all"`
+	IncludeExpired bool `json:"include_expired"`
 }
 
 type APIKeyWithOwner struct {
@@ -112,6 +115,7 @@ func (f TokensFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_all", fmt.Sprintf("%t", f.IncludeAll))
+		q.Set("include_expired", fmt.Sprintf("%t", f.IncludeExpired))
 		r.URL.RawQuery = q.Encode()
 	}
 }
@@ -127,7 +131,7 @@ func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter)
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := []APIKeyWithOwner{}
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return apiKey, ReadBodyAsJSON(res, &apiKey)
 }
 
 // APIKeyByID returns the api key by id.
@@ -141,7 +145,7 @@ func (c *Client) APIKeyByID(ctx context.Context, userID string, id string) (*API
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return apiKey, ReadBodyAsJSON(res, apiKey)
 }
 
 // APIKeyByName returns the api key by name.
@@ -155,12 +159,26 @@ func (c *Client) APIKeyByName(ctx context.Context, userID string, name string) (
 		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return apiKey, ReadBodyAsJSON(res, apiKey)
 }
 
 // DeleteAPIKey deletes API key by id.
 func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ExpireAPIKey expires an API key by id, setting its expiry to now.
+// This preserves the API key record for audit purposes rather than deleting it.
+func (c *Client) ExpireAPIKey(ctx context.Context, userID string, id string) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/keys/%s/expire", userID, id), nil)
 	if err != nil {
 		return err
 	}
@@ -182,5 +200,5 @@ func (c *Client) GetTokenConfig(ctx context.Context, userID string) (TokenConfig
 		return TokenConfig{}, ReadBodyAsError(res)
 	}
 	tokenConfig := TokenConfig{}
-	return tokenConfig, json.NewDecoder(res.Body).Decode(&tokenConfig)
+	return tokenConfig, ReadBodyAsJSON(res, &tokenConfig)
 }

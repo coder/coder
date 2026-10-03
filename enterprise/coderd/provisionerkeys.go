@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -23,7 +25,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.CreateProvisionerKeyResponse
-// @Router /organizations/{organization}/provisionerkeys [post]
+// @Router /api/v2/organizations/{organization}/provisionerkeys [post]
 func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -104,7 +106,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.ProvisionerKey
-// @Router /organizations/{organization}/provisionerkeys [get]
+// @Router /api/v2/organizations/{organization}/provisionerkeys [get]
 func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -125,7 +127,7 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.ProvisionerKeyDaemons
-// @Router /organizations/{organization}/provisionerkeys/daemons [get]
+// @Router /api/v2/organizations/{organization}/provisionerkeys/daemons [get]
 func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -191,14 +193,12 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param provisionerkey path string true "Provisioner key name"
 // @Success 204
-// @Router /organizations/{organization}/provisionerkeys/{provisionerkey} [delete]
+// @Router /api/v2/organizations/{organization}/provisionerkeys/{provisionerkey} [delete]
 func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	provisionerKey := httpmw.ProvisionerKeyParam(r)
 
-	if provisionerKey.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
-		provisionerKey.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
-		provisionerKey.ID.String() == codersdk.ProvisionerKeyIDPSK {
+	if codersdk.IsReservedProvisionerKey(provisionerKey.ID) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Cannot delete reserved '%s' provisioner key", provisionerKey.Name),
 		})
@@ -211,6 +211,13 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Notify subscribers that this key was deleted so active sessions tear down.
+	// Publishing is best effort; a failure does not leave the key usable.
+	if err := api.Pubsub.Publish(pubsub.ProvisionerKeyDeletedChannel(provisionerKey.ID), nil); err != nil {
+		api.Logger.Warn(ctx, "failed to publish provisioner key deletion",
+			slog.F("provisioner_key_id", provisionerKey.ID), slog.Error(err))
+	}
+
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
@@ -221,7 +228,7 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param provisionerkey path string true "Provisioner Key"
 // @Success 200 {object} codersdk.ProvisionerKey
-// @Router /provisionerkeys/{provisionerkey} [get]
+// @Router /api/v2/provisionerkeys/{provisionerkey} [get]
 func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

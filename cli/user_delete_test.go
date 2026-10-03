@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,14 +11,15 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestUserDelete(t *testing.T) {
 	t.Parallel()
 	t.Run("Username", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
@@ -38,18 +38,18 @@ func TestUserDelete(t *testing.T) {
 
 		inv, root := clitest.New(t, "users", "delete", "coolin")
 		clitest.SetupConfig(t, userAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	t.Run("UserID", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
@@ -68,18 +68,18 @@ func TestUserDelete(t *testing.T) {
 
 		inv, root := clitest.New(t, "users", "delete", user.ID.String())
 		clitest.SetupConfig(t, userAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	t.Run("UserID", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
@@ -98,13 +98,13 @@ func TestUserDelete(t *testing.T) {
 
 		inv, root := clitest.New(t, "users", "delete", user.ID.String())
 		clitest.SetupConfig(t, userAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	// TODO: reenable this test case. Fetching users without perms returns a

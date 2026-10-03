@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -32,9 +31,14 @@ type Template struct {
 	Description        string                 `json:"description"`
 	Deprecated         bool                   `json:"deprecated"`
 	DeprecationMessage string                 `json:"deprecation_message"`
+	Deleted            bool                   `json:"deleted"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
+	// TimeTilAutostopNotifyMillis is the duration before the workspace's
+	// autostop deadline at which a reminder notification is sent. 0 disables
+	// the notification.
+	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -64,6 +68,22 @@ type Template struct {
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+	AgentsAllowed           bool `json:"agents_allowed"`
+
+	// DisableModuleCache disables the use of cached Terraform modules during
+	// provisioning for this template. It is read-only while
+	// ModuleCacheDisabledByDeployment is true.
+	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// ModuleCacheDisabledByDeployment reports that the deployment disables the
+	// Terraform module cache for every template. Templates cannot opt back in,
+	// so the effective state is disabled regardless of DisableModuleCache.
+	ModuleCacheDisabledByDeployment bool `json:"module_cache_disabled_by_deployment"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -169,6 +189,19 @@ type ArchiveTemplateVersionsResponse struct {
 	ArchivedIDs []uuid.UUID `json:"archived_ids"`
 }
 
+// ModuleCacheDisabled reports whether cached Terraform modules must be withheld
+// from provisioner jobs. The deployment-wide setting wins: a template cannot opt
+// back into the cache once the deployment disables it.
+func ModuleCacheDisabled(dv *DeploymentValues, templateDisableModuleCache bool) bool {
+	return templateDisableModuleCache || ModuleCacheDisabledByDeployment(dv)
+}
+
+// ModuleCacheDisabledByDeployment reports whether the deployment disables the
+// Terraform module cache for every template.
+func ModuleCacheDisabledByDeployment(dv *DeploymentValues) bool {
+	return dv != nil && dv.Provisioner.DisableModuleCache.Value()
+}
+
 type TemplateRole string
 
 const (
@@ -203,47 +236,55 @@ type UpdateTemplateACL struct {
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
-// ACLAvailable is a list of users and groups that can be added to a template
+// ACLAvailable is a list of users and groups that can be added to a resource
 // ACL.
 type ACLAvailable struct {
 	Users  []ReducedUser `json:"users"`
 	Groups []Group       `json:"groups"`
 }
 
+// UpdateTemplateMeta is the request body for the PATCH /templates/{template}
+// endpoint. All fields are optional. Fields that are nil are not modified.
 type UpdateTemplateMeta struct {
-	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	Name             *string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
-	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
+	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
-	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
+	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
+	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	// before the autostop deadline at which a reminder notification is sent for
+	// workspaces created from this template. Defaults to 0 (disabled). Omitting
+	// the field keeps the existing value.
+	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
-	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis               int64                         `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                         `json:"time_til_dormant_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                         `json:"time_til_dormant_autodelete_ms,omitempty"`
+	AllowUserAutostart             *bool                         `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              *bool                         `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   *bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               *int64                        `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           *int64                        `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis *int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
 	// value.
-	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
-	// from the template. This is useful for preventing dormant workspaces being immediately
-	// deleted when updating the dormant_ttl field to a new, shorter value.
-	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	UpdateWorkspaceLastUsedAt *bool `json:"update_workspace_last_used_at,omitempty"`
+	// UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
+	// from the template. This is useful for preventing dormant workspaces being
+	// immediately deleted when updating the dormant_ttl field to a new, shorter
+	// value.
+	UpdateWorkspaceDormantAt *bool `json:"update_workspace_dormant_at,omitempty"`
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_active_version,omitempty"`
+	RequireActiveVersion *bool `json:"require_active_version,omitempty"`
 	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making
@@ -254,7 +295,7 @@ type UpdateTemplateMeta struct {
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
-	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
+	DisableEveryoneGroupAccess *bool                         `json:"disable_everyone_group_access,omitempty"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
@@ -263,6 +304,17 @@ type UpdateTemplateMeta struct {
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
+	// DisableModuleCache disables the using of cached Terraform modules during
+	// provisioning. It is ignored while the deployment disables the module
+	// cache for all templates. It is recommended not to disable this.
+	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
+	// AgentsAllowed controls whether Coder Agents can create workspaces using
+	// this template. If omitted, the current value is preserved.
+	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 type TemplateExample struct {
@@ -286,7 +338,7 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 		return Template{}, ReadBodyAsError(res)
 	}
 	var resp Template
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
@@ -304,7 +356,7 @@ func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID
 		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ArchiveTemplateVersionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 //nolint:revive
@@ -345,14 +397,11 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 		return Template{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusNotModified {
-		return Template{}, xerrors.New("template metadata not modified")
-	}
 	if res.StatusCode != http.StatusOK {
 		return Template{}, ReadBodyAsError(res)
 	}
 	var updated Template
-	return updated, json.NewDecoder(res.Body).Decode(&updated)
+	return updated, ReadBodyAsJSON(res, &updated)
 }
 
 func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
@@ -367,9 +416,19 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 	return nil
 }
 
-// TemplateACLAvailable returns available users + groups that can be assigned template perms
-func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID) (ACLAvailable, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID), nil)
+// TemplateACLAvailable returns available users + groups that can be assigned
+// template perms. The optional req controls the q/limit/offset query
+// parameters applied server-side; pass codersdk.UsersRequest{} when no
+// filtering is desired.
+func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
 	if err != nil {
 		return ACLAvailable{}, err
 	}
@@ -378,7 +437,7 @@ func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID)
 		return ACLAvailable{}, ReadBodyAsError(res)
 	}
 	var acl ACLAvailable
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
@@ -391,7 +450,7 @@ func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (Templat
 		return TemplateACL{}, ReadBodyAsError(res)
 	}
 	var acl TemplateACL
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
@@ -422,7 +481,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	if req.IncludeArchived {
 		u += "?include_archived=true"
 	}
-	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +490,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 		return nil, ReadBodyAsError(res)
 	}
 	var templateVersion []TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 // TemplateVersionByName returns a template version by it's friendly name.
@@ -446,7 +505,7 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
@@ -469,7 +528,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffse
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AgentStatsReportRequest is a WebSocket request by coderd
@@ -505,7 +564,7 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 		return nil, ReadBodyAsError(res)
 	}
 	var templateExamples []TemplateExample
-	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
+	return templateExamples, ReadBodyAsJSON(res, &templateExamples)
 }
 
 type InvalidatePresetsResponse struct {
@@ -536,5 +595,5 @@ func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UU
 	}
 
 	var response InvalidatePresetsResponse
-	return response, json.NewDecoder(res.Body).Decode(&response)
+	return response, ReadBodyAsJSON(res, &response)
 }

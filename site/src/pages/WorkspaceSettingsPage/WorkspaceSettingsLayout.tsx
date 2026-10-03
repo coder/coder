@@ -1,68 +1,116 @@
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
-import { createContext, type FC, Suspense, useContext } from "react";
+import { Suspense } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+import {
+	workspaceByOwnerAndName,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "#/components/Breadcrumb/Breadcrumb";
+import { Loader } from "#/components/Loader/Loader";
+import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
+import { WorkspaceSettings } from "./useWorkspaceSettings";
 
-const WorkspaceSettings = createContext<Workspace | undefined>(undefined);
-
-export function useWorkspaceSettings() {
-	const value = useContext(WorkspaceSettings);
-	if (!value) {
-		throw new Error(
-			"This hook can only be used from a workspace settings page",
-		);
-	}
-
-	return value;
-}
-
-export const WorkspaceSettingsLayout: FC = () => {
+export const WorkspaceSettingsLayout: React.FC = () => {
 	const params = useParams() as {
 		workspace: string;
 		username: string;
 	};
 	const workspaceName = params.workspace;
 	const username = params.username.replace("@", "");
-	const {
-		data: workspace,
-		error,
-		isLoading,
-		isError,
-	} = useQuery(workspaceByOwnerAndName(username, workspaceName));
+	const workspaceQuery = useQuery(
+		workspaceByOwnerAndName(username, workspaceName),
+	);
 
-	if (isLoading) {
+	const permissionsQuery = useQuery(workspacePermissions(workspaceQuery.data));
+
+	if (workspaceQuery.isLoading) {
 		return <Loader />;
 	}
 
+	const error = workspaceQuery.error || permissionsQuery.error;
+	const workspace = workspaceQuery.data;
+
 	return (
 		<>
-			<title>{pageTitle(workspaceName, "Settings")}</title>
+			<title>{pageTitle(workspaceName, "Workspace Settings")}</title>
 
-			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
-					{isError ? (
-						<ErrorAlert error={error} />
-					) : (
-						workspace && (
-							<WorkspaceSettings.Provider value={workspace}>
-								<Sidebar workspace={workspace} username={username} />
-								<Suspense fallback={<Loader />}>
-									<main css={{ width: "100%" }}>
-										<Outlet />
-									</main>
-								</Suspense>
-							</WorkspaceSettings.Provider>
-						)
-					)}
-				</Stack>
-			</Margins>
+			<div>
+				<Breadcrumb>
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<BreadcrumbPage>Workspace Settings</BreadcrumbPage>
+						</BreadcrumbItem>
+						{workspace && (
+							<>
+								<BreadcrumbSeparator />
+								<BreadcrumbItem>
+									<BreadcrumbPage className="flex items-center gap-2">
+										<Avatar
+											size="sm"
+											fallback={workspace.owner_name}
+											src={workspace.owner_avatar_url}
+										/>
+										{workspace.owner_name}
+									</BreadcrumbPage>
+								</BreadcrumbItem>
+								<BreadcrumbSeparator />
+								<BreadcrumbItem>
+									<BreadcrumbLink to="..">
+										<BreadcrumbPage className="flex items-center gap-2">
+											<Avatar
+												variant="icon"
+												size="sm"
+												fallback={
+													workspace.template_display_name ||
+													workspace.template_name
+												}
+												src={workspace.template_icon}
+											/>
+											{workspace.name}
+										</BreadcrumbPage>
+									</BreadcrumbLink>
+								</BreadcrumbItem>
+							</>
+						)}
+					</BreadcrumbList>
+				</Breadcrumb>
+				<div className="h-px border-none bg-border" />
+
+				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
+					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
+						{error ? (
+							<ErrorAlert error={error} />
+						) : (
+							workspaceQuery.data && (
+								<WorkspaceSettings.Provider
+									value={{
+										owner: username,
+										workspace: workspaceQuery.data,
+										permissions: permissionsQuery.data,
+									}}
+								>
+									<Sidebar />
+									<div className="grow min-w-0">
+										<Suspense fallback={<Loader />}>
+											<Outlet />
+										</Suspense>
+									</div>
+								</WorkspaceSettings.Provider>
+							)
+						)}
+					</div>
+				</section>
+			</div>
 		</>
 	);
 };

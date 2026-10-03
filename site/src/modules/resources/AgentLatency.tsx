@@ -1,17 +1,15 @@
-import { type Theme, useTheme } from "@emotion/react";
-import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
+import { cn } from "cn";
+import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { getLatencyColor } from "utils/latency";
+	Tooltip,
+	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { getLatencyColor } from "#/utils/latency";
 
-const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
+const getDisplayLatency = (agent: WorkspaceAgent) => {
 	// Find the right latency to display
 	const latencyValues = Object.values(agent.latency ?? {});
 	const latency =
@@ -26,60 +24,51 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
 
 	return {
 		...latency,
-		color: getLatencyColor(theme, latency.latency_ms),
+		color: getLatencyColor(latency.latency_ms),
 	};
 };
 
-interface AgentLatencyProps {
+type AgentLatencyProps = {
 	agent: WorkspaceAgent;
-}
+};
 
-export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
-	const theme = useTheme();
-	const latency = getDisplayLatency(theme, agent);
+export const AgentLatency: React.FC<AgentLatencyProps> = ({ agent }) => {
+	const latency = getDisplayLatency(agent);
 
 	if (!latency || !agent.latency) {
 		return null;
 	}
 
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
-				<span
-					role="presentation"
-					aria-label="latency"
-					css={{ cursor: "pointer", color: latency.color }}
-				>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button type="button" aria-label="latency" className={latency.color}>
 					{Math.round(latency.latency_ms)}ms
-				</span>
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>Latency</HelpTooltipTitle>
-				<HelpTooltipText>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				<TooltipTitle>Latency</TooltipTitle>
+				<TooltipMessage>
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
-				</HelpTooltipText>
-				<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
+				</TooltipMessage>
+				<div className="flex-col gap-1 mt-4">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
 						.map(([regionName, region]) => (
-							<Stack
-								direction="row"
+							<div
+								className={cn(
+									"flex items-center justify-between gap-1",
+									region.preferred && "text-content-primary",
+								)}
 								key={regionName}
-								spacing={0.5}
-								justifyContent="space-between"
-								css={
-									region.preferred && {
-										color: theme.palette.text.primary,
-									}
-								}
 							>
 								<strong>{regionName}</strong>
 								{Math.round(region.latency_ms)}ms
-							</Stack>
+							</div>
 						))}
-				</Stack>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</div>
+			</TooltipContent>
+		</Tooltip>
 	);
 };

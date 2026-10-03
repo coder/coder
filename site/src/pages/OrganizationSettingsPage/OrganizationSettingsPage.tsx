@@ -1,19 +1,27 @@
-import { getErrorMessage } from "api/errors";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteOrganization,
+	patchWorkspaceSharingSettings,
 	updateOrganization,
-} from "api/queries/organizations";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
-import { pageTitle } from "utils/page";
+	workspaceSharingSettings,
+} from "#/api/queries/organizations";
+import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
-const OrganizationSettingsPage: FC = () => {
+const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
+	none: "Workspace sharing disabled.",
+	service_accounts: "Workspace sharing restricted to service accounts.",
+	everyone: "Workspace sharing enabled for all users.",
+};
+
+const OrganizationSettingsPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();
@@ -23,6 +31,15 @@ const OrganizationSettingsPage: FC = () => {
 	);
 	const deleteOrganizationMutation = useMutation(
 		deleteOrganization(queryClient),
+	);
+
+	const sharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(organization?.id ?? ""),
+		enabled: Boolean(organization),
+	});
+
+	const patchSharingSettingsMutation = useMutation(
+		patchWorkspaceSharingSettings(organization?.id ?? "", queryClient),
 	);
 
 	if (!organization) {
@@ -47,6 +64,23 @@ const OrganizationSettingsPage: FC = () => {
 	const error =
 		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
+	const handleChangeShareableOwners = async (
+		value: ShareableWorkspaceOwners,
+	) => {
+		const mutation = patchSharingSettingsMutation.mutateAsync({
+			shareable_workspace_owners: value,
+		});
+
+		toast.promise(mutation, {
+			loading: "Updating workspace sharing settings...",
+			success: sharingUpdatedToastLabels[value],
+			error: (error) => ({
+				message: "Failed to update workspace sharing settings.",
+				description: getErrorDetail(error),
+			}),
+		});
+	};
+
 	return (
 		<>
 			{title}
@@ -60,19 +94,37 @@ const OrganizationSettingsPage: FC = () => {
 							req: values,
 						});
 					navigate(`/organizations/${updatedOrganization.name}/settings`);
-					displaySuccess("Organization settings updated.");
+					toast.success(
+						`Organization "${updatedOrganization.name}" settings updated successfully.`,
+					);
 				}}
 				onDeleteOrganization={async () => {
 					try {
 						await deleteOrganizationMutation.mutateAsync(organization.id);
-						displaySuccess("Organization deleted");
+						toast.success(
+							`Organization "${organization.display_name || organization.name}" deleted successfully.`,
+						);
 						navigate("/organizations");
 					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to delete organization"),
+						toast.error(
+							getErrorMessage(
+								error,
+								`Failed to delete organization "${organization.name}".`,
+							),
+							{
+								description: getErrorDetail(error),
+							},
 						);
 					}
 				}}
+				workspaceSharingGloballyDisabled={
+					sharingSettingsQuery.data?.sharing_globally_disabled
+				}
+				shareableWorkspaceOwners={
+					sharingSettingsQuery.data?.shareable_workspace_owners ?? "none"
+				}
+				onChangeShareableOwners={handleChangeShareableOwners}
+				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
 			/>
 		</>
 	);

@@ -1,16 +1,28 @@
-import { API } from "api/api";
+import type { QueryClient, UseQueryOptions } from "react-query";
+import { API } from "#/api/api";
+import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
 	Group,
+	GroupAIBudget,
+	GroupMembersAISpend,
+	GroupMembersResponse,
+	GroupRequest,
+	OrganizationGroupsAISpend,
+	PaginatedGroupsRequest,
+	PaginatedGroupsResponse,
 	PatchGroupRequest,
-} from "api/typesGenerated";
-import type { QueryClient, UseQueryOptions } from "react-query";
+	UsersRequest,
+} from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 
 type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-const groups = () => {
+/** @public */
+export const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
@@ -30,17 +42,188 @@ export const groupsByOrganization = (organization: string) => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-export const getGroupQueryKey = (organization: string, groupName: string) => [
+const getOrganizationGroupsAISpendQueryKey = (
+	organization: string,
+	groupIds: readonly string[],
+) => [
+	...getGroupsByOrganizationQueryKey(organization),
+	"aiSpend",
+	[...groupIds].sort(),
+];
+
+export const organizationGroupsAISpend = (
+	organization: string,
+	groupIds: readonly string[],
+) => {
+	return {
+		queryKey: getOrganizationGroupsAISpendQueryKey(organization, groupIds),
+		queryFn: () => API.getOrganizationGroupsAISpend(organization, groupIds),
+	} satisfies UseQueryOptions<OrganizationGroupsAISpend>;
+};
+
+export const getGroupMembersAISpendQueryKey = (
+	groupId: string,
+	userIds: readonly string[],
+) => ["group", groupId, "members", "aiSpend", [...userIds].sort()];
+
+const isGroupMembersAISpendQueryKey = (
+	queryKey: readonly unknown[],
+	userId: string,
+): boolean =>
+	queryKey[0] === "group" &&
+	queryKey[2] === "members" &&
+	queryKey[3] === "aiSpend" &&
+	Array.isArray(queryKey[4]) &&
+	queryKey[4].includes(userId);
+
+export const invalidateGroupMembersAISpend = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: ["group"],
+		predicate: (query) => isGroupMembersAISpendQueryKey(query.queryKey, userId),
+	});
+
+export const groupMembersAISpend = (
+	groupId: string,
+	userIds: readonly string[],
+) => {
+	return {
+		queryKey: getGroupMembersAISpendQueryKey(groupId, userIds),
+		queryFn: () => API.getGroupMembersAISpend(groupId, userIds),
+	} satisfies UseQueryOptions<GroupMembersAISpend>;
+};
+
+const getPaginatedGroupsByOrganizationQueryKey = (
+	organization: string,
+	req?: PaginatedGroupsRequest,
+) => {
+	// Nested under the org groups key so create/patch/delete invalidations,
+	// which target ["organization", org, "groups"], also cover this list.
+	const base = [...getGroupsByOrganizationQueryKey(organization), "paginated"];
+	return req ? [...base, req] : base;
+};
+
+export function paginatedGroupsByOrganization(
+	organization: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<PaginatedGroupsResponse, PaginatedGroupsRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getPaginatedGroupsByOrganizationQueryKey(organization, payload),
+		queryFn: ({ payload }) =>
+			API.getOrganizationPaginatedGroups(organization, payload),
+	};
+}
+
+const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
 	organization,
 	"group",
 	groupName,
 ];
 
-export const group = (organization: string, groupName: string) => {
+export const getGroupByIdQueryKey = (groupId: string, req: GroupRequest) => [
+	"group",
+	groupId,
+	req,
+];
+
+export const groupById = (
+	groupId: string,
+	req: GroupRequest,
+): UseQueryOptions<Group> => {
 	return {
-		queryKey: getGroupQueryKey(organization, groupName),
-		queryFn: () => API.getGroup(organization, groupName),
+		queryKey: getGroupByIdQueryKey(groupId, req),
+		queryFn: ({ signal }) => API.getGroupById(groupId, req, signal),
+	};
+};
+
+export const getGroupQueryKey = (
+	organization: string,
+	groupName: string,
+	req: GroupRequest,
+) => {
+	const base = getRootGroupQueryKey(organization, groupName);
+	return [...base, req];
+};
+
+export const group = (
+	organization: string,
+	groupName: string,
+	req: GroupRequest,
+): UseQueryOptions<Group> => {
+	return {
+		queryKey: getGroupQueryKey(organization, groupName, req),
+		queryFn: ({ signal }) => API.getGroup(organization, groupName, req, signal),
+	};
+};
+
+export const getGroupMembersQueryKey = (
+	organization: string,
+	groupName: string,
+	req?: UsersRequest,
+) => {
+	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
+	return req ? [...base, req] : base;
+};
+
+export function groupMembers(
+	organization: string,
+	groupName: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getGroupMembersQueryKey(organization, groupName, payload),
+		queryFn: ({ payload, signal }) =>
+			API.getGroupMembers(organization, groupName, payload, signal),
+	};
+}
+
+export const getGroupMemberAvatarsQueryKey = (
+	organization: string,
+	groupName: string,
+	limit: number,
+) => [...getGroupMembersQueryKey(organization, groupName), "avatars", limit];
+
+/** Number of member avatars previewed per group row in list views. */
+export const GROUP_MEMBER_AVATAR_LIMIT = 5;
+
+/**
+ * A capped page of a group's members for avatar previews in list views. The
+ * paginated groups endpoint no longer returns rosters, so rows fetch a small
+ * preview lazily. Nests under the group members key so membership mutations
+ * invalidate it.
+ */
+export const groupMemberAvatars = (
+	organization: string,
+	groupName: string,
+	limit: number,
+): UseQueryOptions<GroupMembersResponse> => {
+	return {
+		queryKey: getGroupMemberAvatarsQueryKey(organization, groupName, limit),
+		queryFn: ({ signal }) =>
+			API.getGroupMembers(organization, groupName, { limit }, signal),
 	};
 };
 
@@ -81,10 +264,20 @@ function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	return userIdMapper as GroupsByUserId;
 }
 
-export function groupsForUser(userId: string) {
+export const getGroupsForUserQueryKey = (
+	userId: string,
+	organizationId?: string,
+) => [
+	...groupsQueryKey,
+	"user",
+	userId,
+	...(organizationId ? ["organization", organizationId] : []),
+];
+
+export function groupsForUser(userId: string, organizationId?: string) {
 	return {
-		queryKey: groupsQueryKey,
-		queryFn: () => API.getGroups({ userId }),
+		queryKey: getGroupsForUserQueryKey(userId, organizationId),
+		queryFn: () => API.getGroups({ userId, organization: organizationId }),
 	} as const satisfies UseQueryOptions<Group[]>;
 }
 
@@ -127,7 +320,7 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const patchGroup = (queryClient: QueryClient) => {
+export const patchGroup = (queryClient: QueryClient, organization: string) => {
 	return {
 		mutationFn: ({
 			groupId,
@@ -135,40 +328,98 @@ export const patchGroup = (queryClient: QueryClient) => {
 		}: PatchGroupRequest & { groupId: string }) =>
 			API.patchGroup(groupId, request),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
-export const deleteGroup = (queryClient: QueryClient) => {
+export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: API.deleteGroup,
-		onSuccess: async (_: unknown, groupId: string) =>
-			invalidateGroup(queryClient, "default", groupId),
+		mutationFn: ({ groupId }: { groupId: string; groupName: string }) =>
+			API.deleteGroup(groupId),
+		onSuccess: async (
+			_: unknown,
+			{ groupName }: { groupId: string; groupName: string },
+		) => invalidateGroup(queryClient, organization, groupName),
 	};
 };
 
-export const addMember = (queryClient: QueryClient) => {
+export const addMembers = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-			API.addMember(groupId, userId),
+		mutationFn: ({
+			groupId,
+			userIds,
+		}: {
+			groupId: string;
+			userIds: string[];
+		}) => API.addMembers(groupId, userIds),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
-export const removeMember = (queryClient: QueryClient) => {
+export const removeMember = (
+	queryClient: QueryClient,
+	organization: string,
+) => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.removeMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
+	};
+};
+
+const getGroupAIBudgetQueryKey = (groupId: string) => [
+	"group",
+	groupId,
+	"aiBudget",
+];
+
+/** Budget query; resolves to null when none is set (the GET 404s). */
+export const groupAIBudget = (
+	groupId: string,
+): UseQueryOptions<GroupAIBudget | null> => {
+	return {
+		queryKey: getGroupAIBudgetQueryKey(groupId),
+		queryFn: async () => {
+			try {
+				return await API.getGroupAIBudget(groupId);
+			} catch (error) {
+				if (isApiError(error) && error.response.status === 404) {
+					return null;
+				}
+				throw error;
+			}
+		},
+	};
+};
+
+/* Upserts the budget for a value, or deletes it (uncapped) when given null. */
+export const saveGroupAIBudget = (
+	queryClient: QueryClient,
+	groupId: string,
+) => {
+	return {
+		mutationFn: async (spendLimitMicros: number | null) => {
+			if (spendLimitMicros === null) {
+				await API.deleteGroupAIBudget(groupId);
+			} else {
+				await API.upsertGroupAIBudget(groupId, {
+					spend_limit_micros: spendLimitMicros,
+				});
+			}
+		},
+		onSuccess: async () =>
+			queryClient.invalidateQueries({
+				queryKey: getGroupAIBudgetQueryKey(groupId),
+			}),
 	};
 };
 
 const invalidateGroup = (
 	queryClient: QueryClient,
 	organization: string,
-	groupId: string,
+	groupName: string,
 ) =>
 	Promise.all([
 		queryClient.invalidateQueries({ queryKey: groupsQueryKey }),
@@ -176,7 +427,7 @@ const invalidateGroup = (
 			queryKey: getGroupsByOrganizationQueryKey(organization),
 		}),
 		queryClient.invalidateQueries({
-			queryKey: getGroupQueryKey(organization, groupId),
+			queryKey: getRootGroupQueryKey(organization, groupName),
 		}),
 	]);
 

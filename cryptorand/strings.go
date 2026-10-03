@@ -41,8 +41,6 @@ const (
 //
 // See more details on this algorithm here:
 // https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-//
-//nolint:varnamelen
 func unbiasedModulo32(v uint32, n int32) (int32, error) {
 	// #nosec G115 - These conversions are safe within the context of this algorithm
 	// The conversions here are part of an unbiased modulo algorithm for random number generation

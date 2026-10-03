@@ -12,7 +12,7 @@ OPTIONS:
           Select which organization (uuid or name) to use.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

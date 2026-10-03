@@ -1,25 +1,24 @@
-import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import type { TemplateVersion } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
-import { TableCell } from "components/Table/Table";
-import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
-import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { TableCell } from "#/components/Table/Table";
+import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
-interface VersionRowProps {
+type VersionRowProps = {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
-	onPromoteClick?: (templateVersionId: string) => void;
-	onArchiveClick?: (templateVersionId: string) => void;
-}
+	onPromoteClick?: (version: TemplateVersion) => void;
+	onArchiveClick?: (version: TemplateVersion) => void;
+};
 
-export const VersionRow: FC<VersionRowProps> = ({
+export const VersionRow: React.FC<VersionRowProps> = ({
 	version,
 	isActive,
 	isLatest,
@@ -27,6 +26,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 	onArchiveClick,
 }) => {
 	const navigate = useNavigate();
+	const { permissions } = useAuthenticated();
 
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(version.name),
@@ -37,72 +37,54 @@ export const VersionRow: FC<VersionRowProps> = ({
 	return (
 		<TimelineEntry
 			data-testid={`version-${version.id}`}
-			{...clickableProps}
-			className={clickableProps.className}
+			aria-label={version.name}
+			{...(permissions.updateTemplates ? clickableProps : { clickable: false })}
 		>
-			<TableCell css={styles.versionCell}>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.versionWrapper}
-					justifyContent="space-between"
-				>
-					<Stack direction="row" alignItems="center">
+			<TableCell className="relative border-b-0 p-0!">
+				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
+					<div className="flex flex-row items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-						<Stack
-							css={styles.versionSummary}
-							direction="row"
-							alignItems="center"
-							spacing={1}
-						>
+						<div className="flex flex-row items-center gap-2 font-inherit text-base font-normal leading-normal">
 							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>
 							</span>
-
 							{version.message && (
-								<InfoTooltip title="Message" message={version.message} />
+								<InfoTooltip size="small">
+									<TooltipTitle>Message</TooltipTitle>
+									<TooltipMessage>{version.message}</TooltipMessage>
+								</InfoTooltip>
 							)}
-
-							<span css={styles.versionTime}>
+							<span className="text-xs text-content-secondary">
 								{new Date(version.created_at).toLocaleTimeString()}
 							</span>
-						</Stack>
-					</Stack>
-
-					<Stack direction="row" alignItems="center" spacing={2}>
+						</div>
+					</div>
+					<div className="flex flex-row items-center gap-4">
 						{isActive && (
-							<Pill role="status" type="success">
+							<Badge role="status" variant="green">
 								Active
-							</Pill>
+							</Badge>
 						)}
-						{isLatest && (
-							<Pill role="status" type="info">
-								Newest
-							</Pill>
-						)}
+						{isLatest && <Badge role="status">Newest</Badge>}
 						{jobStatus === "pending" && (
-							<Pill role="status" type="inactive">
-								Pending&hellip;
-							</Pill>
+							<Badge role="status">Pending&hellip;</Badge>
 						)}
 						{jobStatus === "running" && (
-							<Pill role="status" type="active">
+							<Badge role="status" variant="info">
 								Building&hellip;
-							</Pill>
+							</Badge>
 						)}
 						{(jobStatus === "canceling" || jobStatus === "canceled") && (
-							<Pill role="status" type="inactive">
-								Canceled
-							</Pill>
+							<Badge role="status">Canceled</Badge>
 						)}
 						{jobStatus === "failed" && (
-							<Pill role="status" type="error">
+							<Badge role="status" variant="destructive">
 								Failed
-							</Pill>
+							</Badge>
 						)}
 
 						{jobStatus === "failed" && onArchiveClick && (
@@ -112,7 +94,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onArchiveClick?.(version.id);
+									onArchiveClick?.(version);
 								}}
 							>
 								Archive&hellip;
@@ -126,37 +108,15 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onPromoteClick?.(version.id);
+									onPromoteClick?.(version);
 								}}
 							>
 								Promote&hellip;
 							</Button>
 						)}
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			</TableCell>
 		</TimelineEntry>
 	);
 };
-
-const styles = {
-	versionWrapper: {
-		padding: "16px 32px",
-	},
-
-	versionCell: {
-		padding: "0 !important",
-		position: "relative",
-		borderBottom: 0,
-	},
-
-	versionSummary: (theme) => ({
-		...(theme.typography.body1 as CSSObject),
-		fontFamily: "inherit",
-	}),
-
-	versionTime: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -237,9 +237,7 @@ func (m *Manager) BufferedUpdatesCount() (success int, failure int) {
 // syncUpdates updates messages in the store based on the given successful and failed message dispatch results.
 func (m *Manager) syncUpdates(ctx context.Context) {
 	// Ensure we update the metrics to reflect the current state after each invocation.
-	defer func() {
-		m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
-	}()
+	defer m.metrics.pendingUpdatesGauge.set(func() int { return len(m.success) + len(m.failure) })
 
 	select {
 	case <-ctx.Done():
@@ -250,7 +248,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	nSuccess := len(m.success)
 	nFailure := len(m.failure)
 
-	m.metrics.PendingUpdates.Set(float64(nSuccess + nFailure))
+	m.metrics.pendingUpdatesGauge.set(func() int { return len(m.success) + len(m.failure) })
 
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {

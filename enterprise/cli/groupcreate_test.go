@@ -13,7 +13,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/pretty"
 )
 
@@ -40,13 +41,13 @@ func TestCreateGroup(t *testing.T) {
 			"--avatar-url", avatarURL,
 		)
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, anotherClient, conf)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		err := inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully created group %s!", pretty.Sprint(cliui.DefaultStyles.Keyword, groupName)))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Successfully created group %s!", pretty.Sprint(cliui.DefaultStyles.Keyword, groupName)))
 	})
 }

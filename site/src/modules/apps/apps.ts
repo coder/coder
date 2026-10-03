@@ -1,8 +1,9 @@
+import { toast } from "sonner";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -19,12 +20,14 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"vscode:",
 	"vscode-insiders:",
 	"windsurf:",
+	"devin:",
 	"cursor:",
 	"jetbrains-gateway:",
 	"jetbrains:",
 	"kiro:",
 	"positron:",
 	"antigravity:",
+	"antigravity-ide:",
 ];
 
 type GetVSCodeHrefParams = {
@@ -33,11 +36,12 @@ type GetVSCodeHrefParams = {
 	token: string;
 	agent?: string;
 	folder?: string;
+	chatId?: string;
 };
 
 export const getVSCodeHref = (
-	app: "vscode" | "vscode-insiders",
-	{ owner, workspace, token, agent, folder }: GetVSCodeHrefParams,
+	app: "vscode" | "vscode-insiders" | "cursor",
+	{ owner, workspace, token, agent, folder, chatId }: GetVSCodeHrefParams,
 ) => {
 	const query = new URLSearchParams({
 		owner,
@@ -51,6 +55,9 @@ export const getVSCodeHref = (
 	}
 	if (folder) {
 		query.set("folder", folder);
+	}
+	if (chatId) {
+		query.set("chatId", chatId);
 	}
 	return `${app}://coder.coder-remote/open?${query}`;
 };
@@ -78,8 +85,25 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+// Open `about:blank` first to detect a popup blocker. If it opens, we
+// null out `opener` (durable on the opened window); and navigate `popup`
+// to the target URL. The Coder UI keeps access to `popup`s handle
 export const openAppInNewWindow = (href: string) => {
-	window.open(href, "_blank", "width=900,height=600");
+	const popup = window.open("about:blank", "_blank", "width=900,height=600");
+	if (!popup) {
+		toast.error("Failed to open app in new window.", {
+			description: "Popup blocked. Allow popups to open this app.",
+		});
+		return;
+	}
+	try {
+		// Setting the opener to null persists in the `popup` window over refresh
+		// and navigation. The opening window retains its connection to `popup`
+		popup.opener = null;
+	} catch {
+		// Electron can throw
+	}
+	popup.location.href = href;
 };
 
 type GetAppHrefParams = {
@@ -95,9 +119,16 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
-		const isAllowedProtocol =
-			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
+		let isAllowedProtocol = false;
+		try {
+			isAllowedProtocol = ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(
+				new URL(app.url).protocol,
+			);
+		} catch {
+			// The URL is unparsable. Leave isAllowedProtocol false and return
+			// the raw URL. Consumers disable the button via
+			// isAppUrlValid, so the href is never followed.
+		}
 
 		return needsSessionToken(app) && isAllowedProtocol
 			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
@@ -105,16 +136,18 @@ export const getAppHref = (
 	}
 
 	if (app.command) {
-		// Terminal links are relative. The terminal page knows how
-		// to select the correct workspace proxy for the websocket
-		// connection.
+		// Pass the app slug instead of the raw command. The terminal
+		// page resolves the command from the workspace agent's app
+		// list, which avoids exposing the command in the URL and
+		// lets us skip the confirmation dialog for trusted,
+		// admin-configured template apps.
 		return `/@${workspace.owner_name}/${workspace.name}.${
 			agent.name
-		}/terminal?command=${encodeURIComponent(app.command)}`;
+		}/terminal?app=${encodeURIComponent(app.slug)}`;
 	}
 
 	if (host && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
+		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
 		url.pathname = "/";
 		return url.toString();
@@ -145,4 +178,55 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
 	const isHttp = app.url.startsWith("http");
 	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
 	return requiresSessionToken && !isHttp;
+};
+
+/**
+ * True for apps that can be rendered inside a dashboard iframe. Command apps
+ * open in terminal tabs instead.
+ */
+export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
+	return !app.hidden && !isExternalApp(app) && !app.command;
+};
+
+export const AGENT_BROWSER_APP_SLUG = "agent-browser";
+
+export const getAgentBrowserApp = (
+	agent: WorkspaceAgent | undefined,
+): WorkspaceApp | undefined => {
+	const app = agent?.apps.find(
+		(agentApp) => agentApp.slug === AGENT_BROWSER_APP_SLUG,
+	);
+	// "disabled" means the template does not configure a health check.
+	if (
+		app &&
+		isWorkspaceAppEmbeddable(app) &&
+		(app.health === "healthy" || app.health === "disabled")
+	) {
+		return app;
+	}
+	return undefined;
+};
+
+/**
+ * True when an app is not an external app, or is an external app whose URL can
+ * be parsed by the URL constructor. External apps with an unparsable URL
+ * cannot be launched. Template authors sometimes set a bare string with no
+ * scheme, which would otherwise crash the page during render.
+ */
+export const isAppUrlValid = (app: WorkspaceApp): boolean => {
+	if (!isExternalApp(app)) {
+		return true;
+	}
+	return URL.canParse(app.url);
+};
+
+/**
+ * True when an app requires subdomain access but the deployment has no wildcard
+ * access URL configured, so the app cannot be launched or embedded.
+ */
+export const isAppBlockedByMissingWildcard = (
+	app: WorkspaceApp,
+	wildcardHostname: string | undefined,
+): boolean => {
+	return app.subdomain && !wildcardHostname;
 };

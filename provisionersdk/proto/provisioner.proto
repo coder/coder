@@ -225,6 +225,10 @@ message DisplayApps {
 message Env {
   string name = 1;
   string value = 2;
+  // merge_strategy controls how this env var is merged when multiple
+  // coder_env resources define the same name. Valid values: "replace"
+  // (default), "append", "prepend", "error".
+  string merge_strategy = 3;
 }
 
 // Script represents a script to be run on the workspace.
@@ -244,6 +248,11 @@ message Devcontainer {
   string workspace_folder = 1;
   string config_path = 2;
   string name = 3;
+  string id = 4;
+  string subagent_id = 5;
+  repeated App apps = 6;
+  repeated Script scripts = 7;
+  repeated Env envs = 8;
 }
 
 enum AppOpenIn {
@@ -329,15 +338,6 @@ enum PrebuiltWorkspaceBuildStage {
   CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
-message AITaskSidebarApp {
-  string id = 1;
-}
-
-message AITask {
-  string id = 1;
-  optional AITaskSidebarApp sidebar_app = 2;
-  string app_id = 3;
-}
 
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
@@ -362,8 +362,8 @@ message Metadata {
   repeated Role workspace_owner_rbac_roles = 19;
   PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
-  string task_id = 22;
-  string task_prompt = 23;
+  reserved 22, 23;
+  reserved "task_id", "task_prompt";
   string template_version_id = 24;
   string template_version_modules_file = 25;
 }
@@ -423,6 +423,10 @@ message PlanRequest {
 
   // state is the provisioner state (if any)
   bytes state = 6;
+
+  // Reserved 7 for `user_secrets` introduced in v1.17 (#24542) and removed
+  // in v1.18 along with the rest of the `coder_secret` Terraform integration.
+  reserved 7;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -432,7 +436,8 @@ message PlanComplete {
   bytes plan = 3;
   int32 dailyCost = 4;
   repeated ResourceReplacement resource_replacements = 5;
-  int32 ai_task_count = 6;
+  reserved 6;
+  reserved "ai_task_count";
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -466,13 +471,8 @@ message GraphComplete {
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
   repeated Preset presets = 6;
-  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-  // still need to know that such resources are defined.
-  //
-  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
-  bool has_ai_tasks = 7;
-  repeated provisioner.AITask ai_tasks = 8;
+  reserved 7, 8;
+  reserved "has_ai_tasks", "ai_tasks";
   bool has_external_agents = 9;
 }
 

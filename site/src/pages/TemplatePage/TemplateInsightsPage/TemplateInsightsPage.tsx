@@ -1,12 +1,18 @@
-import { useTheme } from "@emotion/react";
-import LinearProgress from "@mui/material/LinearProgress";
-import Link from "@mui/material/Link";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { cn } from "cn";
+import {
+	CircleCheckIcon,
+	CircleXIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
+import { Fragment, useId } from "react";
+import { useQuery } from "react-query";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	insightsTemplate,
 	insightsUserActivity,
 	insightsUserLatency,
-} from "api/queries/insights";
+} from "#/api/queries/insights";
 import type {
 	Template,
 	TemplateAppUsage,
@@ -15,53 +21,36 @@ import type {
 	TemplateParameterValue,
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
-import chroma from "chroma-js";
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
-	CircleCheck as CircleCheckIcon,
-	CircleXIcon,
-	LinkIcon,
-} from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
-	type FC,
-	type HTMLAttributes,
-	type PropsWithChildren,
-	type ReactNode,
-	useId,
-} from "react";
-import { useQuery } from "react-query";
-import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { getLatencyColor } from "utils/latency";
+} from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,
 	formatDateTime,
 	startOfDay,
 	startOfHour,
 	subtractTime,
-} from "utils/time";
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
+import { ActiveUserChart } from "./ActiveUserChart";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
@@ -69,7 +58,7 @@ import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
 export default function TemplateInsightsPage() {
-	const { template } = useTemplateLayoutContext();
+	const { template, permissions } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const defaultInterval = getDefaultInterval(template);
@@ -92,13 +81,25 @@ export default function TemplateInsightsPage() {
 		end_time: toISOLocal(dateRange.endDate, baseOffset),
 	};
 
+	const canViewInsights =
+		permissions.canUpdateTemplate || permissions.canReadInsights;
+
 	const insightsFilter = { ...commonFilters, interval };
-	const templateInsights = useQuery(insightsTemplate(insightsFilter));
-	const userLatency = useQuery(insightsUserLatency(commonFilters));
-	const userActivity = useQuery(insightsUserActivity(commonFilters));
+	const templateInsights = useQuery({
+		...insightsTemplate(insightsFilter),
+		enabled: canViewInsights,
+	});
+	const userLatency = useQuery({
+		...insightsUserLatency(commonFilters),
+		enabled: canViewInsights,
+	});
+	const userActivity = useQuery({
+		...insightsUserActivity(commonFilters),
+		enabled: canViewInsights,
+	});
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canViewInsights}>
 			<title>{getTemplatePageTitle("Insights", template)}</title>
 
 			<TemplateInsightsPageView
@@ -116,24 +117,28 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 			/>
-		</>
+		</RequirePermission>
 	);
 }
 
-interface TemplateInsightsControlsProps {
+type TemplateInsightsControlsProps = {
 	interval: "day" | "week";
 	dateRange: DateRangeValue;
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
-}
+	now?: Date;
+};
 
-export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+export const TemplateInsightsControls: React.FC<
+	TemplateInsightsControlsProps
+> = ({
 	interval,
 	dateRange,
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -149,7 +154,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}
@@ -193,7 +203,7 @@ const getDateRange = (
 	return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
-interface TemplateInsightsPageViewProps {
+type TemplateInsightsPageViewProps = {
 	templateInsights: {
 		data: TemplateInsightsResponse | undefined;
 		error: unknown;
@@ -206,46 +216,26 @@ interface TemplateInsightsPageViewProps {
 		data: UserActivityInsightsResponse | undefined;
 		error: unknown;
 	};
-	controls: ReactNode;
+	controls: React.ReactNode;
 	interval: InsightsInterval;
-}
+};
 
-export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
-	templateInsights,
-	userLatency,
-	userActivity,
-	controls,
-	interval,
-}) => {
+export const TemplateInsightsPageView: React.FC<
+	TemplateInsightsPageViewProps
+> = ({ templateInsights, userLatency, userActivity, controls, interval }) => {
 	return (
 		<>
-			<div
-				css={{
-					marginBottom: 32,
-					display: "flex",
-					alignItems: "center",
-					gap: 8,
-				}}
-			>
-				{controls}
-			</div>
-			<div
-				css={{
-					display: "grid",
-					gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-					gridTemplateRows: "440px 440px auto",
-					gap: 24,
-				}}
-			>
+			<div className="flex items-center gap-2 mb-8">{controls}</div>
+			<div className="grid gap-6 grid-cols-3 grid-rows-[440px_440px_auto]">
 				<ActiveUsersPanel
-					css={{ gridColumn: "span 2" }}
+					className="col-span-2"
 					interval={interval}
 					data={templateInsights.data?.interval_reports}
 					error={templateInsights.error}
 				/>
 				<UsersLatencyPanel data={userLatency.data} error={userLatency.error} />
 				<TemplateUsagePanel
-					css={{ gridColumn: "span 2" }}
+					className="col-span-2"
 					data={templateInsights.data?.report?.apps_usage}
 					error={templateInsights.error}
 				/>
@@ -254,7 +244,7 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					error={userActivity.error}
 				/>
 				<TemplateParametersUsagePanel
-					css={{ gridColumn: "span 3" }}
+					className="col-span-3"
 					data={templateInsights.data?.report?.parameters_usage}
 					error={templateInsights.error}
 				/>
@@ -263,13 +253,13 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	);
 };
 
-interface ActiveUsersPanelProps extends PanelProps {
+type ActiveUsersPanelProps = {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-}
+} & PanelProps;
 
-const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
+const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
 	data,
 	error,
 	interval,
@@ -278,85 +268,73 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
-				<PanelTitle>
-					<ActiveUsersTitle interval={interval} />
+				<PanelTitle className="flex items-center gap-2">
+					{interval === "day" ? "Daily" : "Weekly"} Active Users
+					<InfoTooltip size="small">
+						<TooltipTitle>How do we calculate active users?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH. This is
+							for measuring user activity and has no connection to license
+							consumption.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || data?.length === 0) && <NoDataAvailable error={error} />}
-				{data && data.length > 0 && (
-					<ActiveUserChart
-						data={data.map((d) => ({
-							amount: d.active_users,
-							date: d.start_time,
-						}))}
-					/>
-				)}
+			<PanelContent error={error} data={data}>
+				<ActiveUserChart
+					data={(data || []).map((d) => ({
+						amount: d.active_users,
+						date: d.start_time,
+					}))}
+				/>
 			</PanelContent>
 		</Panel>
 	);
 };
 
-interface UsersLatencyPanelProps extends PanelProps {
+type UsersLatencyPanelProps = {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
+const UsersLatencyPanel: React.FC<UsersLatencyPanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
-	const users = data?.report.users;
-
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
+				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
-								The median round trip time of user connections to workspaces.
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is latency calculated?</TooltipTitle>
+						<TooltipMessage>
+							The median round trip time of user connections to workspaces.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
-
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
+			<PanelContent error={error} data={data?.report.users}>
+				{data?.report.users &&
+					[...data.report.users]
 						.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
 						.map((row) => (
 							<div
 								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
+								className="flex justify-between items-center text-sm py-2"
 							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
+									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
-									css={{
-										color: getLatencyColor(theme, row.latency_ms.p50),
-										fontWeight: 500,
-										fontSize: 13,
-										textAlign: "right",
-									}}
+									className={cn(
+										"text-right font-medium text-sm",
+										getLatencyColor(row.latency_ms.p50),
+									)}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
 								</div>
@@ -367,66 +345,45 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	);
 };
 
-interface UsersActivityPanelProps extends PanelProps {
+type UsersActivityPanelProps = {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
+const UsersActivityPanel: React.FC<UsersActivityPanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
-
-	const users = data?.report.users;
-
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
+				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
-								When a connection is initiated to a user&apos;s workspace they
-								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is activity calculated?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
+			<PanelContent error={error} data={data?.report.users}>
+				{data?.report.users &&
+					[...data.report.users]
 						.sort((a, b) => b.seconds - a.seconds)
 						.map((row) => (
 							<div
 								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
+								className="flex justify-between items-center text-sm py-2"
 							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
+									<div className="font-medium">{row.username}</div>
 								</div>
-								<div
-									css={{
-										color: theme.palette.text.secondary,
-										fontSize: 13,
-										textAlign: "right",
-									}}
-								>
+								<div className="text-right text-sm text-content-secondary">
 									{formatTime(row.seconds)}
 								</div>
 							</div>
@@ -436,153 +393,99 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	);
 };
 
-interface TemplateUsagePanelProps extends PanelProps {
+type TemplateUsagePanelProps = {
 	data: readonly TemplateAppUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
+const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	// The API returns a row for each app, even if the user didn't use it.
 	const validUsage = data
 		?.filter((u) => u.seconds > 0)
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-	const usageColors = chroma
-		.scale([theme.roles.success.fill.solid, theme.roles.warning.fill.solid])
-		.mode("lch")
-		.colors(validUsage?.length ?? 0);
+	const usageCount = validUsage?.length ?? 0;
 
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || validUsage?.length === 0) && (
-					<NoDataAvailable error={error} />
-				)}
-				{validUsage && validUsage.length > 0 && (
-					<div
-						css={{
-							display: "flex",
-							flexDirection: "column",
-							gap: 24,
-						}}
-					>
-						{validUsage.map((usage, i) => {
-							const percentage = (usage.seconds / totalInSeconds) * 100;
-							return (
-								<div
-									key={usage.slug}
-									css={{ display: "flex", gap: 24, alignItems: "center" }}
-								>
-									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-										<div
-											css={{
-												width: 20,
-												height: 20,
-												display: "flex",
-												alignItems: "center",
-												justifyContent: "center",
-											}}
-										>
-											<img
-												src={usage.icon}
-												alt=""
-												style={{
-													objectFit: "contain",
-													width: "100%",
-													height: "100%",
-												}}
-											/>
-										</div>
-										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-											{usage.display_name}
-										</div>
+			<PanelContent error={error} data={validUsage}>
+				<div className="flex flex-col gap-6">
+					{(validUsage || []).map((usage, i) => {
+						const percentage = (usage.seconds / totalInSeconds) * 100;
+						const colorStop =
+							usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
+						return (
+							<div key={usage.slug} className="flex items-center gap-6">
+								<div className="flex items-center gap-2">
+									<div className="flex justify-center items-center size-5">
+										<ExternalImage
+											src={usage.icon}
+											alt=""
+											className="h-full w-full object-contain"
+										/>
 									</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
-													"& .MuiLinearProgress-bar": {
-														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
+									<div className="text-sm font-medium w-[200px]">
+										{usage.display_name}
+									</div>
+								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+											<div
+												className="absolute inset-y-0 left-0 rounded-full"
+												style={{
+													width: `${percentage}%`,
+													backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
 												}}
 											/>
-										</TooltipTrigger>
-										<TooltipContent>
-											{Math.floor(percentage)}%
-											<TooltipArrow className="fill-border" />
-										</TooltipContent>
-									</Tooltip>
-									<Stack
-										spacing={0}
-										css={{
-											fontSize: 13,
-											color: theme.palette.text.secondary,
-											width: 120,
-											flexShrink: 0,
-											lineHeight: "1.5",
-										}}
-									>
-										{formatTime(usage.seconds)}
-										{usage.times_used > 0 && (
-											<span
-												css={{
-													fontSize: 12,
-													color: theme.palette.text.disabled,
-												}}
-											>
-												Opened {usage.times_used.toLocaleString()}{" "}
-												{usage.times_used === 1 ? "time" : "times"}
-											</span>
-										)}
-									</Stack>
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										{Math.floor(percentage)}%
+										<TooltipArrow className="fill-border" />
+									</TooltipContent>
+								</Tooltip>
+								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
+									{formatTime(usage.seconds)}
+									{usage.times_used > 0 && (
+										<span className="text-[12px] text-content-disabled">
+											Opened {usage.times_used.toLocaleString()}{" "}
+											{usage.times_used === 1 ? "time" : "times"}
+										</span>
+									)}
 								</div>
-							);
-						})}
-					</div>
-				)}
+							</div>
+						);
+					})}
+				</div>
 			</PanelContent>
 		</Panel>
 	);
 };
 
-interface TemplateParametersUsagePanelProps extends PanelProps {
+type TemplateParametersUsagePanelProps = {
 	data: readonly TemplateParameterUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
-	data,
-	error,
-	...panelProps
-}) => {
-	const theme = useTheme();
-
+const TemplateParametersUsagePanel: React.FC<
+	TemplateParametersUsagePanelProps
+> = ({ data, error, ...panelProps }) => {
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle>Parameters usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: 200 }} />}
-				{(error || data?.length === 0) && (
-					<NoDataAvailable error={error} css={{ height: 200 }} />
-				)}
+			<PanelContent error={error} data={data}>
 				{data?.map((parameter, parameterIndex) => {
 					const label =
 						parameter.display_name !== ""
@@ -591,63 +494,43 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 					return (
 						<div
 							key={parameter.name}
-							css={{
-								display: "flex",
-								alignItems: "start",
-								padding: 24,
-								marginLeft: -24,
-								marginRight: -24,
-								borderTop: `1px solid ${theme.palette.divider}`,
-								width: "calc(100% + 48px)",
-								"&:first-of-type": {
-									borderTop: 0,
-								},
-								gap: 24,
-							}}
+							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
-							<div css={{ flex: 1 }}>
-								<div css={{ fontWeight: 500 }}>{label}</div>
-								<p
-									css={{
-										fontSize: 14,
-										color: theme.palette.text.secondary,
-										maxWidth: 400,
-										margin: 0,
-									}}
-								>
+							<div className="flex-1">
+								<div className="font-medium">{label}</div>
+								<p className="text-sm m-0 text-content-secondary max-w-[400px]">
 									{parameter.description}
 								</p>
 							</div>
-							<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
-								<ParameterUsageRow
-									css={{
-										color: theme.palette.text.secondary,
-										fontWeight: 500,
-										fontSize: 13,
-										cursor: "default",
-									}}
-								>
-									<div>Value</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div>Count</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											The number of workspaces using this value
-										</TooltipContent>
-									</Tooltip>
-								</ParameterUsageRow>
+							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
+								<div className="font-medium text-sm text-content-secondary py-1">
+									Value
+								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
+											Count
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										The number of workspaces using this value
+									</TooltipContent>
+								</Tooltip>
 								{[...parameter.values]
 									.sort((a, b) => b.count - a.count)
 									.filter((usage) => filterOrphanValues(usage, parameter))
 									.map((usage, usageIndex) => (
-										<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
-											<ParameterUsageLabel
-												usage={usage}
-												parameter={parameter}
-											/>
-											<div css={{ textAlign: "right" }}>{usage.count}</div>
-										</ParameterUsageRow>
+										<Fragment key={`${parameterIndex}-${usageIndex}`}>
+											<div className="min-w-0 py-1">
+												<ParameterUsageLabel
+													usage={usage}
+													parameter={parameter}
+												/>
+											</div>
+											<div className="text-right py-1">
+												{usage.count.toLocaleString()}
+											</div>
+										</Fragment>
 									))}
 							</div>
 						</div>
@@ -668,36 +551,16 @@ const filterOrphanValues = (
 	return true;
 };
 
-const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
-	children,
-	...attrs
-}) => {
-	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "baseline",
-				justifyContent: "space-between",
-				padding: "4px 0",
-			}}
-			{...attrs}
-		>
-			{children}
-		</div>
-	);
-};
-
-interface ParameterUsageLabelProps {
+type ParameterUsageLabelProps = {
 	usage: TemplateParameterValue;
 	parameter: TemplateParameterUsage;
-}
+};
 
-const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
+const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 	usage,
 	parameter,
 }) => {
 	const ariaId = useId();
-	const theme = useTheme();
 
 	if (parameter.options) {
 		const option = parameter.options.find((o) => o.value === usage.value)!;
@@ -705,23 +568,13 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 		const label = option.name;
 
 		return (
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 16,
-				}}
-			>
+			<div className="flex items-center gap-4">
 				{icon && (
-					<div css={{ width: 16, height: 16, lineHeight: 1 }}>
-						<img
+					<div className="leading-none size-4">
+						<ExternalImage
 							alt=""
 							src={icon}
-							css={{
-								objectFit: "contain",
-								width: "100%",
-								height: "100%",
-							}}
+							className="w-full h-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>
@@ -733,36 +586,34 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (usage.value.startsWith("http")) {
 		return (
-			<Link
-				href={usage.value}
-				target="_blank"
-				rel="noreferrer"
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 1,
-					color: theme.palette.text.primary,
-				}}
-			>
-				<TextValue>{usage.value}</TextValue>
-				<LinkIcon className="size-icon-xs text-content-link" />
-			</Link>
+			<span className="break-all">
+				<span className="mr-0.5 text-content-secondary">&quot;</span>
+				<Link
+					href={usage.value}
+					target="_blank"
+					rel="noreferrer"
+					showExternalIcon={false}
+					// We're using a manual underline because `inline`
+					// removes it from the first line of the text when it wraps.
+					className="inline hover:underline hover:after:content-none"
+				>
+					{usage.value}
+				</Link>
+				{/* Manual icon because we want to support multi-line. */}
+				<SquareArrowOutUpRightIcon className="inline-flex align-text-bottom size-icon-sm p-0.5 text-content-link" />
+				<span className="ml-0.5 text-content-secondary">&quot;</span>
+			</span>
 		);
 	}
 
 	if (parameter.type === "list(string)") {
 		const values = JSON.parse(usage.value) as string[];
 		return (
-			<div css={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+			<div className="flex gap-2 flex-wrap">
 				{values.map((v, i) => (
 					<div
 						key={i}
-						css={{
-							padding: "2px 12px",
-							borderRadius: 999,
-							background: theme.palette.divider,
-							whiteSpace: "nowrap",
-						}}
+						className="rounded-full whitespace-nowrap bg-surface-quaternary py-0.5 px-3"
 					>
 						{v}
 					</div>
@@ -773,13 +624,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (parameter.type === "bool") {
 		return (
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 8,
-				}}
-			>
+			<div className="flex items-center gap-2">
 				{usage.value === "false" ? (
 					<>
 						<CircleXIcon className="size-icon-xs text-content-destructive" />
@@ -787,12 +632,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					</>
 				) : (
 					<>
-						<CircleCheckIcon
-							css={{
-								color: theme.palette.success.light,
-							}}
-							className="size-icon-xs"
-						/>
+						<CircleCheckIcon className="size-icon-xs text-content-success" />
 						True
 					</>
 				)}
@@ -803,79 +643,81 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
+type PanelProps = React.ComponentProps<"div">;
 
-const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
-	const theme = useTheme();
-
+const Panel: React.FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
 		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				backgroundColor: theme.palette.background.paper,
-				display: "flex",
-				flexDirection: "column",
-			}}
 			{...attrs}
+			className={cn(
+				"flex flex-col rounded-lg bg-surface-secondary border border-solid border-surface-quaternary",
+				className,
+			)}
 		>
 			{children}
 		</div>
 	);
 };
 
-const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelHeader: React.FC<React.ComponentProps<"div">> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
-		<div css={{ padding: "20px 24px 24px" }} {...attrs}>
+		<div {...attrs} className={cn("p-6 pt-5", className)}>
 			{children}
 		</div>
 	);
 };
 
-const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelTitle: React.FC<React.ComponentProps<"div">> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
-		<div css={{ fontSize: 14, fontWeight: 500 }} {...attrs}>
+		<div {...attrs} className={cn("text-sm font-medium", className)}>
 			{children}
 		</div>
 	);
 };
 
-const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
+type PanelContentProps = React.ComponentProps<"div"> & {
+	error: unknown | undefined;
+	data: readonly unknown[] | undefined;
+};
+
+const PanelContent: React.FC<PanelContentProps> = ({
+	error,
+	data,
 	children,
-	...attrs
 }) => {
 	return (
-		<div css={{ padding: "0 24px 24px", flex: 1 }} {...attrs}>
-			{children}
+		<div className="flex-1 px-6 pb-6">
+			{!error && !data ? (
+				<Loader className="h-full min-h-[200px]" />
+			) : error || !data || data.length === 0 ? (
+				<NoDataAvailable error={error} />
+			) : (
+				children
+			)}
 		</div>
 	);
 };
 
-interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+type NoDataAvailableProps = React.ComponentProps<"div"> & {
 	error: unknown;
-}
+};
 
-const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
-	const theme = useTheme();
-
+const NoDataAvailable: React.FC<NoDataAvailableProps> = ({
+	error,
+	...props
+}) => {
 	return (
 		<div
 			{...props}
-			css={{
-				fontSize: 13,
-				color: theme.palette.text.secondary,
-				textAlign: "center",
-				height: "100%",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
+			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-[200px]"
 		>
 			{error
 				? getErrorDetail(error) ||
@@ -885,30 +727,12 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	);
 };
 
-const TextValue: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-
+const TextValue: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<span>
-			<span
-				css={{
-					color: theme.palette.text.secondary,
-					weight: 600,
-					marginRight: 2,
-				}}
-			>
-				&quot;
-			</span>
+		<span className="break-all">
+			<span className="mr-0.5 text-content-secondary">&quot;</span>
 			{children}
-			<span
-				css={{
-					color: theme.palette.text.secondary,
-					weight: 600,
-					marginLeft: 2,
-				}}
-			>
-				&quot;
-			</span>
+			<span className="ml-0.5 text-content-secondary">&quot;</span>
 		</span>
 	);
 };

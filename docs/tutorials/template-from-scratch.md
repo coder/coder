@@ -1,4 +1,12 @@
-# Write a template from scratch
+---
+title: Write a template from scratch
+---
+
+> [!TIP]
+> If you want to create a template without writing Terraform, use the
+> [template builder](../admin/templates/creating-templates.md#template-builder)
+> instead. The builder guides you through selecting base infrastructure and
+> adding modules through a visual interface.
 
 A template is a common configuration that you use to deploy workspaces.
 
@@ -22,8 +30,8 @@ server essentially runs a `terraform apply` every time a workspace is created,
 started, or stopped.
 
 > [!TIP]
-> Haven't written Terraform before? Check out Hashicorp's
-> [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
+> Haven't written Terraform before?
+> Check out HashiCorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 Here's a simplified diagram that shows the main parts of the template we'll
 create:
@@ -127,7 +135,7 @@ runs inside the compute aspect of your workspace, typically a VM or container.
 In our case, it will run in Docker.
 
 You do not need to have any open ports on the compute aspect, but the agent
-needs `curl` access to the Coder server.
+needs `curl` access to the control plane.
 
 Add this snippet after the last closing `}` in `main.tf` to create the agent:
 
@@ -168,10 +176,10 @@ resource "coder_agent" "main" {
 }
 ```
 
-Because Docker is running locally in the Coder server, there is no need to
+Because Docker is running on the same machine as the control plane, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` is running on a remote
 host, your template will need
-[authentication credentials](../admin/external-auth/index.md).
+[authentication credentials](../admin/external-auth.md).
 
 This template's agent also runs a startup script, sets environment variables,
 and provides metadata.
@@ -359,7 +367,7 @@ use the Coder CLI.
 
 1. Paste it into the CLI:
 
-   ```output
+   ```txt
    > Welcome to Coder, marc! You're authenticated.
    $
    ```
@@ -373,7 +381,7 @@ through the CLI, or through the Coder dashboard:
 
 #### CLI
 
-1. Run `coder templates create` from the directory with your template files:
+1. Run `coder templates push` from the directory with your template files:
 
    ```console
    $ pwd
@@ -408,7 +416,7 @@ through the CLI, or through the Coder dashboard:
 
    - To zip the files through the command line:
 
-     ```shell
+     ```sh
      zip templates.zip Dockerfile main.tf
      ```
 

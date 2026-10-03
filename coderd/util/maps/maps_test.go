@@ -4,8 +4,52 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/coder/coder/v2/coderd/util/maps"
 )
+
+func TestSortedKeys(t *testing.T) {
+	t.Parallel()
+
+	for idx, tc := range []struct {
+		name     string
+		input    map[string]int
+		expected []string
+	}{
+		{
+			name: "SortsAlphabetically",
+			input: map[string]int{
+				"banana": 1,
+				"apple":  2,
+				"cherry": 3,
+			},
+			expected: []string{"apple", "banana", "cherry"},
+		},
+		{
+			name: "AlreadySorted",
+			input: map[string]int{
+				"alpha": 1,
+				"mango": 2,
+				"zebra": 3,
+			},
+			expected: []string{"alpha", "mango", "zebra"},
+		},
+		{
+			name:     "EmptyMap",
+			input:    map[string]int{},
+			expected: nil,
+		},
+	} {
+		t.Run("#"+strconv.Itoa(idx)+"_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := maps.SortedKeys(tc.input)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Fatalf("unexpected result (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 func TestSubset(t *testing.T) {
 	t.Parallel()

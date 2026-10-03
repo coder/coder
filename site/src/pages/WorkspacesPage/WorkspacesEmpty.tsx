@@ -1,21 +1,24 @@
-import type { Template } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { FC } from "react";
 import { Link } from "react-router";
+import type { Template } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
-interface WorkspacesEmptyProps {
+type WorkspacesEmptyProps = {
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
-}
+	canCreateWorkspace: boolean;
+};
 
-export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
+	onClearFilter,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 }) => {
 	const getLink = useLinks();
 
@@ -24,14 +27,27 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	const defaultTitle = "Create a workspace";
 	const defaultMessage =
 		"A workspace is your personal, customizable development environment.";
-	const defaultImage = (
-		<div className="max-w-[50%] h-[272px] overflow-hidden mt-12 opacity-85">
-			<img src="/featured/workspaces.webp" alt="" className="max-w-full" />
-		</div>
-	);
 
 	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
+		return (
+			<EmptyState
+				message="No workspaces match your search."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Clear all
+					</Button>
+				}
+			/>
+		);
+	}
+
+	if (!canCreateWorkspace) {
+		return (
+			<EmptyState
+				message="No workspaces"
+				description="You don't have permission to create workspaces. Contact your administrator if you need workspace access."
+			/>
+		);
 	}
 
 	if (templates && templates.length === 0 && canCreateTemplate) {
@@ -41,11 +57,9 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
 					<Button asChild>
-						<Link to="/templates">Go to templates</Link>
+						<Link to="/templates/new/builder">Create a template</Link>
 					</Button>
 				}
-				className="pb-0"
-				image={defaultImage}
 			/>
 		);
 	}
@@ -55,8 +69,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 			<EmptyState
 				message={defaultTitle}
 				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
-				className="pb-0"
-				image={defaultImage}
 			/>
 		);
 	}
@@ -76,7 +88,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 								)}/workspace`}
 								className="w-[320px] p-4 rounded-md border border-solid border-surface-quaternary text-left flex gap-4 no-underline text-inherit hover:bg-surface-grey"
 							>
-								<div className="flex-shrink-0 pt-1">
+								<div className="shrink-0 pt-1">
 									<Avatar variant="icon" src={t.icon} fallback={t.name} />
 								</div>
 
@@ -90,7 +102,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 										// descriptions, when those URLS have no hyphens or other
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
-										className="text-sm text-gray-400 leading-[1.4] m-0 pt-1 break-words"
+										className="text-sm text-gray-400 leading-[1.4] m-0 pt-1 wrap-break-word"
 									>
 										{t.description}
 									</p>

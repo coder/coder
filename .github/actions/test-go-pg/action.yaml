@@ -26,6 +26,22 @@ inputs:
     description: "Packages to test (default: ./...)"
     required: false
     default: "./..."
+  run-regex:
+    description: "Go test name regex passed via RUN"
+    required: false
+    default: ""
+  test-shuffle:
+    description: "Go test shuffle mode passed via TEST_SHUFFLE"
+    required: false
+    default: ""
+  test-timeout:
+    description: "Go test timeout passed via TEST_TIMEOUT (empty for the Makefile default)"
+    required: false
+    default: ""
+  gotestsum-json-file:
+    description: "Optional Linux path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
+    required: false
+    default: ""
   embedded-pg-path:
     description: "Path for embedded postgres data (Windows/macOS only)"
     required: false
@@ -38,22 +54,102 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Mount tmpfs for Go temp dir (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: | # zizmor: ignore[github-env] GOTMPDIR uses only runner-provided paths.
+        # GOTMPDIR holds test binaries and t.TempDir() output. Keep them off
+        # the EBS-backed root disk like the Windows and macOS RAM disks do.
+        # Default the path here so the mount does not depend on the caller
+        # also running ./.github/actions/setup-go-paths.
+        if [[ -z "${GOTMPDIR:-}" ]]; then
+          GOTMPDIR="${RUNNER_TEMP}/go-tmp"
+          echo "GOTMPDIR=${GOTMPDIR}" >> "${GITHUB_ENV}"
+        fi
+        mkdir -p "${GOTMPDIR}"
+        sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
+
+    - name: Download Go modules
+      shell: bash
+      run: ./.github/scripts/retry.sh -- go mod download
+
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        TEST_POSTGRES_LOG_STATEMENT: none
       run: make test-postgres-docker
+
+    - name: Start I/O sampler (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        nohup vmstat -t 1 > "${RUNNER_TEMP}/vmstat.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/vmstat.pid"
+        if command -v iostat > /dev/null; then
+          nohup iostat -dxt 1 > "${RUNNER_TEMP}/iostat.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/iostat.pid"
+        fi
+
+    - name: Log runner details (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        sw_vers
+        sysctl hw.model hw.memsize hw.ncpu
+        uptime
+
+    - name: Start system sampler (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # One line per second. A gap in these timestamps means the whole
+        # runner paused, not just the test process.
+        nohup bash -c 'while true; do
+          printf "%s load=%s swap=%s " "$(date -u +%FT%TZ)" "$(sysctl -n vm.loadavg)" "$(sysctl -n vm.swapusage)"
+          vm_stat | tail -n +2 | tr -d " " | paste -sd "," -
+          sleep 1
+        done' > "${RUNNER_TEMP}/vm_stat.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/vm_stat.pid"
+        # top needs two samples to report CPU use. Keep only the second.
+        nohup bash -c 'while true; do
+          date -u +%FT%TZ
+          top -l 2 -n 10 -o mem -stats pid,command,cpu,mem | awk "/^Processes:/ { n++ } n == 2"
+          sleep 10
+        done' > "${RUNNER_TEMP}/top.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/top.pid"
+
+    - name: Resolve PostgreSQL path (Windows)
+      id: postgres-path
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+      run: |
+        $databasePath = $env:EMBEDDED_PG_PATH
+        if (-not $databasePath) {
+          $databasePath = Join-Path ([IO.Path]::GetTempPath()) 'coder-test-postgres'
+        }
+        "path=$databasePath" >> $env:GITHUB_OUTPUT
 
     - name: Setup Embedded Postgres (Windows/macOS)
       if: runner.os != 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
-        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
         EMBEDDED_PG_CACHE_DIR: ${{ inputs.embedded-pg-cache }}
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
+
+    - name: Verify PostgreSQL diagnostics (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path }}
+      run: |
+        & ./.github/scripts/postgres-diagnostics.tests.ps1 -Native -NativeDatabasePath $env:EMBEDDED_PG_PATH -NativeOutputDirectory "$env:RUNNER_TEMP/postgres-diagnostics"
 
     - name: Run tests
       shell: bash
@@ -61,20 +157,108 @@ runs:
         TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
         TEST_NUM_PARALLEL_TESTS: ${{ inputs.test-parallelism-tests }}
         TEST_COUNT: ${{ inputs.test-count }}
+        RUN: ${{ inputs.run-regex }}
+        TEST_SHUFFLE: ${{ inputs.test-shuffle }}
+        TEST_TIMEOUT: ${{ inputs.test-timeout }}
         TEST_PACKAGES: ${{ inputs.test-packages }}
         RACE_DETECTION: ${{ inputs.race-detection }}
+        GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
         TS_DEBUG_DISCO: "true"
+        TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
         LC_ALL: "en_US.UTF-8"
       run: |
         set -euo pipefail
 
-        if [[ ${RACE_DETECTION} == true ]]; then
-          gotestsum --junitfile="gotests.xml" --packages="${TEST_PACKAGES}" -- \
-            -tags=testsmallbatch \
-            -race \
-            -parallel "${TEST_NUM_PARALLEL_TESTS}" \
-            -p "${TEST_NUM_PARALLEL_PACKAGES}"
+        # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
+        # of writing a PATH shim. "default" is the historical
+        # ${RUNNER_TEMP}/go-test.json location consumed by
+        # ./.github/actions/go-test-failure-report.
+        if [[ -n "${GOTESTSUM_JSONFILE_INPUT}" ]]; then
+          if [[ "${GOTESTSUM_JSONFILE_INPUT}" == "default" ]]; then
+            export GOTESTSUM_JSONFILE="${RUNNER_TEMP}/go-test.json"
+          else
+            export GOTESTSUM_JSONFILE="${GOTESTSUM_JSONFILE_INPUT}"
+          fi
+        fi
+
+        if [[ ${RUNNER_OS} == Windows ]]; then
+          target="test"
+          [[ ${RACE_DETECTION} == true ]] && target=test-race
+          export CODER_TEST_PSMODULEPATH_PRESENT="${PSModulePath+present}"
+          export CODER_TEST_PSMODULEPATH_PRESENT="${CODER_TEST_PSMODULEPATH_PRESENT:-absent}"
+          export CODER_TEST_PSMODULEPATH="${PSModulePath-}"
+          pwsh -NoProfile -File .github/scripts/test-with-postgres-diagnostics.ps1 \
+            -OutputDirectory "${RUNNER_TEMP}/postgres-diagnostics" \
+            -DatabasePath "${EMBEDDED_PG_PATH}" -Target "$target"
+        elif [[ ${RACE_DETECTION} == true ]]; then
+          make test-race
         else
           make test
         fi
+
+    # Upload steps below use `always() && !success()` instead of
+    # `failure()` so they still run when the job timeout cancels the
+    # test step.
+    - name: Stop samplers
+      if: always() && runner.os != 'Windows'
+      shell: bash
+      run: |
+        for name in vmstat iostat vm_stat top; do
+          pidfile="${RUNNER_TEMP}/${name}.pid"
+          [[ -f "${pidfile}" ]] && kill "$(cat "${pidfile}")" 2> /dev/null || true
+        done
+
+    - name: Collect PostgreSQL logs (Linux)
+      if: always() && !success() && runner.os == 'Linux'
+      shell: bash
+      env:
+        POSTGRES_VERSION: ${{ inputs.postgres-version }}
+      run: make test-postgres-docker-logs > postgres.log 2>&1
+
+    - name: Upload PostgreSQL logs (Linux)
+      if: always() && !success() && runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-logs-${{ github.job }}
+        path: postgres.log
+
+    - name: Upload I/O samples (Linux)
+      if: always() && !success() && runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: io-samples-${{ github.job }}
+        path: |
+          ${{ runner.temp }}/vmstat.log
+          ${{ runner.temp }}/iostat.log
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload system samples (macOS)
+      if: always() && !success() && runner.os == 'macOS'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: system-samples-${{ github.job }}-${{ runner.os }}
+        path: |
+          ${{ runner.temp }}/vm_stat.log
+          ${{ runner.temp }}/top.log
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload PostgreSQL diagnostics (Windows)
+      if: always() && runner.os == 'Windows' && !success()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-diagnostics-${{ github.job }}-${{ runner.os }}
+        path: ${{ runner.temp }}/postgres-diagnostics
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload PostgreSQL logs (Windows/macOS)
+      if: always() && !success() && runner.os != 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-logs-${{ github.job }}-${{ runner.os }}
+        path: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}/data/log
+        if-no-files-found: ignore

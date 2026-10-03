@@ -120,7 +120,7 @@ func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)
-		_, _ = rw.Write([]byte(fmt.Sprint("unable to accept:", err)))
+		_, _ = fmt.Fprint(rw, "unable to accept:", err)
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")

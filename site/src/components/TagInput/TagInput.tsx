@@ -1,6 +1,7 @@
-import Chip from "@mui/material/Chip";
-import FormHelperText from "@mui/material/FormHelperText";
-import { type FC, useId, useMemo } from "react";
+import { XIcon } from "lucide-react";
+import { useId, useMemo } from "react";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 
 type TagInputProps = {
 	label: string;
@@ -9,7 +10,7 @@ type TagInputProps = {
 	onChange: (values: string[]) => void;
 };
 
-export const TagInput: FC<TagInputProps> = ({
+export const TagInput: React.FC<TagInputProps> = ({
 	label,
 	id,
 	values,
@@ -26,25 +27,30 @@ export const TagInput: FC<TagInputProps> = ({
 
 	return (
 		<div>
-			<label
+			<div
 				className="flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-border border-solid relative rounded-md
 				focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px"
 			>
 				{values.map((value, index) => (
-					<Chip
-						key={itemIds[index]}
-						className="rounded-md bg-surface-secondary text-content-secondary h-7"
-						label={value}
-						size="small"
-						onDelete={() => {
-							onChange(values.filter((oldValue) => oldValue !== value));
-						}}
-					/>
+					<Badge key={itemIds[index]} size="md" className="gap-1 pr-1">
+						{value}
+						<Button
+							type="button"
+							variant="subtle"
+							className="p-0 min-w-0 h-auto [&_svg]:pr-0 rounded-full"
+							onClick={() => {
+								onChange(values.filter((oldValue) => oldValue !== value));
+							}}
+							aria-label={`Remove ${value}`}
+						>
+							<XIcon className="size-icon-xs! pr-0!" />
+						</Button>
+					</Badge>
 				))}
 				<input
 					id={id}
 					aria-label={label}
-					className="flex-grow text-inherit p-0 border-none bg-transparent focus:outline-none"
+					className="grow text-inherit p-0 border-none bg-transparent focus:outline-hidden"
 					onKeyDown={(event) => {
 						if (event.key === ",") {
 							event.preventDefault();
@@ -74,11 +80,11 @@ export const TagInput: FC<TagInputProps> = ({
 						}
 					}}
 				/>
-			</label>
+			</div>
 
-			<FormHelperText className="text-content-secondary text-xs">
-				{'Type "," to separate the values'}
-			</FormHelperText>
+			<p className="text-content-secondary text-xs mt-1">
+				Type "," to separate the values
+			</p>
 		</div>
 	);
 };

@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { StatusIndicator, StatusIndicatorDot } from "./StatusIndicator";
+import {
+	StatusHealthyIndicator,
+	StatusIndicator,
+	StatusIndicatorDot,
+	StatusNotHealthyIndicator,
+	StatusNotReachableIndicator,
+	StatusNotRegisteredIndicator,
+} from "./StatusIndicator";
 
 const meta: Meta<typeof StatusIndicator> = {
 	title: "components/StatusIndicator",
@@ -51,5 +58,35 @@ export const Small: Story = {
 	args: {
 		variant: "success",
 		size: "sm",
+	},
+};
+
+export const Healthy: Story = {
+	args: {
+		children: <StatusHealthyIndicator />,
+	},
+};
+
+export const HealthyDERPOnly: Story = {
+	args: {
+		children: <StatusHealthyIndicator derpOnly />,
+	},
+};
+
+export const NotHealthy: Story = {
+	args: {
+		children: <StatusNotHealthyIndicator />,
+	},
+};
+
+export const NotReachable: Story = {
+	args: {
+		children: <StatusNotReachableIndicator />,
+	},
+};
+
+export const NotRegistered: Story = {
+	args: {
+		children: <StatusNotRegisteredIndicator />,
 	},
 };

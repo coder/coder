@@ -1,17 +1,16 @@
-import { getErrorMessage } from "api/errors";
-import type { APIKeyWithOwner } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import type { FC } from "react";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type { APIKeyWithOwner } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDeleteToken } from "./hooks";
 
-interface ConfirmDeleteDialogProps {
+type ConfirmDeleteDialogProps = {
 	queryKey: (string | boolean)[];
 	token: APIKeyWithOwner | undefined;
 	setToken: (arg: APIKeyWithOwner | undefined) => void;
-}
+};
 
-export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
+export const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 	queryKey,
 	token,
 	setToken,
@@ -22,13 +21,15 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 		useDeleteToken(queryKey);
 
 	const onDeleteSuccess = () => {
-		displaySuccess("Token has been deleted");
+		toast.success("Token has been deleted.");
 		setToken(undefined);
 	};
 
-	const onDeleteError = (error: unknown) => {
+	const onDeleteError = (error: Error) => {
 		const message = getErrorMessage(error, "Failed to delete token");
-		displayError(message);
+		toast.error(message, {
+			description: getErrorDetail(error),
+		});
 		setToken(undefined);
 	};
 

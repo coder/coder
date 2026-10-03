@@ -71,9 +71,39 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `FailedFile` type for file upload failures.
 //   - Add `DownloadFile` capability for provisioner daemons to fetch files from coderd.
 //   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
+//
+// API v1.15:
+//   - Removed `stop_modules` from CompleteJob. Was a duplicate of start_modules
+//   - Add `id`, `subagent_id`, `apps`, `scripts` and `envs` to `provisioner.Devcontainer`
+//
+// API v1.16:
+//   - Added `merge_strategy` field to `provisioner.Env` message
+//
+// API v1.17:
+//   - Added `user_secrets` field to `AcquiredJob.WorkspaceBuild`, carrying user
+//     secret values from coderd to provisioner daemons.
+//   - Added `UserSecretValue` message and `user_secrets` field to `PlanRequest`,
+//     carrying user secret values from provisioner daemons to provisioners
+//     during plan.
+//
+// API v1.18:
+//   - Removed `user_secrets` from `AcquiredJob.WorkspaceBuild` (field 12) and
+//     `PlanRequest` (field 7), along with the `UserSecretValue` message. The
+//     `coder_secret` Terraform integration is being removed; user secrets are
+//     still delivered to running workspaces via the agent manifest path, which
+//     is independent of this proto.
+//
+// API v1.19:
+//   - Removed `ai_tasks` (field 6) and `has_ai_tasks` (field 12) from
+//     provisionerd.proto `CompletedJob.WorkspaceBuild` and
+//     `CompletedJob.TemplateImport`.
+//   - Removed `ai_tasks` (field 8), `has_ai_tasks` (field 7), `ai_task_count`
+//     (field 6), `task_id` (field 22), `task_prompt` (field 23), and the
+//     `AITask` / `AITaskSidebarApp` messages from provisioner.proto. Coder
+//     Tasks is being removed.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 14
+	CurrentMinor = 19
 )
 
 // CurrentVersion is the current provisionerd API version.

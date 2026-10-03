@@ -47,12 +47,12 @@ test("create group", async ({ page }) => {
 	await expect(page).toHaveTitle("Groups - Coder");
 
 	// Create a new group
-	await page.getByText("Create group").click();
-	await expect(page).toHaveTitle("Create Group - Coder");
+	await page.getByRole("link", { name: "New group" }).click();
+	await expect(page).toHaveTitle("New group - Coder");
 	const name = randomName();
-	await page.getByLabel("Name", { exact: true }).fill(name);
+	await page.getByRole("textbox", { name: /^Name/ }).fill(name);
 	const displayName = `Group ${name}`;
-	await page.getByLabel("Display Name").fill(displayName);
+	await page.getByLabel("Display name").fill(displayName);
 	await page.getByLabel("Avatar URL").fill("/emojis/1f60d.png");
 	await page.getByRole("button", { name: /save/i }).click();
 
@@ -90,7 +90,7 @@ test("create group", async ({ page }) => {
 	const dialog = page.getByTestId("dialog");
 	await dialog.getByLabel("Name of the group to delete").fill(name);
 	await dialog.getByRole("button", { name: "Delete" }).click();
-	await expect(page.getByText("Group deleted successfully.")).toBeVisible();
+	await expect(page.getByText(/deleted successfully/)).toBeVisible();
 
 	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
 	await expect(page).toHaveTitle("Groups - Coder");
@@ -112,7 +112,7 @@ test("change quota settings", async ({ page }) => {
 	await login(page, orgUserAdmin);
 	await page.goto(`/organizations/${org.name}/groups/${group.name}`);
 
-	await page.getByRole("link", { name: "Settings", exact: true }).click();
+	await page.getByRole("link", { name: "Group settings" }).click();
 	await expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${group.name}/settings`,
 	);
@@ -127,6 +127,6 @@ test("change quota settings", async ({ page }) => {
 	);
 
 	// ...and that setting should persist if we go back
-	await page.getByRole("link", { name: "Settings", exact: true }).click();
+	await page.getByRole("link", { name: "Group settings" }).click();
 	await expect(page.getByLabel("Quota Allowance")).toHaveValue("100");
 });

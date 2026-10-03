@@ -26,7 +26,7 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.AppearanceConfig
-// @Router /appearance [get]
+// @Router /api/v2/appearance [get]
 func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	af := *api.AGPL.AppearanceFetcher.Load()
 	cfg, err := af.Fetch(r.Context())
@@ -66,6 +66,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		applicationName         string
 		logoURL                 string
 		announcementBannersJSON string
+		codernautsEnabled       bool
 	)
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
@@ -88,6 +89,13 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		}
 		return nil
 	})
+	eg.Go(func() (err error) {
+		codernautsEnabled, err = f.database.GetCodernautsEnabled(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get codernauts enabled: %w", err)
+		}
+		return nil
+	})
 	err := eg.Wait()
 	if err != nil {
 		return codersdk.AppearanceConfig{}, err
@@ -99,6 +107,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
 		DocsURL:             f.docsURL,
+		CodernautsEnabled:   codernautsEnabled,
 	}
 
 	if announcementBannersJSON != "" {
@@ -141,7 +150,7 @@ func validateHexColor(color string) error {
 // @Tags Enterprise
 // @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
 // @Success 200 {object} codersdk.UpdateAppearanceConfig
-// @Router /appearance [put]
+// @Router /api/v2/appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -201,6 +210,15 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to set logo URL",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.UpsertCodernautsEnabled(ctx, appearance.CodernautsEnabled)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to set Codernauts enabled",
 			Detail:  err.Error(),
 		})
 		return

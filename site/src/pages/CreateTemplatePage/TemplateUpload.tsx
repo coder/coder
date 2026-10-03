@@ -1,16 +1,15 @@
-import Link from "@mui/material/Link";
-import { FileUpload } from "components/FileUpload/FileUpload";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { FileUpload } from "#/components/FileUpload/FileUpload";
+import { Link } from "#/components/Link/Link";
 
-export interface TemplateUploadProps {
+export type TemplateUploadProps = {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
 	onRemove: () => void;
 	file?: File;
-}
+};
 
-export const TemplateUpload: FC<TemplateUploadProps> = ({
+export const TemplateUpload: React.FC<TemplateUploadProps> = ({
 	isUploading,
 	onUpload,
 	onRemove,
@@ -20,14 +19,15 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
 		<>
 			The template has to be a .tar or .zip file. You can also use our{" "}
 			<Link
-				component={RouterLink}
-				to="/starter-templates"
 				// Prevent trigger the upload
 				onClick={(e) => {
 					e.stopPropagation();
 				}}
+				asChild
+				showExternalIcon={false}
+				className="p-0"
 			>
-				starter templates
+				<RouterLink to="/starter-templates">starter templates</RouterLink>
 			</Link>{" "}
 			to get started with Coder.
 		</>

@@ -1,4 +1,4 @@
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 
 const paginationKey = "page";
 

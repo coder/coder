@@ -1,0 +1,11 @@
+# DemoSuggestion - canary rule used to verify how GitHub renders
+# suggestion-level Vale annotations in PR diffs. Fires on the literal
+# phrase `vale-demo-suggestion-marker`, which appears only in
+# docs/.style/_vale-annotation-demo.md. Demo rules drop in a follow-up
+# commit before the parent PR merges; see DOCS-426.
+extends: existence
+message: "[Demo] Suggestion-level Vale annotation."
+link: https://github.com/coder/coder/blob/main/docs/.style/_vale-annotation-demo.md
+level: suggestion
+tokens:
+  - vale-demo-suggestion-marker

@@ -226,19 +226,11 @@ WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
 
--- name: GetTemplateVersionHasAITask :one
-SELECT EXISTS (
-	SELECT 1
-	FROM template_versions
-	WHERE id = $1 AND has_ai_task = TRUE
-);
-
 -- name: UpdateTemplateVersionFlagsByJobID :exec
 UPDATE
 	template_versions
 SET
-	has_ai_task = $2,
-	has_external_agent = $3,
-	updated_at = $4
+	has_external_agent = $2,
+	updated_at = $3
 WHERE
 	job_id = $1;

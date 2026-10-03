@@ -1,4 +1,6 @@
-# Icons
+---
+title: Icons
+---
 
 Coder uses icons in several places, including ones that can be configured
 throughout the app, or specified in your Terraform. They're specified by a URL,
@@ -32,14 +34,14 @@ come bundled with your Coder deployment.
   }
   ```
 
-- [**Authentication Providers**](../../external-auth/index.md):
+- [**Authentication Providers**](../../external-auth.md):
 
   - Use icons for external authentication providers to make them recognizable.
     You can set an icon for each provider by setting the
     `CODER_EXTERNAL_AUTH_X_ICON` environment variable, where `X` is the number
     of the provider.
 
-    ```env
+    ```dotenv
     CODER_EXTERNAL_AUTH_0_ICON=/icon/github.svg
     CODER_EXTERNAL_AUTH_1_ICON=/icon/google.svg
     ```
@@ -54,7 +56,7 @@ come bundled with your Coder deployment.
 Coder is distributed with a bundle of icons for popular cloud providers and
 programming languages. You can see all of the icons (or suggest new ones) in our
 repository on
-[GitHub](https://github.com/coder/coder/tree/main/site/static/icon).
+[GitHub](../../../../site/static/icon).
 
 You can also view the entire list, with search and previews, by navigating to
 `/icons` on your Coder deployment (for example,

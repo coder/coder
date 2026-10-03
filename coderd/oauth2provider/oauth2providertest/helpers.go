@@ -62,8 +62,8 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 	appName := fmt.Sprintf("test-oauth2-app-%s", testutil.MustRandString(t, 10))
 
 	req := codersdk.PostOAuth2ProviderAppRequest{
-		Name:        appName,
-		CallbackURL: TestRedirectURI,
+		Name:         appName,
+		RedirectURIs: []string{TestRedirectURI},
 	}
 
 	app, err := client.PostOAuth2ProviderApp(ctx, req)
@@ -74,6 +74,47 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 	require.NoError(t, err, "failed to create OAuth2 app secret")
 
 	return &app, secret.ClientSecretFull
+}
+
+// RegisterPublicClient registers a public (secretless, PKCE-only) OAuth2 client
+// via RFC 7591 dynamic registration, the only way to create one. This is the
+// public counterpart to CreateTestOAuth2App. The caller must call EnableDCR
+// first, and needs owner-level permissions to do so.
+func RegisterPublicClient(t *testing.T, client *codersdk.Client, name, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
+	t.Helper()
+	return RegisterPublicClientWithRedirectURIs(t, client, name, redirectURI)
+}
+
+// RegisterPublicClientWithRedirectURIs registers a public client with every
+// redirect URI given. The first becomes the primary callback.
+func RegisterPublicClientWithRedirectURIs(t *testing.T, client *codersdk.Client, name string, redirectURIs ...string) codersdk.OAuth2ClientRegistrationResponse {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	resp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs:            redirectURIs,
+		ClientName:              fmt.Sprintf("%s-%s", name, testutil.MustRandString(t, 10)),
+		TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+	})
+	require.NoError(t, err, "failed to register public OAuth2 client")
+	// A public client is issued no secret. Asserting it here means every caller
+	// inherits the check rather than restating it.
+	require.Empty(t, resp.ClientSecret, "public client must not be issued a secret")
+	return resp
+}
+
+// EnableDCR turns on dynamic client registration for the deployment.
+// DCR defaults to disabled, so any test that registers a client via
+// POST /oauth2/register must call this first. The caller-provided client
+// must have owner-level permissions.
+func EnableDCR(t *testing.T, client *codersdk.Client) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: new(true),
+	})
+	require.NoError(t, err, "failed to enable dynamic client registration")
 }
 
 // GeneratePKCE generates a random PKCE code verifier and challenge
@@ -105,8 +146,9 @@ func GenerateState(t *testing.T) string {
 	return base64.RawURLEncoding.EncodeToString(bytes)
 }
 
-// AuthorizeOAuth2App performs the OAuth2 authorization flow and returns the authorization code
-func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) string {
+// doAuthorizeRequest performs the OAuth2 authorization request and returns the response.
+// Caller is responsible for closing the response body.
+func doAuthorizeRequest(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) *http.Response {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -123,6 +165,8 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 
 	if params.CodeChallenge != "" {
 		query.Set("code_challenge", params.CodeChallenge)
+	}
+	if params.CodeChallengeMethod != "" {
 		query.Set("code_challenge_method", params.CodeChallengeMethod)
 	}
 	if params.Resource != "" {
@@ -151,6 +195,15 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err, "failed to perform authorization request")
+
+	return resp
+}
+
+// AuthorizeOAuth2App performs the OAuth2 authorization flow and returns the authorization code
+func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) string {
+	t.Helper()
+
+	resp := doAuthorizeRequest(t, client, baseURL, params)
 	defer resp.Body.Close()
 
 	// Should get a redirect response (either 302 Found or 307 Temporary Redirect)
@@ -325,4 +378,33 @@ func CleanupOAuth2App(t *testing.T, client *codersdk.Client, appID uuid.UUID) {
 	if err != nil {
 		t.Logf("Warning: failed to cleanup OAuth2 app %s: %v", appID, err)
 	}
+}
+
+// AuthorizeOAuth2AppExpectingRedirectError performs the OAuth2 authorization
+// flow expecting a rejection, which RFC 6749 §4.1.2.1 delivers to the redirect
+// URI the app registered rather than as a status code on this server.
+//
+// wantDescription is asserted as a substring of error_description. Without it
+// every caller reduces to the same four assertions, and one blanket
+// invalid_request would satisfy all of them.
+func AuthorizeOAuth2AppExpectingRedirectError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError codersdk.OAuth2ErrorCode, wantDescription string) {
+	t.Helper()
+
+	resp := doAuthorizeRequest(t, client, baseURL, params)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusFound, resp.StatusCode, "unexpected status code")
+
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err, "failed to parse redirect location")
+	require.Equal(t, params.RedirectURI, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the registered redirect URI")
+
+	query := location.Query()
+	require.Equal(t, string(expectedError), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantDescription,
+		"the description must name the defect, not just its error class")
+	require.Equal(t, params.State, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }

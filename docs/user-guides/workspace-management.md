@@ -1,15 +1,18 @@
-# Workspaces
+---
+title: Manage workspaces
+---
 
-A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use
-[multiple IDEs](./workspace-access/index.md).
+A workspace is the environment where a developer or a coding agent works.
+Developers and agents in a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
 [shared template](../admin/templates/index.md). This lets an entire team work in
 environments that are identically configured and provisioned with the same
 resources.
 
-## Creating workspaces
+<a id="creating-workspaces"></a>
+
+## Create workspaces
 
 You can create a workspace in the UI. Log in to your Coder instance, go to the
 **Templates** tab, find the template you need, and select **Create Workspace**.
@@ -26,7 +29,7 @@ You can also create a workspace from the command line:
 Each Coder user has their own workspaces created from
 [templates](../admin/templates/index.md):
 
-```shell
+```sh
 # create a workspace from the template; specify any variables
 coder create --template="<templateName>" <workspaceName>
 
@@ -45,6 +48,10 @@ coder show <workspace-name>
 | Reserved names   | Cannot use `new` or `create`               |
 | Uniqueness       | Must be unique within your workspaces      |
 
+Renaming a workspace after you create it is off by default. A template admin can
+allow it per template. Refer to
+[Workspace renaming](../admin/templates/managing-templates/index.md#workspace-renaming).
+
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or
@@ -56,6 +63,9 @@ The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a
   convenient alias for the logged-in user, e.g., `owner:me`
+- `user` - Workspaces a user owns, plus workspaces shared with them directly
+  or through a group they belong to. Accepts a `username`, user ID, or `me`,
+  e.g., `user:me`
 - `name` - Name of the workspace.
 - `template` - Name of the template.
 - `status` - Indicates the status of the workspace, e.g, `status:failed` For a
@@ -66,10 +76,17 @@ The following filters are supported:
 - `dormant` - Filters workspaces based on the dormant state, e.g `dormant:true`
 - `has-agent` - Only applicable for workspaces in "start" transition. Stopped
   and deleted workspaces don't have agents. List of supported values
-  `connecting|connected|timeout`, e.g, `has-agent:connecting`
+  `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
 - `id` - Workspace UUID
+- `healthy` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
+- `include_agent_metadata` - Not a filter: expands each agent in the API
+  response with the named agent metadata keys, e.g,
+  `include_agent_metadata:cpu_usage`. Repeat the key to request multiple
+  metadata items. Keys match case-insensitively.
 
-## Updating workspaces
+<a id="updating-workspaces"></a>
+
+## Update workspaces
 
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
@@ -79,12 +96,22 @@ from, you can update the workspace.
 If the workspace is running, Coder stops it, updates it, then starts the
 workspace again.
 
-### Updating via the CLI
+<a id="updating-via-the-cli"></a>
+
+### Update with the CLI
 
 Update a workspace through the command line:
 
-```shell
+```sh
 coder update <workspace-name>
+```
+
+If the workspace is running, `coder update` asks for confirmation before it
+stops and updates the workspace. To skip the prompt in scripts and other
+non-interactive use, add `-y`:
+
+```sh
+coder update -y <workspace-name>
 ```
 
 ### Automatic updates
@@ -101,22 +128,22 @@ manually updated the workspace.
 
 ## Bulk operations
 
-> [!NOTE]
-> Bulk operations are a Premium feature.
-> [Learn more](https://coder.com/pricing#compare-plans).
-
-Licensed admins may apply bulk operations (update, delete, start, stop) in the
+Admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.
 
-The start and stop operations can only be applied to a set of workspaces which
-are all in the same state. For update and delete, the user will be prompted for
-confirmation before any action is taken.
+The start and stop operations can be applied even when the selected workspaces
+are not all in the same state. Bulk start will only apply to selected workspaces
+that are currently stopped, and bulk stop will only apply to selected workspaces
+that are currently running. For update, delete, and stop, the user is prompted
+for confirmation before any action is taken.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
-## Starting and stopping workspaces
+<a id="starting-and-stopping-workspaces"></a>
+
+## Start and stop workspaces
 
 By default, you manually start and stop workspaces as you need. You can also
 schedule a workspace to start and stop automatically.
@@ -127,7 +154,7 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](../admin/templates/managing-templates/index.md#updating-templates)
+[template update](../admin/templates/managing-templates/index.md#update-templates)
 available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
@@ -143,13 +170,15 @@ Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more information, see
 [Resource Persistence](../admin/templates/extending-templates/resource-persistence.md).
 
-## Repairing workspaces
+<a id="repairing-workspaces"></a>
+
+## Repair workspaces
 
 Use the following command to re-enter template input variables in an existing
 workspace. This command is useful when a workspace fails to build because its
 state is out of sync with the template.
 
-```shell
+```sh
 coder update <your workspace name> --always-prompt
 ```
 
@@ -166,7 +195,7 @@ Coder's filter query:
 
 You can also do this in the CLI with the following command:
 
-```shell
+```sh
 coder update <your workspace name> --always-prompt
 ```
 
@@ -174,7 +203,7 @@ If that does not work, a Coder admin can manually push and pull the Terraform
 state for a given workspace. This can lead to state corruption or deleted
 resources if you do not know what you are doing.
 
-```shell
+```sh
 coder state pull <username>/<workspace name>
 # Make changes
 coder state push <username>/<workspace name>
@@ -191,4 +220,4 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > [!NOTE]
-> Logs are truncated once they reach 5MB in size.
+> Logs are truncated once they reach 5&nbsp;MB in size.

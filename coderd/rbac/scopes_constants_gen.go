@@ -7,6 +7,18 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
+	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
+	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
+	ScopeAiGatewayKeyUpdate                  ScopeName = "ai_gateway_key:update"
+	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
+	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
+	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
+	ScopeAiProviderDelete                    ScopeName = "ai_provider:delete"
+	ScopeAiProviderRead                      ScopeName = "ai_provider:read"
+	ScopeAiProviderUpdate                    ScopeName = "ai_provider:update"
+	ScopeAiSeatCreate                        ScopeName = "ai_seat:create"
+	ScopeAiSeatRead                          ScopeName = "ai_seat:read"
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
@@ -25,6 +37,30 @@ const (
 	ScopeAssignRoleUnassign                  ScopeName = "assign_role:unassign"
 	ScopeAuditLogCreate                      ScopeName = "audit_log:create"
 	ScopeAuditLogRead                        ScopeName = "audit_log:read"
+	ScopeBoundaryLogCreate                   ScopeName = "boundary_log:create"
+	ScopeBoundaryLogDelete                   ScopeName = "boundary_log:delete"
+	ScopeBoundaryLogRead                     ScopeName = "boundary_log:read"
+	ScopeBoundaryUsageDelete                 ScopeName = "boundary_usage:delete"
+	ScopeBoundaryUsageRead                   ScopeName = "boundary_usage:read"
+	ScopeBoundaryUsageUpdate                 ScopeName = "boundary_usage:update"
+	ScopeChatCreate                          ScopeName = "chat:create"
+	ScopeChatDelete                          ScopeName = "chat:delete"
+	ScopeChatRead                            ScopeName = "chat:read"
+	ScopeChatShare                           ScopeName = "chat:share"
+	ScopeChatUpdate                          ScopeName = "chat:update"
+	ScopeChatAutomationCreate                ScopeName = "chat_automation:create"
+	ScopeChatAutomationDelete                ScopeName = "chat_automation:delete"
+	ScopeChatAutomationRead                  ScopeName = "chat_automation:read"
+	ScopeChatAutomationUpdate                ScopeName = "chat_automation:update"
+	ScopeChatModelConfigCreate               ScopeName = "chat_model_config:create"
+	ScopeChatModelConfigDelete               ScopeName = "chat_model_config:delete"
+	ScopeChatModelConfigRead                 ScopeName = "chat_model_config:read"
+	ScopeChatModelConfigShare                ScopeName = "chat_model_config:share"
+	ScopeChatModelConfigUpdate               ScopeName = "chat_model_config:update"
+	ScopeChatProjectCreate                   ScopeName = "chat_project:create"
+	ScopeChatProjectDelete                   ScopeName = "chat_project:delete"
+	ScopeChatProjectRead                     ScopeName = "chat_project:read"
+	ScopeChatProjectUpdate                   ScopeName = "chat_project:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -50,6 +86,11 @@ const (
 	ScopeLicenseCreate                       ScopeName = "license:create"
 	ScopeLicenseDelete                       ScopeName = "license:delete"
 	ScopeLicenseRead                         ScopeName = "license:read"
+	ScopeMcpServerConfigCreate               ScopeName = "mcp_server_config:create"
+	ScopeMcpServerConfigDelete               ScopeName = "mcp_server_config:delete"
+	ScopeMcpServerConfigRead                 ScopeName = "mcp_server_config:read"
+	ScopeMcpServerConfigShare                ScopeName = "mcp_server_config:share"
+	ScopeMcpServerConfigUpdate               ScopeName = "mcp_server_config:update"
 	ScopeNotificationMessageCreate           ScopeName = "notification_message:create"
 	ScopeNotificationMessageDelete           ScopeName = "notification_message:delete"
 	ScopeNotificationMessageRead             ScopeName = "notification_message:read"
@@ -95,10 +136,6 @@ const (
 	ScopeTailnetCoordinatorDelete            ScopeName = "tailnet_coordinator:delete"
 	ScopeTailnetCoordinatorRead              ScopeName = "tailnet_coordinator:read"
 	ScopeTailnetCoordinatorUpdate            ScopeName = "tailnet_coordinator:update"
-	ScopeTaskCreate                          ScopeName = "task:create"
-	ScopeTaskDelete                          ScopeName = "task:delete"
-	ScopeTaskRead                            ScopeName = "task:read"
-	ScopeTaskUpdate                          ScopeName = "task:update"
 	ScopeTemplateCreate                      ScopeName = "template:create"
 	ScopeTemplateDelete                      ScopeName = "template:delete"
 	ScopeTemplateRead                        ScopeName = "template:read"
@@ -118,6 +155,10 @@ const (
 	ScopeUserSecretDelete                    ScopeName = "user_secret:delete"
 	ScopeUserSecretRead                      ScopeName = "user_secret:read"
 	ScopeUserSecretUpdate                    ScopeName = "user_secret:update"
+	ScopeUserSkillCreate                     ScopeName = "user_skill:create"
+	ScopeUserSkillDelete                     ScopeName = "user_skill:delete"
+	ScopeUserSkillRead                       ScopeName = "user_skill:read"
+	ScopeUserSkillUpdate                     ScopeName = "user_skill:update"
 	ScopeWebpushSubscriptionCreate           ScopeName = "webpush_subscription:create"
 	ScopeWebpushSubscriptionDelete           ScopeName = "webpush_subscription:delete"
 	ScopeWebpushSubscriptionRead             ScopeName = "webpush_subscription:read"
@@ -132,10 +173,15 @@ const (
 	ScopeWorkspaceStart                      ScopeName = "workspace:start"
 	ScopeWorkspaceStop                       ScopeName = "workspace:stop"
 	ScopeWorkspaceUpdate                     ScopeName = "workspace:update"
+	ScopeWorkspaceUpdateAgent                ScopeName = "workspace:update_agent"
 	ScopeWorkspaceAgentDevcontainersCreate   ScopeName = "workspace_agent_devcontainers:create"
 	ScopeWorkspaceAgentResourceMonitorCreate ScopeName = "workspace_agent_resource_monitor:create"
 	ScopeWorkspaceAgentResourceMonitorRead   ScopeName = "workspace_agent_resource_monitor:read"
 	ScopeWorkspaceAgentResourceMonitorUpdate ScopeName = "workspace_agent_resource_monitor:update"
+	ScopeWorkspaceBuildOrchestrationCreate   ScopeName = "workspace_build_orchestration:create"
+	ScopeWorkspaceBuildOrchestrationDelete   ScopeName = "workspace_build_orchestration:delete"
+	ScopeWorkspaceBuildOrchestrationRead     ScopeName = "workspace_build_orchestration:read"
+	ScopeWorkspaceBuildOrchestrationUpdate   ScopeName = "workspace_build_orchestration:update"
 	ScopeWorkspaceDormantApplicationConnect  ScopeName = "workspace_dormant:application_connect"
 	ScopeWorkspaceDormantCreate              ScopeName = "workspace_dormant:create"
 	ScopeWorkspaceDormantCreateAgent         ScopeName = "workspace_dormant:create_agent"
@@ -147,6 +193,7 @@ const (
 	ScopeWorkspaceDormantStart               ScopeName = "workspace_dormant:start"
 	ScopeWorkspaceDormantStop                ScopeName = "workspace_dormant:stop"
 	ScopeWorkspaceDormantUpdate              ScopeName = "workspace_dormant:update"
+	ScopeWorkspaceDormantUpdateAgent         ScopeName = "workspace_dormant:update_agent"
 	ScopeWorkspaceProxyCreate                ScopeName = "workspace_proxy:create"
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
@@ -162,6 +209,18 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
@@ -180,6 +239,30 @@ func (e ScopeName) Valid() bool {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryLogCreate,
+		ScopeBoundaryLogDelete,
+		ScopeBoundaryLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
+		ScopeChatCreate,
+		ScopeChatDelete,
+		ScopeChatRead,
+		ScopeChatShare,
+		ScopeChatUpdate,
+		ScopeChatAutomationCreate,
+		ScopeChatAutomationDelete,
+		ScopeChatAutomationRead,
+		ScopeChatAutomationUpdate,
+		ScopeChatModelConfigCreate,
+		ScopeChatModelConfigDelete,
+		ScopeChatModelConfigRead,
+		ScopeChatModelConfigShare,
+		ScopeChatModelConfigUpdate,
+		ScopeChatProjectCreate,
+		ScopeChatProjectDelete,
+		ScopeChatProjectRead,
+		ScopeChatProjectUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -205,6 +288,11 @@ func (e ScopeName) Valid() bool {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,
@@ -250,10 +338,6 @@ func (e ScopeName) Valid() bool {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
-		ScopeTaskCreate,
-		ScopeTaskDelete,
-		ScopeTaskRead,
-		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
@@ -273,6 +357,10 @@ func (e ScopeName) Valid() bool {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,
@@ -287,10 +375,15 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
+		ScopeWorkspaceUpdateAgent,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,
@@ -302,6 +395,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
+		ScopeWorkspaceDormantUpdateAgent,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
@@ -318,6 +412,18 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
@@ -336,6 +442,30 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryLogCreate,
+		ScopeBoundaryLogDelete,
+		ScopeBoundaryLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
+		ScopeChatCreate,
+		ScopeChatDelete,
+		ScopeChatRead,
+		ScopeChatShare,
+		ScopeChatUpdate,
+		ScopeChatAutomationCreate,
+		ScopeChatAutomationDelete,
+		ScopeChatAutomationRead,
+		ScopeChatAutomationUpdate,
+		ScopeChatModelConfigCreate,
+		ScopeChatModelConfigDelete,
+		ScopeChatModelConfigRead,
+		ScopeChatModelConfigShare,
+		ScopeChatModelConfigUpdate,
+		ScopeChatProjectCreate,
+		ScopeChatProjectDelete,
+		ScopeChatProjectRead,
+		ScopeChatProjectUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -361,6 +491,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigShare,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,
@@ -406,10 +541,6 @@ func AllScopeNameValues() []ScopeName {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
-		ScopeTaskCreate,
-		ScopeTaskDelete,
-		ScopeTaskRead,
-		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
@@ -429,6 +560,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,
@@ -443,10 +578,15 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
+		ScopeWorkspaceUpdateAgent,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,
@@ -458,6 +598,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
+		ScopeWorkspaceDormantUpdateAgent,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,

@@ -46,17 +46,19 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.WorkspaceTable, string) {
@@ -79,30 +81,60 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 
 func TestSSH(t *testing.T) {
 	t.Parallel()
-	t.Run("ImmediateExit", func(t *testing.T) {
-		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "ssh", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
 
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
+			inv, root := clitest.New(t, "ssh", r.Workspace.Name)
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t).Named("stdin"), inv)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+			stdout.ExpectMatch(ctx, "Waiting")
+
+			_ = agenttest.New(t, client.URL, r.AgentToken)
+			_ = coderdtest.NewWorkspaceAgentWaiter(t, userClient, r.Workspace.ID).Wait()
+
+			// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+			stdin.WriteLine("exit")
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
 		})
-		pty.ExpectMatch("Waiting")
+	}
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		pty.WriteLine("exit")
-		<-cmdDone
-	})
 	t.Run("WorkspaceNameInput", func(t *testing.T) {
 		t.Parallel()
 
@@ -121,6 +153,7 @@ func TestSSH(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc, func(t *testing.T) {
 				t.Parallel()
+				logger := testutil.Logger(t)
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
@@ -128,19 +161,20 @@ func TestSSH(t *testing.T) {
 
 				inv, root := clitest.New(t, "ssh", tc)
 				clitest.SetupConfig(t, client, root)
-				pty := ptytest.New(t).Attach(inv)
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 				cmdDone := tGo(t, func() {
 					err := inv.WithContext(ctx).Run()
 					assert.NoError(t, err)
 				})
-				pty.ExpectMatch("Waiting")
+				stdout.ExpectMatch(ctx, "Waiting")
 
 				_ = agenttest.New(t, client.URL, agentToken)
 				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-				pty.WriteLine("exit")
+				stdin.WriteLine("exit")
 				<-cmdDone
 			})
 		}
@@ -148,6 +182,7 @@ func TestSSH(t *testing.T) {
 	t.Run("StartStoppedWorkspace", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		authToken := uuid.NewString()
 		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -168,7 +203,7 @@ func TestSSH(t *testing.T) {
 		// SSH to the workspace which should autostart it
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
@@ -180,15 +215,11 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		var err error
-		for {
+		require.Eventually(t, func() bool {
+			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
-			require.NoError(t, err)
-			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
-				break
-			}
-			time.Sleep(testutil.IntervalFast)
-		}
+			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -196,7 +227,7 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 	t.Run("StartStoppedWorkspaceConflict", func(t *testing.T) {
@@ -257,21 +288,20 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		var ptys []*ptytest.PTY
+		var stdouts []*expecter.Expecter
 		for i := 0; i < 3; i++ {
 			// SSH to the workspace which should autostart it
 			inv, root := clitest.New(t, "ssh", workspace.Name)
 
-			pty := ptytest.New(t).Attach(inv)
-			ptys = append(ptys, pty)
+			stdouts = append(stdouts, expecter.NewAttachedToInvocation(t, inv))
 			clitest.SetupConfig(t, client, root)
 			testutil.Go(t, func() {
 				_ = inv.WithContext(ctx).Run()
 			})
 		}
 
-		for _, pty := range ptys {
-			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+		for _, stdout := range stdouts {
+			stdout.ExpectMatch(ctx, "Workspace was stopped, starting workspace to allow connecting to")
 		}
 
 		// Allow one build to complete.
@@ -279,15 +309,15 @@ func TestSSH(t *testing.T) {
 		testutil.TryReceive(ctx, t, buildDone)
 
 		// Allow the remaining builds to continue.
-		for i := 0; i < len(ptys)-1; i++ {
+		for i := 0; i < len(stdouts)-1; i++ {
 			testutil.RequireSend(ctx, t, buildPause, false)
 		}
 
 		var foundConflict int
-		for _, pty := range ptys {
+		for _, stdout := range stdouts {
 			// Either allow the command to start the workspace or fail
 			// due to conflict (race), in which case it retries.
-			match := pty.ExpectRegexMatchContext(ctx, "Waiting for the workspace agent to connect")
+			match := stdout.ExpectRegexMatch(ctx, "Waiting for the workspace agent to connect")
 			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
 				foundConflict++
 			}
@@ -297,6 +327,7 @@ func TestSSH(t *testing.T) {
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		authToken := uuid.NewString()
 		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -338,7 +369,7 @@ func TestSSH(t *testing.T) {
 		// SSH to the workspace which should auto-update and autostart it
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -354,7 +385,7 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		<-cmdDone
 
 		// Double-check if workspace's template version is up-to-date
@@ -378,10 +409,7 @@ func TestSSH(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stderr = pty.Output()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -390,7 +418,7 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.ErrorIs(t, err, cliui.ErrCanceled)
 		})
-		pty.ExpectMatch(wantURL)
+		stdout.ExpectMatch(ctx, wantURL)
 		cancel()
 		<-cmdDone
 	})
@@ -401,6 +429,7 @@ func TestSSH(t *testing.T) {
 			t.Skip("Windows doesn't seem to clean up the process, maybe #7100 will fix it")
 		}
 
+		logger := testutil.Logger(t)
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
 		client.SetLogger(testutil.Logger(t).Named("client"))
@@ -412,7 +441,8 @@ func TestSSH(t *testing.T) {
 		}).WithAgent().Do()
 		inv, root := clitest.New(t, "ssh", r.Workspace.Name)
 		clitest.SetupConfig(t, userClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -421,14 +451,14 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
 		})
-		pty.ExpectMatch("Waiting")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		_ = agenttest.New(t, client.URL, r.AgentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		// Ensure the agent is connected.
-		pty.WriteLine("echo hell'o'")
-		pty.ExpectMatchContext(ctx, "hello")
+		stdin.WriteLine("echo hell'o'")
+		stdout.ExpectMatch(ctx, "hello")
 
 		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
@@ -443,66 +473,6 @@ func TestSSH(t *testing.T) {
 		case <-ctx.Done():
 			require.Fail(t, "command did not exit in time")
 		}
-	})
-
-	t.Run("Stdio", func(t *testing.T) {
-		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			_ = agenttest.New(t, client.URL, agentToken)
-			<-ctx.Done()
-		})
-
-		clientOutput, clientInput := io.Pipe()
-		serverOutput, serverInput := io.Pipe()
-		defer func() {
-			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
-				_ = c.Close()
-			}
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdin = clientOutput
-		inv.Stdout = serverInput
-		inv.Stderr = io.Discard
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
-			Reader: serverOutput,
-			Writer: clientInput,
-		}, "", &ssh.ClientConfig{
-			// #nosec
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		sshClient := ssh.NewClient(conn, channels, requests)
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
-		defer session.Close()
-
-		command := "sh -c exit"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c exit"
-		}
-		err = session.Run(command)
-		require.NoError(t, err)
-		err = sshClient.Close()
-		require.NoError(t, err)
-		_ = clientOutput.Close()
-
-		<-cmdDone
 	})
 
 	t.Run("DeterministicHostKey", func(t *testing.T) {
@@ -763,15 +733,11 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		var err error
-		for {
+		require.Eventually(t, func() bool {
+			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
-			require.NoError(t, err)
-			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
-				break
-			}
-			time.Sleep(testutil.IntervalFast)
-		}
+			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -1129,6 +1095,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -1176,8 +1143,8 @@ func TestSSH(t *testing.T) {
 			"--identity-agent", agentSock, // Overrides $SSH_AUTH_SOCK.
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err, "ssh command failed")
@@ -1185,21 +1152,21 @@ func TestSSH(t *testing.T) {
 
 		// Wait for the prompt or any output really to indicate the command has
 		// started and accepting input on stdin.
-		_ = pty.Peek(ctx, 1)
+		_ = stdout.Peek(ctx, 1)
 
 		// Ensure that SSH_AUTH_SOCK is set.
 		// Linux: /tmp/auth-agent3167016167/listener.sock
 		// macOS: /var/folders/ng/m1q0wft14hj0t3rtjxrdnzsr0000gn/T/auth-agent3245553419/listener.sock
-		pty.WriteLine(`env | grep SSH_AUTH_SOCK=`)
-		pty.ExpectMatch("SSH_AUTH_SOCK=")
+		stdin.WriteLine(`env | grep SSH_AUTH_SOCK=`)
+		stdout.ExpectMatch(ctx, "SSH_AUTH_SOCK=")
 		// Ensure that ssh-add lists our key.
-		pty.WriteLine("ssh-add -L")
+		stdin.WriteLine("ssh-add -L")
 		keys, err := kr.List()
 		require.NoError(t, err, "list keys failed")
-		pty.ExpectMatch(keys[0].String())
+		stdout.ExpectMatch(ctx, keys[0].String())
 
 		// And we're done.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 
@@ -1267,6 +1234,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -1279,8 +1247,8 @@ func TestSSH(t *testing.T) {
 		)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		// Wait super long so this doesn't flake on -race test.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -1292,15 +1260,15 @@ func TestSSH(t *testing.T) {
 		// Since something was output, it should be safe to write input.
 		// This could show a prompt or "running startup scripts", so it's
 		// not indicative of the SSH connection being ready.
-		_ = pty.Peek(ctx, 1)
+		_ = stdout.Peek(ctx, 1)
 
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
-		pty.WriteLine("echo $foo $baz")
-		pty.ExpectMatchContext(ctx, "bar qux")
+		stdin.WriteLine("echo $foo $baz")
+		stdout.ExpectMatch(ctx, "bar qux")
 
 		// And we're done.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 	})
 
 	t.Run("RemoteForwardUnixSocket", func(t *testing.T) {
@@ -1310,6 +1278,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -1329,8 +1298,8 @@ func TestSSH(t *testing.T) {
 			fmt.Sprintf("%s:%s", remoteSock, localSock),
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
@@ -1338,12 +1307,12 @@ func TestSSH(t *testing.T) {
 		// Since something was output, it should be safe to write input.
 		// This could show a prompt or "running startup scripts", so it's
 		// not indicative of the SSH connection being ready.
-		_ = pty.Peek(ctx, 1)
+		_ = stdout.Peek(ctx, 1)
 
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
-		pty.WriteLine("echo ping' 'pong")
-		pty.ExpectMatchContext(ctx, "ping pong")
+		stdin.WriteLine("echo ping' 'pong")
+		stdout.ExpectMatch(ctx, "ping pong")
 
 		// Start the listener on the "local machine".
 		l, err := net.Listen("unix", localSock)
@@ -1361,12 +1330,10 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				}()
+				})
 			}
 		})
 
@@ -1386,7 +1353,7 @@ func TestSSH(t *testing.T) {
 		require.Equal(t, "hello world", string(buf))
 
 		// And we're done.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 	})
 
 	// Test that we can forward a local unix socket to a remote unix socket and
@@ -1399,6 +1366,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -1426,12 +1394,10 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				}()
+				})
 			}
 		})
 
@@ -1448,8 +1414,8 @@ func TestSSH(t *testing.T) {
 			)
 			inv.Logger = inv.Logger.Named(id)
 			clitest.SetupConfig(t, client, root)
-			pty := ptytest.New(t).Attach(inv)
-			inv.Stderr = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			cmdDone := tGo(t, func() {
 				err := inv.WithContext(ctx).Run()
 				assert.NoError(t, err, "ssh command failed: %s", id)
@@ -1458,12 +1424,12 @@ func TestSSH(t *testing.T) {
 			// Since something was output, it should be safe to write input.
 			// This could show a prompt or "running startup scripts", so it's
 			// not indicative of the SSH connection being ready.
-			_ = pty.Peek(ctx, 1)
+			_ = stdout.Peek(ctx, 1)
 
 			// Ensure the SSH connection is ready by testing the shell
 			// input/output.
-			pty.WriteLine("echo ping' 'pong")
-			pty.ExpectMatchContext(ctx, "ping pong")
+			stdin.WriteLine("echo ping' 'pong")
+			stdout.ExpectMatch(ctx, "ping pong")
 
 			d := &net.Dialer{}
 			fd, err := d.DialContext(ctx, "unix", remoteSock)
@@ -1489,7 +1455,7 @@ func TestSSH(t *testing.T) {
 				assert.NoError(t, err, id)
 				assert.Equal(t, "hello world", string(buf), id)
 
-				pty.WriteLine("exit")
+				stdin.WriteLine("exit")
 				<-cmdDone
 				return nil
 			})
@@ -1512,6 +1478,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -1542,8 +1509,8 @@ func TestSSH(t *testing.T) {
 
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
@@ -1551,12 +1518,12 @@ func TestSSH(t *testing.T) {
 		// Since something was output, it should be safe to write input.
 		// This could show a prompt or "running startup scripts", so it's
 		// not indicative of the SSH connection being ready.
-		_ = pty.Peek(ctx, 1)
+		_ = stdout.Peek(ctx, 1)
 
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
-		pty.WriteLine("echo ping' 'pong")
-		pty.ExpectMatchContext(ctx, "ping pong")
+		stdin.WriteLine("echo ping' 'pong")
+		stdout.ExpectMatch(ctx, "ping pong")
 
 		for i, sock := range sockets {
 			// Start the listener on the "local machine".
@@ -1575,12 +1542,10 @@ func TestSSH(t *testing.T) {
 						return
 					}
 
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+					wg.Go(func() {
 						defer fd.Close()
 						agentssh.Bicopy(ctx, fd, fd)
-					}()
+					})
 				}
 			})
 
@@ -1601,27 +1566,30 @@ func TestSSH(t *testing.T) {
 		}
 
 		// And we're done.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 	})
 
 	t.Run("FileLogging", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		logDir := t.TempDir()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ssh", "-l", logDir, workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
 
-		pty.ExpectMatch("Waiting")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		w.RequireSuccess()
 
 		ents, err := os.ReadDir(logDir)
@@ -1632,51 +1600,51 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		type testCase struct {
-			name                   string
-			experiment             bool
-			usageAppName           string
-			expectedCalls          int
-			expectedCountSSH       int
-			expectedCountJetbrains int
-			expectedCountVscode    int
+			name           string
+			experiment     bool
+			usageAppName   string
+			expectedCalls  int
+			expectedCounts map[string]int64
 		}
 		tcs := []testCase{
 			{
 				name: "NoExperiment",
 			},
 			{
-				name:             "Empty",
-				experiment:       true,
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "Empty",
+				experiment:     true,
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:             "SSH",
-				experiment:       true,
-				usageAppName:     "ssh",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "SSH",
+				experiment:     true,
+				usageAppName:   "ssh",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:                   "Jetbrains",
-				experiment:             true,
-				usageAppName:           "jetbrains",
-				expectedCalls:          1,
-				expectedCountJetbrains: 1,
+				name:           "Jetbrains",
+				experiment:     true,
+				usageAppName:   "jetbrains",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"jetbrains": 1},
 			},
 			{
-				name:                "Vscode",
-				experiment:          true,
-				usageAppName:        "vscode",
-				expectedCalls:       1,
-				expectedCountVscode: 1,
+				name:           "Vscode",
+				experiment:     true,
+				usageAppName:   "vscode",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"vscode": 1},
 			},
 			{
-				name:             "InvalidDefaultsToSSH",
-				experiment:       true,
-				usageAppName:     "invalid",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				// Arbitrary app names are accepted, normalized by the server
+				// at ingestion, so new IDEs need no CLI changes.
+				name:           "ArbitraryNamePassthrough",
+				experiment:     true,
+				usageAppName:   "Some-Future-IDE",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"some_future_ide": 1},
 			},
 			{
 				name:         "Disable",
@@ -1689,6 +1657,7 @@ func TestSSH(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
+				logger := testutil.Logger(t)
 				dv := coderdtest.DeploymentValues(t)
 				if tc.experiment {
 					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
@@ -1711,7 +1680,8 @@ func TestSSH(t *testing.T) {
 				agentToken := r.AgentToken
 				inv, root := clitest.New(t, "ssh", workspace.Name, fmt.Sprintf("--usage-app=%s", tc.usageAppName))
 				clitest.SetupConfig(t, client, root)
-				pty := ptytest.New(t).Attach(inv)
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
@@ -1720,19 +1690,27 @@ func TestSSH(t *testing.T) {
 					err := inv.WithContext(ctx).Run()
 					assert.NoError(t, err)
 				})
-				pty.ExpectMatch("Waiting")
+				stdout.ExpectMatch(ctx, "Waiting")
 
 				_ = agenttest.New(t, client.URL, agentToken)
 				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-				pty.WriteLine("exit")
+				stdin.WriteLine("exit")
 				<-cmdDone
 
-				require.EqualValues(t, tc.expectedCalls, batcher.Called)
-				require.EqualValues(t, tc.expectedCountSSH, batcher.LastStats.SessionCountSsh)
-				require.EqualValues(t, tc.expectedCountJetbrains, batcher.LastStats.SessionCountJetbrains)
-				require.EqualValues(t, tc.expectedCountVscode, batcher.LastStats.SessionCountVscode)
+				// The agent may still be reporting stats concurrently, so
+				// the batcher fields are only safe to read under its mutex.
+				batcher.Mu.Lock()
+				called := batcher.Called
+				sessionCounts := batcher.LastStats.GetSessionCounts()
+				batcher.Mu.Unlock()
+				require.EqualValues(t, tc.expectedCalls, called)
+				if len(tc.expectedCounts) == 0 {
+					require.Empty(t, sessionCounts)
+				} else {
+					require.EqualValues(t, tc.expectedCounts, sessionCounts)
+				}
 			})
 		}
 	})
@@ -1817,6 +1795,98 @@ func TestSSH(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestSSH_Stdio(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		id          string
+		useOldAgent bool
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
+
+			_, _ = tGoContext(t, func(ctx context.Context) {
+				// Run this async so the SSH command has to wait for
+				// the build and agent to connect!
+				_ = agenttest.New(t, userClient.URL, r.AgentToken)
+				<-ctx.Done()
+			})
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = c.Close()
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			inv, root := clitest.New(t, "ssh", "--stdio", r.Workspace.Name)
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			err = session.Run(command)
+			require.NoError(t, err)
+			err = sshClient.Close()
+			require.NoError(t, err)
+			_ = clientOutput.Close()
+
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+		})
+	}
 }
 
 //nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.
@@ -1982,16 +2052,15 @@ Expire-Date: 0
 	})
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
+	logger := testutil.Logger(t)
 	inv, root := clitest.New(t,
 		"ssh",
 		workspace.Name,
 		"--forward-gpg",
 	)
 	clitest.SetupConfig(t, client, root)
-	tpty := ptytest.New(t)
-	inv.Stdin = tpty.Input()
-	inv.Stdout = tpty.Output()
-	inv.Stderr = tpty.Output()
+	invOut := expecter.NewAttachedToInvocation(t, inv)
+	invIn := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 	cmdDone := tGo(t, func() {
 		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err, "ssh command failed")
@@ -2005,24 +2074,24 @@ Expire-Date: 0
 
 	// Wait for the prompt or any output really to indicate the command has
 	// started and accepting input on stdin.
-	_ = tpty.Peek(ctx, 1)
+	_ = invOut.Peek(ctx, 1)
 
-	tpty.WriteLine("echo hello 'world'")
-	tpty.ExpectMatch("hello world")
+	invIn.WriteLine("echo hello 'world'")
+	invOut.ExpectMatch(ctx, "hello world")
 
 	// Check the GNUPGHOME was correctly inherited via shell.
-	tpty.WriteLine("env && echo env-''-command-done")
-	match := tpty.ExpectMatch("env--command-done")
+	invIn.WriteLine("env && echo env-''-command-done")
+	match := invOut.ExpectMatch(ctx, "env--command-done")
 	require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
 
 	// Get the agent extra socket path in the "workspace" via shell.
-	tpty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
-	tpty.ExpectMatch(workspaceAgentSocketPath)
-	tpty.ExpectMatch("gpgconf--agentsocket-command-done")
+	invIn.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
+	invOut.ExpectMatch(ctx, workspaceAgentSocketPath)
+	invOut.ExpectMatch(ctx, "gpgconf--agentsocket-command-done")
 
 	// List the keys in the "workspace".
-	tpty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
-	listKeysOutput := tpty.ExpectMatch("gpg--listkeys-command-done")
+	invIn.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
+	listKeysOutput := invOut.ExpectMatch(ctx, "gpg--listkeys-command-done")
 	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
 	// It's fine that this key is expired. We're just testing that the key trust
 	// gets synced properly.
@@ -2031,14 +2100,14 @@ Expire-Date: 0
 	// Try to sign something. This demonstrates that the forwarding is
 	// working as expected, since the workspace doesn't have access to the
 	// private key directly and must use the forwarded agent.
-	tpty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
-	tpty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
-	tpty.ExpectMatch("Hash:")
-	tpty.ExpectMatch("hello world")
-	tpty.ExpectMatch("gpg--sign-command-done")
+	invIn.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
+	invOut.ExpectMatch(ctx, "BEGIN PGP SIGNED MESSAGE")
+	invOut.ExpectMatch(ctx, "Hash:")
+	invOut.ExpectMatch(ctx, "hello world")
+	invOut.ExpectMatch(ctx, "gpg--sign-command-done")
 
 	// And we're done.
-	tpty.WriteLine("exit")
+	invIn.WriteLine("exit")
 	<-cmdDone
 }
 
@@ -2051,6 +2120,7 @@ func TestSSH_Container(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		pool, err := dockertest.NewPool("")
 		require.NoError(t, err, "Could not connect to docker")
@@ -2084,7 +2154,8 @@ func TestSSH_Container(t *testing.T) {
 
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
-		ptty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		cmdDone := tGo(t, func() {
@@ -2092,10 +2163,10 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		ptty.ExpectMatchContext(ctx, " #")
-		ptty.WriteLine("hostname")
-		ptty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
-		ptty.WriteLine("exit")
+		stdout.ExpectMatch(ctx, " #")
+		stdin.WriteLine("hostname")
+		stdout.ExpectMatch(ctx, ct.Container.Config.Hostname)
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 
@@ -2128,15 +2199,15 @@ func TestSSH_Container(t *testing.T) {
 		cID := uuid.NewString()
 		inv, root := clitest.New(t, "ssh", workspace.Name, "-c", cID)
 		clitest.SetupConfig(t, client, root)
-		ptty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
-		ptty.ExpectMatch(fmt.Sprintf("Container not found: %q", cID))
-		ptty.ExpectMatch("Available containers: [something_completely_different]")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Container not found: %q", cID))
+		stdout.ExpectMatch(ctx, "Available containers: [something_completely_different]")
 		<-cmdDone
 	})
 
@@ -2159,6 +2230,99 @@ func TestSSH_Container(t *testing.T) {
 func TestSSH_CoderConnect(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name        string
+		id          string
+		useOldAgent bool
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
+
+			_ = agenttest.New(t, userClient.URL, r.AgentToken)
+			resources := coderdtest.NewWorkspaceAgentWaiter(t, userClient, r.Workspace.ID).Wait()
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = c.Close()
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			// Get an agent conn to use as the Coder Connect dialer.
+			agentConn, err := workspacesdk.New(userClient).DialAgent(ctx, resources[0].Agents[0].ID, nil)
+			require.NoError(t, err)
+			defer agentConn.Close()
+			require.True(t, agentConn.AwaitReachable(ctx))
+
+			inv, root := clitest.New(t, "ssh", r.Workspace.Name, "--stdio")
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			ctx = cli.WithTestOnlyCoderConnectDialer(ctx, agentConn)
+			ctx = withCoderConnectRunning(ctx)
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			err = session.Run(command)
+			require.NoError(t, err)
+			err = sshClient.Close()
+			require.NoError(t, err)
+			_ = clientOutput.Close()
+
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+		})
+	}
+
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2171,7 +2335,6 @@ func TestSSH_CoderConnect(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
 		clitest.SetupConfig(t, client, root)
-		_ = ptytest.New(t).Attach(inv)
 
 		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
 		ctx = withCoderConnectRunning(ctx)
@@ -2187,7 +2350,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 		err := testutil.TryReceive(ctx, t, errCh)
 		// Our mock dialer will always fail with this error, if it was called
-		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
+		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:4\" over tcp")
 
 		// The network info file should be created since we passed `--stdio`
 		entries, err := afero.ReadDir(fs, "/net")
@@ -2310,9 +2473,9 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
-			var exitErr *ssh.ExitError
+			var exitErr interface{ ExitCode() int }
 			assert.True(t, errors.As(err, &exitErr))
-			assert.Equal(t, 1, exitErr.ExitStatus())
+			assert.Equal(t, 1, exitErr.ExitCode())
 		})
 	})
 
@@ -2373,6 +2536,81 @@ func TestSSH_CoderConnect(t *testing.T) {
 		_ = clientOutput.Close()
 
 		<-cmdDone
+	})
+}
+
+func TestSSH_OneShotCommandMode(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("'test' shell command and wc are not available on Windows")
+	}
+
+	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	t.Run("DoesNotRequestPTY", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "not-tty", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("RequestsPTYWithFlag", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", "--tty", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "tty", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("ClosesStdinOnEOF", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "wc -l")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("a\nb\nc\n")
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "3", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("PropagatesExitCode", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a non-1 exit code so that we don't accidentally pass when the
+		// CLI falls back to the default exit code of 1 for any error.
+		inv, root := clitest.New(t, "ssh", workspace.Name, "exit 2")
+		clitest.SetupConfig(t, client, root)
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+
+		var cliExitErr interface{ ExitCode() int }
+		require.ErrorAs(t, err, &cliExitErr)
+		require.Equal(t, 2, cliExitErr.ExitCode())
 	})
 }
 
@@ -2519,4 +2757,33 @@ func TestSSH_Completion(t *testing.T) {
 		output := stdout.String()
 		require.Empty(t, output)
 	})
+}
+
+func assertConnLog(t *testing.T,
+	connLogger *connectionlog.FakeConnectionLogger,
+	workspace database.WorkspaceTable,
+	expectedType database.ConnectionType,
+	clientSessionID string,
+) {
+	t.Helper()
+	// Wait until we get at least one related log.
+	var logs []database.UpsertConnectionLogParams
+	require.Eventually(t, func() bool {
+		for _, log := range connLogger.ConnectionLogs() {
+			if log.Type == expectedType &&
+				log.WorkspaceID == workspace.ID {
+				logs = append(logs, log)
+			}
+		}
+		return len(logs) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	for _, log := range logs {
+		switch {
+		case clientSessionID != "":
+			require.Equal(t, clientSessionID, log.ClientSessionID.String)
+		default: // Should have generated a client session ID.
+			require.NotEmpty(t, log.ClientSessionID.String)
+		}
+	}
 }

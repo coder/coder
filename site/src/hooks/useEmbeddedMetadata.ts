@@ -1,13 +1,15 @@
+import { useMemo, useSyncExternalStore } from "react";
 import type {
 	AppearanceConfig,
 	BuildInfoResponse,
 	Entitlements,
 	Experiment,
+	Organization,
 	Region,
 	User,
 	UserAppearanceSettings,
-} from "api/typesGenerated";
-import { useMemo, useSyncExternalStore } from "react";
+} from "#/api/typesGenerated";
+import type { Permissions } from "#/modules/permissions";
 export const DEFAULT_METADATA_KEY = "property";
 
 /**
@@ -29,7 +31,10 @@ type AvailableMetadata = Readonly<{
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
-	"tasks-tab-visible": boolean;
+	"ai-gateway-enabled": boolean;
+	"user-secret-file-path-enabled": boolean;
+	permissions: Permissions;
+	organizations: Organization[];
 }>;
 
 export type MetadataKey = keyof AvailableMetadata;
@@ -64,11 +69,11 @@ type ParseJsonResult<T = unknown> = Readonly<
 	  }
 >;
 
-interface MetadataManagerApi {
+type MetadataManagerApi = {
 	subscribe: (callback: SubscriptionCallback) => () => void;
 	getMetadata: () => RuntimeHtmlMetadata;
 	clearMetadataByKey: (key: MetadataKey) => void;
-}
+};
 
 export class MetadataManager implements MetadataManagerApi {
 	private readonly metadataKey: string;
@@ -91,7 +96,12 @@ export class MetadataManager implements MetadataManagerApi {
 			experiments: this.registerValue<Experiment[]>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
-			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
+			"ai-gateway-enabled": this.registerValue<boolean>("ai-gateway-enabled"),
+			"user-secret-file-path-enabled": this.registerValue<boolean>(
+				"user-secret-file-path-enabled",
+			),
+			permissions: this.registerValue<Permissions>("permissions"),
+			organizations: this.registerValue<Organization[]>("organizations"),
 		};
 	}
 
@@ -233,7 +243,7 @@ export function makeUseEmbeddedMetadata(
 				metadata,
 				clearMetadataByKey: manager.clearMetadataByKey,
 			};
-		}, [manager, metadata]);
+		}, [metadata]);
 
 		return stableMetadataResult;
 	};
@@ -243,3 +253,8 @@ export const defaultMetadataManager = new MetadataManager();
 export const useEmbeddedMetadata = makeUseEmbeddedMetadata(
 	defaultMetadataManager,
 );
+
+export function useAIGatewayEnabled(): boolean {
+	const { metadata } = useEmbeddedMetadata();
+	return metadata["ai-gateway-enabled"].value ?? true;
+}

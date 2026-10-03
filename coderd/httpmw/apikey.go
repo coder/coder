@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,13 +24,64 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type apiKeyContextKey struct{}
+type (
+	apiKeyContextKey           struct{}
+	apiKeyPrecheckedContextKey struct{}
+)
+
+// ValidateAPIKeyConfig holds the settings needed for API key
+// validation at the top of the request lifecycle. Unlike
+// ExtractAPIKeyConfig it omits route-specific fields
+// (RedirectToLogin, Optional, ActivateDormantUser, etc.).
+type ValidateAPIKeyConfig struct {
+	DB                          database.Store
+	OAuth2Configs               *OAuth2Configs
+	DisableSessionExpiryRefresh bool
+	// SessionTokenFunc overrides how the API token is extracted
+	// from the request. Nil uses the default (cookie/header).
+	SessionTokenFunc func(*http.Request) string
+	Logger           slog.Logger
+}
+
+// ValidateAPIKeyResult is the outcome of successful validation.
+type ValidateAPIKeyResult struct {
+	Key        database.APIKey
+	Subject    rbac.Subject
+	UserStatus database.UserStatus
+}
+
+// ValidateAPIKeyError represents a validation failure with enough
+// context for downstream middlewares to decide how to respond.
+type ValidateAPIKeyError struct {
+	Code     int
+	Response codersdk.Response
+	// Hard is true for server errors and active failures (5xx,
+	// OAuth refresh failures) that must be surfaced even on
+	// optional-auth routes. Soft errors (missing/expired token)
+	// may be swallowed on optional routes.
+	Hard bool
+}
+
+func (e *ValidateAPIKeyError) Error() string {
+	return e.Response.Message
+}
+
+// APIKeyPrechecked stores the result of top-level API key
+// validation performed by PrecheckAPIKey. It distinguishes
+// two states:
+//   - Validation failed (including no token): Result == nil && Err != nil
+//   - Validation passed:                      Result != nil && Err == nil
+type APIKeyPrechecked struct {
+	Result *ValidateAPIKeyResult
+	Err    *ValidateAPIKeyError
+}
 
 // APIKeyOptional may return an API key from the ExtractAPIKey handler.
 func APIKeyOptional(r *http.Request) (database.APIKey, bool) {
@@ -79,6 +131,16 @@ func (c *OAuth2Configs) IsZero() bool {
 const (
 	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
 	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
+
+	// accessTokenQueryParam is the RFC 6750 query parameter name.
+	accessTokenQueryParam = "access_token"
+	// bearerPrefix is compared case-insensitively per RFC 6750.
+	bearerPrefix = "bearer "
+
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryMessage = "OAuth2 access token in the URL query string was ignored."
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryDetail = "OAuth 2.1 section 5.1 requires resource servers to ignore access tokens in the URL query string. Send the token in the Authorization header as a bearer token."
 )
 
 type ExtractAPIKeyConfig struct {
@@ -148,7 +210,312 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	}
 }
 
-func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+// PrecheckAPIKey extracts and fully validates the API key on every
+// request (if present) and stores the result in context. It never
+// writes error responses and always calls next.
+//
+// The rate limiter reads the stored result to key by user ID and
+// check the Owner bypass header. Downstream ExtractAPIKeyMW reads
+// it to avoid redundant DB lookups and validation.
+func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			// Already prechecked (shouldn't happen, but guard).
+			if _, ok := ctx.Value(apiKeyPrecheckedContextKey{}).(APIKeyPrechecked); ok {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			result, valErr := ValidateAPIKey(ctx, cfg, r)
+
+			prechecked := APIKeyPrechecked{
+				Result: result,
+				Err:    valErr,
+			}
+			ctx = context.WithValue(ctx, apiKeyPrecheckedContextKey{}, prechecked)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+// ValidateAPIKey extracts and validates the API key from the
+// request. It performs all security-critical checks:
+//   - Token extraction and parsing
+//   - Database lookup + secret hash validation
+//   - Refusal of OAuth2 provider tokens sent only in the URL query string
+//   - Expiry check
+//   - OIDC/OAuth token refresh (if applicable)
+//   - API key LastUsed / ExpiresAt DB updates
+//   - User role lookup (UserRBACSubject)
+//
+// It does NOT:
+//   - Write HTTP error responses
+//   - Activate dormant users (route-specific)
+//   - Redirect to login (route-specific)
+//   - Check OAuth2 audience (route-specific, depends on AccessURL)
+//   - Set PostAuth headers (route-specific)
+//   - Check user active status (route-specific, depends on dormant activation)
+//
+// Returns (result, nil) on success or (nil, error) on failure.
+func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
+	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
+	if valErr != nil {
+		return nil, valErr
+	}
+
+	// Log the API key ID for all requests that have a valid key
+	// format and secret, regardless of whether subsequent validation
+	// (expiry, user status, etc.) succeeds.
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WithFields(slog.F("api_key_id", key.ID))
+	}
+
+	now := dbtime.Now()
+	if key.ExpiresAt.Before(now) {
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+			},
+		}
+	}
+
+	// Refresh OIDC/GitHub tokens if applicable.
+	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
+		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    key.UserID,
+			LoginType: key.LoginType,
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "You must re-authenticate with the login provider.",
+				},
+			}
+		}
+		if err != nil {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: "A database error occurred",
+					Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+		// Check if the OAuth token is expired.
+		if !link.OAuthExpiry.IsZero() && link.OAuthExpiry.Before(now) {
+			if cfg.OAuth2Configs.IsZero() {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
+							"No OAuth2Configs provided. Contact an administrator to configure this login type.", key.LoginType),
+					},
+					Hard: true,
+				}
+			}
+
+			var friendlyName string
+			var oauthConfig promoauth.OAuth2Config
+			switch key.LoginType {
+			case database.LoginTypeGithub:
+				oauthConfig = cfg.OAuth2Configs.Github
+				friendlyName = "GitHub"
+			case database.LoginTypeOIDC:
+				oauthConfig = cfg.OAuth2Configs.OIDC
+				friendlyName = "OpenID Connect"
+			default:
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
+					},
+					Hard: true,
+				}
+			}
+
+			if oauthConfig == nil {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
+							"OAuth2Config not provided. Contact an administrator to configure this login type.", key.LoginType),
+					},
+					Hard: true,
+				}
+			}
+
+			// Soft error: session expired naturally with no
+			// refresh token. Optional-auth routes treat this as
+			// unauthenticated.
+			if link.OAuthRefreshToken == "" {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusUnauthorized,
+					Response: codersdk.Response{
+						Message: SignedOutErrorMessage,
+						Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
+					},
+				}
+			}
+
+			// We have a refresh token, so let's try it.
+			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
+				AccessToken:  link.OAuthAccessToken,
+				RefreshToken: link.OAuthRefreshToken,
+				Expiry:       link.OAuthExpiry,
+			}).Token()
+			// Hard error: we actively tried to refresh and the
+			// provider rejected it — surface even on optional-auth
+			// routes.
+			if err != nil {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusUnauthorized,
+					Response: codersdk.Response{
+						Message: fmt.Sprintf(
+							"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
+							friendlyName),
+						Detail: err.Error(),
+					},
+					Hard: true,
+				}
+			}
+			link.OAuthAccessToken = token.AccessToken
+			link.OAuthRefreshToken = token.RefreshToken
+			link.OAuthExpiry = token.Expiry
+			//nolint:gocritic // system needs to update user link
+			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
+				UserID:                 link.UserID,
+				LoginType:              link.LoginType,
+				OAuthAccessToken:       link.OAuthAccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      link.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				Claims: link.Claims,
+			})
+			if err != nil {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+					},
+					Hard: true,
+				}
+			}
+		}
+	}
+
+	// Update LastUsed and session expiry.
+	changed := false
+	if now.Sub(key.LastUsed) > time.Hour {
+		key.LastUsed = now
+		remoteIP := net.ParseIP(r.RemoteAddr)
+		if remoteIP == nil {
+			remoteIP = net.IPv4(0, 0, 0, 0)
+		}
+		bitlen := len(remoteIP) * 8
+		key.IPAddress = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   remoteIP,
+				Mask: net.CIDRMask(bitlen, bitlen),
+			},
+			Valid: true,
+		}
+		changed = true
+	}
+	// Only apply sliding-window expiry refresh to interactive login
+	// sessions. Programmatic API tokens (LoginTypeToken, created via
+	// `coder tokens create`) honor a fixed, finite lifetime and must not be
+	// silently extended to now+lifetime on each authenticated request.
+	if !cfg.DisableSessionExpiryRefresh && key.LoginType != database.LoginTypeToken {
+		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
+		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
+			key.ExpiresAt = now.Add(apiKeyLifetime)
+			changed = true
+		}
+	}
+	if changed {
+		//nolint:gocritic // System needs to update API Key LastUsed
+		err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystemRestricted(ctx), database.UpdateAPIKeyByIDParams{
+			ID:        key.ID,
+			LastUsed:  key.LastUsed,
+			ExpiresAt: key.ExpiresAt,
+			IPAddress: key.IPAddress,
+		})
+		if err != nil {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+
+		//nolint:gocritic // system needs to update user last seen at
+		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
+			ID:         key.UserID,
+			LastSeenAt: dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+		})
+		if err != nil {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+	}
+
+	// Fetch user roles.
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+	if err != nil {
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
+			},
+			Hard: true,
+		}
+	}
+
+	return &ValidateAPIKeyResult{
+		Key:        *key,
+		Subject:    actor,
+		UserStatus: userStatus,
+	}, nil
+}
+
+// APIKeyFromRequest returns the API key that authenticates r, or the error
+// response for the caller to write.
+func APIKeyFromRequest(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+	key, valErr := apiKeyFromRequestValidate(ctx, db, logger, sessionTokenFunc, r)
+	if valErr != nil {
+		return nil, valErr.Response, false
+	}
+
+	return key, codersdk.Response{}, true
+}
+
+func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
 		tokenFunc = sessionTokenFunc
@@ -156,45 +523,88 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 
 	token := tokenFunc(r)
 	if token == "" {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+			},
+		}
 	}
 
 	keyID, keySecret, err := SplitAPIToken(token)
 	if err != nil {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "Invalid API key format: " + err.Error(),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "Invalid API key format: " + err.Error(),
+			},
+		}
 	}
 
 	//nolint:gocritic // System needs to fetch API key to check if it's valid.
 	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, codersdk.Response{
-				Message: SignedOutErrorMessage,
-				Detail:  "API key is invalid.",
-			}, false
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "API key is invalid.",
+				},
+			}
 		}
 
-		return nil, codersdk.Response{
-			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+			},
+			Hard: true,
+		}
 	}
 
 	// Checking to see if the secret is valid.
 	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "API key secret is invalid.",
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "API key secret is invalid.",
+			},
+		}
 	}
 
-	return &key, codersdk.Response{}, true
+	// OAuth 2.1 section 5.1 requires resource servers to ignore access tokens
+	// in the URL query string. Coder session tokens still work in the query
+	// string because browsers cannot set headers on WebSocket connections.
+	if key.LoginType == database.LoginTypeOAuth2ProviderApp && tokenOnlyInQuery(r, token) {
+		fields := []slog.Field{
+			slog.F("api_key_id", key.ID),
+			slog.F("user_id", key.UserID),
+			slog.F("path", r.URL.Path),
+			slog.F("remote_addr", r.RemoteAddr),
+			slog.F("user_agent", r.UserAgent()),
+		}
+		// The app ID is what the admin pages list, so include it when the
+		// token row can be found.
+		//nolint:gocritic // OAuth2 system context, only used to name the app in the log.
+		if appToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID); err == nil {
+			fields = append(fields, slog.F("app_id", appToken.AppID))
+		}
+		logger.Warn(ctx, "oauth2 access token ignored: sent in the URL query string", fields...)
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: oauth2TokenInQueryMessage,
+				Detail:  oauth2TokenInQueryDetail,
+			},
+		}
+	}
+
+	return &key, nil
 }
 
 // ExtractAPIKey requires authentication using a valid API key. It handles
@@ -239,23 +649,60 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
-	if !ok {
-		return optionalWrite(http.StatusUnauthorized, resp)
+	// --- Consume prechecked result if available ---
+	// Skip prechecked data when cfg has a custom SessionTokenFunc,
+	// because the precheck used the default token extraction and may
+	// have validated a different token (e.g. workspace app token
+	// issuance in workspaceapps/db.go).
+	var key *database.APIKey
+	var actor rbac.Subject
+	var userStatus database.UserStatus
+	var skipValidation bool
+
+	if cfg.SessionTokenFunc == nil {
+		if pc, ok := ctx.Value(apiKeyPrecheckedContextKey{}).(APIKeyPrechecked); ok {
+			if pc.Err != nil {
+				// Validation failed at the top level (includes
+				// "no token provided").
+				if pc.Err.Hard {
+					return write(pc.Err.Code, pc.Err.Response)
+				}
+				return optionalWrite(pc.Err.Code, pc.Err.Response)
+			}
+			// Valid — use prechecked data, skip to route-specific logic.
+			key = &pc.Result.Key
+			actor = pc.Result.Subject
+			userStatus = pc.Result.UserStatus
+			skipValidation = true
+		}
 	}
 
-	now := dbtime.Now()
-	if key.ExpiresAt.Before(now) {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
-		})
+	if !skipValidation {
+		// Full validation path (no prechecked result or custom token func).
+		result, valErr := ValidateAPIKey(ctx, ValidateAPIKeyConfig{
+			DB:                          cfg.DB,
+			OAuth2Configs:               cfg.OAuth2Configs,
+			DisableSessionExpiryRefresh: cfg.DisableSessionExpiryRefresh,
+			SessionTokenFunc:            cfg.SessionTokenFunc,
+			Logger:                      cfg.Logger,
+		}, r)
+		if valErr != nil {
+			if valErr.Hard {
+				return write(valErr.Code, valErr.Response)
+			}
+			return optionalWrite(valErr.Code, valErr.Response)
+		}
+		key = &result.Key
+		actor = result.Subject
+		userStatus = result.UserStatus
 	}
 
-	// Validate OAuth2 provider app token audience (RFC 8707) if applicable
+	// --- Route-specific logic (always runs) ---
+
+	// Validate OAuth2 provider app token audience (RFC 8707) if applicable.
 	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
 		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, cfg.AccessURL, r); err != nil {
-			// Log the detailed error for debugging but don't expose it to the client
+			// Log the detailed error for debugging but don't expose it to the client.
 			cfg.Logger.Debug(ctx, "oauth2 token audience validation failed", slog.Error(err))
 			return optionalWrite(http.StatusForbidden, codersdk.Response{
 				Message: "Token audience validation failed",
@@ -263,183 +710,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		}
 	}
 
-	// We only check OIDC stuff if we have a valid APIKey. An expired key means we don't trust the requestor
-	// really is the user whose key they have, and so we shouldn't be doing anything on their behalf including possibly
-	// refreshing the OIDC token.
-	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
-		var err error
-		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    key.UserID,
-			LoginType: key.LoginType,
-		})
-		if errors.Is(err, sql.ErrNoRows) {
-			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-				Message: SignedOutErrorMessage,
-				Detail:  "You must re-authenticate with the login provider.",
-			})
-		}
-		if err != nil {
-			return write(http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred",
-				Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
-			})
-		}
-		// Check if the OAuth token is expired
-		if !link.OAuthExpiry.IsZero() && link.OAuthExpiry.Before(now) {
-			if cfg.OAuth2Configs.IsZero() {
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
-						"No OAuth2Configs provided. Contact an administrator to configure this login type.", key.LoginType),
-				})
-			}
-
-			var friendlyName string
-			var oauthConfig promoauth.OAuth2Config
-			switch key.LoginType {
-			case database.LoginTypeGithub:
-				oauthConfig = cfg.OAuth2Configs.Github
-				friendlyName = "GitHub"
-			case database.LoginTypeOIDC:
-				oauthConfig = cfg.OAuth2Configs.OIDC
-				friendlyName = "OpenID Connect"
-			default:
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
-				})
-			}
-
-			// It's possible for cfg.OAuth2Configs to be non-nil, but still
-			// missing this type. For example, if a user logged in with GitHub,
-			// but the administrator later removed GitHub and replaced it with
-			// OIDC.
-			if oauthConfig == nil {
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
-						"OAuth2Config not provided. Contact an administrator to configure this login type.", key.LoginType),
-				})
-			}
-
-			if link.OAuthRefreshToken == "" {
-				return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
-				})
-			}
-			// We have a refresh token, so let's try it
-			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-				AccessToken:  link.OAuthAccessToken,
-				RefreshToken: link.OAuthRefreshToken,
-				Expiry:       link.OAuthExpiry,
-			}).Token()
-			if err != nil {
-				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf(
-						"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
-						friendlyName),
-					Detail: err.Error(),
-				})
-			}
-			link.OAuthAccessToken = token.AccessToken
-			link.OAuthRefreshToken = token.RefreshToken
-			link.OAuthExpiry = token.Expiry
-			//nolint:gocritic // system needs to update user link
-			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:                 link.UserID,
-				LoginType:              link.LoginType,
-				OAuthAccessToken:       link.OAuthAccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      link.OAuthRefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            link.OAuthExpiry,
-				// Refresh should keep the same debug context because we use
-				// the original claims for the group/role sync.
-				Claims: link.Claims,
-			})
-			if err != nil {
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
-				})
-			}
-		}
-	}
-
-	// Tracks if the API key has properties updated
-	changed := false
-
-	// Only update LastUsed once an hour to prevent database spam.
-	if now.Sub(key.LastUsed) > time.Hour {
-		key.LastUsed = now
-		remoteIP := net.ParseIP(r.RemoteAddr)
-		if remoteIP == nil {
-			remoteIP = net.IPv4(0, 0, 0, 0)
-		}
-		bitlen := len(remoteIP) * 8
-		key.IPAddress = pqtype.Inet{
-			IPNet: net.IPNet{
-				IP:   remoteIP,
-				Mask: net.CIDRMask(bitlen, bitlen),
-			},
-			Valid: true,
-		}
-		changed = true
-	}
-	// Only update the ExpiresAt once an hour to prevent database spam.
-	// We extend the ExpiresAt to reduce re-authentication.
-	if !cfg.DisableSessionExpiryRefresh {
-		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
-		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
-			key.ExpiresAt = now.Add(apiKeyLifetime)
-			changed = true
-		}
-	}
-	if changed {
-		//nolint:gocritic // System needs to update API Key LastUsed
-		err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystemRestricted(ctx), database.UpdateAPIKeyByIDParams{
-			ID:        key.ID,
-			LastUsed:  key.LastUsed,
-			ExpiresAt: key.ExpiresAt,
-			IPAddress: key.IPAddress,
-		})
-		if err != nil {
-			return write(http.StatusInternalServerError, codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
-			})
-		}
-
-		// We only want to update this occasionally to reduce DB write
-		// load. We update alongside the UserLink and APIKey since it's
-		// easier on the DB to colocate writes.
-		//nolint:gocritic // system needs to update user last seen at
-		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
-			ID:         key.UserID,
-			LastSeenAt: dbtime.Now(),
-			UpdatedAt:  dbtime.Now(),
-		})
-		if err != nil {
-			return write(http.StatusInternalServerError, codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
-			})
-		}
-	}
-
-	// If the key is valid, we also fetch the user roles and status.
-	// The roles are used for RBAC authorize checks, and the status
-	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
-	if err != nil {
-		return write(http.StatusUnauthorized, codersdk.Response{
-			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
-		})
-	}
-
+	// Dormant activation (config-dependent).
 	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {
 		id, _ := uuid.Parse(actor.ID)
 		user, err := cfg.ActivateDormantUser(ctx, database.User{
@@ -473,8 +744,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // is being used with the correct audience/resource server (RFC 8707).
 func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
 	// Get the OAuth2 provider app token to check its audience
-	//nolint:gocritic // System needs to access token for audience validation
-	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
+	//nolint:gocritic // OAuth2 system context — audience validation for provider app tokens
+	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID)
 	if err != nil {
 		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
 	}
@@ -627,6 +898,11 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 	switch code {
 	case http.StatusUnauthorized:
 		switch {
+		case response.Message == oauth2TokenInQueryMessage:
+			// The query token was ignored, so the request carried no usable
+			// credentials. RFC 6750 section 3 says not to include an error
+			// code in that case.
+			return fmt.Sprintf(`Bearer realm="coder", resource_metadata=%q`, resourceMetadata)
 		case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
 			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token has expired", resource_metadata=%q`, resourceMetadata)
 		case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
@@ -704,6 +980,9 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 // 4. RFC 6750 Authorization: Bearer header
 // 5. RFC 6750 access_token query parameter
 //
+// apiKeyFromRequestValidate refuses OAuth2 provider tokens found only in the
+// coder_session_token or access_token query parameter.
+//
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
 	// Prioritize existing Coder custom authentication methods first
@@ -725,20 +1004,49 @@ func APITokenFromRequest(r *http.Request) string {
 	}
 
 	// RFC 6750 Bearer Token support (added as fallback methods)
-	// Check Authorization: Bearer <token> header (case-insensitive per RFC 6750)
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
-		// Skip "Bearer " (7 characters) and trim surrounding whitespace
-		return strings.TrimSpace(authHeader[7:])
+	if bearer := bearerToken(r); bearer != "" {
+		return bearer
 	}
 
 	// Check access_token query parameter
-	accessToken := r.URL.Query().Get("access_token")
+	accessToken := r.URL.Query().Get(accessTokenQueryParam)
 	if accessToken != "" {
 		return strings.TrimSpace(accessToken)
 	}
 
 	return ""
+}
+
+// bearerToken returns the trimmed token from an Authorization: Bearer header,
+// or an empty string when the header is absent or uses another scheme.
+func bearerToken(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len(bearerPrefix):])
+}
+
+// tokenOnlyInQuery reports whether token is in the coder_session_token or
+// access_token query parameter and not in the session cookie, the
+// Coder-Session-Token header, or the Authorization: Bearer header.
+func tokenOnlyInQuery(r *http.Request, token string) bool {
+	query := r.URL.Query()
+	// APITokenFromRequest trims the query value, so compare trimmed values.
+	matches := func(value string) bool { return strings.TrimSpace(value) == token }
+	inQuery := slices.ContainsFunc(query[codersdk.SessionTokenCookie], matches) ||
+		slices.ContainsFunc(query[accessTokenQueryParam], matches)
+	if !inQuery {
+		return false
+	}
+
+	if cookie, err := r.Cookie(codersdk.SessionTokenCookie); err == nil && cookie.Value == token {
+		return false
+	}
+	if r.Header.Get(codersdk.SessionTokenHeader) == token {
+		return false
+	}
+	return bearerToken(r) != token
 }
 
 // SplitAPIToken verifies the format of an API key and returns the split ID and

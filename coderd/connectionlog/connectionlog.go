@@ -90,8 +90,8 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected Code %d, got %d", idx+1, expected.Code.Int32, cl.Code.Int32)
 			continue
 		}
-		if expected.Ip.Valid && cl.Ip.IPNet.String() != expected.Ip.IPNet.String() {
-			t.Logf("connection log %d: expected IP %s, got %s", idx+1, expected.Ip.IPNet, cl.Ip.IPNet)
+		if expected.IP.Valid && cl.IP.IPNet.String() != expected.IP.IPNet.String() {
+			t.Logf("connection log %d: expected IP %s, got %s", idx+1, expected.IP.IPNet, cl.IP.IPNet)
 			continue
 		}
 		if expected.UserAgent.Valid && cl.UserAgent.String != expected.UserAgent.String {
@@ -112,6 +112,10 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 		}
 		if expected.DisconnectReason.Valid && cl.DisconnectReason.String != expected.DisconnectReason.String {
 			t.Logf("connection log %d: expected DisconnectReason %s, got %s", idx+1, expected.DisconnectReason.String, cl.DisconnectReason.String)
+			continue
+		}
+		if expected.ClientSessionID.Valid && cl.ClientSessionID.String != expected.ClientSessionID.String {
+			t.Logf("connection log %d: expected ClientSessionID %s, got %s", idx+1, expected.ClientSessionID.String, cl.ClientSessionID.String)
 			continue
 		}
 		if !expected.Time.IsZero() && expected.Time != cl.Time {

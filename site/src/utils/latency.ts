@@ -1,16 +1,29 @@
-import type { Theme } from "@emotion/react";
+const latencyColors = {
+	good: { text: "text-content-success", background: "bg-content-success" },
+	warning: {
+		text: "text-content-warning",
+		background: "bg-content-yellow",
+	},
+	critical: {
+		text: "text-content-destructive",
+		background: "bg-content-destructive",
+	},
+	unknown: {
+		text: "text-content-secondary",
+		background: "bg-content-secondary",
+	},
+} as const;
 
-export const getLatencyColor = (theme: Theme, latency?: number) => {
-	if (!latency) {
-		return theme.palette.text.secondary;
-	}
+type LatencyLevel = keyof typeof latencyColors;
 
-	let color = theme.roles.success.fill.solid;
-
-	if (latency >= 150 && latency < 300) {
-		color = theme.roles.warning.fill.solid;
-	} else if (latency >= 300) {
-		color = theme.roles.error.fill.solid;
-	}
-	return color;
+const getLatencyLevel = (latency?: number): LatencyLevel => {
+	if (!latency) return "unknown";
+	if (latency < 150) return "good";
+	if (latency < 300) return "warning";
+	return "critical";
 };
+
+export const getLatencyColor = (
+	latency?: number,
+	type: "text" | "background" = "text",
+) => latencyColors[getLatencyLevel(latency)][type];

@@ -21,7 +21,7 @@ import (
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpsertWorkspaceAgentPortShareRequest true "Upsert port sharing level request"
 // @Success 200 {object} codersdk.WorkspaceAgentPortShare
-// @Router /workspaces/{workspace}/port-share [post]
+// @Router /api/v2/workspaces/{workspace}/port-share [post]
 func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -119,7 +119,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 // @Tags PortSharing
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentPortShares
-// @Router /workspaces/{workspace}/port-share [get]
+// @Router /api/v2/workspaces/{workspace}/port-share [get]
 func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -143,7 +143,7 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.DeleteWorkspaceAgentPortShareRequest true "Delete port sharing level request"
 // @Success 200
-// @Router /workspaces/{workspace}/port-share [delete]
+// @Router /api/v2/workspaces/{workspace}/port-share [delete]
 func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)

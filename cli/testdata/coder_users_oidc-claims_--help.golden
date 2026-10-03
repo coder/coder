@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users oidc-claims [flags]
+
+  Display the OIDC claims for the authenticated user.
+
+    - Display your OIDC claims:
+  
+       $ coder users oidc-claims
+  
+    - Display your OIDC claims as JSON:
+  
+       $ coder users oidc-claims -o json
+
+OPTIONS:
+  -c, --column [key|value] (default: key,value)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

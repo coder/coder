@@ -1,4 +1,6 @@
-# Deployment Health
+---
+title: Deployment health
+---
 
 Coder includes an operator-friendly deployment health page that provides a
 number of details about the health of your Coder deployment.
@@ -61,7 +63,7 @@ This could be due to a number of reasons, including but not limited to:
 To troubleshoot further, you can log into the machine running Coder and attempt
 to run the following command:
 
-```shell
+```sh
 curl -v ${CODER_ACCESS_URL}/healthz
 # Expected output:
 # *   Trying XXX.XXX.XXX.XXX:443
@@ -109,7 +111,7 @@ query fails.
 #### Database Latency High
 
 **Problem:** This code is returned if the median latency is higher than the
-[configured threshold](../../reference/cli/server.md#--health-check-threshold-database).
+[configured threshold](../../reference/cli/server/index.md#--health-check-threshold-database).
 This may not be an error as such, but is an indication of a potential issue.
 
 **Solution:** Investigate the sizing of the configured database with regard to
@@ -119,9 +121,9 @@ configured threshold to a higher value (this will not address the root cause).
 
 > [!TIP]
 > You can enable
-> [detailed database metrics](../../reference/cli/server.md#--prometheus-collect-db-metrics)
+> [detailed database metrics](../../reference/cli/server/index.md#--prometheus-collect-db-metrics)
 > in Coder's Prometheus endpoint. If you have
-> [tracing enabled](../../reference/cli/server.md#--trace), these traces may also
+> [tracing enabled](../../reference/cli/server/index.md#--trace), these traces may also
 > contain useful information regarding Coder's database activity.
 
 ## DERP
@@ -129,7 +131,7 @@ configured threshold to a higher value (this will not address the root cause).
 Coder workspace agents may use
 [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp)
 to communicate with Coder. This requires connectivity to a number of configured
-[DERP servers](../../reference/cli/server.md#--derp-config-path) which are used
+[DERP servers](../../reference/cli/server/index.md#--derp-config-path) which are used
 to relay traffic between Coder and workspace agents. Coder periodically queries
 the health of its configured DERP servers and may return one or more of the
 following:
@@ -149,7 +151,7 @@ still be able to reach their workspaces, connection performance may be degraded.
 
 > [!NOTE]
 > This may also be shown if you have
-> [forced websocket connections for DERP](../../reference/cli/server.md#--derp-force-websockets).
+> [forced websocket connections for DERP](../../reference/cli/server/index.md#--derp-force-websockets).
 
 **Solution:** ensure that any proxies you use allow connection upgrade with the
 `Upgrade: derp` header.
@@ -165,13 +167,32 @@ performance may be impacted for clients closest to the unhealthy DERP server.
 **Solution:** Ensure that the DERP server is available and reachable over the
 network, for example:
 
-```shell
+```sh
 curl -v "https://coder.company.com/derp"
 # Expected output:
 # *   Trying XXX.XXX.XXX.XXX
 # * Connected to https://coder.company.com (XXX.XXX.XXX.XXX) port 443 (#0)
 # DERP requires connection upgrade
 ```
+
+### EDERP03
+
+#### No DERP servers available
+
+**Problem:** This is shown when Coder's effective DERP map does not contain
+any DERP servers. Without at least one working DERP server, workspace
+networking may not work.
+
+This can happen if the built-in DERP server is disabled and no external DERP
+map is configured, or if workspace proxies are expected to provide DERP but no
+healthy DERP-enabled proxy is currently available.
+
+**Solution:** Ensure that at least one DERP server is available to the
+deployment. For example:
+
+- Restart `coderd` with the built-in DERP server enabled
+- Restart `coderd` with an external DERP map configured
+- Make sure a workspace proxy with DERP server enabled is running and healthy
 
 ### ESTUN01
 
@@ -182,7 +203,7 @@ to establish [direct connections](../networking/stun.md). Without at least one
 working STUN server, direct connections may not be possible.
 
 **Solution:** Ensure that the
-[configured STUN severs](../../reference/cli/server.md#--derp-server-stun-addresses)
+[configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses)
 are reachable from Coder and that UDP traffic can be sent/received on the
 configured port.
 
@@ -227,7 +248,7 @@ Access URL.
 1. Ensure that Coder's configured Access URL can be reached from the server
    running Coder, using standard troubleshooting tools like `curl`:
 
-   ```shell
+   ```sh
    curl -v "https://coder.company.com"
    ```
 
@@ -294,9 +315,9 @@ be built until there is at least one provisioner daemon running.
 **Solution:**
 
 If you are using
-[External Provisioner Daemons](../provisioners/index.md#external-provisioners), ensure
+[External Provisioner Daemons](../../install/operate/provisioners/index.md), ensure
 that they are able to successfully connect to Coder. Otherwise, ensure
-[`--provisioner-daemons`](../../reference/cli/server.md#--provisioner-daemons)
+[`--provisioner-daemons`](../../reference/cli/server/index.md#--provisioner-daemons)
 is set to a value greater than 0.
 
 > [!NOTE]

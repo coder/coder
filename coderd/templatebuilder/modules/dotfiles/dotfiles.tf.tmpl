@@ -1,0 +1,14 @@
+module "dotfiles" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/dotfiles/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  default_dotfiles_branch = {{ .Variables.default_dotfiles_branch }}
+  default_dotfiles_uri = {{ .Variables.default_dotfiles_uri }}
+  description = {{ .Variables.description }}
+  dotfiles_branch = {{ .Variables.dotfiles_branch }}
+  dotfiles_uri = {{ .Variables.dotfiles_uri }}
+  manual_update = {{ .Variables.manual_update }}
+  post_clone_script = {{ .Variables.post_clone_script }}
+  user = {{ .Variables.user }}
+}

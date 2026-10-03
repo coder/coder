@@ -1,0 +1,663 @@
+// Command configdocgen generates the Coder server configuration reference at
+// docs/admin/setup/configuration-reference.md from codersdk.DeploymentValues.
+// It lists every visible deployment option grouped by serpent group. Each
+// option is rendered as a heading with its description followed by the
+// environment variable, CLI flag, YAML key, and default that apply to it.
+// Because the source is DeploymentValues, the page stays in sync as options
+// change.
+package main
+
+import (
+	"cmp"
+	"flag"
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/scripts/atomicwrite"
+	"github.com/coder/flog"
+	"github.com/coder/serpent"
+)
+
+const header = `---
+toc_depth: 2
+---
+
+<!-- DO NOT EDIT | GENERATED CONTENT -->
+# Configuration reference
+
+Coder server is configured primarily through environment variables.
+This page lists every option so you can search by environment variable name, CLI flag, or YAML key.
+For first-time setup guidance and worked examples, see [Configure Control Plane Access](./index.md).
+
+Each option can be set through one or more of the methods below.
+An option lists only the methods that apply to it.
+
+- An environment variable (recommended for production deployments running as a system service, container, or Helm chart).
+- A CLI flag passed to ` + "`coder server`" + ` (useful for one-off invocations and local development).
+- A key in a YAML configuration file passed with ` + "`--config`" + `.
+
+For a full description of each option's accepted values and behavior, follow the flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server/index.md).
+
+An option that holds a secret is marked as such.
+Coder never writes those options to a YAML configuration file.
+
+Deprecated options are listed at the end of each section.
+
+`
+
+// generalSection holds options that do not belong to a serpent group.
+const generalSection = "General"
+
+// option is the normalized data needed to render one deployment option.
+type option struct {
+	title       string   // short, sentence-case heading text
+	typeName    string   // reader-facing value type, e.g. bool, duration, string-array
+	typeChoices []string // allowed values when typeName is enum or enum-array
+	env         string
+	flagName    string
+	flagAnchor  string
+	yaml        string
+	defValue    string
+	desc        string
+	deprecated  bool
+	secret      bool
+	sortKey     string // original serpent name, for stable ordering
+}
+
+// node is one section of the reference: a serpent group (or the synthetic
+// "General" group) with its direct options and any child sections.
+type node struct {
+	name     string // raw group name (leaf); sentence-cased at render time
+	intro    string // group description, if any
+	options  []option
+	children []*node
+	childIdx map[string]*node
+}
+
+func newNode(name string) *node {
+	return &node{name: name, childIdx: map[string]*node{}}
+}
+
+// child returns the named child section, creating it on first use.
+func (n *node) child(name string) *node {
+	if c, ok := n.childIdx[name]; ok {
+		return c
+	}
+	c := newNode(name)
+	n.childIdx[name] = c
+	n.children = append(n.children, c)
+	return c
+}
+
+// prepareEnv mirrors scripts/clidocgen so the generated defaults do not
+// depend on the generating host. Without it, defaults derived from
+// os.UserCacheDir and the config dir embed the local home directory.
+func prepareEnv() {
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "CODER_") {
+			name, _, _ := strings.Cut(env, "=")
+			if err := os.Unsetenv(name); err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("TMPDIR", "/tmp")
+	if err != nil {
+		panic(err)
+	}
+}
+
+func main() {
+	prepareEnv()
+
+	out := flag.String("out", "docs/admin/setup/configuration-reference.md", "path to write the generated reference page")
+	flag.Parse()
+
+	var vals codersdk.DeploymentValues
+	opts := vals.Options()
+
+	root := buildTree(opts)
+	body := render(root)
+
+	content := header + body
+	content = strings.TrimRight(content, "\n") + "\n"
+	if err := atomicwrite.File(*out, []byte(content)); err != nil {
+		flog.Fatalf("write %s: %v", *out, err)
+	}
+	flog.Successf("wrote %s", *out)
+}
+
+// buildTree groups options into a section tree, skipping hidden options and
+// options that have no environment variable, flag, or YAML key (those cannot
+// be set by an operator).
+func buildTree(opts serpent.OptionSet) *node {
+	root := newNode("")
+	for _, opt := range opts {
+		if opt.Hidden {
+			continue
+		}
+		if opt.Env == "" && opt.Flag == "" && opt.YAML == "" {
+			continue
+		}
+		sec := sectionFor(root, opt.Group)
+		sec.options = append(sec.options, toOption(opt))
+	}
+	sortTree(root)
+	return root
+}
+
+// sectionFor returns the section node for an option's group, creating the
+// chain of ancestor sections as needed. Options with no group (or an unnamed
+// group) live in the General section.
+func sectionFor(root *node, g *serpent.Group) *node {
+	if g == nil {
+		return root.child(generalSection)
+	}
+	cur := root
+	for _, ancestor := range g.Ancestry() {
+		if ancestor.Name == "" {
+			return root.child(generalSection)
+		}
+		cur = cur.child(ancestor.Name)
+		if cur.intro == "" {
+			cur.intro = collapse(ancestor.Description)
+		}
+	}
+	return cur
+}
+
+func toOption(opt serpent.Option) option {
+	var flagName, flagAnchor string
+	if opt.Flag != "" {
+		flagName = "--" + opt.Flag
+		// clidocgen renders a flag heading as "### -s, --flag" when it has a
+		// shorthand and "### --flag" otherwise, so the anchor must include the
+		// shorthand to match.
+		flagAnchor = "--" + opt.Flag
+		if opt.FlagShorthand != "" {
+			flagAnchor = "-" + opt.FlagShorthand + "---" + opt.Flag
+		}
+	}
+
+	def := opt.Default
+	if def == "" && opt.DefaultFn != nil {
+		// DefaultFn results depend on the host environment, so evaluating them
+		// here would leak host-specific values. Send the reader to the CLI
+		// reference for the resolved default instead.
+		def = "(computed at runtime)"
+	}
+
+	typeName, typeChoices := valueType(opt)
+
+	return option{
+		title:       shortTitle(opt),
+		typeName:    typeName,
+		typeChoices: typeChoices,
+		env:         opt.Env,
+		flagName:    flagName,
+		flagAnchor:  flagAnchor,
+		yaml:        opt.YAMLPath(),
+		defValue:    def,
+		desc:        collapse(opt.Description),
+		deprecated:  isDeprecated(opt),
+		secret:      codersdk.IsSecretDeploymentOption(opt),
+		sortKey:     opt.Name,
+	}
+}
+
+// valueType reports the option's reader-facing value type and, for enums, the
+// values it accepts. Structured values accept YAML input, so their Go generic
+// type names are not useful in the configuration reference.
+func valueType(opt serpent.Option) (name string, choices []string) {
+	if opt.Value == nil {
+		return "", nil
+	}
+	switch value := opt.Value.(type) {
+	case *serpent.Enum:
+		return "enum", value.Choices
+	case *serpent.EnumArray:
+		return "enum-array", value.Choices
+	}
+	if raw := opt.Value.Type(); strings.HasPrefix(raw, "struct[") {
+		switch {
+		case strings.HasPrefix(raw, "struct[[]"):
+			return "YAML sequence", nil
+		case strings.HasPrefix(raw, "struct[map["):
+			return "YAML mapping", nil
+		default:
+			return "YAML object", nil
+		}
+	}
+	return opt.Value.Type(), nil
+}
+
+// isDeprecated reports whether an option is deprecated. serpent tracks
+// replacements in UseInstead, and codersdk also marks some options by leading
+// the description with "Deprecated".
+func isDeprecated(opt serpent.Option) bool {
+	if len(opt.UseInstead) > 0 {
+		return true
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(opt.Description)), "deprecated")
+}
+
+// sortTree orders sections and their options. General sorts first and
+// Dangerous last among top-level sections; every other section is
+// alphabetical. Within a section, active options come before deprecated ones,
+// each alphabetical by their original name.
+func sortTree(n *node) {
+	slices.SortStableFunc(n.children, func(a, b *node) int {
+		if c := cmp.Compare(sectionRank(a.name), sectionRank(b.name)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.name, b.name)
+	})
+	for _, c := range n.children {
+		slices.SortStableFunc(c.options, func(a, b option) int {
+			if a.deprecated != b.deprecated {
+				if a.deprecated {
+					return 1
+				}
+				return -1
+			}
+			return strings.Compare(a.sortKey, b.sortKey)
+		})
+		sortTree(c)
+	}
+}
+
+// sectionRank orders top-level sections: General first, Dangerous last
+// (regardless of its emoji prefix), everything else alphabetical.
+func sectionRank(name string) int {
+	switch {
+	case name == generalSection:
+		return -1
+	case strings.HasSuffix(name, "Dangerous"):
+		return 1
+	default:
+		return 0
+	}
+}
+
+// dangerousCaution is the fallback GitHub alert body for the Dangerous
+// section, used when the group has no description of its own in codersdk.
+const dangerousCaution = "These options can break your deployment or weaken its security. " +
+	"Change them only when you understand the consequences."
+
+func render(root *node) string {
+	var b strings.Builder
+	for _, sec := range root.children {
+		renderNode(&b, sec, 2)
+	}
+	return b.String()
+}
+
+func renderNode(b *strings.Builder, n *node, level int) {
+	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), sentenceCase(stripLeadingSymbol(n.name)))
+
+	intro := n.intro
+	// The Dangerous group's own product-facing name carries a warning emoji
+	// (see sectionRank); docs render that as a GitHub alert instead, using
+	// the group's description if codersdk sets one.
+	if level == 2 && isDangerousSection(n.name) {
+		text := intro
+		if text == "" {
+			text = dangerousCaution
+		}
+		_, _ = fmt.Fprintf(b, "> [!CAUTION]\n> %s\n\n", strings.ReplaceAll(splitSentences(text), "\n", "\n> "))
+		intro = ""
+	}
+	if intro != "" {
+		_, _ = b.WriteString(splitSentences(intro))
+		_, _ = b.WriteString("\n\n")
+	}
+	for _, opt := range n.options {
+		renderOption(b, opt, level+1)
+	}
+	for _, c := range n.children {
+		renderNode(b, c, level+1)
+	}
+}
+
+// isDangerousSection reports whether a top-level section is the Dangerous
+// group, regardless of its emoji prefix. Mirrors sectionRank's check.
+func isDangerousSection(name string) bool {
+	return strings.HasSuffix(name, "Dangerous")
+}
+
+// stripLeadingSymbol removes leading words that carry no letters (emoji,
+// warning glyphs, and similar symbols) from a heading, so the generated docs
+// use one heading style instead of the product's own icon vocabulary. Words
+// are checked with hasLetter so multi-rune emoji sequences (e.g. "⚠️") are
+// treated as a single symbol token.
+func stripLeadingSymbol(s string) string {
+	words := strings.Fields(s)
+	i := 0
+	for i < len(words) && !hasLetter(words[i]) {
+		i++
+	}
+	if i == len(words) {
+		return s
+	}
+	return strings.Join(words[i:], " ")
+}
+
+func renderOption(b *strings.Builder, opt option, level int) {
+	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), opt.title)
+
+	desc := opt.desc
+	if opt.deprecated {
+		desc = emphasizeDeprecation(desc)
+	}
+	if desc != "" {
+		_, _ = b.WriteString(splitSentences(desc))
+		_, _ = b.WriteString("\n\n")
+	}
+
+	if opt.typeName != "" {
+		_, _ = fmt.Fprintf(b, "- Type: `%s`", opt.typeName)
+		if len(opt.typeChoices) > 0 {
+			choiceLead := ""
+			choiceQualifier := "one of "
+			if len(opt.typeChoices) == 1 {
+				choiceLead = "must be "
+				choiceQualifier = ""
+			}
+			if opt.typeName == "enum-array" {
+				choiceLead = "each value must be "
+			}
+			_, _ = fmt.Fprintf(b, ", %s%s%s", choiceLead, choiceQualifier, codeList(opt.typeChoices))
+		}
+		_, _ = b.WriteString("\n")
+	}
+	if opt.env != "" {
+		_, _ = fmt.Fprintf(b, "- Environment variable: `%s`\n", opt.env)
+	}
+	if opt.flagName != "" {
+		_, _ = fmt.Fprintf(b, "- CLI flag: [`%s`](../../reference/cli/server/index.md#%s)\n", opt.flagName, opt.flagAnchor)
+	}
+	if opt.yaml != "" {
+		_, _ = fmt.Fprintf(b, "- YAML key: `%s`\n", opt.yaml)
+	}
+	if opt.defValue != "" {
+		_, _ = fmt.Fprintf(b, "- Default value: `%s`\n", opt.defValue)
+	}
+	if opt.secret {
+		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file.")
+		if opt.env != "" {
+			_, _ = b.WriteString("\n  Set it through the environment variable above.")
+		}
+		_, _ = b.WriteString("\n")
+	}
+	_, _ = b.WriteString("\n")
+}
+
+// abbreviations end in a period without ending a sentence.
+var abbreviations = map[string]bool{
+	"e.g.": true,
+	"i.e.": true,
+	"etc.": true,
+	"vs.":  true,
+	"aka.": true,
+}
+
+// splitSentences puts each sentence of a paragraph on its own line, matching
+// the docs' one-sentence-per-line convention. A sentence ends at '.', '!', or
+// '?' followed by a space and an uppercase letter, unless the word is a known
+// abbreviation. Requiring an uppercase letter keeps a line from starting with
+// Markdown block syntax such as a list marker.
+func splitSentences(s string) string {
+	words := strings.Split(s, " ")
+	var b strings.Builder
+	for i, w := range words {
+		if i > 0 {
+			if endsSentence(words[i-1]) && startsSentence(w) {
+				_, _ = b.WriteString("\n")
+			} else {
+				_, _ = b.WriteString(" ")
+			}
+		}
+		_, _ = b.WriteString(w)
+	}
+	return b.String()
+}
+
+func endsSentence(w string) bool {
+	if abbreviations[strings.ToLower(w)] {
+		return false
+	}
+	core := strings.TrimRight(w, "\"')`*")
+	return strings.HasSuffix(core, ".") || strings.HasSuffix(core, "!") || strings.HasSuffix(core, "?")
+}
+
+func startsSentence(w string) bool {
+	r, _ := utf8.DecodeRuneInString(w)
+	return unicode.IsUpper(r)
+}
+
+// codeList renders values as a comma-separated list of inline code spans.
+func codeList(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = "`" + v + "`"
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// emphasizeDeprecation bolds the leading "Deprecated" marker in a description
+// so a deprecated option reads clearly. Trailing text is left unbolded so the
+// paragraph is not a lone emphasis span (markdownlint MD036).
+func emphasizeDeprecation(desc string) string {
+	const marker = "Deprecated"
+	if len(desc) >= len(marker) && strings.EqualFold(desc[:len(marker)], marker) {
+		if strings.TrimSpace(desc[len(marker):]) != "" {
+			return "**" + desc[:len(marker)] + "**" + desc[len(marker):]
+		}
+		return desc
+	}
+	if desc == "" {
+		return "Deprecated."
+	}
+	return "**Deprecated.** " + desc
+}
+
+// shortTitle strips the redundant group prefix from an option name and returns
+// it in sentence case, e.g. "AI Gateway Send Actor Headers" becomes
+// "Send actor headers".
+func shortTitle(opt serpent.Option) string {
+	name := opt.Name
+	if opt.Group != nil {
+		name = stripGroupPrefix(name, opt.Group)
+	}
+	return sentenceCase(name)
+}
+
+// stripGroupPrefix removes the group name that many option names repeat. For
+// space-prefixed names like "AI Gateway Send Actor Headers" it drops the
+// longest matching ancestor chain ("AI Gateway"). For colon-prefixed names
+// like "Notifications: Email TLS: StartTLS" it drops every segment up to the
+// last ": " once the leading segment belongs to the top-level group. Names
+// that do not repeat the group are returned unchanged.
+func stripGroupPrefix(name string, g *serpent.Group) string {
+	ancestry := g.Ancestry()
+	if len(ancestry) == 0 {
+		return name
+	}
+	names := make([]string, len(ancestry))
+	for i, a := range ancestry {
+		names[i] = a.Name
+	}
+
+	if before, _, ok := strings.Cut(name, ": "); ok {
+		// Only treat the colon as a group separator when the leading segment
+		// belongs to the top-level group. This avoids mangling meaningful
+		// colons such as "Health Check Threshold: Database".
+		if top := normalize(names[0]); top != "" && strings.HasPrefix(normalize(before), top) {
+			if idx := strings.LastIndex(name, ": "); idx >= 0 {
+				if rest := strings.TrimSpace(name[idx+len(": "):]); rest != "" {
+					return rest
+				}
+			}
+		}
+	}
+
+	// Try the longest ancestor suffix chain first (start == 0 is the full
+	// path) so the most specific prefix wins.
+	for start := range names {
+		prefix := strings.Join(names[start:], " ") + " "
+		if rest, ok := cutFold(name, prefix); ok {
+			if rest = strings.TrimSpace(rest); rest != "" {
+				return rest
+			}
+		}
+	}
+	return name
+}
+
+// properNouns lists words that keep their capitalization in sentence case.
+// They have ordinary title-case shape, so keepWord's acronym check would not
+// otherwise catch them.
+var properNouns = map[string]bool{
+	"anthropic":   true,
+	"bedrock":     true,
+	"claude":      true,
+	"coder":       true,
+	"google":      true,
+	"helm":        true,
+	"honeycomb":   true,
+	"maven":       true,
+	"postgres":    true,
+	"prometheus":  true,
+	"stackdriver": true,
+	"tailscale":   true,
+	"terraform":   true,
+	"wireguard":   true,
+}
+
+// featureNames are multi-word names whose exact casing is restored after
+// sentence-casing. A name that prefixes another comes after the longer one.
+var featureNames = []string{
+	"AI Gateway Proxy",
+	"AI Gateway",
+	"OpenID Connect",
+	"Template Builder",
+}
+
+// sentenceCase lowercases a heading's words after the first, preserving the
+// first word, acronyms and mixed-case tokens, proper nouns, and feature names.
+func sentenceCase(s string) string {
+	words := strings.Fields(s)
+	seenFirst := false
+	for i, w := range words {
+		if !seenFirst {
+			// Keep any leading symbols (e.g. an emoji) and the first real word.
+			if hasLetter(w) {
+				seenFirst = true
+			}
+			continue
+		}
+		if !keepWord(w) {
+			words[i] = strings.ToLower(w)
+		}
+	}
+	return restoreFeatureNames(strings.Join(words, " "))
+}
+
+// restoreFeatureNames rewrites any case-insensitive occurrence of a feature
+// name with its canonical casing.
+func restoreFeatureNames(s string) string {
+	for _, name := range featureNames {
+		s = replaceFold(s, name)
+	}
+	return s
+}
+
+// replaceFold replaces case-insensitive occurrences of canonical in s with
+// canonical's exact casing. It assumes canonical is ASCII, which holds for the
+// feature names above.
+func replaceFold(s, canonical string) string {
+	lower := strings.ToLower(canonical)
+	var b strings.Builder
+	for {
+		idx := strings.Index(strings.ToLower(s), lower)
+		if idx < 0 {
+			_, _ = b.WriteString(s)
+			return b.String()
+		}
+		_, _ = b.WriteString(s[:idx])
+		_, _ = b.WriteString(canonical)
+		s = s[idx+len(canonical):]
+	}
+}
+
+// keepWord reports whether a word must keep its capitalization: proper nouns,
+// all-caps or mixed-case acronyms (URL, GitHub), and tokens with digits
+// (OAuth2).
+func keepWord(w string) bool {
+	core := strings.Trim(w, "()[]{}:;,.\"'")
+	if core == "" {
+		return true
+	}
+	if properNouns[strings.ToLower(core)] {
+		return true
+	}
+	for i, r := range core {
+		if i == 0 {
+			continue
+		}
+		if unicode.IsUpper(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLetter(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// collapse trims a string and collapses internal runs of whitespace to a
+// single space so multi-line source text renders as one paragraph.
+func collapse(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// normalize lowercases a string and drops everything but letters and digits,
+// so prefixes can be compared regardless of spacing, case, or punctuation.
+func normalize(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			_, _ = b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
+}
+
+// cutFold trims prefix from s using a case-insensitive comparison, reporting
+// whether it was present.
+func cutFold(s, prefix string) (string, bool) {
+	if len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix) {
+		return s[len(prefix):], true
+	}
+	return s, false
+}

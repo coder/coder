@@ -159,7 +159,6 @@ func TestConvertDockerVolume(t *testing.T) {
 func TestConvertDockerInspect(t *testing.T) {
 	t.Parallel()
 
-	//nolint:paralleltest // variable recapture no longer required
 	for _, tt := range []struct {
 		name        string
 		expect      []codersdk.WorkspaceAgentContainer
@@ -388,7 +387,6 @@ func TestConvertDockerInspect(t *testing.T) {
 			},
 		},
 	} {
-		// nolint:paralleltest // variable recapture no longer required
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			bs, err := os.ReadFile(filepath.Join("testdata", tt.name, "docker_inspect.json"))

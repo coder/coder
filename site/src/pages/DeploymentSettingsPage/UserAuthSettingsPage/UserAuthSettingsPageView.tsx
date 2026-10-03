@@ -1,18 +1,17 @@
-import type { SerpentOption } from "api/typesGenerated";
-import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import type { SerpentOption } from "#/api/typesGenerated";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { JSX } from "react";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
-} from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type UserAuthSettingsPageViewProps = {
@@ -21,7 +20,7 @@ type UserAuthSettingsPageViewProps = {
 
 export const UserAuthSettingsPageView = ({
 	options,
-}: UserAuthSettingsPageViewProps): JSX.Element => {
+}: UserAuthSettingsPageViewProps): React.JSX.Element => {
 	const oidcEnabled = Boolean(
 		useDeploymentOptions(options, "oidc-client-id")[0].value,
 	);
@@ -30,28 +29,28 @@ export const UserAuthSettingsPageView = ({
 	);
 
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>User authentication</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink
-							href={docs("/admin/users/oidc-auth#openid-connect")}
-						/>
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with OpenID Connect
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with OpenID Connect.
+						Set up authentication to login with OpenID Connect.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/oidc-auth")}
+							context="about OpenID Connect login"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{oidcEnabled && (
 					<OptionsTable
@@ -63,20 +62,22 @@ export const UserAuthSettingsPageView = ({
 			</div>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with GitHub
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with GitHub.
+						Set up authentication to login with GitHub.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/github-auth")}
+							context="about GitHub login"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{githubEnabled && (
 					<OptionsTable
@@ -86,6 +87,6 @@ export const UserAuthSettingsPageView = ({
 					/>
 				)}
 			</div>
-		</Stack>
+		</div>
 	);
 };

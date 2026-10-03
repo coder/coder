@@ -1,21 +1,20 @@
-import { Margins } from "components/Margins/Margins";
+import { Outlet } from "react-router";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, PropsWithChildren } from "react";
-import { Outlet } from "react-router";
-import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
+} from "#/components/PageHeader/PageHeader";
+import { AIBridgeHelpPopover } from "./AIBridgeHelpPopover";
 
-const AIBridgeLayout: FC<PropsWithChildren> = () => {
+const AIBridgeLayout: React.FC<React.PropsWithChildren> = () => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI bridge logs</span>
-						<AIBridgeHelpTooltip />
+						<span>AI Gateway Logs</span>
+						<AIBridgeHelpPopover />
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>

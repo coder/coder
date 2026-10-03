@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -226,7 +224,7 @@ func Test_Runner(t *testing.T) {
 
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-			request.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
+			request.AllowUserCancelWorkspaceJobs = new(true)
 		})
 
 		const (
@@ -541,19 +539,18 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 	go func() {
 		defer close(ch)
 		var workspace codersdk.Workspace
-		for {
+		if !assert.Eventually(t, func() bool {
 			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-			if !assert.NoError(t, err) {
-				return
+			if err != nil {
+				return false
 			}
-			workspaces := res.Workspaces
-
-			if len(workspaces) == 1 {
-				workspace = workspaces[0]
-				break
+			if len(res.Workspaces) == 1 {
+				workspace = res.Workspaces[0]
+				return true
 			}
-
-			time.Sleep(testutil.IntervalMedium)
+			return false
+		}, testutil.WaitShort, testutil.IntervalMedium) {
+			return
 		}
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

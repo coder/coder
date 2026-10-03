@@ -1,0 +1,18 @@
+# Coder.SelectClick - use device-agnostic "select"/"open" instead of "click".
+# Refer to word-choice.md#select-not-click for the rule and its exceptions.
+extends: substitution
+message: "Use '%s' instead of '%s'; it assumes the reader has a mouse. Refer to word-choice.md#select-not-click."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#select-not-click
+level: warning
+ignorecase: true
+nonword: false
+action:
+  name: replace
+exceptions:
+  - '(?i)(?:(?:left|right|middle|one|single)[-\s])?mouse[-\s]click(?:s|ed|ing)?'
+  - '(?i)(?:left|right|middle|one|single)[-\s]click(?:s|ed|ing)?'
+swap:
+  '\b(?:(?:left|right|middle|one|single)[-\s])?(?:mouse[-\s])?click\b': "select, open"
+  '\b(?:(?:left|right|middle|one|single)[-\s])?(?:mouse[-\s])?clicks\b': "selects, opens"
+  '\b(?:(?:left|right|middle|one|single)[-\s])?(?:mouse[-\s])?clicked\b': "selected, opened"
+  '\b(?:(?:left|right|middle|one|single)[-\s])?(?:mouse[-\s])?clicking\b': "selecting, opening"

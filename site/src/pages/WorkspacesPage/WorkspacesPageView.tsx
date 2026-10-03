@@ -1,56 +1,41 @@
-import { hasError, isApiValidationError } from "api/errors";
-import type { Template, Workspace } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
+import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
+import type { UseQueryResult } from "react-query";
+import { hasError, isApiValidationError } from "#/api/errors";
+import type { Template, Workspace } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import { TableToolbar } from "components/TableToolbar/TableToolbar";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { Margins } from "#/components/Margins/Margins";
 import {
-	ChevronDownIcon,
-	CloudIcon,
-	PlayIcon,
-	SquareIcon,
-	TrashIcon,
-} from "lucide-react";
-import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import type { FC } from "react";
-import type { UseQueryResult } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
-import {
-	type WorkspaceFilterState,
-	WorkspacesFilter,
-} from "./filter/WorkspacesFilter";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
+import { mustUpdateWorkspace } from "#/utils/workspace";
+import { WorkspacesFilter } from "./filter/WorkspacesFilter";
+import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
-const Language = {
-	pageTitle: "Workspaces",
-	yourWorkspacesButton: "Your workspaces",
-	allWorkspacesButton: "All workspaces",
-	runningWorkspacesButton: "Running workspaces",
-	seeAllTemplates: "See all templates",
-	template: "Template",
-};
-
 type TemplateQuery = UseQueryResult<Template[]>;
-interface WorkspacesPageViewProps {
+type WorkspacesPageViewProps = {
 	error: unknown;
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	count?: number;
-	filterState: WorkspaceFilterState;
+	filter: UseFilterResult;
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
@@ -60,21 +45,22 @@ interface WorkspacesPageViewProps {
 	onBatchUpdateTransition: () => void;
 	onBatchStartTransition: () => void;
 	onBatchStopTransition: () => void;
-	canCheckWorkspaces: boolean;
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	canChangeVersions: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
-}
+	chatsByWorkspace?: Record<string, string>;
+};
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
+export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 	workspaces,
 	error,
 	limit,
 	count,
-	filterState,
+	filter,
 	onPageChange,
 	page,
 	checkedWorkspaces,
@@ -84,13 +70,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	onBatchStopTransition,
 	onBatchStartTransition,
 	isRunningBatchAction,
-	canCheckWorkspaces,
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
+	canCreateWorkspace,
 	canChangeVersions,
 	onActionSuccess,
 	onActionError,
+	chatsByWorkspace,
 }) => {
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which
 	// does not exist. In this case, the page is not valid and we want to show a
@@ -101,35 +88,30 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader
 				actions={
-					<WorkspacesButton
-						templates={templates}
-						templatesFetchStatus={templatesFetchStatus}
-					>
-						New workspace
-					</WorkspacesButton>
+					canCreateWorkspace && (
+						<WorkspacesButton
+							templates={templates}
+							templatesFetchStatus={templatesFetchStatus}
+						>
+							New workspace
+						</WorkspacesButton>
+					)
 				}
 			>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.pageTitle}</span>
-						<WorkspaceHelpTooltip />
-					</Stack>
+					<div className="flex flex-row gap-2 items-center">
+						<span>Workspaces</span>
+						<WorkspaceHelpPopover />
+					</div>
 				</PageHeaderTitle>
 			</PageHeader>
 
-			<Stack>
+			<div className="mb-4 flex flex-col gap-4">
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
-				<WorkspacesFilter
-					filter={filterState.filter}
-					error={error}
-					statusMenu={filterState.menus.status}
-					templateMenu={filterState.menus.template}
-					userMenu={filterState.menus.user}
-					organizationsMenu={filterState.menus.organizations}
-				/>
-			</Stack>
+				<WorkspacesFilter filter={filter} error={error} />
+			</div>
 
 			<TableToolbar>
 				{checkedWorkspaces.length > 0 ? (
@@ -150,14 +132,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4" />
+										<ChevronDownIcon />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.every(
+										!checkedWorkspaces?.some(
 											(w) =>
 												w.latest_build.status === "stopped" &&
 												!mustUpdateWorkspace(w, canChangeVersions),
@@ -169,7 +151,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.every(
+										!checkedWorkspaces?.some(
 											(w) => w.latest_build.status === "running",
 										)
 									}
@@ -179,7 +161,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>
-									<CloudIcon
+									<RotateCcwIcon
 										className="size-icon-sm"
 										data-testid="bulk-action-update"
 									/>{" "}
@@ -201,6 +183,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
+							isFiltered={filter.query.trim() !== ""}
 						/>
 					)
 				)}
@@ -208,10 +191,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					css={(theme) => ({
-						border: `1px solid ${theme.palette.divider}`,
-						borderRadius: theme.shape.borderRadius,
-					})}
+					className="border border-solid border-border rounded-lg"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={
@@ -227,14 +207,16 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			) : (
 				<WorkspacesTable
 					canCreateTemplate={canCreateTemplate}
+					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
-					isUsingFilter={filterState.filter.used}
+					isUsingFilter={filter.used}
+					onClearFilter={() => filter.update("")}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
-					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
 					onActionSuccess={onActionSuccess}
 					onActionError={onActionError}
+					chatsByWorkspace={chatsByWorkspace}
 				/>
 			)}
 
@@ -242,7 +224,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				// Temporary styling stopgap before component is migrated to using
 				// PaginationContainer (which renders PaginationWidgetBase using CSS
 				// flexbox gaps)
-				<div css={{ paddingTop: "16px" }}>
+				<div className="pt-4">
 					<PaginationWidgetBase
 						totalRecords={count}
 						pageSize={limit}

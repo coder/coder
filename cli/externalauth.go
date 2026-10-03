@@ -26,7 +26,10 @@ func externalAuth() *serpent.Command {
 }
 
 func externalAuthAccessToken() *serpent.Command {
-	var extra string
+	var (
+		extra        string
+		outputFormat string
+	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "access-token <provider>",
@@ -51,16 +54,29 @@ fi
 				Description: "Obtain an extra property of an access token for additional metadata.",
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
+			Example{
+				Description: "Print the full token response as JSON.",
+				Command:     "coder external-auth access-token github --output json",
+			},
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
-		Options: serpent.OptionSet{{
-			Name:        "Extra",
-			Flag:        "extra",
-			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
-			Value:       serpent.StringOf(&extra),
-		}},
+		Options: serpent.OptionSet{
+			{
+				Name:        "Extra",
+				Flag:        "extra",
+				Description: "Extract a field from the \"extra\" properties of the OAuth token.",
+				Value:       serpent.StringOf(&extra),
+			},
+			{
+				Name:        "Output",
+				Flag:        "output",
+				Description: "Output format. Available formats: text, json.",
+				Value:       serpent.EnumOf(&outputFormat, "text", "json"),
+				Default:     "text",
+			},
+		},
 
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -79,14 +95,21 @@ fi
 			if err != nil {
 				return xerrors.Errorf("get external auth token: %w", err)
 			}
-			if extAuth.URL != "" {
-				_, err = inv.Stdout.Write([]byte(extAuth.URL))
+
+			switch {
+			case outputFormat == "json":
+				data, err := json.MarshalIndent(extAuth, "", "  ")
 				if err != nil {
+					return xerrors.Errorf("marshal external auth response: %w", err)
+				}
+				if _, err := inv.Stdout.Write(data); err != nil {
 					return err
 				}
-				return cliui.ErrCanceled
-			}
-			if extra != "" {
+			case extAuth.URL != "":
+				if _, err := inv.Stdout.Write([]byte(extAuth.URL)); err != nil {
+					return err
+				}
+			case extra != "":
 				if extAuth.TokenExtra == nil {
 					return xerrors.Errorf("no extra properties found for token")
 				}
@@ -95,15 +118,17 @@ fi
 					return xerrors.Errorf("marshal extra properties: %w", err)
 				}
 				result := gjson.GetBytes(data, extra)
-				_, err = inv.Stdout.Write([]byte(result.String()))
-				if err != nil {
+				if _, err := inv.Stdout.Write([]byte(result.String())); err != nil {
 					return err
 				}
-				return nil
+			default:
+				if _, err := inv.Stdout.Write([]byte(extAuth.AccessToken)); err != nil {
+					return err
+				}
 			}
-			_, err = inv.Stdout.Write([]byte(extAuth.AccessToken))
-			if err != nil {
-				return err
+
+			if extAuth.URL != "" {
+				return cliui.ErrCanceled
 			}
 			return nil
 		},

@@ -1,47 +1,40 @@
+import capitalize from "lodash/capitalize";
+import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
+import { useState } from "react";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import capitalize from "lodash/capitalize";
-import {
-	ChevronDownIcon,
-	ChevronUpIcon,
-	ExternalLinkIcon,
-	FileIcon,
-	LayoutGridIcon,
-	SquareCheckBigIcon,
-} from "lucide-react";
-import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
-import { useAppLink } from "modules/apps/useAppLink";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { timeFrom } from "utils/time";
-import { truncateURI } from "utils/uri";
+} from "#/components/Tooltip/Tooltip";
+import { AppStatusStateIcon } from "#/modules/apps/AppStatusStateIcon";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import { timeFrom } from "#/utils/time";
+import { truncateURI } from "#/utils/uri";
 
-interface AppStatusesProps {
+type AppStatusesProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
-}
+};
 
 // Extend the API status type to include the app icon and the app itself
-interface StatusWithAppInfo extends APIWorkspaceAppStatus {
+type StatusWithAppInfo = APIWorkspaceAppStatus & {
 	appIcon?: string; // Kept for potential future use, but we'll primarily use app.icon
 	app?: WorkspaceApp; // Store the full app object
-}
+};
 
-export const AppStatuses: FC<AppStatusesProps> = ({
+export const AppStatuses: React.FC<AppStatusesProps> = ({
 	workspace,
 	agent,
 	referenceDate,
@@ -68,7 +61,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			<div
 				className={`
 					flex items-center justify-between px-4 py-3 gap-6
-					border-0 [&:not(:last-child)]:border-b border-solid border-border
+					border-0 not-last:border-b border-solid border-border
 				`}
 			>
 				<div className="flex flex-col overflow-hidden">
@@ -114,17 +107,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Button>
 						))}
 
-					{workspace.task_id && (
-						<Button asChild size="sm" variant="outline">
-							<RouterLink
-								to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-							>
-								<SquareCheckBigIcon />
-								View task
-							</RouterLink>
-						</Button>
-					)}
-
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
@@ -135,7 +117,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									setDisplayStatuses((display) => !display);
 								}}
 							>
-								{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+								<ChevronDownIcon />
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>
@@ -156,7 +138,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 								key={status.id}
 								className={`
 							flex items-center justify-between px-4 py-3
-							border-0 [&:not(:last-child)]:border-b border-solid border-border
+							border-0 not-last:border-b border-solid border-border
 						`}
 							>
 								<div className="flex items-center justify-between w-full text-content-secondary">
@@ -187,7 +169,7 @@ type AppLinkProps = {
 	workspace: Workspace;
 };
 
-const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
+const AppLink: React.FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	const link = useAppLink(app, { agent, workspace });
 
 	return (

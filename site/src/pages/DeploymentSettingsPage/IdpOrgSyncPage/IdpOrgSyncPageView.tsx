@@ -1,11 +1,22 @@
+import { useFormik } from "formik";
+import { PlusIcon, TrashIcon } from "lucide-react";
+import { useId, useState } from "react";
+import * as Yup from "yup";
 import type {
 	Organization,
 	OrganizationSyncSettings,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -13,23 +24,17 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
+} from "#/components/Dialog/Dialog";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -37,28 +42,22 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
-import * as Yup from "yup";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
+import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
-interface IdpSyncPageViewProps {
+type IdpSyncPageViewProps = {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
 	error?: unknown;
-}
+};
 
 const validationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -82,7 +81,7 @@ const validationSchema = Yup.object({
 		.default({}),
 });
 
-export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
+export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
 	claimFieldValues,
 	organizations,
@@ -132,7 +131,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
-	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+	const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+		event,
+	) => {
 		if (
 			event.key === "Enter" &&
 			inputValue &&
@@ -198,7 +199,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
-										<AssignDefaultOrgHelpTooltip />
+										<AssignDefaultOrgHelpPopover />
 									</span>
 								</div>
 							</div>
@@ -221,19 +222,48 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 								{claimFieldValues ? (
 									<Combobox
-										value={idpOrgName}
-										options={claimFieldValues}
-										placeholder="Select IdP organization"
 										open={open}
 										onOpenChange={setOpen}
-										inputValue={inputValue}
-										onInputChange={setInputValue}
-										onKeyDown={handleKeyDown}
-										onSelect={(value: string) => {
-											setIdpOrgName(value);
-											setOpen(false);
-										}}
-									/>
+										value={idpOrgName}
+										onValueChange={(value) => setIdpOrgName(value ?? "")}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className="w-72"
+												selectedOption={
+													idpOrgName
+														? { label: idpOrgName, value: idpOrgName }
+														: undefined
+												}
+												placeholder="Select IdP organization"
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-72">
+											<ComboboxInput
+												value={inputValue}
+												onValueChange={setInputValue}
+												placeholder="Search..."
+												onKeyDown={handleKeyDown}
+											/>
+											<ComboboxList>
+												{claimFieldValues
+													.filter((value) =>
+														value
+															.toLowerCase()
+															.includes(inputValue.toLowerCase()),
+													)
+													.map((value) => (
+														<ComboboxItem
+															key={value}
+															value={value}
+															onSelect={() => setInputValue("")}
+														>
+															{value}
+														</ComboboxItem>
+													))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
 								) : (
 									<Input
 										id={`${id}-idp-org-name`}
@@ -290,7 +320,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}}
 								>
 									<Spinner loading={form.isSubmitting}>
-										<Plus size={14} />
+										<PlusIcon />
 									</Spinner>
 									Add IdP organization
 								</Button>
@@ -355,12 +385,15 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	);
 };
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	isEmpty: boolean;
 	children: React.ReactNode;
-}
+};
 
-const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
+const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
+	isEmpty,
+	children,
+}) => {
 	return (
 		<Table>
 			<TableHeader>
@@ -371,40 +404,32 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<ChooseOne>
-					<Cond condition={isEmpty}>
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No organization mappings"
-									isCompact
-									cta={
-										<Link
-											href={docs("/admin/users/idp-sync#organization-sync")}
-										>
-											How to set up IdP organization sync
-										</Link>
-									}
-								/>
-							</TableCell>
-						</TableRow>
-					</Cond>
-
-					<Cond>{children}</Cond>
-				</ChooseOne>
+				{isEmpty ? (
+					<TableEmpty
+						message="No organization mappings"
+						isCompact
+						cta={
+							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+								How to set up IdP organization sync
+							</Link>
+						}
+					/>
+				) : (
+					children
+				)}
 			</TableBody>
 		</Table>
 	);
 };
 
-interface OrganizationRowProps {
+type OrganizationRowProps = {
 	idpOrg: string;
 	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
-const OrganizationRow: FC<OrganizationRowProps> = ({
+const OrganizationRow: React.FC<OrganizationRowProps> = ({
 	idpOrg,
 	exists = true,
 	coderOrgs,
@@ -415,23 +440,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<div className="flex flex-row items-center gap-2 text-content-primary">
 					{idpOrg}
-					{!exists && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
-							</TooltipTrigger>
-							<TooltipContent
-								align="start"
-								alignOffset={-8}
-								sideOffset={8}
-								className="p-2 text-xs text-content-secondary max-w-sm"
-							>
-								This value has not be seen in the specified claim field before.
-								You might want to check your IdP configuration and ensure that
-								this value is not misspelled.
-							</TooltipContent>
-						</Tooltip>
-					)}
+					{!exists && <IdpUnseenClaimWarning />}
 				</div>
 			</TableCell>
 			<TableCell>
@@ -445,7 +454,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
-					<Trash />
+					<TrashIcon />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>
@@ -453,16 +462,13 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpTooltip: FC = () => {
+const AssignDefaultOrgHelpPopover: React.FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
-					Disabling will remove all users from the default organization if a
-					mapping for the default organization is not defined.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+		<InfoTooltip>
+			<TooltipMessage>
+				Disabling will remove all users from the default organization if a
+				mapping for the default organization is not defined.
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };

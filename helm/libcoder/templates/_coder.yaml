@@ -12,6 +12,10 @@ metadata:
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
+  {{- with .Values.coder.strategy }}
+  strategy:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
@@ -23,7 +27,11 @@ spec:
           {{- toYaml . | nindent 8 }}
           {{- end }}
       annotations:
-        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
+        {{- include "coder.componentAnnotation" . | nindent 8 }}
+        {{- with .Values.coder.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
     spec:
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       {{- with .Values.coder.priorityClassName }}
@@ -53,6 +61,10 @@ spec:
       {{- end }}
       {{- with .Values.coder.topologySpreadConstraints }}
       topologySpreadConstraints:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coder.hostAliases }}
+      hostAliases:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.coder.initContainers }}

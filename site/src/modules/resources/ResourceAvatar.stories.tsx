@@ -1,5 +1,5 @@
-import { MockWorkspaceResource } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockWorkspaceResource } from "#/testHelpers/entities";
 import { ResourceAvatar } from "./ResourceAvatar";
 
 const meta: Meta<typeof ResourceAvatar> = {

@@ -1,9 +1,8 @@
-import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
-import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
+import { pageTitle } from "#/utils/page";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
-const NetworkSettingsPage: FC = () => {
+const NetworkSettingsPage: React.FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 
 	return (

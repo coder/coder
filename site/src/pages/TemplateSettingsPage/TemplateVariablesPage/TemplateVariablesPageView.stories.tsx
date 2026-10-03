@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import {
 	MockTemplateVersion,
 	MockTemplateVersionVariable1,
@@ -6,9 +8,7 @@ import {
 	MockTemplateVersionVariable4,
 	MockTemplateVersionVariable5,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
+} from "#/testHelpers/entities";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 const meta: Meta<typeof TemplateVariablesPageView> = {

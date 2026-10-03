@@ -1,8 +1,7 @@
-import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import {
 	Table,
 	TableBody,
@@ -10,9 +9,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import type { FC } from "react";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 
 type OAuth2ProviderPageViewProps = {
 	isLoading: boolean;
@@ -21,7 +20,7 @@ type OAuth2ProviderPageViewProps = {
 	revoke: (app: TypesGen.OAuth2ProviderApp) => void;
 };
 
-const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
+const OAuth2ProviderPageView: React.FC<OAuth2ProviderPageViewProps> = ({
 	isLoading,
 	error,
 	apps,
@@ -44,13 +43,7 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 						<OAuth2AppRow key={app.id} app={app} revoke={revoke} />
 					))}
 					{apps?.length === 0 && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
-									No OAuth2 applications have been authorized.
-								</div>
-							</TableCell>
-						</TableRow>
+						<TableEmpty message="No OAuth2 applications have been authorized." />
 					)}
 				</TableBody>
 			</Table>
@@ -63,14 +56,14 @@ type OAuth2AppRowProps = {
 	revoke: (app: TypesGen.OAuth2ProviderApp) => void;
 };
 
-const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app, revoke }) => {
+const OAuth2AppRow: React.FC<OAuth2AppRowProps> = ({ app, revoke }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`}>
 			<TableCell>
-				<Stack direction="row" spacing={1} alignItems="center">
+				<div className="flex flex-row gap-2 items-center">
 					<Avatar variant="icon" src={app.icon} fallback={app.name} />
 					<span className="font-semibold">{app.name}</span>
-				</Stack>
+				</div>
 			</TableCell>
 
 			<TableCell>

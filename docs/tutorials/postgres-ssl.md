@@ -1,4 +1,6 @@
-# Configure Coder to connect to PostgreSQL using SSL
+---
+title: Configure Coder to connect to PostgreSQL using SSL
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
@@ -18,7 +20,7 @@ follow the steps below:
 1. Create the certificate as a secret in your Kubernetes cluster, if not already
    present:
 
-```shell
+```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
 ```
 
@@ -38,7 +40,7 @@ coder:
 
 1. Lastly, your PG connection URL will look like:
 
-```shell
+```sh
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert="$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
 ```
 
@@ -47,7 +49,7 @@ postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslce
 1. Download the CA certificate chain for your database instance, and create it
    as a secret in your Kubernetes cluster, if not already present:
 
-```shell
+```sh
 kubectl create secret tls postgres-certs -n coder --key="postgres-root.key" --cert="postgres-root.crt"
 ```
 
@@ -67,7 +69,7 @@ coder:
 
 1. Lastly, your PG connection URL will look like:
 
-```shell
+```sh
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
 ```
 

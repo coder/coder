@@ -16,17 +16,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -186,6 +192,31 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("GetAPIKeyByIDInternalError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		id, secret, _ := randomAPIKeyParts()
+		r := httptest.NewRequest("GET", "/", nil)
+		rw := httptest.NewRecorder()
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.New("db unavailable"))
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.NotEqual(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Contains(t, resp.Detail, "Internal error fetching API key by id")
 	})
 
 	t.Run("UserLinkNotFound", func(t *testing.T) {
@@ -438,6 +469,39 @@ func TestAPIKey(t *testing.T) {
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.NotEqual(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
+	t.Run("TokenNoExpiryRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _             = dbtestutil.NewDB(t)
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().Add(time.Minute),
+				LoginType: database.LoginTypeToken,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// Programmatic tokens honor a fixed lifetime, so the expiry must not be
+		// extended on use even though it is within the refresh window.
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
 	t.Run("NoRefresh", func(t *testing.T) {
@@ -771,9 +835,9 @@ func TestAPIKey(t *testing.T) {
 			r     = httptest.NewRequest("GET", "/", nil)
 			rw    = httptest.NewRecorder()
 
-			count   int64
+			count   atomic.Int64
 			handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				atomic.AddInt64(&count, 1)
+				count.Add(1)
 
 				apiKey, ok := httpmw.APIKeyOptional(r)
 				assert.False(t, ok)
@@ -792,7 +856,7 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.EqualValues(t, 1, atomic.LoadInt64(&count))
+		require.EqualValues(t, 1, count.Load())
 	})
 
 	t.Run("Tokens", func(t *testing.T) {
@@ -990,5 +1054,80 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("LogsAPIKeyID", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name           string
+			expired        bool
+			expectedStatus int
+		}{
+			{
+				name:           "OnSuccess",
+				expired:        false,
+				expectedStatus: http.StatusOK,
+			},
+			{
+				name:           "OnFailure",
+				expired:        true,
+				expectedStatus: http.StatusUnauthorized,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					db, _  = dbtestutil.NewDB(t)
+					user   = dbgen.User(t, db, database.User{})
+					expiry = dbtime.Now().AddDate(0, 0, 1)
+				)
+				if tc.expired {
+					expiry = dbtime.Now().AddDate(0, 0, -1)
+				}
+				sentAPIKey, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: expiry,
+				})
+
+				var (
+					ctrl       = gomock.NewController(t)
+					mockLogger = loggermock.NewMockRequestLogger(ctrl)
+					r          = httptest.NewRequest("GET", "/", nil)
+					rw         = httptest.NewRecorder()
+				)
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+
+				// Expect WithAuthContext to be called (from dbauthz.As).
+				mockLogger.EXPECT().WithAuthContext(gomock.Any()).AnyTimes()
+				// Expect WithFields to be called with api_key_id field regardless of success/failure.
+				mockLogger.EXPECT().WithFields(
+					slog.F("api_key_id", sentAPIKey.ID),
+				).Times(1)
+
+				// Add the mock logger to the context.
+				ctx := loggermw.WithRequestLogger(r.Context(), mockLogger)
+				r = r.WithContext(ctx)
+
+				httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+					DB:              db,
+					RedirectToLogin: false,
+				})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					if tc.expired {
+						t.Error("handler should not be called on auth failure")
+					}
+					httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+						Message: "It worked!",
+					})
+				})).ServeHTTP(rw, r)
+
+				res := rw.Result()
+				defer res.Body.Close()
+				require.Equal(t, tc.expectedStatus, res.StatusCode)
+			})
+		}
 	})
 }

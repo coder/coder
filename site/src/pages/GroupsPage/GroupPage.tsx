@@ -1,82 +1,98 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { getErrorMessage } from "api/errors";
+import { ArrowLeftIcon, TrashIcon, UserPlusIcon } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	addMember,
+	Link,
+	Outlet,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	addMembers,
 	deleteGroup,
 	group,
+	groupMembers,
 	groupPermissions,
-	removeMember,
-} from "api/queries/groups";
+} from "#/api/queries/groups";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
 	ReducedUser,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { LastSeen } from "components/LastSeen/LastSeen";
-import { Loader } from "components/Loader/Loader";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	PaginationStatus,
-	TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import {
-	EllipsisVertical,
-	SettingsIcon,
-	TrashIcon,
-	UserPlusIcon,
-} from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { useFilter } from "#/components/Filter/Filter";
+import type { UsersFilter } from "#/components/Filter/UsersFilter";
+import { Loader } from "#/components/Loader/Loader";
+import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
+import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
+import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { isEveryoneGroup } from "#/modules/groups";
+import { pageTitle } from "#/utils/page";
+import { AIBudgetPeriod } from "./AIBudgetPeriod";
 
-const GroupPage: FC = () => {
+export type GroupPageOutletContext = {
+	group: Group;
+	members: readonly ReducedUser[];
+	permissions: { canUpdateGroup: boolean };
+	organization: string;
+	groupQuery: ReturnType<typeof useQuery>;
+	membersQuery: PaginationResult;
+	filterProps: React.ComponentProps<typeof UsersFilter>;
+};
+
+const GroupPage: React.FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;
 	};
+	const location = useLocation();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group(organization, groupName));
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupQuery = useQuery(
+		group(organization, groupName, { exclude_members: true }),
+	);
+	const membersQuery = usePaginatedQuery(
+		groupMembers(organization, groupName, searchParams),
+	);
+	const useFilterResult = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: membersQuery.goToFirstPage,
+	});
+
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
-		enabled: !!groupData,
+		enabled: Boolean(groupData),
 	});
-	const addMemberMutation = useMutation(addMember(queryClient));
-	const removeMemberMutation = useMutation(removeMember(queryClient));
-	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
+	const deleteGroupMutation = useMutation(
+		deleteGroup(queryClient, organization),
+	);
+	const addMembersMutation = useMutation(addMembers(queryClient, organization));
 	const [isDeletingGroup, setIsDeletingGroup] = useState(false);
-	const isLoading = groupQuery.isLoading || !groupData || !permissions;
+	const isLoading =
+		groupQuery.isLoading ||
+		!groupData ||
+		!permissions ||
+		membersQuery.isLoading ||
+		!membersQuery.data;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
 	const title = (
@@ -85,8 +101,9 @@ const GroupPage: FC = () => {
 		</title>
 	);
 
-	if (groupQuery.error) {
-		return <ErrorAlert error={groupQuery.error} />;
+	const error = groupQuery.error || membersQuery.error;
+	if (error) {
+		return <ErrorAlert error={error} />;
 	}
 
 	if (isLoading) {
@@ -97,122 +114,100 @@ const GroupPage: FC = () => {
 			</>
 		);
 	}
+
 	const groupId = groupData.id;
+	const activeTab = location.pathname.endsWith("/settings")
+		? "settings"
+		: "members";
 
 	return (
 		<>
 			{title}
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
-				<SettingsHeader>
-					<SettingsHeaderTitle>
-						{groupData?.display_name || groupData?.name || "Unknown group"}
-					</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Manage members for this group.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
-
+			<div className="flex justify-between items-center">
+				<Button variant="subtle" asChild className="-ml-3">
+					<Link to={activeTab === "settings" ? "../.." : ".."} relative="path">
+						<ArrowLeftIcon />
+						<span>Back to groups</span>
+					</Link>
+				</Button>
 				{canUpdateGroup && (
-					<Stack direction="row" spacing={2}>
-						<Button variant="outline" asChild>
-							<RouterLink to="settings">
-								<SettingsIcon />
-								Settings
-							</RouterLink>
-						</Button>
+					<div className="flex items-center gap-2">
+						{!isEveryoneGroup(groupData) && (
+							<AddUsersDialog
+								organizationId={groupData.organization_id}
+								onSubmit={async (users) => {
+									await addMembersMutation.mutateAsync({
+										groupId: groupData.id,
+										userIds: users.map((u) => u.user_id),
+									});
+								}}
+							/>
+						)}
 						<Button
 							variant="destructive"
-							disabled={groupData?.id === groupData?.organization_id}
+							disabled={groupData.id === groupData.organization_id}
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
 						>
 							<TrashIcon />
-							Delete&hellip;
+							Delete
 						</Button>
-					</Stack>
+					</div>
 				)}
-			</Stack>
+			</div>
 
-			<Stack spacing={1}>
-				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddGroupMember
-						isLoading={addMemberMutation.isPending}
-						organizationId={groupData.organization_id}
-						onSubmit={async (member, reset) => {
-							try {
-								await addMemberMutation.mutateAsync({
-									groupId,
-									userId: member.user_id,
-								});
-								reset();
-								await groupQuery.refetch();
-							} catch (error) {
-								displayError(getErrorMessage(error, "Failed to add member."));
-							}
-						}}
+			<div className="flex flex-col gap-6 pt-6">
+				<div className="flex items-center gap-4 min-w-0">
+					<Avatar
+						src={groupData.avatar_url}
+						fallback={groupData.display_name || groupData.name}
+						size="lg"
 					/>
+					<SettingsHeaderTitle>
+						<span className="block min-w-0 truncate">
+							{groupData.display_name || groupData.name || "Unknown Group"}
+						</span>
+					</SettingsHeaderTitle>
+				</div>
+				<p className="text-sm text-content-secondary m-0">
+					Manage members for this group.
+				</p>
+
+				{canUpdateGroup && (
+					<LinkTabs
+						active={activeTab}
+						className="flex items-baseline justify-between"
+					>
+						<LinkTabsList className="justify-start">
+							<TabLink to="." value="members">
+								Group members
+							</TabLink>
+							<TabLink to="settings" value="settings">
+								Group settings
+							</TabLink>
+						</LinkTabsList>
+						{activeTab === "members" && <AIBudgetPeriod />}
+					</LinkTabs>
 				)}
-				<TableToolbar>
-					<PaginationStatus
-						isLoading={Boolean(isLoading)}
-						showing={groupData?.members.length ?? 0}
-						total={groupData?.members.length ?? 0}
-						label="members"
-					/>
-				</TableToolbar>
 
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-2/5">User</TableHead>
-							<TableHead className="w-3/5">Status</TableHead>
-							<TableHead className="w-auto" />
-						</TableRow>
-					</TableHeader>
-
-					<TableBody>
-						{groupData?.members.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="No members yet"
-										description="Add a member using the controls above"
-									/>
-								</TableCell>
-							</TableRow>
-						) : (
-							groupData?.members.map((member) => (
-								<GroupMemberRow
-									member={member}
-									group={groupData}
-									key={member.id}
-									canUpdate={canUpdateGroup}
-									onRemove={async () => {
-										try {
-											await removeMemberMutation.mutateAsync({
-												groupId: groupData.id,
-												userId: member.id,
-											});
-											await groupQuery.refetch();
-											displaySuccess("Member removed successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to remove member."),
-											);
-										}
-									}}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</Stack>
+				<Outlet
+					context={
+						{
+							group: groupData,
+							members: membersQuery.data?.users || [],
+							permissions: { canUpdateGroup },
+							organization,
+							groupQuery,
+							membersQuery,
+							filterProps: {
+								filter: useFilterResult,
+							},
+						} satisfies GroupPageOutletContext
+					}
+				/>
+			</div>
 
 			{groupQuery.data && (
 				<DeleteDialog
@@ -222,11 +217,24 @@ const GroupPage: FC = () => {
 					entity="group"
 					onConfirm={async () => {
 						try {
-							await deleteGroupMutation.mutateAsync(groupId);
-							displaySuccess("Group deleted successfully.");
+							await deleteGroupMutation.mutateAsync({
+								groupId,
+								groupName: groupData.name,
+							});
+							toast.success(
+								`Group "${groupQuery.data.name}" deleted successfully.`,
+							);
 							navigate("..");
 						} catch (error) {
-							displayError(getErrorMessage(error, "Failed to delete group."));
+							toast.error(
+								getErrorMessage(
+									error,
+									`Failed to delete group "${groupQuery.data.name}".`,
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
 						}
 					}}
 					onCancel={() => {
@@ -238,125 +246,96 @@ const GroupPage: FC = () => {
 	);
 };
 
-interface AddGroupMemberProps {
-	isLoading: boolean;
-	onSubmit: (user: OrganizationMemberWithUserData, reset: () => void) => void;
+type AddUsersDialogProps = {
+	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
 	organizationId: string;
-}
+};
 
-const AddGroupMember: FC<AddGroupMemberProps> = ({
-	isLoading,
+const AddUsersDialog: React.FC<AddUsersDialogProps> = ({
 	onSubmit,
 	organizationId,
 }) => {
-	const [selectedUser, setSelectedUser] =
-		useState<OrganizationMemberWithUserData | null>(null);
-
-	const resetValues = () => {
-		setSelectedUser(null);
+	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
+	const [filter, setFilter] = useState("");
+	const [selected, setSelected] = useState<OrganizationMemberWithUserData[]>(
+		[],
+	);
+	const closeDialog = () => {
+		setAddUserDialogOpen(false);
+		setFilter("");
+		setSelected([]);
 	};
 
 	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-
-				if (selectedUser) {
-					onSubmit(selectedUser, resetValues);
-				}
-			}}
-		>
-			<Stack direction="row" alignItems="center" spacing={1}>
-				<MemberAutocomplete
-					css={styles.autoComplete}
-					value={selectedUser}
-					organizationId={organizationId}
-					onChange={(newValue) => {
-						setSelectedUser(newValue);
-					}}
-				/>
-
-				<Button disabled={!selectedUser || isLoading} type="submit">
-					<Spinner loading={isLoading}>
-						<UserPlusIcon className="size-icon-sm" />
-					</Spinner>
-					Add user
-				</Button>
-			</Stack>
-		</form>
-	);
-};
-
-interface GroupMemberRowProps {
-	member: ReducedUser;
-	group: Group;
-	canUpdate: boolean;
-	onRemove: () => void;
-}
-
-const GroupMemberRow: FC<GroupMemberRowProps> = ({
-	member,
-	group,
-	canUpdate,
-	onRemove,
-}) => {
-	return (
-		<TableRow key={member.id}>
-			<TableCell width="59%">
-				<AvatarData
-					avatar={
-						<Avatar
-							size="lg"
-							fallback={member.username}
-							src={member.avatar_url}
-						/>
+		<>
+			<Button onClick={() => setAddUserDialogOpen(true)}>
+				<UserPlusIcon />
+				Add users
+			</Button>
+			<Dialog
+				open={addUserDialogOpen}
+				onOpenChange={(open) => {
+					if (!open) {
+						closeDialog();
 					}
-					title={member.username}
-					subtitle={member.email}
-				/>
-			</TableCell>
-			<TableCell
-				width="40%"
-				css={[styles.status, member.status === "suspended" && styles.suspended]}
+				}}
 			>
-				<div>{member.status}</div>
-				<LastSeen at={member.last_seen_at} css={{ fontSize: 12 }} />
-			</TableCell>
-			<TableCell width="1%">
-				{canUpdate && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRemove}
-								disabled={group.id === group.organization_id}
-							>
-								Remove
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</TableCell>
-		</TableRow>
+				<DialogContent
+					data-testid="dialog"
+					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
+				>
+					<DialogTitle className="font-semibold text-content-primary">
+						Add user(s)
+					</DialogTitle>
+					<MultiMemberSelect
+						organizationId={organizationId}
+						filter={filter}
+						setFilter={setFilter}
+						onChange={(user, checked) => {
+							if (checked) {
+								setSelected([...selected, user]);
+							} else {
+								setSelected(selected.filter((s) => s.user_id !== user.user_id));
+							}
+						}}
+						selected={selected}
+					/>
+					<DialogFooter className="mt-4 flex-row justify-end gap-3">
+						<Button
+							variant="outline"
+							onClick={closeDialog}
+							disabled={submitting}
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={submitting || selected.length === 0}
+							onClick={async () => {
+								try {
+									setSubmitting(true);
+									await onSubmit(selected);
+									closeDialog();
+								} catch (error) {
+									toast.error(
+										getErrorMessage(error, "Failed to add members."),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								} finally {
+									setSubmitting(false);
+								}
+							}}
+						>
+							<Spinner loading={submitting} />
+							Add users
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 };
-
-const styles = {
-	autoComplete: {
-		width: 300,
-	},
-	status: {
-		textTransform: "capitalize",
-	},
-	suspended: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupPage;

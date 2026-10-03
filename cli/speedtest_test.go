@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -43,9 +42,6 @@ func TestSpeedtest(t *testing.T) {
 
 	inv, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
 
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

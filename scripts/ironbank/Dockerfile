@@ -1,6 +1,6 @@
 ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8-minimal
-ARG BASE_TAG=8.7
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9-minimal
+ARG BASE_TAG=9.6
 
 FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}
 
@@ -16,6 +16,9 @@ RUN microdnf update --assumeyes && \
       shadow-utils \
       tar \
       unzip && \
+    # Remove python3-urllib3 if present to address CVE-2026-44431.
+    # Coder is a Go binary and does not use Python at runtime.
+    microdnf remove --assumeyes python3-urllib3 2>/dev/null || true && \
     microdnf clean all
 
 # Configure the cryptography policy manually. These policies likely

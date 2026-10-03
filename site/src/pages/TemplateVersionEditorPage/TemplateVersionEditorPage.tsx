@@ -1,22 +1,4 @@
-import { API } from "api/api";
-import { file, uploadFile } from "api/queries/files";
-import {
-	createTemplateVersion,
-	resources,
-	templateByName,
-	templateByNameKey,
-	templateVersionByName,
-	templateVersionVariables,
-} from "api/queries/templates";
-import type {
-	PatchTemplateVersionRequest,
-	TemplateVersion,
-} from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -24,13 +6,32 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { existsFile, type FileTree, traverse } from "utils/filetree";
-import { pageTitle } from "utils/page";
-import { TarReader, TarWriter } from "utils/tar";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { file, uploadFile } from "#/api/queries/files";
+import {
+	createTemplateVersion,
+	resources,
+	templateByName,
+	templateByNameKey,
+	templateVersionByName,
+	templateVersionVariables,
+} from "#/api/queries/templates";
+import type {
+	PatchTemplateVersionRequest,
+	TemplateVersion,
+} from "#/api/typesGenerated";
+import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
+import { existsFile, type FileTree, traverse } from "#/utils/filetree";
+import { pageTitle } from "#/utils/page";
+import { TarReader, TarWriter } from "#/utils/tar";
+import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-const TemplateVersionEditorPage: FC = () => {
+const TemplateVersionEditorPage: React.FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -71,7 +72,7 @@ const TemplateVersionEditorPage: FC = () => {
 	const logs = useWatchVersionLogs(activeTemplateVersion, {
 		onDone: activeTemplateVersionQuery.refetch,
 	});
-	const { fileTree, tarFile } = useFileTree(activeTemplateVersion);
+	const { fileTree, setFileTree, tarFile } = useFileTree(activeTemplateVersion);
 	const {
 		missingVariables,
 		setIsMissingVariablesDialogOpen,
@@ -137,7 +138,10 @@ const TemplateVersionEditorPage: FC = () => {
 					onActivePathChange={onActivePathChange}
 					template={templateQuery.data}
 					templateVersion={activeTemplateVersion}
-					defaultFileTree={fileTree}
+					fileTree={fileTree}
+					onFileTreeChange={(updater) => {
+						setFileTree((current) => (current ? updater(current) : current));
+					}}
 					onPreview={async (newFileTree) => {
 						if (!tarFile) {
 							return;
@@ -186,18 +190,16 @@ const TemplateVersionEditorPage: FC = () => {
 					isPublishing={publishVersionMutation.isPending}
 					publishingError={publishVersionMutation.error}
 					publishedVersion={lastSuccessfulPublishedVersion}
-					onCreateWorkspace={() => {
+					createWorkspaceUrl={(() => {
 						const params = new URLSearchParams();
 						const publishedVersion = lastSuccessfulPublishedVersion;
 						if (publishedVersion) {
 							params.set("version", publishedVersion.id);
 						}
-						navigate(
-							`${getLink(
-								linkToTemplate(organizationName, templateName),
-							)}/workspace?${params.toString()}`,
-						);
-					}}
+						return `${getLink(
+							linkToTemplate(organizationName, templateName),
+						)}/workspace?${params.toString()}`;
+					})()}
 					isBuilding={
 						createTemplateVersionMutation.isPending ||
 						uploadFileMutation.isPending ||
@@ -245,13 +247,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		...file(templateVersion?.job.file_id ?? ""),
 		enabled: templateVersion !== undefined,
 	});
-	const [state, setState] = useState<{
-		fileTree?: FileTree;
-		tarFile?: TarReader;
-	}>({
-		fileTree: undefined,
-		tarFile: undefined,
-	});
+	const [fileTree, setFileTree] = useState<FileTree | undefined>(undefined);
+	const [tarFile, setTarFile] = useState<TarReader | undefined>(undefined);
 
 	useEffect(() => {
 		let stale = false;
@@ -263,11 +260,13 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 				if (stale) {
 					return;
 				}
-				const fileTree = createTemplateVersionFileTree(tarFile);
-				setState({ fileTree, tarFile });
+				setFileTree(createTemplateVersionFileTree(tarFile));
+				setTarFile(tarFile);
 			} catch (error) {
 				console.error(error);
-				displayError("Error on initializing the editor");
+				toast.error("Error on initializing the editor.", {
+					description: getErrorDetail(error),
+				});
 			}
 		};
 
@@ -280,7 +279,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		};
 	}, [fileQuery.data]);
 
-	return state;
+	return { fileTree, setFileTree, tarFile };
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {

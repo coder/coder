@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
@@ -55,27 +54,27 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 
 	if opts.CurrentVersion == "" {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: CurrentVersion is empty!")
+		r.Error = new("Developer error: CurrentVersion is empty!")
 		return
 	}
 
 	if opts.CurrentAPIMajorVersion == 0 {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: CurrentAPIMajorVersion must be non-zero!")
+		r.Error = new("Developer error: CurrentAPIMajorVersion must be non-zero!")
 		return
 	}
 
 	if opts.Store == nil {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("Developer error: Store is nil!")
+		r.Error = new("Developer error: Store is nil!")
 		return
 	}
 
-	// nolint: gocritic // need an actor to fetch provisioner daemons
-	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+	// nolint: gocritic // Read-only access to provisioner daemons for health check
+	daemons, err := opts.Store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 	if err != nil {
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref("error fetching provisioner daemons: " + err.Error())
+		r.Error = new("error fetching provisioner daemons: " + err.Error())
 		return
 	}
 

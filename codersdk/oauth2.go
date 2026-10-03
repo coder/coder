@@ -7,16 +7,32 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	CallbackURL string    `json:"callback_url"`
-	Icon        string    `json:"icon"`
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Name string    `json:"name"`
+	// RedirectURIs are the app's registered redirect URIs, primary first.
+	RedirectURIs []string `json:"redirect_uris"`
+	// Deprecated: equal to the first entry of redirect_uris. Read
+	// redirect_uris instead.
+	CallbackURL string `json:"callback_url"`
+	Icon        string `json:"icon"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Empty means unrestricted. A non-empty value with no names is a
+	// configured allowlist that grants nothing.
+	Scope string `json:"scope"`
+
+	// ClientType is "confidential" or "public".
+	ClientType OAuth2ClientType `json:"client_type"`
+	// DynamicallyRegistered is true when the app registered itself through
+	// Dynamic Client Registration rather than being created by an admin.
+	DynamicallyRegistered bool `json:"dynamically_registered"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -55,7 +71,7 @@ func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAp
 		return []OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps []OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 // OAuth2ProviderApp returns an application configured to authenticate using
@@ -70,13 +86,22 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry is the primary. Required, unless the deprecated
+	// callback_url is sent instead.
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Leave empty, or omit, for unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -91,13 +116,26 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry is the primary. Omit both this and callback_url to keep the
+	// stored redirect URIs. Other fields are replaced. Sending an empty list
+	// is an error, not a way to keep the stored list.
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
+	// Icon replaces the app's stored icon. Omitting it clears the stored
+	// icon rather than leaving it unchanged.
+	Icon string `json:"icon" validate:"omitempty"`
+	// Scope replaces the app's current allowlist. Omit to leave the existing
+	// allowlist untouched. Set to an empty string to clear it, making the app
+	// unrestricted.
+	Scope *string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder
@@ -112,7 +150,7 @@ func (c *Client) PutOAuth2ProviderApp(ctx context.Context, id uuid.UUID, app Put
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderApp deletes an application, also invalidating any tokens
@@ -152,7 +190,7 @@ func (c *Client) OAuth2ProviderAppSecrets(ctx context.Context, appID uuid.UUID) 
 		return []OAuth2ProviderAppSecret{}, ReadBodyAsError(res)
 	}
 	var resp []OAuth2ProviderAppSecret
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PostOAuth2ProviderAppSecret creates a new secret for an OAuth2 application.
@@ -167,7 +205,7 @@ func (c *Client) PostOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUI
 		return OAuth2ProviderAppSecretFull{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderAppSecretFull
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderAppSecret deletes a secret from an OAuth2 application,
@@ -184,16 +222,65 @@ func (c *Client) DeleteOAuth2ProviderAppSecret(ctx context.Context, appID uuid.U
 	return nil
 }
 
+// OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+//
+// DynamicClientRegistrationEnabled is a pointer so a PUT can omit it to leave
+// the current value unchanged, rather than a decoded zero value silently
+// resetting it to false. This matters once a second field lands in this
+// struct (e.g. a future initial-access-token requirement): a client built
+// against an older, single-field version of this struct would otherwise
+// always encode the newer field's zero value, silently clearing it on every
+// unrelated update. GET always returns a non-nil value.
+type OAuth2ProviderSettings struct {
+	DynamicClientRegistrationEnabled *bool `json:"dynamic_client_registration_enabled,omitempty"`
+}
+
+// OAuth2ProviderSettings retrieves the deployment-wide OAuth2 provider settings.
+func (c *Client) OAuth2ProviderSettings(ctx context.Context) (OAuth2ProviderSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/settings", nil)
+	if err != nil {
+		return OAuth2ProviderSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
+	}
+	var settings OAuth2ProviderSettings
+	return settings, ReadBodyAsJSON(res, &settings)
+}
+
+// PutOAuth2ProviderSettings modifies the deployment-wide OAuth2 provider settings.
+func (c *Client) PutOAuth2ProviderSettings(ctx context.Context, settings OAuth2ProviderSettings) (OAuth2ProviderSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/oauth2-provider/settings", settings)
+	if err != nil {
+		return OAuth2ProviderSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
+	}
+	var updated OAuth2ProviderSettings
+	return updated, ReadBodyAsJSON(res, &updated)
+}
+
 type OAuth2ProviderGrantType string
 
+// OAuth2ProviderGrantType values (RFC 6749).
 const (
 	OAuth2ProviderGrantTypeAuthorizationCode OAuth2ProviderGrantType = "authorization_code"
 	OAuth2ProviderGrantTypeRefreshToken      OAuth2ProviderGrantType = "refresh_token"
+	OAuth2ProviderGrantTypePassword          OAuth2ProviderGrantType = "password"
+	OAuth2ProviderGrantTypeClientCredentials OAuth2ProviderGrantType = "client_credentials"
+	OAuth2ProviderGrantTypeImplicit          OAuth2ProviderGrantType = "implicit"
 )
 
 func (e OAuth2ProviderGrantType) Valid() bool {
 	switch e {
-	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
+	case OAuth2ProviderGrantTypeAuthorizationCode,
+		OAuth2ProviderGrantTypeRefreshToken,
+		OAuth2ProviderGrantTypePassword,
+		OAuth2ProviderGrantTypeClientCredentials,
+		OAuth2ProviderGrantTypeImplicit:
 		return true
 	}
 	return false
@@ -201,25 +288,213 @@ func (e OAuth2ProviderGrantType) Valid() bool {
 
 type OAuth2ProviderResponseType string
 
+// OAuth2ProviderResponseType values (RFC 6749).
 const (
-	OAuth2ProviderResponseTypeCode OAuth2ProviderResponseType = "code"
+	OAuth2ProviderResponseTypeCode  OAuth2ProviderResponseType = "code"
+	OAuth2ProviderResponseTypeToken OAuth2ProviderResponseType = "token"
 )
 
 func (e OAuth2ProviderResponseType) Valid() bool {
-	//nolint:gocritic,revive // More cases might be added later.
-	switch e {
-	case OAuth2ProviderResponseTypeCode:
+	return e == OAuth2ProviderResponseTypeCode || e == OAuth2ProviderResponseTypeToken
+}
+
+type OAuth2TokenEndpointAuthMethod string
+
+const (
+	OAuth2TokenEndpointAuthMethodClientSecretBasic OAuth2TokenEndpointAuthMethod = "client_secret_basic"
+	OAuth2TokenEndpointAuthMethodClientSecretPost  OAuth2TokenEndpointAuthMethod = "client_secret_post"
+	OAuth2TokenEndpointAuthMethodNone              OAuth2TokenEndpointAuthMethod = "none"
+)
+
+// AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
+// registration accepts. Valid() checks against it, so the two cannot drift.
+//
+// See AdvertisedOAuth2TokenEndpointAuthMethods for what discovery publishes.
+func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return []OAuth2TokenEndpointAuthMethod{
+		OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		OAuth2TokenEndpointAuthMethodClientSecretPost,
+		OAuth2TokenEndpointAuthMethodNone,
+	}
+}
+
+// AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
+// methods published in discovery metadata (RFC 8414
+// token_endpoint_auth_methods_supported). It is separate from
+// AllOAuth2TokenEndpointAuthMethods so a method the token endpoint stops
+// honoring can be dropped from discovery without also being rejected at
+// registration.
+func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return AllOAuth2TokenEndpointAuthMethods()
+}
+
+func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
+}
+
+// OAuth2ClientType is how a client authenticates at the token endpoint
+// (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
+// secret; a public client authenticates with PKCE alone. It is derived from
+// the requested token_endpoint_auth_method, stored on the app, and read by
+// the token endpoint to decide whether a client secret is required.
+type OAuth2ClientType string
+
+const (
+	OAuth2ClientTypeConfidential OAuth2ClientType = "confidential"
+	OAuth2ClientTypePublic       OAuth2ClientType = "public"
+)
+
+func (t OAuth2ClientType) Valid() bool {
+	switch t {
+	case OAuth2ClientTypeConfidential, OAuth2ClientTypePublic:
 		return true
 	}
 	return false
 }
 
-// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
-func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, token string) error {
+type OAuth2PKCECodeChallengeMethod string
+
+// OAuth2PKCECodeChallengeMethod values (RFC 7636).
+const (
+	OAuth2PKCECodeChallengeMethodS256  OAuth2PKCECodeChallengeMethod = "S256"
+	OAuth2PKCECodeChallengeMethodPlain OAuth2PKCECodeChallengeMethod = "plain"
+)
+
+func (m OAuth2PKCECodeChallengeMethod) Valid() bool {
+	switch m {
+	case OAuth2PKCECodeChallengeMethodS256, OAuth2PKCECodeChallengeMethodPlain:
+		return true
+	}
+	return false
+}
+
+type OAuth2TokenType string
+
+// OAuth2TokenType values (RFC 6749, RFC 9449).
+const (
+	OAuth2TokenTypeBearer OAuth2TokenType = "Bearer"
+	OAuth2TokenTypeDPoP   OAuth2TokenType = "DPoP"
+)
+
+func (t OAuth2TokenType) Valid() bool {
+	switch t {
+	case OAuth2TokenTypeBearer, OAuth2TokenTypeDPoP:
+		return true
+	}
+	return false
+}
+
+type OAuth2RevocationTokenTypeHint string
+
+const (
+	OAuth2RevocationTokenTypeHintAccessToken  OAuth2RevocationTokenTypeHint = "access_token"
+	OAuth2RevocationTokenTypeHintRefreshToken OAuth2RevocationTokenTypeHint = "refresh_token"
+)
+
+func (h OAuth2RevocationTokenTypeHint) Valid() bool {
+	switch h {
+	case OAuth2RevocationTokenTypeHintAccessToken, OAuth2RevocationTokenTypeHintRefreshToken:
+		return true
+	}
+	return false
+}
+
+type OAuth2ErrorCode string
+
+// OAuth2 error codes per RFC 6749, RFC 7009, RFC 8707.
+// This is not comprehensive; it includes only codes relevant to this implementation.
+const (
+	// RFC 6749 - Token endpoint errors.
+	OAuth2ErrorCodeInvalidRequest       OAuth2ErrorCode = "invalid_request"
+	OAuth2ErrorCodeInvalidClient        OAuth2ErrorCode = "invalid_client"
+	OAuth2ErrorCodeInvalidGrant         OAuth2ErrorCode = "invalid_grant"
+	OAuth2ErrorCodeUnauthorizedClient   OAuth2ErrorCode = "unauthorized_client"
+	OAuth2ErrorCodeUnsupportedGrantType OAuth2ErrorCode = "unsupported_grant_type"
+	OAuth2ErrorCodeInvalidScope         OAuth2ErrorCode = "invalid_scope"
+
+	// RFC 6749 - Authorization endpoint errors.
+	OAuth2ErrorCodeAccessDenied            OAuth2ErrorCode = "access_denied"
+	OAuth2ErrorCodeUnsupportedResponseType OAuth2ErrorCode = "unsupported_response_type"
+	OAuth2ErrorCodeServerError             OAuth2ErrorCode = "server_error"
+	OAuth2ErrorCodeTemporarilyUnavailable  OAuth2ErrorCode = "temporarily_unavailable"
+
+	// RFC 7009 - Token revocation errors.
+	OAuth2ErrorCodeUnsupportedTokenType OAuth2ErrorCode = "unsupported_token_type"
+
+	// RFC 8707 - Resource indicator errors.
+	OAuth2ErrorCodeInvalidTarget OAuth2ErrorCode = "invalid_target"
+)
+
+func (c OAuth2ErrorCode) Valid() bool {
+	switch c {
+	case OAuth2ErrorCodeInvalidRequest,
+		OAuth2ErrorCodeInvalidClient,
+		OAuth2ErrorCodeInvalidGrant,
+		OAuth2ErrorCodeUnauthorizedClient,
+		OAuth2ErrorCodeUnsupportedGrantType,
+		OAuth2ErrorCodeInvalidScope,
+		OAuth2ErrorCodeAccessDenied,
+		OAuth2ErrorCodeUnsupportedResponseType,
+		OAuth2ErrorCodeServerError,
+		OAuth2ErrorCodeTemporarilyUnavailable,
+		OAuth2ErrorCodeUnsupportedTokenType,
+		OAuth2ErrorCodeInvalidTarget:
+		return true
+	}
+	return false
+}
+
+// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
+type OAuth2Error struct {
+	Error            OAuth2ErrorCode `json:"error"`
+	ErrorDescription string          `json:"error_description,omitempty"`
+	ErrorURI         string          `json:"error_uri,omitempty"`
+}
+
+// OAuth2TokenRequest represents a token request per RFC 6749. The actual wire
+// format is application/x-www-form-urlencoded; this struct is for SDK docs.
+type OAuth2TokenRequest struct {
+	GrantType    OAuth2ProviderGrantType `json:"grant_type"`
+	Code         string                  `json:"code,omitempty"`
+	RedirectURI  string                  `json:"redirect_uri,omitempty"`
+	ClientID     string                  `json:"client_id,omitempty"`
+	ClientSecret string                  `json:"client_secret,omitempty"`
+	CodeVerifier string                  `json:"code_verifier,omitempty"`
+	RefreshToken string                  `json:"refresh_token,omitempty"`
+	Resource     string                  `json:"resource,omitempty"`
+	Scope        string                  `json:"scope,omitempty"`
+}
+
+// OAuth2TokenResponse represents a successful token response per RFC 6749.
+type OAuth2TokenResponse struct {
+	AccessToken  string          `json:"access_token"`
+	TokenType    OAuth2TokenType `json:"token_type"`
+	ExpiresIn    int64           `json:"expires_in,omitempty"`
+	RefreshToken string          `json:"refresh_token,omitempty"`
+	Scope        string          `json:"scope,omitempty"`
+	// Expiry is not part of RFC 6749 but is included for compatibility with
+	// golang.org/x/oauth2.Token and clients that expect a timestamp.
+	Expiry *time.Time `json:"expiry,omitempty" format:"date-time"`
+}
+
+// OAuth2TokenRevocationRequest represents a token revocation request per RFC 7009.
+type OAuth2TokenRevocationRequest struct {
+	Token         string                        `json:"token"`
+	TokenTypeHint OAuth2RevocationTokenTypeHint `json:"token_type_hint,omitempty"`
+	ClientID      string                        `json:"client_id,omitempty"`
+	ClientSecret  string                        `json:"client_secret,omitempty"`
+}
+
+// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token
+// revocation. A confidential client must present its clientSecret; a public
+// client passes an empty string and is bound to the token by client_id alone.
+func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, clientSecret, token string) error {
 	form := url.Values{}
 	form.Set("token", token)
-	// Client authentication is handled via the client_id in the app middleware
 	form.Set("client_id", clientID.String())
+	if clientSecret != "" {
+		form.Set("client_secret", clientSecret)
+	}
 
 	res, err := c.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), func(r *http.Request) {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -256,18 +531,18 @@ type OAuth2DeviceFlowCallbackResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
-// OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata
+// OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata.
 type OAuth2AuthorizationServerMetadata struct {
-	Issuer                            string   `json:"issuer"`
-	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
-	TokenEndpoint                     string   `json:"token_endpoint"`
-	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
-	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
-	ResponseTypesSupported            []string `json:"response_types_supported"`
-	GrantTypesSupported               []string `json:"grant_types_supported"`
-	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
-	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
-	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	Issuer                            string                          `json:"issuer"`
+	AuthorizationEndpoint             string                          `json:"authorization_endpoint"`
+	TokenEndpoint                     string                          `json:"token_endpoint"`
+	RegistrationEndpoint              string                          `json:"registration_endpoint,omitempty"`
+	RevocationEndpoint                string                          `json:"revocation_endpoint,omitempty"`
+	ResponseTypesSupported            []OAuth2ProviderResponseType    `json:"response_types_supported"`
+	GrantTypesSupported               []OAuth2ProviderGrantType       `json:"grant_types_supported,omitempty"`
+	CodeChallengeMethodsSupported     []OAuth2PKCECodeChallengeMethod `json:"code_challenge_methods_supported,omitempty"`
+	ScopesSupported                   []string                        `json:"scopes_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []OAuth2TokenEndpointAuthMethod `json:"token_endpoint_auth_methods_supported,omitempty"`
 }
 
 // OAuth2ProtectedResourceMetadata represents RFC 9728 OAuth 2.0 Protected Resource Metadata
@@ -278,50 +553,50 @@ type OAuth2ProtectedResourceMetadata struct {
 	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
 }
 
-// OAuth2ClientRegistrationRequest represents RFC 7591 Dynamic Client Registration Request
+// OAuth2ClientRegistrationRequest represents RFC 7591 Dynamic Client Registration Request.
 type OAuth2ClientRegistrationRequest struct {
-	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
-	ClientName              string          `json:"client_name,omitempty"`
-	ClientURI               string          `json:"client_uri,omitempty"`
-	LogoURI                 string          `json:"logo_uri,omitempty"`
-	TOSURI                  string          `json:"tos_uri,omitempty"`
-	PolicyURI               string          `json:"policy_uri,omitempty"`
-	JWKSURI                 string          `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
-	SoftwareID              string          `json:"software_id,omitempty"`
-	SoftwareVersion         string          `json:"software_version,omitempty"`
-	SoftwareStatement       string          `json:"software_statement,omitempty"`
-	GrantTypes              []string        `json:"grant_types,omitempty"`
-	ResponseTypes           []string        `json:"response_types,omitempty"`
-	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method,omitempty"`
-	Scope                   string          `json:"scope,omitempty"`
-	Contacts                []string        `json:"contacts,omitempty"`
+	RedirectURIs            []string                      `json:"redirect_uris,omitempty"`
+	ClientName              string                        `json:"client_name,omitempty"`
+	ClientURI               string                        `json:"client_uri,omitempty"`
+	LogoURI                 string                        `json:"logo_uri,omitempty"`
+	TOSURI                  string                        `json:"tos_uri,omitempty"`
+	PolicyURI               string                        `json:"policy_uri,omitempty"`
+	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string                        `json:"software_id,omitempty"`
+	SoftwareVersion         string                        `json:"software_version,omitempty"`
+	SoftwareStatement       string                        `json:"software_statement,omitempty"`
+	GrantTypes              []OAuth2ProviderGrantType     `json:"grant_types,omitempty"`
+	ResponseTypes           []OAuth2ProviderResponseType  `json:"response_types,omitempty"`
+	TokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
+	Scope                   string                        `json:"scope,omitempty"`
+	Contacts                []string                      `json:"contacts,omitempty"`
 }
 
 func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrationRequest {
-	// Apply grant type defaults
+	// Apply grant type defaults.
 	if len(req.GrantTypes) == 0 {
-		req.GrantTypes = []string{
-			string(OAuth2ProviderGrantTypeAuthorizationCode),
-			string(OAuth2ProviderGrantTypeRefreshToken),
+		req.GrantTypes = []OAuth2ProviderGrantType{
+			OAuth2ProviderGrantTypeAuthorizationCode,
+			OAuth2ProviderGrantTypeRefreshToken,
 		}
 	}
 
-	// Apply response type defaults
+	// Apply response type defaults.
 	if len(req.ResponseTypes) == 0 {
-		req.ResponseTypes = []string{
-			string(OAuth2ProviderResponseTypeCode),
+		req.ResponseTypes = []OAuth2ProviderResponseType{
+			OAuth2ProviderResponseTypeCode,
 		}
 	}
 
-	// Apply token endpoint auth method default (RFC 7591 section 2)
+	// Apply token endpoint auth method default (RFC 7591 section 2).
 	if req.TokenEndpointAuthMethod == "" {
-		// Default according to RFC 7591: "client_secret_basic" for confidential clients
-		// For public clients, should be explicitly set to "none"
-		req.TokenEndpointAuthMethod = "client_secret_basic"
+		// Default according to RFC 7591: "client_secret_basic" for confidential clients.
+		// For public clients, should be explicitly set to "none".
+		req.TokenEndpointAuthMethod = OAuth2TokenEndpointAuthMethodClientSecretBasic
 	}
 
-	// Apply client name default if not provided
+	// Apply client name default if not provided.
 	if req.ClientName == "" {
 		req.ClientName = "Dynamically Registered Client"
 	}
@@ -329,14 +604,19 @@ func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrat
 	return req
 }
 
-// DetermineClientType determines if client is public or confidential
-func (*OAuth2ClientRegistrationRequest) DetermineClientType() string {
-	// For now, default to confidential
-	// In the future, we might detect based on:
-	// - token_endpoint_auth_method == "none" -> public
-	// - application_type == "native" -> might be public
-	// - Other heuristics
-	return "confidential"
+// DetermineClientType determines if client is public or confidential, based
+// on the requested token_endpoint_auth_method (RFC 7591 §2, OAuth 2.1 §2.1).
+//
+// Only "none" reads as public; every other value, including an omitted one,
+// reads as confidential, so this is safe to call before ApplyDefaults(). A
+// caller that also compares the request's auth method against a stored one must
+// apply defaults first, or an omitted field compares as "" and looks like a
+// change the client did not request.
+func (req *OAuth2ClientRegistrationRequest) DetermineClientType() OAuth2ClientType {
+	if req.TokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone {
+		return OAuth2ClientTypePublic
+	}
+	return OAuth2ClientTypeConfidential
 }
 
 // GenerateClientName generates a client name if not provided
@@ -377,29 +657,29 @@ func (req *OAuth2ClientRegistrationRequest) GenerateClientName() string {
 	return "Dynamically Registered Client"
 }
 
-// OAuth2ClientRegistrationResponse represents RFC 7591 Dynamic Client Registration Response
+// OAuth2ClientRegistrationResponse represents RFC 7591 Dynamic Client Registration Response.
 type OAuth2ClientRegistrationResponse struct {
-	ClientID                string          `json:"client_id"`
-	ClientSecret            string          `json:"client_secret,omitempty"`
-	ClientIDIssuedAt        int64           `json:"client_id_issued_at"`
-	ClientSecretExpiresAt   int64           `json:"client_secret_expires_at,omitempty"`
-	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
-	ClientName              string          `json:"client_name,omitempty"`
-	ClientURI               string          `json:"client_uri,omitempty"`
-	LogoURI                 string          `json:"logo_uri,omitempty"`
-	TOSURI                  string          `json:"tos_uri,omitempty"`
-	PolicyURI               string          `json:"policy_uri,omitempty"`
-	JWKSURI                 string          `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
-	SoftwareID              string          `json:"software_id,omitempty"`
-	SoftwareVersion         string          `json:"software_version,omitempty"`
-	GrantTypes              []string        `json:"grant_types"`
-	ResponseTypes           []string        `json:"response_types"`
-	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
-	Scope                   string          `json:"scope,omitempty"`
-	Contacts                []string        `json:"contacts,omitempty"`
-	RegistrationAccessToken string          `json:"registration_access_token"`
-	RegistrationClientURI   string          `json:"registration_client_uri"`
+	ClientID                string                        `json:"client_id"`
+	ClientSecret            string                        `json:"client_secret,omitempty"`
+	ClientIDIssuedAt        int64                         `json:"client_id_issued_at,omitempty"`
+	ClientSecretExpiresAt   int64                         `json:"client_secret_expires_at,omitempty"`
+	RedirectURIs            []string                      `json:"redirect_uris,omitempty"`
+	ClientName              string                        `json:"client_name,omitempty"`
+	ClientURI               string                        `json:"client_uri,omitempty"`
+	LogoURI                 string                        `json:"logo_uri,omitempty"`
+	TOSURI                  string                        `json:"tos_uri,omitempty"`
+	PolicyURI               string                        `json:"policy_uri,omitempty"`
+	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string                        `json:"software_id,omitempty"`
+	SoftwareVersion         string                        `json:"software_version,omitempty"`
+	GrantTypes              []OAuth2ProviderGrantType     `json:"grant_types"`
+	ResponseTypes           []OAuth2ProviderResponseType  `json:"response_types"`
+	TokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod `json:"token_endpoint_auth_method"`
+	Scope                   string                        `json:"scope,omitempty"`
+	Contacts                []string                      `json:"contacts,omitempty"`
+	RegistrationAccessToken string                        `json:"registration_access_token"`
+	RegistrationClientURI   string                        `json:"registration_client_uri"`
 }
 
 // PostOAuth2ClientRegistration dynamically registers a new OAuth2 client (RFC 7591)
@@ -413,7 +693,7 @@ func (c *Client) PostOAuth2ClientRegistration(ctx context.Context, req OAuth2Cli
 		return OAuth2ClientRegistrationResponse{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientRegistrationResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetOAuth2ClientConfiguration retrieves client configuration (RFC 7592)
@@ -430,7 +710,7 @@ func (c *Client) GetOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PutOAuth2ClientConfiguration updates client configuration (RFC 7592)
@@ -447,7 +727,7 @@ func (c *Client) PutOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ClientConfiguration deletes client registration (RFC 7592)
@@ -466,27 +746,26 @@ func (c *Client) DeleteOAuth2ClientConfiguration(ctx context.Context, clientID s
 	return nil
 }
 
-// OAuth2ClientConfiguration represents RFC 7592 Client Configuration (for GET/PUT operations)
-// Same as OAuth2ClientRegistrationResponse but without client_secret in GET responses
+// OAuth2ClientConfiguration represents RFC 7592 Client Read Response.
 type OAuth2ClientConfiguration struct {
-	ClientID                string          `json:"client_id"`
-	ClientIDIssuedAt        int64           `json:"client_id_issued_at"`
-	ClientSecretExpiresAt   int64           `json:"client_secret_expires_at,omitempty"`
-	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
-	ClientName              string          `json:"client_name,omitempty"`
-	ClientURI               string          `json:"client_uri,omitempty"`
-	LogoURI                 string          `json:"logo_uri,omitempty"`
-	TOSURI                  string          `json:"tos_uri,omitempty"`
-	PolicyURI               string          `json:"policy_uri,omitempty"`
-	JWKSURI                 string          `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
-	SoftwareID              string          `json:"software_id,omitempty"`
-	SoftwareVersion         string          `json:"software_version,omitempty"`
-	GrantTypes              []string        `json:"grant_types"`
-	ResponseTypes           []string        `json:"response_types"`
-	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
-	Scope                   string          `json:"scope,omitempty"`
-	Contacts                []string        `json:"contacts,omitempty"`
-	RegistrationAccessToken []byte          `json:"registration_access_token"`
-	RegistrationClientURI   string          `json:"registration_client_uri"`
+	ClientID                string                        `json:"client_id"`
+	ClientIDIssuedAt        int64                         `json:"client_id_issued_at"`
+	ClientSecretExpiresAt   int64                         `json:"client_secret_expires_at,omitempty"`
+	RedirectURIs            []string                      `json:"redirect_uris,omitempty"`
+	ClientName              string                        `json:"client_name,omitempty"`
+	ClientURI               string                        `json:"client_uri,omitempty"`
+	LogoURI                 string                        `json:"logo_uri,omitempty"`
+	TOSURI                  string                        `json:"tos_uri,omitempty"`
+	PolicyURI               string                        `json:"policy_uri,omitempty"`
+	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string                        `json:"software_id,omitempty"`
+	SoftwareVersion         string                        `json:"software_version,omitempty"`
+	GrantTypes              []OAuth2ProviderGrantType     `json:"grant_types"`
+	ResponseTypes           []OAuth2ProviderResponseType  `json:"response_types"`
+	TokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod `json:"token_endpoint_auth_method"`
+	Scope                   string                        `json:"scope,omitempty"`
+	Contacts                []string                      `json:"contacts,omitempty"`
+	RegistrationAccessToken string                        `json:"registration_access_token,omitempty"`
+	RegistrationClientURI   string                        `json:"registration_client_uri"`
 }

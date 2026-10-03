@@ -25,30 +25,32 @@ import (
 )
 
 type ManifestAPI struct {
-	AccessURL                *url.URL
-	AppHostname              string
-	ExternalAuthConfigs      []*externalauth.Config
-	DisableDirectConnections bool
-	DerpForceWebSockets      bool
-	WorkspaceID              uuid.UUID
+	AccessURL                 *url.URL
+	AppHostname               string
+	ExternalAuthConfigs       []*externalauth.Config
+	DisableDirectConnections  bool
+	DerpForceWebSockets       bool
+	DisableUserSecretFilePath bool
+	WorkspaceID               uuid.UUID
 
-	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var (
 		dbApps        []database.WorkspaceApp
-		scripts       []database.WorkspaceAgentScript
+		scripts       []database.GetWorkspaceAgentScriptsByAgentIDsRow
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
 	)
+
+	workspaceAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace agent: %w", err)
+	}
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
@@ -89,6 +91,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
+	// Fetch user secrets for injection into the agent manifest.
+	// This runs after the errgroup because it needs workspace.OwnerID.
+	//nolint:gocritic // System context needed to read secrets for the workspace owner.
+	userSecrets, err := a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting user secrets: %w", err)
+	}
+
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
@@ -120,6 +130,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
+	secretFilePathPolicy := userSecretFilePathAllowed
+	if a.DisableUserSecretFilePath {
+		secretFilePathPolicy = userSecretFilePathBlocked
+	}
+
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		AgentName:                workspaceAgent.Name,
@@ -140,6 +155,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
+		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
 	}, nil
 }
 
@@ -174,7 +190,7 @@ func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadat
 	}
 }
 
-func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentproto.WorkspaceAgentScript {
+func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []*agentproto.WorkspaceAgentScript {
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
 		ret[i] = dbAgentScriptToProto(script)
@@ -182,7 +198,7 @@ func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentprot
 	return ret
 }
 
-func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
+func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
 		LogSourceId:      script.LogSourceID[:],
@@ -249,12 +265,53 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevcontainer) []*agentproto.WorkspaceAgentDevcontainer {
 	ret := make([]*agentproto.WorkspaceAgentDevcontainer, len(devcontainers))
 	for i, dc := range devcontainers {
+		var subagentID []byte
+		if dc.SubagentID.Valid {
+			subagentID = dc.SubagentID.UUID[:]
+		}
+
 		ret[i] = &agentproto.WorkspaceAgentDevcontainer{
 			Id:              dc.ID[:],
 			Name:            dc.Name,
 			WorkspaceFolder: dc.WorkspaceFolder,
 			ConfigPath:      dc.ConfigPath,
+			SubagentId:      subagentID,
 		}
+	}
+	return ret
+}
+
+// userSecretFilePathPolicy is a named type rather than a bool parameter to
+// satisfy revive's flag-parameter rule.
+type userSecretFilePathPolicy int
+
+const (
+	userSecretFilePathAllowed userSecretFilePathPolicy = iota
+	userSecretFilePathBlocked
+)
+
+func dbUserSecretsToProto(secrets []database.UserSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
+	for _, s := range secrets {
+		// Skip disabled secrets so they are not injected as env vars or
+		// written to secret files. The API guarantees every enabled
+		// secret has at least one of env_name or file_path set, so we
+		// don't need to filter both-empty rows separately here.
+		if !s.Enabled {
+			continue
+		}
+		filePath := s.FilePath
+		if policy == userSecretFilePathBlocked {
+			if s.EnvName == "" {
+				continue
+			}
+			filePath = ""
+		}
+		ret = append(ret, &agentproto.WorkspaceSecret{
+			EnvName:  s.EnvName,
+			FilePath: filePath,
+			Value:    []byte(s.Value),
+		})
 	}
 	return ret
 }

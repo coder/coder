@@ -1,0 +1,34 @@
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+
+type AgentAlertProps = {
+	title: string;
+	detail: React.ReactNode;
+	severity: "info" | "warning";
+	prominent: boolean;
+	troubleshootingURL?: string;
+};
+
+export const AgentAlert: React.FC<AgentAlertProps> = ({
+	title,
+	detail,
+	severity,
+	prominent,
+	troubleshootingURL,
+}) => {
+	return (
+		<Alert severity={severity} prominent={prominent}>
+			<AlertTitle>{title}</AlertTitle>
+			<AlertDescription>
+				<div className="mb-2">{detail}</div>
+				{troubleshootingURL && (
+					<Button size="sm" asChild>
+						<a href={troubleshootingURL} target="_blank" rel="noreferrer">
+							View docs to troubleshoot
+						</a>
+					</Button>
+				)}
+			</AlertDescription>
+		</Alert>
+	);
+};

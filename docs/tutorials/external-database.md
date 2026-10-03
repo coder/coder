@@ -1,4 +1,6 @@
-# Using Coder with an external database
+---
+title: Use Coder with an external database
+---
 
 ## Recommendation
 
@@ -7,7 +9,7 @@ For production deployments, we recommend using an external
 
 ## Basic configuration
 
-Before starting the Coder server, prepare the database server by creating a role
+Before starting the control plane, prepare the database server by creating a role
 and a database. Remember that the role must have access to the created database.
 
 With `psql`:
@@ -26,7 +28,7 @@ Coder configuration is defined via
 [environment variables](../admin/setup/index.md). The database client requires
 the connection string provided via the `CODER_PG_CONNECTION_URL` variable.
 
-```shell
+```sh
 export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable"
 ```
 
@@ -44,7 +46,7 @@ CREATE SCHEMA myschema;
 
 Once the schema is created, you can list all schemas with `\dn`:
 
-```text
+```txt
 List of schemas
  Name      | Owner
 -----------+----------
@@ -55,7 +57,7 @@ List of schemas
 
 In this case the database client requires the modified connection string:
 
-```shell
+```sh
 export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable&search_path=myschema"
 ```
 
@@ -81,12 +83,12 @@ ALTER ROLE coder SET search_path = myschema;
 
 ## Troubleshooting
 
-### Coder server fails startup with "current_schema: converting NULL to string is unsupported"
+### `coder server` fails startup with "current_schema: converting NULL to string is unsupported"
 
 Please make sure that the schema selected in the connection string
 `...&search_path=myschema` exists and the role has granted permissions to access
 it. The schema should be present on this listing:
 
-```shell
+```sh
 psql -U coder -c '\dn'
 ```

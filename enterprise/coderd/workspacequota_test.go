@@ -17,13 +17,11 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -88,7 +86,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Patch the 'Everyone' group to verify its quota allowance is being accounted for.
 		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(1),
+			QuotaAllowance: new(1),
 		})
 		require.NoError(t, err)
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 1)
@@ -153,13 +151,11 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Spin up three workspaces fine
 		var wg sync.WaitGroup
 		for i := 0; i < 4; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-			}()
+			})
 		}
 		wg.Wait()
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 4, 4)
@@ -217,7 +213,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Patch the 'Everyone' group to verify its quota allowance is being accounted for.
 		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(4),
+			QuotaAllowance: new(4),
 		})
 		require.NoError(t, err)
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 0, 4)
@@ -301,12 +297,12 @@ func TestWorkspaceQuota(t *testing.T) {
 		// update everyone quotas
 		//nolint:gocritic // using owner for simplicity
 		_, err := owner.PatchGroup(ctx, first.OrganizationID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(30),
+			QuotaAllowance: new(30),
 		})
 		require.NoError(t, err)
 
 		_, err = owner.PatchGroup(ctx, second.ID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(15),
+			QuotaAllowance: new(15),
 		})
 		require.NoError(t, err)
 
@@ -553,13 +549,13 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Set up quota allowances for both organizations
 		// First org: 2 credits total
 		_, err := owner.PatchGroup(ctx, first.OrganizationID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(2),
+			QuotaAllowance: new(2),
 		})
 		require.NoError(t, err)
 
 		// Second org: 3 credits total
 		_, err = owner.PatchGroup(ctx, second.ID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(3),
+			QuotaAllowance: new(3),
 		})
 		require.NoError(t, err)
 
@@ -763,7 +759,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -820,7 +815,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -888,7 +882,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -940,7 +933,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
 		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -983,7 +975,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 		var err error
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1037,7 +1028,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -1094,7 +1084,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,
@@ -1154,7 +1143,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+---------------------+
 		// pq: could not serialize access due to read/write dependencies among transactions
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: org.Org.ID,

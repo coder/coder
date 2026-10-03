@@ -1,15 +1,15 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { API, type DeploymentConfig } from "api/api";
-import type { SerpentOption } from "api/typesGenerated";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { API, type DeploymentConfig } from "#/api/api";
+import type { SerpentOption } from "#/api/typesGenerated";
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
-import { humanDuration } from "utils/time";
+import { humanDuration } from "#/utils/time";
 import { coderPort, defaultPassword } from "./constants";
 import { findSessionToken, type LoginOptions, randomName } from "./helpers";
 
@@ -241,8 +241,7 @@ export async function verifyConfigFlagString(
 	const configOption = page.locator(
 		`table.options-table .option-${flag} .option-value-string`,
 	);
-	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-	await expect(configOption).toHaveText(opt.value as any);
+	await expect(configOption).toHaveText(opt.value as string);
 }
 
 export async function verifyConfigFlagArray(
@@ -256,8 +255,7 @@ export async function verifyConfigFlagArray(
 	);
 
 	// Verify array of options with simple dots
-	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-	for (const item of opt.value as any) {
+	for (const item of opt.value as string[]) {
 		await expect(configOption.locator("li", { hasText: item })).toBeVisible();
 	}
 }
@@ -273,8 +271,7 @@ export async function verifyConfigFlagEntries(
 	);
 
 	// Verify array of options with green marks.
-	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-	Object.entries(opt.value as any)
+	Object.entries(opt.value as Record<string, string>)
 		.sort((a, b) => a[0].localeCompare(b[0]))
 		.map(async ([item]) => {
 			await expect(

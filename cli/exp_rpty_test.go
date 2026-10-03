@@ -15,57 +15,79 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestExpRpty(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DefaultCommand", func(t *testing.T) {
-		t.Parallel()
+	randstr := uuid.NewString()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "exp", "rpty", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+	tests := []struct {
+		name   string   // test name
+		args   []string // args to append
+		stdin  string   // stdin to write
+		stdout string   // expected stdout
+		id     string   // expected client session id
+	}{
+		{name: "DefaultCommand", stdin: "exit"},
+		{name: "Command", args: []string{"echo", randstr}, stdout: randstr},
+		{name: "ClientSessionID", stdin: "exit", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+			args := []string{"exp", "rpty", r.Workspace.Name}
+			args = append(args, tc.args...)
+			inv, root := clitest.New(t, args...)
 
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+
+			stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+
+			_ = agenttest.New(t, client.URL, r.AgentToken)
+			_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+			if tc.stdin != "" {
+				stdin.WriteLine(tc.stdin)
+			}
+			if tc.stdout != "" {
+				stdout.ExpectMatch(ctx, tc.stdout)
+			}
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeReconnectingPty, tc.id)
 		})
-
-		pty.WriteLine("exit")
-		<-cmdDone
-	})
-
-	t.Run("Command", func(t *testing.T) {
-		t.Parallel()
-
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		randStr := uuid.NewString()
-		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "echo", randStr)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		pty.ExpectMatch(randStr)
-		<-cmdDone
-	})
+	}
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
@@ -86,6 +108,7 @@ func TestExpRpty(t *testing.T) {
 			t.Skip("Skipping test on non-Linux platform")
 		}
 
+		logger := testutil.Logger(t)
 		wantLabel := "coder.devcontainers.TestExpRpty.Container"
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
@@ -124,7 +147,8 @@ func TestExpRpty(t *testing.T) {
 
 		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		cmdDone := tGo(t, func() {
@@ -132,10 +156,10 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatchContext(ctx, " #")
-		pty.WriteLine("hostname")
-		pty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
-		pty.WriteLine("exit")
+		stdout.ExpectMatch(ctx, " #")
+		stdin.WriteLine("hostname")
+		stdout.ExpectMatch(ctx, ct.Container.Config.Hostname)
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 }

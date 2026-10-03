@@ -31,7 +31,7 @@ func (r *RootCmd) autoupdate() *serpent.Command {
 				return xerrors.Errorf("validate policy: %w", err)
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}

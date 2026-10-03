@@ -2,27 +2,28 @@ package agentapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 type MetadataAPI struct {
-	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	AgentID   uuid.UUID
 	Workspace *CachedWorkspaceFields
 	Database  database.Store
-	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
+	Batcher   *metadatabatcher.Batcher
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -35,6 +36,16 @@ func (a *MetadataAPI) now() time.Time {
 }
 
 func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
+	if req == nil {
+		return nil, drpcerr.WithCode(xerrors.New("metadata request is required"), uint64(codes.InvalidArgument))
+	}
+	// Validate the entire batch before trimming values or discarding excess keys.
+	for i, md := range req.Metadata {
+		if md.GetResult() == nil {
+			return nil, drpcerr.WithCode(xerrors.Errorf("metadata result at index %d is required", i), uint64(codes.InvalidArgument))
+		}
+	}
+
 	const (
 		// maxAllKeysLen is the maximum length of all metadata keys. This is
 		// 6144 to stay below the Postgres NOTIFY limit of 8000 bytes, with some
@@ -47,29 +58,11 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		maxErrorLen = maxValueLen
 	)
 
-	// Inject RBAC object into context for dbauthz fast path, avoid having to
-	// call GetWorkspaceByAgentID on every metadata update.
-	var err error
-	rbacCtx := ctx
-	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
-		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
-		if err != nil {
-			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
-			//nolint:gocritic
-			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
-		}
-	}
-
-	workspaceAgent, err := a.AgentFn(rbacCtx)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
 		dbUpdate    = database.UpdateWorkspaceAgentMetadataParams{
-			WorkspaceAgentID: workspaceAgent.ID,
+			WorkspaceAgentID: a.AgentID,
 			// These need to be `make(x, 0, len(req.Metadata))` instead of
 			// `make(x, len(req.Metadata))` because we may not insert all
 			// metadata if the keys are large.
@@ -80,6 +73,8 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		}
 	)
 	for _, md := range req.Metadata {
+		md.Result.Value = strings.TrimSpace(md.Result.Value)
+		md.Result.Error = strings.TrimSpace(md.Result.Error)
 		metadataError := md.Result.Error
 
 		allKeysLen += len(md.Key)
@@ -122,21 +117,10 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
-	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
+	// Use batcher to batch metadata updates.
+	err := a.Batcher.Add(a.AgentID, dbUpdate.Key, dbUpdate.Value, dbUpdate.Error, dbUpdate.CollectedAt)
 	if err != nil {
-		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
-	}
-
-	payload, err := json.Marshal(WorkspaceAgentMetadataChannelPayload{
-		CollectedAt: collectedAt,
-		Keys:        dbUpdate.Key,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal workspace agent metadata channel payload: %w", err)
-	}
-	err = a.Pubsub.Publish(WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), payload)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace agent metadata: %w", err)
+		return nil, xerrors.Errorf("add metadata to batcher: %w", err)
 	}
 
 	// If the metadata keys were too large, we return an error so the agent can
@@ -153,13 +137,4 @@ func ellipse(v string, n int) string {
 		return v[:n] + "..."
 	}
 	return v
-}
-
-type WorkspaceAgentMetadataChannelPayload struct {
-	CollectedAt time.Time `json:"collected_at"`
-	Keys        []string  `json:"keys"`
-}
-
-func WatchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
-	return "workspace_agent_metadata:" + id.String()
 }

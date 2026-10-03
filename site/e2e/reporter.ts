@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { coderdPProfPort } from "./constants";
 
 class CoderReporter implements Reporter {

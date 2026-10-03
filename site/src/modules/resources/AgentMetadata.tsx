@@ -1,36 +1,30 @@
-import Skeleton from "@mui/material/Skeleton";
-import { watchAgentMetadata } from "api/api";
+import { cn } from "cn";
+import dayjs from "dayjs";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { watchAgentMetadata } from "#/api/api";
 import type {
 	ServerSentEvent,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
+} from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import dayjs from "dayjs";
-import {
-	type FC,
-	type HTMLAttributes,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
-import { cn } from "utils/cn";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
+} from "#/components/Tooltip/Tooltip";
+import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
-interface AgentMetadataViewProps {
+type AgentMetadataViewProps = {
 	metadata: WorkspaceAgentMetadata[];
-}
+};
 
-export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
+export const AgentMetadataView: React.FC<AgentMetadataViewProps> = ({
+	metadata,
+}) => {
 	if (metadata.length === 0) {
 		return null;
 	}
@@ -43,14 +37,14 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 	);
 };
 
-interface AgentMetadataProps {
+type AgentMetadataProps = {
 	agent: WorkspaceAgent;
 	initialMetadata?: WorkspaceAgentMetadata[];
-}
+};
 
 const maxSocketErrorRetryCount = 3;
 
-export const AgentMetadata: FC<AgentMetadataProps> = ({
+export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 	agent,
 	initialMetadata,
 }) => {
@@ -87,15 +81,18 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
-					displayError(
-						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
+					toast.error(
+						"Unexpected disconnect while watching Metadata changes.",
+						{
+							description: "Please try refreshing the page.",
+						},
 					);
 					return;
 				}
 
-				displayError(
-					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
-				);
+				toast.error("Unexpected disconnect while watching Metadata changes.", {
+					description: "Creating new connection...",
+				});
 				timeoutId = window.setTimeout(() => {
 					createNewConnection();
 				}, 3_000);
@@ -103,9 +100,9 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
-					displayError(
-						"Unable to process newest response from server. Please try refreshing the page.",
-					);
+					toast.error("Unable to process newest response from server.", {
+						description: "Please try refreshing the page.",
+					});
 					return;
 				}
 
@@ -134,32 +131,32 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 	return <AgentMetadataView metadata={activeMetadata} />;
 };
 
-const AgentMetadataSkeleton: FC = () => {
+const AgentMetadataSkeleton: React.FC = () => {
 	return (
-		<Stack alignItems="baseline" direction="row" spacing={6}>
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+		<div className="flex flex-row items-baseline gap-12">
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
 
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
 
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
-				<Skeleton width={40} height={12} variant="text" />
-				<Skeleton width={65} height={14} variant="text" />
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
+				<Skeleton width={40} height={6} variant="text" />
+				<Skeleton width={65} height={8} variant="text" />
 			</div>
-		</Stack>
+		</div>
 	);
 };
 
-interface MetadataItemProps {
+type MetadataItemProps = {
 	item: WorkspaceAgentMetadata;
-}
+};
 
-const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
+const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 	const staleThreshold = Math.max(
 		item.description.interval + item.description.timeout * 2,
 		// In case there is intense backpressure, we give a little bit of slack.
@@ -209,7 +206,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 		);
 
 	return (
-		<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+		<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
 				{item.description.display_name}
 			</div>
@@ -218,13 +215,12 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+const StaticWidth: React.FC<Omit<React.ComponentProps<"div">, "ref">> = ({
 	children,
 	...attrs
 }) => {
 	const ref = useRef<HTMLDivElement>(null);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
 	useLayoutEffect(() => {
 		// Ignore this in storybook
 		if (!ref.current || process.env.STORYBOOK === "true") {

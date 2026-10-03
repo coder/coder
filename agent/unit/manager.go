@@ -277,11 +277,23 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 		return nil, err
 	}
 
-	var unmetDependencies []Dependency = slice.Filter(allDependencies, func(dependency Dependency) bool {
+	unmetDependencies := slice.Filter(allDependencies, func(dependency Dependency) bool {
 		return !dependency.IsSatisfied
 	})
 
 	return unmetDependencies, nil
+}
+
+// ListUnits returns a snapshot of all registered units and their current status.
+func (m *Manager) ListUnits() []Unit {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	units := make([]Unit, 0, len(m.units))
+	for _, u := range m.units {
+		units = append(units, u)
+	}
+	return units
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.

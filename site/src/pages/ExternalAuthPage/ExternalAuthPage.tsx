@@ -1,30 +1,32 @@
-import type { ApiErrorResponse } from "api/errors";
+import { isAxiosError } from "axios";
+import { useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router";
+import type { ApiErrorResponse } from "#/api/errors";
 import {
 	exchangeExternalAuthDevice,
 	externalAuthDevice,
 	externalAuthProvider,
-} from "api/queries/externalAuth";
-import { isAxiosError } from "axios";
-import { Button } from "components/Button/Button";
+} from "#/api/queries/externalAuth";
+import { Button } from "#/components/Button/Button";
 import {
 	isExchangeErrorRetryable,
 	newRetryDelay,
-} from "components/GitDeviceAuth/GitDeviceAuth";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
-import { useAuthenticated } from "hooks";
-import type { FC } from "react";
-import { useMemo } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
+} from "#/components/GitDeviceAuth/GitDeviceAuth";
+import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
+import { Welcome } from "#/components/Welcome/Welcome";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
-const ExternalAuthPage: FC = () => {
+const ExternalAuthPage: React.FC = () => {
 	const { provider } = useParams() as { provider: string };
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
-	const externalAuthProviderOpts = externalAuthProvider(provider);
+	const externalAuthProviderOpts = useMemo(
+		() => externalAuthProvider(provider),
+		[provider],
+	);
 	const externalAuthProviderQuery = useQuery({
 		...externalAuthProviderOpts,
 		refetchOnWindowFocus: true,
@@ -45,7 +47,6 @@ const ExternalAuthPage: FC = () => {
 		...exchangeExternalAuthDevice(
 			provider,
 			externalAuthDeviceQuery.data?.device_code ?? "",
-			queryClient,
 		),
 		enabled: Boolean(externalAuthDeviceQuery.data),
 		retry: isExchangeErrorRetryable,
@@ -54,6 +55,23 @@ const ExternalAuthPage: FC = () => {
 		// logic, because the device auth flow is very strict about rate limits.
 		refetchOnWindowFocus: false,
 	});
+
+	// Flip the UI out of polling once the exchange succeeds. Replaces the
+	// `onSuccess` that react-query v5 dropped from `useQuery`. `exact` avoids
+	// re-POSTing the one-time device code.
+	useEffect(() => {
+		if (!exchangeExternalAuthDeviceQuery.isSuccess) {
+			return;
+		}
+		queryClient.invalidateQueries({
+			queryKey: externalAuthProviderOpts.queryKey,
+			exact: true,
+		});
+	}, [
+		exchangeExternalAuthDeviceQuery.isSuccess,
+		externalAuthProviderOpts.queryKey,
+		queryClient,
+	]);
 
 	if (externalAuthProviderQuery.isLoading || !externalAuthProviderQuery.data) {
 		return null;
@@ -83,7 +101,7 @@ const ExternalAuthPage: FC = () => {
 				<SignInLayout>
 					<Welcome>Failed to validate oauth access token</Welcome>
 
-					<p css={{ textAlign: "center" }}>
+					<p className="text-center">
 						Attempted to validate the user&apos;s oauth access token from the
 						authentication flow. This situation may occur as a result of an
 						external authentication provider misconfiguration. Verify the
@@ -94,7 +112,7 @@ const ExternalAuthPage: FC = () => {
 						variant="outline"
 						onClick={() => {
 							// Redirect to the auth flow again. *crosses fingers*
-							window.location.href = `/external-auth/${provider}/callback`;
+							location.href = `/external-auth/${provider}/callback`;
 						}}
 					>
 						Retry
@@ -102,7 +120,7 @@ const ExternalAuthPage: FC = () => {
 				</SignInLayout>
 			);
 		}
-		window.location.href = `/external-auth/${provider}/callback`;
+		location.href = `/external-auth/${provider}/callback`;
 		return null;
 	}
 

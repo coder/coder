@@ -1,63 +1,53 @@
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
-import { useMutation, useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	templateVersions,
+	templateVersionsQueryKey,
+} from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 
 const TemplateVersionsPage = () => {
+	const navigate = useNavigate();
+	const getLink = useLinks();
 	const { template, permissions } = useTemplateLayoutContext();
-	const { data } = useQuery({
-		queryKey: ["template", "versions", template.id],
-		queryFn: () => API.getTemplateVersions(template.id),
-	});
+	const queryClient = useQueryClient();
+	const templateLink = getLink(
+		linkToTemplate(template.organization_name, template.name),
+	);
+	const { data } = useQuery(templateVersions(template.id));
 	// We use this to update the active version in the UI without having to refetch the template
 	const [latestActiveVersion, setLatestActiveVersion] = useState(
 		template.active_version_id,
 	);
-	const { mutate: promoteVersion, isPending: isPromoting } = useMutation({
+	const [versionToPromote, setVersionToPromote] = useState<
+		TemplateVersion | undefined
+	>();
+	const [versionToArchive, setVersionToArchive] = useState<
+		TemplateVersion | undefined
+	>();
+
+	const { mutateAsync: promoteVersion, isPending: isPromoting } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.updateActiveTemplateVersion(template.id, {
 				id: templateVersionId,
 			});
 		},
-		onSuccess: async () => {
-			setLatestActiveVersion(selectedVersionIdToPromote as string);
-			setSelectedVersionIdToPromote(undefined);
-			displaySuccess("Version promoted successfully");
-		},
-		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to promote version"));
-		},
 	});
 
-	const { mutate: archiveVersion, isPending: isArchiving } = useMutation({
+	const { mutateAsync: archiveVersion, isPending: isArchiving } = useMutation({
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},
-		onSuccess: async () => {
-			// The reload is unfortunate. When a version is archived, we should hide
-			// the row. I do not know an easy way to do that, so a reload makes the API call
-			// resend and now the version is omitted.
-			// TODO: Improve this to not reload the page.
-			location.reload();
-			setSelectedVersionIdToArchive(undefined);
-			displaySuccess("Version archived successfully");
-		},
-		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to archive version"));
-		},
 	});
-
-	const [selectedVersionIdToPromote, setSelectedVersionIdToPromote] = useState<
-		string | undefined
-	>();
-	const [selectedVersionIdToArchive, setSelectedVersionIdToArchive] = useState<
-		string | undefined
-	>();
 
 	return (
 		<>
@@ -66,44 +56,89 @@ const TemplateVersionsPage = () => {
 			<VersionsTable
 				versions={data}
 				onPromoteClick={
-					permissions.canUpdateTemplate
-						? setSelectedVersionIdToPromote
-						: undefined
+					permissions.canUpdateTemplate ? setVersionToPromote : undefined
 				}
 				onArchiveClick={
-					permissions.canUpdateTemplate
-						? setSelectedVersionIdToArchive
-						: undefined
+					permissions.canUpdateTemplate ? setVersionToArchive : undefined
 				}
 				activeVersionId={latestActiveVersion}
 			/>
-			{/* Promote confirm */}
 			<ConfirmDialog
 				type="info"
 				hideCancel={false}
-				open={selectedVersionIdToPromote !== undefined}
-				onConfirm={() => {
-					promoteVersion(selectedVersionIdToPromote as string);
+				open={Boolean(versionToPromote)}
+				onConfirm={async () => {
+					if (!versionToPromote) {
+						return;
+					}
+					const { id, name } = versionToPromote;
+					try {
+						await promoteVersion(id);
+						setLatestActiveVersion(id);
+						setVersionToPromote(undefined);
+						toast.success(`Version "${name}" promoted successfully.`, {
+							action: {
+								label: "View template",
+								onClick: () => navigate(templateLink),
+							},
+						});
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, `Failed to promote version "${name}".`),
+							{
+								description: getErrorDetail(error),
+							},
+						);
+					}
 				}}
-				onClose={() => setSelectedVersionIdToPromote(undefined)}
+				onClose={() => setVersionToPromote(undefined)}
 				title="Promote version"
 				confirmLoading={isPromoting}
 				confirmText="Promote"
-				description="Are you sure you want to promote this version? Workspaces will be prompted to “Update” to this version once promoted."
+				description={
+					<>
+						Are you sure you want to promote version{" "}
+						<strong>{versionToPromote?.name}</strong>? Workspaces will be
+						prompted to “Update” to this version once promoted.
+					</>
+				}
 			/>
-			{/* Archive Confirm */}
 			<ConfirmDialog
 				type="info"
 				hideCancel={false}
-				open={selectedVersionIdToArchive !== undefined}
-				onConfirm={() => {
-					archiveVersion(selectedVersionIdToArchive as string);
+				open={Boolean(versionToArchive)}
+				onConfirm={async () => {
+					if (!versionToArchive) {
+						return;
+					}
+					const { id, name } = versionToArchive;
+					try {
+						await archiveVersion(id);
+						await queryClient.invalidateQueries({
+							queryKey: templateVersionsQueryKey(template.id),
+						});
+						setVersionToArchive(undefined);
+						toast.success(`Version "${name}" archived successfully.`);
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, `Failed to archive version "${name}".`),
+							{
+								description: getErrorDetail(error),
+							},
+						);
+					}
 				}}
-				onClose={() => setSelectedVersionIdToArchive(undefined)}
+				onClose={() => setVersionToArchive(undefined)}
 				title="Archive version"
 				confirmLoading={isArchiving}
 				confirmText="Archive"
-				description="Are you sure you want to archive this version (this is reversible)? Archived versions cannot be used by workspaces."
+				description={
+					<>
+						Are you sure you want to archive version{" "}
+						<strong>{versionToArchive?.name}</strong>? This is reversible.
+						Archived versions cannot be used by workspaces.
+					</>
+				}
 			/>
 		</>
 	);

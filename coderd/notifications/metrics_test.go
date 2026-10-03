@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -33,7 +32,6 @@ func TestMetrics(t *testing.T) {
 
 	// SETUP
 
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -57,6 +55,7 @@ func TestMetrics(t *testing.T) {
 
 	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
@@ -221,7 +220,6 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -247,6 +245,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	mgr, err := notifications.NewManager(cfg, interceptor, pubsub, defaultHelpers(), metrics, logger.Named("manager"),
 		notifications.WithTestClock(mClock))
 	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
@@ -277,17 +276,24 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	mClock.Advance(cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// THEN:
-	// handler has dispatched the given notifications.
-	func() {
+	// Both handlers have dispatched the given notifications, and their
+	// results are pending in the metrics.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		handler.mu.RLock()
+		inboxHandler.mu.RLock()
 		defer handler.mu.RUnlock()
+		defer inboxHandler.mu.RUnlock()
 
-		require.Len(t, handler.succeeded, 1)
-		require.Len(t, handler.failed, 1)
-	}()
+		assert.Len(ct, handler.succeeded, 1)
+		assert.Len(ct, handler.failed, 1)
+		assert.Len(ct, inboxHandler.succeeded, 1)
+		assert.Len(ct, inboxHandler.failed, 1)
 
-	// Both handler calls should be pending in the metrics.
-	require.EqualValues(t, 4, promtest.ToFloat64(metrics.PendingUpdates))
+		success, failure := mgr.BufferedUpdatesCount()
+		assert.Equal(ct, 2, success)
+		assert.Equal(ct, 2, failure)
+		assert.EqualValues(ct, 4, promtest.ToFloat64(metrics.PendingUpdates))
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// THEN:
 	// Trigger syncing updates
@@ -314,7 +320,6 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -333,6 +338,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
@@ -386,7 +392,6 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 func TestCustomMethodMetricCollection(t *testing.T) {
 	t.Parallel()
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -401,6 +406,8 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		customMethod  = database.NotificationMethodWebhook
 		defaultMethod = database.NotificationMethodSmtp
 	)
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	// GIVEN: a template whose notification method differs from the default.
 	out, err := store.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{

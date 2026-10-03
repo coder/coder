@@ -1,5 +1,5 @@
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { mockApiError } from "#/testHelpers/entities";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
 const meta: Meta<typeof SSHKeysPageView> = {

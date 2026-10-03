@@ -1,18 +1,18 @@
-import { chromaticWithTablet } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
 import {
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
 	MockUserOwner,
 	mockApiError,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import type { TemplateFilterState } from "./TemplatesPage";
+} from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
+import { withDashboardProvider } from "#/testHelpers/storybook";
+import type { TemplateFilterState } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
@@ -27,10 +27,12 @@ const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
 	decorators: [withDashboardProvider],
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,
+		templateBuilderEnabled: false,
+		templateUpdatePermissions: {},
 	},
 };
 
@@ -82,6 +84,13 @@ export const WithTemplates: Story = {
 				display_name: "Deprecated",
 				description: "Template is incompatible",
 			},
+			{
+				...MockTemplate,
+				name: "deleted-template",
+				display_name: "Deleted",
+				description: "Template has been deleted",
+				deleted: true,
+			},
 		],
 		examples: [],
 		workspacePermissions: {
@@ -89,6 +98,13 @@ export const WithTemplates: Story = {
 				createWorkspaceForUserID: true,
 			},
 		},
+	},
+};
+
+export const WithTemplatesBuilderEnabled: Story = {
+	args: {
+		...WithTemplates.args,
+		templateBuilderEnabled: true,
 	},
 };
 
@@ -152,6 +168,16 @@ export const EmptyCanCreate: Story = {
 	},
 };
 
+export const EmptyCanCreateWithBuilder: Story = {
+	args: {
+		canCreateTemplates: true,
+		templateBuilderEnabled: true,
+		error: undefined,
+		templates: [],
+		examples: [MockTemplateExample, MockTemplateExample2],
+	},
+};
+
 export const EmptyCannotCreate: Story = {
 	args: {
 		error: undefined,
@@ -187,6 +213,82 @@ export const WithValidationError: Story = {
 		}),
 		templates: undefined,
 		examples: undefined,
+		canCreateTemplates: false,
+	},
+};
+
+const classicParameterFlowTemplates = [
+	{
+		...MockTemplate,
+		id: "template-classic-1",
+		name: "classic-one",
+		display_name: "Classic One",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-2",
+		name: "classic-two",
+		display_name: "Classic Two",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-without-permission",
+		organization_id: "other-organization",
+		name: "classic-without-permission",
+		display_name: "Classic Without Permission",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-dynamic",
+		name: "dynamic-one",
+		display_name: "Dynamic One",
+		use_classic_parameter_flow: false,
+	},
+];
+
+export const ClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: classicParameterFlowTemplates,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+			"other-organization": false,
+		},
+	},
+};
+
+export const SingleClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [
+			classicParameterFlowTemplates[0],
+			// The dynamic-flow template ensures only the classic template is counted.
+			classicParameterFlowTemplates[3],
+		],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: true,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: false,
+		},
+	},
+};
+
+export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
 		canCreateTemplates: false,
 	},
 };

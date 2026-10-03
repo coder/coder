@@ -1,27 +1,28 @@
-import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
-import type { Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { ArrowDownIcon } from "lucide-react";
+import { useInfiniteQuery } from "react-query";
+import { infiniteWorkspaceBuilds } from "#/api/queries/workspaceBuilds";
+import type { Workspace } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Sidebar,
 	SidebarCaption,
 	SidebarItem,
 	SidebarLink,
-} from "components/FullPageLayout/Sidebar";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Spinner } from "components/Spinner/Spinner";
-import { ArrowDownIcon } from "lucide-react";
+} from "#/components/FullPageLayout/Sidebar";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
-import type { FC } from "react";
-import { useInfiniteQuery } from "react-query";
+} from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 
-interface HistorySidebarProps {
+type HistorySidebarProps = {
 	workspace: Workspace;
-}
+};
 
-export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
+export const HistorySidebar: React.FC<HistorySidebarProps> = ({
+	workspace,
+}) => {
 	const buildsQuery = useInfiniteQuery({
 		...infiniteWorkspaceBuilds(workspace?.id ?? ""),
 		enabled: workspace !== undefined,
@@ -49,7 +50,7 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 								</SidebarItem>
 							))}
 					{buildsQuery.hasNextPage && (
-						<div css={{ padding: 16 }}>
+						<div className="p-4">
 							<Button
 								onClick={() => buildsQuery.fetchNextPage()}
 								disabled={buildsQuery.isFetchingNextPage}

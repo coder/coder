@@ -1,16 +1,6 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
-import { Stack } from "components/Stack/Stack";
-import {
-	type ComponentProps,
-	createContext,
-	type FC,
-	forwardRef,
-	type HTMLProps,
-	type ReactNode,
-	useContext,
-} from "react";
-import { cn } from "utils/cn";
+import { cn } from "cn";
+import { createContext, useContext } from "react";
+import { AlphaBadge, DeprecatedBadge } from "#/components/Badge/PresetBadges";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 
@@ -18,32 +8,30 @@ const FormContext = createContext<FormContextValue>({
 	direction: "horizontal",
 });
 
-type FormProps = HTMLProps<HTMLFormElement> & {
+type FormProps = React.HTMLProps<HTMLFormElement> & {
 	direction?: FormContextValue["direction"];
 };
 
-export const Form: FC<FormProps> = ({ direction, ...formProps }) => {
-	const theme = useTheme();
-
+export const Form: React.FC<FormProps> = ({
+	direction,
+	className,
+	...formProps
+}) => {
 	return (
 		<FormContext.Provider value={{ direction }}>
 			<form
 				{...formProps}
-				css={{
-					display: "flex",
-					flexDirection: "column",
-					gap: direction === "horizontal" ? 80 : 40,
-
-					[theme.breakpoints.down("md")]: {
-						gap: 64,
-					},
-				}}
+				className={cn(
+					"flex flex-col gap-16",
+					direction === "horizontal" ? "md:gap-20" : "md:gap-10",
+					className,
+				)}
 			/>
 		</FormContext.Provider>
 	);
 };
 
-export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
+export const HorizontalForm: React.FC<React.HTMLProps<HTMLFormElement>> = ({
 	children,
 	...formProps
 }) => {
@@ -54,7 +42,7 @@ export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
 	);
 };
 
-export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
+export const VerticalForm: React.FC<React.HTMLProps<HTMLFormElement>> = ({
 	children,
 	...formProps
 }) => {
@@ -65,10 +53,10 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
 	);
 };
 
-interface FormSectionProps {
-	children?: ReactNode;
-	title: ReactNode;
-	description: ReactNode;
+type FormSectionProps = {
+	children?: React.ReactNode;
+	title: React.ReactNode;
+	description: React.ReactNode;
 	classes?: {
 		root?: string;
 		sectionInfo?: string;
@@ -76,121 +64,68 @@ interface FormSectionProps {
 	};
 	alpha?: boolean;
 	deprecated?: boolean;
-}
+	ref?: React.Ref<HTMLElement>;
+};
 
-export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
-	(
-		{
-			children,
-			title,
-			description,
-			classes = {},
-			alpha = false,
-			deprecated = false,
-		},
-		ref,
-	) => {
-		const { direction } = useContext(FormContext);
+export const FormSection: React.FC<FormSectionProps> = ({
+	children,
+	title,
+	description,
+	classes = {},
+	alpha = false,
+	deprecated = false,
+	ref,
+}) => {
+	const { direction } = useContext(FormContext);
 
-		return (
-			<section
-				ref={ref}
-				css={[
-					styles.formSection,
-					direction === "horizontal" && styles.formSectionHorizontal,
-				]}
-				className={classes.root}
-			>
-				<div
-					css={[
-						styles.formSectionInfo,
-						direction === "horizontal" && styles.formSectionInfoHorizontal,
-					]}
-					className={classes.sectionInfo}
-				>
-					<h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
-						{title}
-						{alpha && <AlphaBadge />}
-						{deprecated && <DeprecatedBadge />}
-					</h2>
-					<div css={styles.formSectionInfoDescription}>{description}</div>
-				</div>
-
-				{children}
-			</section>
-		);
-	},
-);
-
-export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
 	return (
-		<Stack
-			direction="column"
-			spacing={3}
-			{...props}
-			css={styles.formSectionFields}
-		/>
+		<section
+			ref={ref}
+			className={cn(
+				"flex items-start flex-col gap-4 lg:gap-6",
+				direction === "horizontal" && "lg:flex-row lg:gap-[120px]",
+				classes.root,
+			)}
+		>
+			<div
+				className={cn(
+					"w-full shrink-0 top-24",
+					direction === "horizontal" && "lg:sticky lg:max-w-[312px]",
+					classes.sectionInfo,
+				)}
+			>
+				<header className="flex items-center gap-4">
+					<h2
+						className={cn(
+							"m-0 mb-2 flex flex-row items-center gap-3 text-xl font-medium text-content-primary",
+							classes.infoTitle,
+						)}
+					>
+						{title}
+					</h2>
+					{alpha && <AlphaBadge />}
+					{deprecated && <DeprecatedBadge />}
+				</header>
+				<div className="m-0 text-sm leading-[160%] text-content-secondary">
+					{description}
+				</div>
+			</div>
+
+			{children}
+		</section>
 	);
 };
 
-const styles = {
-	formSection: (theme) => ({
-		display: "flex",
-		alignItems: "flex-start",
-		flexDirection: "column",
-		gap: 24,
+export const FormFields: React.FC<React.ComponentProps<"div">> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div className={cn("flex w-full flex-col gap-6", className)} {...props} />
+	);
+};
 
-		[theme.breakpoints.down("lg")]: {
-			flexDirection: "column",
-			gap: 16,
-		},
-	}),
-	formSectionHorizontal: {
-		flexDirection: "row",
-		gap: 120,
-	},
-	formSectionInfo: (theme) => ({
-		width: "100%",
-		flexShrink: 0,
-		top: 24,
-
-		[theme.breakpoints.down("md")]: {
-			width: "100%",
-			position: "initial" as const,
-		},
-	}),
-	formSectionInfoHorizontal: (theme) => ({
-		maxWidth: 312,
-
-		[theme.breakpoints.up("lg")]: {
-			position: "sticky",
-		},
-	}),
-	formSectionInfoTitle: (theme) => ({
-		fontSize: 20,
-		color: theme.palette.text.primary,
-		fontWeight: 500,
-		margin: 0,
-		marginBottom: 8,
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-	}),
-
-	formSectionInfoDescription: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-		margin: 0,
-	}),
-
-	formSectionFields: {
-		width: "100%",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
-
-export const FormFooter: FC<HTMLProps<HTMLDivElement>> = ({
+export const FormFooter: React.FC<React.HTMLProps<HTMLDivElement>> = ({
 	className,
 	...props
 }) => (

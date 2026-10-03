@@ -9,6 +9,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -26,6 +28,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
@@ -37,28 +40,36 @@ import (
 	"github.com/coder/serpent"
 )
 
-func workspaceAgent() *serpent.Command {
+// defaultAgentFlightRecorderSize is the default number of log entries below the
+// current log level that the agent keeps in memory and emits when it logs an
+// error, such as losing its connection to coderd.
+const defaultAgentFlightRecorderSize = 1000
+
+func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
-		logDir                         string
-		scriptDataDir                  string
-		pprofAddress                   string
-		noReap                         bool
-		sshMaxTimeout                  time.Duration
-		tailnetListenPort              int64
-		prometheusAddress              string
-		debugAddress                   string
-		slogHumanPath                  string
-		slogJSONPath                   string
-		slogStackdriverPath            string
-		blockFileTransfer              bool
-		agentHeaderCommand             string
-		agentHeader                    []string
-		devcontainers                  bool
-		devcontainerProjectDiscovery   bool
-		devcontainerDiscoveryAutostart bool
-		socketServerEnabled            bool
-		socketPath                     string
-		boundaryLogProxySocketPath     string
+		logDir                          string
+		flightRecorderSize              int64
+		scriptDataDir                   string
+		pprofAddress                    string
+		noReap                          bool
+		sshMaxTimeout                   time.Duration
+		tailnetListenPort               int64
+		prometheusAddress               string
+		debugAddress                    string
+		slogHumanPath                   string
+		slogJSONPath                    string
+		slogStackdriverPath             string
+		blockFileTransfer               bool
+		blockReversePortForwarding      bool
+		blockLocalPortForwarding        bool
+		agentHeaderCommand              string
+		agentHeader                     []string
+		devcontainers                   bool
+		devcontainerProjectDiscovery    bool
+		devcontainerDiscoveryAutostart  bool
+		socketServerEnabled             bool
+		socketPath                      string
+		agentFirewallLogProxySocketPath string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -130,51 +141,63 @@ func workspaceAgent() *serpent.Command {
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+				logger = logger.Named("reaper")
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
-				err := reaper.ForkReap(
+				exitCode, err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
 					reaper.WithCatchSignals(StopSignals...),
+					reaper.WithLogger(logger),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(ctx, "reaper process exiting")
-				return nil
+				logger.Info(ctx, "child process exited, propagating exit code",
+					slog.F("exit_code", exitCode),
+				)
+				return ExitError(exitCode, nil)
 			}
+
+			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
+				Filename: filepath.Join(logDir, "coder-agent.log"),
+				MaxSize:  5, // MB
+				// Keep up to the debug logs response cap across the active log and rotations.
+				MaxBackups: 19,
+			}}
+			defer logWriter.Close()
+
+			sinks = append(sinks, sloghuman.Sink(logWriter))
+			// Run at Info (Debug with -v) and always attach a flight recorder.
+			// Below-level (debug) entries are kept in a rolling in-memory history and
+			// emitted when an error is logged (see agent.runLoop), so the detail
+			// leading up to a failure is available without logging debug during
+			// normal operation. At Debug the recorder has nothing to record.
+			level := slog.LevelInfo
+			if r.verbose {
+				level = slog.LevelDebug
+			}
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(level).FlightRecorder(int(flightRecorderSize))
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
 			// and the next interrupt will terminate the program (you
 			// probably want cancel instead).
 			//
-			// Note that we don't want to handle these signals in the
-			// process that runs as PID 1, that's why we do this after
-			// the reaper forked.
-			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
+			// Note that we also handle these signals in the
+			// process that runs as PID 1, mainly to forward it to the agent child
+			// so that it can shutdown gracefully.
+			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
 			go DumpHandler(ctx, "agent")
-
-			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
-				Filename: filepath.Join(logDir, "coder-agent.log"),
-				MaxSize:  5, // MB
-				// Per customer incident on November 17th, 2023, its helpful
-				// to have the log of the last few restarts to debug a failing agent.
-				MaxBackups: 10,
-			}}
-			defer logWriter.Close()
-
-			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
@@ -267,11 +290,19 @@ func workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
-			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
+			reinitCtx, reinitCancel := context.WithCancel(ctx)
+			defer reinitCancel()
+			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
+
+			// Read and strip env vars before the reinit
+			// loop so config survives agent restarts.
+			contextConfig := agentcontextconfig.ReadEnvConfig()
+			agentcontextconfig.ClearEnvVars()
 
 			var (
-				lastErr  error
-				mustExit bool
+				lastOwnerID uuid.UUID
+				lastErr     error
+				mustExit    bool
 			)
 			for {
 				prometheusRegistry := prometheus.NewRegistry()
@@ -310,18 +341,21 @@ func workspaceAgent() *serpent.Command {
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,
 
-					PrometheusRegistry: prometheusRegistry,
-					BlockFileTransfer:  blockFileTransfer,
-					Execer:             execer,
-					Devcontainers:      devcontainers,
+					PrometheusRegistry:         prometheusRegistry,
+					BlockFileTransfer:          blockFileTransfer,
+					BlockReversePortForwarding: blockReversePortForwarding,
+					BlockLocalPortForwarding:   blockLocalPortForwarding,
+					Execer:                     execer,
+					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
-					SocketPath:                 socketPath,
-					SocketServerEnabled:        socketServerEnabled,
-					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
+					SocketPath:                      socketPath,
+					SocketServerEnabled:             socketServerEnabled,
+					AgentFirewallLogProxySocketPath: agentFirewallLogProxySocketPath,
+					ContextConfig:                   contextConfig,
 				})
 
 				if debugAddress != "" {
@@ -338,9 +372,32 @@ func workspaceAgent() *serpent.Command {
 				case <-ctx.Done():
 					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
 					mustExit = true
-				case event := <-reinitEvents:
-					logger.Info(ctx, "agent received instruction to reinitialize",
-						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+				case event, ok := <-reinitEvents:
+					switch {
+					case !ok:
+						// Channel closed — the reinit loop exited
+						// (terminal 409 or context expired). Keep
+						// running the current agent until the parent
+						// context is canceled.
+						logger.Info(ctx, "reinit channel closed, running without reinit capability")
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					case event.OwnerID != uuid.Nil && event.OwnerID == lastOwnerID:
+						// Duplicate reinit for same owner — already
+						// reinitialized. Cancel the reinit loop
+						// goroutine and keep the current agent.
+						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
+							slog.F("owner_id", event.OwnerID))
+						reinitCancel()
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					default:
+						lastOwnerID = event.OwnerID
+						logger.Info(ctx, "agent received instruction to reinitialize",
+							slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+					}
 				}
 
 				lastErr = agnt.Close()
@@ -455,11 +512,33 @@ func workspaceAgent() *serpent.Command {
 			Value:       serpent.StringOf(&slogStackdriverPath),
 		},
 		{
+			Flag:    "agent-flight-recorder-size",
+			Env:     "CODER_AGENT_FLIGHT_RECORDER_SIZE",
+			Default: strconv.Itoa(defaultAgentFlightRecorderSize),
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable the flight recorder.",
+			Value: serpent.Int64Of(&flightRecorderSize),
+		},
+		{
 			Flag:        "block-file-transfer",
 			Default:     "false",
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
 			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
+		},
+		{
+			Flag:        "block-reverse-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_REVERSE_PORT_FORWARDING",
+			Description: "Block reverse port forwarding through the SSH server (ssh -R).",
+			Value:       serpent.BoolOf(&blockReversePortForwarding),
+		},
+		{
+			Flag:        "block-local-port-forwarding",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
+			Description: "Block local port forwarding through the SSH server (ssh -L).",
+			Value:       serpent.BoolOf(&blockLocalPortForwarding),
 		},
 		{
 			Flag:        "devcontainers-enable",
@@ -484,7 +563,7 @@ func workspaceAgent() *serpent.Command {
 		},
 		{
 			Flag:        "socket-server-enabled",
-			Default:     "false",
+			Default:     "true",
 			Env:         "CODER_AGENT_SOCKET_SERVER_ENABLED",
 			Description: "Enable the agent socket server.",
 			Value:       serpent.BoolOf(&socketServerEnabled),
@@ -500,7 +579,21 @@ func workspaceAgent() *serpent.Command {
 			Default:     boundarylogproxy.DefaultSocketPath(),
 			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
 			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
-			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
+			Value:       serpent.StringOf(&agentFirewallLogProxySocketPath),
+			Hidden:      true,
+			UseInstead: []serpent.Option{
+				{
+					Flag: "agent-firewall-log-proxy-socket-path",
+					Env:  "CODER_AGENT_FIREWALL_LOG_PROXY_SOCKET_PATH",
+				},
+			},
+		},
+		{
+			Flag:        "agent-firewall-log-proxy-socket-path",
+			Default:     boundarylogproxy.DefaultSocketPath(),
+			Env:         "CODER_AGENT_FIREWALL_LOG_PROXY_SOCKET_PATH",
+			Description: "The path for the agent firewall log proxy server Unix socket. Agent firewall should write audit logs to this socket.",
+			Value:       serpent.StringOf(&agentFirewallLogProxySocketPath),
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)
@@ -564,4 +657,27 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+// logSignalNotifyContext is like signal.NotifyContext but logs the received
+// signal before canceling the context.
+func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancelCause(parent)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, signals...)
+
+	go func() {
+		select {
+		case sig := <-c:
+			logger.Info(ctx, "agent received signal", slog.F("signal", sig.String()))
+			cancel(xerrors.Errorf("signal: %s", sig.String()))
+		case <-ctx.Done():
+			logger.Info(ctx, "ctx canceled, stopping signal handler")
+		}
+	}()
+
+	return ctx, func() {
+		cancel(context.Canceled)
+		signal.Stop(c)
+	}
 }

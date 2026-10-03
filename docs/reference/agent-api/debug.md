@@ -1,16 +1,18 @@
-# Debug
+---
+title: Debug
+---
 
 ## Get debug logs
 
 ### Code samples
 
-```shell
+```sh
 curl $CODER_AGENT_DEBUG_ADDRESS/debug/logs
 ```
 
 `GET /debug/logs`
 
-Get the first 10MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
+Get the first 10&nbsp;MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
 
 ### Responses
 
@@ -22,7 +24,7 @@ Get the first 10MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
 
 ### Code samples
 
-```shell
+```sh
 curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock
 ```
 
@@ -35,7 +37,7 @@ See
 
 ### Code samples
 
-```shell
+```sh
 curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock/debug-logging/true
 ```
 
@@ -61,7 +63,7 @@ for more information.
 
 ### Code samples
 
-```shell
+```sh
 curl $CODER_AGENT_DEBUG_ADDRESS/debug/manifest
 ```
 

@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { useEffectEvent } from "./hookPolyfills";
+import { useEffect, useEffectEvent, useState } from "react";
 
-interface UseTimeOptions {
+type UseTimeOptions = {
 	/**
 	 * Can be set to `true` to disable checking for updates in circumstances where it is known
 	 * that there is no work to do.
@@ -12,7 +11,7 @@ interface UseTimeOptions {
 	 * The amount of time in milliseconds that should pass between checking for updates.
 	 */
 	interval?: number;
-}
+};
 
 /**
  * useTime allows a component to rerender over time without a corresponding state change.
@@ -31,13 +30,14 @@ export function useTime<T>(func: () => T, options: UseTimeOptions = {}): T {
 		}
 
 		const handle = setInterval(() => {
-			setComputedValue(() => thunk());
+			const next = thunk();
+			setComputedValue(() => next);
 		}, interval);
 
 		return () => {
 			clearInterval(handle);
 		};
-	}, [thunk, disabled, interval]);
+	}, [disabled, interval]);
 
 	return computedValue;
 }

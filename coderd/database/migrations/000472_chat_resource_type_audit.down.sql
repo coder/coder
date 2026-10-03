@@ -1,0 +1,3 @@
+-- Postgres does not support removing enum values, so down is a
+-- no-op. Rolling back past this migration is not reversible at
+-- the schema level.

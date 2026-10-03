@@ -21,8 +21,12 @@ import (
 const (
 	// Set a timeout for graceful close of the connection.
 	connCloseTimeout = 30 * time.Second
+	// Set a timeout for the read to unblock after a force close. Closing the
+	// connection unblocks a pending read, so this should never be hit unless
+	// the underlying connection misbehaves.
+	forceCloseReadTimeout = 5 * time.Second
 	// Set a timeout for waiting for the connection to close.
-	waitCloseTimeout = connCloseTimeout + 5*time.Second
+	waitCloseTimeout = connCloseTimeout + forceCloseReadTimeout + 5*time.Second
 
 	// In theory, we can send larger payloads to push bandwidth, but we need to
 	// be careful not to send too much data at once or the server will close the
@@ -53,9 +57,25 @@ func connectRPTY(ctx context.Context, client *codersdk.Client, agentID, reconnec
 	return &crw, nil
 }
 
+// errRPTYGracefulCloseTimeout indicates the server did not close the
+// connection after Ctrl+C was sent and the connection was force closed
+// instead. The connection is fully closed when this error is returned, so
+// callers may treat it as a non-fatal warning.
+var errRPTYGracefulCloseTimeout = xerrors.New("graceful close timed out, connection was force closed")
+
 type rptyConn struct {
 	conn io.ReadWriteCloser
 	wenc *json.Encoder
+
+	// Both timeouts default to the package constants and are overridden
+	// only in tests.
+	//
+	// closeTimeout limits how long Close waits for the server to close the
+	// connection after Ctrl+C is sent.
+	closeTimeout time.Duration
+	// forceCloseReadTimeout limits how long Close waits for the read to
+	// unblock after the connection is force closed.
+	forceCloseReadTimeout time.Duration
 
 	readOnce sync.Once
 	readErr  chan error
@@ -64,11 +84,16 @@ type rptyConn struct {
 	closed bool
 }
 
+// newPTYConn wraps conn for reconnecting PTY traffic. The caller must keep
+// an active Read loop on the returned conn; Close waits for a read to
+// observe the connection closing and will time out without one.
 func newPTYConn(conn io.ReadWriteCloser) *rptyConn {
 	rc := &rptyConn{
-		conn:    conn,
-		wenc:    json.NewEncoder(conn),
-		readErr: make(chan error, 1),
+		conn:                  conn,
+		wenc:                  json.NewEncoder(conn),
+		closeTimeout:          connCloseTimeout,
+		forceCloseReadTimeout: forceCloseReadTimeout,
+		readErr:               make(chan error, 1),
 	}
 	return rc
 }
@@ -124,21 +149,52 @@ func (c *rptyConn) Close() (err error) {
 	c.closed = true
 	c.mu.Unlock()
 
-	defer c.conn.Close()
-
-	// Send Ctrl+C to interrupt the command.
-	_, err = c.writeNoLock([]byte("\u0003"))
-	if err != nil {
+	// Send Ctrl+C to interrupt the command, giving the server a chance to
+	// flush remaining output and close the connection gracefully.
+	if _, err = c.writeNoLock([]byte("\u0003")); err != nil {
+		// We couldn't interrupt the command, force close the connection to
+		// unblock the read before returning.
+		if cerr := c.forceClose(); cerr != nil {
+			cerr = xerrors.Errorf("force close: %w", cerr)
+			return errors.Join(xerrors.Errorf("write ctrl+c: %w", err), cerr)
+		}
 		return xerrors.Errorf("write ctrl+c: %w", err)
 	}
+
+	// Wait for the server to close the connection, which unblocks the read. If
+	// the server doesn't close in time, force close the connection ourselves.
+	t := time.NewTimer(c.closeTimeout)
+	defer t.Stop()
 	select {
-	case <-time.After(connCloseTimeout):
-		return xerrors.Errorf("timeout waiting for read to finish")
 	case err = <-c.readErr:
+		_ = c.conn.Close()
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		return err
+	case <-t.C:
+		if err := c.forceClose(); err != nil {
+			return xerrors.Errorf("force close: %w", err)
+		}
+		return errRPTYGracefulCloseTimeout
+	}
+}
+
+// forceClose closes the underlying connection and waits for the read to
+// unblock. The read error is caused by the close, so it is expected and
+// discarded. Returns an error if the read does not unblock within
+// forceCloseReadTimeout, which also bounds a blocking close.
+func (c *rptyConn) forceClose() error {
+	// Start the timer before closing so a blocking close cannot extend the
+	// total wait beyond forceCloseReadTimeout.
+	t := time.NewTimer(c.forceCloseReadTimeout)
+	defer t.Stop()
+	_ = c.conn.Close()
+	select {
+	case <-c.readErr:
+		return nil
+	case <-t.C:
+		return xerrors.New("timeout waiting for read to finish after close")
 	}
 }
 

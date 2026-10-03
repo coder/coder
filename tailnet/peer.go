@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,14 +71,16 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 	if len(req.PeerUpdates) == 0 {
 		return nil
 	}
-	select {
-	case p.resps <- req:
-		p.lastWrite = time.Now()
-		p.logger.Debug(context.Background(), "wrote batched update", slog.F("num_peer_updates", len(req.PeerUpdates)))
-		return nil
-	default:
-		return ErrWouldBlock
+	for _, chunk := range req.Chunked() {
+		select {
+		case p.resps <- chunk:
+			p.lastWrite = time.Now()
+		default:
+			return ErrWouldBlock
+		}
 	}
+	p.logger.Debug(context.Background(), "wrote batched update", slog.F("num_peer_updates", len(req.PeerUpdates)))
+	return nil
 }
 
 var errNoResp = xerrors.New("no response needed")
@@ -119,7 +122,16 @@ func (p *peer) storeMappingLocked(
 	}, nil
 }
 
-func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) error {
+func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Error(ctx, "peerReadLoop panic handling request (recovered)",
+				slog.F("panic", recovered),
+				slog.F("stack", string(debug.Stack())),
+			)
+			err = xerrors.New(CloseErrInternal)
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():

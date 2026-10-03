@@ -1,6 +1,6 @@
-import { MockRoleWithOrgPermissions } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
+import { MockRoleWithOrgPermissions } from "#/testHelpers/entities";
 import { PermissionPillsList } from "./PermissionPillsList";
 
 const meta: Meta<typeof PermissionPillsList> = {
@@ -13,11 +13,6 @@ const meta: Meta<typeof PermissionPillsList> = {
 			</div>
 		),
 	],
-	parameters: {
-		chromatic: {
-			diffThreshold: 0.6,
-		},
-	},
 };
 
 export default meta;

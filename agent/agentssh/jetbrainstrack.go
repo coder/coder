@@ -7,10 +7,11 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
-	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // localForwardChannelData is copied from the ssh package.
@@ -25,15 +26,25 @@ type localForwardChannelData struct {
 // JetbrainsChannelWatcher is used to track JetBrains port forwarded (Gateway)
 // channels. If the port forward is something other than JetBrains, this struct
 // is a noop.
+//
+// Sessions are counted here, not in sessionHandler: JetBrains opens hundreds
+// of ssh sessions but only one persistent forwarded channel.
 type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
-	jetbrainsCounter *atomic.Int64
-	logger           slog.Logger
-	originAddr       string
-	reportConnection reportConnectionFunc
+	startSession       startSessionFunc
+	logger             slog.Logger
+	originAddr         string
+	clientSessionID    string
+	connectionReporter proto.ConnectionReporter
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
+	connectionReporter proto.ConnectionReporter,
+	newChannel gossh.NewChannel, startSession startSessionFunc,
+	clientSessionID string,
+) gossh.NewChannel {
+	logger = logger.With(slog.F("client_session_id", clientSessionID))
+
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -61,33 +72,50 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 		slog.F("destination_port", d.DestPort))
 
 	return &JetbrainsChannelWatcher{
-		NewChannel:       newChannel,
-		jetbrainsCounter: counter,
-		logger:           logger.With(slog.F("destination_port", d.DestPort)),
-		originAddr:       d.OriginAddr,
-		reportConnection: reportConnection,
+		NewChannel:         newChannel,
+		startSession:       startSession,
+		logger:             logger.With(slog.F("destination_port", d.DestPort)),
+		originAddr:         d.OriginAddr,
+		connectionReporter: connectionReporter,
+		clientSessionID:    clientSessionID,
 	}
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), MagicSessionTypeJetBrains, w.originAddr)
+	connReporter := w.connectionReporter.Connect(proto.ConnectEvent{
+		ID:              uuid.New(),
+		Type:            proto.Connection_JETBRAINS,
+		AppName:         string(codersdk.AppFamilyJetBrains),
+		IP:              w.originAddr,
+		ClientSessionID: w.clientSessionID,
+	})
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {
-		disconnected(1, err.Error())
+		connReporter.Disconnect(proto.DisconnectEvent{
+			Code:   1,
+			Reason: err.Error(),
+		})
 		return c, r, err
 	}
-	w.jetbrainsCounter.Add(1)
+	endSession := w.startSession(string(codersdk.AppFamilyJetBrains))
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
 	return &ChannelOnClose{
 		Channel: c,
 		done: func() {
-			w.jetbrainsCounter.Add(-1)
-			disconnected(0, "")
+			endSession()
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:   0,
+				Reason: "normal close",
+			})
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
-			w.logger.Debug(context.Background(), "JetBrains watcher channel closed")
+			w.logger.Debug(context.Background(), "JetBrains channel closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
+				codersdk.DisconnectReasonGraceful.SlogField(),
+				codersdk.DisconnectReasonGraceful.SlogExpectedField(),
+			)
 		},
 	}, r, err
 }

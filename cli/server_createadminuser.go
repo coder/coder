@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 
@@ -23,6 +24,22 @@ import (
 	"github.com/coder/serpent"
 )
 
+type organizationMembership struct {
+	OrganizationID   uuid.UUID `json:"organization_id"`
+	OrganizationName string    `json:"organization_name"`
+	Roles            []string  `json:"roles"`
+}
+
+// createAdminUserResponse never includes the password. This command talks to
+// the database directly, so there is no codersdk type to reuse.
+type createAdminUserResponse struct {
+	ID            uuid.UUID                `json:"id"`
+	Username      string                   `json:"username"`
+	Email         string                   `json:"email"`
+	Roles         []string                 `json:"roles"`
+	Organizations []organizationMembership `json:"organizations"`
+}
+
 func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
@@ -31,6 +48,19 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 		newUserUsername           string
 		newUserEmail              string
 		newUserPassword           string
+		formatter                 = cliui.NewOutputFormatter(
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				typed, ok := data.(createAdminUserResponse)
+				if !ok {
+					return "", xerrors.Errorf("expected createAdminUserResponse, got %T", data)
+				}
+				return fmt.Sprintf(
+					"\nUser created successfully.\nID:       %s\nUsername: %s\nEmail:    %s\nPassword: ********\n",
+					typed.ID, typed.Username, typed.Email,
+				), nil
+			}),
+			cliui.JSONFormat(),
+		)
 	)
 	createAdminUserCommand := &serpent.Command{
 		Use:   "create-admin-user",
@@ -175,6 +205,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 			// Create the user.
 			var newUser database.User
+			var memberships []organizationMembership
 			err = db.InTx(func(tx database.Store) error {
 				orgs, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{})
 				if err != nil {
@@ -188,16 +219,17 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")
 				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
-					ID:             uuid.New(),
-					Email:          newUserEmail,
-					Username:       newUserUsername,
-					Name:           "Admin User",
-					HashedPassword: []byte(hashedPassword),
-					CreatedAt:      dbtime.Now(),
-					UpdatedAt:      dbtime.Now(),
-					RBACRoles:      []string{rbac.RoleOwner().String()},
-					LoginType:      database.LoginTypePassword,
-					Status:         "",
+					ID:               uuid.New(),
+					Email:            newUserEmail,
+					Username:         newUserUsername,
+					Name:             "Admin User",
+					HashedPassword:   []byte(hashedPassword),
+					CreatedAt:        dbtime.Now(),
+					UpdatedAt:        dbtime.Now(),
+					RBACRoles:        []string{rbac.RoleOwner().String()},
+					LoginType:        database.LoginTypePassword,
+					Status:           "",
+					IsServiceAccount: false,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user: %w", err)
@@ -209,11 +241,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return xerrors.Errorf("generate user gitsshkey: %w", err)
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-					UserID:     newUser.ID,
-					CreatedAt:  dbtime.Now(),
-					UpdatedAt:  dbtime.Now(),
-					PrivateKey: privateKey,
-					PublicKey:  publicKey,
+					UserID:          newUser.ID,
+					CreatedAt:       dbtime.Now(),
+					UpdatedAt:       dbtime.Now(),
+					PrivateKey:      privateKey,
+					PrivateKeyKeyID: sql.NullString{}, // Plaintext; this CLI bypasses dbcrypt. Encrypted on next rotate.
+					PublicKey:       publicKey,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user gitsshkey: %w", err)
@@ -221,16 +254,22 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 				for _, org := range orgs {
 					_, _ = fmt.Fprintf(inv.Stderr, "Adding user to organization %q (%s) as admin...\n", org.Name, org.ID.String())
+					roles := []string{rbac.RoleOrgAdmin()}
 					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
 						CreatedAt:      dbtime.Now(),
 						UpdatedAt:      dbtime.Now(),
-						Roles:          []string{rbac.RoleOrgAdmin()},
+						Roles:          roles,
 					})
 					if err != nil {
 						return xerrors.Errorf("insert organization member: %w", err)
 					}
+					memberships = append(memberships, organizationMembership{
+						OrganizationID:   org.ID,
+						OrganizationName: org.Name,
+						Roles:            roles,
+					})
 				}
 
 				return nil
@@ -239,14 +278,22 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "")
-			_, _ = fmt.Fprintln(inv.Stderr, "User created successfully.")
-			_, _ = fmt.Fprintln(inv.Stderr, "ID:       "+newUser.ID.String())
-			_, _ = fmt.Fprintln(inv.Stderr, "Username: "+newUser.Username)
-			_, _ = fmt.Fprintln(inv.Stderr, "Email:    "+newUser.Email)
-			_, _ = fmt.Fprintln(inv.Stderr, "Password: ********")
-
-			return nil
+			out, err := formatter.Format(ctx, createAdminUserResponse{
+				ID:            newUser.ID,
+				Username:      newUser.Username,
+				Email:         newUser.Email,
+				Roles:         newUser.RBACRoles,
+				Organizations: memberships,
+			})
+			if err != nil {
+				return err
+			}
+			if formatter.FormatID() == "json" {
+				_, err = fmt.Fprintln(inv.Stdout, out)
+			} else {
+				_, err = fmt.Fprint(inv.Stderr, out)
+			}
+			return err
 		},
 	}
 
@@ -291,6 +338,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Value:       serpent.StringOf(&newUserPassword),
 		},
 	)
+	formatter.AttachOptions(&createAdminUserCommand.Options)
 
 	return createAdminUserCommand
 }

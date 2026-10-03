@@ -35,8 +35,9 @@ type forwardedStreamLocalPayload struct {
 // streamlocal forwarding (aka. unix forwarding) instead of TCP forwarding.
 type forwardedUnixHandler struct {
 	sync.Mutex
-	log      slog.Logger
-	forwards map[forwardKey]net.Listener
+	log                        slog.Logger
+	forwards                   map[forwardKey]net.Listener
+	blockReversePortForwarding bool
 }
 
 type forwardKey struct {
@@ -44,10 +45,11 @@ type forwardKey struct {
 	addr      string
 }
 
-func newForwardedUnixHandler(log slog.Logger) *forwardedUnixHandler {
+func newForwardedUnixHandler(log slog.Logger, blockReversePortForwarding bool) *forwardedUnixHandler {
 	return &forwardedUnixHandler{
-		log:      log,
-		forwards: make(map[forwardKey]net.Listener),
+		log:                        log,
+		forwards:                   make(map[forwardKey]net.Listener),
+		blockReversePortForwarding: blockReversePortForwarding,
 	}
 }
 
@@ -62,6 +64,10 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 
 	switch req.Type {
 	case "streamlocal-forward@openssh.com":
+		if h.blockReversePortForwarding {
+			log.Warn(ctx, "unix reverse port forward blocked")
+			return false, nil
+		}
 		var reqPayload streamLocalForwardPayload
 		err := gossh.Unmarshal(req.Payload, &reqPayload)
 		if err != nil {

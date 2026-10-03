@@ -1,52 +1,57 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Stack from "@mui/material/Stack";
-import { Pill } from "components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { isUUID } from "utils/uuid";
+} from "#/components/Tooltip/Tooltip";
+import { isUUID } from "#/utils/uuid";
 
-interface PillListProps {
+type PillListProps = {
 	roles: readonly string[];
-}
+};
 
-export const IdpPillList: FC<PillListProps> = ({ roles }) => {
+export const IdpPillList: React.FC<PillListProps> = ({ roles }) => {
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{roles.length > 0 ? (
-				<Pill css={isUUID(roles[0]) ? styles.errorPill : styles.pill}>
+				<Badge
+					className="w-fit"
+					variant={isUUID(roles[0]) ? "destructive" : "default"}
+				>
 					{roles[0]}
-				</Pill>
+				</Badge>
 			) : (
 				<p>None</p>
 			)}
 
 			{roles.length > 1 && <OverflowPill roles={roles.slice(1)} />}
-		</Stack>
+		</div>
 	);
 };
 
-interface OverflowPillProps {
+type OverflowPillProps = {
 	roles: string[];
-}
+};
 
-const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
+const OverflowPill: React.FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill data-testid="overflow-pill">+{roles.length} more</Pill>
+				<Badge className="w-fit" data-testid="overflow-pill">
+					+{roles.length} more
+				</Badge>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{roles.map((role) => (
 						<li key={role}>
-							<Pill css={isUUID(role) ? styles.errorPill : styles.pill}>
+							<Badge
+								className="w-fit"
+								variant={isUUID(role) ? "destructive" : "default"}
+							>
 								{role}
-							</Pill>
+							</Badge>
 						</li>
 					))}
 				</ul>
@@ -54,18 +59,3 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 		</Tooltip>
 	);
 };
-
-const styles = {
-	pill: (theme) => ({
-		backgroundColor: theme.experimental.pillDefault.background,
-		borderColor: theme.experimental.pillDefault.outline,
-		color: theme.experimental.pillDefault.text,
-		width: "fit-content",
-	}),
-	errorPill: (theme) => ({
-		backgroundColor: theme.roles.error.background,
-		borderColor: theme.roles.error.outline,
-		color: theme.roles.error.text,
-		width: "fit-content",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

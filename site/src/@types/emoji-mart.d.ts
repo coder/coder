@@ -36,7 +36,9 @@ declare module "@emoji-mart/react" {
 		emojiButtonSize?: number;
 		emojiSize?: number;
 		emojiVersion?: string;
+		getSpritesheetURL?: (set: string) => string;
 		onEmojiSelect: (emoji: EmojiData) => void;
+		autoFocus?: boolean;
 	}
 
 	const EmojiMart: React.FC<EmojiMartProps>;

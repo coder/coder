@@ -1,11 +1,10 @@
-import type { ProvisionerJobStatus } from "api/typesGenerated";
+import { TriangleAlertIcon } from "lucide-react";
+import type { ProvisionerJobStatus } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/StatusIndicator/StatusIndicator";
 
 const variantByStatus: Record<
 	ProvisionerJobStatus,
@@ -25,7 +24,7 @@ type JobStatusIndicatorProps = {
 	queue?: { size: number; position: number };
 };
 
-export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({
+export const JobStatusIndicator: React.FC<JobStatusIndicatorProps> = ({
 	status,
 	queue,
 }) => {
@@ -34,7 +33,7 @@ export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({
 			<StatusIndicatorDot />
 			<span className="[&:first-letter]:uppercase">{status}</span>
 			{status === "failed" && (
-				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
+				<TriangleAlertIcon className="size-icon-xs p-px" />
 			)}
 			{status === "pending" && queue && `(${queue.position}/${queue.size})`}
 		</StatusIndicator>

@@ -25,6 +25,24 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// scopeDocsURL points at the scopes a token may request. The api_key_scope enum
+// table in the API reference is a superset: it lists internal scopes too.
+const scopeDocsURL = "https://coder.com/docs/reference/api-key-scopes"
+
+// writeUnrequestableScope answers 400 for a scope name a token may not carry.
+// It distinguishes an unknown name from an internal api_key_scope member and
+// reports the relevant detail.
+func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name rbac.ScopeName) {
+	detail := fmt.Sprintf("unknown API key scope: %q. See %s for the scopes a token may request.", name, scopeDocsURL)
+	if database.APIKeyScope(name).Valid() {
+		detail = fmt.Sprintf("API key scope %q is internal and cannot be requested by a token. See %s for the scopes a token may request.", name, scopeDocsURL)
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Failed to create API key.",
+		Detail:  detail,
+	})
+}
+
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
@@ -36,7 +54,7 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.CreateTokenRequest true "Create token request"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
-// @Router /users/{user}/keys/tokens [post]
+// @Router /api/v2/users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -65,40 +83,27 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Map and validate requested scope.
-	// Accept legacy special scopes (all, application_connect) and external scopes.
-	// Default to coder:all scopes for backward compatibility.
+	// This handler decides only which names may be requested. Rewriting an
+	// accepted alias to the spelling the enum stores belongs to apikey.Generate,
+	// which every caller goes through. The plural field wins when both are set.
 	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
 		for _, s := range createToken.Scopes {
-			name := string(s)
-			if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to create API key.",
-					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-				})
+			name := rbac.ScopeName(s)
+			if !rbac.IsExternalScope(name) {
+				writeUnrequestableScope(ctx, rw, name)
 				return
 			}
 			scopes = append(scopes, database.APIKeyScope(name))
 		}
 	} else if string(createToken.Scope) != "" {
-		name := string(createToken.Scope)
-		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to create API key.",
-				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-			})
+		name := rbac.ScopeName(createToken.Scope)
+		if !rbac.IsExternalScope(name) {
+			writeUnrequestableScope(ctx, rw, name)
 			return
 		}
-		switch name {
-		case "all":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
-		case "application_connect":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
-		default:
-			scopes = database.APIKeyScopes{database.APIKeyScope(name)}
-		}
+		scopes = database.APIKeyScopes{database.APIKeyScope(name)}
 	}
 
 	tokenName := namesgenerator.NameDigitWith("_")
@@ -190,7 +195,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
-// @Router /users/{user}/keys [post]
+// @Router /api/v2/users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -244,7 +249,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
-// @Router /users/{user}/keys/{keyid} [get]
+// @Router /api/v2/users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -273,7 +278,7 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyname path string true "Key Name" format(string)
 // @Success 200 {object} codersdk.APIKey
-// @Router /users/{user}/keys/tokens/{keyname} [get]
+// @Router /api/v2/users/{user}/keys/tokens/{keyname} [get]
 func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -307,20 +312,26 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.APIKey
-// @Router /users/{user}/keys/tokens [get]
+// @Param include_expired query bool false "Include expired tokens in the list"
+// @Router /api/v2/users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx           = r.Context()
-		user          = httpmw.UserParam(r)
-		keys          []database.APIKey
-		err           error
-		queryStr      = r.URL.Query().Get("include_all")
-		includeAll, _ = strconv.ParseBool(queryStr)
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		keys              []database.APIKey
+		err               error
+		queryStr          = r.URL.Query().Get("include_all")
+		includeAll, _     = strconv.ParseBool(queryStr)
+		expiredStr        = r.URL.Query().Get("include_expired")
+		includeExpired, _ = strconv.ParseBool(expiredStr)
 	)
 
 	if includeAll {
 		// get tokens for all users
-		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.GetAPIKeysByLoginTypeParams{
+			LoginType:      database.LoginTypeToken,
+			IncludeExpired: includeExpired,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -330,7 +341,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// get user's tokens only
-		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID, IncludeExpired: includeExpired})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -385,7 +396,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(string)
 // @Success 204
-// @Router /users/{user}/keys/{keyid} [delete]
+// @Router /api/v2/users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -421,6 +432,69 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Expire API key
+// @ID expire-api-key
+// @Security CoderSessionToken
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(string)
+// @Success 204
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /api/v2/users/{user}/keys/{keyid}/expire [put]
+func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		keyID             = chi.URLParam(r, "keyid")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	if err := api.Database.InTx(func(db database.Store) error {
+		key, err := db.GetAPIKeyByID(ctx, keyID)
+		if err != nil {
+			return xerrors.Errorf("fetch API key: %w", err)
+		}
+		if !key.ExpiresAt.After(api.Clock.Now()) {
+			return nil // Already expired
+		}
+		aReq.Old = key
+		if err := db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:        key.ID,
+			LastUsed:  key.LastUsed,
+			ExpiresAt: dbtime.Now(),
+			IPAddress: key.IPAddress,
+		}); err != nil {
+			return xerrors.Errorf("expire API key: %w", err)
+		}
+		// Fetch the updated key for audit log.
+		newKey, err := db.GetAPIKeyByID(ctx, keyID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to fetch updated API key for audit log", slog.Error(err))
+		} else {
+			aReq.New = newKey
+		}
+		return nil
+	}, nil); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error expiring API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Get token config
 // @ID get-token-config
 // @Security CoderSessionToken
@@ -428,7 +502,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.TokenConfig
-// @Router /users/{user}/keys/tokens/tokenconfig [get]
+// @Router /api/v2/users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
@@ -513,5 +587,20 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
+		// MaxAge is set so the browser persists the cookie to disk rather
+		// than keeping it in memory as a session cookie. Standalone PWAs
+		// (display: standalone) run in their own browser process, and
+		// mobile OSes kill that process when the app is swiped away —
+		// deleting in-memory cookies and forcing an unexpected login.
+		//
+		// We use a long static value (1 year) instead of the key's
+		// LifetimeSeconds because the server refreshes the key's
+		// ExpiresAt on activity but does not re-set the cookie. Tying
+		// MaxAge to the key lifetime would cause the cookie to expire
+		// client-side even when the server-side key is still valid.
+		//
+		// Security is not affected: the server validates ExpiresAt on
+		// every request regardless of the cookie's MaxAge.
+		MaxAge: int((365 * 24 * time.Hour).Seconds()),
 	}), &newkey, nil
 }

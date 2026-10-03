@@ -1,210 +1,229 @@
-import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
+	CircleHelpIcon,
 	CircleMinusIcon,
 } from "lucide-react";
-import {
-	type ComponentProps,
-	cloneElement,
-	type FC,
-	forwardRef,
-	type HTMLAttributes,
-	type ReactElement,
-} from "react";
-import { docs } from "utils/docs";
-import { healthyColor } from "./healthyColor";
+import { cloneElement } from "react";
+import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
+import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;
 
-export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const Header: React.FC<React.ComponentProps<"header">> = ({
+	className,
+	style,
+	children,
+	...props
+}) => {
 	return (
 		<header
-			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "space-between",
-				padding: `36px ${CONTENT_PADDING}px`,
-			}}
+			className={cn("flex items-center justify-between", className)}
+			style={{ padding: `36px ${CONTENT_PADDING}px`, ...style }}
 			{...props}
-		/>
+		>
+			{children}
+		</header>
 	);
 };
 
-export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const HeaderTitle: React.FC<React.ComponentProps<"h2">> = ({
+	className,
+	children,
+	...props
+}) => {
 	return (
 		<h2
-			css={{
-				margin: 0,
-				lineHeight: "1.2",
-				fontSize: 20,
-				fontWeight: 500,
-				display: "flex",
-				alignItems: "center",
-				gap: 16,
-			}}
+			className={cn(
+				"m-0 leading-[1.2] text-xl font-medium flex items-center gap-4",
+				className,
+			)}
 			{...props}
-		/>
+		>
+			{children}
+		</h2>
 	);
 };
 
-interface HealthIconProps {
+type HealthIconProps = {
 	size: number;
 	severity: HealthSeverity;
-}
+};
 
-export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
-	const theme = useTheme();
-	const color = healthyColor(theme, severity);
+export const HealthIcon: React.FC<HealthIconProps> = ({ size, severity }) => {
 	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
 
-	return <Icon css={{ width: size, height: size, color }} />;
+	return (
+		<Icon
+			className={cn(
+				severity === "ok" && "text-content-success",
+				severity === "warning" && "text-content-warning",
+				severity === "error" && "text-content-destructive",
+			)}
+			style={{ width: size, height: size }}
+		/>
+	);
 };
 
-interface HealthyDotProps {
+type HealthyDotProps = {
 	severity: HealthSeverity;
-}
+};
 
-export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
-	const theme = useTheme();
-
+export const HealthyDot: React.FC<HealthyDotProps> = ({ severity }) => {
 	return (
 		<div
-			css={{
-				width: 8,
-				height: 8,
-				borderRadius: 9999,
-				backgroundColor: healthyColor(theme, severity),
-			}}
+			className={cn(
+				"size-2 rounded-full",
+				severity === "ok" && "bg-content-success",
+				severity === "warning" && "bg-content-warning",
+				severity === "error" && "bg-content-destructive",
+			)}
 		/>
 	);
 };
 
-export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const Main: React.FC<React.ComponentProps<"div">> = ({
+	className,
+	style,
+	children,
+	...props
+}) => {
 	return (
-		<main
-			css={{
+		<div
+			className={cn("flex flex-col gap-9", className)}
+			style={{
 				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
-				display: "flex",
-				flexDirection: "column",
-				gap: 36,
+				...style,
 			}}
 			{...props}
-		/>
+		>
+			{children}
+		</div>
 	);
 };
 
-export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const GridData: React.FC<React.ComponentProps<"div">> = ({
+	className,
+	children,
+	...props
+}) => {
 	return (
 		<div
-			css={{
-				lineHeight: "1.4",
-				display: "grid",
-				gridTemplateColumns: "auto auto",
-				gap: 12,
-				columnGap: 48,
-				width: "min-content",
-				whiteSpace: "nowrap",
-			}}
+			className={cn(
+				"leading-[1.4] w-min whitespace-nowrap",
+				"grid grid-cols-[auto_auto] gap-3 gap-x-12",
+				className,
+			)}
 			{...props}
-		/>
+		>
+			{children}
+		</div>
 	);
 };
 
-export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
+export const GridDataLabel: React.FC<React.ComponentProps<"span">> = ({
+	className,
+	children,
+	...props
+}) => {
 	return (
 		<span
-			css={{
-				fontSize: 14,
-				fontWeight: 500,
-				color: theme.palette.text.secondary,
-			}}
+			className={cn("text-sm font-medium text-content-secondary", className)}
 			{...props}
-		/>
+		>
+			{children}
+		</span>
 	);
 };
 
-export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
+export const GridDataValue: React.FC<React.ComponentProps<"span">> = ({
+	className,
+	children,
+	...props
+}) => {
 	return (
-		<span
-			css={{
-				fontSize: 14,
-				color: theme.palette.text.primary,
-			}}
-			{...props}
-		/>
+		<span className={cn("text-sm text-content-primary", className)} {...props}>
+			{children}
+		</span>
 	);
 };
 
-export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
+export const SectionLabel: React.FC<React.ComponentProps<"h4">> = ({
+	className,
+	children,
+	...props
+}) => {
 	return (
 		<h4
+			className={cn("text-sm font-medium m-0 leading-[1.2] mb-4", className)}
 			{...props}
-			css={{
-				fontSize: 14,
-				fontWeight: 500,
-				margin: 0,
-				lineHeight: "1.2",
-				marginBottom: 16,
-			}}
-		/>
+		>
+			{children}
+		</h4>
 	);
 };
 
-type PillProps = HTMLAttributes<HTMLDivElement> & {
-	icon: ReactElement<HTMLAttributes<HTMLElement>>;
+type PillProps = React.ComponentProps<"div"> & {
+	// oxlint-disable-next-line no-restricted-types
+	icon: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 };
 
-export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
-	const theme = useTheme();
-	const { icon, children, ...divProps } = props;
-
+export const Pill: React.FC<PillProps> = ({
+	className,
+	icon,
+	children,
+	...divProps
+}) => {
 	return (
 		<div
-			ref={ref}
-			css={{
-				display: "inline-flex",
-				alignItems: "center",
-				height: 32,
-				borderRadius: 9999,
-				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 12,
-				fontWeight: 500,
-				padding: 8,
-				gap: 8,
-				cursor: "default",
-			}}
+			className={cn(
+				"inline-flex items-center h-8 rounded-full border border-solid border-border text-xs font-medium p-2 gap-2 cursor-default",
+				className,
+			)}
 			{...divProps}
 		>
 			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
 		</div>
 	);
-});
+};
 
-type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
+type StatusIconProps = {
 	value: boolean | null;
 };
 
-export const BooleanPill: FC<BooleanPillProps> = ({
+export const StatusIcon: React.FC<StatusIconProps> = ({ value }) => {
+	if (value === null) {
+		return <CircleHelpIcon className="size-icon-sm text-content-disabled" />;
+	}
+	return value ? (
+		<CircleCheckIcon className="size-icon-sm text-content-success" />
+	) : (
+		<CircleMinusIcon className="size-icon-sm text-content-destructive" />
+	);
+};
+
+type BooleanPillProps = Omit<
+	React.ComponentProps<typeof Pill>,
+	"icon" | "value"
+> & {
+	value: boolean | null;
+};
+
+export const BooleanPill: React.FC<BooleanPillProps> = ({
 	value,
 	children,
 	...divProps
 }) => {
-	const theme = useTheme();
-	const color = value ? theme.roles.success.outline : theme.roles.error.outline;
-
 	return (
 		<Pill
 			icon={
 				value ? (
-					<CircleCheckIcon css={{ color }} className="size-icon-sm" />
+					<CircleCheckIcon className="size-icon-sm text-content-success" />
 				) : (
-					<CircleMinusIcon css={{ color }} className="size-icon-sm" />
+					<CircleMinusIcon className="size-icon-sm text-content-destructive" />
 				)
 			}
 			{...divProps}
@@ -214,44 +233,38 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	);
 };
 
-type LogsProps = HTMLAttributes<HTMLDivElement> & { lines: readonly string[] };
+type LogsProps = React.ComponentProps<"div"> & { lines: readonly string[] };
 
-export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
-	const theme = useTheme();
-
+export const Logs: React.FC<LogsProps> = ({
+	className,
+	lines,
+	...divProps
+}) => {
 	return (
 		<div
-			css={{
-				fontFamily: "monospace",
-				fontSize: 13,
-				lineHeight: "160%",
-				padding: 24,
-				backgroundColor: theme.palette.background.paper,
-				overflowX: "auto",
-				whiteSpace: "pre-wrap",
-				wordBreak: "break-all",
-			}}
+			className={cn(
+				"font-mono text-sm font-normal leading-relaxed p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all",
+				className,
+			)}
 			{...divProps}
 		>
 			{lines.map((line, index) => (
-				<span css={{ display: "block" }} key={index}>
+				<span className="block" key={index}>
 					{line}
 				</span>
 			))}
 			{lines.length === 0 && (
-				<span css={{ color: theme.palette.text.secondary }}>
-					No logs available
-				</span>
+				<span className="text-content-secondary">No logs available</span>
 			)}
 		</div>
 	);
 };
 
-interface HealthMessageDocsLinkProps {
+type HealthMessageDocsLinkProps = {
 	code: HealthCode;
-}
+};
 
-export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
+export const HealthMessageDocsLink: React.FC<HealthMessageDocsLinkProps> = ({
 	code,
 }) => {
 	return (
@@ -259,6 +272,7 @@ export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 			href={docs(`/admin/monitoring/health-check#${code.toLocaleLowerCase()}`)}
 			target="_blank"
 			rel="noreferrer"
+			className="mx-0"
 		>
 			Docs for {code}
 		</Link>

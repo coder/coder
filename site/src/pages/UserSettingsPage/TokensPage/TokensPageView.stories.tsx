@@ -1,5 +1,5 @@
-import { MockTokens, mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockTokens, mockApiError } from "#/testHelpers/entities";
 import { TokensPageView } from "./TokensPageView";
 
 const meta: Meta<typeof TokensPageView> = {

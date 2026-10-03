@@ -1,4 +1,6 @@
-# Dotfiles
+---
+title: Dotfiles
+---
 
 <!-- markdown-link-check-disable -->
 
@@ -31,7 +33,7 @@ startup which users can populate with commands to customize their workspaces.
 You can even fill `personalize` with `coder dotfiles <repo>`, but those looking
 for a simpler approach can inline commands like so:
 
-```bash
+```sh
 #!/bin/bash
 sudo apt update
 # Install some of my favorite tools every time my workspace boots
@@ -65,7 +67,7 @@ The setup script must be executable, otherwise the dotfiles setup will fail. If
 you encounter this issue, you can fix it by making the script executable using
 the following commands:
 
-```shell
+```sh
 cd <path_to_dotfiles_repo>
 chmod +x <script_name>
 git commit -m "Make <script_name> executable" <script_name>

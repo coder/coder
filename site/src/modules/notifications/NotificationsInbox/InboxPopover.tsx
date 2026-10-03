@@ -1,16 +1,16 @@
-import type { InboxNotification } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { cn } from "cn";
+import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { useState } from "react";
+import { Link as RouterLink } from "react-router";
+import type { InboxNotification } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Spinner } from "components/Spinner/Spinner";
-import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
+} from "#/components/Popover/Popover";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
@@ -28,7 +28,7 @@ type InboxPopoverProps = {
 	defaultOpen?: boolean;
 };
 
-export const InboxPopover: FC<InboxPopoverProps> = ({
+export const InboxPopover: React.FC<InboxPopoverProps> = ({
 	defaultOpen,
 	unreadCount,
 	notifications,
@@ -48,7 +48,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
+				className="w-(--radix-popper-available-width) max-w-[466px]"
 				align="end"
 			>
 				{/*
@@ -59,7 +59,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
-						"[&>[data-radix-scroll-area-viewport]]:max-h-[var(--max-height)]",
+						"[&>[data-radix-scroll-area-viewport]]:max-h-(--max-height)",
 					])}
 				>
 					<div

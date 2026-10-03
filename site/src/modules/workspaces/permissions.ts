@@ -1,4 +1,4 @@
-import type { AuthorizationCheck, Workspace } from "api/typesGenerated";
+import type { AuthorizationCheck, Workspace } from "#/api/typesGenerated";
 
 export const workspaceChecks = (workspace: Workspace) =>
 	({
@@ -9,6 +9,14 @@ export const workspaceChecks = (workspace: Workspace) =>
 				owner_id: workspace.owner_id,
 			},
 			action: "read",
+		},
+		shareWorkspace: {
+			object: {
+				resource_type: "workspace",
+				resource_id: workspace.id,
+				owner_id: workspace.owner_id,
+			},
+			action: "share",
 		},
 		updateWorkspace: {
 			object: {
@@ -33,14 +41,6 @@ export const workspaceChecks = (workspace: Workspace) =>
 				resource_id: workspace.template_id,
 			},
 			action: "update",
-		},
-		// To run a build in debug mode we need to be able to read the deployment
-		// config (enable_terraform_debug_mode).
-		deploymentConfig: {
-			object: {
-				resource_type: "deployment_config",
-			},
-			action: "read",
 		},
 	}) satisfies Record<string, AuthorizationCheck>;
 

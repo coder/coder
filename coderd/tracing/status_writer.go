@@ -90,6 +90,12 @@ func minInt(a, b int) int {
 	return b
 }
 
+// Unwrap returns the underlying ResponseWriter, allowing
+// http.ResponseController to reach it for SetWriteDeadline, etc.
+func (w *StatusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {

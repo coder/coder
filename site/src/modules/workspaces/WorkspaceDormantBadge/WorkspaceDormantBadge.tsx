@@ -1,22 +1,21 @@
-import type { Workspace } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
+import type { Workspace } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import {
 	DATE_FORMAT,
 	formatDateTime,
 	relativeTimeWithoutSuffix,
-} from "utils/time";
+} from "#/utils/time";
 
 type WorkspaceDormantBadgeProps = {
 	workspace: Workspace;
 };
 
-export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
+export const WorkspaceDormantBadge: React.FC<WorkspaceDormantBadgeProps> = ({
 	workspace,
 }) => {
 	return workspace.deleting_at ? (

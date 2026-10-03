@@ -1,13 +1,11 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockTemplateVersion } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockTemplateVersion } from "#/testHelpers/entities";
 import { AlertVariant } from "./ProvisionerAlert";
 import { ProvisionerStatusAlert } from "./ProvisionerStatusAlert";
 
 const meta: Meta<typeof ProvisionerStatusAlert> = {
 	title: "modules/provisioners/ProvisionerStatusAlert",
 	parameters: {
-		chromatic,
 		layout: "centered",
 	},
 	component: ProvisionerStatusAlert,

@@ -1,9 +1,8 @@
-import type { ComponentProps, FC, HTMLAttributes } from "react";
+import { cn } from "cn";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "utils/cn";
 import { TopbarIconButton } from "./Topbar";
 
-export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const Sidebar: React.FC<React.ComponentProps<"div">> = (props) => {
 	return (
 		<div
 			// TODO: Remove extra border classes once MUI is removed
@@ -13,11 +12,11 @@ export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	);
 };
 
-export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
+export const SidebarLink: React.FC<LinkProps> = ({ className, ...props }) => {
 	return (
 		<Link
 			className={cn(
-				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary cursor-pointer border-0 no-underline",
+				"text-sm text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary cursor-pointer border-0 no-underline",
 				className,
 			)}
 			{...props}
@@ -25,11 +24,11 @@ export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLButtonElement> {
+type SidebarItemProps = React.ComponentProps<"button"> & {
 	isActive?: boolean;
-}
+};
 
-export const SidebarItem: FC<SidebarItemProps> = ({
+export const SidebarItem: React.FC<SidebarItemProps> = ({
 	isActive,
 	className,
 	...buttonProps
@@ -37,7 +36,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	return (
 		<button
 			className={cn(
-				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
+				"text-sm text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
 				isActive && "opacity-100 bg-surface-tertiary",
 				className,
 			)}
@@ -46,7 +45,9 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
+export const SidebarCaption: React.FC<React.ComponentProps<"span">> = (
+	props,
+) => {
 	return (
 		<span
 			className="text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
@@ -55,11 +56,11 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	);
 };
 
-interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
+type SidebarIconButtonProps = {
 	isActive: boolean;
-}
+} & React.ComponentProps<typeof TopbarIconButton>;
 
-export const SidebarIconButton: FC<SidebarIconButton> = ({
+export const SidebarIconButton: React.FC<SidebarIconButtonProps> = ({
 	isActive,
 	className,
 	...buttonProps

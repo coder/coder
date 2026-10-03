@@ -1,26 +1,25 @@
-import { AppProviders } from "App";
 import {
 	screen,
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import type { ProxyProvider } from "contexts/ProxyContext";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import { DashboardLayout } from "modules/dashboard/DashboardLayout";
-import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
-import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
-import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
 	type RouteObject,
 	RouterProvider,
 } from "react-router";
-import themes, { DEFAULT_THEME } from "theme";
+import { AppProviders } from "#/App";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import type { ProxyProvider } from "#/contexts/ProxyContext";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
+import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
+import { TemplateSettingsLayout } from "#/pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { WorkspaceSettingsLayout } from "#/pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are
@@ -50,10 +49,11 @@ export const renderWithRouter = (
 			</AppProviders>,
 		),
 		router,
+		queryClient,
 	};
 };
 
-export const render = (element: ReactNode) => {
+export const render = (element: React.ReactNode) => {
 	return renderWithRouter(
 		createMemoryRouter(
 			[
@@ -87,7 +87,7 @@ export type RenderWithAuthOptions = {
 };
 
 export function renderWithAuth(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -116,7 +116,7 @@ export function renderWithAuth(
 }
 
 export function renderWithTemplateSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -153,7 +153,7 @@ export function renderWithTemplateSettingsLayout(
 }
 
 export function renderWithWorkspaceSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -190,7 +190,7 @@ export function renderWithWorkspaceSettingsLayout(
 }
 
 export function renderWithOrganizationSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",

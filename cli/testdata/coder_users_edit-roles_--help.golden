@@ -5,13 +5,18 @@ USAGE:
 
   Edit a user's roles by username or id
 
+    - --roles replaces the user's full set of site roles; any role not listed is
+  removed:
+  
+       $ coder users edit-roles example_user --roles owner user-admin
+
 OPTIONS:
       --roles string-array
-          A list of roles to give to the user. This removes any existing roles
-          the user may have.
+          Replaces the user's full set of site roles with this list. Any
+          existing role not included here is removed.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

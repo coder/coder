@@ -1,10 +1,9 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockFailedWorkspaceBuild,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
@@ -15,7 +14,6 @@ const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
 
 const meta: Meta<typeof WorkspaceBuildPageView> = {
 	title: "pages/WorkspaceBuildPage",
-	parameters: { chromatic },
 	component: WorkspaceBuildPageView,
 	args: {
 		build: MockWorkspaceBuild,
@@ -46,5 +44,18 @@ export const FailedDelete: Story = {
 		build: failedBuild,
 		builds: [failedBuild, ...defaultBuilds],
 		activeBuildNumber: failedBuild.build_number,
+	},
+};
+
+export const DeletedWorkspace: Story = {
+	args: {
+		build: undefined,
+		buildError: new Error("Request failed with status code 404"),
+		deletedWorkspaceBanner: {
+			createWorkspaceLink: "/templates/test-template/workspace",
+			templateName: "Test Template",
+		},
+		builds: undefined,
+		activeBuildNumber: 1,
 	},
 };

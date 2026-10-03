@@ -1,0 +1,82 @@
+package chatcompletions
+
+import (
+	"encoding/json"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/tidwall/gjson"
+	"golang.org/x/xerrors"
+)
+
+// ChatCompletionNewParamsWrapper exists because the "stream" param is not included in openai.ChatCompletionNewParams.
+type ChatCompletionNewParamsWrapper struct {
+	openai.ChatCompletionNewParams `json:""`
+	Stream                         bool `json:"stream,omitempty"`
+	// ExtraBody preserves the OpenAI SDK's extra_body passthrough object,
+	// which the typed params drop on unmarshal. It is forwarded only to
+	// Google upstreams, which read provider-specific settings such as
+	// Gemini's thinking_config from it.
+	ExtraBody json.RawMessage `json:"-"`
+}
+
+func (c ChatCompletionNewParamsWrapper) MarshalJSON() ([]byte, error) {
+	type shadow ChatCompletionNewParamsWrapper
+	return param.MarshalWithExtras(c, (*shadow)(&c), map[string]any{
+		"stream": c.Stream,
+	})
+}
+
+func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
+	err := c.ChatCompletionNewParams.UnmarshalJSON(raw)
+	if err != nil {
+		return err
+	}
+
+	if extraBody := gjson.GetBytes(raw, "extra_body"); extraBody.IsObject() {
+		c.ExtraBody = json.RawMessage(extraBody.Raw)
+	}
+
+	c.Stream = gjson.GetBytes(raw, "stream").Bool()
+	if c.Stream {
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true), // Always include usage when streaming.
+		}
+	} else {
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
+	}
+
+	return nil
+}
+
+func (c *ChatCompletionNewParamsWrapper) lastUserPrompt() (*string, error) {
+	if c == nil {
+		return nil, xerrors.New("nil struct")
+	}
+
+	if len(c.Messages) == 0 {
+		return nil, xerrors.New("no messages")
+	}
+
+	// We only care if the last message was issued by a user.
+	msg := c.Messages[len(c.Messages)-1]
+	if msg.OfUser == nil {
+		return nil, nil //nolint:nilnil // no user prompt found is not an error
+	}
+
+	if msg.OfUser.Content.OfString.String() != "" {
+		return new(msg.OfUser.Content.OfString.String()), nil
+	}
+
+	// Walk backwards on "user"-initiated message content. Clients often inject
+	// content ahead of the actual prompt to provide context to the model,
+	// so the last item in the slice is most likely the user's prompt.
+	for i := len(msg.OfUser.Content.OfArrayOfContentParts) - 1; i >= 0; i-- {
+		// Only text content is supported currently.
+		if textContent := msg.OfUser.Content.OfArrayOfContentParts[i].OfText; textContent != nil {
+			return &textContent.Text, nil
+		}
+	}
+
+	return nil, nil //nolint:nilnil // no text content found is not an error
+}

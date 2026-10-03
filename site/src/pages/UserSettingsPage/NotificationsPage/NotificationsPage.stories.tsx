@@ -1,25 +1,25 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+	userNotificationPreferencesKey,
+} from "#/api/queries/notifications";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
 	MockSystemNotificationTemplates,
 	MockUserOwner,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	customNotificationTemplatesKey,
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-	userNotificationPreferencesKey,
-} from "api/queries/notifications";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+	withToaster,
+} from "#/testHelpers/storybook";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -48,7 +48,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: { createTemplates: true, createUser: true },
 	},
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
 
 export default meta;
@@ -60,13 +60,13 @@ export const Default: Story = {
 
 		await Promise.all([
 			// System notification templates
-			canvas.findByRole("checkbox", { name: "Task Events" }),
-			canvas.findByRole("checkbox", { name: "Template Events" }),
-			canvas.findByRole("checkbox", { name: "User Events" }),
-			canvas.findByRole("checkbox", { name: "Workspace Events" }),
+			canvas.findByRole("switch", { name: "Chat Events" }),
+			canvas.findByRole("switch", { name: "Template Events" }),
+			canvas.findByRole("switch", { name: "User Events" }),
+			canvas.findByRole("switch", { name: "Workspace Events" }),
 
 			// Custom notification template
-			canvas.findByRole("checkbox", { name: "Custom Events" }),
+			canvas.findByRole("switch", { name: "Custom Events" }),
 		]);
 	},
 };
@@ -156,7 +156,7 @@ export const DisableValidTemplate: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled");
+		await within(document.body).findByText("Notification has been disabled.");
 		const switchEl = await within(canvasElement).findByLabelText(
 			templateToDisable.name,
 		);
@@ -182,72 +182,6 @@ export const DisableInvalidTemplate: Story = {
 		},
 	],
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification");
-	},
-};
-
-export const EnablingTaskNotificationClearsAlertDismissal: Story = {
-	parameters: {
-		queries: [
-			{
-				// User notification preferences: empty because user hasn't changed defaults
-				// Task notifications are disabled by default (enabled_by_default: false)
-				key: ["users", MockUserOwner.id, "notifications", "preferences"],
-				data: [],
-			},
-			{
-				// System notification templates: includes task notifications with enabled_by_default: false
-				key: ["notifications", "templates", "system"],
-				data: MockSystemNotificationTemplates,
-			},
-			{
-				key: customNotificationTemplatesKey,
-				data: MockCustomNotificationTemplates,
-			},
-			{
-				key: notificationDispatchMethodsKey,
-				data: MockNotificationMethodsResponse,
-			},
-			{
-				// User preferences: alert was previously dismissed
-				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: true },
-			},
-		],
-	},
-	play: async ({ canvasElement, step }) => {
-		const canvas = within(canvasElement);
-
-		// Mock the API call to update notification preferences
-		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([
-			{
-				id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799", // Task Idle
-				disabled: false,
-				updated_at: new Date().toISOString(),
-			},
-		]);
-
-		// Mock the user preferences update to verify the alert dismissal is cleared
-		const updatePreferencesSpy = spyOn(
-			API,
-			"updateUserPreferenceSettings",
-		).mockResolvedValue({
-			task_notification_alert_dismissed: false,
-		});
-
-		await step("Enable Task Idle notification", async () => {
-			// Find the Task Idle checkbox by its label text
-			const taskIdleToggle = canvas.getByLabelText("Task Idle");
-
-			// Click to enable it
-			await userEvent.click(taskIdleToggle);
-
-			// Verify the preferences API was called to clear the alert dismissal
-			await waitFor(() => {
-				expect(updatePreferencesSpy).toHaveBeenCalledWith({
-					task_notification_alert_dismissed: false,
-				});
-			});
-		});
+		await within(document.body).findByText("Error disabling notification.");
 	},
 };

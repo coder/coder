@@ -1,4 +1,6 @@
-# Workspace Process Logging
+---
+title: Workspace process logging
+---
 
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
@@ -39,18 +41,18 @@ The host machine must be running a Linux kernel >= 5.8 with the kernel config
 
 To check your kernel version, run:
 
-```shell
+```sh
 uname -r
 ```
 
 To validate the required kernel config is enabled, run either of the following
 commands on your nodes directly (_not_ from a workspace terminal):
 
-```shell
+```sh
 cat /proc/config.gz | gunzip | grep CONFIG_DEBUG_INFO_BTF
 ```
 
-```shell
+```sh
 cat "/boot/config-$(uname -r)" | grep CONFIG_DEBUG_INFO_BTF
 ```
 
@@ -68,7 +70,9 @@ We provide working example templates for Kubernetes, and Kubernetes with
 can view these templates in the
 [exectrace repo](https://github.com/coder/exectrace/tree/main/enterprise/templates).
 
-## Configuring custom templates to use workspace process logging
+<a id="configuring-custom-templates-to-use-workspace-process-logging"></a>
+
+## Configure custom templates to use workspace process logging
 
 If you have an existing Kubernetes or Kubernetes with `envbox` template that you
 would like to add workspace process logging to, follow these steps:
@@ -82,7 +86,7 @@ would like to add workspace process logging to, follow these steps:
      in the exectrace repo.
    -->
 
-   ```hcl
+   ```tf
    locals {
      # This is the init script for the main workspace container that runs before the
      # agent starts to configure workspace process logging.
@@ -142,7 +146,7 @@ would like to add workspace process logging to, follow these steps:
      in the exectrace repo.
    -->
 
-   ```hcl
+   ```tf
    resource "kubernetes_pod" "main" {
      ...
      spec {
@@ -176,7 +180,7 @@ would like to add workspace process logging to, follow these steps:
      in the exectrace repo.
    -->
 
-   ```hcl
+   ```tf
    resource "kubernetes_pod" "main" {
      ...
      spec {
@@ -224,7 +228,7 @@ would like to add workspace process logging to, follow these steps:
      in the exectrace repo.
    -->
 
-   ```hcl
+   ```tf
    resource "kubernetes_pod" "main" {
      ...
      spec {
@@ -243,12 +247,14 @@ Once you have made these changes, you can push a new version of your template
 and workspace process logging will be enabled for all workspaces once they are
 restarted.
 
-## Viewing workspace process logs
+<a id="viewing-workspace-process-logs"></a>
+
+## View workspace process logs
 
 To view the process logs for a specific workspace you can use `kubectl` to print
 the logs:
 
-```bash
+```sh
 kubectl logs pod-name --container exectrace
 ```
 
@@ -291,7 +297,7 @@ or workspace.
 To view your logs, go to the CloudWatch dashboard (which is available on the
 **Log Insights** tab) and run a query similar to the following:
 
-```text
+```txt
 fields @timestamp, log_processed.fields.cmdline
 | sort @timestamp asc
 | filter kubernetes.container_name="exectrace"

@@ -1,58 +1,35 @@
-import { useTheme } from "@emotion/react";
-import type { ProvisionerJobLog } from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import type { FC } from "react";
+import { cn } from "cn";
+import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { Loader } from "#/components/Loader/Loader";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 
-interface WorkspaceBuildLogsSectionProps {
+type WorkspaceBuildLogsSectionProps = {
 	logs?: ProvisionerJobLog[];
-}
+};
 
-export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
-	logs,
-}) => {
-	const theme = useTheme();
-
+export const WorkspaceBuildLogsSection: React.FC<
+	WorkspaceBuildLogsSectionProps
+> = ({ logs }) => {
 	return (
-		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				overflow: "hidden",
-				background: theme.palette.background.default,
-			}}
-		>
+		<div className="rounded-lg border border-solid overflow-hidden bg-surface-primary">
 			<header
-				css={{
-					background: theme.palette.background.paper,
-					borderBottom: `1px solid ${theme.palette.divider}`,
-					padding: "8px 8px 8px 24px",
-					fontSize: 13,
-					fontWeight: 600,
-					display: "flex",
-					alignItems: "center",
-					borderRadius: "8px 8px 0 0",
-				}}
+				className={cn(
+					"bg-surface-secondary border-solid border-0 border-b",
+					"px-2 py-2 pl-6 flex items-center",
+					"text-sm",
+				)}
 			>
 				Build logs
 			</header>
-			<div css={{ height: "400px", overflowY: "auto" }}>
+			<div className="h-[400px] overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
 						logs={logs}
-						css={{ border: 0, borderRadius: 0 }}
+						className="rounded-none border-none"
 					/>
 				) : (
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
+					<div className="flex items-center justify-center w-full h-full">
 						<Loader />
 					</div>
 				)}

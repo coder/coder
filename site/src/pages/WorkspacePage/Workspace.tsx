@@ -1,30 +1,26 @@
-import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
-import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
-import { Link } from "components/Link/Link";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BlocksIcon, HistoryIcon } from "lucide-react";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { AgentRow } from "modules/resources/AgentRow";
-import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { FC } from "react";
-import { useNavigate } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { AgentRow } from "#/modules/resources/AgentRow";
+import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
-import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-interface WorkspaceProps {
+type WorkspaceProps = {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
@@ -33,6 +29,7 @@ interface WorkspaceProps {
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -42,12 +39,12 @@ interface WorkspaceProps {
 	handleToggleFavorite: () => void;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-}
+};
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<WorkspaceProps> = ({
+export const Workspace: React.FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
@@ -66,7 +63,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleRetry,
 	handleDebug,
 }) => {
-	const navigate = useNavigate();
+	const getLink = useLinks();
+	const createWorkspaceLink = `${getLink(
+		linkToTemplate(workspace.organization_name, workspace.template_name),
+	)}/workspace`;
+	const templateName =
+		workspace.template_display_name || workspace.template_name;
 
 	const transitionStats =
 		template !== undefined
@@ -85,7 +87,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const resources = [...workspace.latest_build.resources].sort(
 		(a, b) => countAgents(b) - countAgents(a),
 	);
-	const resourcesNav = useResourcesNav(resources);
+	const visibleResources = resources.filter((r) => !r.hide);
+	const resourcesNav = useResourcesNav(visibleResources);
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
@@ -98,8 +101,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
-	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
-	const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -157,129 +158,91 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div
-					style={{
-						background: `radial-gradient(
-			circle at 1px 1px,
-			hsl(var(--surface-invert-secondary)) 0,
-			transparent 1px
-		) -2px -2px / 16px 16px`,
-					}}
-					className="p-8 overflow-y-auto relative w-full"
-				>
-					{selectedResource && (
-						<ResourceMetadata
-							resource={selectedResource}
-							className="-mx-8 -mt-8 mb-6"
-						/>
-					)}
-					<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
-						{workspace.latest_build.status === "deleted" && (
-							<WorkspaceDeletedBanner
-								handleClick={() => navigate("/templates")}
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-position-[-2px_-2px] bg-size-[16px_16px] p-4 md:p-8">
+					<div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-surface-primary to-transparent"></div>
+
+					<div className="relative z-10">
+						{selectedResource && (
+							<ResourceMetadata
+								resource={selectedResource}
+								className="-mx-4 -mt-4 mb-6 md:-mx-8 md:-mt-8"
 							/>
 						)}
+						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
+							{workspace.latest_build.status === "deleted" && (
+								<WorkspaceDeletedBanner
+									createWorkspaceLink={createWorkspaceLink}
+									templateName={templateName}
+								/>
+							)}
 
-						{shouldShowProvisionerAlert && (
-							<ProvisionerStatusAlert
-								matchingProvisioners={
-									workspace.latest_build.matched_provisioners?.count
-								}
-								availableProvisioners={
-									workspace.latest_build.matched_provisioners?.available ?? 0
-								}
-								tags={workspace.latest_build.job.tags}
-							/>
-						)}
+							{shouldShowProvisionerAlert && (
+								<ProvisionerStatusAlert
+									matchingProvisioners={
+										workspace.latest_build.matched_provisioners?.count
+									}
+									availableProvisioners={
+										workspace.latest_build.matched_provisioners?.available ?? 0
+									}
+									tags={workspace.latest_build.job.tags}
+								/>
+							)}
 
-						{workspace.latest_build.job.error && (
-							<Alert severity="error" prominent>
-								<AlertTitle>Workspace build failed</AlertTitle>
-								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-							</Alert>
-						)}
+							{workspace.latest_build.job.error && (
+								<WorkspaceBuildFailedAlert build={workspace.latest_build} />
+							)}
 
-						{!workspace.health.healthy && (
-							<Alert severity="warning" prominent>
-								<AlertTitle>Workspace is unhealthy</AlertTitle>
-								<AlertDetail>
-									<p>
-										Your workspace is running but{" "}
-										{workspace.health.failing_agents.length > 1
-											? `${workspace.health.failing_agents.length} agents are unhealthy`
-											: "1 agent is unhealthy"}
-										.{" "}
-										{troubleshootingURL && (
-											<Link href={troubleshootingURL} target="_blank">
-												View docs to troubleshoot
-											</Link>
-										)}
-									</p>
-									{hasActions && (
-										<div className="flex items-center gap-2">
-											{permissions.updateWorkspace && (
-												<NotificationActionButton
-													onClick={() => handleRestart()}
-												>
-													Restart
-												</NotificationActionButton>
-											)}
+							{transitionStats !== undefined && (
+								<WorkspaceBuildProgress
+									workspace={workspace}
+									transitionStats={transitionStats}
+								/>
+							)}
+
+							{shouldShowBuildLogs && (
+								<WorkspaceBuildLogsSection logs={buildLogs} />
+							)}
+
+							{selectedResource && (
+								<section className="flex flex-col gap-6 grow min-w-0">
+									{selectedResource.agents
+										// If an agent has a `parent_id`, that means it is
+										// child of another agent. We do not want these agents
+										// to be displayed at the top-level on this page. We
+										// want them to display _as children_ of their parents.
+										?.filter((agent) => agent.parent_id === null)
+										.map((agent) => (
+											<AgentRow
+												key={agent.id}
+												agent={agent}
+												subAgents={selectedResource.agents?.filter(
+													(a) => a.parent_id === agent.id,
+												)}
+												workspace={workspace}
+												template={template}
+												onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+											/>
+										))}
+
+									{(!selectedResource.agents ||
+										selectedResource.agents?.length === 0) && (
+										<div className="flex justify-center items-center w-full h-full">
+											<div>
+												<h4 className="text-base font-medium">
+													No agents are currently assigned to this resource.
+												</h4>
+											</div>
 										</div>
 									)}
-								</AlertDetail>
-							</Alert>
-						)}
+								</section>
+							)}
 
-						{transitionStats !== undefined && (
-							<WorkspaceBuildProgress
-								workspace={workspace}
-								transitionStats={transitionStats}
+							<WorkspaceTimings
+								provisionerTimings={timings?.provisioner_timings}
+								agentScriptTimings={timings?.agent_script_timings}
+								agentConnectionTimings={timings?.agent_connection_timings}
 							/>
-						)}
-
-						{shouldShowBuildLogs && (
-							<WorkspaceBuildLogsSection logs={buildLogs} />
-						)}
-
-						{selectedResource && (
-							<section className="flex flex-col gap-6 flex-grow min-w-0">
-								{selectedResource.agents
-									// If an agent has a `parent_id`, that means it is
-									// child of another agent. We do not want these agents
-									// to be displayed at the top-level on this page. We
-									// want them to display _as children_ of their parents.
-									?.filter((agent) => agent.parent_id === null)
-									.map((agent) => (
-										<AgentRow
-											key={agent.id}
-											agent={agent}
-											subAgents={selectedResource.agents?.filter(
-												(a) => a.parent_id === agent.id,
-											)}
-											workspace={workspace}
-											template={template}
-											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-										/>
-									))}
-
-								{(!selectedResource.agents ||
-									selectedResource.agents?.length === 0) && (
-									<div className="flex justify-center items-center w-full h-full">
-										<div>
-											<h4 className="text-base font-medium">
-												No agents are currently assigned to this resource.
-											</h4>
-										</div>
-									</div>
-								)}
-							</section>
-						)}
-
-						<WorkspaceTimings
-							provisionerTimings={timings?.provisioner_timings}
-							agentScriptTimings={timings?.agent_script_timings}
-							agentConnectionTimings={timings?.agent_connection_timings}
-						/>
+						</div>
 					</div>
 				</div>
 			</div>

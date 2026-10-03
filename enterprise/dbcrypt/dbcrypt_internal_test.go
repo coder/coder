@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -95,31 +98,6 @@ func TestUserLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "refresh")
 		require.EqualValues(t, expectedClaims, rawLink.Claims)
-	})
-
-	t.Run("UpdateExternalAuthLinkRefreshToken", func(t *testing.T) {
-		t.Parallel()
-		db, crypt, ciphers := setup(t)
-		user := dbgen.User(t, crypt, database.User{})
-		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
-			UserID: user.ID,
-		})
-
-		err := crypt.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
-			OAuthRefreshToken:      "",
-			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID.String,
-			UpdatedAt:              dbtime.Now(),
-			ProviderID:             link.ProviderID,
-			UserID:                 link.UserID,
-		})
-		require.NoError(t, err)
-
-		rawLink, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		})
-		require.NoError(t, err)
-		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "")
 	})
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
@@ -349,6 +327,61 @@ func TestExternalAuthLinks(t *testing.T) {
 			_, err := crypt.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				UserID:     link.UserID,
 				ProviderID: link.ProviderID,
+			})
+			require.Error(t, err, "expected an error")
+			var derr *DecryptFailedError
+			require.ErrorAs(t, err, &derr, "expected a decrypt error")
+		})
+	})
+
+	t.Run("AcquireExternalAuthLinkRefreshLease", func(t *testing.T) {
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+				OAuthAccessToken:  "access",
+				OAuthRefreshToken: "refresh",
+			})
+			link, err := db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
+			})
+			require.NoError(t, err)
+			requireEncryptedEquals(t, ciphers[0], link.OAuthAccessToken, "access")
+			requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
+		})
+		t.Run("Decrypt", func(t *testing.T) {
+			t.Parallel()
+			_, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+				OAuthAccessToken:  "access",
+				OAuthRefreshToken: "refresh",
+			})
+			link, err := crypt.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "access", link.OAuthAccessToken)
+			require.Equal(t, "refresh", link.OAuthRefreshToken)
+			require.Equal(t, ciphers[0].HexDigest(), link.OAuthAccessTokenKeyID.String)
+			require.Equal(t, ciphers[0].HexDigest(), link.OAuthRefreshTokenKeyID.String)
+		})
+		t.Run("DecryptErr", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				OAuthAccessToken:       fakeBase64RandomData(t, 32),
+				OAuthRefreshToken:      fakeBase64RandomData(t, 32),
+				OAuthAccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+				OAuthRefreshTokenKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+			})
+			link, err := crypt.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
 			})
 			require.Error(t, err, "expected an error")
 			var derr *DecryptFailedError
@@ -876,4 +909,1420 @@ func fakeBase64RandomData(t *testing.T, n int) string {
 	_, err := io.ReadFull(rand.Reader, b)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(b)
+}
+
+// requireMCPServerConfigDecrypted verifies all encrypted fields on an
+// MCPServerConfig match the expected plaintext values and carry the
+// correct key-ID.
+func requireMCPServerConfigDecrypted(
+	t *testing.T,
+	cfg database.MCPServerConfig,
+	ciphers []Cipher,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
+) {
+	t.Helper()
+	require.Equal(t, wantSecret, cfg.OAuth2ClientSecret)
+	require.Equal(t, wantAPIKey, cfg.APIKeyValue)
+	require.Equal(t, wantHeaders, cfg.CustomHeaders)
+	require.Equal(t, wantSigningSecret, cfg.SigningSecret)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.OAuth2ClientSecretKeyID.String)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.APIKeyValueKeyID.String)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.CustomHeadersKeyID.String)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.SigningSecretKeyID.String)
+}
+
+// requireMCPServerConfigRawEncrypted reads the config from the raw
+// (unwrapped) store and asserts every secret field is encrypted.
+func requireMCPServerConfigRawEncrypted(
+	ctx context.Context,
+	t *testing.T,
+	rawDB database.Store,
+	cfgID uuid.UUID,
+	ciphers []Cipher,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
+) {
+	t.Helper()
+	raw, err := rawDB.GetMCPServerConfigByID(ctx, cfgID)
+	require.NoError(t, err)
+	requireEncryptedEquals(t, ciphers[0], raw.OAuth2ClientSecret, wantSecret)
+	requireEncryptedEquals(t, ciphers[0], raw.APIKeyValue, wantAPIKey)
+	requireEncryptedEquals(t, ciphers[0], raw.CustomHeaders, wantHeaders)
+	requireEncryptedEquals(t, ciphers[0], raw.SigningSecret, wantSigningSecret)
+}
+
+type allowAllPreparedAuthorized struct{}
+
+func (allowAllPreparedAuthorized) Authorize(context.Context, rbac.Object) error {
+	return nil
+}
+
+func (allowAllPreparedAuthorized) CompileToSQL(context.Context, regosql.ConvertConfig) (string, error) {
+	return "TRUE", nil
+}
+
+func TestMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		oauthSecret   = "my-oauth-secret"
+		apiKeyValue   = "my-api-key"
+		customHeaders = `{"X-Custom":"header-value"}`
+		//nolint:gosec // test credential
+		signingSecret = "mcp-signing-secret"
+	)
+	// insertConfig is a small helper that creates an MCP server
+	// config through the encrypted store with secret fields set.
+	insertConfig := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.MCPServerConfig {
+		t.Helper()
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+			Description:        "test description",
+			AuthType:           "oauth2",
+			OAuth2ClientID:     "client-id",
+			OAuth2ClientSecret: oauthSecret,
+			APIKeyValue:        apiKeyValue,
+			CustomHeaders:      customHeaders,
+			SigningSecret:      signingSecret,
+			Availability:       "force_on",
+		})
+		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		return cfg
+	}
+
+	t.Run("InsertMCPServerConfig", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetMCPServerConfigByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetMCPServerConfigByIDForUpdate", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerConfigByIDForUpdate(ctx, cfg.ID)
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: cfg.OrganizationID,
+			Slug:           cfg.Slug,
+		})
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+
+		// The slug is only unique per organization: the same slug in
+		// another organization must not resolve.
+		_, err = crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: uuid.New(),
+			Slug:           cfg.Slug,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("GetMCPServerConfigsByOrganization", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetAuthorizedMCPServerConfigs", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetAuthorizedMCPServerConfigs(ctx, cfg.OrganizationID, allowAllPreparedAuthorized{})
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		require.Equal(t, cfg.ID, cfgs[0].ID)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+			OrganizationID: cfg.OrganizationID,
+			IDs:            []uuid.UUID{cfg.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetEnabledMCPServerConfigsByOrganization", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("GetForcedMCPServerConfigsByOrganization", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetForcedMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+	})
+
+	t.Run("UpdateMCPServerConfig", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		const (
+			//nolint:gosec // test credential
+			newSecret        = "updated-oauth-secret"
+			newAPIKey        = "updated-api-key"
+			newHeaders       = `{"X-New":"new-value"}`
+			newSigningSecret = "updated-signing-secret"
+		)
+		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+			ID:                 cfg.ID,
+			DisplayName:        cfg.DisplayName,
+			Slug:               cfg.Slug,
+			Description:        cfg.Description,
+			Url:                cfg.Url,
+			Transport:          cfg.Transport,
+			AuthType:           cfg.AuthType,
+			OAuth2ClientID:     cfg.OAuth2ClientID,
+			OAuth2ClientSecret: newSecret,
+			APIKeyValue:        newAPIKey,
+			CustomHeaders:      newHeaders,
+			SigningSecret:      newSigningSecret,
+			ToolAllowList:      cfg.ToolAllowList,
+			ToolDenyList:       cfg.ToolDenyList,
+			Availability:       cfg.Availability,
+			Enabled:            cfg.Enabled,
+			UpdatedBy:          cfg.CreatedBy.UUID,
+		})
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
+	})
+}
+
+func TestChatMCPServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const headers = `{"Authorization":"Bearer chat-secret"}`
+
+	// insertChat creates a chat with a valid owner so the owner-scoped
+	// query has something to resolve.
+	insertChat := func(t *testing.T, store database.Store) database.Chat {
+		t.Helper()
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		owner := dbgen.User(t, store, database.User{})
+		model := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		return dbgen.Chat(t, store, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		})
+	}
+	// insertServer creates a chat MCP server through the encrypted store
+	// and asserts the returned row is plaintext.
+	insertServer := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher, chatID uuid.UUID) database.ChatMCPServer {
+		t.Helper()
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chatID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.Equal(t, ciphers[0].HexDigest(), server.HeadersKeyID.String)
+		return server
+	}
+	requireRawEncrypted := func(t *testing.T, rawDB database.Store, chatID, serverID uuid.UUID, ciphers []Cipher, want string) {
+		t.Helper()
+		raws, err := rawDB.GetChatMCPServersByChatID(ctx, chatID)
+		require.NoError(t, err)
+		var found bool
+		for _, raw := range raws {
+			if raw.ID != serverID {
+				continue
+			}
+			found = true
+			requireEncryptedEquals(t, ciphers[0], raw.Headers, want)
+			require.Equal(t, ciphers[0].HexDigest(), raw.HeadersKeyID.String)
+		}
+		require.True(t, found, "server %s not found", serverID)
+	}
+
+	t.Run("UpsertChatMCPServer", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatOwnerID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatOwnerID(ctx, chat.OwnerID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+
+		// Another owner sees nothing.
+		got, err = crypt.GetChatMCPServersByChatOwnerID(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("UpdateEncryptedChatMCPServerHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newHeaders = `{"X-Rotated":"new-value"}`
+		err := crypt.UpdateEncryptedChatMCPServerHeaders(ctx, database.UpdateEncryptedChatMCPServerHeadersParams{
+			ID:           server.ID,
+			Headers:      newHeaders,
+			HeadersKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, newHeaders)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, newHeaders, got[0].Headers)
+	})
+
+	t.Run("EmptyHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		chat := insertChat(t, crypt)
+
+		for _, empty := range []string{"", "{}"} {
+			server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+				ChatID:  chat.ID,
+				Headers: empty,
+			})
+			require.Equal(t, "{}", server.Headers)
+			require.False(t, server.HeadersKeyID.Valid)
+
+			raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			for _, raw := range raws {
+				if raw.ID != server.ID {
+					continue
+				}
+				require.Equal(t, "{}", raw.Headers)
+				require.False(t, raw.HeadersKeyID.Valid)
+			}
+		}
+	})
+
+	t.Run("ReupsertKeepsID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newURL = "https://mcp.example.com/v2/mcp"
+		again, err := crypt.UpsertChatMCPServer(ctx, database.UpsertChatMCPServerParams{
+			ID:            uuid.New(),
+			ChatID:        chat.ID,
+			Slug:          server.Slug,
+			Url:           newURL,
+			Headers:       headers,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, server.ID, again.ID)
+		require.Equal(t, newURL, again.Url)
+		require.Equal(t, headers, again.Headers)
+		require.Equal(t, server.CreatedAt, again.CreatedAt)
+		require.True(t, again.UpdatedAt.After(server.UpdatedAt))
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+	})
+
+	t.Run("NoCiphers", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		chat := insertChat(t, crypt)
+
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chat.ID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.False(t, server.HeadersKeyID.Valid)
+
+		raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, raws, 1)
+		require.Equal(t, headers, raws[0].Headers)
+		require.False(t, raws[0].HeadersKeyID.Valid)
+	})
+}
+
+func requireAIProviderDecrypted(
+	t *testing.T,
+	provider database.AIProvider,
+	ciphers []Cipher,
+	wantSettings string,
+) {
+	t.Helper()
+	if wantSettings == "" {
+		require.False(t, provider.Settings.Valid)
+		require.False(t, provider.SettingsKeyID.Valid)
+		return
+	}
+	require.True(t, provider.Settings.Valid)
+	require.Equal(t, wantSettings, provider.Settings.String)
+	require.Equal(t, ciphers[0].HexDigest(), provider.SettingsKeyID.String)
+}
+
+func requireAIProviderRawEncrypted(
+	ctx context.Context,
+	t *testing.T,
+	rawDB database.Store,
+	providerID uuid.UUID,
+	ciphers []Cipher,
+	wantSettings string,
+) {
+	t.Helper()
+	raw, err := rawDB.GetAIProviderByID(ctx, providerID)
+	require.NoError(t, err)
+	require.True(t, raw.Settings.Valid)
+	requireEncryptedEquals(t, ciphers[0], raw.Settings.String, wantSettings)
+}
+
+func requireAIProviderKeyDecrypted(
+	t *testing.T,
+	key database.AIProviderKey,
+	ciphers []Cipher,
+	wantAPIKey string,
+) {
+	t.Helper()
+	require.Equal(t, wantAPIKey, key.APIKey)
+	if wantAPIKey != "" {
+		require.Equal(t, ciphers[0].HexDigest(), key.ApiKeyKeyID.String)
+	} else {
+		require.False(t, key.ApiKeyKeyID.Valid)
+	}
+}
+
+func requireAIProviderKeyRawEncrypted(
+	ctx context.Context,
+	t *testing.T,
+	rawDB database.Store,
+	keyID uuid.UUID,
+	ciphers []Cipher,
+	wantAPIKey string,
+) {
+	t.Helper()
+	raw, err := rawDB.GetAIProviderKeyByID(ctx, keyID)
+	require.NoError(t, err)
+	requireEncryptedEquals(t, ciphers[0], raw.APIKey, wantAPIKey)
+}
+
+func TestAIProviders(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	//nolint:gosec // test fixture, not real credentials
+	const settings = `{"_type":"bedrock","_version":1,"region":"us-west-2","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
+
+	insertProvider := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.AIProvider {
+		t.Helper()
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
+			Name:     "anthropic-bedrock",
+			Type:     database.AIProviderTypeAnthropic,
+			BaseUrl:  "https://bedrock-runtime.us-west-2.amazonaws.com/",
+			Settings: sql.NullString{String: settings, Valid: true},
+		})
+		requireAIProviderDecrypted(t, provider, ciphers, settings)
+		return provider
+	}
+
+	t.Run("InsertAIProvider", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		requireAIProviderRawEncrypted(ctx, t, db, provider.ID, ciphers, settings)
+	})
+
+	t.Run("InsertAIProviderEmptySettings", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
+			Name: "openai-empty",
+		}, func(p *database.InsertAIProviderParams) {
+			p.Settings = sql.NullString{}
+		})
+		require.False(t, provider.SettingsKeyID.Valid)
+		raw, err := db.GetAIProviderByID(ctx, provider.ID)
+		require.NoError(t, err)
+		require.False(t, raw.Settings.Valid)
+	})
+
+	t.Run("GetAIProviderByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		got, err := crypt.GetAIProviderByID(ctx, provider.ID)
+		require.NoError(t, err)
+		requireAIProviderDecrypted(t, got, ciphers, settings)
+		requireAIProviderRawEncrypted(ctx, t, db, provider.ID, ciphers, settings)
+	})
+
+	t.Run("GetAIProviderByName", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		got, err := crypt.GetAIProviderByName(ctx, provider.Name)
+		require.NoError(t, err)
+		requireAIProviderDecrypted(t, got, ciphers, settings)
+		requireAIProviderRawEncrypted(ctx, t, db, provider.ID, ciphers, settings)
+	})
+
+	t.Run("GetAIProviders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		providers, err := crypt.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		requireAIProviderDecrypted(t, providers[0], ciphers, settings)
+		requireAIProviderRawEncrypted(ctx, t, db, provider.ID, ciphers, settings)
+	})
+
+	t.Run("UpdateAIProvider", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		//nolint:gosec // test fixture, not real credentials
+		const newSettings = `{"_type":"bedrock","_version":1,"region":"us-east-1","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
+		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:          provider.ID,
+			Type:        provider.Type,
+			DisplayName: provider.DisplayName,
+			Icon:        provider.Icon,
+			Enabled:     provider.Enabled,
+			BaseUrl:     provider.BaseUrl,
+			Settings:    sql.NullString{String: newSettings, Valid: true},
+		})
+		require.NoError(t, err)
+		requireAIProviderDecrypted(t, updated, ciphers, newSettings)
+		requireAIProviderRawEncrypted(ctx, t, db, provider.ID, ciphers, newSettings)
+	})
+
+	t.Run("UpdateAIProviderClearsSettings", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider := insertProvider(t, crypt, ciphers)
+		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:          provider.ID,
+			Type:        provider.Type,
+			DisplayName: provider.DisplayName,
+			Icon:        provider.Icon,
+			Enabled:     provider.Enabled,
+			BaseUrl:     provider.BaseUrl,
+			Settings:    sql.NullString{},
+		})
+		require.NoError(t, err)
+		require.False(t, updated.SettingsKeyID.Valid)
+		raw, err := db.GetAIProviderByID(ctx, provider.ID)
+		require.NoError(t, err)
+		require.False(t, raw.Settings.Valid)
+	})
+}
+
+func TestAIProviderKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	//nolint:gosec // test credentials
+	const apiKey = "sk-test-api-key"
+
+	insertProviderAndKey := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) (database.AIProvider, database.AIProviderKey) {
+		t.Helper()
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
+			Name:    "openai-test",
+			Type:    database.AIProviderTypeOpenai,
+			BaseUrl: "https://api.openai.com/v1/",
+		})
+		key := dbgen.AIProviderKey(t, crypt, database.AIProviderKey{
+			ProviderID: provider.ID,
+			APIKey:     apiKey,
+		})
+		requireAIProviderKeyDecrypted(t, key, ciphers, apiKey)
+		return provider, key
+	}
+
+	t.Run("InsertAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_, key := insertProviderAndKey(t, crypt, ciphers)
+		requireAIProviderKeyRawEncrypted(ctx, t, db, key.ID, ciphers, apiKey)
+	})
+
+	t.Run("InsertAIProviderKeyEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
+			Name: "openai-empty-key",
+		})
+		key := dbgen.AIProviderKey(t, crypt, database.AIProviderKey{
+			ProviderID: provider.ID,
+		}, func(p *database.InsertAIProviderKeyParams) {
+			p.APIKey = ""
+		})
+		require.False(t, key.ApiKeyKeyID.Valid)
+		raw, err := db.GetAIProviderKeyByID(ctx, key.ID)
+		require.NoError(t, err)
+		require.Empty(t, raw.APIKey)
+	})
+
+	t.Run("GetAIProviderKeysByProviderID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+		keys, err := crypt.GetAIProviderKeysByProviderID(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireAIProviderKeyDecrypted(t, keys[0], ciphers, apiKey)
+		requireAIProviderKeyRawEncrypted(ctx, t, db, key.ID, ciphers, apiKey)
+	})
+
+	t.Run("GetAIProviderKeysByProviderIDs", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetAIProviderKeysByProviderIDs(ctx, []uuid.UUID{provider.ID})
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireAIProviderKeyDecrypted(t, keys[0], ciphers, apiKey)
+		requireAIProviderKeyRawEncrypted(ctx, t, db, key.ID, ciphers, apiKey)
+	})
+
+	t.Run("DeleteAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+		require.NoError(t, crypt.DeleteAIProviderKey(ctx, key.ID))
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+	})
+}
+
+func TestUserAIProviderKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		initialAPIKey = "sk-initial-ai-provider-key-value"
+		//nolint:gosec // test credentials
+		updatedAPIKey = "sk-updated-ai-provider-key-value"
+		//nolint:gosec // test credentials
+		rotatedAPIKey = "sk-rotated-ai-provider-key-value"
+	)
+
+	insertProviderAndKey := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) (database.AIProvider, database.UserAIProviderKey) {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{})
+		now := dbtime.Now()
+
+		key, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+			APIKey:       initialAPIKey,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialAPIKey, key.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), key.ApiKeyKeyID.String)
+		return provider, key
+	}
+
+	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAIProviderKey {
+		t.Helper()
+		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       userID,
+			AIProviderID: providerID,
+		})
+		require.NoError(t, err)
+		return key
+	}
+
+	t.Run("UpsertUserAIProviderKeyCreatesValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		got, err := crypt.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       key.UserID,
+			AIProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, got.ID)
+		require.Equal(t, initialAPIKey, got.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, initialAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, initialAPIKey)
+	})
+
+	t.Run("GetUserAIProviderKeysByUserID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetUserAIProviderKeysByUserID(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+		require.Equal(t, provider.ID, keys[0].AIProviderID)
+		require.Equal(t, initialAPIKey, keys[0].APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
+	})
+
+	t.Run("GetUserAIProviderKeys", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetUserAIProviderKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+		require.Equal(t, key.UserID, keys[0].UserID)
+		require.Equal(t, provider.ID, keys[0].AIProviderID)
+		require.Equal(t, initialAPIKey, keys[0].APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
+	})
+
+	t.Run("UpsertUserAIProviderKeyUpdatesValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+		updatedAt := key.UpdatedAt.Add(time.Minute)
+
+		updated, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       key.UserID,
+			AIProviderID: provider.ID,
+			APIKey:       updatedAPIKey,
+			CreatedAt:    key.CreatedAt.Add(time.Minute),
+			UpdatedAt:    updatedAt,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, key.CreatedAt, updated.CreatedAt)
+		require.Equal(t, updatedAt, updated.UpdatedAt)
+		require.Equal(t, updatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+
+	t.Run("UpdateUserAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateUserAIProviderKey(ctx, database.UpdateUserAIProviderKeyParams{
+			UserID:       key.UserID,
+			AIProviderID: provider.ID,
+			APIKey:       updatedAPIKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.WithinDuration(t, dbtime.Now(), updated.UpdatedAt, time.Minute)
+		require.Equal(t, updatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+
+	t.Run("UpdateEncryptedUserAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateEncryptedUserAIProviderKey(ctx, database.UpdateEncryptedUserAIProviderKeyParams{
+			ID:     key.ID,
+			APIKey: rotatedAPIKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, rotatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, rotatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, rotatedAPIKey)
+	})
+}
+
+func TestMCPServerUserTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		accessToken  = "access-token-value"
+		refreshToken = "refresh-token-value"
+	)
+
+	// insertConfigAndToken creates a user, an MCP server config, and a
+	// user token through the encrypted store.
+	insertConfigAndToken := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) (database.MCPServerConfig, database.MCPServerUserToken) {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+			DisplayName: "Token Test MCP",
+			AuthType:    "oauth2",
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+
+		tok, err := crypt.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            user.ID,
+			AccessToken:       accessToken,
+			RefreshToken:      refreshToken,
+			TokenType:         "Bearer",
+		})
+		require.NoError(t, err)
+		require.Equal(t, accessToken, tok.AccessToken)
+		require.Equal(t, refreshToken, tok.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), tok.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), tok.RefreshTokenKeyID.String)
+		return cfg, tok
+	}
+
+	t.Run("UpsertMCPServerUserToken", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		// Verify the raw DB values are encrypted.
+		rawTok, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
+	t.Run("UpdateMCPServerUserTokenFromRefresh", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		const (
+			refreshedAccessToken  = "refreshed-access-token"
+			refreshedRefreshToken = "refreshed-refresh-token"
+		)
+		updated, err := crypt.UpdateMCPServerUserTokenFromRefresh(ctx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			AccessToken:  refreshedAccessToken,
+			RefreshToken: refreshedRefreshToken,
+			TokenType:    "Bearer",
+		})
+		require.NoError(t, err)
+		require.Equal(t, refreshedAccessToken, updated.AccessToken)
+		require.Equal(t, refreshedRefreshToken, updated.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), updated.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), updated.RefreshTokenKeyID.String)
+
+		rawTok, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, refreshedAccessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshedRefreshToken)
+
+		_, err = crypt.UpdateMCPServerUserTokenFromRefresh(ctx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			AccessToken:  "stale-access-token",
+			RefreshToken: "stale-refresh-token",
+			TokenType:    "Bearer",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("GetMCPServerUserToken", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, accessToken, got.AccessToken)
+		require.Equal(t, refreshToken, got.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), got.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), got.RefreshTokenKeyID.String)
+
+		// Raw values must be encrypted.
+		rawTok, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
+	t.Run("GetMCPServerUserTokenByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerUserTokenByID(ctx, tok.ID)
+		require.NoError(t, err)
+		require.Equal(t, accessToken, got.AccessToken)
+		require.Equal(t, refreshToken, got.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), got.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), got.RefreshTokenKeyID.String)
+
+		rawTok, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
+	t.Run("GetMCPServerUserTokensByUserID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		toks, err := crypt.GetMCPServerUserTokensByUserID(ctx, tok.UserID)
+		require.NoError(t, err)
+		require.Len(t, toks, 1)
+		require.Equal(t, accessToken, toks[0].AccessToken)
+		require.Equal(t, refreshToken, toks[0].RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), toks[0].AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), toks[0].RefreshTokenKeyID.String)
+
+		// Raw values must be encrypted.
+		rawTok, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
+	t.Run("MarkMCPServerUserTokenRefreshFailure", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		marked, err := crypt.MarkMCPServerUserTokenRefreshFailure(ctx, database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: "invalid_grant",
+		})
+		require.NoError(t, err)
+		require.Empty(t, marked.AccessToken)
+		require.Empty(t, marked.RefreshToken)
+		require.False(t, marked.AccessTokenKeyID.Valid)
+		require.False(t, marked.RefreshTokenKeyID.Valid)
+		require.Equal(t, "invalid_grant", marked.OauthRefreshFailureReason)
+	})
+}
+
+func TestUserSecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		initialValue = "super-secret-value-initial"
+		//nolint:gosec // test credentials
+		updatedValue = "super-secret-value-updated"
+	)
+
+	insertUserSecret := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) database.UserSecret {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		secret, err := crypt.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "test-secret-" + uuid.NewString()[:8],
+			Value:  initialValue,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, secret.Value)
+		if len(ciphers) > 0 {
+			require.Equal(t, ciphers[0].HexDigest(), secret.ValueKeyID.String)
+		}
+		return secret
+	}
+
+	t.Run("CreateUserSecretEncryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		// Reading through crypt should return plaintext.
+		got, err := crypt.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, got.Value)
+
+		// Reading through raw DB should return encrypted value.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, initialValue, raw.Value)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, initialValue)
+	})
+
+	t.Run("ListUserSecretsWithValuesDecrypts", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		secrets, err := crypt.ListUserSecretsWithValues(ctx, secret.UserID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1)
+		require.Equal(t, initialValue, secrets[0].Value)
+	})
+
+	t.Run("UpdateUserSecretReEncryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:      secret.UserID,
+			Name:        secret.Name,
+			UpdateValue: true,
+			Value:       updatedValue,
+			ValueKeyID:  sql.NullString{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedValue, updated.Value)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ValueKeyID.String)
+
+		// Raw DB should have new encrypted value.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, updatedValue, raw.Value)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, updatedValue)
+	})
+
+	t.Run("NoCipherStoresPlaintext", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		user := dbgen.User(t, crypt, database.User{})
+
+		secret, err := crypt.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "plaintext-secret",
+			Value:  initialValue,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, secret.Value)
+		require.False(t, secret.ValueKeyID.Valid)
+
+		// Raw DB should also have plaintext.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   "plaintext-secret",
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, raw.Value)
+		require.False(t, raw.ValueKeyID.Valid)
+	})
+
+	t.Run("UpdateMetadataOnlySkipsEncryption", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		// Read the raw encrypted value from the database.
+		rawBefore, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+
+		// Perform a metadata-only update (no value change).
+		updated, err := crypt.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:            secret.UserID,
+			Name:              secret.Name,
+			UpdateValue:       false,
+			Value:             "",
+			ValueKeyID:        sql.NullString{},
+			UpdateDescription: true,
+			Description:       "updated description",
+			UpdateEnvName:     false,
+			EnvName:           "",
+			UpdateFilePath:    false,
+			FilePath:          "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "updated description", updated.Description)
+		require.Equal(t, initialValue, updated.Value)
+
+		// Read the raw encrypted value again.
+		rawAfter, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, rawBefore.Value, rawAfter.Value)
+		require.Equal(t, rawBefore.ValueKeyID, rawAfter.ValueKeyID)
+	})
+
+	t.Run("GetUserSecretForUpdateDecryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+		arg := database.GetUserSecretByUserIDAndNameForUpdateParams{
+			UserID: secret.UserID, Name: secret.Name,
+		}
+
+		got, err := crypt.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+		require.NoError(t, err)
+		require.Equal(t, initialValue, got.Value)
+
+		raw, err := db.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, initialValue)
+	})
+
+	t.Run("GetUserSecretDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-secret",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   "corrupt-secret",
+		})
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("GetUserSecretForUpdateDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-secret-for-update",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.GetUserSecretByUserIDAndNameForUpdate(ctx, database.GetUserSecretByUserIDAndNameForUpdateParams{
+			UserID: user.ID,
+			Name:   "corrupt-secret-for-update",
+		})
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("ListUserSecretsWithValuesDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-list-secret",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.ListUserSecretsWithValues(ctx, user.ID)
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+}
+
+func TestGitSSHKey(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		initialPrivate = "private-key-initial"
+		updatedPrivate = "private-key-updated"
+		publicKey      = "public-key"
+	)
+
+	insertGitSSHKey := func(t *testing.T, store database.Store, ciphers []Cipher) database.GitSSHKey {
+		t.Helper()
+		user := dbgen.User(t, store, database.User{})
+		key, err := store.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, key.PrivateKey)
+		require.Equal(t, publicKey, key.PublicKey)
+		if len(ciphers) > 0 {
+			require.True(t, key.PrivateKeyKeyID.Valid)
+			require.Equal(t, ciphers[0].HexDigest(), key.PrivateKeyKeyID.String)
+		}
+		return key
+	}
+
+	t.Run("InsertGitSSHKeyEncryptsPrivateKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		// Raw row should be ciphertext under the primary cipher.
+		rawKey, err := db.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		require.NotEqual(t, initialPrivate, rawKey.PrivateKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, initialPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+		// Public key is not encrypted.
+		require.Equal(t, publicKey, rawKey.PublicKey)
+	})
+
+	t.Run("GetGitSSHKeyDecryptsEncryptedRow", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		got, err := crypt.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, got.PrivateKey)
+		require.True(t, got.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), got.PrivateKeyKeyID.String)
+	})
+
+	t.Run("GetGitSSHKeyReadsPlaintextRow", func(t *testing.T) {
+		// Pre-existing plaintext rows (private_key_key_id IS NULL) must remain readable.
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		inserted, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.False(t, inserted.PrivateKeyKeyID.Valid)
+
+		got, err := crypt.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, got.PrivateKey)
+		require.False(t, got.PrivateKeyKeyID.Valid)
+	})
+
+	t.Run("UpdateGitSSHKeyReEncrypts", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+			UserID:     key.UserID,
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: updatedPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedPrivate, updated.PrivateKey)
+		require.True(t, updated.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), updated.PrivateKeyKeyID.String)
+
+		rawKey, err := db.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, updatedPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+	})
+
+	t.Run("UpdateGitSSHKeyEncryptsPlaintextRow", func(t *testing.T) {
+		// A row that started life as plaintext must get encrypted on the next write.
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		_, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+
+		_, err = crypt.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+			UserID:     user.ID,
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: updatedPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, updatedPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+	})
+
+	t.Run("GetGitSSHKeyDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		_, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:          user.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			PrivateKey:      fakeBase64RandomData(t, 32),
+			PrivateKeyKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+			PublicKey:       publicKey,
+		})
+		require.NoError(t, err)
+
+		_, err = crypt.GetGitSSHKey(ctx, user.ID)
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("NoCipherPassthrough", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		user := dbgen.User(t, crypt, database.User{})
+		key, err := crypt.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, key.PrivateKey)
+		require.False(t, key.PrivateKeyKeyID.Valid)
+
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, rawKey.PrivateKey)
+		require.False(t, rawKey.PrivateKeyKeyID.Valid)
+	})
 }

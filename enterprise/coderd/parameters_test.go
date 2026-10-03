@@ -35,7 +35,9 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	_, noGroupUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	// Create the group to be asserted
-	group := coderdtest.CreateGroup(t, ownerClient, owner.OrganizationID, "bloob", templateAdminUser)
+	// Make the group name something after "Everyone" when sorted alphabetically.
+	// The test wants to check that `Everyone` is the default, which is the first alphabetical group in the test.
+	group := coderdtest.CreateGroup(t, ownerClient, owner.OrganizationID, "zebra", templateAdminUser)
 
 	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/groups/main.tf")
 	require.NoError(t, err)

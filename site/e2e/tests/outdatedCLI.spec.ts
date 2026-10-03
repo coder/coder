@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { test } from "@playwright/test";
+import { oldestSupportedCLIVersion } from "../constants";
 import {
 	createTemplate,
 	createWorkspace,
@@ -12,15 +13,17 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-// we no longer support versions prior to Tailnet v2 API support: https://github.com/coder/coder/commit/059e533544a0268acbc8831006b2858ead2f0d8e
-const clientVersion = "v2.8.0";
-
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page);
 });
 
-test(`ssh with client ${clientVersion}`, async ({ page }) => {
+test(`ssh with client ${oldestSupportedCLIVersion}`, async ({ page }) => {
+	// setup/downloadCoderVersions.spec.ts normally has the binary cached by now,
+	// leaving this a local-only test. The extra headroom covers the case where
+	// that prefetch failed and downloadCoderVersion has to fetch it inline.
+	test.setTimeout(60_000);
+
 	const token = randomUUID();
 	const template = await createTemplate(page, {
 		graph: [
@@ -42,7 +45,7 @@ test(`ssh with client ${clientVersion}`, async ({ page }) => {
 	});
 	const workspaceName = await createWorkspace(page, template);
 	const agent = await startAgent(page, token);
-	const binaryPath = await downloadCoderVersion(clientVersion);
+	const binaryPath = await downloadCoderVersion(oldestSupportedCLIVersion);
 
 	const client = await sshIntoWorkspace(page, workspaceName, binaryPath);
 	await new Promise<void>((resolve, reject) => {

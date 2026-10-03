@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"time"
 
@@ -22,9 +23,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// Limit the count query to avoid a slow sequential scan due to joins
+// on a large table. Set to 0 to disable capping (but also see the note
+// in the SQL query).
+const auditLogCountCap = 2000
 
 // @Summary Get audit logs
 // @ID get-audit-logs
@@ -35,7 +42,7 @@ import (
 // @Param limit query int true "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.AuditLogResponse
-// @Router /audit [get]
+// @Router /api/v2/audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -66,7 +73,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		countFilter.Username = ""
 	}
 
-	// Use the same filters to count the number of audit logs
+	countFilter.CountCap = auditLogCountCap
 	count, err := api.Database.CountAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -81,6 +88,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 			AuditLogs: []codersdk.AuditLog{},
 			Count:     0,
+			CountCap:  auditLogCountCap,
 		})
 		return
 	}
@@ -98,6 +106,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: api.convertAuditLogs(ctx, dblogs),
 		Count:     count,
+		CountCap:  auditLogCountCap,
 	})
 }
 
@@ -108,7 +117,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Audit
 // @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
 // @Success 204
-// @Router /audit/testgenerate [post]
+// @Router /api/v2/audit/testgenerate [post]
 // @x-apidocgen {"skip": true}
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -296,6 +305,12 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		_, _ = b.WriteString("{user} ")
 	}
 
+	// Chat write operations get semantic descriptions derived from the diff.
+	if desc, ok := chatAuditLogDescription(alog); ok {
+		_, _ = b.WriteString(desc)
+		return b.String()
+	}
+
 	switch {
 	case alog.AuditLog.StatusCode == int32(http.StatusSeeOther):
 		_, _ = b.WriteString("was redirected attempting to ")
@@ -338,8 +353,62 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	return b.String()
 }
 
+// chatAuditLogDescription returns a description for successful chat write
+// operations based on the diff contents. It returns false for non-chat
+// resources, non-write actions, or error/redirect status codes, letting
+// the caller fall through to the generic description.
+func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool) {
+	if alog.AuditLog.ResourceType != database.ResourceTypeChat ||
+		alog.AuditLog.Action != database.AuditActionWrite ||
+		alog.AuditLog.StatusCode >= 400 ||
+		alog.AuditLog.StatusCode == int32(http.StatusSeeOther) {
+		return "", false
+	}
+
+	var diff codersdk.AuditDiff
+	if err := json.Unmarshal(alog.AuditLog.Diff, &diff); err != nil {
+		return "", false
+	}
+
+	// Single "archived" field: archive or unarchive.
+	if len(diff) == 1 {
+		if field, ok := diff["archived"]; ok {
+			oldVal, oldOK := field.Old.(bool)
+			newVal, newOK := field.New.(bool)
+			if oldOK && newOK {
+				if !oldVal && newVal {
+					return "archived chat {target}", true
+				}
+				if oldVal && !newVal {
+					return "unarchived chat {target}", true
+				}
+			}
+		}
+	}
+
+	// All fields are ACL changes: sharing update.
+	if len(diff) > 0 {
+		aclOnly := true
+		for field := range diff {
+			if field != "user_acl" && field != "group_acl" {
+				aclOnly = false
+				break
+			}
+		}
+		if aclOnly {
+			return "updated sharing for chat {target}", true
+		}
+	}
+
+	return "", false
+}
+
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
 	switch alog.AuditLog.ResourceType {
+	case database.ResourceTypeTask:
+		// Task audit history is retained, but the Tasks feature and its
+		// tables were removed, so the resource is always gone.
+		return true
 	case database.ResourceTypeTemplate:
 		template, err := api.Database.GetTemplateByID(ctx, alog.AuditLog.ResourceID)
 		if err != nil {
@@ -420,14 +489,40 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch oauth2 app secret", slog.Error(err))
 		}
 		return false
-	case database.ResourceTypeTask:
-		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
+	case database.ResourceTypeChat:
+		// Chats are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetChatByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
-		} else if err != nil {
-			api.Logger.Error(ctx, "unable to fetch task", slog.Error(err))
 		}
-		return task.DeletedAt.Valid && task.DeletedAt.Time.Before(time.Now())
+		if err != nil {
+			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
+		}
+		return false
+	case database.ResourceTypeMCPServerConfig:
+		// MCP server configs are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Config reads are org-scoped, so an auditor can lack read on
+		// the config's organization. That is not worth logging.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch mcp server config", slog.Error(err))
+		}
+		return false
+	case database.ResourceTypeUserSecret:
+		_, err := api.Database.GetUserSecretByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Only users have user_secret:read on their own secrets. If dbauthz returns
+		// ErrUnauthorized, it's not an error worth logging because we have enough
+		// information to know it's not deleted.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch user secret", slog.Error(err))
+		}
+		return false
 	default:
 		return false
 	}
@@ -504,17 +599,54 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", secret.AppID)
 
-	case database.ResourceTypeTask:
-		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
+	case database.ResourceTypeChat:
+		// Chats are surfaced at /agents/{id}. They are owner-scoped but
+		// not username-scoped in the URL like workspaces or tasks.
+		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
+	case database.ResourceTypeMCPServerConfig:
+		// Mutation-only administrators may lack read access, so fetch
+		// with system access; the explicit checks below authorize.
+		//nolint:gocritic // The requester is authorized against the fetched config right below.
+		config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), alog.AuditLog.ResourceID)
 		if err != nil {
 			return ""
 		}
-		user, err := api.Database.GetUserByID(ctx, task.OwnerID)
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if !ok {
+			return ""
+		}
+		// The MCP settings page admits anyone who can manage the
+		// config, so emit the link only for callers it will accept.
+		if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionUpdate, config.RBACObject()); err != nil {
+			if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionDelete, config.RBACObject()); err != nil {
+				return ""
+			}
+		}
+		organization, err := api.Database.GetOrganizationByID(ctx, alog.AuditLog.OrganizationID)
 		if err != nil {
 			return ""
 		}
-		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
-
+		return fmt.Sprintf("/ai/settings/mcp-servers/%s?org=%s", alog.AuditLog.ResourceID, url.QueryEscape(organization.Name))
+	case database.ResourceTypeUserSecret:
+		// TODO(PLAT-102): point at the user secrets management page once
+		// it ships. Until then, the audit row links nowhere.
+		return ""
+	case database.ResourceTypeGroupAIBudget:
+		// The resource_id is the group's UUID; link to the group's
+		// settings page.
+		group, err := api.Database.GetGroupByID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/organizations/%s/groups/%s", org.Name, group.Name)
+	case database.ResourceTypeUserAIBudgetOverride:
+		// TODO: point at the user's AI budget override management page
+		// once it ships. Until then, the audit row links nowhere.
+		return ""
 	default:
 		return ""
 	}

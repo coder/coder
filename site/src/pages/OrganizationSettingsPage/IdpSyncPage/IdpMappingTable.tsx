@@ -1,23 +1,21 @@
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
+import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { docs } from "#/utils/docs";
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	type: "Role" | "Group";
 	rowCount: number;
 	children: React.ReactNode;
-}
+};
 
-export const IdpMappingTable: FC<IdpMappingTableProps> = ({
+export const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 	type,
 	rowCount,
 	children,
@@ -37,28 +35,23 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={rowCount === 0}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message={`No ${type.toLocaleLowerCase()} mappings`}
-										isCompact
-										cta={
-											<Link
-												href={docs(
-													`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
-												)}
-											>
-												How to setup IdP {type.toLocaleLowerCase()} sync
-											</Link>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
-						<Cond>{children}</Cond>
-					</ChooseOne>
+					{rowCount === 0 ? (
+						<TableEmpty
+							message={`No ${type.toLocaleLowerCase()} mappings`}
+							isCompact
+							cta={
+								<Link
+									href={docs(
+										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
+									)}
+								>
+									How to setup IdP {type.toLocaleLowerCase()} sync
+								</Link>
+							}
+						/>
+					) : (
+						children
+					)}
 				</TableBody>
 			</Table>
 			<div className="flex justify-end">

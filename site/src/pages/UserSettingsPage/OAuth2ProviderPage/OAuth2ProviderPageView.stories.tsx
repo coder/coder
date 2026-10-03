@@ -1,5 +1,5 @@
-import { MockOAuth2ProviderApps } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockOAuth2ProviderApps } from "#/testHelpers/entities";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const meta: Meta<typeof OAuth2ProviderPageView> = {
@@ -31,6 +31,15 @@ export const Apps: Story = {
 		isLoading: false,
 		error: undefined,
 		apps: MockOAuth2ProviderApps,
+		revoke: () => undefined,
+	},
+};
+
+export const Empty: Story = {
+	args: {
+		isLoading: false,
+		error: undefined,
+		apps: [],
 		revoke: () => undefined,
 	},
 };

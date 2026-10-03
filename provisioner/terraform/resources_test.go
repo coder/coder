@@ -324,12 +324,14 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_1",
-							Value: "Env 1",
+							Name:          "ENV_1",
+							Value:         "Env 1",
+							MergeStrategy: "replace",
 						},
 						{
-							Name:  "ENV_2",
-							Value: "Env 2",
+							Name:          "ENV_2",
+							Value:         "Env 2",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -347,8 +349,9 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_3",
-							Value: "Env 3",
+							Name:          "ENV_3",
+							Value:         "Env 3",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -365,6 +368,51 @@ func TestConvertResources(t *testing.T) {
 				Type: "coder_env",
 			}, {
 				Name: "env3",
+				Type: "coder_env",
+			}},
+		},
+		// Verifies that when multiple coder_env resources define the
+		// same key, the ordering is deterministic (sorted by Terraform
+		// address). This prevents a race condition where Go map
+		// iteration order could cause non-deterministic env values.
+		"duplicate-env-keys": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:          "PATH",
+							Value:         "/a/bin",
+							MergeStrategy: "append",
+						},
+						{
+							Name:          "PATH",
+							Value:         "/b/bin",
+							MergeStrategy: "append",
+						},
+						{
+							Name:  "UNIQUE",
+							Value: "unique_value",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+				}},
+			}, {
+				Name: "path_a",
+				Type: "coder_env",
+			}, {
+				Name: "path_b",
+				Type: "coder_env",
+			}, {
+				Name: "unique_env",
 				Type: "coder_env",
 			}},
 		},
@@ -654,22 +702,22 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
-				ValidationMin: terraform.PtrInt32(-3),
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMin: new(int32(-3)),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: new(int32(0)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
@@ -738,34 +786,34 @@ func TestConvertResources(t *testing.T) {
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMax: new(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
+				ValidationMin: new(int32(3)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: new(int32(3)),
+				ValidationMax: new(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
+				ValidationMin: new(int32(0)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}},
@@ -930,6 +978,105 @@ func TestConvertResources(t *testing.T) {
 				{Name: "dev2", Type: "coder_devcontainer"},
 			},
 		},
+		"devcontainer-resources": {
+			resources: []*proto.Resource{
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app",
+										DisplayName: "devcontainer-app",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+								Scripts: []*proto.Script{
+									{
+										DisplayName: "Devcontainer Script",
+										Script:      "echo devcontainer",
+										RunOnStart:  true,
+										RunOnStop:   false,
+									},
+								},
+								Envs: []*proto.Env{
+									{
+										Name:          "DEVCONTAINER_ENV",
+										Value:         "devcontainer-value",
+										MergeStrategy: "replace",
+									},
+								},
+							},
+						},
+					}},
+				},
+				{Name: "devcontainer-env", Type: "coder_env"},
+			},
+		},
+		"devcontainer-multiple-agents": {
+			resources: []*proto.Resource{
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app",
+										DisplayName: "devcontainer-app",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+							},
+							{
+								Name:            "other",
+								WorkspaceFolder: "/other",
+							},
+						},
+					}},
+				},
+				{Name: "other", Type: "coder_devcontainer"},
+				{
+					Name: "secondary",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "secondary",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+					}},
+				},
+			},
+		},
 	} {
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
@@ -970,6 +1117,13 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1043,6 +1197,13 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1124,6 +1285,63 @@ func TestAppSlugValidation(t *testing.T) {
 			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
 				if resource.Type == "coder_app" {
 					resource.AttributeValues["slug"] = c.slug
+					break
+				}
+			}
+
+			_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+			if c.errContains != "" {
+				require.ErrorContains(t, err, c.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+//nolint:tparallel
+func TestAppExternalURLInvalid(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	// Load the multiple-apps state file and edit it.
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name        string
+		external    bool
+		url         any
+		errContains string
+	}{
+		{name: "MissingScheme", external: true, url: "coder.com/docs", errContains: "must include a scheme"},
+		{name: "SchemeOnly", external: true, url: "https://", errContains: `"https" URLs must include a host`},
+		{name: "PortOnly", external: true, url: "https://:8080", errContains: `"https" URLs must include a host`},
+		{name: "AbsoluteURL", external: true, url: "https://coder.com/docs", errContains: ""},
+		{name: "CustomScheme", external: true, url: "zed://ssh/coder.dev", errContains: ""},
+		// Terraform reports URLs it cannot resolve until apply as empty, and
+		// non-external apps are proxied rather than opened by the browser.
+		{name: "UnresolvedURL", external: true, url: nil, errContains: ""},
+		{name: "NotExternal", external: false, url: "coder.com/docs", errContains: ""},
+	}
+
+	//nolint:paralleltest
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Change the first app to match the current case.
+			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+				if resource.Type == "coder_app" {
+					resource.AttributeValues["external"] = c.external
+					resource.AttributeValues["url"] = c.url
 					break
 				}
 			}
@@ -1360,7 +1578,6 @@ func TestDefaultPresets(t *testing.T) {
 	}
 
 	for name, tc := range cases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
@@ -1522,89 +1739,6 @@ func TestInstanceIDAssociation(t *testing.T) {
 	}
 }
 
-func TestAITasks(t *testing.T) {
-	t.Parallel()
-	ctx, logger := ctxAndLogger(t)
-
-	t.Run("Multiple tasks can be defined", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-multiple")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		// Multiple coder_ai_tasks resources can be defined, but only 1 is allowed.
-		// This is validated once all parameters are resolved etc as part of the workspace build, but for now we can allow it.
-		require.Len(t, state.AITasks, 2)
-	})
-
-	t.Run("Can use sidebar app ID", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-sidebar")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		require.Len(t, state.AITasks, 1)
-
-		sidebarApp := state.AITasks[0].GetSidebarApp()
-		require.NotNil(t, sidebarApp)
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
-	})
-
-	t.Run("Can use app ID", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-app")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.NotNil(t, state)
-		require.NoError(t, err)
-		require.True(t, state.HasAITasks)
-		require.Len(t, state.AITasks, 1)
-
-		sidebarApp := state.AITasks[0].GetSidebarApp()
-		require.NotNil(t, sidebarApp)
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
-		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
-	})
-}
-
 func TestExternalAgents(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
@@ -1657,6 +1791,11 @@ func sortResources(resources []*proto.Resource) {
 			sort.Slice(agent.Devcontainers, func(i, j int) bool {
 				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
+			for _, dc := range agent.Devcontainers {
+				sort.Slice(dc.Apps, func(i, j int) bool {
+					return dc.Apps[i].Slug < dc.Apps[j].Slug
+				})
+			}
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
@@ -1680,6 +1819,13 @@ func deterministicAppIDs(resources []*proto.Resource) {
 				data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
 				id, _ := uuid.FromBytes(data[:16])
 				app.Id = id.String()
+			}
+			for _, dc := range agent.Devcontainers {
+				for _, app := range dc.Apps {
+					data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
+					id, _ := uuid.FromBytes(data[:16])
+					app.Id = id.String()
+				}
 			}
 		}
 	}

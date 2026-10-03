@@ -148,7 +148,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 
 	aReq.dbReq = dbReq // Update audit request.
 
-	token.UserID = dbReq.User.ID
+	token.UserID = dbReq.UserID
 	token.WorkspaceID = dbReq.Workspace.ID
 	token.AgentID = dbReq.Agent.ID
 	if dbReq.AppURL != nil {
@@ -231,7 +231,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	// Check that the agent is online.
-	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
+	agentStatus := dbReq.Agent.Status(dbtime.Now(), p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
 		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
@@ -322,8 +322,8 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	// Figure out which RBAC resource to check. For terminals we use execution
 	// instead of application connect.
 	var (
-		rbacAction   policy.Action = policy.ActionApplicationConnect
-		rbacResource rbac.Object   = dbReq.Workspace.RBACObject()
+		rbacAction   = policy.ActionApplicationConnect
+		rbacResource = dbReq.Workspace.RBACObject()
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
@@ -336,7 +336,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// the object to check the proper permissions. AnyOrg is almost the same,
 		// but technically excludes users who are not in any organization. This is
 		// the closest we can get though without more significant refactoring.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
+		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
@@ -372,18 +372,16 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 			return false, warnings, nil
 		}
 
-		// Check if the user is a member of the same organization as the workspace
+		// Check if the user is a member of the same organization as the workspace.
 		workspaceOrgID := dbReq.Workspace.OrganizationID
-		expandedRoles, err := roles.Roles.Expand()
+		isMember, err := roles.HasOrganizationMembership(workspaceOrgID)
 		if err != nil {
-			return false, warnings, xerrors.Errorf("expand roles: %w", err)
+			return false, warnings, xerrors.Errorf("check organization membership: %w", err)
 		}
-		for _, role := range expandedRoles {
-			if _, ok := role.ByOrgID[workspaceOrgID.String()]; ok {
-				return true, []string{}, nil
-			}
+		if isMember {
+			return true, []string{}, nil
 		}
-		// User is not a member of the workspace's organization
+		// User is not a member of the workspace's organization.
 		return false, warnings, nil
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
@@ -448,7 +446,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 
 		// Approximation of the status code.
 		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
-		var statusCode int32 = int32(sw.Status)
+		statusCode := int32(sw.Status)
 		if statusCode == 0 {
 			statusCode = http.StatusOK
 		}
@@ -466,6 +464,20 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			connType = database.ConnectionTypePortForwarding
 		default:
 			connType = database.ConnectionTypeWorkspaceApp
+		}
+
+		// An empty slug_or_port is reserved for tunnel sessions (see
+		// coderd/workspaceagents.go logTunnelConnection); writing one
+		// here would collide with them in the audit session dedupe
+		// index. Request.Check rejects empty slugs, so this is
+		// unreachable today.
+		if slugOrPort == "" {
+			p.Logger.Critical(ctx, "workspace app audit session has empty slug_or_port, skipping connection log",
+				slog.F("workspace_id", aReq.dbReq.Workspace.ID),
+				slog.F("agent_id", aReq.dbReq.Agent.ID),
+				slog.F("app_id", aReq.dbReq.App.ID),
+			)
+			return
 		}
 
 		// If we end up logging, ensure relevant fields are set.
@@ -535,7 +547,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 				Int32: statusCode,
 				Valid: true,
 			},
-			Ip:        database.ParseIP(ip),
+			IP:        database.ParseIP(ip),
 			UserAgent: sql.NullString{Valid: userAgent != "", String: userAgent},
 			UserID: uuid.NullUUID{
 				UUID:  userID,
@@ -547,6 +559,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			// N/A
 			ConnectionID:     uuid.NullUUID{},
 			DisconnectReason: sql.NullString{},
+			ClientSessionID:  sql.NullString{},
 		})
 		if err != nil {
 			logger.Error(ctx, "upsert connection log failed", slog.Error(err))

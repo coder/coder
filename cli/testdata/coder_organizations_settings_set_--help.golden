@@ -15,6 +15,7 @@ SUBCOMMANDS:
                          memberships from an IdP.
     role-sync            Role sync settings to sync organization roles from an
                          IdP.
+    workspace-sharing    Workspace sharing settings for the organization.
 
 ———
 Run `coder --help` for a list of global options.

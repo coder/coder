@@ -1,6 +1,7 @@
 package prometheusmetrics_test
 
 import (
+	"slices"
 	"sort"
 	"testing"
 
@@ -134,7 +135,7 @@ func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count i
 
 	// Ensure always the same order of metrics
 	sort.Slice(metrics, func(i, j int) bool {
-		return sort.StringsAreSorted([]string{metrics[i].Label[0].GetValue(), metrics[j].Label[1].GetValue()})
+		return slices.IsSorted([]string{metrics[i].Label[0].GetValue(), metrics[j].Label[1].GetValue()})
 	})
 	return metrics
 }

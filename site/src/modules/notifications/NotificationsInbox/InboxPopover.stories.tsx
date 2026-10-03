@@ -1,6 +1,6 @@
-import { MockNotifications } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { MockNotifications } from "#/testHelpers/entities";
 import { InboxPopover } from "./InboxPopover";
 
 const meta: Meta<typeof InboxPopover> = {
@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxPopover> = {
 	},
 	render: (args) => {
 		return (
-			<div className="w-full max-w-screen-xl p-6 h-[720px]">
+			<div className="w-full max-w-(--breakpoint-xl) p-6 h-[720px]">
 				<header className="flex justify-end">
 					<InboxPopover {...args} />
 				</header>
@@ -66,9 +66,7 @@ export const OnRetry: Story = {
 		await expect(args.onRetry).toHaveBeenCalledTimes(1);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -86,9 +84,7 @@ export const OnMarkAllAsRead: Story = {
 		await expect(args.onMarkAllAsRead).toHaveBeenCalledTimes(1);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -111,8 +107,6 @@ export const OnMarkNotificationAsRead: Story = {
 		);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };

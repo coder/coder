@@ -1,22 +1,21 @@
-import type { Workspace } from "api/typesGenerated";
+import type React from "react";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
+} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type React from "react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import {
 	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
-} from "utils/workspace";
+} from "#/utils/workspace";
 
-const variantByStatusType: Record<
+export const variantByStatusType: Record<
 	DisplayWorkspaceStatusType,
 	StatusIndicatorProps["variant"]
 > = {
@@ -33,10 +32,9 @@ type WorkspaceStatusIndicatorProps = {
 	children?: React.ReactNode;
 };
 
-export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
-	workspace,
-	children,
-}) => {
+export const WorkspaceStatusIndicator: React.FC<
+	WorkspaceStatusIndicatorProps
+> = ({ workspace, children }) => {
 	let { text, type } = getDisplayWorkspaceStatus(
 		workspace.latest_build.status,
 		workspace.latest_build.job,
@@ -68,7 +66,8 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent>
-				Your workspace is running but some agents are unhealthy.
+				One or more workspace agents need attention. Expand an agent's logs for
+				details.
 			</TooltipContent>
 		</Tooltip>
 	);

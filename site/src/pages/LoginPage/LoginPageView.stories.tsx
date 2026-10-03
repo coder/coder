@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import {
 	MockAuthMethodsAll,
 	MockAuthMethodsExternal,
@@ -5,8 +7,7 @@ import {
 	MockAuthMethodsPasswordTermsOfService,
 	MockBuildInfo,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 
 const meta: Meta<typeof LoginPageView> = {
@@ -73,5 +74,29 @@ export const SigningIn: Story = {
 	args: {
 		isSigningIn: true,
 		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const WithFieldValidation: Story = {
+	args: {
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: /sign in/i }));
+	},
+};
+
+export const WithInvalidEmail: Story = {
+	args: {
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const emailInput = await canvas.findByLabelText(/email/i);
+		await user.type(emailInput, "not-an-email");
+		await user.click(canvas.getByRole("button", { name: /sign in/i }));
 	},
 };

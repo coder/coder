@@ -6,7 +6,7 @@ USAGE:
   List all organization members
 
 OPTIONS:
-  -c, --column [username|name|user id|organization id|created at|updated at|organization roles] (default: username,organization roles)
+  -c, --column [username|name|last seen at|user created at|user updated at|user id|organization id|created at|updated at|organization roles] (default: username,organization roles)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

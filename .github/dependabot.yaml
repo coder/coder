@@ -35,13 +35,11 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
-      - dependency-name: "github.com/mark3labs/mcp-go"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
     directories:
       - "/dogfood/coder"
-      - "/dogfood/coder-envbuilder"
       - "/scripts"
       - "/examples/templates/docker/build"
       - "/examples/parameters/build"
@@ -79,12 +77,6 @@ updates:
       xterm:
         patterns:
           - "@xterm*"
-      mui:
-        patterns:
-          - "@mui*"
-      radix:
-        patterns:
-          - "@radix-ui/*"
       react:
         patterns:
           - "react"
@@ -94,12 +86,6 @@ updates:
       emotion:
         patterns:
           - "@emotion*"
-        exclude-patterns:
-          - "jest-runner-eslint"
-      jest:
-        patterns:
-          - "jest"
-          - "@types/jest"
       vite:
         patterns:
           - "vite*"
@@ -114,7 +100,6 @@ updates:
 
   - package-ecosystem: "terraform"
     directories:
-      - "dogfood/*/"
       - "examples/templates/*/"
     schedule:
       interval: "weekly"

@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -76,6 +77,8 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
 	defer trap.Close()
@@ -83,12 +86,12 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	uut := heartbeats{
 		ctx:          ctx,
 		logger:       logger,
+		store:        mStore,
 		clock:        mClock,
 		self:         uuid.UUID{1},
 		update:       make(chan hbUpdate, 4),
 		coordinators: make(map[uuid.UUID]time.Time),
 	}
-
 	coord2 := uuid.UUID{2}
 	coord3 := uuid.UUID{3}
 
@@ -397,7 +400,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
 	require.NoError(t, err)
@@ -432,4 +435,193 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	time.Sleep(testutil.IntervalMedium)
 	_ = coordinator.Close()
 	require.Eventually(t, ctrl.Satisfied, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestWorkQ_AcquireBatch_RespectsMax(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	for i := 0; i < 5; i++ {
+		q.enqueue(uuid.New())
+	}
+
+	batch, err := q.acquireBatch(3)
+	require.NoError(t, err)
+	assert.Len(t, batch, 3, "should respect max parameter")
+
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Remaining 2 should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	assert.Len(t, batch, 2)
+
+	for _, k := range batch {
+		q.done(k)
+	}
+}
+
+func TestWorkQ_AcquireBatch_SkipsInProgress(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	peer1 := uuid.New()
+	peer2 := uuid.New()
+	q.enqueue(peer1)
+	q.enqueue(peer2)
+
+	// Acquire one item.
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer1, key)
+
+	// Re-enqueue peer1 (simulating a new update while in progress).
+	q.enqueue(peer1)
+
+	// acquireBatch should only return peer2 (peer1 is in progress).
+	batch, err := q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer2, batch[0])
+
+	q.done(key)
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Now peer1 (re-enqueued) should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer1, batch[0])
+}
+
+func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[uuid.UUID](ctx)
+
+	peer := uuid.New()
+	q.enqueue(peer)
+
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer, key)
+	q.done(key)
+}
+
+func Test_nodesEqual(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BothNil", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, nodesEqual(nil, nil))
+	})
+
+	t.Run("OneNil", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, nodesEqual(&proto.Node{PreferredDerp: 1}, nil))
+		assert.False(t, nodesEqual(nil, &proto.Node{PreferredDerp: 1}))
+	})
+
+	t.Run("IgnoresAsOf", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.Now(),
+		}
+		b := &proto.Node{
+			PreferredDerp: 1,
+			AsOf:          timestamppb.New(time.Now().Add(-time.Hour)),
+		}
+		assert.True(t, nodesEqual(a, b))
+		// Verify AsOf fields are restored.
+		assert.NotNil(t, a.AsOf)
+		assert.NotNil(t, b.AsOf)
+	})
+
+	t.Run("DifferentPreferredDERP", func(t *testing.T) {
+		t.Parallel()
+		a := &proto.Node{PreferredDerp: 1}
+		b := &proto.Node{PreferredDerp: 2}
+		assert.False(t, nodesEqual(a, b))
+	})
+}
+
+func Test_storeBinding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SkipsNoop", func(t *testing.T) {
+		t.Parallel()
+
+		key := bKey(uuid.New())
+		node := &proto.Node{PreferredDerp: 1}
+
+		b := &binder{
+			latest: make(map[bKey]binding),
+		}
+
+		bnd := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+
+		// First store should succeed.
+		assert.True(t, b.storeBinding(bnd))
+
+		// Same node (even with different AsOf) should be skipped.
+		bnd2 := binding{
+			bKey: key,
+			node: &proto.Node{PreferredDerp: 1, AsOf: timestamppb.Now()},
+			kind: proto.CoordinateResponse_PeerUpdate_NODE,
+		}
+		assert.False(t, b.storeBinding(bnd2))
+	})
+
+	t.Run("AllowsChangedNode", func(t *testing.T) {
+		t.Parallel()
+
+		key := bKey(uuid.New())
+
+		b := &binder{
+			latest: make(map[bKey]binding),
+		}
+
+		bnd1 := binding{bKey: key, node: &proto.Node{PreferredDerp: 1}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+		assert.True(t, b.storeBinding(bnd1))
+
+		bnd2 := binding{bKey: key, node: &proto.Node{PreferredDerp: 2}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+		assert.True(t, b.storeBinding(bnd2))
+	})
+
+	t.Run("LostToNodeTransition", func(t *testing.T) {
+		t.Parallel()
+
+		key := bKey(uuid.New())
+
+		b := &binder{
+			latest: make(map[bKey]binding),
+		}
+
+		node := &proto.Node{PreferredDerp: 1}
+
+		// NODE should enqueue.
+		bnd1 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+		assert.True(t, b.storeBinding(bnd1))
+
+		// LOST should enqueue (transitions state).
+		bnd2 := binding{bKey: key, kind: proto.CoordinateResponse_PeerUpdate_LOST}
+		assert.True(t, b.storeBinding(bnd2))
+
+		// NODE again should enqueue (transitioning back from LOST).
+		bnd3 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
+		assert.True(t, b.storeBinding(bnd3))
+	})
 }

@@ -1,15 +1,14 @@
+import { InfoIcon } from "lucide-react";
 import {
 	ProvisionerKeyNameBuiltIn,
 	ProvisionerKeyNamePSK,
 	ProvisionerKeyNameUserAuth,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 type KeyType = "builtin" | "userAuth" | "psk" | "key";
 
@@ -26,7 +25,7 @@ function getKeyType(name: string) {
 	}
 }
 
-const infoByType: Record<KeyType, ReactNode> = {
+const infoByType: Record<KeyType, React.ReactNode> = {
 	builtin: (
 		<>
 			These provisioners are running as part of a coderd instance. Built-in
@@ -54,7 +53,7 @@ type ProvisionerKeyProps = {
 	name: string;
 };
 
-export const ProvisionerKey: FC<ProvisionerKeyProps> = ({ name }) => {
+export const ProvisionerKey: React.FC<ProvisionerKeyProps> = ({ name }) => {
 	const type = getKeyType(name);
 	const info = infoByType[type];
 

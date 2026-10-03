@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -14,18 +15,36 @@ import (
 	"github.com/coder/coder/v2/httpmw"
 )
 
-func (a *agent) apiHandler() http.Handler {
+func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r := chi.NewRouter()
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
-		loggermw.Logger(a.logger),
+		// Reuse the coderd tracing middleware with a noop tracer (nil provider):
+		// it emits no spans or telemetry on the agent and only enriches the log
+		// context with client_session_id. Tracks the API, debug (for
+		// support-bundle correlation), and root routes.
+		tracing.Middleware(nil, []string{"/", "/api", "/api/**", "/debug/**"}, "agent"),
+		loggermw.Logger(a.logger, nil),
+		agentchat.Middleware,
+		a.toolCalls.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 			Message: "Hello from the agent!",
 		})
 	})
+
+	r.Mount("/api/v0", a.filesAPI.Routes())
+	r.Mount("/api/v0/git", a.gitAPI.Routes())
+	r.Mount("/api/v0/processes", a.processAPI.Routes())
+	r.Mount("/api/v0/tool-calls", a.toolCalls.Routes())
+	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
+	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
+	r.Mount("/api/v0/context-config", a.contextConfigAPI.Routes())
+	if a.contextAPI != nil {
+		r.Mount("/api/v0/context", a.contextAPI.Routes())
+	}
 
 	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())
@@ -49,10 +68,7 @@ func (a *agent) apiHandler() http.Handler {
 
 	r.Get("/api/v0/listening-ports", a.listeningPortsHandler.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
-	r.Post("/api/v0/list-directory", a.HandleLS)
-	r.Get("/api/v0/read-file", a.HandleReadFile)
-	r.Post("/api/v0/write-file", a.HandleWriteFile)
-	r.Post("/api/v0/edit-files", a.HandleEditFiles)
+	r.Get("/api/v0/tcp/{port}", upgradeListener.handler)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

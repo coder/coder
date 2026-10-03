@@ -8,10 +8,12 @@ function defaultDocsUrl(): string {
 		return docsUrl;
 	}
 
-	// Strip the postfix version info that's not part of the link.
-	const i = version?.match(/[+-]/)?.index ?? -1;
-	if (i >= 0) {
-		version = version.slice(0, i);
+	// Strip build metadata after '+', then remove a '-devel' suffix
+	// if present. Preserve '-rc.X' suffixes so versioned docs links
+	// point at the correct release candidate.
+	version = version.split("+")[0].replace(/-devel$/, "");
+	if (version === "v0.0.0") {
+		return docsUrl;
 	}
 	return `${docsUrl}/@${version}`;
 }

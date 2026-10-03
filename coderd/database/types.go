@@ -44,6 +44,56 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+type OAuth2ProviderSettings struct {
+	ID                               uuid.UUID `db:"id" json:"id"`
+	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
+}
+
+// ChatInstructionSettings is the auditable shape of the deployment-wide
+// chat instruction configuration, stored across the
+// agents_chat_system_prompt, agents_chat_include_default_system_prompt and
+// agents_chat_plan_mode_instructions site_configs keys. Both the
+// system-prompt and plan-mode-instructions endpoints audit this one type;
+// each populates only the fields its endpoint can change.
+type ChatInstructionSettings struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Name identifies which setting an audit row concerns (e.g. "System
+	// prompt"). It is ignored in diffs and set identically on Old and New.
+	Name         string `db:"name" json:"name"`
+	SystemPrompt string `db:"system_prompt" json:"system_prompt"`
+	// IncludeDefaultSystemPromptSet records whether the override row
+	// exists, not only its effective value: writing explicit false over a
+	// legacy absent row does not move the effective value but changes
+	// future behavior, so presence must enter the diff.
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	PlanModeInstructions          string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
+}
+
+// ChatOperationalSettings contains deployment-wide chat settings for audit logging.
+type ChatOperationalSettings struct {
+	ID                            uuid.UUID `db:"id" json:"id"`
+	ChatRetentionDays             string    `db:"chat_retention_days" json:"chat_retention_days"`
+	ChatDebugRetentionDays        string    `db:"chat_debug_retention_days" json:"chat_debug_retention_days"`
+	ChatAutoArchiveDays           string    `db:"chat_auto_archive_days" json:"chat_auto_archive_days"`
+	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
+	ComputerUseProvider           string    `db:"computer_use_provider" json:"computer_use_provider"`
+	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
+	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
+}
+
+// ExperimentRule is the audited form of one runtime experiment rule. The
+// rule itself is stored as JSON in site_configs. ID is derived from the
+// experiment name (experiments.AuditRecord) so that audit history groups by
+// experiment.
+type ExperimentRule struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	Experiment string    `db:"experiment" json:"experiment"`
+	Mode       string    `db:"mode" json:"mode"`
+	Condition  string    `db:"condition" json:"condition"`
+	Revision   int64     `db:"revision" json:"revision"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
@@ -80,6 +130,69 @@ func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
 }
 
+type ChatACL map[string]ChatACLEntry
+
+func (c *ChatACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &c)
+	case []byte:
+		return json.Unmarshal(v, &c)
+	case json.RawMessage:
+		return json.Unmarshal(v, &c)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+//nolint:revive
+func (c ChatACL) RBACACL() map[string][]policy.Action {
+	rbacACL := make(map[string][]policy.Action, len(c))
+	for id, entry := range c {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
+func (c ChatACL) Value() (driver.Value, error) {
+	if c == nil {
+		return json.Marshal(ChatACL{})
+	}
+	return json.Marshal(c)
+}
+
+type ChatACLEntry struct {
+	Permissions []policy.Action `json:"permissions"`
+}
+
+// AgentMetadataAggregate is the agent_metadata jsonb array the
+// GetWorkspaces query aggregates for the include_agent_metadata
+// expansion. Elements have WorkspaceAgentMetadatum's JSON shape; each
+// carries its workspace_agent_id so multi-agent workspaces can map
+// values onto the right agent. The generated row keeps
+// json.RawMessage because sqlc overrides cannot target expression
+// columns; callers Scan the raw value into this type.
+type AgentMetadataAggregate []WorkspaceAgentMetadatum
+
+func (a *AgentMetadataAggregate) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case nil:
+		return nil
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	case json.RawMessage:
+		return json.Unmarshal(v, &a)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a AgentMetadataAggregate) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
 type WorkspaceACL map[string]WorkspaceACLEntry
 
 func (t *WorkspaceACL) Scan(src interface{}) error {
@@ -95,7 +208,7 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
-//nolint:revive
+//nolint:revive,staticcheck // Receiver name matches the other WorkspaceACL methods in this file.
 func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
 	// Convert WorkspaceACL to a map of string to []policy.Action.
 	// This is used for RBAC checks.
@@ -166,6 +279,7 @@ type StringMapOfInt map[string]int64
 
 func (m *StringMapOfInt) Scan(src interface{}) error {
 	if src == nil {
+		*m = nil
 		return nil
 	}
 	switch src := src.(type) {
@@ -259,7 +373,29 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+	// The string values must be escaped in case there are special characters, quotes, etc.
+	// 'NameOrganizationPair' is a composite value, which has no driver handler
+	// in the `pq` package.
+	//
+	// pq.StringArray formats the single name as `{"<escaped>"}`. Strip
+	// the outer braces to get the quoted+escaped form that composite
+	// literal syntax accepts unchanged.
+	//
+	// Ideally `appendArrayQuotedBytes` would be exported, and we could call
+	// it directly.
+	v, err := (&pq.StringArray{a.Name}).Value()
+	if err != nil {
+		return nil, err
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return nil, xerrors.Errorf("unexpected type %T", v)
+	}
+
+	stripCurlyBraces := s[1 : len(s)-1]
+
+	return fmt.Sprintf("(%s,%s)", stripCurlyBraces, a.OrganizationID.String()), nil
 }
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.

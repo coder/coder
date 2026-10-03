@@ -1,17 +1,15 @@
-import type { CSSObject } from "@emotion/react";
-
-export interface ExternalImageModeStyles {
+export type ExternalImageModeStyles = {
 	/**
 	 * monochrome icons will be flattened to a neutral, theme-appropriate color.
 	 * eg. white, light gray, dark gray, black
 	 */
-	monochrome?: CSSObject;
+	monochrome?: React.CSSProperties;
 	/**
 	 * @default
 	 * fullcolor icons should look their best of any background, with distinct colors
 	 * and good contrast. This is the default, and won't alter the image.
 	 */
-	fullcolor?: CSSObject;
+	fullcolor?: React.CSSProperties;
 	/**
 	 * whiteWithColor is useful for icons that are primarily white, or contain white text,
 	 * which are hard to see or look incorrect on light backgrounds. This setting will apply
@@ -20,7 +18,7 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	whiteWithColor?: CSSObject;
+	whiteWithColor?: React.CSSProperties;
 	/**
 	 * blackWithColor is useful for icons that are primarily black, or contain black text,
 	 * which are hard to see or look incorrect on dark backgrounds. This setting will apply
@@ -29,8 +27,8 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	blackWithColor?: CSSObject;
-}
+	blackWithColor?: React.CSSProperties;
+};
 
 export const forDarkThemes: ExternalImageModeStyles = {
 	// brighten icons a little to make sure they have good contrast with the background
@@ -45,7 +43,7 @@ export const forDarkThemes: ExternalImageModeStyles = {
 
 export const forLightThemes: ExternalImageModeStyles = {
 	// darken icons a little to make sure they have good contrast with the background
-	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(70%)" },
+	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(40%)" },
 	// do nothing to full-color icons
 	fullcolor: undefined,
 	// black on a dark background 🆘: invert, and then correct colors
@@ -64,14 +62,14 @@ const multiplier = /^\d+(\.\d+)?%?$/;
  */
 const parseInvertFilterParameters = (
 	params: URLSearchParams,
-	baseStyles?: CSSObject,
+	baseStyles?: React.CSSProperties,
 ) => {
 	// Only apply additional styles if the current theme supports this mode
 	if (!baseStyles) {
 		return;
 	}
 
-	let extraStyles: CSSObject | undefined;
+	let extraStyles: React.CSSProperties | undefined;
 
 	const brightness = params.get("brightness") ?? "";
 	if (multiplier.test(brightness)) {
@@ -93,10 +91,10 @@ const parseInvertFilterParameters = (
 export function parseImageParameters(
 	modes: ExternalImageModeStyles,
 	searchString: string,
-): CSSObject | undefined {
+): React.CSSProperties | undefined {
 	const params = new URLSearchParams(searchString);
 
-	let styles: CSSObject | undefined = modes.fullcolor;
+	let styles: React.CSSProperties | undefined = modes.fullcolor;
 
 	if (params.has("monochrome")) {
 		styles = modes.monochrome;
@@ -117,7 +115,15 @@ export function getExternalImageStylesFromUrl(
 		return undefined;
 	}
 
-	const url = new URL(urlString, location.origin);
+	// While a user types a URL the value can be incomplete or invalid (e.g.
+	// "https:"). new URL() throws on those, so treat them as having no special
+	// styles instead of crashing the render.
+	let url: URL;
+	try {
+		url = new URL(urlString, location.origin);
+	} catch {
+		return undefined;
+	}
 
 	if (url.search) {
 		return parseImageParameters(modes, url.search);
@@ -141,34 +147,49 @@ export function getExternalImageStylesFromUrl(
  * don't look their best in all of our themes with the default fullcolor mode.
  */
 export const defaultParametersForBuiltinIcons = new Map<string, string>([
+	["/icon/amp.svg", "monochrome"],
+	["/icon/apple.svg", "monochrome"],
 	["/icon/apple-black.svg", "monochrome"],
 	["/icon/auggie.svg", "monochrome"],
+	["/icon/anthropic.svg", "monochrome"],
 	["/icon/auto-dev-server.svg", "monochrome"],
+	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/aws.png", "whiteWithColor&brightness=1.5"],
 	["/icon/aws.svg", "whiteWithColor&brightness=1.5"],
-	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/coder.svg", "monochrome"],
 	["/icon/container.svg", "monochrome"],
 	["/icon/copyparty.svg", "blackWithColor"],
+	["/icon/delta.svg", "monochrome"],
 	["/icon/database.svg", "monochrome"],
+	["/icon/devcontainers.svg", "monochrome"],
+	["/icon/devin.svg", "monochrome"],
 	["/icon/docker-white.svg", "monochrome"],
 	["/icon/folder.svg", "monochrome"],
+	["/icon/gemini-monochrome.svg", "monochrome"],
+	["/icon/github-copilot.svg", "whiteWithColor"],
 	["/icon/github.svg", "monochrome"],
 	["/icon/image.svg", "monochrome"],
 	["/icon/jupyter.svg", "blackWithColor"],
 	["/icon/kasmvnc.svg", "whiteWithColor"],
+	["/icon/kilo-code.svg", "blackWithColor"],
 	["/icon/kiro.svg", "whiteWithColor"],
+	["/icon/linear.svg", "monochrome"],
 	["/icon/memory.svg", "monochrome"],
 	["/icon/mux.svg", "monochrome"],
 	["/icon/nexus-repository.svg", "blackWithColor"],
 	["/icon/okta.svg", "monochrome"],
+	["/icon/openai-codex.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
+	["/icon/opencode.svg", "whiteWithColor"],
+	["/icon/openrouter.svg", "monochrome"],
+	["/icon/openwebui.svg", "monochrome"],
+	["/icon/roo-code.svg", "whiteWithColor"],
 	["/icon/rust.svg", "monochrome"],
+	["/icon/tasks.svg", "monochrome"],
 	["/icon/terminal.svg", "monochrome"],
+	["/icon/vercel.svg", "whiteWithColor"],
 	["/icon/widgets.svg", "monochrome"],
 	["/icon/windsurf.svg", "monochrome"],
+	["/icon/xum.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
-	["/icon/tasks.svg", "monochrome"],
-	["/icon/openwebui.svg", "monochrome"],
-	["/icon/perplexica.svg", "monochrome"],
 ]);

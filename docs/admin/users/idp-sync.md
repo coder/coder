@@ -1,6 +1,8 @@
-<!-- markdownlint-disable MD024 -->
-# IdP Sync
+---
+title: IdP sync
+---
 
+<!-- markdownlint-disable MD024 -->
 > [!NOTE]
 > IdP sync is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
@@ -15,7 +17,7 @@ synchronize Coder groups, roles, and organizations based on claims from your IdP
 To confirm that your OIDC provider is sending claims, log in with OIDC and visit
 the following URL with an `Owner` account:
 
-```text
+```txt
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 ```
 
@@ -37,7 +39,7 @@ If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
 group sync, ensure that the `groups` claim is being sent by your OpenID
 provider. You might need to request an additional
-[scope](../../reference/cli/server.md#--oidc-scopes) or additional configuration
+[scope](../../reference/cli/server/index.md#--oidc-scopes) or additional configuration
 on the OpenID provider side.
 
 If group sync is enabled, the user's groups will be controlled by the OIDC
@@ -53,14 +55,14 @@ group sync for each organization.
 
 1. Fetch the corresponding group IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/groups
    ```
 
 1. As an Owner or Organization Admin, go to **Admin settings**, select
    **Organizations**, then **IdP Sync**:
 
-   ![IdP Sync - Group sync settings](../../images/admin/users/organizations/group-sync-empty.png)
+   ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
 1. Enter the **Group sync field** and an optional **Regex filter**, then select
    **Save**.
@@ -148,8 +150,8 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure group sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
+1. Configure the control plane to read groups from the claim name with the
+   [OIDC group field](../../reference/cli/server/index.md#--oidc-group-field) server
    flag:
 
    - Environment variable:
@@ -170,7 +172,7 @@ Visit the Coder UI to confirm these changes:
 1. For cases when an OIDC provider only returns group IDs or you want to have
    different group names in Coder than in your OIDC provider, you can configure
    mapping between the two with the
-   [OIDC group mapping](../../reference/cli/server.md#--oidc-group-mapping) server
+   [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server
    flag:
 
    - Environment variable:
@@ -203,10 +205,10 @@ Visit the Coder UI to confirm these changes:
 ### Group allowlist
 
 You can limit which groups from your identity provider can log in to Coder with
-[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
+[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server/index.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-<Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
+<img height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
 ## Role Sync
 
@@ -241,7 +243,7 @@ role sync at the organization level.
 1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
    logged in with a user who is an Owner or has an Organization Admin role.
 
-1. To fetch the current group sync settings for an organization, run the
+1. To fetch the current role sync settings for an organization, run the
    following:
 
    ```sh
@@ -295,13 +297,13 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure role sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
+1. Configure the control plane to read groups from the claim name with the
+   [OIDC role field](../../reference/cli/server/index.md#--oidc-user-role-field)
    server flag:
 
-1. Set the following in your Coder server [configuration](../setup/index.md).
+1. Set the following in your control plane [configuration](../setup/index.md).
 
-   ```env
+   ```dotenv
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
    CODER_OIDC_SCOPES=openid,profile,email,offline_access,roles
 
@@ -335,7 +337,7 @@ You can initiate an organization sync through the Coder dashboard or CLI:
 
 1. Fetch the corresponding organization IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/organizations
    ```
 
@@ -388,7 +390,7 @@ settings, a user's memberships will update when they log out and log back in.
             "cbdcf774-4123-4118-8cd9-b3f502c84dfb"
          ],
          "sales": [
-            "d79144d9-b30a-555a-9af8-7dac83b2q4ec",
+            "d79144d9-b30a-555a-9af8-7dac83b2q4ec"
          ]
       },
       "organization_assign_default": true
@@ -397,11 +399,11 @@ settings, a user's memberships will update when they log out and log back in.
 
    Analyzing the JSON payload:
 
-   | Field                       | Explanation                                                                                                                                                                                                                                                                             |
-   |:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-   | field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
-   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
-   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
+   | Field                       | Explanation                                                                                                                                                                                                                                                                              |
+   |:----------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   | field                       | If this field is the empty string `""`, then org-sync is disabled. <br /> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
+   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. <br /> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
+   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. <br /> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
 
 </div>
 
@@ -413,7 +415,7 @@ Some common issues when enabling group, role, or organization sync.
 
 If you are running into issues with a sync:
 
-1. View your Coder server logs and enable
+1. View your `coderd` logs and enable
    [verbose mode](../../reference/cli/index.md#-v---verbose).
 
 1. To reduce noise, you can filter for only logs related to group/role sync:
@@ -422,7 +424,7 @@ If you are running into issues with a sync:
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 
-1. Restart the server after changing these configuration values.
+1. Restart the control plane after changing these configuration values.
 
 1. Attempt to log in, preferably with a user who has the `Owner` role.
 
@@ -454,12 +456,12 @@ If you enable this, your OIDC provider might be sending over many unnecessary
 groups. Use filtering options on the OIDC provider to limit the groups sent over
 to prevent creating excess groups.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_AUTO_CREATE=true
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-auto-create=true
 ```
@@ -471,12 +473,12 @@ want to filter out groups that do not match a certain pattern. For example, if
 you want to only allow groups that start with `my-group-` to be created, you can
 set the following environment variable.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-regex-filter="^my-group-.*$"
 ```
@@ -574,6 +576,8 @@ Steps to troubleshoot.
    - (Optional) If using Group Sync, send the required groups in the configured
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
+
+</div>
 
 ## Next Steps
 

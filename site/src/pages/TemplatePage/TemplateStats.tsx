@@ -1,51 +1,38 @@
-import type { Template, TemplateVersion } from "api/typesGenerated";
-import { Stats, StatsItem } from "components/Stats/Stats";
-import type { FC } from "react";
 import { Link } from "react-router";
-import { createDayString } from "utils/createDayString";
+import type { Template, TemplateVersion } from "#/api/typesGenerated";
+import { Stats, StatsItem } from "#/components/Stats/Stats";
+import { createDayString } from "#/utils/createDayString";
 import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
-} from "utils/templates";
+} from "#/utils/templates";
 
-const Language = {
-	usedByLabel: "Used by",
-	buildTimeLabel: "Build time",
-	activeVersionLabel: "Active version",
-	lastUpdateLabel: "Last updated",
-	developerPlural: "developers",
-	developerSingular: "developer",
-	createdByLabel: "Created by",
-};
-
-interface TemplateStatsProps {
+type TemplateStatsProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
-}
+};
 
-export const TemplateStats: FC<TemplateStatsProps> = ({
+export const TemplateStats: React.FC<TemplateStatsProps> = ({
 	template,
 	activeVersion,
 }) => {
 	return (
 		<Stats>
 			<StatsItem
-				label={Language.usedByLabel}
+				label="Used by"
 				value={
 					<>
 						{formatTemplateActiveDevelopers(template.active_user_count)}{" "}
-						{template.active_user_count === 1
-							? Language.developerSingular
-							: Language.developerPlural}
+						{template.active_user_count === 1 ? "developer" : "developers"}
 					</>
 				}
 			/>
 			<StatsItem
-				label={Language.buildTimeLabel}
+				label="Build time"
 				value={formatTemplateBuildTime(template.build_time_stats.start.P50)}
 			/>
 			<StatsItem
-				label={Language.activeVersionLabel}
+				label="Active version"
 				value={
 					<Link to={`versions/${activeVersion.name}`}>
 						{activeVersion.name}
@@ -53,13 +40,10 @@ export const TemplateStats: FC<TemplateStatsProps> = ({
 				}
 			/>
 			<StatsItem
-				label={Language.lastUpdateLabel}
+				label="Last updated"
 				value={createDayString(template.updated_at)}
 			/>
-			<StatsItem
-				label={Language.createdByLabel}
-				value={template.created_by_name}
-			/>
+			<StatsItem label="Created by" value={template.created_by_name} />
 		</Stats>
 	);
 };

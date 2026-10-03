@@ -38,7 +38,7 @@ func (r *RootCmd) groupList() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
-			groups, err := client.GroupsByOrganization(ctx, org.ID)
+			groups, err := client.Groups(ctx, codersdk.GroupArguments{Organization: org.ID.String()})
 			if err != nil {
 				return xerrors.Errorf("get groups: %w", err)
 			}
@@ -67,7 +67,7 @@ func (r *RootCmd) groupList() *serpent.Command {
 
 type groupTableRow struct {
 	// For json output:
-	Group codersdk.Group `table:"-"`
+	codersdk.Group `table:"-"`
 
 	// For table output:
 	Name           string    `json:"-" table:"name,default_sort"`
@@ -85,6 +85,7 @@ func groupsToRows(groups ...codersdk.Group) []groupTableRow {
 			members = append(members, member.Email)
 		}
 		rows = append(rows, groupTableRow{
+			Group:          group,
 			Name:           group.Name,
 			DisplayName:    group.DisplayName,
 			OrganizationID: group.OrganizationID,

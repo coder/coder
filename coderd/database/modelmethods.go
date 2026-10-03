@@ -2,7 +2,7 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type WorkspaceStatus string
@@ -83,6 +84,44 @@ type AuditableGroup struct {
 	Members []GroupMemberTable `json:"members"`
 }
 
+// AuditableGroupAIBudget is the audit-log representation of GroupAIBudget.
+// It enriches the raw record with the group's name and a human-readable
+// spend limit so audit entries can display meaningful values instead of
+// UUIDs and micros.
+type AuditableGroupAIBudget struct {
+	GroupAIBudget
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (b GroupAIBudget) Auditable(groupName string) AuditableGroupAIBudget {
+	return AuditableGroupAIBudget{
+		GroupAIBudget: b,
+		GroupName:     groupName,
+		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
+}
+
+// AuditableUserAIBudgetOverride is the audit-log representation of
+// UserAIBudgetOverride. It enriches the raw record with the username, the
+// attributed group's name, and a human-readable spend limit so audit
+// entries can display meaningful values instead of UUIDs and micros.
+type AuditableUserAIBudgetOverride struct {
+	UserAIBudgetOverride
+	Username   string `json:"username"`
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (o UserAIBudgetOverride) Auditable(username, groupName string) AuditableUserAIBudgetOverride {
+	return AuditableUserAIBudgetOverride{
+		UserAIBudgetOverride: o,
+		Username:             username,
+		GroupName:            groupName,
+		SpendLimit:           fmt.Sprintf("$%.2f", float64(o.SpendLimitMicros)/1_000_000),
+	}
+}
+
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
 func (g Group) Auditable(members []GroupMember) AuditableGroup {
@@ -133,36 +172,62 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
-// TaskTable converts a Task to it's reduced version.
-// A more generalized solution is to use json marshaling to
-// consistently keep these two structs in sync.
-// That would be a lot of overhead, and a more costly unit test is
-// written to make sure these match up.
-func (t Task) TaskTable() TaskTable {
-	return TaskTable{
-		ID:                 t.ID,
-		OrganizationID:     t.OrganizationID,
-		OwnerID:            t.OwnerID,
-		Name:               t.Name,
-		DisplayName:        t.DisplayName,
-		WorkspaceID:        t.WorkspaceID,
-		TemplateVersionID:  t.TemplateVersionID,
-		TemplateParameters: t.TemplateParameters,
-		Prompt:             t.Prompt,
-		CreatedAt:          t.CreatedAt,
-		DeletedAt:          t.DeletedAt,
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+}
+
+func (c Chat) RBACObject() rbac.Object {
+	obj := rbac.ResourceChat.
+		WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
+
+	if rbac.ChatACLDisabled() {
+		return obj
 	}
+
+	return obj.
+		WithACLUserList(c.UserACL.RBACACL()).
+		WithGroupACL(c.GroupACL.RBACACL())
 }
 
-func (t Task) RBACObject() rbac.Object {
-	return t.TaskTable().RBACObject()
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		InOrg(a.OrganizationID).
+		WithOwner(a.OwnerID.String())
 }
 
-func (t TaskTable) RBACObject() rbac.Object {
-	return rbac.ResourceTask.
-		WithID(t.ID).
-		WithOwner(t.OwnerID.String()).
-		InOrg(t.OrganizationID)
+func (m MCPServerConfig) RBACObject() rbac.Object {
+	return rbac.ResourceMCPServerConfig.
+		WithID(m.ID).
+		InOrg(m.OrganizationID).
+		WithGroupACL(m.GroupACL.RBACACL()).
+		WithACLUserList(m.UserACL.RBACACL())
+}
+
+func (c Chat) IsSubChat() bool {
+	return c.RootChatID.Valid || c.ParentChatID.Valid
+}
+
+func (r GetChatsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
+func (c ChatFile) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileDataPrefixesByIDsRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
@@ -195,11 +260,10 @@ func (s APIKeyScopes) Has(target APIKeyScope) bool {
 }
 
 // expandRBACScope merges the permissions of all scopes in the list into a
-// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
-// backward compatibility. This method is internal; use ScopeSet() to combine
-// scopes with the API key's allow list for authorization.
+// single RBAC scope. An empty list is an error rather than rbac.ScopeAll, which
+// would widen a key rather than fail it. This method is internal; use
+// ScopeSet() to combine scopes with the API key's allow list for authorization.
 func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
-	// Default to ScopeAll for backward compatibility when no scopes provided.
 	if len(s) == 0 {
 		return rbac.Scope{}, xerrors.New("no scopes provided")
 	}
@@ -316,6 +380,14 @@ func (t GetFileTemplatesRow) RBACObject() rbac.Object {
 		WithGroupACL(t.GroupACL)
 }
 
+// RBACObject for a workspace build's provisioner state requires Update access of the template.
+func (t GetWorkspaceBuildProvisionerStateByIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.TemplateID).
+		InOrg(t.TemplateOrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
 func (t Template) DeepCopy() Template {
 	cpy := t
 	cpy.UserACL = maps.Clone(t.UserACL)
@@ -364,8 +436,24 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 	return g.Group.RBACObject()
 }
 
+func (g GetOrganizationGroupsAISpendRow) RBACObject() rbac.Object {
+	return Group{ID: g.GroupID, OrganizationID: g.OrganizationID}.RBACObject()
+}
+
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
+}
+
+func (gm GetGroupMembersByGroupIDPaginatedRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
+}
+
+func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
+}
+
+func (r ExportOrganizationAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }
 
 // PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
@@ -543,9 +631,10 @@ func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
-func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
-func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
+func (u GitSSHKey) RBACObject() rbac.Object          { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object   { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object           { return rbac.ResourceUserObject(u.UserID) }
+func (u MCPServerUserToken) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
@@ -575,6 +664,24 @@ func (OAuth2ProviderApp) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2App
 }
 
+// IsPublic reports whether the app is a public (secretless, PKCE-only)
+// OAuth2 client per RFC 7591 §2 / OAuth 2.1 §2.1, as opposed to confidential.
+// An unset or unrecognized client type reads as confidential, so an app can
+// never skip client authentication by accident.
+func (a OAuth2ProviderApp) IsPublic() bool {
+	return a.ClientType == OAuth2ProviderAppClientTypePublic
+}
+
+// RegisteredRedirectURIs returns the redirect URIs the authorize and token
+// endpoints accept, primary first. RedirectUris is the source of truth.
+// The result is never empty: callers index the first entry directly.
+func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
+	if len(a.RedirectUris) == 0 {
+		return []string{a.CallbackURL}
+	}
+	return slice.Unique(a.RedirectUris)
+}
+
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
@@ -586,7 +693,7 @@ type WorkspaceAgentConnectionStatus struct {
 	DisconnectedAt   *time.Time           `json:"disconnected_at"`
 }
 
-func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
+func (a WorkspaceAgent) Status(now time.Time, inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
 	connectionTimeout := time.Duration(a.ConnectionTimeoutSeconds) * time.Second
 
 	status := WorkspaceAgentConnectionStatus{
@@ -605,7 +712,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 	switch {
 	case !a.FirstConnectedAt.Valid:
 		switch {
-		case connectionTimeout > 0 && dbtime.Now().Sub(a.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && now.Sub(a.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			status.Status = WorkspaceAgentStatusTimeout
@@ -620,7 +727,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		status.Status = WorkspaceAgentStatusDisconnected
-	case dbtime.Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
+	case now.Sub(a.LastConnectedAt.Time) > inactiveTimeout:
 		// The connection died without updating the last connected.
 		status.Status = WorkspaceAgentStatusDisconnected
 		// Client code needs an accurate disconnected at if the agent has been inactive.
@@ -638,20 +745,21 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:             r.ID,
-			Email:          r.Email,
-			Username:       r.Username,
-			Name:           r.Name,
-			HashedPassword: r.HashedPassword,
-			CreatedAt:      r.CreatedAt,
-			UpdatedAt:      r.UpdatedAt,
-			Status:         r.Status,
-			RBACRoles:      r.RBACRoles,
-			LoginType:      r.LoginType,
-			AvatarURL:      r.AvatarURL,
-			Deleted:        r.Deleted,
-			LastSeenAt:     r.LastSeenAt,
-			IsSystem:       r.IsSystem,
+			ID:               r.ID,
+			Email:            r.Email,
+			Username:         r.Username,
+			Name:             r.Name,
+			HashedPassword:   r.HashedPassword,
+			CreatedAt:        r.CreatedAt,
+			UpdatedAt:        r.UpdatedAt,
+			Status:           r.Status,
+			RBACRoles:        r.RBACRoles,
+			LoginType:        r.LoginType,
+			AvatarURL:        r.AvatarURL,
+			Deleted:          r.Deleted,
+			LastSeenAt:       r.LastSeenAt,
+			IsSystem:         r.IsSystem,
+			IsServiceAccount: r.IsServiceAccount,
 		}
 	}
 
@@ -689,7 +797,6 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
-			TaskID:                  r.TaskID,
 		}
 
 		var err error
@@ -769,12 +876,20 @@ func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error)
 	return names, nil
 }
 
-func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
-	return k.StartsAt.Add(keyDuration).UTC()
+func (r GetActiveUsersAuthorizationRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
 }
 
-func (k CryptoKey) DecodeString() ([]byte, error) {
-	return hex.DecodeString(k.Secret.String)
+func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
+	return k.StartsAt.Add(keyDuration).UTC()
 }
 
 func (k CryptoKey) CanSign(now time.Time) bool {
@@ -818,6 +933,10 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	}
 
 	return m.DebouncedUntil, false
+}
+
+func (s UserSkill) RBACObject() rbac.Object {
+	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
 }
 
 func (s UserSecret) RBACObject() rbac.Object {
@@ -883,4 +1002,44 @@ func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 		TemplateName:      w.TemplateName,
 		AutostartSchedule: w.AutostartSchedule,
 	}
+}
+
+// A workspace agent belongs to the owner of the associated workspace.
+func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
+// A workspace agent belongs to the owner of the associated workspace.
+func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
+// UpsertConnectionLogParams contains the parameters for upserting a
+// connection log entry. This struct is hand-maintained (not generated
+// by sqlc) because the single-row UpsertConnectionLog query was
+// removed in favor of BatchUpsertConnectionLogs, but the struct is
+// still used as the canonical connection log event type throughout
+// the codebase.
+type UpsertConnectionLogParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType   `db:"type" json:"type"`
+	Code             sql.NullInt32    `db:"code" json:"code"`
+	IP               pqtype.Inet      `db:"ip" json:"ip"`
+	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
+	Time             time.Time        `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
 }

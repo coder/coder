@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -21,10 +23,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -56,8 +55,10 @@ func TestPurge(t *testing.T) {
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+	mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -91,7 +92,7 @@ func TestMetrics(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days retention
 			},
-		}, clk, reg)
+		}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -128,6 +129,64 @@ func TestMetrics(t *testing.T) {
 			"record_type": "audit_logs",
 		})
 		require.GreaterOrEqual(t, auditLogs, 0)
+
+		workspaceBuildOrchestrations := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "workspace_build_orchestrations",
+		})
+		require.GreaterOrEqual(t, workspaceBuildOrchestrations, 0)
+
+		chats := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chats",
+		})
+		require.GreaterOrEqual(t, chats, 0)
+
+		chatDebugRuns := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chat_debug_runs",
+		})
+		require.GreaterOrEqual(t, chatDebugRuns, 0)
+
+		chatFiles := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chat_files",
+		})
+		require.GreaterOrEqual(t, chatFiles, 0)
+	})
+
+	t.Run("LockNotAcquiredSkipsIterationMetric", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "lock contention should not record a successful purge iteration")
+
+		failedHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.Nil(t, failedHist, "lock contention should not record a failed purge iteration")
 	})
 
 	t.Run("FailedIteration", func(t *testing.T) {
@@ -141,6 +200,9 @@ func TestMetrics(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -148,7 +210,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, clk, reg)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -162,6 +224,117 @@ func TestMetrics(t *testing.T) {
 			"success": "true",
 		})
 		require.Nil(t, successHist, "should not have success=true metric on failure")
+	})
+
+	// A failed retention read must not block unrelated or chat debug
+	// purges, but must skip the conversation purge and surface as a
+	// failed iteration via the metric.
+	t.Run("FailedChatRetentionRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).
+			Return(int32(0), xerrors.New("simulated retention read error")).
+			MinTimes(1)
+		// All reads happen before the bail; InTx still runs so unrelated
+		// purges and chat debug purge commit best-effort.
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(7), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed retention read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on retention read failure")
+	})
+
+	// Same contract as the other chat config reads, but debug retention
+	// read failures skip only debug purging.
+	t.Run("FailedChatDebugRetentionRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), xerrors.New("simulated chat debug retention read error")).
+			MinTimes(1)
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed chat debug retention read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on chat debug retention read failure")
 	})
 }
 
@@ -216,7 +389,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 180 days - 2 hour ago, should not be deleted before rollup.
@@ -225,7 +398,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// Stat inserted 179 days - 4 hour ago, should not be deleted at all.
@@ -234,11 +407,11 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   3333,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -263,7 +436,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -358,7 +531,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		Retention: codersdk.RetentionConfig{
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
-	}, clk, prometheus.NewRegistry())
+	}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 
 	defer closer.Close()
 	<-done // doTick() has now run.
@@ -573,7 +746,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -664,7 +837,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -768,7 +941,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -931,7 +1104,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -954,6 +1127,146 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 		t.Logf("eventually: total count: %d, old count: %d", totalCount, oldCount)
 		return totalCount == 2 && oldCount == 0
 	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
+}
+
+func TestDeleteOldWorkspaceBuildOrchestrations(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		JobID:          versionJob.ID,
+		CreatedBy:      user.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+	})
+
+	now := dbtime.Now()
+	cutoff := now.Add(-24 * time.Hour)
+	buildTime := cutoff.Add(-time.Hour)
+	oldCompletedTime := cutoff.Add(-3 * time.Minute)
+	oldFailedTime := cutoff.Add(-2 * time.Minute)
+	oldCanceledTime := cutoff.Add(-time.Minute)
+	oldPendingTime := cutoff.Add(-time.Minute)
+	recentTime := cutoff.Add(time.Minute)
+
+	createBuild := func(buildNumber int32, createdAt time.Time) database.WorkspaceBuild {
+		return mustCreateWorkspaceBuild(t, db, org, version, workspace.ID, createdAt, buildNumber)
+	}
+	insertOrchestration := func(parentBuild database.WorkspaceBuild, updatedAt time.Time) database.WorkspaceBuildOrchestration {
+		orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+			ID:                       uuid.New(),
+			CreatedAt:                updatedAt,
+			UpdatedAt:                updatedAt,
+			ParentBuildID:            parentBuild.ID,
+			ChildTransition:          database.WorkspaceTransitionStart,
+			ChildRichParameterValues: json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
+		return orchestration
+	}
+
+	// Given: old terminal orchestration rows (completed, failed,
+	// canceled), an old pending row, and a recent terminal row.
+	oldCompletedParent := createBuild(1, buildTime)
+	oldCompletedChild := createBuild(2, buildTime)
+	oldCompleted := insertOrchestration(oldCompletedParent, oldCompletedTime)
+	_, err := db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           oldCompleted.ID,
+		ChildBuildID: uuid.NullUUID{UUID: oldCompletedChild.ID, Valid: true},
+		UpdatedAt:    oldCompletedTime,
+	})
+	require.NoError(t, err)
+
+	oldFailedParent := createBuild(3, buildTime)
+	oldFailed := insertOrchestration(oldFailedParent, oldFailedTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationFailedByID(ctx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
+		ID:        oldFailed.ID,
+		Error:     sql.NullString{String: "failed", Valid: true},
+		UpdatedAt: oldFailedTime,
+	})
+	require.NoError(t, err)
+
+	oldCanceledParent := createBuild(4, buildTime)
+	oldCanceled := insertOrchestration(oldCanceledParent, oldCanceledTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams{
+		ID:        oldCanceled.ID,
+		UpdatedAt: oldCanceledTime,
+	})
+	require.NoError(t, err)
+
+	oldPendingParent := createBuild(5, buildTime)
+	oldPending := insertOrchestration(oldPendingParent, oldPendingTime)
+
+	recentCompletedParent := createBuild(6, buildTime)
+	recentCompletedChild := createBuild(7, buildTime)
+	recentCompleted := insertOrchestration(recentCompletedParent, recentTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           recentCompleted.ID,
+		ChildBuildID: uuid.NullUUID{UUID: recentCompletedChild.ID, Valid: true},
+		UpdatedAt:    recentTime,
+	})
+	require.NoError(t, err)
+
+	// When: old workspace build orchestrations are deleted with LimitCount 1
+	deleted, err := db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+		BeforeTime: cutoff,
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	// Then: only the oldest terminal row is deleted.
+	assertOrchestrationDeleted(ctx, t, rawDB, oldCompletedParent.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldFailedParent.ID, oldFailed.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldCanceledParent.ID, oldCanceled.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldPendingParent.ID, oldPending.ID)
+	assertOrchestrationExists(ctx, t, rawDB, recentCompletedParent.ID, recentCompleted.ID)
+
+	// When: old workspace build orchestrations are deleted again.
+	deleted, err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+		BeforeTime: cutoff,
+		LimitCount: 10,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, deleted)
+
+	// Then: the remaining old terminal rows are deleted.
+	assertOrchestrationDeleted(ctx, t, rawDB, oldFailedParent.ID)
+	assertOrchestrationDeleted(ctx, t, rawDB, oldCanceledParent.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldPendingParent.ID, oldPending.ID)
+	assertOrchestrationExists(ctx, t, rawDB, recentCompletedParent.ID, recentCompleted.ID)
+}
+
+func assertOrchestrationDeleted(ctx context.Context, t *testing.T, rawDB *sql.DB, parentBuildID uuid.UUID) {
+	t.Helper()
+
+	_, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuildID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func assertOrchestrationExists(ctx context.Context, t *testing.T, rawDB *sql.DB, parentBuildID uuid.UUID, orchestrationID uuid.UUID) {
+	t.Helper()
+
+	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuildID)
+	require.NoError(t, err)
+	require.Equal(t, orchestrationID, orchestration.ID)
 }
 
 func TestDeleteOldConnectionLogs(t *testing.T) {
@@ -1050,7 +1363,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1306,7 +1619,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1393,7 +1706,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1483,7 +1796,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, clk, prometheus.NewRegistry())
+		}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1508,6 +1821,268 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		// Non-connection event should be deleted.
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
+}
+
+func TestDeleteOldBoundaryLogs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	beforeThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 91 days ago (older than threshold, before the cutoff)
+	afterThreshold := now.Add(-15 * 24 * time.Hour)                   // 15 days ago (newer than threshold, after the cutoff)
+
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			oldLogTime:            beforeThreshold,
+			recentLogTime:         &afterThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+		{
+			name: "RetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Create the prerequisite rows (user, org, template, workspace,
+			// build, agent) needed to satisfy boundary_sessions foreign keys.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
+			})
+
+			// Create old boundary log.
+			oldLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+				SessionID:      session.ID,
+				OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
+				SequenceNumber: 0,
+				CapturedAt:     tc.oldLogTime,
+				CreatedAt:      tc.oldLogTime,
+			}})
+			oldLog := oldLogs[0]
+
+			// Create recent boundary log if specified.
+			var recentLog database.BoundaryLog
+			if tc.recentLogTime != nil {
+				recentLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+					SessionID:      session.ID,
+					OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
+					SequenceNumber: 1,
+					CapturedAt:     *tc.recentLogTime,
+					CreatedAt:      *tc.recentLogTime,
+				}})
+				recentLog = recentLogs[0]
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.ListBoundaryLogsBySessionID(ctx, database.ListBoundaryLogsBySessionIDParams{
+				SessionID: session.ID,
+				LimitOpt:  100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of boundary logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, l := range logs {
+				logIDs[i] = l.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old boundary log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old boundary log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent boundary log should be kept")
+			}
+		})
+	}
+}
+
+func TestDeleteOldBoundarySessions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	// oldTime is 91 days ago (past threshold).
+	oldTime := now.Add(-retentionPeriod).Add(-24 * time.Hour)
+	// recentTime is 15 days ago (within threshold).
+	recentTime := now.Add(-15 * 24 * time.Hour)
+
+	testCases := []struct {
+		name             string
+		retentionConfig  codersdk.RetentionConfig
+		sessionUpdatedAt time.Time
+		// logTime is the captured_at for the single log inserted with the session.
+		// Set to nil to create a session with no logs.
+		logTime              *time.Time
+		expectSessionDeleted bool
+	}{
+		{
+			name: "SessionDeletedWhenAllLogsExpired",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime, // log is old; will be purged first, leaving session empty
+			expectSessionDeleted: true,
+		},
+		{
+			name: "SessionKeptWhenRecentLogExists",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &recentTime, // recent log survives log purge, so session kept
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenUpdatedAtRecent",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     recentTime, // session itself is recent. NOT eligible for session purge
+			logTime:              nil,        // no logs; but updated_at guard keeps it
+			expectSessionDeleted: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Create the prerequisite rows needed to satisfy boundary_sessions FKs.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedAt:        tc.sessionUpdatedAt,
+			})
+
+			if tc.logTime != nil {
+				dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+					SessionID:      session.ID,
+					OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
+					SequenceNumber: 0,
+					CapturedAt:     *tc.logTime,
+					CreatedAt:      *tc.logTime,
+				}})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify session presence/absence.
+			_, err := db.GetBoundarySessionByID(ctx, session.ID)
+			if tc.expectSessionDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, "session should have been deleted")
+			} else {
+				require.NoError(t, err, "session should still exist")
+			}
+		})
+	}
 }
 
 func TestDeleteExpiredAPIKeys(t *testing.T) {
@@ -1603,7 +2178,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, clk, prometheus.NewRegistry())
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1633,63 +2208,1196 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	}
 }
 
-func TestDBPurgeAuthorization(t *testing.T) {
-	t.Parallel()
-
-	t.Run("DBPurgeActorCanCallPurgeOperations", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		rawDB, _ := dbtestutil.NewDB(t)
-
-		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db := dbauthz.New(rawDB, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
-
-		ctx = dbauthz.AsDBPurge(ctx)
-
-		actor, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok, "actor should be present")
-		require.Equal(t, rbac.SubjectTypeDBPurge, actor.Type, "should be DBPurge type")
-		require.Contains(t, actor.Roles.Names(), rbac.RoleIdentifier{Name: "dbpurge"},
-			"should have dbpurge role")
-
-		_, err := db.DeleteOldWorkspaceAgentLogs(ctx, time.Now().Add(-24*time.Hour))
-		require.NoError(t, err)
-
-		err = db.DeleteOldWorkspaceAgentStats(ctx)
-		require.NoError(t, err)
-
-		err = db.DeleteOldProvisionerDaemons(ctx)
-		require.NoError(t, err)
-
-		err = db.DeleteOldNotificationMessages(ctx)
-		require.NoError(t, err)
-
-		err = db.ExpirePrebuildsAPIKeys(ctx, time.Now().Add(-24*time.Hour))
-		require.NoError(t, err)
-
-		params := database.DeleteExpiredAPIKeysParams{
-			Before:     time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
-		}
-		_, err = db.DeleteExpiredAPIKeys(ctx, params)
-		require.NoError(t, err)
-
-		err = db.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
-			BeforeTime: time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
-		})
-		require.NoError(t, err)
-
-		_, err = db.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
-			BeforeTime: time.Now().Add(-24 * time.Hour),
-			LimitCount: 100,
-		})
-		require.NoError(t, err)
-	})
-}
-
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeChatDebugRuns(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	type chatDebugDeps struct {
+		user        database.User
+		org         database.Organization
+		modelConfig database.ChatModelConfig
+	}
+	// setupChatDebugDeps creates the user, organization, and chat model config dependencies needed for the chat debug retention test.
+	setupChatDebugDeps := func(t *testing.T, db database.Store) chatDebugDeps {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
+		})
+		return chatDebugDeps{user: user, org: org, modelConfig: modelConfig}
+	}
+	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, deps chatDebugDeps, archived bool, updatedAt time.Time) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    deps.org.ID,
+			OwnerID:           deps.user.ID,
+			LastModelConfigID: deps.modelConfig.ID,
+			Title:             "debug-retention-test-chat",
+		})
+		if archived {
+			_, err := db.ArchiveChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+		}
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	createDebugRunWithStep := func(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, updatedAt time.Time, finished bool) database.ChatDebugRun {
+		t.Helper()
+		run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+			ChatID:    chatID,
+			Kind:      string(codersdk.ChatDebugRunKindChatTurn),
+			Status:    string(codersdk.ChatDebugStatusInProgress),
+			Provider:  sql.NullString{String: "openai", Valid: true},
+			Model:     sql.NullString{String: "gpt-4o-mini", Valid: true},
+			StartedAt: sql.NullTime{Time: updatedAt.Add(-time.Minute), Valid: true},
+			UpdatedAt: sql.NullTime{Time: updatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+			RunID:      run.ID,
+			ChatID:     run.ChatID,
+			StepNumber: 1,
+			Operation:  string(codersdk.ChatDebugStepOperationStream),
+			Status:     string(codersdk.ChatDebugStatusCompleted),
+			StartedAt:  sql.NullTime{Time: updatedAt.Add(-time.Minute), Valid: true},
+			UpdatedAt:  sql.NullTime{Time: updatedAt, Valid: true},
+			FinishedAt: sql.NullTime{Time: updatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+		if finished {
+			run, err = db.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+				Status:     sql.NullString{String: string(codersdk.ChatDebugStatusCompleted), Valid: true},
+				FinishedAt: sql.NullTime{Time: updatedAt, Valid: true},
+				Now:        updatedAt,
+				ID:         run.ID,
+				ChatID:     run.ChatID,
+			})
+			require.NoError(t, err)
+		}
+		return run
+	}
+	countDebugSteps := func(ctx context.Context, t *testing.T, rawDB *sql.DB, runID uuid.UUID) int {
+		t.Helper()
+		var count int
+		err := rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_debug_steps WHERE run_id = $1", runID).Scan(&count)
+		require.NoError(t, err)
+		return count
+	}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "DeletesOldRunsAndCascadedSteps",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				reg := prometheus.NewRegistry()
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(7)))
+
+				chat := createChat(ctx, t, db, rawDB, deps, false, now)
+				oldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-8*24*time.Hour), true)
+				recentRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-6*24*time.Hour), true)
+				unfinishedOldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-9*24*time.Hour), false)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				chatDebugRuns := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+					"record_type": "chat_debug_runs",
+				})
+				require.Greater(t, chatDebugRuns, 0, "chat debug purge counter should record deleted runs")
+
+				_, err := db.GetChatDebugRunByID(ctx, oldRun.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old finished run should be deleted")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, oldRun.ID), "old run steps should cascade")
+
+				_, err = db.GetChatDebugRunByID(ctx, unfinishedOldRun.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old unfinished run should be deleted")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, unfinishedOldRun.ID), "old unfinished run steps should cascade")
+
+				_, err = db.GetChatDebugRunByID(ctx, recentRun.ID)
+				require.NoError(t, err, "recent run should remain")
+				require.Equal(t, 1, countDebugSteps(ctx, t, rawDB, recentRun.ID), "recent run step should remain")
+			},
+		},
+		{
+			name: "RetentionDisabledKeepsOldRuns",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
+
+				chat := createChat(ctx, t, db, rawDB, deps, false, now)
+				oldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-90*24*time.Hour), true)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err := db.GetChatDebugRunByID(ctx, oldRun.ID)
+				require.NoError(t, err, "old run should remain when retention is disabled")
+				require.Equal(t, 1, countDebugSteps(ctx, t, rawDB, oldRun.ID), "old run step should remain")
+			},
+		},
+		{
+			name: "ChatCascadeDeletesDebugRows",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
+
+				oldArchivedChat := createChat(ctx, t, db, rawDB, deps, true, now.Add(-31*24*time.Hour))
+				run := createDebugRunWithStep(ctx, t, db, oldArchivedChat.ID, now, true)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err := db.GetChatByID(ctx, oldArchivedChat.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
+				_, err = db.GetChatDebugRunByID(ctx, run.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "chat deletion should cascade to debug runs")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, run.ID), "chat deletion should cascade to debug steps")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { //nolint:paralleltest // subtests use LockIDDBPurge.
+			tt.run(t)
+		})
+	}
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteOldChatFiles(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	// createChatFile inserts a chat file and backdates created_at.
+	createChatFile := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, orgID uuid.UUID, createdAt time.Time) uuid.UUID {
+		t.Helper()
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			Name:           "test.png",
+			Mimetype:       "image/png",
+			Data:           []byte("fake-image-data"),
+		})
+		require.NoError(t, err)
+		_, err = rawDB.ExecContext(ctx, "UPDATE chat_files SET created_at = $1 WHERE id = $2", createdAt, row.ID)
+		require.NoError(t, err)
+		return row.ID
+	}
+
+	// createChat inserts a chat and optionally archives it, then
+	// backdates updated_at to control the "archived since" window.
+	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, orgID, modelConfigID uuid.UUID, archived bool, updatedAt time.Time) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "test-chat",
+		})
+		if archived {
+			_, err := db.ArchiveChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+		}
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	// setupChatDeps creates the common dependencies needed for
+	// chat-related tests: user, org, org member, provider, model config.
+	type chatDeps struct {
+		user        database.User
+		org         database.Organization
+		modelConfig database.ChatModelConfig
+	}
+	setupChatDeps := func(t *testing.T, db database.Store) chatDeps {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
+		})
+		return chatDeps{user: user, org: org, modelConfig: mc}
+	}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "ChatRetentionDisabled",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(t, db)
+
+				// Disable retention.
+				err := db.UpsertChatRetentionDays(ctx, int32(0))
+				require.NoError(t, err)
+
+				// Create an old archived chat and an orphaned old file.
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Both should still exist.
+				_, err = db.GetChatByID(ctx, oldChat.ID)
+				require.NoError(t, err, "chat should not be deleted when retention is disabled")
+				_, err = db.GetChatFileByID(ctx, oldFileID)
+				require.NoError(t, err, "chat file should not be deleted when retention is disabled")
+			},
+		},
+		{
+			name: "OldArchivedChatsDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				// Old archived chat (31 days) — should be deleted.
+				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				// Insert a message so we can verify CASCADE.
+				_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+					ChatID:        oldChat.ID,
+					CreatedBy:     uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+					ModelConfigID: uuid.NullUUID{UUID: deps.modelConfig.ID, Valid: true},
+					Role:          database.ChatMessageRoleUser,
+				})
+
+				// Recently archived chat (10 days) — should be retained.
+				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+
+				// Active chat — should be retained.
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Old archived chat should be gone.
+				_, err = db.GetChatByID(ctx, oldChat.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
+
+				// Its messages should be gone too (CASCADE).
+				msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+					ChatID:  oldChat.ID,
+					AfterID: 0,
+				})
+				require.NoError(t, err)
+				require.Empty(t, msgs, "messages should be cascade-deleted")
+
+				// Recent archived and active chats should remain.
+				_, err = db.GetChatByID(ctx, recentChat.ID)
+				require.NoError(t, err, "recently archived chat should be retained")
+				_, err = db.GetChatByID(ctx, activeChat.ID)
+				require.NoError(t, err, "active chat should be retained")
+			},
+		},
+		{
+			name: "OrphanedOldFilesDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				// File A: 31 days old, NOT in any chat -> should be deleted.
+				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+
+				// File B: 31 days old, in an active chat -> should be retained.
+				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       activeChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileB},
+				})
+				require.NoError(t, err)
+
+				// File C: 10 days old, NOT in any chat -> should be retained (too young).
+				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-10*24*time.Hour))
+
+				// File near boundary: 29d23h old — close to threshold.
+				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err = db.GetChatFileByID(ctx, fileA)
+				require.Error(t, err, "orphaned old file A should be deleted")
+
+				_, err = db.GetChatFileByID(ctx, fileB)
+				require.NoError(t, err, "file B in active chat should be retained")
+
+				_, err = db.GetChatFileByID(ctx, fileC)
+				require.NoError(t, err, "young file C should be retained")
+
+				_, err = db.GetChatFileByID(ctx, fileBoundary)
+				require.NoError(t, err, "file near 30d boundary should be retained")
+			},
+		},
+		{
+			name: "LinkedFileRetainedWhileChatExists",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				fileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				_, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileID},
+				})
+				require.NoError(t, err)
+
+				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 100,
+				})
+				require.NoError(t, err)
+				require.Zero(t, deleted)
+
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.NoError(t, err)
+				_, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", chat.ID)
+				require.NoError(t, err)
+				deleted, err = db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 100,
+				})
+				require.NoError(t, err)
+				require.EqualValues(t, 1, deleted)
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			},
+		},
+		{
+			name: "DeleteCandidatesRecheckLinks",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				fileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+
+				var candidateIDs []uuid.UUID
+				err := db.InTx(func(tx database.Store) error {
+					var err error
+					candidateIDs, err = tx.GetOldUnlinkedChatFileIDs(ctx, database.GetOldUnlinkedChatFileIDsParams{
+						BeforeTime: now.Add(-30 * 24 * time.Hour),
+						LimitCount: 100,
+					})
+					return err
+				}, database.DefaultTXOptions())
+				require.NoError(t, err)
+				require.Equal(t, []uuid.UUID{fileID}, candidateIDs)
+
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileID},
+				})
+				require.NoError(t, err)
+
+				deleted, err := db.DeleteUnlinkedChatFilesByIDs(ctx, database.DeleteUnlinkedChatFilesByIDsParams{
+					IDs:        candidateIDs,
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+				})
+				require.NoError(t, err)
+				require.Zero(t, deleted)
+
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ConcurrentLinkRetainsFile",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				fileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+
+				linkTx := dbtestutil.StartTx(t, db, database.DefaultTXOptions())
+				linkCommitted := false
+				t.Cleanup(func() {
+					if !linkCommitted {
+						_ = linkTx.Done()
+					}
+				})
+				_, err := linkTx.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileID},
+				})
+				require.NoError(t, err)
+
+				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 100,
+				})
+				require.NoError(t, err)
+				require.Zero(t, deleted)
+
+				commitErr := linkTx.Done()
+				linkCommitted = true
+				require.NoError(t, commitErr)
+
+				_, err = db.GetChatFileByID(ctx, fileID)
+				require.NoError(t, err)
+				files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Len(t, files, 1)
+				require.Equal(t, fileID, files[0].ID)
+			},
+		},
+		{
+			name: "ArchivedChatFilesDeleted",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(t, db)
+
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
+				require.NoError(t, err)
+
+				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       oldArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileD},
+				})
+				require.NoError(t, err)
+				// LinkChatFiles does not update chats.updated_at, so backdate.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
+					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
+				require.NoError(t, err)
+
+				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       recentArchivedChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileE},
+				})
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
+					now.Add(-10*24*time.Hour), recentArchivedChat.ID)
+				require.NoError(t, err)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err = db.GetChatFileByID(ctx, fileD)
+				require.Error(t, err, "file D in old archived chat should be deleted")
+
+				_, err = db.GetChatFileByID(ctx, fileE)
+				require.NoError(t, err, "file E in recently archived chat should be retained")
+			},
+		},
+		{
+			name: "DirectFileDeletionCascadesLinks",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				// Create a chat with three attached files.
+				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+				_, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       chat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{fileA, fileB, fileC},
+				})
+				require.NoError(t, err)
+
+				// Archive the chat.
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
+				require.NoError(t, err)
+
+				// Unarchive the chat.
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				// Only file C should remain linked (FK cascade
+				// removed the links for deleted files A and B).
+				files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Len(t, files, 1, "only surviving file should be linked")
+				require.Equal(t, fileC, files[0].ID)
+
+				// Edge case: delete the last file too. The chat
+				// should have zero linked files, not an error.
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = $1", fileC)
+				require.NoError(t, err)
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				files, err = db.GetChatFileMetadataByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Empty(t, files, "all-files-deleted should yield empty result")
+
+				// Test parent+child cascade: deleting files should
+				// clean up links for both parent and child chats
+				// independently via FK cascade.
+				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
+				childChat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    deps.org.ID,
+					OwnerID:           deps.user.ID,
+					LastModelConfigID: deps.modelConfig.ID,
+					RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+					Title:             "child-chat",
+				})
+
+				// Attach different files to parent and child.
+				parentFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				parentFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       parentChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{parentFileKeep, parentFileStale},
+				})
+				require.NoError(t, err)
+				_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       childChat.ID,
+					MaxFileLinks: 100,
+					FileIds:      []uuid.UUID{childFileKeep, childFileStale},
+				})
+				require.NoError(t, err)
+
+				// Archive via parent (cascades to child).
+				_, err = db.ArchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				// Delete one file from each chat.
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)",
+					pq.Array([]uuid.UUID{parentFileStale, childFileStale}))
+				require.NoError(t, err)
+
+				// Unarchive via parent.
+				_, err = db.UnarchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parentChat.ID)
+				require.NoError(t, err)
+				require.Len(t, parentFiles, 1)
+				require.Equal(t, parentFileKeep, parentFiles[0].ID,
+					"parent should retain only non-stale file")
+
+				childFiles, err := db.GetChatFileMetadataByChatID(ctx, childChat.ID)
+				require.NoError(t, err)
+				require.Len(t, childFiles, 1)
+				require.Equal(t, childFileKeep, childFiles[0].ID,
+					"child should retain only non-stale file")
+			},
+		},
+		{
+			name: "BatchLimitFiles",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				// Create 3 deletable orphaned files (all 31 days old).
+				for range 3 {
+					createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				}
+
+				// Delete with limit 2 — should delete 2, leave 1.
+				deleted, err := db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(2), deleted, "should delete exactly 2 files")
+
+				// Delete again — should delete the remaining 1.
+				deleted, err = db.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), deleted, "should delete remaining 1 file")
+			},
+		},
+		{
+			name: "BatchLimitChats",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(t, db)
+
+				// Create 3 deletable old archived chats.
+				for range 3 {
+					createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				}
+
+				// Delete with limit 2 — should delete 2, leave 1.
+				deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(2), deleted, "should delete exactly 2 chats")
+
+				// Delete again — should delete the remaining 1.
+				deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), deleted, "should delete remaining 1 chat")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
+	}
+}
+
+func awaitDoTicks(ctx context.Context, t *testing.T, clk *quartz.Mock, n int) func() {
+	t.Helper()
+	completed := make(chan struct{})
+	advance := make(chan struct{})
+	trapNow := clk.Trap().Now()
+	trapStop := clk.Trap().TickerStop()
+	trapReset := clk.Trap().TickerReset()
+	go func() {
+		defer close(completed)
+		defer trapReset.Close()
+		defer trapStop.Close()
+		defer trapNow.Close()
+		trapNow.MustWait(ctx).MustRelease(ctx)
+		trapReset.MustWait(ctx).MustRelease(ctx)
+		select {
+		case completed <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
+		for i := 1; i < n; i++ {
+			select {
+			case <-advance:
+			case <-ctx.Done():
+				return
+			}
+			d, w := clk.AdvanceNext()
+			if !assert.Equal(t, 10*time.Minute, d) {
+				return
+			}
+			w.MustWait(ctx)
+			trapStop.MustWait(ctx).MustRelease(ctx)
+			trapReset.MustWait(ctx).MustRelease(ctx)
+			select {
+			case completed <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	first := true
+	return func() {
+		t.Helper()
+		if !first {
+			testutil.RequireSend(ctx, t, advance, struct{}{})
+		}
+		first = false
+		testutil.TryReceive(ctx, t, completed)
+	}
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestBackfillChatMessagesSearchTsv(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	type chatSearchDeps struct {
+		user        database.User
+		modelConfig database.ChatModelConfig
+		chat        database.Chat
+	}
+	setupDeps := func(t *testing.T, db database.Store) chatSearchDeps {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
+		})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "search-backfill-test-chat",
+		})
+		return chatSearchDeps{user: user, modelConfig: modelConfig, chat: chat}
+	}
+	textContent := func(text string) pqtype.NullRawMessage {
+		return pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(fmt.Sprintf(`[{"type":"text","text":%q}]`, text)),
+			Valid:      true,
+		}
+	}
+	createMessage := func(t *testing.T, db database.Store, deps chatSearchDeps, role database.ChatMessageRole, visibility database.ChatMessageVisibility, content pqtype.NullRawMessage) database.ChatMessage {
+		t.Helper()
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        deps.chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: deps.modelConfig.ID, Valid: true},
+			Role:          role,
+			Visibility:    visibility,
+			Content:       content,
+		})
+	}
+	softDelete := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64) {
+		t.Helper()
+		_, err := rawDB.ExecContext(ctx, "UPDATE chat_messages SET deleted = true WHERE id = $1", id)
+		require.NoError(t, err)
+	}
+	// The WHERE clause below must match the predicate of idx_chat_messages_search_tsv_pending.
+	countPending := func(ctx context.Context, t *testing.T, rawDB *sql.DB) int {
+		t.Helper()
+		var count int
+		err := rawDB.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM chat_messages
+			WHERE search_tsv IS NULL
+			  AND deleted = false
+			  AND visibility IN ('user', 'both')
+			  AND role IN ('user', 'assistant')`).Scan(&count)
+		require.NoError(t, err)
+		return count
+	}
+	searchTsv := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64) (isNull bool, text string) {
+		t.Helper()
+		err := rawDB.QueryRowContext(ctx,
+			"SELECT search_tsv IS NULL, COALESCE(search_tsv::text, '') FROM chat_messages WHERE id = $1", id).
+			Scan(&isNull, &text)
+		require.NoError(t, err)
+		return isNull, text
+	}
+	requireBackfilled := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, msg string) {
+		t.Helper()
+		isNull, _ := searchTsv(ctx, t, rawDB, id)
+		require.False(t, isNull, msg)
+	}
+	// Asserts the row's tsvector matches expectedText and that the sweep
+	// stamped the config that produced it.
+	requireTsvFor := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, expectedText string) {
+		t.Helper()
+		var matches bool
+		var config sql.NullString
+		err := rawDB.QueryRowContext(ctx,
+			"SELECT search_tsv = to_tsvector('english', $2::text), search_tsv_config FROM chat_messages WHERE id = $1", id, expectedText).
+			Scan(&matches, &config)
+		require.NoError(t, err)
+		require.True(t, matches, "search_tsv should contain the lexemes of %q", expectedText)
+		require.Equal(t, sql.NullString{String: "english", Valid: true}, config,
+			"backfilled rows must record the config that produced the vector")
+	}
+	requireNotBackfilled := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, msg string) {
+		t.Helper()
+		isNull, _ := searchTsv(ctx, t, rawDB, id)
+		require.True(t, isNull, msg)
+	}
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("DrainConverges", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		eligibleBoth := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("hello world"))
+		eligibleUserVis := createMessage(t, db, deps, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, textContent("assistant reply"))
+		eligibleNoText := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, pqtype.NullRawMessage{RawMessage: json.RawMessage(`[]`), Valid: true})
+		toolMsg := createMessage(t, db, deps, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, textContent("tool output"))
+		modelOnlyMsg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, textContent("model only"))
+		deletedMsg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("deleted message"))
+		softDelete(ctx, t, rawDB, deletedMsg.ID)
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+
+		require.Zero(t, countPending(ctx, t, rawDB), "queue should be drained")
+		requireTsvFor(ctx, t, rawDB, eligibleBoth.ID, "hello world")
+		requireTsvFor(ctx, t, rawDB, eligibleUserVis.ID, "assistant reply")
+		requireBackfilled(ctx, t, rawDB, eligibleNoText.ID, "eligible message with no text should be backfilled (sentinel)")
+		requireNotBackfilled(ctx, t, rawDB, toolMsg.ID, "tool message should never be backfilled")
+		requireNotBackfilled(ctx, t, rawDB, modelOnlyMsg.ID, "model-only message should never be backfilled")
+		requireNotBackfilled(ctx, t, rawDB, deletedMsg.ID, "deleted message should never be backfilled")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("BackfillsNewestFirst", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		var ids []int64
+		for i := range 5 {
+			msg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent(fmt.Sprintf("message %d", i)))
+			ids = append(ids, msg.ID)
+		}
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(),
+			dbpurge.WithClock(clk), dbpurge.WithChatSearchBackfillLimits(2, 1))
+		defer closer.Close()
+		tick()
+
+		slices.Sort(ids)
+		requireBackfilled(ctx, t, rawDB, ids[4], "newest message should be backfilled first")
+		requireBackfilled(ctx, t, rawDB, ids[3], "second-newest message should be backfilled first")
+		for _, id := range ids[:3] {
+			requireNotBackfilled(ctx, t, rawDB, id, "older messages should remain pending after one batch")
+		}
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("NoTextSentinel", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		emptyArr := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, pqtype.NullRawMessage{RawMessage: json.RawMessage(`[]`), Valid: true})
+		noTextParts := createMessage(t, db, deps, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"tool_call","id":"x"}]`), Valid: true})
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+
+		for _, id := range []int64{emptyArr.ID, noTextParts.ID} {
+			isNull, text := searchTsv(ctx, t, rawDB, id)
+			require.False(t, isNull, "no-text row should get the empty-tsvector sentinel, not stay NULL")
+			require.Empty(t, text, "no-text row should have an empty tsvector")
+		}
+		require.Zero(t, countPending(ctx, t, rawDB), "sentinel rows should not reappear as pending")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("PerTickBound", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		for i := range 6 {
+			createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent(fmt.Sprintf("message %d", i)))
+		}
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(),
+			dbpurge.WithClock(clk), dbpurge.WithChatSearchBackfillLimits(2, 2))
+		defer closer.Close()
+
+		tick()
+		require.Equal(t, 2, countPending(ctx, t, rawDB), "one tick backfills at most maxBatches*batchSize rows")
+
+		tick()
+		require.Zero(t, countPending(ctx, t, rawDB), "next tick continues draining")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("SkipsDeletedRows", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		msg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("soft deleted before backfill"))
+		softDelete(ctx, t, rawDB, msg.ID)
+		require.Zero(t, countPending(ctx, t, rawDB), "deleted rows should not appear as pending")
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+
+		requireNotBackfilled(ctx, t, rawDB, msg.ID, "deleted row should never be backfilled")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("BackfillsNewMessagesAfterDrain", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		initial := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("initial message"))
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+
+		tick()
+		requireBackfilled(ctx, t, rawDB, initial.ID, "initial message should be backfilled")
+		require.Zero(t, countPending(ctx, t, rawDB))
+
+		fresh := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("post drain message"))
+		tick()
+		requireBackfilled(ctx, t, rawDB, fresh.ID, "message inserted after drain should be backfilled on the next tick")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("ReindexesStaleConfigVectors", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		countStale := func() int {
+			var count int
+			err := rawDB.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM chat_messages
+				WHERE search_tsv IS NOT NULL
+				  AND search_tsv_config IS DISTINCT FROM 'english'
+				  AND deleted = false
+				  AND visibility IN ('user', 'both')
+				  AND role IN ('user', 'assistant')`).Scan(&count)
+			require.NoError(t, err)
+			return count
+		}
+		makeStale := func(id int64) {
+			// Simulates a vector produced before the 'english' switch or by
+			// a binary that predates search_tsv_config (e.g. an old replica
+			// winning the dbpurge lock mid rolling upgrade).
+			_, err := rawDB.ExecContext(ctx, `
+				UPDATE chat_messages
+				SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+				    search_tsv_config = NULL
+				WHERE id = $1`, id)
+			require.NoError(t, err)
+		}
+
+		preexisting := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+		makeStale(preexisting.ID)
+		require.Equal(t, 1, countStale())
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+
+		// The first tick rewrites the stale backlog with 'english' and
+		// latches off the stale scan for the process lifetime.
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+
+		// A stale row appearing after the latch (old replica racing the
+		// tail of a rolling upgrade) is intentionally not rewritten by
+		// this process; it stays correctly searchable via its recorded
+		// config until a restart re-runs one stale pass.
+		makeStale(preexisting.ID)
+		tick()
+		require.Equal(t, 1, countStale(), "stale scan must stay latched off after drain")
+		require.NoError(t, closer.Close())
+
+		// A new dbpurge instance (process restart) re-runs one stale pass
+		// and repairs the row.
+		tick = awaitDoTicks(ctx, t, clk, 1)
+		closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("SteadyStateNoop", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		_ = setupDeps(t, db)
+		reg := prometheus.NewRegistry()
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+
+		require.Zero(t, countPending(ctx, t, rawDB))
+		backfilled := promhelp.CounterValue(t, reg, "coderd_dbpurge_chat_search_rows_backfilled_total", nil)
+		require.Zero(t, backfilled, "empty queue should backfill zero rows")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("MetricsCountsBackfilledRows", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, _ := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+		reg := prometheus.NewRegistry()
+
+		for i := range 3 {
+			createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent(fmt.Sprintf("message %d", i)))
+		}
+		createMessage(t, db, deps, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, textContent("tool output"))
+
+		tick := awaitDoTicks(ctx, t, clk, 1)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+
+		backfilled := promhelp.CounterValue(t, reg, "coderd_dbpurge_chat_search_rows_backfilled_total", nil)
+		require.Equal(t, 3, backfilled, "counter should count exactly the eligible backfilled rows")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("SkippedWhenLockHeld", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		clk := quartz.NewMock(t)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
+		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+	})
 }

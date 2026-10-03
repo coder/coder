@@ -1,230 +1,95 @@
 # Coder Development Guidelines
 
-You are an experienced, pragmatic software engineer. You don't over-engineer a solution when a simple one is possible.
-Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permission first. BREAKING THE LETTER OR SPIRIT OF THE RULES IS FAILURE.
-
-## Foundational rules
-
-- Doing it right is better than doing it fast. You are not in a rush. NEVER skip steps or take shortcuts.
-- Tedious, systematic work is often the correct solution. Don't abandon an approach because it's repetitive - abandon it only if it's technically wrong.
-- Honesty is a core value.
-
-## Our relationship
-
-- Act as a critical peer reviewer. Your job is to disagree with me when I'm wrong, not to please me. Prioritize accuracy and reasoning over agreement.
-- YOU MUST speak up immediately when you don't know something or we're in over our heads
-- YOU MUST call out bad ideas, unreasonable expectations, and mistakes - I depend on this
-- NEVER be agreeable just to be nice - I NEED your HONEST technical judgment
-- NEVER write the phrase "You're absolutely right!"  You are not a sycophant. We're working together because I value your opinion. Do not agree with me unless you can justify it with evidence or reasoning.
-- YOU MUST ALWAYS STOP and ask for clarification rather than making assumptions.
-- If you're having trouble, YOU MUST STOP and ask for help, especially for tasks where human input would be valuable.
-- When you disagree with my approach, YOU MUST push back. Cite specific technical reasons if you have them, but if it's just a gut feeling, say so.
-- If you're uncomfortable pushing back out loud, just say "Houston, we have a problem". I'll know what you mean
-- We discuss architectutral decisions (framework changes, major refactoring, system design) together before implementation. Routine fixes and clear implementations don't need discussion.
-
-## Proactiveness
-
-When asked to do something, just do it - including obvious follow-up actions needed to complete the task properly.
-Only pause to ask for confirmation when:
-
-- Multiple valid approaches exist and the choice matters
-- The action would delete or significantly restructure existing code
-- You genuinely don't understand what's being asked
-- Your partner asked a question (answer the question, don't jump to implementation)
-
-@.claude/docs/WORKFLOWS.md
-@package.json
-
-## Essential Commands
-
-| Task              | Command                  | Notes                            |
-|-------------------|--------------------------|----------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build        |
-| **Build**         | `make build`             | Fat binaries (includes server)   |
-| **Build Slim**    | `make build-slim`        | Slim binaries                    |
-| **Test**          | `make test`              | Full test suite                  |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite           |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector  |
-| **Lint**          | `make lint`              | Always run after changes         |
-| **Generate**      | `make gen`               | After database changes           |
-| **Format**        | `make fmt`               | Auto-format code                 |
-| **Clean**         | `make clean`             | Clean build artifacts            |
-
-### Documentation Commands
-
-- `pnpm run format-docs` - Format markdown tables in docs
-- `pnpm run lint-docs` - Lint and fix markdown files
-- `pnpm run storybook` - Run Storybook (from site directory)
-
-## Critical Patterns
-
-### Database Changes (ALWAYS FOLLOW)
-
-1. Modify `coderd/database/queries/*.sql` files
-2. Run `make gen`
-3. If audit errors: update `enterprise/audit/table.go`
-4. Run `make gen` again
-
-### LSP Navigation (USE FIRST)
-
-#### Go LSP (for backend code)
-
-- **Find definitions**: `mcp__go-language-server__definition symbolName`
-- **Find references**: `mcp__go-language-server__references symbolName`
-- **Get type info**: `mcp__go-language-server__hover filePath line column`
-- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
-
-#### TypeScript LSP (for frontend code in site/)
-
-- **Find definitions**: `mcp__typescript-language-server__definition symbolName`
-- **Find references**: `mcp__typescript-language-server__references symbolName`
-- **Get type info**: `mcp__typescript-language-server__hover filePath line column`
-- **Rename symbol**: `mcp__typescript-language-server__rename_symbol filePath line column newName`
-
-### OAuth2 Error Handling
-
-```go
-// OAuth2-compliant error responses
-writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "description")
-```
-
-### Authorization Context
-
-```go
-// Public endpoints needing system access
-app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
-
-// Authenticated endpoints with user context
-app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
-```
-
-## Quick Reference
-
-### Full workflows available in imported WORKFLOWS.md
-
-### Git Workflow
-
-When working on existing PRs, check out the branch first:
-
-```sh
-git fetch origin
-git checkout branch-name
-git pull origin branch-name
-```
-
-Don't use `git push --force` unless explicitly requested.
-
-### New Feature Checklist
-
-- [ ] Run `git pull` to ensure latest code
-- [ ] Check if feature touches database - you'll need migrations
-- [ ] Check if feature touches audit logs - update `enterprise/audit/table.go`
-
-## Architecture
-
-- **coderd**: Main API service
-- **provisionerd**: Infrastructure provisioning
-- **Agents**: Workspace services (SSH, port forwarding)
-- **Database**: PostgreSQL with `dbauthz` authorization
-
-## Testing
-
-### Race Condition Prevention
-
-- Use unique identifiers: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
-- Never use hardcoded names in concurrent tests
-
-### OAuth2 Testing
-
-- Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
-- Manual testing: `./scripts/oauth2/test-manual-flow.sh`
-
-### Timing Issues
-
-NEVER use `time.Sleep` to mitigate timing issues. If an issue
-seems like it should use `time.Sleep`, read through https://github.com/coder/quartz and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
-
-## Code Style
-
-### Detailed guidelines in imported WORKFLOWS.md
-
-- Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
-- Commit format: `type(scope): message`
-
-### Writing Comments
-
-Code comments should be clear, well-formatted, and add meaningful context.
-
-**Proper sentence structure**: Comments are sentences and should end with
-periods or other appropriate punctuation. This improves readability and
-maintains professional code standards.
-
-**Explain why, not what**: Good comments explain the reasoning behind code
-rather than describing what the code does. The code itself should be
-self-documenting through clear naming and structure. Focus your comments on
-non-obvious decisions, edge cases, or business logic that isn't immediately
-apparent from reading the implementation.
-
-**Line length and wrapping**: Keep comment lines to 80 characters wide
-(including the comment prefix like `//` or `#`). When a comment spans multiple
-lines, wrap it naturally at word boundaries rather than writing one sentence
-per line. This creates more readable, paragraph-like blocks of documentation.
-
-```go
-// Good: Explains the rationale with proper sentence structure.
-// We need a custom timeout here because workspace builds can take several
-// minutes on slow networks, and the default 30s timeout causes false
-// failures during initial template imports.
-ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-
-// Bad: Describes what the code does without punctuation or wrapping
-// Set a custom timeout
-// Workspace builds can take a long time
-// Default timeout is too short
-ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-```
-
-### Avoid Unnecessary Changes
-
-When fixing a bug or adding a feature, don't modify code unrelated to your
-task. Unnecessary changes make PRs harder to review and can introduce
-regressions.
-
-**Don't reword existing comments or code** unless the change is directly
-motivated by your task. Rewording comments to be shorter or "cleaner" wastes
-reviewer time and clutters the diff.
-
-**Don't delete existing comments** that explain non-obvious behavior. These
-comments preserve important context about why code works a certain way.
-
-**When adding tests for new behavior**, add new test cases instead of modifying
-existing ones. This preserves coverage for the original behavior and makes it
-clear what the new test covers.
-
-## Detailed Development Guides
-
-@.claude/docs/ARCHITECTURE.md
-@.claude/docs/OAUTH2.md
-@.claude/docs/TESTING.md
-@.claude/docs/TROUBLESHOOTING.md
-@.claude/docs/DATABASE.md
-@.claude/docs/PR_STYLE_GUIDE.md
-@.claude/docs/DOCS_STYLE_GUIDE.md
-
-## Local Configuration
-
-These files may be gitignored, read manually if not auto-loaded.
-
-@AGENTS.local.md
-
-## Common Pitfalls
-
-1. **Audit table errors** → Update `enterprise/audit/table.go`
-2. **OAuth2 errors** → Return RFC-compliant format
-3. **Race conditions** → Use unique test identifiers
-4. **Missing newlines** → Ensure files end with newline
-
----
-
-*This file stays lean and actionable. Detailed workflows and explanations are imported automatically.*
+Make the smallest correct change, follow existing patterns, and verify the result. Carry the requested task through implementation, verification, and necessary follow-up until it is complete or blocked by information or access you cannot obtain. Do not stop at a plan, partial fix, or offer to continue when the user requested completed work.
+
+Prioritize correctness over agreement. State uncertainty instead of guessing, and push back on technically unsound requests with evidence.
+
+## Autonomy and clarification
+
+- Resolve routine ambiguity by inspecting relevant code, tests, documentation, and history. Make reasonable, reversible assumptions consistent with the user's intent and existing patterns; state consequential assumptions and continue working.
+- Ask only when essential information cannot be recovered from available context and would materially change the result, or when a destructive or irreversible action requires authorization the user has not already provided. Reuse authorization from the conversation instead of asking again for the same action.
+- If clarification or approval is required, continue authorized work that does not depend on the answer. Explain the specific blocker and what you have already investigated.
+- Apply repository guidance within its stated scope and honor explicit user instructions. Do not turn optional recommendations or routine implementation choices into approval requirements.
+
+## Task-specific guidance
+
+Load only the guidance relevant to the task:
+
+| Scope                                               | Guidance                                                |
+|-----------------------------------------------------|---------------------------------------------------------|
+| Development servers, Git, hooks, and routine checks | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
+| API endpoints and Swagger                           | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
+| Go                                                  | [GO.md](.claude/docs/GO.md)                             |
+| Tests and concurrency                               | [TESTING.md](.claude/docs/TESTING.md)                   |
+| Database and SQLC                                   | [DATABASE.md](.claude/docs/DATABASE.md)                 |
+| OAuth2 and authorization                            | [OAUTH2.md](.claude/docs/OAUTH2.md)                     |
+| Architecture                                        | [ARCHITECTURE.md](.claude/docs/ARCHITECTURE.md)         |
+| Troubleshooting                                     | [TROUBLESHOOTING.md](.claude/docs/TROUBLESHOOTING.md)   |
+| Observability                                       | [OBSERVABILITY.md](.claude/docs/OBSERVABILITY.md)       |
+| Isolation, ports, and cleanup                       | [DEV_ISOLATION.md](.claude/docs/DEV_ISOLATION.md)       |
+| Failure reports                                     | [AGENT_FAILURES.md](.claude/docs/AGENT_FAILURES.md)     |
+| PR descriptions                                     | [PR_STYLE_GUIDE.md](.claude/docs/PR_STYLE_GUIDE.md)     |
+| Existing docs prose                                 | [docs style guide](docs/.style/style-guide/README.md)   |
+| Docs scope and routing                              | [content guidelines](docs/.style/content-guidelines.md) |
+| Docs structure and research                         | [DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md) |
+| New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
+| Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
+
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
+
+## Workflow
+
+- Inspect the working tree before editing. For an existing PR, check out its branch first.
+- Follow existing architecture for routine decisions. For requested architectural work, investigate options, choose a reasonable approach, and explain the tradeoffs while proceeding. Ask before introducing major architectural changes outside the requested scope.
+- Answer informational questions directly. Requests to implement, fix, or investigate authorize that work even when phrased as a question.
+- Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
+- Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
+- Do not force-push unless explicitly requested.
+- Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
+- Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.
+
+## Essential commands
+
+| Task              | Command                  |
+|-------------------|--------------------------|
+| Develop           | `./scripts/develop.sh`   |
+| Build             | `make build`             |
+| Build slim        | `make build-slim`        |
+| Test              | `make test`              |
+| Test one          | `make test RUN=TestName` |
+| Race test         | `make test-race`         |
+| Lint              | `make lint`              |
+| Generate          | `make gen`               |
+| Format            | `make fmt`               |
+| Pre-commit checks | `make pre-commit`        |
+| Pre-push checks   | `make pre-push`          |
+
+Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live in `site/AGENTS.md`.
+
+## Repository guardrails
+
+- **Database changes:** edit `coderd/database/queries/*.sql`, run `make gen`, update `enterprise/audit/table.go` for audit errors, then run `make gen` again.
+- **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
+- **OAuth2:** return RFC-compliant errors with `httpapi.WriteOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
+- **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
+  - When you review a PR, treat changes to that document as the owner's work. TODOs are notes for the author, so flag any that the PR adds to the architecture document.
+- **Public API:** add the required Swagger annotations for new public HTTP endpoints.
+- **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
+- **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
+- **Frontend:** reuse shared UI primitives. Prefer Vitest and `userEvent` tests that assert the non-visual outcome of the interaction (callback, request, state); extend existing coverage instead of adding a new test when equivalent coverage already exists. Use Storybook stories only for visual components that should be covered by the visual regression tool, which Pixel screenshots in CI.
+- **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
+
+## Code and writing style
+
+- Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) for Go code.
+- Use language-server navigation when available.
+- Name code for what it does, not its implementation or history. Wrap errors with context.
+- Document exported symbols with idiomatic Go doc comments or JSDoc.
+- Avoid unrelated edits. Preserve comments that explain non-obvious behavior.
+- Comments must be concise and substantive. Explain behavior, constraints, or rationale, not the history of the edit.
+- Do not use em dashes, en dashes, or spaced double hyphens as punctuation in code, comments, strings, or documentation.
+- Ensure files end with a newline.
+
+## Local configuration
+
+Read `AGENTS.local.md` when present. It may be gitignored and is not imported automatically.

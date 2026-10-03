@@ -2,8 +2,10 @@ package provisionerdserver_test
 
 import (
 	"context"
+	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -15,21 +17,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -46,10 +54,9 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/usage"
-	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -57,6 +64,175 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
+
+// TestTokenIsRefreshedEarly creates a fake OIDC IDP that sets expiration times
+// of the token to values that are "near expiration". Expiration being 10minutes
+// earlier than it needs to be. The `ObtainOIDCAccessToken` should refresh these
+// tokens early.
+func TestTokenIsRefreshedEarly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithCoderd", func(t *testing.T) {
+		t.Parallel()
+		tokenRefreshCount := 0
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+			oidctest.WithDefaultExpire(time.Minute*8),
+			oidctest.WithRefresh(func(email string) error {
+				tokenRefreshCount++
+				return nil
+			}),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		db, ps := dbtestutil.NewDB(t)
+		owner := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig:               cfg,
+			IncludeProvisionerDaemon: true,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		first := coderdtest.CreateFirstUser(t, owner)
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		// Setup an OIDC user.
+		client, _ := fake.Login(t, owner, jwt.MapClaims{
+			"email":          "user@unauthorized.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		})
+
+		// Creating a workspace should refresh the oidc early.
+		tokenRefreshCount = 0
+		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+		require.Equal(t, 1, tokenRefreshCount)
+	})
+}
+
+//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
+func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
+	t.Parallel()
+	tokenRefreshCount := 0
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithServing(),
+		oidctest.WithDefaultExpire(time.Minute*8),
+		oidctest.WithRefresh(func(email string) error {
+			tokenRefreshCount++
+			return nil
+		}),
+	)
+	cfg := fake.OIDCConfig(t, nil)
+
+	// Fetch a valid token from the fake OIDC provider
+	token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
+		"email":          "user@unauthorized.com",
+		"email_verified": true,
+		"sub":            uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.UserLink(t, db, database.UserLink{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeOIDC,
+		LinkedID:          "foo",
+		OAuthAccessToken:  token.AccessToken,
+		OAuthRefreshToken: token.RefreshToken,
+		// The oauth expiry does not really matter, since each test will manually control
+		// this value.
+		OAuthExpiry: dbtime.Now().Add(time.Hour),
+	})
+
+	setLinkExpiration := func(t *testing.T, exp time.Time) database.UserLink {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		links, err := db.GetUserLinksByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 1)
+		link := links[0]
+
+		newLink, err := db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  link.OAuthAccessTokenKeyID,
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID,
+			OAuthExpiry:            exp,
+			Claims:                 link.Claims,
+			UserID:                 link.UserID,
+			LoginType:              link.LoginType,
+		})
+		require.NoError(t, err)
+		return newLink
+	}
+
+	for _, c := range []struct {
+		name string
+		// expires is a function to return a more up to date "now".
+		// Because the oauth library is calling `time.Now()`, we cannot use
+		// mocked clocks.
+		expires         func() time.Time
+		refreshExpected bool
+	}{
+		{
+			name:            "ZeroExpiry",
+			expires:         func() time.Time { return time.Time{} },
+			refreshExpected: false,
+		},
+		{
+			name:            "LongExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Hour) },
+			refreshExpected: true,
+		},
+		{
+			name:            "EdgeExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Minute * 10) },
+			refreshExpected: true,
+		},
+		{
+			name:            "RecentExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Second * -1) },
+			refreshExpected: true,
+		},
+
+		{
+			name:            "Future",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Hour) },
+			refreshExpected: false,
+		},
+		{
+			name:            "FutureWithinRefreshWindow",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Minute * 8) },
+			refreshExpected: true,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			oldLink := setLinkExpiration(t, c.expires())
+			tokenRefreshCount = 0
+			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
+			require.NoError(t, err)
+			links, err := db.GetUserLinksByUserID(ctx, user.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1)
+			newLink := links[0]
+
+			if c.refreshExpected {
+				require.Equal(t, 1, tokenRefreshCount)
+
+				require.NotEqual(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.NotEqual(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
+			} else {
+				require.Equal(t, 0, tokenRefreshCount)
+				require.Equal(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.Equal(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
+			}
+		})
+	}
+}
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
 	poitr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
@@ -112,6 +288,77 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
+// TestAcquireJob_ProvisionerKeyDeleted verifies that acquiring a job fails and
+// the session is canceled once the provisioner key the daemon authenticated
+// with is deleted.
+func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		acquire func(context.Context, proto.DRPCProvisionerDaemonServer) error
+	}{
+		{name: "Deprecated", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			_, err := srv.AcquireJob(ctx, nil)
+			return err
+		}},
+		{name: "WithCancel", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			fs := newFakeStream(ctx)
+			errCh := make(chan error, 1)
+			go func() { errCh <- srv.AcquireJobWithCancel(fs) }()
+			// Cancel so the present-key acquire returns an empty job promptly; on
+			// the deleted-key path the key check returns before this is read.
+			fs.cancel()
+			return <-errCh
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// setup ties the daemon to a deletable key with this ID; sessionCancel
+			// records the teardown. A short poll keeps the present-key acquire from
+			// blocking.
+			keyID := uuid.New()
+			sessionCanceled := make(chan struct{})
+			srv, srvDB, _, _ := setup(t, false, &overrides{
+				keyID:                      keyID,
+				acquireJobLongPollDuration: testutil.IntervalFast,
+				sessionCancel:              sync.OnceFunc(func() { close(sessionCanceled) }),
+			})
+
+			// While the key exists, acquiring returns without error.
+			require.NoError(t, tc.acquire(ctx, srv))
+
+			// Once the key is deleted, acquiring must fail and the session must be
+			// canceled rather than left polling a deleted key.
+			err := srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+			require.NoError(t, err)
+
+			err = tc.acquire(ctx, srv)
+			require.ErrorIs(t, err, provisionerdserver.ErrProvisionerKeyDeleted)
+			testutil.TryReceive(ctx, t, sessionCanceled)
+		})
+	}
+}
+
+// TestAcquireJob_ReservedProvisionerKey verifies that daemons using a reserved
+// provisioner key, which cannot be deleted, are not blocked by the key check.
+func TestAcquireJob_ReservedProvisionerKey(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	//nolint:dogsled
+	srv, _, _, _ := setup(t, false, &overrides{
+		keyID:                      codersdk.ProvisionerKeyUUIDPSK,
+		acquireJobLongPollDuration: testutil.IntervalFast,
+	})
+	job, err := srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, &proto.AcquiredJob{}, job)
+}
+
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
@@ -138,6 +385,36 @@ func TestHeartbeat(t *testing.T) {
 		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
+}
+
+// TestHeartbeat_ProvisionerKeyDeleted verifies that the heartbeat loop cancels
+// the session once the daemon's deletable key no longer exists.
+func TestHeartbeat_ProvisionerKeyDeleted(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	keyID := uuid.New()
+	sessionCanceled := make(chan struct{})
+	//nolint:dogsled
+	_, db, _, _ := setup(t, false, &overrides{
+		keyID:             keyID,
+		heartbeatInterval: testutil.IntervalFast,
+		sessionCancel:     sync.OnceFunc(func() { close(sessionCanceled) }),
+	})
+
+	// While the key exists, heartbeats must not cancel the session.
+	select {
+	case <-sessionCanceled:
+		t.Fatal("session canceled while key exists")
+	default:
+	}
+
+	err := db.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+	require.NoError(t, err)
+
+	// A subsequent heartbeat tick must observe the deletion and cancel the
+	// session.
+	testutil.TryReceive(ctx, t, sessionCanceled)
 }
 
 func TestAcquireJob(t *testing.T) {
@@ -206,6 +483,7 @@ func TestAcquireJob(t *testing.T) {
 					externalAuthConfigs: []*externalauth.Config{{
 						ID:                       gitAuthProvider.Id,
 						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+						RefreshGroup:             new(singleflight.Group),
 					}},
 				})
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -244,7 +522,7 @@ func TestAcquireJob(t *testing.T) {
 					OAuthExpiry:      dbtime.Now().Add(time.Hour),
 					OAuthAccessToken: "access-token",
 				})
-				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ealink := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					ProviderID: gitAuthProvider.Id,
 					UserID:     user.ID,
 				})
@@ -334,16 +612,6 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				})
-				task := dbgen.Task(t, db, database.TaskTable{
-					OrganizationID:     pd.OrganizationID,
-					OwnerID:            user.ID,
-					WorkspaceID:        uuid.NullUUID{Valid: true, UUID: workspace.ID},
-					TemplateVersionID:  version.ID,
-					TemplateParameters: json.RawMessage("{}"),
-					Prompt:             "Build me a REST API",
-					CreatedAt:          dbtime.Now(),
-					DeletedAt:          sql.NullTime{},
-				})
 
 				var agent database.WorkspaceAgent
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
@@ -423,6 +691,11 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
+				if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+						return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+					})
+				}
 				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
 
@@ -434,7 +707,7 @@ func TestAcquireJob(t *testing.T) {
 				key, err := db.GetAPIKeyByID(ctx, toks[0])
 				require.NoError(t, err)
 				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
-				require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
+				require.WithinDuration(t, dbtime.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 				wantedMetadata := &sdkproto.Metadata{
 					CoderUrl:                      (&url.URL{}).String(),
@@ -456,9 +729,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
-					TaskId:                        task.ID.String(),
-					TaskPrompt:                    task.Prompt,
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleAgentsAccess(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
@@ -490,7 +761,7 @@ func TestAcquireJob(t *testing.T) {
 						},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 							Id:          gitAuthProvider.Id,
-							AccessToken: "access_token",
+							AccessToken: ealink.OAuthAccessToken,
 						}},
 						Metadata: wantedMetadata,
 					},
@@ -685,6 +956,97 @@ func TestAcquireJob(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.JSONEq(t, string(want), string(got))
+		})
+	}
+}
+
+func TestAcquireJob_ModuleCache(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                    string
+		deploymentDisablesCache bool
+		expectModulesFile       bool
+	}{
+		{name: "Enabled", expectModulesFile: true},
+		// The deployment setting wins even though the template does not opt out.
+		{name: "DeploymentDisabled", deploymentDisablesCache: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := coderdtest.DeploymentValues(t)
+			dv.Provisioner.DisableModuleCache = serpent.Bool(tc.deploymentDisablesCache)
+			srv, db, ps, pd := setup(t, false, &overrides{deploymentValues: dv})
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			user := dbgen.User(t, db, database.User{})
+			template := dbgen.Template(t, db, database.Template{
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
+			})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			})
+			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				ID:             version.JobID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				Input:          must(json.Marshal(provisionerdserver.TemplateVersionImportJob{TemplateVersionID: version.ID})),
+			})
+			moduleFile := dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "modules"})
+			err := db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:             version.JobID,
+				CachedPlan:        []byte("{}"),
+				CachedModuleFiles: uuid.NullUUID{UUID: moduleFile.ID, Valid: true},
+				UpdatedAt:         dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			buildID := uuid.New()
+			buildJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "build"}).ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: buildID})),
+				Tags:           pd.Tags,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				BuildNumber:       1,
+				JobID:             buildJob.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
+				InitiatorID:       user.ID,
+			})
+
+			job, err := srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+
+			got := job.GetWorkspaceBuild().GetMetadata().GetTemplateVersionModulesFile()
+			if tc.expectModulesFile {
+				require.Equal(t, moduleFile.ID.String(), got)
+				return
+			}
+			require.Empty(t, got, "cached modules must not be shipped to the build")
 		})
 	}
 }
@@ -1321,7 +1683,9 @@ func TestFailJob(t *testing.T) {
 		<-publishedLogs
 		build, err := db.GetWorkspaceBuildByID(ctx, buildID)
 		require.NoError(t, err)
-		require.Equal(t, "some state", string(build.ProvisionerState))
+		provisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+		require.NoError(t, err)
+		require.Equal(t, "some state", string(provisionerStateRow.ProvisionerState))
 		require.Len(t, auditor.AuditLogs(), 1)
 
 		// Assert that the workspace_id field get populated
@@ -2176,6 +2540,109 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+	t.Run("WorkspaceBuild_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		// Given: a victim workspace whose agent owns an app with a known UUID.
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		// Given: an attacker workspace with a running build job acquired by the
+		// provisioner daemon.
+		attackerUser := dbgen.User(t, db, database.User{})
+		attackerTemplate := dbgen.Template(t, db, database.Template{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		attackerVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     uuid.NullUUID{UUID: attackerTemplate.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		attackerWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     attackerTemplate.ID,
+			OwnerID:        attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		attackerBuildID := uuid.New()
+		attackerJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			InitiatorID: attackerUser.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: attackerBuildID,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                attackerBuildID,
+			JobID:             attackerJob.ID,
+			WorkspaceID:       attackerWorkspace.ID,
+			TemplateVersionID: attackerVersion.ID,
+			InitiatorID:       attackerUser.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+			ProvisionerTags: must(json.Marshal(attackerJob.Tags)),
+		})
+		require.NoError(t, err)
+
+		// When: the attacker's build completes with an app that reuses the
+		// victim's app UUID but points at the attacker's (new) agent.
+		attackerAgent := &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "attacker-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: attackerJob.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State: []byte{},
+					Resources: []*sdkproto.Resource{{
+						Name:   "example",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{attackerAgent},
+					}},
+				},
+			},
+		})
+		// Then: the build is rejected with the cross-tenant rebind error.
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID:   attackerJob.ID,
+				appID:   victimAppID,
+				slug:    "attacker-app",
+				agentID: attackerAgent.Id,
+			},
+		)
+
+		// And: the victim's app remains bound to the victim agent, unchanged.
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
+	})
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -2224,6 +2691,161 @@ func TestCompleteJob(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("TemplateDryRun_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		user := dbgen.User(t, db, database.User{})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          uuid.New(),
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:            version.JobID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+				TemplateVersionID: version.ID,
+			})),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			OrganizationID:  pd.OrganizationID,
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		dryRunAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "dry-run-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateDryRun_{
+				TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+					Resources: []*sdkproto.Resource{{
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{dryRunAgent},
+					}},
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "dry-run-app",
+			},
+		)
+
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
+	})
+
+	t.Run("TemplateImport_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		user := dbgen.User(t, db, database.User{})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          uuid.New(),
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:            version.JobID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+			})),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			OrganizationID:  pd.OrganizationID,
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		importAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "import-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateImport_{
+				TemplateImport: &proto.CompletedJob_TemplateImport{
+					StartResources: []*sdkproto.Resource{{
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{importAgent},
+					}},
+					Plan: []byte("{}"),
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "import-app",
+			},
+		)
+
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
 	})
 
 	t.Run("Modules", func(t *testing.T) {
@@ -2309,19 +2931,17 @@ func TestCompleteJob(t *testing.T) {
 									Version: "1.0.0",
 									Source:  "github.com/example/example",
 								},
-							},
-							StopResources: []*sdkproto.Resource{{
-								Name:       "something2",
-								Type:       "aws_instance",
-								ModulePath: "module.test2",
-							}},
-							StopModules: []*sdkproto.Module{
 								{
 									Key:     "test2",
 									Version: "2.0.0",
 									Source:  "github.com/example2/example",
 								},
 							},
+							StopResources: []*sdkproto.Resource{{
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "module.test2",
+							}},
 							Plan: []byte("{}"),
 						},
 					},
@@ -2358,7 +2978,7 @@ func TestCompleteJob(t *testing.T) {
 					Key:        "test2",
 					Version:    "2.0.0",
 					Source:     "github.com/example2/example",
-					Transition: database.WorkspaceTransitionStop,
+					Transition: database.WorkspaceTransitionStart,
 				}},
 			},
 			{
@@ -2616,8 +3236,7 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				// GIVEN something is listening to process workspace reinitialization:
-				reinitChan := make(chan agentsdk.ReinitializationEvent, 1) // Buffered to simplify test structure
-				cancel, err := agplprebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID, reinitChan)
+				reinitChan, cancel, err := agplprebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID)
 				require.NoError(t, err)
 				defer cancel()
 
@@ -2740,418 +3359,59 @@ func TestCompleteJob(t *testing.T) {
 		testutil.RequireReceive(ctx, t, done)
 		require.Equal(t, replacements, orchestrator.replacements)
 	})
+}
 
-	t.Run("AITasks", func(t *testing.T) {
-		t.Parallel()
+func setupWorkspaceAppRebindVictim(
+	t *testing.T,
+	db database.Store,
+	organizationID uuid.UUID,
+) (appID uuid.UUID, agentID uuid.UUID, slug string) {
+	t.Helper()
 
-		// has_ai_task has a default value of nil, but once the template import completes it will have a value;
-		// it is set to "true" if the template has any coder_ai_task resources defined.
-		t.Run("TemplateImport", func(t *testing.T) {
-			type testcase struct {
-				name     string
-				input    *proto.CompletedJob_TemplateImport
-				expected bool
-			}
-
-			for _, tc := range []testcase{
-				{
-					name: "has_ai_task is false by default",
-					input: &proto.CompletedJob_TemplateImport{
-						// HasAiTasks is not set.
-						Plan: []byte("{}"),
-					},
-					expected: false,
-				},
-				{
-					name: "has_ai_task gets set to true",
-					input: &proto.CompletedJob_TemplateImport{
-						HasAiTasks: true,
-						Plan:       []byte("{}"),
-					},
-					expected: true,
-				},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Parallel()
-
-					fakeUsageInserter, usageInserterPtr := newFakeUsageInserter()
-					srv, db, _, pd := setup(t, false, &overrides{
-						usageInserter: usageInserterPtr,
-					})
-
-					importJobID := uuid.New()
-					tvID := uuid.New()
-					templateAdminUser := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
-					template := dbgen.Template(t, db, database.Template{
-						Name:           "template",
-						CreatedBy:      templateAdminUser.ID,
-						Provisioner:    database.ProvisionerTypeEcho,
-						OrganizationID: pd.OrganizationID,
-					})
-					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-						ID:             tvID,
-						CreatedBy:      templateAdminUser.ID,
-						OrganizationID: pd.OrganizationID,
-						TemplateID: uuid.NullUUID{
-							UUID:  template.ID,
-							Valid: true,
-						},
-						JobID: importJobID,
-					})
-					_ = version
-
-					ctx := testutil.Context(t, testutil.WaitShort)
-					job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-						ID:             importJobID,
-						CreatedAt:      dbtime.Now(),
-						UpdatedAt:      dbtime.Now(),
-						OrganizationID: pd.OrganizationID,
-						InitiatorID:    uuid.New(),
-						Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-							TemplateVersionID: tvID,
-						})),
-						Provisioner:   database.ProvisionerTypeEcho,
-						StorageMethod: database.ProvisionerStorageMethodFile,
-						Type:          database.ProvisionerJobTypeTemplateVersionImport,
-						Tags:          pd.Tags,
-					})
-					require.NoError(t, err)
-
-					_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-						OrganizationID: pd.OrganizationID,
-						WorkerID: uuid.NullUUID{
-							UUID:  pd.ID,
-							Valid: true,
-						},
-						Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-						ProvisionerTags: must(json.Marshal(job.Tags)),
-						StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
-					})
-					require.NoError(t, err)
-
-					version, err = db.GetTemplateVersionByID(ctx, tvID)
-					require.NoError(t, err)
-					require.False(t, version.HasAITask.Valid) // Value should be nil (i.e. valid = false).
-
-					completedJob := proto.CompletedJob{
-						JobId: job.ID.String(),
-						Type: &proto.CompletedJob_TemplateImport_{
-							TemplateImport: tc.input,
-						},
-					}
-					_, err = srv.CompleteJob(ctx, &completedJob)
-					require.NoError(t, err)
-
-					version, err = db.GetTemplateVersionByID(ctx, tvID)
-					require.NoError(t, err)
-					require.True(t, version.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
-					require.Equal(t, tc.expected, version.HasAITask.Bool)
-
-					// We never expect a usage event to be collected for
-					// template imports.
-					require.Empty(t, fakeUsageInserter.collectedEvents)
-				})
-			}
-		})
-
-		// has_ai_task has a default value of nil, but once the workspace build completes it will have a value;
-		// it is set to "true" if the related template has any coder_ai_task resources defined, and its sidebar app ID
-		// will be set as well in that case.
-		// HACK(johnstcn): we also set it to "true" if any _previous_ workspace builds ever had it set to "true".
-		// This is to avoid tasks "disappearing" when you stop them.
-		t.Run("WorkspaceBuild", func(t *testing.T) {
-			type testcase struct {
-				name             string
-				seedFunc         func(context.Context, testing.TB, database.Store) error // If you need to insert other resources
-				transition       database.WorkspaceTransition
-				input            *proto.CompletedJob_WorkspaceBuild
-				isTask           bool
-				expectTaskStatus database.TaskStatus
-				expectAppID      uuid.NullUUID
-				expectHasAiTask  bool
-				expectUsageEvent bool
-			}
-
-			sidebarAppID := uuid.New()
-			for _, tc := range []testcase{
-				{
-					name:       "has_ai_task is false by default",
-					transition: database.WorkspaceTransitionStart,
-					input:      &proto.CompletedJob_WorkspaceBuild{
-						// No AiTasks defined.
-					},
-					isTask:           false,
-					expectHasAiTask:  false,
-					expectUsageEvent: false,
-				},
-				{
-					name:       "has_ai_task is set to true",
-					transition: database.WorkspaceTransitionStart,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks: []*sdkproto.AITask{
-							{
-								Id:    uuid.NewString(),
-								AppId: sidebarAppID.String(),
-							},
-						},
-						Resources: []*sdkproto.Resource{
-							{
-								Agents: []*sdkproto.Agent{
-									{
-										Id:   uuid.NewString(),
-										Name: "a",
-										Apps: []*sdkproto.App{
-											{
-												Id:   sidebarAppID.String(),
-												Slug: "test-app",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusInitializing,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
-					expectHasAiTask:  true,
-					expectUsageEvent: true,
-				},
-				{
-					name:       "has_ai_task is set to true, with sidebar app id",
-					transition: database.WorkspaceTransitionStart,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks: []*sdkproto.AITask{
-							{
-								Id: uuid.NewString(),
-								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: sidebarAppID.String(),
-								},
-							},
-						},
-						Resources: []*sdkproto.Resource{
-							{
-								Agents: []*sdkproto.Agent{
-									{
-										Id:   uuid.NewString(),
-										Name: "a",
-										Apps: []*sdkproto.App{
-											{
-												Id:   sidebarAppID.String(),
-												Slug: "test-app",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusInitializing,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
-					expectHasAiTask:  true,
-					expectUsageEvent: true,
-				},
-				// Checks regression for https://github.com/coder/coder/issues/18776
-				{
-					name:       "non-existing app",
-					transition: database.WorkspaceTransitionStart,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks: []*sdkproto.AITask{
-							{
-								Id: uuid.NewString(),
-								// Non-existing app ID would previously trigger a FK violation.
-								// Now it should just be ignored.
-								AppId: sidebarAppID.String(),
-							},
-						},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusInitializing,
-					expectHasAiTask:  false,
-					expectUsageEvent: false,
-				},
-				{
-					name:       "has_ai_task is set to true, but transition is not start",
-					transition: database.WorkspaceTransitionStop,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks: []*sdkproto.AITask{
-							{
-								Id:    uuid.NewString(),
-								AppId: sidebarAppID.String(),
-							},
-						},
-						Resources: []*sdkproto.Resource{
-							{
-								Agents: []*sdkproto.Agent{
-									{
-										Id:   uuid.NewString(),
-										Name: "a",
-										Apps: []*sdkproto.App{
-											{
-												Id:   sidebarAppID.String(),
-												Slug: "test-app",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusPaused,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
-					expectHasAiTask:  true,
-					expectUsageEvent: false,
-				},
-				{
-					name:       "current build does not have ai task but previous build did",
-					seedFunc:   seedPreviousWorkspaceStartWithAITask,
-					transition: database.WorkspaceTransitionStop,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks:   []*sdkproto.AITask{},
-						Resources: []*sdkproto.Resource{},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusPaused,
-					expectHasAiTask:  false, // We no longer inherit this from the previous build.
-					expectUsageEvent: false,
-				},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Parallel()
-
-					fakeUsageInserter, usageInserterPtr := newFakeUsageInserter()
-					srv, db, _, pd := setup(t, false, &overrides{
-						usageInserter: usageInserterPtr,
-					})
-
-					importJobID := uuid.New()
-					tvID := uuid.New()
-					templateUser := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
-					template := dbgen.Template(t, db, database.Template{
-						Name:           "template",
-						CreatedBy:      templateUser.ID,
-						Provisioner:    database.ProvisionerTypeEcho,
-						OrganizationID: pd.OrganizationID,
-					})
-					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-						ID:             tvID,
-						CreatedBy:      templateUser.ID,
-						OrganizationID: pd.OrganizationID,
-						TemplateID: uuid.NullUUID{
-							UUID:  template.ID,
-							Valid: true,
-						},
-						JobID: importJobID,
-					})
-					user := dbgen.User(t, db, database.User{})
-					workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
-						TemplateID:     template.ID,
-						OwnerID:        user.ID,
-						OrganizationID: pd.OrganizationID,
-					})
-					var genTask database.Task
-					if tc.isTask {
-						genTask = dbgen.Task(t, db, database.TaskTable{
-							OwnerID:           user.ID,
-							OrganizationID:    pd.OrganizationID,
-							WorkspaceID:       uuid.NullUUID{UUID: workspaceTable.ID, Valid: true},
-							TemplateVersionID: version.ID,
-						})
-					}
-
-					ctx := testutil.Context(t, testutil.WaitShort)
-					if tc.seedFunc != nil {
-						require.NoError(t, tc.seedFunc(ctx, t, db))
-					}
-
-					buildJobID := uuid.New()
-					wsBuildID := uuid.New()
-					job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-						ID:             buildJobID,
-						CreatedAt:      dbtime.Now(),
-						UpdatedAt:      dbtime.Now(),
-						OrganizationID: pd.OrganizationID,
-						InitiatorID:    user.ID,
-						Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-							WorkspaceBuildID: wsBuildID,
-							LogLevel:         "DEBUG",
-						})),
-						Provisioner:   database.ProvisionerTypeEcho,
-						StorageMethod: database.ProvisionerStorageMethodFile,
-						Type:          database.ProvisionerJobTypeWorkspaceBuild,
-						Tags:          pd.Tags,
-					})
-					require.NoError(t, err)
-					var buildNum int32
-					if latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceTable.ID); err == nil {
-						buildNum = latestBuild.BuildNumber
-					}
-					build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-						ID:                wsBuildID,
-						BuildNumber:       buildNum + 1,
-						JobID:             buildJobID,
-						WorkspaceID:       workspaceTable.ID,
-						TemplateVersionID: version.ID,
-						InitiatorID:       user.ID,
-						Transition:        tc.transition,
-					})
-
-					_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-						OrganizationID: pd.OrganizationID,
-						WorkerID: uuid.NullUUID{
-							UUID:  pd.ID,
-							Valid: true,
-						},
-						Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-						ProvisionerTags: must(json.Marshal(job.Tags)),
-						StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
-					})
-					require.NoError(t, err)
-
-					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
-					require.NoError(t, err)
-					require.False(t, build.HasAITask.Valid) // Value should be nil (i.e. valid = false).
-
-					completedJob := proto.CompletedJob{
-						JobId: job.ID.String(),
-						Type: &proto.CompletedJob_WorkspaceBuild_{
-							WorkspaceBuild: tc.input,
-						},
-					}
-					_, err = srv.CompleteJob(ctx, &completedJob)
-					require.NoError(t, err)
-
-					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
-					require.NoError(t, err)
-					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
-					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
-
-					task, err := db.GetTaskByID(ctx, genTask.ID)
-					if tc.isTask {
-						require.NoError(t, err)
-						require.Equal(t, tc.expectTaskStatus, task.Status)
-					} else {
-						require.Error(t, err)
-					}
-
-					require.Equal(t, tc.expectAppID, task.WorkspaceAppID)
-
-					if tc.expectUsageEvent {
-						// Check that a usage event was collected.
-						require.Len(t, fakeUsageInserter.collectedEvents, 1)
-						require.Equal(t, usagetypes.DCManagedAgentsV1{
-							Count: 1,
-						}, fakeUsageInserter.collectedEvents[0])
-					} else {
-						// Check that no usage event was collected.
-						require.Empty(t, fakeUsageInserter.collectedEvents)
-					}
-				})
-			}
-		})
+	victimUser := dbgen.User(t, db, database.User{})
+	victimTemplate := dbgen.Template(t, db, database.Template{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
 	})
+	victimVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
+		TemplateID:     uuid.NullUUID{UUID: victimTemplate.ID, Valid: true},
+	})
+	victimWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     victimTemplate.ID,
+		OwnerID:        victimUser.ID,
+		OrganizationID: organizationID,
+	})
+	victimJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: organizationID,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             victimJob.ID,
+		WorkspaceID:       victimWorkspace.ID,
+		TemplateVersionID: victimVersion.ID,
+		InitiatorID:       victimUser.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+	})
+	victimResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: victimJob.ID,
+	})
+	victimAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: victimResource.ID,
+	})
+	victimAppID := uuid.New()
+	const victimSlug = "code-server"
+	dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+		ID:      victimAppID,
+		AgentID: victimAgent.ID,
+		Slug:    victimSlug,
+	})
+
+	return victimAppID, victimAgent.ID, victimSlug
 }
 
 type mockPrebuildsOrchestrator struct {
@@ -3360,6 +3620,36 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("duplicate preset names", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+		db, ps := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+			ctx,
+			logger,
+			db,
+			job.ID,
+			templateVersion.ID,
+			[]*sdkproto.Preset{{Name: "daily-driver"}, {Name: "daily-driver"}},
+			time.Now(),
+		)
+		require.ErrorContains(t, err, `duplicate preset name, must be unique per template: "daily-driver"`)
+	})
 }
 
 func TestInsertWorkspaceResource(t *testing.T) {
@@ -3367,6 +3657,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	ctx := context.Background()
 	insert := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
 		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{})
+	}
+	insertWithProtoIDs := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
+		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{}, provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto())
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
@@ -3704,39 +3997,450 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("Devcontainers", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
-		err := insert(db, job.ID, &sdkproto.Resource{
-			Name: "something",
-			Type: "aws_instance",
-			Agents: []*sdkproto.Agent{{
-				Name: "dev",
-				Devcontainers: []*sdkproto.Devcontainer{
-					{Name: "foo", WorkspaceFolder: "/workspace1"},
-					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+
+		agentID := uuid.New()
+		subAgentID := uuid.New()
+		devcontainerID := uuid.New()
+		devcontainerID2 := uuid.New()
+
+		tests := []struct {
+			name                string
+			resource            *sdkproto.Resource
+			wantErr             string
+			protoIDsOnly        bool // when true, only run with insertWithProtoIDs (e.g., for UUID parsing error tests)
+			expectSubAgentCount int
+			check               func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, useProtoIDs bool)
+		}{
+			{
+				name: "OK",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{
+							{Id: devcontainerID.String(), Name: "foo", WorkspaceFolder: "/workspace1"},
+							{Id: devcontainerID2.String(), Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+						},
+					}},
 				},
-			}},
-		})
-		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
-		require.NoError(t, err)
-		require.Len(t, resources, 1)
-		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
-		require.NoError(t, err)
-		require.Len(t, agents, 1)
-		agent := agents[0]
-		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
-		sort.Slice(devcontainers, func(i, j int) bool {
-			return devcontainers[i].Name > devcontainers[j].Name
-		})
-		require.NoError(t, err)
-		require.Len(t, devcontainers, 2)
-		require.Equal(t, "foo", devcontainers[0].Name)
-		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
-		require.Equal(t, "", devcontainers[0].ConfigPath)
-		require.Equal(t, "bar", devcontainers[1].Name)
-		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
-		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
+				expectSubAgentCount: 0,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, _ []database.WorkspaceAgent, useProtoIDs bool) {
+					require.Equal(t, "dev", parentAgent.Name)
+
+					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
+					require.NoError(t, err)
+					sort.Slice(devcontainers, func(i, j int) bool {
+						return devcontainers[i].Name > devcontainers[j].Name
+					})
+					require.Len(t, devcontainers, 2)
+					if useProtoIDs {
+						assert.Equal(t, devcontainerID, devcontainers[0].ID)
+						assert.Equal(t, devcontainerID2, devcontainers[1].ID)
+					} else {
+						assert.NotEqual(t, uuid.Nil, devcontainers[0].ID)
+						assert.NotEqual(t, uuid.Nil, devcontainers[1].ID)
+					}
+					assert.Equal(t, "foo", devcontainers[0].Name)
+					assert.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+					assert.Equal(t, "", devcontainers[0].ConfigPath)
+					assert.False(t, devcontainers[0].SubagentID.Valid)
+					assert.Equal(t, "bar", devcontainers[1].Name)
+					assert.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+					assert.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
+					assert.False(t, devcontainers[1].SubagentID.Valid)
+				},
+			},
+			{
+				name: "SubAgentWithAllResources",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:              agentID.String(),
+						Name:            "dev",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "full-subagent",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "code-server", DisplayName: "VS Code", Url: "http://localhost:8080"},
+							},
+							Scripts: []*sdkproto.Script{
+								{DisplayName: "Startup", Script: "echo start", RunOnStart: true},
+							},
+							Envs: []*sdkproto.Env{
+								{Name: "EDITOR", Value: "vim"},
+							},
+						}},
+					}},
+				},
+				expectSubAgentCount: 1,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, useProtoIDs bool) {
+					require.Len(t, subAgents, 1)
+					subAgent := subAgents[0]
+					if useProtoIDs {
+						require.Equal(t, subAgentID, subAgent.ID)
+					} else {
+						require.NotEqual(t, uuid.Nil, subAgent.ID)
+					}
+
+					assert.Equal(t, parentAgent.ID, subAgent.ParentID.UUID)
+					assert.Equal(t, parentAgent.Architecture, subAgent.Architecture)
+					assert.Equal(t, parentAgent.OperatingSystem, subAgent.OperatingSystem)
+
+					apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
+					require.NoError(t, err)
+					require.Len(t, apps, 1)
+					assert.Equal(t, "code-server", apps[0].Slug)
+
+					scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{subAgent.ID})
+					require.NoError(t, err)
+					require.Len(t, scripts, 1)
+					assert.Equal(t, "Startup", scripts[0].DisplayName)
+
+					var envVars map[string]string
+					err = json.Unmarshal(subAgent.EnvironmentVariables.RawMessage, &envVars)
+					require.NoError(t, err)
+					assert.Equal(t, "vim", envVars["EDITOR"])
+
+					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
+					require.NoError(t, err)
+					require.Len(t, devcontainers, 1)
+					assert.True(t, devcontainers[0].SubagentID.Valid)
+					if useProtoIDs {
+						assert.Equal(t, subAgentID, devcontainers[0].SubagentID.UUID)
+					} else {
+						assert.Equal(t, subAgent.ID, devcontainers[0].SubagentID.UUID)
+					}
+				},
+			},
+			{
+				name: "MultipleDevcontainersWithSubagents",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{
+							{
+								Id:              devcontainerID.String(),
+								Name:            "frontend",
+								WorkspaceFolder: "/workspace/frontend",
+								SubagentId:      subAgentID.String(),
+								Apps: []*sdkproto.App{
+									{Slug: "frontend-app", DisplayName: "Frontend"},
+								},
+							},
+							{
+								Id:              devcontainerID2.String(),
+								Name:            "backend",
+								WorkspaceFolder: "/workspace/backend",
+								SubagentId:      uuid.New().String(),
+								Apps: []*sdkproto.App{
+									{Slug: "backend-app", DisplayName: "Backend"},
+								},
+							},
+						},
+					}},
+				},
+				expectSubAgentCount: 2,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, _ bool) {
+					for _, subAgent := range subAgents {
+						apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
+						require.NoError(t, err)
+						require.Len(t, apps, 1, "each subagent should have exactly one app")
+					}
+
+					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
+					require.NoError(t, err)
+					require.Len(t, devcontainers, 2)
+					for _, dc := range devcontainers {
+						assert.True(t, dc.SubagentID.Valid, "devcontainer %s should have subagent", dc.Name)
+					}
+				},
+			},
+			{
+				name:    "SubAgentDuplicateAppSlugs",
+				wantErr: `duplicate app slug, must be unique per template: "my-app"`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-dup-apps",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "my-app", DisplayName: "App 1"},
+								{Slug: "my-app", DisplayName: "App 2"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentInvalidAppSlug",
+				wantErr: `app slug "Invalid_Slug" does not match regex`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-invalid-app",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "Invalid_Slug", DisplayName: "Bad App"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentAppSlugConflictsWithParentAgent",
+				wantErr: `duplicate app slug, must be unique per template: "shared-app"`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Apps: []*sdkproto.App{
+							{Slug: "shared-app", DisplayName: "Parent App"},
+						},
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "dc",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "shared-app", DisplayName: "Child App"},
+							},
+						}},
+					}},
+				},
+			},
+			{
+				name:    "SubAgentAppSlugConflictsBetweenSubagents",
+				wantErr: `duplicate app slug, must be unique per template: "conflicting-app"`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{
+							{
+								Id:              devcontainerID.String(),
+								Name:            "dc1",
+								WorkspaceFolder: "/workspace1",
+								SubagentId:      subAgentID.String(),
+								Apps: []*sdkproto.App{
+									{Slug: "conflicting-app", DisplayName: "App in DC1"},
+								},
+							},
+							{
+								Id:              devcontainerID2.String(),
+								Name:            "dc2",
+								WorkspaceFolder: "/workspace2",
+								SubagentId:      uuid.New().String(),
+								Apps: []*sdkproto.App{
+									{Slug: "conflicting-app", DisplayName: "App in DC2"},
+								},
+							},
+						},
+					}},
+				},
+			},
+			{
+				name:         "SubAgentInvalidSubagentID",
+				wantErr:      "parse subagent id",
+				protoIDsOnly: true, // UUID parsing errors only occur with proto IDs
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "invalid-subagent",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      "not-a-valid-uuid",
+							Apps:            []*sdkproto.App{{Slug: "app", DisplayName: "App"}},
+						}},
+					}},
+				},
+			},
+			{
+				name:         "SubAgentInvalidAppID",
+				wantErr:      "parse app uuid",
+				protoIDsOnly: true, // UUID parsing errors only occur with proto IDs
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "with-invalid-app-id",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps:            []*sdkproto.App{{Id: "not-a-uuid", Slug: "my-app", DisplayName: "App"}},
+						}},
+					}},
+				},
+			},
+			{
+				// This test verifies that subagents created via
+				// devcontainers do not inherit the parent agent's
+				// AuthInstanceID.
+				// Context: https://github.com/coder/coder/pull/22196
+				name: "SubAgentDoesNotInheritAuthInstanceID",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:              agentID.String(),
+						Name:            "dev",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+						Auth: &sdkproto.Agent_InstanceId{
+							InstanceId: "parent-instance-id",
+						},
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "sub",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "code-server", DisplayName: "VS Code", Url: "http://localhost:8080"},
+							},
+						}},
+					}},
+				},
+				expectSubAgentCount: 1,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, _ bool) {
+					// Parent should have the AuthInstanceID set.
+					require.True(t, parentAgent.AuthInstanceID.Valid, "parent agent should have an AuthInstanceID")
+					require.Equal(t, "parent-instance-id", parentAgent.AuthInstanceID.String)
+
+					require.Len(t, subAgents, 1)
+					subAgent := subAgents[0]
+
+					// Sub-agent must NOT inherit the parent's AuthInstanceID.
+					assert.False(t, subAgent.AuthInstanceID.Valid, "sub-agent should not have an AuthInstanceID")
+					assert.Empty(t, subAgent.AuthInstanceID.String, "sub-agent AuthInstanceID string should be empty")
+
+					// Looking up by the parent's instance ID must still
+					// return the parent, not the sub-agent.
+					agents, err := db.GetWorkspaceAgentsByInstanceID(ctx, parentAgent.AuthInstanceID.String)
+					require.NoError(t, err)
+					require.Len(t, agents, 1)
+					lookedUp := agents[0]
+					assert.Equal(t, parentAgent.ID, lookedUp.ID, "instance ID lookup should still return the parent agent")
+				},
+			},
+			{
+				// This test verifies the backward-compatibility behavior where a
+				// devcontainer with a SubagentId but no apps, scripts, or envs does
+				// NOT create a subagent.
+				name: "SubAgentBackwardCompatNoResources",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "no-resources",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							// Intentionally no Apps, Scripts, or Envs.
+						}},
+					}},
+				},
+				expectSubAgentCount: 0,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, _ []database.WorkspaceAgent, _ bool) {
+					devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, parentAgent.ID)
+					require.NoError(t, err)
+					require.Len(t, devcontainers, 1)
+					assert.Equal(t, "no-resources", devcontainers[0].Name)
+					assert.False(t, devcontainers[0].SubagentID.Valid,
+						"devcontainer with SubagentId but no apps/scripts/envs should not have a subagent (backward compatibility)")
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			for _, useProtoIDs := range []bool{false, true} {
+				if tt.protoIDsOnly && !useProtoIDs {
+					continue
+				}
+
+				name := tt.name
+				if useProtoIDs {
+					name += "/WithProtoIDs"
+				} else {
+					name += "/WithoutProtoIDs"
+				}
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					db, _ := dbtestutil.NewDB(t)
+					job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+
+					var err error
+					if useProtoIDs {
+						err = insertWithProtoIDs(db, job.ID, tt.resource)
+					} else {
+						err = insert(db, job.ID, tt.resource)
+					}
+
+					if tt.wantErr != "" {
+						require.ErrorContains(t, err, tt.wantErr)
+						return
+					}
+					require.NoError(t, err)
+
+					resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+					require.NoError(t, err)
+					require.Len(t, resources, 1)
+
+					agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+					require.NoError(t, err)
+
+					var parentAgent database.WorkspaceAgent
+					var subAgents []database.WorkspaceAgent
+					for _, agent := range agents {
+						if agent.ParentID.Valid {
+							subAgents = append(subAgents, agent)
+						} else {
+							parentAgent = agent
+						}
+					}
+					require.NotEqual(t, uuid.Nil, parentAgent.ID)
+					require.Len(t, subAgents, tt.expectSubAgentCount, "expected %d subagents", tt.expectSubAgentCount)
+
+					tt.check(t, db, parentAgent, subAgents, useProtoIDs)
+				})
+			}
+		}
 	})
 }
 
@@ -4138,6 +4842,70 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "api key for prebuilds user should be deleted")
 }
 
+type workspaceAppRebindWarning struct {
+	jobID   uuid.UUID
+	appID   uuid.UUID
+	slug    string
+	agentID string
+}
+
+func assertWorkspaceAppRebindWarning(t *testing.T, logSink *recordingSlogSink, want workspaceAppRebindWarning) {
+	t.Helper()
+
+	for _, entry := range logSink.Entries() {
+		if entry.Message != "workspace app rebind rejected by SQL guard" {
+			continue
+		}
+
+		require.Equal(t, slog.LevelWarn, entry.Level)
+		require.Contains(t, entry.File, "coderd/provisionerdserver/provisionerdserver.go")
+		require.NotContains(t, entry.Func, "warnWorkspaceAppRebindRejected")
+		fields := slogFieldsByName(entry.Fields)
+		require.Equal(t, want.jobID.String(), fields["job_id"])
+		require.Equal(t, want.appID.String(), fields["app_id"])
+		require.Equal(t, want.slug, fields["app_slug"])
+		agentID, ok := fields["agent_id"].(string)
+		require.True(t, ok)
+		require.NotEqual(t, uuid.Nil.String(), agentID)
+		if want.agentID != "" {
+			require.Equal(t, want.agentID, agentID)
+		} else {
+			_, err := uuid.Parse(agentID)
+			require.NoError(t, err)
+		}
+		return
+	}
+
+	require.Fail(t, "expected workspace app rebind warning")
+}
+
+type recordingSlogSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *recordingSlogSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+}
+
+func (*recordingSlogSink) Sync() {}
+
+func (s *recordingSlogSink) Entries() []slog.SinkEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]slog.SinkEntry(nil), s.entries...)
+}
+
+func slogFieldsByName(fields []slog.Field) map[string]any {
+	byName := make(map[string]any, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field.Value
+	}
+	return byName
+}
+
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
@@ -4152,6 +4920,9 @@ type overrides struct {
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
+	provisionerdLogger          *slog.Logger
+	keyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -4228,6 +4999,23 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	} else {
 		notifEnq = notifications.NewNoopEnqueuer()
 	}
+	provisionerdLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors})
+	if ov.provisionerdLogger != nil {
+		provisionerdLogger = *ov.provisionerdLogger
+	}
+
+	keyID := codersdk.ProvisionerKeyUUIDBuiltIn
+	if ov.keyID != uuid.Nil {
+		keyID = ov.keyID
+		// The daemon's key_id is a foreign key to provisioner_keys, so a
+		// non-reserved key must exist before the daemon is created.
+		if !codersdk.IsReservedProvisionerKey(keyID) {
+			dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
+				ID:             keyID,
+				OrganizationID: defOrg.ID,
+			})
+		}
+	}
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
@@ -4238,7 +5026,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
+		KeyID:          keyID,
 	})
 	require.NoError(t, err)
 
@@ -4259,12 +5047,18 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		provisionerdLogger,
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),
 		serverDB,
 		ps,
-		provisionerdserver.NewAcquirer(ov.ctx, logger.Named("acquirer"), db, ps),
+		provisionerdserver.NewAcquirer(
+			ov.ctx,
+			logger.Named("acquirer"),
+			db,
+			ps,
+			provisionerdserver.WithClock(clock),
+		),
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
@@ -4280,6 +5074,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
+			KeyID:                 keyID,
+			SessionCancel:         ov.sessionCancel,
 		},
 		notifEnq,
 		&op,
@@ -4330,7 +5126,7 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.canceled || s.closed) {
+	for !s.canceled && !s.closed {
 		s.c.Wait()
 	}
 	if s.canceled {
@@ -4373,7 +5169,7 @@ func (s *fakeStream) Close() error {
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.sendCalled || s.closed) {
+	for !s.sendCalled && !s.closed {
 		s.c.Wait()
 	}
 	if s.sendCalled {
@@ -4389,80 +5185,198 @@ func (s *fakeStream) cancel() {
 	s.c.Broadcast()
 }
 
-type fakeUsageInserter struct {
-	collectedEvents []usagetypes.Event
-}
-
-var _ usage.Inserter = &fakeUsageInserter{}
-
-func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
-	poitr := &atomic.Pointer[usage.Inserter]{}
-	fake := &fakeUsageInserter{}
-	var inserter usage.Inserter = fake
-	poitr.Store(&inserter)
-	return fake, poitr
-}
-
-func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
-	f.collectedEvents = append(f.collectedEvents, event)
-	return nil
-}
-
-func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db database.Store) error {
+// serveProvisionerDaemon serves the provisioner daemon server over an
+// in-memory pipe and returns a connected client, mirroring how coderd serves
+// in-memory provisioner daemons. This exercises the real DRPC streaming path
+// instead of a hand-rolled mock stream.
+func serveProvisionerDaemon(t *testing.T, srv proto.DRPCProvisionerDaemonServer) proto.DRPCProvisionerDaemonClient {
 	t.Helper()
-	// If the below looks slightly convoluted, that's because it is.
-	// The workspace doesn't yet have a latest build, so querying all
-	// workspaces will fail.
-	tpls, err := db.GetTemplates(ctx)
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get template: %w", err)
-	}
-	if len(tpls) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one template, got %d", len(tpls))
-	}
-	ws, err := db.GetWorkspacesByTemplateID(ctx, tpls[0].ID)
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get workspaces: %w", err)
-	}
-	if len(ws) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one workspace, got %d", len(ws))
-	}
-	w := ws[0]
-	prevJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: w.OrganizationID,
-		InitiatorID:    w.OwnerID,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
+	t.Cleanup(func() {
+		_ = clientPipe.Close()
+		_ = serverPipe.Close()
 	})
-	tvs, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: tpls[0].ID,
+	mux := drpcmux.New()
+	require.NoError(t, proto.DRPCRegisterProvisionerDaemon(mux, srv))
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
 	})
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get template version: %w", err)
+	ctx, cancel := context.WithCancel(context.Background())
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		_ = server.Serve(ctx, serverPipe)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-closed
+	})
+	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
+}
+
+// insertModuleFile inserts a system-created (CreatedBy=uuid.Nil) tar file and
+// links it as the cached module files of a template version in the given
+// organization, returning the file.
+func insertModuleFile(t *testing.T, db database.Store, orgID uuid.UUID, data []byte) database.File {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+	})
+	jobID := uuid.New()
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          jobID,
+	})
+	// Insert the file directly rather than via dbgen.File: the helper treats a
+	// zero CreatedBy as "unset" and replaces it with a random UUID, but module
+	// files must be system-created (CreatedBy=uuid.Nil) to match the handler's
+	// metadata check.
+	file, err := db.InsertFile(ctx, database.InsertFileParams{
+		ID:        uuid.New(),
+		Hash:      uuid.NewString(),
+		CreatedAt: dbtime.Now(),
+		CreatedBy: uuid.Nil,
+		Mimetype:  "application/x-tar",
+		Data:      data,
+	})
+	require.NoError(t, err)
+	err = db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+		JobID:             version.JobID,
+		CachedPlan:        []byte("{}"),
+		CachedModuleFiles: uuid.NullUUID{UUID: file.ID, Valid: true},
+		UpdatedAt:         dbtime.Now(),
+	})
+	require.NoError(t, err)
+	return file
+}
+
+// TestDownloadFile verifies that a provisioner daemon cannot download cached
+// module archives belonging to other organizations (ANT-2026-22440), while
+// still being able to download module files from its own organization.
+func TestDownloadFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RejectsOtherOrgModuleFile", func(t *testing.T) {
+		t.Parallel()
+
+		// The server is scoped to the default organization (org A).
+		srv, db, _, daemon := setup(t, false, &overrides{
+			externalAuthConfigs: []*externalauth.Config{{}},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
+
+		// Create a module file belonging to a different organization (org B).
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		require.NotEqual(t, daemon.OrganizationID, otherOrg.ID)
+
+		moduleData := make([]byte, sdkproto.ChunkSize*2)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
+		file := insertModuleFile(t, db, otherOrg.ID, moduleData)
+
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
+			FileId:     file.ID.String(),
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+
+		// The handler must reject the cross-org download with an error rather
+		// than streaming the file's contents.
+		_, err = provisionersdk.HandleReceivingDataUpload(stream)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "is not a modules file")
+	})
+
+	t.Run("AllowsSameOrgModuleFile", func(t *testing.T) {
+		t.Parallel()
+
+		// The server is scoped to the default organization (org A).
+		srv, db, _, daemon := setup(t, false, &overrides{
+			externalAuthConfigs: []*externalauth.Config{{}},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
+
+		moduleData := make([]byte, sdkproto.ChunkSize*2+512)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
+		file := insertModuleFile(t, db, daemon.OrganizationID, moduleData)
+
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
+			FileId:     file.ID.String(),
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+
+		builder, err := provisionersdk.HandleReceivingDataUpload(stream)
+		require.NoError(t, err)
+		data, err := builder.Complete()
+		require.NoError(t, err)
+		require.Equal(t, moduleData, data)
+	})
+}
+
+func TestWorkspaceSessionTokenName(t *testing.T) {
+	t.Parallel()
+
+	ownerID, workspaceID := uuid.New(), uuid.New()
+
+	for _, tc := range []struct {
+		name              string
+		tokenName         string
+		expectOwnerID     string
+		expectWorkspaceID string
+		expectOK          bool
+	}{
+		{
+			name:              "valid",
+			tokenName:         provisionerdserver.WorkspaceSessionTokenName(ownerID, workspaceID),
+			expectOwnerID:     ownerID.String(),
+			expectWorkspaceID: workspaceID.String(),
+			expectOK:          true,
+		},
+		{
+			name:              "missing suffix",
+			tokenName:         fmt.Sprintf("%s_%s", ownerID, workspaceID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "only one uuid",
+			tokenName:         fmt.Sprintf("%s_session_token", ownerID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "invalid",
+			tokenName:         "invalid_invalid_session_token",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "empty",
+			tokenName:         "",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(tc.tokenName)
+			require.Equal(t, tc.expectOwnerID, ownerID.String())
+			require.Equal(t, tc.expectWorkspaceID, workspaceID.String())
+			require.Equal(t, tc.expectOK, ok)
+		})
 	}
-	if len(tvs) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one template version, got %d", len(tvs))
-	}
-	if tpls[0].ActiveVersionID == uuid.Nil {
-		return xerrors.Errorf("seedFunc: active version id is nil")
-	}
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: prevJob.ID,
-	})
-	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: res.ID,
-	})
-	_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-		AgentID: agt.ID,
-	})
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		BuildNumber:       1,
-		HasAITask:         sql.NullBool{Valid: true, Bool: true},
-		ID:                w.ID,
-		InitiatorID:       w.OwnerID,
-		JobID:             prevJob.ID,
-		TemplateVersionID: tvs[0].ID,
-		Transition:        database.WorkspaceTransitionStart,
-		WorkspaceID:       w.ID,
-	})
-	return nil
 }

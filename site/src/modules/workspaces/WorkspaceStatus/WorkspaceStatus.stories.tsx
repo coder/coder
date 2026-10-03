@@ -1,5 +1,5 @@
-import { MockDormantWorkspace, MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockDormantWorkspace, MockWorkspace } from "#/testHelpers/entities";
 import { WorkspaceStatus } from "./WorkspaceStatus";
 
 const meta: Meta<typeof WorkspaceStatus> = {

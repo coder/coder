@@ -1,4 +1,6 @@
-# Cloning Git Repositories
+---
+title: Cloning Git repositories
+---
 
 <div style="padding: 0px; margin: 0px;">
   <span style="vertical-align:middle;">Author: </span>
@@ -20,9 +22,9 @@ authorization. This can be achieved by using the Git provider, such as GitHub,
 as an authentication method. If you don't know how to do that, we have written
 documentation to help you:
 
-- [GitHub](../admin/external-auth/index.md#github)
-- [GitLab self-managed](../admin/external-auth/index.md#gitlab-self-managed)
-- [Self-managed git providers](../admin/external-auth/index.md#self-managed-git-providers)
+- [GitHub](../admin/external-auth.md#github)
+- [GitLab self-managed](../admin/external-auth.md#gitlab-self-managed)
+- [Self-managed git providers](../admin/external-auth.md#self-managed-git-providers)
 
 With the authentication in place, it is time to set up the template to use the
 [Git Clone module](https://registry.coder.com/modules/git-clone) from the

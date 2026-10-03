@@ -32,15 +32,24 @@ type PromptOptions struct {
 const skipPromptFlag = "yes"
 
 // SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
-// prompts.
+// confirmation prompts.
 func SkipPromptOption() serpent.Option {
 	return serpent.Option{
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
-		Description:   "Bypass prompts.",
+		Description:   "Bypass confirmation prompts.",
 		// Discard
 		Value: serpent.BoolOf(new(bool)),
 	}
+}
+
+// HiddenSkipPromptOption accepts -y/--yes as a hidden no-op, for commands with
+// no confirmation prompt that must keep accepting -y so existing scripts don't
+// break.
+func HiddenSkipPromptOption() serpent.Option {
+	opt := SkipPromptOption()
+	opt.Hidden = true
+	return opt
 }
 
 const (
@@ -228,19 +237,19 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 			return "", err
 		}
 
-		switch {
-		case r == '\r' || r == '\n':
+		switch r {
+		case '\r', '\n':
 			// Finish on Enter
 			if _, err := fmt.Fprint(w, "\r\n"); err != nil {
 				return "", err
 			}
 			return string(runes), nil
 
-		case r == 3:
+		case 3:
 			// Ctrl+C
 			return "", ErrCanceled
 
-		case r == 127 || r == '\b':
+		case 127, '\b':
 			// Backspace/Delete: remove last rune
 			if len(runes) > 0 {
 				// Erase the last '*' on the screen

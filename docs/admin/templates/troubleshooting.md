@@ -1,4 +1,6 @@
-# Troubleshooting templates
+---
+title: Troubleshoot templates
+---
 
 Occasionally, you may run into scenarios where a workspace is created, but the
 agent is either not connected or the
@@ -8,7 +10,7 @@ has failed or timed out.
 ## Agent connection issues
 
 If the agent is not connected, it means the agent or
-[init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
+[init script](../../../provisionersdk/scripts)
 has failed on the resource.
 
 ```console
@@ -52,7 +54,7 @@ option is set to blocking or you have enabled the `--wait=yes` option (for e.g.
 `coder ssh` or `coder config-ssh`). In such an event, you can always access the
 workspace by using the web terminal, or via SSH using the `--wait=no` option. If
 the startup script is running longer than it should, or never completing, you
-can try to [debug the startup script](#debugging-the-startup-script) to resolve
+can try to [debug the startup script](#debug-the-startup-script) to resolve
 the issue. Alternatively, you can try to force the startup script to exit by
 terminating processes started by it or terminating the startup script itself (on
 Linux, `ps` and `kill` are useful tools).
@@ -80,7 +82,7 @@ is still running or has exited with a non-zero status (see
 necessary, but you may want to
 [start a new shell session](#session-was-started-before-the-startup-script-finished)
 after it has completed or check the
-[startup script logs](#debugging-the-startup-script) to see if there are any
+[startup script logs](#debug-the-startup-script) to see if there are any
 issues.
 
 ### Session was started before the startup script finished
@@ -108,7 +110,7 @@ exits with an error, it means the last command run by the script failed. When
 script and the remaining commands will not be executed. This also means that
 [your workspace may be incomplete](#your-workspace-may-be-incomplete). If you
 see this error, you can check the
-[startup script logs](#debugging-the-startup-script) to figure out what the
+[startup script logs](#debug-the-startup-script) to figure out what the
 issue is.
 
 Common causes for startup script errors:
@@ -117,12 +119,12 @@ Common causes for startup script errors:
 - A command that fails due to missing permissions
 - Network issues (e.g., unable to reach a server)
 
-### Debugging the startup script
+<a id="debugging-the-startup-script"></a>
 
-The simplest way to debug the
-[startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1)
-is to open the workspace in the Coder dashboard and click "Show startup log" (if
-not already visible). This will show all the output from the script. Another
+### Debug the startup script
+
+The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is to open the workspace in the Coder dashboard and select "Show startup log" (if not already visible).
+This will show all the output from the script. Another
 option is to view the log file inside the workspace (usually
 `/tmp/coder-startup-script.log`). If the logs don't indicate what's going on or
 going wrong, you can increase verbosity by adding `set -x` to the top of the
@@ -132,7 +134,7 @@ what's going on.
 
 Here's a short example of an informative startup script:
 
-```shell
+```sh
 echo "Running startup script..."
 echo "Run: long-running-command"
 /path/to/long-running-command
@@ -171,13 +173,20 @@ to optimize your templates based on this data.
 
 ![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
+## Cannot connect to the Docker daemon
+
+If a Docker-based template fails to provision with an error like `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder host cannot reach the Docker socket.
+Confirm that Docker is installed and running on the host.
+If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
+Refer to [Cannot connect to the Docker daemon](../../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
+
 ## Docker Workspaces on Raspberry Pi OS
 
 ### Unable to query ContainerMemory
 
 When you query `ContainerMemory` and encounter the error:
 
-```shell
+```sh
 open /sys/fs/cgroup/memory.max: no such file or directory
 ```
 
@@ -197,19 +206,19 @@ This error mostly affects Raspberry Pi OS, but might also affect older Debian-ba
 
 1. Add cgroup entries to `cmdline.txt` in `/boot/firmware` (or `/boot/` on older Pi OS releases):
 
-   ```text
+   ```txt
    cgroup_memory=1 cgroup_enable=memory
    ```
 
    You can use `sed` to add it to the file for you:
 
-   ```bash
+   ```sh
    sudo sed -i '$s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
    ```
 
 1. Reboot:
 
-   ```bash
+   ```sh
    sudo reboot
    ```
 

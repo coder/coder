@@ -1,4 +1,4 @@
-import type { BuildInfoResponse } from "api/typesGenerated";
+import type { BuildInfoResponse } from "#/api/typesGenerated";
 
 // sendDeploymentEvent sends a CORs payload to coder.com
 // to track a deployment event.

@@ -1,5 +1,5 @@
-import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockTemplate, MockTemplateVersion } from "#/testHelpers/entities";
 import { TemplateStats } from "./TemplateStats";
 
 const meta: Meta<typeof TemplateStats> = {
@@ -46,7 +46,7 @@ export const LongTemplateVersion: Story = {
 		},
 	},
 	parameters: {
-		chromatic: { viewports: [960] },
+		pixel: { matrix: { viewports: ["laptop"] } },
 	},
 };
 
@@ -56,6 +56,6 @@ export const SmallViewport: Story = {
 		activeVersion: MockTemplateVersion,
 	},
 	parameters: {
-		chromatic: { viewports: [600] },
+		pixel: { matrix: { viewports: ["tablet"] } },
 	},
 };

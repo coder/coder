@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { docs } from "utils/docs";
+import { docs } from "#/utils/docs";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -79,5 +79,20 @@ export const SecondaryHeaderWithDescriptionAndDocsLink: Story = {
 			</>
 		),
 		actions: <SettingsHeaderDocsLink href={docs("/admin/external-auth")} />,
+	},
+};
+
+export const TertiaryHeaderWithDescription: Story = {
+	args: {
+		children: (
+			<>
+				<SettingsHeaderTitle level="h3" hierarchy="tertiary">
+					This is a tertiary header.
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Use tertiary styling for subsection titles under a secondary header.
+				</SettingsHeaderDescription>
+			</>
+		),
 	},
 };

@@ -152,7 +152,7 @@ func (c *configMaps) configLoop() {
 		c.Broadcast()
 	}()
 	for {
-		for !(c.closing || c.netmapDirty || c.filterDirty || c.derpMapDirty) {
+		for !c.closing && !c.netmapDirty && !c.filterDirty && !c.derpMapDirty {
 			c.phase = idle
 			c.Wait()
 		}

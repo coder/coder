@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -27,7 +26,7 @@ import (
 // @Produce json
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.ExternalAuth
-// @Router /external-auth/{externalauth} [get]
+// @Router /api/v2/external-auth/{externalauth} [get]
 func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -89,7 +88,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.DeleteExternalAuthByIDResponse
-// @Router /external-auth/{externalauth} [delete]
+// @Router /api/v2/external-auth/{externalauth} [delete]
 func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -142,7 +141,7 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @Tags Git
 // @Param externalauth path string true "External Provider ID" format(string)
 // @Success 204
-// @Router /external-auth/{externalauth}/device [post]
+// @Router /api/v2/external-auth/{externalauth}/device [post]
 func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -204,15 +203,17 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 		}
 	} else {
 		_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             config.ID,
-			UserID:                 apiKey.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             pqtype.NullRawMessage{},
+			ProviderID:                config.ID,
+			UserID:                    apiKey.UserID,
+			UpdatedAt:                 dbtime.Now(),
+			OAuthAccessToken:          token.AccessToken,
+			OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:         token.RefreshToken,
+			OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:               token.Expiry,
+			OAuthExtra:                pqtype.NullRawMessage{},
+			OauthRefreshFailureReason: "",
+			RefreshLeaseExpiresAt:     sql.NullTime{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -232,7 +233,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 // @Tags Git
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.ExternalAuthDevice
-// @Router /external-auth/{externalauth}/device [get]
+// @Router /api/v2/external-auth/{externalauth}/device [get]
 func (*API) externalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	ctx := r.Context()
@@ -306,15 +307,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			}
 		} else {
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-				ProviderID:             externalAuthConfig.ID,
-				UserID:                 apiKey.UserID,
-				UpdatedAt:              dbtime.Now(),
-				OAuthAccessToken:       state.Token.AccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      state.Token.RefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            state.Token.Expiry,
-				OAuthExtra:             extra,
+				ProviderID:                externalAuthConfig.ID,
+				UserID:                    apiKey.UserID,
+				UpdatedAt:                 dbtime.Now(),
+				OAuthAccessToken:          state.Token.AccessToken,
+				OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:         state.Token.RefreshToken,
+				OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:               state.Token.Expiry,
+				OAuthExtra:                extra,
+				OauthRefreshFailureReason: "",
+				RefreshLeaseExpiresAt:     sql.NullTime{},
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -331,7 +334,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			// FE know not to enter the authentication loop again, and instead display an error.
 			redirect = fmt.Sprintf("/external-auth/%s?redirected=true", externalAuthConfig.ID)
 		}
-		redirect = uriFromURL(redirect)
+		redirect = httpapi.SafeRedirectPath(redirect)
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
@@ -345,7 +348,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 // @Produce json
 // @Tags Git
 // @Success 200 {object} codersdk.ExternalAuthLink
-// @Router /external-auth [get]
+// @Router /api/v2/external-auth [get]
 func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	key := httpmw.APIKey(r)
@@ -428,13 +431,4 @@ func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvi
 		SupportsRevocation:            cfg.RevokeURL != "",
 		CodeChallengeMethodsSupported: slice.ToStrings(cfg.CodeChallengeMethodsSupported),
 	}
-}
-
-func uriFromURL(u string) string {
-	uri, err := url.Parse(u)
-	if err != nil {
-		return "/"
-	}
-
-	return uri.RequestURI()
 }

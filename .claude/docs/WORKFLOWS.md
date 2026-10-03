@@ -4,7 +4,7 @@
 
 ### Before Starting
 
-- [ ] Run `git pull` to ensure you're on latest code
+- [ ] Inspect the working tree and current branch; for an existing PR, check out its branch (see [Working on PR branches](#working-on-pr-branches))
 - [ ] Check if feature touches database - you'll need migrations
 - [ ] Check if feature touches audit logs - update `enterprise/audit/table.go`
 
@@ -30,7 +30,7 @@
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go's Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Create packages when used during implementation
 - Validate abstractions against implementations
-- **Test packages**: Use `package_test` naming (e.g., `identityprovider_test`) for black-box testing
+- **Test packages**: Use `package_test` naming (e.g., `oauth2provider_test`) for black-box testing
 
 ### Error Handling
 
@@ -38,7 +38,7 @@
 - Wrap errors with context
 - Propagate errors appropriately
 - Use proper error types
-- Pattern: `xerrors.Errorf("failed to X: %w", err)`
+- Pattern: `xerrors.Errorf("get workspace: %w", err)`; name the operation and omit "failed to" (see [ARCHITECTURE.md](ARCHITECTURE.md#development-philosophy))
 
 ## Naming Conventions
 
@@ -103,13 +103,23 @@
 4. **Add tests** in `coderd/*_test.go` files
 5. **Update OpenAPI** by running `make gen`
 
+### API Design Guardrails
+
+- Add swagger annotations when introducing new HTTP endpoints. Do this in
+  the same change as the handler so the docs do not get missed before
+  release.
+- For user-scoped or resource-scoped routes, prefer path parameters over
+  query parameters when that matches existing route patterns.
+- For experimental or unstable API paths, skip public doc generation with
+  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
+  keeps them out of the published API reference until they stabilize.
+
 ## Testing Workflows
 
 ### Test Execution
 
 - Run full test suite: `make test`
 - Run specific test: `make test RUN=TestFunctionName`
-- Run with Postgres: `make test-postgres`
 - Run with race detector: `make test-race`
 - Run end-to-end tests: `make test-e2e`
 
@@ -122,6 +132,51 @@
 - Always use `t.Parallel()` in tests
 
 ## Git Workflow
+
+### Git Hooks
+
+Install and use the git hooks, and do not bypass them with
+`--no-verify`. Skipping them pushes the same failures to CI and wastes CI cycles.
+
+The first run will be slow as caches warm up. Consecutive runs are
+**significantly faster** (often 10x) thanks to Go build cache,
+generated file timestamps, and warm node_modules. This is NOT a
+reason to skip them. Wait for hooks to complete before proceeding,
+no matter how long they take.
+
+```sh
+git config core.hooksPath scripts/githooks
+```
+
+Two hooks run automatically. Both skip their checks unless the
+developer opts in via git config or is allowlisted in the hook:
+
+- **pre-commit**: Classifies staged files by type and runs either
+  the full `make pre-commit` or the lightweight `make pre-commit-light`
+  depending on whether Go, TypeScript, SQL, proto, or Makefile
+  changes are present. Allowlisted in `scripts/githooks/pre-commit`.
+  Runs only for developers who opt in with
+  `git config coder.pre-commit true`. Falls back to the full target
+  when `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
+  seconds; a Go change takes several minutes.
+- **pre-push**: Classifies changed files (vs remote branch or
+  merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
+  proto, or Makefile changes are detected. Skips tests entirely
+  for lightweight changes. Allowlisted in
+  `scripts/githooks/pre-push`. Runs only for developers who opt
+  in with `git config coder.pre-push true`. Falls back to
+  `make pre-push` when the diff range can't be determined or
+  `CODER_HOOK_RUN_ALL=1` is set. Allow at least 15 minutes for a
+  full run.
+
+`git commit` and `git push` will appear to hang while hooks run.
+This is normal. Do not interrupt, retry, or reduce the timeout.
+
+Configure `core.hooksPath` as `scripts/githooks` when installing the
+repository hooks. Never change it to bypass or disable those hooks.
+
+If a hook fails, fix the issue and retry. Do not work around the
+failure by skipping the hook.
 
 ### Working on PR branches
 
@@ -137,26 +192,28 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 ## Commit Style
 
-- Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
-- Format: `type(scope): message`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+Format: `type(scope): message`. See [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Scopes must be a real path (directory or file stem) containing all changed files
+- Omit scope if changes span multiple top-level directories
 - Keep message titles concise (~70 characters)
 - Use imperative, present tense in commit titles
 
 ## Code Navigation and Investigation
 
-### Using LSP Tools (STRONGLY RECOMMENDED)
+### Using Language Servers
 
-**IMPORTANT**: Always use LSP tools for code navigation and understanding. These tools provide accurate, real-time analysis of the codebase and should be your first choice for code investigation.
+Use the Go and TypeScript language servers when available for definitions, references, type information, diagnostics, and renames. They resolve symbols across packages more reliably than text search; text search remains the right tool for string literals, SQL, configuration, and docs. The tool names below are the ones Claude Code exposes from `.mcp.json`; other harnesses name the same operations differently.
 
 #### Go LSP Tools (for backend code)
 
-1. **Find function definitions** (USE THIS FREQUENTLY):
+1. **Find function definitions**:
    - `mcp__go-language-server__definition symbolName`
    - Example: `mcp__go-language-server__definition getOAuth2ProviderAppAuthorize`
    - Quickly jump to function implementations across packages
 
-2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+2. **Find symbol references**:
    - `mcp__go-language-server__references symbolName`
    - Locate all usages of functions, types, or variables
    - Critical for refactoring and understanding data flow
@@ -167,12 +224,12 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 #### TypeScript LSP Tools (for frontend code in site/)
 
-1. **Find component/function definitions** (USE THIS FREQUENTLY):
+1. **Find component/function definitions**:
    - `mcp__typescript-language-server__definition symbolName`
    - Example: `mcp__typescript-language-server__definition LoginPage`
    - Quickly navigate to React components, hooks, and utility functions
 
-2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+2. **Find symbol references**:
    - `mcp__typescript-language-server__references symbolName`
    - Locate all usages of components, types, or functions
    - Critical for refactoring React components and understanding prop usage

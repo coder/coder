@@ -1,13 +1,13 @@
+import { XIcon } from "lucide-react";
 import type {
 	Organization,
 	ProvisionerJob,
 	ProvisionerJobStatus,
-} from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
+} from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -15,34 +15,33 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
+} from "#/components/Select/Select";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
+} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { XIcon } from "lucide-react";
-import type { FC } from "react";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { JobRow } from "./JobRow";
 
 const variantByStatus: Record<
@@ -82,7 +81,7 @@ type OrganizationProvisionerJobsPageViewProps = {
 	onFilterChange: (filter: JobProvisionersFilter) => void;
 };
 
-const OrganizationProvisionerJobsPageView: FC<
+const OrganizationProvisionerJobsPageView: React.FC<
 	OrganizationProvisionerJobsPageViewProps
 > = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
 	if (!organization) {
@@ -96,7 +95,7 @@ const OrganizationProvisionerJobsPageView: FC<
 	}
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<title>
 				{pageTitle(
 					"Provisioner jobs",
@@ -110,7 +109,9 @@ const OrganizationProvisionerJobsPageView: FC<
 					<SettingsHeaderDescription>
 						Provisioner Jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}
-						<Link href={docs("/admin/provisioners")}>View docs</Link>
+						<Link href={docs("/admin/provisioners/manage-provisioner-jobs")}>
+							View docs
+						</Link>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -191,31 +192,19 @@ const OrganizationProvisionerJobsPageView: FC<
 									/>
 								))
 							) : (
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState message="No provisioner jobs found" />
-									</TableCell>
-								</TableRow>
+								<TableEmpty message="No provisioner jobs found" />
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="Error loading the provisioner jobs"
-										cta={
-											<Button size="sm" onClick={onRetry}>
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading the provisioner jobs"
+								cta={
+									<Button size="sm" onClick={onRetry}>
+										Retry
+									</Button>
+								}
+							/>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>

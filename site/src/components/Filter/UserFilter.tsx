@@ -1,12 +1,11 @@
-import { API } from "api/api";
-import { Avatar } from "components/Avatar/Avatar";
+import { API } from "#/api/api";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
-} from "components/Filter/SelectFilter";
-import { useAuthenticated } from "hooks";
-import type { FC } from "react";
+} from "#/components/Filter/SelectFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const DEFAULT_USER_FILTER_WIDTH = 175;
@@ -82,13 +81,17 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-interface UserMenuProps {
+type UserMenuProps = {
 	menu: UserFilterMenu;
 	placeholder?: string;
 	width?: number;
-}
+};
 
-export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({
+	menu,
+	width,
+	placeholder,
+}) => {
 	return (
 		<SelectFilter
 			label="Select user"
@@ -97,15 +100,15 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 			selectFilterSearch={
-				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search user" }}
+				<ComboboxInput
 					placeholder="Search user..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
+					aria-label="Search user"
 				/>
 			}
-			width={width}
 		/>
 	);
 };

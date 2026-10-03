@@ -1,0 +1,84 @@
+export type FilterOption = {
+	label: string;
+	/** Label used once the option is applied; defaults to `label`. */
+	appliedLabel?: string;
+	value: string;
+	startIcon?: React.ReactNode;
+	subtitle?: string;
+	/**
+	 * Explicit chip token committed when this option is selected, overriding the
+	 * default `${categoryKey}:${value}`. Used by categories that group several
+	 * query keys, e.g. an "Attributes" category whose options commit
+	 * `outdated:true` or `dormant:true`.
+	 */
+	token?: string;
+};
+
+export type FilterCategory = {
+	key: string;
+	label: string;
+	getOptions: (query: string) => Promise<FilterOption[]>;
+	icon?: React.ReactNode;
+	/** Extra names for this category, matched as typed text or a `name:` prefix. */
+	aliases?: readonly string[];
+	/**
+	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
+	 * category that commits distinct boolean keys (e.g. Attributes committing
+	 * `outdated` and `dormant`) lists them all so the query round-trips them as
+	 * chips instead of free text.
+	 */
+	chipKeys?: readonly string[];
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionsIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
+	/** Applied chips show only the option label, without the category prefix. */
+	chipLabelOnly?: boolean;
+	/**
+	 * Leave the category out of the menu while `getOptions("")` returns at most
+	 * one option. When `getOptions("")` omits values the results can contain,
+	 * the row can hide while its one option would still narrow the results. Its
+	 * empty-query options are fetched when the filter renders. Until every
+	 * category with this flag finishes its first load, successfully or not, the
+	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
+	 * applied chip keeps it in the menu. A failed lookup keeps it until a retry
+	 * returns at most one option. Does not apply to inline categories.
+	 */
+	hideWhenSingleOption?: boolean;
+	/**
+	 * Switch below a submenu category's options. While on, options commit
+	 * under `widenedKey` instead of the category key, e.g. Owner committing
+	 * `user:alice` (owned by or shared with alice). The applied chip sets the
+	 * switch, and a typed key prefix overrides it for that pick. Typed values
+	 * no option lists commit under the category key unless `widenedKey` was
+	 * typed, since a backend may reject the widened key for them.
+	 */
+	scopeToggle?: {
+		/** Switch label for the category's applied value, if there is one. */
+		label: (value: string | undefined) => string;
+		widenedKey: string;
+		/** Pill text, e.g. `include shared`. */
+		pillLabel: string;
+		/** Accessible name of the pill's remove button for the applied value. */
+		pillRemoveLabel: (value: string) => string;
+		/**
+		 * A 3+ character prefix of this phrase lists the category and opens its
+		 * flyout.
+		 */
+		searchPhrase: string;
+	};
+};
+
+/** Query keys the category owns, including its scope toggle's widened key. */
+export const categoryChipKeys = (
+	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
+): readonly string[] => [
+	...new Set([
+		...(category.chipKeys ?? [category.key]),
+		...(category.scopeToggle ? [category.scopeToggle.widenedKey] : []),
+	]),
+];

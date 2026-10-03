@@ -1,24 +1,28 @@
-import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { cn } from "cn";
+import { CircleCheckIcon, KeyIcon } from "lucide-react";
+import { useId, useState } from "react";
+import { useMutation } from "react-query";
+import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import type {
 	AuthMethods,
 	LoginType,
 	OIDCAuthMethod,
 	UserLoginType,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Stack } from "components/Stack/Stack";
-import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { useMutation } from "react-query";
-import { docs } from "utils/docs";
-import { Section } from "../Section";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { docs } from "#/utils/docs";
 
 type LoginTypeConfirmation =
 	| {
@@ -37,10 +41,10 @@ export const redirectToOIDCAuth = (
 ) => {
 	switch (toType) {
 		case "github":
-			window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		case "oidc":
-			window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		default:
 			throw new Error(`Unknown login type ${toType}`);
@@ -99,11 +103,11 @@ export const useSingleSignOnSection = () => {
 	};
 };
 
-const SSOEmptyState: FC = () => {
+const SSOEmptyState: React.FC = () => {
 	return (
 		<EmptyState
 			className="rounded-lg border border-solid border-border min-h-0"
-			message="No SSO providers"
+			message="No SSO Providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
 				<Link
@@ -123,7 +127,7 @@ type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
 	userLoginType: UserLoginType;
 };
 
-export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
+export const SingleSignOnSection: React.FC<SingleSignOnSectionProps> = ({
 	authMethods,
 	userLoginType,
 	openConfirmation,
@@ -133,86 +137,71 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	isConfirming,
 	error,
 }) => {
-	const theme = useTheme();
-
 	const noSsoEnabled = !authMethods.github.enabled && !authMethods.oidc.enabled;
 
 	return (
-		<>
-			<Section
-				id="sso-section"
-				title="Single Sign On"
-				description="Authenticate in Coder using one-click"
-			>
-				<div css={{ display: "grid", gap: "16px" }}>
-					{userLoginType.login_type === "password" ? (
-						<>
-							{authMethods.github.enabled && (
-								<Button
-									variant="outline"
-									size="lg"
-									className="w-full"
-									disabled={isUpdating}
-									onClick={() => openConfirmation("github")}
-								>
-									<ExternalImage src="/icon/github.svg" />
-									GitHub
-								</Button>
-							)}
+		<div id="sso-section" data-testid="sso-section">
+			<SettingsHeader>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Single Sign On
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Authenticate in Coder using one-click.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
-							{authMethods.oidc.enabled && (
-								<Button
-									variant="outline"
-									size="lg"
-									className="w-full"
-									disabled={isUpdating}
-									onClick={() => openConfirmation("oidc")}
-								>
-									<OIDCIcon oidcAuth={authMethods.oidc} />
-									{getOIDCLabel(authMethods.oidc)}
-								</Button>
-							)}
+			<div className="grid gap-4">
+				{userLoginType.login_type === "password" ? (
+					<>
+						{authMethods.github.enabled && (
+							<Button
+								variant="outline"
+								size="lg"
+								className="w-full"
+								disabled={isUpdating}
+								onClick={() => openConfirmation("github")}
+							>
+								<ExternalImage src="/icon/github.svg" />
+								GitHub
+							</Button>
+						)}
 
-							{noSsoEnabled && <SSOEmptyState />}
-						</>
-					) : (
-						<div
-							css={{
-								background: theme.palette.background.paper,
-								borderRadius: 8,
-								border: `1px solid ${theme.palette.divider}`,
-								padding: 16,
-								display: "flex",
-								gap: 16,
-								alignItems: "center",
-								fontSize: 14,
-							}}
-						>
-							<CircleCheckIcon
-								css={{
-									color: theme.palette.success.light,
-								}}
-								className="size-icon-xs"
-							/>
-							<span>
-								Authenticated with{" "}
-								<strong>
-									{userLoginType.login_type === "github"
-										? "GitHub"
-										: getOIDCLabel(authMethods.oidc)}
-								</strong>
-							</span>
-							<div css={{ marginLeft: "auto", lineHeight: 1 }}>
-								{userLoginType.login_type === "github" ? (
-									<ExternalImage src="/icon/github.svg" />
-								) : (
-									<OIDCIcon oidcAuth={authMethods.oidc} />
-								)}
-							</div>
+						{authMethods.oidc.enabled && (
+							<Button
+								variant="outline"
+								size="lg"
+								className="w-full"
+								disabled={isUpdating}
+								onClick={() => openConfirmation("oidc")}
+							>
+								<OIDCIcon oidcAuth={authMethods.oidc} />
+								{getOIDCLabel(authMethods.oidc)}
+							</Button>
+						)}
+
+						{noSsoEnabled && <SSOEmptyState />}
+					</>
+				) : (
+					<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
+						<CircleCheckIcon className="text-content-success size-icon-xs" />
+						<span>
+							Authenticated with{" "}
+							<strong>
+								{userLoginType.login_type === "github"
+									? "GitHub"
+									: getOIDCLabel(authMethods.oidc)}
+							</strong>
+						</span>
+						<div className="leading-none ml-auto">
+							{userLoginType.login_type === "github" ? (
+								<ExternalImage src="/icon/github.svg" className="size-4" />
+							) : (
+								<OIDCIcon oidcAuth={authMethods.oidc} />
+							)}
 						</div>
-					)}
-				</div>
-			</Section>
+					</div>
+				)}
+			</div>
 
 			<ConfirmLoginTypeChangeModal
 				open={isConfirming}
@@ -221,24 +210,24 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 				onClose={closeConfirmation}
 				onConfirm={confirm}
 			/>
-		</>
+		</div>
 	);
 };
 
-interface OIDCIconProps {
+type OIDCIconProps = {
 	oidcAuth: OIDCAuthMethod;
-}
+};
 
-const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
+const OIDCIcon: React.FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
 		return <KeyIcon />;
 	}
 
 	return (
-		<img
-			alt="Open ID connect icon"
+		<ExternalImage
+			alt="Open ID Connect icon"
 			src={oidcAuth.iconUrl}
-			css={{ width: 16, height: 16 }}
+			className="size-4"
 		/>
 	);
 };
@@ -247,22 +236,24 @@ const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
 	return oidcAuth.signInText || "OpenID Connect";
 };
 
-interface ConfirmLoginTypeChangeModalProps {
+type ConfirmLoginTypeChangeModalProps = {
 	open: boolean;
 	loading: boolean;
 	error: unknown;
 	onClose: () => void;
 	onConfirm: (password: string) => void;
-}
+};
 
-const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
-	open,
-	loading,
-	error,
-	onClose,
-	onConfirm,
-}) => {
+const ConfirmLoginTypeChangeModal: React.FC<
+	ConfirmLoginTypeChangeModalProps
+> = ({ open, loading, error, onClose, onConfirm }) => {
 	const [password, setPassword] = useState("");
+	const passwordId = useId();
+	const errorId = useId();
+	const hasError = Boolean(error);
+	const errorMessage = error
+		? getErrorMessage(error, "Your password is incorrect")
+		: undefined;
 
 	const handleConfirm = () => {
 		onConfirm(password);
@@ -281,32 +272,36 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 			title="Change login type"
 			confirmLoading={loading}
 			description={
-				<Stack spacing={4}>
+				<div className="flex flex-col gap-8">
 					<p>
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
 					</p>
-					<TextField
-						autoFocus
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								handleConfirm();
-							}
-						}}
-						error={Boolean(error)}
-						helperText={
-							error
-								? getErrorMessage(error, "Your password is incorrect")
-								: undefined
-						}
-						name="confirm-password"
-						id="confirm-password"
-						value={password}
-						onChange={(e) => setPassword(e.currentTarget.value)}
-						label="Confirm your password"
-						type="password"
-					/>
-				</Stack>
+					<div className="flex flex-col gap-2 text-left">
+						<Label htmlFor={passwordId}>Confirm your password</Label>
+						<Input
+							autoFocus
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									handleConfirm();
+								}
+							}}
+							name="confirm-password"
+							id={passwordId}
+							value={password}
+							onChange={(e) => setPassword(e.currentTarget.value)}
+							type="password"
+							aria-invalid={hasError}
+							aria-describedby={hasError ? errorId : undefined}
+							className={cn(hasError && "border-border-destructive")}
+						/>
+						{hasError && (
+							<span id={errorId} className="text-xs text-content-destructive">
+								{errorMessage}
+							</span>
+						)}
+					</div>
+				</div>
 			}
 		/>
 	);

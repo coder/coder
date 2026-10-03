@@ -1,4 +1,4 @@
-INSERT INTO public.workspace_app_stats (
+INSERT INTO workspace_app_stats (
 	id,
 	user_id,
 	workspace_id,

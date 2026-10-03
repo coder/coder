@@ -13,36 +13,35 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
-import type { TableRowProps } from "@mui/material/TableRow";
-import type { MouseEventHandler } from "react";
-import { cn } from "utils/cn";
+
+import { cn } from "cn";
 import {
 	type ClickableAriaRole,
+	isFromPortal,
 	type UseClickableResult,
 	useClickable,
 } from "./useClickable";
 
+type TableRowClickHandlers = Pick<
+	React.ComponentProps<"tr">,
+	"onClick" | "onDoubleClick" | "onAuxClick"
+>;
+
 type UseClickableTableRowResult<
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = UseClickableResult<HTMLTableRowElement, TRole> &
-	TableRowProps & {
+	TableRowClickHandlers & {
 		className: string;
 		hover: true;
-		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
+		onAuxClick: React.MouseEventHandler<HTMLTableRowElement>;
 	};
 
-// Awkward type definition (the hover preview in VS Code isn't great, either),
-// but this basically extracts all click props from TableRowProps, but makes
-// onClick required, and adds additional optional props (notably onMiddleClick)
-type UseClickableTableRowConfig<TRole extends ClickableAriaRole> = {
-	[Key in keyof TableRowProps as Key extends `on${string}Click`
-		? Key
-		: never]: UseClickableTableRowResult<TRole>[Key];
-} & {
-	role?: TRole;
-	onClick: MouseEventHandler<HTMLTableRowElement>;
-	onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
-};
+type UseClickableTableRowConfig<TRole extends ClickableAriaRole> =
+	TableRowClickHandlers & {
+		role?: TRole;
+		onClick: React.MouseEventHandler<HTMLTableRowElement>;
+		onMiddleClick?: React.MouseEventHandler<HTMLTableRowElement>;
+	};
 
 export const useClickableTableRow = <
 	TRole extends ClickableAriaRole = ClickableAriaRole,
@@ -58,12 +57,23 @@ export const useClickableTableRow = <
 	return {
 		...clickableProps,
 		className: cn([
-			"cursor-pointer hover:outline focus:outline outline-1 -outline-offset-1 outline-border-hover",
+			"cursor-pointer outline-none hover:outline-solid hover:outline-1 focus-visible:outline-solid focus-visible:outline-1 -outline-offset-1 outline-border-secondary",
 			"first:rounded-t-md last:rounded-b-md",
 		]),
 		hover: true,
-		onDoubleClick,
+		onDoubleClick:
+			onDoubleClick &&
+			((event) => {
+				if (!isFromPortal(event)) {
+					onDoubleClick(event);
+				}
+			}),
 		onAuxClick: (event) => {
+			// A middle-click paste (Linux) into a portaled dialog's input would
+			// otherwise open the row's link in a new tab.
+			if (isFromPortal(event)) {
+				return;
+			}
 			// Regardless of which callback gets called, the hook won't stop the event
 			// from bubbling further up the DOM
 			const isMiddleMouseButton = event.button === 1;

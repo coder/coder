@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
@@ -20,6 +21,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		// Proxy is disabled by default, so we don't need to set it explicitly.
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -35,7 +37,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
@@ -50,6 +52,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -63,7 +66,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
@@ -78,6 +81,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -92,7 +96,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint without authentication.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 
 		// No session token header set.

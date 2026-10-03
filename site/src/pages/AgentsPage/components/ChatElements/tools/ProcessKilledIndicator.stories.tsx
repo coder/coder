@@ -1,0 +1,131 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Tool } from "./Tool";
+
+const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
+
+const meta: Meta<typeof Tool> = {
+	title: "components/ai-elements/tool/ProcessKilledIndicator",
+	component: Tool,
+};
+export default meta;
+type Story = StoryObj<typeof Tool>;
+
+// ---------------------------------------------------------------------------
+// Execute tool, killed indicator via killedBySignal prop.
+// ---------------------------------------------------------------------------
+
+export const ExecuteKilled: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { command: "make pre-push 2>&1" },
+		result: {
+			success: true,
+			output: "pre-push (/tmp/coder-pre-push.CZ6K9A)\ntest + build site:",
+			exit_code: -1,
+			wall_duration_ms: 45000,
+			background_process_id: PROCESS_ID,
+			backgrounded: true,
+		},
+	},
+};
+
+export const ExecuteTerminated: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		killedBySignal: "terminate",
+		args: { command: "npm start" },
+		result: {
+			success: true,
+			output: "Starting dev server...",
+			exit_code: 0,
+			wall_duration_ms: 2000,
+			background_process_id: PROCESS_ID,
+			backgrounded: true,
+		},
+	},
+};
+
+/** Execute not signaled, no indicator. */
+export const ExecuteNotSignaled: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo hello" },
+		result: {
+			success: true,
+			output: "hello",
+			exit_code: 0,
+			wall_duration_ms: 100,
+		},
+	},
+};
+
+/** Running execute, killed indicator should not appear yet. */
+export const ExecuteRunningNotYetKilled: Story = {
+	args: {
+		name: "execute",
+		status: "running",
+		killedBySignal: "kill",
+		args: { command: "make pre-push 2>&1" },
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ProcessOutput tool, killed indicator.
+// ---------------------------------------------------------------------------
+
+export const ProcessOutputKilled: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { process_id: PROCESS_ID },
+		result: {
+			output: "pre-push (/tmp/coder-pre-push.CZ6K9A)\ntest + build site:",
+			exit_code: null,
+		},
+	},
+};
+
+export const ProcessOutputTerminated: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "terminate",
+		args: { process_id: PROCESS_ID },
+		result: {
+			output: "server output",
+			exit_code: null,
+		},
+	},
+};
+
+/** ProcessOutput with no output and killed, indicator in empty state. */
+export const ProcessOutputKilledNoOutput: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { process_id: PROCESS_ID },
+		result: {
+			output: "",
+			exit_code: null,
+		},
+	},
+};
+
+/** ProcessOutput NOT signaled. */
+export const ProcessOutputNotSignaled: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: PROCESS_ID },
+		result: {
+			output: "some output",
+			exit_code: 0,
+		},
+	},
+};

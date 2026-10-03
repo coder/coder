@@ -4,13 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -61,8 +65,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -123,7 +127,7 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
 	// Get both clients to perform a lifecycle execution tick
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := coderdtest.NextAutostartTick(t, workspace)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
@@ -156,6 +160,92 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	// And we expect this transition to have been a start transition
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+}
+
+// uniqueViolationStore wraps a database.Store and injects a unique violation
+// error from InsertWorkspaceBuild after a configurable number of successful
+// calls. This simulates a concurrent build race (e.g. an API-driven start
+// racing with the lifecycle executor autostart).
+type uniqueViolationStore struct {
+	database.Store
+	insertCount *atomic.Int32 // pointer: shared across InTx copies
+	failAfterN  int32
+}
+
+func newUniqueViolationStore(db database.Store, failAfterN int32) *uniqueViolationStore {
+	return &uniqueViolationStore{
+		Store:       db,
+		insertCount: &atomic.Int32{},
+		failAfterN:  failAfterN,
+	}
+}
+
+func (s *uniqueViolationStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&uniqueViolationStore{
+			Store:       tx,
+			insertCount: s.insertCount, // shared pointer
+			failAfterN:  s.failAfterN,
+		})
+	}, opts)
+}
+
+func (s *uniqueViolationStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
+	n := s.insertCount.Add(1)
+	if n > s.failAfterN {
+		return &pq.Error{
+			Code:       pq.ErrorCode("23505"),
+			Constraint: string(database.UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey),
+			Message:    `duplicate key value violates unique constraint "workspace_builds_workspace_id_build_number_key"`,
+		}
+	}
+	return s.Store.InsertWorkspaceBuild(ctx, arg)
+}
+
+func TestExecutorBuildNumberRaceIsHandled(t *testing.T) {
+	t.Parallel()
+
+	// The lifecycle executor must handle a unique-violation from
+	// InsertWorkspaceBuild gracefully. This error occurs when a concurrent
+	// actor (API handler, another executor, prebuilds reconciler) inserts a
+	// build with the same number before the executor's INSERT lands.
+	//
+	// We inject the error via a store wrapper. The first two
+	// InsertWorkspaceBuild calls succeed (setup builds), then the third
+	// (the lifecycle executor's autostart build) gets a unique violation.
+
+	realDB, ps := dbtestutil.NewDB(t)
+	wrappedDB := newUniqueViolationStore(realDB, 2) // Allow builds 1 (start) and 2 (stop); fail build 3 (autostart)
+
+	var (
+		sched, _ = cron.Weekly("CRON_TZ=UTC 0 * * * *")
+		tickCh   = make(chan time.Time)
+		statsCh  = make(chan autobuild.Stats)
+		client   = coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			AutobuildTicker:          tickCh,
+			AutobuildStats:           statsCh,
+			Database:                 wrappedDB,
+			Pubsub:                   ps,
+		})
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+	)
+
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	p, err := coderdtest.GetProvisionerForTags(realDB, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+	next := coderdtest.NextAutostartTick(t, workspace)
+	coderdtest.UpdateProvisionerLastSeenAt(t, realDB, p.ID, next)
+
+	tickCh <- next
+	stats := <-statsCh
+
+	// The lifecycle executor should treat the unique violation as a benign
+	// race, not as a hard error.
+	assert.Empty(t, stats.Errors, "lifecycle executor should not report unique-violation as error")
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
@@ -261,8 +351,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 
 			t.Log("sending autobuild tick")
 			// When: the autobuild executor ticks after the scheduled time
+			tickTime := coderdtest.NextAutostartTick(t, workspace)
 			go func() {
-				tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 				tickCh <- tickTime
 				close(tickCh)
@@ -804,8 +894,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks past the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		tickCh2 <- tickTime
@@ -874,8 +964,8 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -1244,6 +1334,94 @@ func TestNotifications(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		// The template does not configure auto-delete, so the body must not
+		// indicate a deletion timeline.
+		require.NotContains(t, sent[0].Labels, "timeTilDelete")
+		require.Equal(t, workspace.Name, sent[0].Labels["name"])
+		require.Equal(t, "inactivity exceeded the dormancy threshold", sent[0].Labels["reason"])
+	})
+
+	t.Run("DormancyAutoDelete", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup template with dormancy and auto-delete and create a workspace
+		// with it. The two durations are intentionally far apart to reliably
+		// check what's rendered in the notification.
+		var (
+			ticker    = make(chan time.Time)
+			statCh    = make(chan autobuild.Stats)
+			notifyEnq = notificationstest.FakeEnqueuer{}
+			// 35 days is inside humanize.Time's "1 month" bucket (between 30 and 60 days).
+			timeTilDormant           = time.Minute
+			timeTilDormantAutoDelete = 35 * 24 * time.Hour
+			client, db               = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				AutobuildStats:           statCh,
+				IncludeProvisionerDaemon: true,
+				NotificationsEnqueuer:    &notifyEnq,
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						template.TimeTilDormant = int64(options.TimeTilDormant)
+						template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)
+						return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+					},
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+						return schedule.TemplateScheduleOptions{
+							UserAutostartEnabled:     false,
+							UserAutostopEnabled:      true,
+							DefaultTTL:               0,
+							AutostopRequirement:      schedule.TemplateAutostopRequirement{},
+							TimeTilDormant:           timeTilDormant,
+							TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+						}, nil
+					},
+				},
+			})
+			admin   = coderdtest.CreateFirstUser(t, client)
+			version = coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		)
+
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilDormantMillis = ptr.Ref(timeTilDormant.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(timeTilDormantAutoDelete.Milliseconds())
+		})
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+		// Stop workspace
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+
+		// Wait for workspace to become dormant
+		notifyEnq.Clear()
+		tickTime := workspace.LastUsedAt.Add(timeTilDormant * 3)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
+
+		// Check that the workspace is dormant
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NotNil(t, workspace.DormantAt)
+
+		// The notification body should render the deletion countdown using the template's
+		// `time_til_dormant_autodelete` value. With auto-delete at 35 days and dormancy
+		// at 1 minute, humanize.Time renders the label as "1 month from now".
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1)
+		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+		require.Contains(t, sent[0].Labels, "timeTilDelete")
+		require.Contains(t, sent[0].Labels["timeTilDelete"], "1 month",
+			"timeTilDelete must humanize TimeTilDormantAutoDelete, got %q",
+			sent[0].Labels["timeTilDelete"])
+		require.NotContains(t, sent[0].Labels["timeTilDelete"], "ago",
+			"timeTilDelete must be a future timestamp, got %q",
+			sent[0].Labels["timeTilDelete"])
 	})
 }
 
@@ -1609,6 +1787,373 @@ func setupTestDBPrebuiltWorkspace(
 	return workspace
 }
 
+// setupAutostopReminderWorkspace provisions a running workspace whose template
+// has the given time_til_autostop_notify configured, using the caller-supplied
+// notifications enqueuer. It returns the harness channels needed to drive ticks
+// and observe notifications.
+func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Duration, enq notifications.Enqueuer) (
+	client *codersdk.Client,
+	db database.Store,
+	tickCh chan time.Time,
+	statsCh chan autobuild.Stats,
+	workspace codersdk.Workspace,
+) {
+	t.Helper()
+
+	tickCh = make(chan time.Time)
+	statsCh = make(chan autobuild.Stats)
+	client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		AutobuildTicker:          tickCh,
+		AutobuildStats:           statsCh,
+		IncludeProvisionerDaemon: true,
+		NotificationsEnqueuer:    enq,
+		// The AGPL schedule store persists and returns time_til_autostop_notify.
+		TemplateScheduleStore: schedule.NewAGPLTemplateScheduleStore(),
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		if timeTilAutostopNotify > 0 {
+			ctr.TimeTilAutostopNotifyMillis = ptr.Ref(timeTilAutostopNotify.Milliseconds())
+		}
+	})
+	ws := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+	workspace = coderdtest.MustWorkspace(t, client, ws.ID)
+
+	// The build must have a non-zero deadline for a reminder to ever fire.
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
+
+	// Age last_used_at far before every tick so the active-user guard never
+	// trips for the default subtests. A freshly created workspace has a recent
+	// last_used_at, which would otherwise look "active" and suppress the
+	// reminder. Subtests that exercise the active-user guard reset last_used_at
+	// to a recent value via db.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		ID:         workspace.ID,
+		LastUsedAt: workspace.LatestBuild.Deadline.Time.Add(-365 * 24 * time.Hour),
+	}))
+
+	return client, db, tickCh, statsCh, workspace
+}
+
+// failOnceEnqueuer fails its first Enqueue call and delegates every subsequent
+// call to the wrapped enqueuer. It is used by the FailedEnqueueNotRetried
+// subtest to verify that a failed reminder enqueue is not retried (the
+// at-most-once guarantee); notificationstest.FakeEnqueuer.Enqueue always
+// succeeds, so this wrapper is the only way to inject a send failure.
+type failOnceEnqueuer struct {
+	notifications.Enqueuer
+	mu     sync.Mutex
+	failed bool
+}
+
+func (f *failOnceEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.failed {
+		f.failed = true
+		return nil, xerrors.New("injected enqueue failure")
+	}
+	return f.Enqueuer.Enqueue(ctx, userID, templateID, labels, createdBy, targets...)
+}
+
+func TestExecutorAutostopReminder(t *testing.T) {
+	t.Parallel()
+
+	// Sent: a reminder is enqueued when a tick lands inside the lead window
+	// [deadline - ttl, deadline).
+	t.Run("Sent", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			// Halfway into the lead window.
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Len(t, stats.Transitions, 0)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.Equal(t, workspace.OwnerID, sent[0].UserID)
+		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+		require.Contains(t, sent[0].Targets, workspace.TemplateID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+	})
+
+	// ActiveWorkspaceNotReminded: a workspace used within the 15-minute active
+	// threshold keeps getting its deadline bumped, so no reminder is sent even
+	// though the tick lands inside the window. This is the active-user guard, the
+	// exact complement of the Sent subtest.
+	t.Run("ActiveWorkspaceNotReminded", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, db, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick halfway into the lead window, exactly as the Sent subtest does.
+		tick := deadline.Add(-timeTilNotify / 2)
+
+		// Mark the workspace as recently used: last_used_at within the 15-minute
+		// active threshold of the tick makes currentTick - last_used_at <
+		// autostopReminderActiveThreshold, so the active-user guard suppresses the
+		// reminder (and the SQL pre-filter drops the row).
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: tick.Add(-time.Minute),
+		}))
+
+		go func() {
+			tickCh <- tick
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// ActiveWorkspaceAtMaxDeadlineReminded: an active workspace is still
+	// reminded when the hard max_deadline ceiling sits inside the lead window.
+	// Activity bumps cannot push the stop past max_deadline, so the workspace
+	// will stop regardless of activity and the reminder must fire. This is the
+	// max_deadline override of the active-user guard.
+	t.Run("ActiveWorkspaceAtMaxDeadlineReminded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, db, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick halfway into the lead window, exactly as the Sent subtest does.
+		tick := deadline.Add(-timeTilNotify / 2)
+
+		// Mark the workspace as recently used (active): without the max_deadline
+		// ceiling this would suppress the reminder, see ActiveWorkspaceNotReminded.
+		require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: tick.Add(-time.Minute),
+		}))
+
+		// Pin the build's max_deadline inside the lead window (max_deadline <=
+		// tick + ttl). A bump cannot move the stop past this ceiling, so the
+		// workspace will stop even though the user is active and the reminder
+		// must still fire. The deadline itself is left unchanged.
+		require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          workspace.LatestBuild.ID,
+			Deadline:    deadline,
+			MaxDeadline: deadline,
+			UpdatedAt:   tick,
+		}))
+
+		go func() {
+			tickCh <- tick
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.Equal(t, workspace.OwnerID, sent[0].UserID)
+	})
+
+	// NotBeforeWindow: no reminder when the tick precedes the lead window.
+	t.Run("NotBeforeWindow", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			// Well before the window opens.
+			tickCh <- deadline.Add(-2 * timeTilNotify)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// Disabled: time_til_autostop_notify of 0 (the default) never reminds.
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, 0, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			tickCh <- deadline.Add(-time.Minute)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// NoDuplicate: a second tick still inside the window does not re-notify
+	// because the idempotence marker was stamped.
+	t.Run("NoDuplicate", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: reminder fires. Receiving from statsCh acts as the
+		// per-tick barrier guaranteeing the enqueue already happened.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+
+		// Second tick still inside the window: no new reminder. Sent()
+		// accumulates across ticks, so a cumulative count still at 1 proves
+		// the duplicate was suppressed.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 4)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+	})
+
+	// DeadlineBumped: extending the deadline re-arms the marker, so a new
+	// reminder fires once the new deadline re-enters the window.
+	t.Run("DeadlineBumped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		client, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: reminder fires for the original deadline.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+		}()
+		testutil.TryReceive(ctx, t, statsCh)
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
+
+		// Move the deadline well into the future. The marker now differs from
+		// the build deadline, re-arming the reminder.
+		newDeadline := deadline.Add(2 * time.Hour)
+		require.NoError(t, client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+			Deadline: newDeadline,
+		}))
+
+		// Second tick inside the new window fires another reminder. Sent()
+		// accumulates across ticks, so two total proves the second reminder
+		// fired; sent[1] carries the bumped deadline.
+		go func() {
+			tickCh <- newDeadline.Add(-timeTilNotify / 2)
+			close(tickCh)
+		}()
+		testutil.TryReceive(ctx, t, statsCh)
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 2)
+		require.NotEmpty(t, sent[1].Labels["timeTilShutdown"])
+	})
+
+	// ExceedsLifetime: a time_til_autostop_notify larger than the
+	// workspace's remaining lifetime yields exactly one reminder, not one per
+	// tick.
+	t.Run("ExceedsLifetime", func(t *testing.T) {
+		t.Parallel()
+
+		// Far larger than the workspace's 8h TTL, so the lead window already
+		// includes "now" at build creation.
+		timeTilNotify := 100 * time.Hour
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: a single reminder fires.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+
+		// Second tick still before the deadline: no flood of reminders. Sent()
+		// accumulates across ticks, so a cumulative count still at 1 proves no
+		// duplicate fired.
+		go func() {
+			tickCh <- deadline.Add(-30 * time.Minute)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+	})
+
+	// FailedEnqueueNotRetried pins the marker-before-enqueue / at-most-once
+	// guarantee: the marker is committed inside the transaction before the
+	// post-commit enqueue, so a failed enqueue on the first tick is NOT
+	// retried on a later tick even though the workspace is still inside the
+	// lead window. failOnceEnqueuer injects that single send failure;
+	// notificationstest.FakeEnqueuer.Enqueue always succeeds.
+	t.Run("FailedEnqueueNotRetried", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &notificationstest.FakeEnqueuer{}
+		enq := &failOnceEnqueuer{Enqueuer: fake}
+		timeTilNotify := 2 * time.Hour
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, enq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick 1 inside the window: the enqueue fails. Because the marker is
+		// stamped before the enqueue, the failure only logs and nothing is
+		// sent.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, fake.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 0)
+
+		// Tick 2 still inside the window: the committed marker suppresses
+		// re-selection, so the failed reminder is NOT retried. A cumulative
+		// count still at 0 proves the at-most-once guarantee described at the
+		// enqueue block in lifecycle_executor.go.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour + time.Minute)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, fake.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 0)
+	})
+}
+
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	user := coderdtest.CreateFirstUser(t, client)
@@ -1743,17 +2288,21 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		_ = daemon2Closer.Close()
 	})
 
-	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
+	// Ensure the provisioner is NOT stale, and see if we get a successful state transition.
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
-	next = sched.Next(workspace.LatestBuild.CreatedAt)
-	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
-	// Require that the provisioner time has actually been updated to the expected value.
-	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	next = coderdtest.NextAutostartTick(t, workspace)
+	// Move LastSeenAt forward to the tick. Backward updates are silently
+	// ignored, and the executor treats LastSeenAt at or after the tick as
+	// non-stale, so this cannot race with the daemon's heartbeat.
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
+	// Require that the provisioner is not stale relative to the tick,
+	// mirroring the executor's hasValidProvisioner check.
+	p, err = coderdtest.GetProvisionerForTags(db, next, workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
-	require.True(t, next.UnixNano() > p.LastSeenAt.Time.UnixNano())
+	require.LessOrEqual(t, next.Sub(p.LastSeenAt.Time), provisionerdserver.StaleInterval,
+		"provisioner should not be stale at the autostart tick")
 
 	// Trigger autobuild
 	go func() {
@@ -1763,169 +2312,4 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	stats = <-statsCh
 
 	assert.Len(t, stats.Transitions, 1, "should create builds when provisioners are available")
-}
-
-func TestExecutorTaskWorkspace(t *testing.T) {
-	t.Parallel()
-
-	createTaskTemplate := func(t *testing.T, client *codersdk.Client, orgID uuid.UUID, ctx context.Context, defaultTTL time.Duration) codersdk.Template {
-		t.Helper()
-
-		taskAppID := uuid.New()
-		version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionGraph: []*proto.Response{
-				{
-					Type: &proto.Response_Graph{
-						Graph: &proto.GraphComplete{
-							Resources: []*proto.Resource{
-								{
-									Agents: []*proto.Agent{
-										{
-											Id:   uuid.NewString(),
-											Name: "dev",
-											Auth: &proto.Agent_Token{
-												Token: uuid.NewString(),
-											},
-											Apps: []*proto.App{
-												{
-													Id:   taskAppID.String(),
-													Slug: "task-app",
-												},
-											},
-										},
-									},
-								},
-							},
-							HasAiTasks: true,
-							AiTasks: []*proto.AITask{
-								{
-									AppId: taskAppID.String(),
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
-
-		if defaultTTL > 0 {
-			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
-			})
-			require.NoError(t, err)
-		}
-
-		return template
-	}
-
-	createTaskWorkspace := func(t *testing.T, client *codersdk.Client, template codersdk.Template, ctx context.Context, input string) codersdk.Workspace {
-		t.Helper()
-
-		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Input:             input,
-		})
-		require.NoError(t, err)
-		require.True(t, task.WorkspaceID.Valid, "task should have a workspace")
-
-		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		return workspace
-	}
-
-	t.Run("Autostart", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx        = testutil.Context(t, testutil.WaitShort)
-			sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-			tickCh     = make(chan time.Time)
-			statsCh    = make(chan autobuild.Stats)
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				AutobuildTicker:          tickCh,
-				IncludeProvisionerDaemon: true,
-				AutobuildStats:           statsCh,
-			})
-			admin = coderdtest.CreateFirstUser(t, client)
-		)
-
-		// Given: A task workspace
-		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 0)
-		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostart")
-
-		// Given: The task workspace has an autostart schedule
-		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: ptr.Ref(sched.String()),
-		})
-		require.NoError(t, err)
-
-		// Given: That the workspace is in a stopped state.
-		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
-
-		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
-		require.NoError(t, err)
-
-		// When: the autobuild executor ticks after the scheduled time
-		go func() {
-			tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
-			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
-			tickCh <- tickTime
-			close(tickCh)
-		}()
-
-		// Then: We expect to see a start transition
-		stats := <-statsCh
-		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
-		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
-		assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID], "should autostart the workspace")
-		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
-	})
-
-	t.Run("Autostop", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx        = testutil.Context(t, testutil.WaitShort)
-			tickCh     = make(chan time.Time)
-			statsCh    = make(chan autobuild.Stats)
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				AutobuildTicker:          tickCh,
-				IncludeProvisionerDaemon: true,
-				AutobuildStats:           statsCh,
-			})
-			admin = coderdtest.CreateFirstUser(t, client)
-		)
-
-		// Given: A task workspace with an 8 hour deadline
-		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 8*time.Hour)
-		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostop")
-
-		// Given: The workspace is currently running
-		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
-		require.NotZero(t, workspace.LatestBuild.Deadline, "workspace should have a deadline for autostop")
-
-		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
-		require.NoError(t, err)
-
-		// When: the autobuild executor ticks after the deadline
-		go func() {
-			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
-			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
-			tickCh <- tickTime
-			close(tickCh)
-		}()
-
-		// Then: We expect to see a stop transition
-		stats := <-statsCh
-		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
-		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
-		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
-		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
-	})
 }

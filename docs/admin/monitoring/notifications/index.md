@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
@@ -13,13 +15,6 @@ Notifications are sent in response to internal events, to alert the affected
 user(s) of the event.
 
 Coder supports the following list of events:
-
-### Task Events
-
-These notifications are sent to the owner of the workspace where the task is running:
-
-- Task Idle
-- Task Working
 
 ### Template Events
 
@@ -40,6 +35,8 @@ These notifications are sent to users with **owner** and **user admin** roles:
 - User account deleted
 - User account suspended
 
+These account notifications cover both user and service accounts.
+
 These notifications are sent to users themselves:
 
 - User account suspended
@@ -51,6 +48,7 @@ These notifications are sent to users themselves:
 These notifications are sent to the workspace owner:
 
 - Workspace automatic build failure
+- Workspace autostop reminder
 - Workspace created
 - Workspace deleted
 - Workspace manual build failure
@@ -69,10 +67,10 @@ OOM/OOD notifications can be delivered to users in VS Code.
 You can configure:
 
 - SMTP or webhooks globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server/index.md#--notifications-method)
 (default: `smtp`).
 - Coder dashboard Inbox with
-[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server.md#--notifications-inbox-enabled)
+[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server/index.md#--notifications-inbox-enabled)
 (default: `true`).
 
 Premium customers can configure which method to use for each of the supported
@@ -109,11 +107,11 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type     | Description                                               | Default   |
-|:--------:|---------------------|-------------------------|----------|-----------------------------------------------------------|-----------|
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.                              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`) |           |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                 | localhost |
+| Required | CLI                 | Env                     | Type     | Description                                                       | Default   |
+|:--------:|---------------------|-------------------------|----------|-------------------------------------------------------------------|-----------|
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use (e.g. `"Coder <coder@example.com>"`). |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`)         |           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                         | localhost |
 
 **Authentication Settings:**
 
@@ -147,7 +145,7 @@ After setting the required fields above:
 
 1. Set the following configuration options:
 
-   ```text
+   ```txt
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
    CODER_EMAIL_AUTH_PASSWORD="<app password created above (no spaces)>"
@@ -166,7 +164,7 @@ After setting the required fields above:
 1. Set up an account on Microsoft 365 or outlook.com
 1. Set the following configuration options:
 
-   ```text
+   ```txt
    CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
    CODER_EMAIL_TLS_STARTTLS=true
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
@@ -276,7 +274,7 @@ Custom notifications let you send an ad‑hoc notification to yourself using the
 These are useful for surfacing the result of long-running tasks or important state changes.
 At this time, custom notifications can only be sent to the user making the request.
 
-To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications_custom.md).
+To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications/custom.md).
 
 <!-- TODO(ssncferreira): Update when sending custom notifications to multiple users/roles is supported.
 	 Explain deduplication behaviour for multiple users/roles.
@@ -288,13 +286,13 @@ To send a custom notification, execute [`coder notifications custom <title> <mes
 
 - Send yourself a quick update:
 
-```shell
+```sh
 coder templates push -y && coder notifications custom "Template push complete" "Template version uploaded."
 ```
 
 - Use in a script after a long-running task:
 
-```shell
+```sh
 #!/usr/bin/env bash
 set -o pipefail
 
@@ -313,10 +311,10 @@ Administrators may wish to stop _all_ notifications across the deployment. We
 support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute
-[`coder notifications pause`](../../../reference/cli/notifications_pause.md).
+[`coder notifications pause`](../../../reference/cli/notifications/pause.md).
 
 To resume sending notifications, execute
-[`coder notifications resume`](../../../reference/cli/notifications_resume.md).
+[`coder notifications resume`](../../../reference/cli/notifications/resume.md).
 
 ## Troubleshooting
 
@@ -331,7 +329,7 @@ troubleshoot:
     `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
-    [experiment](../../../install/releases/feature-stages.md#early-access-features).
+    [experiment](../../../reference/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 
@@ -357,8 +355,7 @@ messages._
 - a message begins in `pending` state
 - transitions to `leased` when a Coder replica acquires new messages from the
   database
-  - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL`
-    (default: 15s)
+  - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL` (default: `15s`)
 - if a message is delivered successfully, it transitions to `sent` state
 - if a message encounters a non-retryable error (e.g. misconfiguration), it
   transitions to `permanent_failure`

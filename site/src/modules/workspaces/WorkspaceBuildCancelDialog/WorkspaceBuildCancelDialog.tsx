@@ -1,15 +1,14 @@
-import type { Workspace } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 
-interface WorkspaceBuildCancelDialogProps {
+type WorkspaceBuildCancelDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onConfirm: () => void;
 	workspace: Workspace;
-}
+};
 
-export const WorkspaceBuildCancelDialog: FC<
+export const WorkspaceBuildCancelDialog: React.FC<
 	WorkspaceBuildCancelDialogProps
 > = ({ open, onClose, onConfirm, workspace }) => {
 	const action =
@@ -23,7 +22,7 @@ export const WorkspaceBuildCancelDialog: FC<
 			title="Cancel workspace build"
 			description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will ${action}.`}
 			confirmText="Confirm"
-			cancelText="Discard"
+			cancelText="Cancel"
 			onClose={onClose}
 			onConfirm={onConfirm}
 			type="delete"

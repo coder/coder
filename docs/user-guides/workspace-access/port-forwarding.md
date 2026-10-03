@@ -1,4 +1,6 @@
-# Workspace Ports
+---
+title: Workspace ports
+---
 
 ## Port forwarding
 
@@ -17,8 +19,12 @@ There are multiple ways to forward ports in Coder:
 
 ## Coder Desktop
 
-[Coder Desktop](../desktop/index.md) provides seamless access to your remote workspaces, eliminating the need to install a CLI or manually configure port forwarding.
-Access all your ports at `<workspace-name>.coder:PORT`.
+> [!TIP]
+> Coder Desktop is the recommended way to access workspace ports. It provides automatic port forwarding with no manual setup.
+
+[Coder Desktop](../desktop/index.md) creates a VPN tunnel that automatically forwards every port in your workspace. Any service listening on a port is instantly accessible at `<workspace-name>.coder:PORT` from your local machine, with no additional commands or configuration.
+
+This is the simplest option for most developers: install Coder Desktop, enable Coder Connect, and all ports just work. Connections are peer-to-peer for the best performance.
 
 ## The `coder port-forward` command
 
@@ -96,7 +102,9 @@ accessible by users outside of the Coder deployment.
 
 ![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
 
-## Accessing workspace ports
+<a id="accessing-workspace-ports"></a>
+
+## Access workspace ports
 
 Another way to port forward in the dashboard is to use the "Open Ports" button
 to specify an arbitrary port. Coder will also detect if apps inside the
@@ -105,7 +113,9 @@ only supported on Windows and Linux workspace agents).
 
 ![Port forwarding in the UI](../../images/networking/listeningports.png)
 
-### Sharing ports
+<a id="sharing-ports"></a>
+
+### Share ports
 
 You can share ports as URLs, either with other authenticated coder users or
 publicly. Using the open ports interface, you can assign a sharing levels that
@@ -136,7 +146,9 @@ entering their port number in the sharable ports UI. The `share` attribute on
 impacted by the template's maximum sharing level**, nor the level of a shared
 port that points to the app.
 
-### Configuring port protocol
+<a id="configuring-port-protocol"></a>
+
+### Configure port protocol
 
 Both listening and shared ports can be configured to use either `HTTP` or
 `HTTPS` to connect to the port. For listening ports the protocol selector

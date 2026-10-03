@@ -17,7 +17,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Success 101
-// @Router /workspaceproxies/me/coordinate [get]
+// @Router /api/v2/workspaceproxies/me/coordinate [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

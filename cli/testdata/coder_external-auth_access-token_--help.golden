@@ -23,10 +23,18 @@ USAGE:
       - Obtain an extra property of an access token for additional metadata.:
   
        $ coder external-auth access-token slack --extra "authed_user.id"
+  
+    - Print the full token response as JSON.:
+  
+       $ coder external-auth access-token github --output json
 
 OPTIONS:
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
+
+      --agent-name string, $CODER_AGENT_NAME
+          The name of the agent to authenticate as (only applicable for instance
+          identity).
 
       --agent-token string, $CODER_AGENT_TOKEN
           An agent authentication token.
@@ -39,6 +47,9 @@ OPTIONS:
 
       --extra string
           Extract a field from the "extra" properties of the OAuth token.
+
+      --output text|json (default: text)
+          Output format. Available formats: text, json.
 
 ———
 Run `coder --help` for a list of global options.

@@ -1,7 +1,7 @@
 package rbac
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,7 +16,7 @@ func TestExternalScopeNames(t *testing.T) {
 
 	// Ensure sorted ascending
 	sorted := append([]string(nil), names...)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 	require.Equal(t, sorted, names)
 
 	// Ensure each entry expands to site-only
@@ -62,6 +62,20 @@ func TestIsExternalScope(t *testing.T) {
 	require.True(t, IsExternalScope("template:use"))
 	require.True(t, IsExternalScope("workspace:*"))
 	require.True(t, IsExternalScope("coder:workspaces.create"))
+	require.True(t, IsExternalScope("user:read"))
+	require.True(t, IsExternalScope("chat_model_config:share"))
 	require.False(t, IsExternalScope("debug_info:read")) // internal-only
 	require.False(t, IsExternalScope("unknown:read"))
+
+	// Chat automations are internal-only until their API ships.
+	for _, name := range []ScopeName{
+		"chat_automation:*",
+		ScopeChatAutomationCreate,
+		ScopeChatAutomationRead,
+		ScopeChatAutomationUpdate,
+		ScopeChatAutomationDelete,
+	} {
+		require.Falsef(t, IsExternalScope(name), "%s must not be user-requestable", name)
+		require.NotContainsf(t, ExternalScopeNames(), string(name), "%s must not be in the external catalog", name)
+	}
 }

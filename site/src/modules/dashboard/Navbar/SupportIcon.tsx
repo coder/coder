@@ -1,14 +1,15 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
-import type { FC } from "react";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
-interface SupportIconProps {
+type SupportIconProps = {
 	icon: string;
 	className?: string;
-}
+};
 
-export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
+export const SupportIcon: React.FC<SupportIconProps> = ({
+	icon,
+	className,
+}) => {
 	switch (icon) {
 		case "bug":
 			return <BugIcon className={className} />;
@@ -23,7 +24,7 @@ export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
 	}
 };
 
-const GithubStar: FC<SvgIconProps> = (props) => (
+const GithubStar: React.FC<React.ComponentProps<"svg">> = (props) => (
 	<svg
 		aria-hidden="true"
 		height="16"

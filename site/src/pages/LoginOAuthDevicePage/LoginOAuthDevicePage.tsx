@@ -1,25 +1,24 @@
-import type { ApiErrorResponse } from "api/errors";
-import {
-	getGitHubDevice,
-	getGitHubDeviceFlowCallback,
-} from "api/queries/oauth2";
 import { isAxiosError } from "axios";
-import {
-	isExchangeErrorRetryable,
-	newRetryDelay,
-} from "components/GitDeviceAuth/GitDeviceAuth";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
-import type { FC } from "react";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import type { ApiErrorResponse } from "#/api/errors";
+import {
+	getGitHubDevice,
+	getGitHubDeviceFlowCallback,
+} from "#/api/queries/oauth2";
+import {
+	isExchangeErrorRetryable,
+	newRetryDelay,
+} from "#/components/GitDeviceAuth/GitDeviceAuth";
+import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
+import { Welcome } from "#/components/Welcome/Welcome";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
 
 // The page is hardcoded to only use GitHub,
 // as that's the only OAuth2 login provider in our backend
 // that currently supports the device flow.
-const LoginOAuthDevicePage: FC = () => {
+const LoginOAuthDevicePage: React.FC = () => {
 	const [searchParams] = useSearchParams();
 
 	const state = searchParams.get("state");
@@ -34,7 +33,9 @@ const LoginOAuthDevicePage: FC = () => {
 	return <LoginOauthDevicePageWithState state={state} />;
 };
 
-const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
+const LoginOauthDevicePageWithState: React.FC<{ state: string }> = ({
+	state,
+}) => {
 	const externalAuthDeviceQuery = useQuery({
 		...getGitHubDevice(),
 		refetchOnMount: false,
@@ -62,10 +63,10 @@ const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
 		if (!exchangeExternalAuthDeviceQuery.isSuccess) {
 			return;
 		}
-		// We use window.location.href in lieu of a navigate hook
+		// We use location.href in lieu of a navigate hook
 		// because we need to refresh the page after the GitHub
 		// callback query sets a session cookie.
-		window.location.href = exchangeExternalAuthDeviceQuery.data.redirect_url;
+		location.href = exchangeExternalAuthDeviceQuery.data.redirect_url;
 	}, [
 		exchangeExternalAuthDeviceQuery.isSuccess,
 		exchangeExternalAuthDeviceQuery.data?.redirect_url,

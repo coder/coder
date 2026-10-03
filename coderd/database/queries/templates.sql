@@ -71,10 +71,16 @@ WHERE
 			END
 		ELSE true
 	END
-	-- Filter by has_ai_task in latest version
+	-- Filter by classic parameter flow
 	AND CASE
-		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
-			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
+		WHEN sqlc.narg('use_classic_parameter_flow') :: boolean IS NOT NULL THEN
+			t.use_classic_parameter_flow = sqlc.narg('use_classic_parameter_flow') :: boolean
+		ELSE true
+	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN sqlc.narg('agents_allowed') :: boolean IS NOT NULL THEN
+			t.agents_allowed = sqlc.narg('agents_allowed') :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
@@ -137,10 +143,12 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs,
 		max_port_sharing_level,
 		use_classic_parameter_flow,
-		cors_behavior
+		cors_behavior,
+		agents_allowed,
+		allow_workspace_renames
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -173,7 +181,10 @@ SET
 	group_acl = $8,
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
-	cors_behavior = $11
+	cors_behavior = $11,
+	disable_module_cache = $12,
+	agents_allowed = $13,
+	allow_workspace_renames = $14
 WHERE
 	id = $1
 ;
@@ -192,7 +203,8 @@ SET
 	autostart_block_days_of_week = $9,
 	failure_ttl = $10,
 	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12
+	time_til_dormant_autodelete = $12,
+	time_til_autostop_notify = $13
 WHERE
 	id = $1
 ;

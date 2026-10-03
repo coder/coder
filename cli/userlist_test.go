@@ -15,25 +15,27 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestUserList(t *testing.T) {
 	t.Parallel()
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
 		inv, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, userAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("coder.com")
+		stdout.ExpectMatch(ctx, "coder.com")
 	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
@@ -98,6 +100,7 @@ func TestUserShow(t *testing.T) {
 
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
@@ -105,13 +108,13 @@ func TestUserShow(t *testing.T) {
 		inv, root := clitest.New(t, "users", "show", otherUser.Username)
 		clitest.SetupConfig(t, userAdmin, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
-		pty.ExpectMatch(otherUser.Email)
+		stdout.ExpectMatch(ctx, otherUser.Email)
 		<-doneChan
 	})
 
@@ -146,5 +149,32 @@ func TestUserShow(t *testing.T) {
 		require.Equal(t, otherUser.Username, newUser.Username)
 		require.Equal(t, otherUser.Email, newUser.Email)
 		require.Equal(t, otherUser.Name, newUser.Name)
+	})
+
+	t.Run("Column", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		_, otherUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		inv, root := clitest.New(t, "users", "show", otherUser.Username, "-c", "username,email")
+		clitest.SetupConfig(t, userAdmin, root)
+
+		buf := bytes.NewBuffer(nil)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		out := buf.String()
+		require.Contains(t, out, "Username:")
+		require.Contains(t, out, "Email:")
+		require.Contains(t, out, otherUser.Username)
+		require.Contains(t, out, otherUser.Email)
+		require.NotContains(t, out, "ID:")
+		require.NotContains(t, out, "Status:")
+		require.NotContains(t, out, "Created At:")
+		require.NotContains(t, out, "Roles")
+		require.NotContains(t, out, "Organizations")
 	})
 }

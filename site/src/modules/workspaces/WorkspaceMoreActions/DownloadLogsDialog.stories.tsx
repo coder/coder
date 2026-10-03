@@ -1,8 +1,9 @@
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
-import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { Mock } from "vitest";
+import { agentLogsKey, buildLogsKey } from "#/api/queries/workspaces";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withDesktopViewport } from "#/testHelpers/storybook";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 
 const meta: Meta<typeof DownloadLogsDialog> = {
@@ -61,7 +62,7 @@ export const DownloadLogs: Story = {
 				`${MockWorkspace.name}-logs.zip`,
 			),
 		);
-		const blob: Blob = (args.download as jest.Mock).mock.calls[0][0];
+		const blob: Blob = (args.download as Mock).mock.calls[0][0];
 		await expect(blob.type).toEqual("application/zip");
 	},
 };

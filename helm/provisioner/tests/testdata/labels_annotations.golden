@@ -98,6 +98,7 @@ spec:
   template:
     metadata:
       annotations:
+        app.kubernetes.io/component: provisionerd
         com.coder/podAnnotation/baz: qux
         com.coder/podAnnotation/foo: bar
       labels:

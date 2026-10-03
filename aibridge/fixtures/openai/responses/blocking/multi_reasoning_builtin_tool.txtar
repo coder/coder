@@ -1,0 +1,142 @@
+Two reasoning output items before a function_call.
+
+-- request --
+{
+  "input": [
+    {
+      "role": "user",
+      "content": "Is 3 + 5 a prime number? Use the add function to calculate the sum."
+    }
+  ],
+  "model": "gpt-4.1",
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "name": "add",
+      "description": "Add two numbers together.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number"
+          },
+          "b": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ]
+}
+
+-- non-streaming --
+{
+  "id": "resp_0da6045a8b68fa5200695fa23dcc2c81a19c849f627abf8a31",
+  "object": "response",
+  "created_at": 1767875133,
+  "status": "completed",
+  "background": false,
+  "completed_at": 1767875134,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4.1-2025-04-14",
+  "output": [
+    {
+      "id": "rs_0da6045a8b68fa5200695fa23e100081a19bf68887d47ae93d",
+      "type": "reasoning",
+      "status": "completed",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "The user wants to add 3 and 5. Let me call the add function."
+        }
+      ]
+    },
+    {
+      "id": "rs_1aa7045a8b68fa5200695fa23e200082b29cf79998e58bf94e",
+      "type": "reasoning",
+      "status": "completed",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "After adding, I will check if the result is prime."
+        }
+      ]
+    },
+    {
+      "id": "fc_0da6045a8b68fa5200695fa23e198081a19bf68887d47ae93d",
+      "type": "function_call",
+      "status": "completed",
+      "arguments": "{\"a\":3,\"b\":5}",
+      "call_id": "call_CJSaa2u51JG996575oVljuNq",
+      "name": "add"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "description": "Add two numbers together.",
+      "name": "add",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number"
+          },
+          "b": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 58,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 18,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 76
+  },
+  "user": null,
+  "metadata": {}
+}
