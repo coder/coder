@@ -14,9 +14,13 @@ import {
 } from "#/components/Command/Command";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
+import { composerMenuAnchor } from "../composerMenuAnchor";
 
 type CompactOrgSelectorProps = {
 	value: Organization | null;
@@ -26,6 +30,7 @@ type CompactOrgSelectorProps = {
 	className?: string;
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
+	composer?: HTMLElement | null;
 };
 
 export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
@@ -36,7 +41,9 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	className,
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
+	composer,
 }) => {
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const [open, setOpen] = useState(false);
 	const isDisabled = disabled || options.length === 0;
 
@@ -80,12 +87,24 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
+			{isBelowMd && composer !== undefined && (
+				<PopoverAnchor
+					virtualRef={{
+						current: composer ? composerMenuAnchor(composer) : null,
+					}}
+				/>
+			)}
 			<PopoverContent
-				side={dropdownSide}
+				side={isBelowMd && composer ? "top" : dropdownSide}
+				sideOffset={isBelowMd && composer ? 0 : 4}
+				avoidCollisions={!isBelowMd || !composer}
 				align={dropdownAlign}
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
+				className={cn(
+					"w-64 p-0",
+					composer && "max-md:w-(--radix-popper-anchor-width)",
+				)}
 			>
-				<Command loop>
+				<Command label="Find organization" loop>
 					<CommandInput placeholder="Find organization…" className="text-xs" />
 					<CommandList>
 						<CommandEmpty className="text-xs">

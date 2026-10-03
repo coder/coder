@@ -34,6 +34,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -59,6 +60,7 @@ type WorkspacePillProps = {
 	// tooltip and makes the menu non-modal so one outside click
 	// dismisses both layers.
 	inOverflowPopover?: boolean;
+	composer?: HTMLElement | null;
 };
 
 export const WorkspacePill: React.FC<WorkspacePillProps> = ({
@@ -69,6 +71,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	folder,
 	onRemoveWorkspace,
 	inOverflowPopover,
+	composer,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -103,6 +106,19 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
+
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
+		);
+	};
+
+	usePositionOverlayAboveAnchor({
+		anchorElement: composer,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && open,
+	});
 
 	const portsData = usePortsData(
 		workspace,
@@ -166,11 +182,15 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
+				ref={handleMenuRef}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
+				className={cn(
+					composer && "mobile-composer-menu",
+					"w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!",
+				)}
 			>
 				{/* Scrolls within the capped above-composer height on mobile;
 				 * no-op on desktop. overflow-x-hidden avoids a horizontal
@@ -178,7 +198,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 				 * ARIA tree. */}
 				<div
 					role="none"
-					className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden"
+					className="mobile-composer-menu-scroll-area min-h-0 overflow-x-hidden"
 				>
 					{showPortsView ? (
 						<MobilePortsPanel

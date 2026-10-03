@@ -372,6 +372,43 @@ describe("ChatBoardPage", () => {
 		);
 	});
 
+	it("dismisses a window on Escape only when the event was not consumed", async () => {
+		const user = userEvent.setup();
+		mockChats(
+			() => Promise.resolve([launch()]),
+			() => Promise.resolve([]),
+		);
+		renderWithAuth(<ChatBoardPage />);
+		const [openLaunch] = await screen.findAllByRole("button", {
+			name: "Open Launch",
+		});
+		await user.click(openLaunch);
+		const titleBar = await screen.findByRole("button", {
+			name: "Move or resize Launch",
+		});
+		titleBar.focus();
+
+		const consumeEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+			}
+		};
+
+		document.addEventListener("keydown", consumeEscape, { capture: true });
+
+		try {
+			await user.keyboard("{Escape}");
+			expect(storedWindows()).toEqual([
+				expect.objectContaining({ chatId: "launch" }),
+			]);
+		} finally {
+			document.removeEventListener("keydown", consumeEscape, { capture: true });
+		}
+
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(storedWindows()).toEqual([]));
+	});
+
 	it("minimizes a chat window into a tab, keeping the chat mounted, and restores it", async () => {
 		const user = userEvent.setup();
 		chatPageMounts.mount.mockClear();
