@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -494,6 +495,13 @@ func TestUpdateWithRichParameters(t *testing.T) {
 func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Parallel()
 
+	client, _, api := coderdtest.NewWithAPI(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	// Provisioners can pick up sibling jobs, so they share the parent lifetime.
+	newProvisioner := func() {
+		coderdtest.NewTaggedProvisionerDaemon(t, api, uuid.NewString(), nil)
+	}
+
 	const (
 		stringParameterName  = "string_parameter"
 		stringParameterValue = "abc"
@@ -520,9 +528,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateString", func(t *testing.T) {
 		t.Parallel()
 
+		newProvisioner()
 		logger := testutil.Logger(t)
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(stringRichParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -567,9 +574,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateNumber", func(t *testing.T) {
 		t.Parallel()
 
+		newProvisioner()
 		logger := testutil.Logger(t)
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(numberRichParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -615,9 +621,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateBool", func(t *testing.T) {
 		t.Parallel()
 
+		newProvisioner()
 		logger := testutil.Logger(t)
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(boolRichParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -663,9 +668,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("RequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
+		newProvisioner()
 		logger := testutil.Logger(t)
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		// Upload the initial template
@@ -736,8 +740,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("OptionalParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		newProvisioner()
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		// Upload the initial template
@@ -845,13 +848,12 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				logger := testutil.Logger(t)
 
 				// Create template and workspace
-				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-				user := coderdtest.CreateFirstUser(t, client)
-				member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+				newProvisioner()
+				member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.originalParameters))
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(tc.originalParameters))
 				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 				// Create new workspace
 				inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
@@ -860,7 +862,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				require.NoError(t, err)
 
 				// Update template
-				updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.updatedParameters), template.ID)
+				updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(tc.updatedParameters), template.ID)
 				coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 				err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: updatedVersion.ID,
@@ -904,8 +906,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		t.Parallel()
 
 		// Create template and workspace
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		newProvisioner()
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		const tempVal = "2"
@@ -963,8 +964,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Create template and workspace
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		newProvisioner()
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		templateParameters := []*proto.RichParameter{
@@ -1033,8 +1033,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Create template and workspace
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		newProvisioner()
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		templateParameters := []*proto.RichParameter{
@@ -1106,8 +1105,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		t.Parallel()
 
 		// Create template and workspace with only a mutable parameter.
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		newProvisioner()
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		templateParameters := []*proto.RichParameter{

@@ -64,11 +64,8 @@ func TestAutoUpdate(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
 				t.Parallel()
-				client := coderdtest.New(t, nil)
-				_ = coderdtest.CreateFirstUser(t, client)
-
 				inv, root := clitest.New(t, c.Args...)
-				clitest.SetupConfig(t, client, root)
+				require.NoError(t, root.URL().Write("http://localhost"))
 				err := inv.Run()
 				require.Error(t, err)
 				require.Contains(t, err.Error(), c.ErrorContains)
