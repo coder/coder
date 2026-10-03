@@ -13,13 +13,3 @@ Toggle auto-update policy for a workspace
 ```console
 coder autoupdate [flags] <workspace> <always|never>
 ```
-
-## Options
-
-### -y, --yes
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Bypass confirmation prompts.

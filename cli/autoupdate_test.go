@@ -41,6 +41,31 @@ func TestAutoUpdate(t *testing.T) {
 		require.Equal(t, expectedPolicy, workspace.AutomaticUpdates)
 	})
 
+	t.Run("SkipPromptFlag", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		expectedPolicy := codersdk.AutomaticUpdatesAlways
+		inv, root := clitest.New(t, "autoupdate", workspace.Name, string(expectedPolicy), "-y")
+		clitest.SetupConfig(t, member, root)
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), fmt.Sprintf("Updated workspace %q auto-update policy to %q", workspace.Name, expectedPolicy))
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, expectedPolicy, workspace.AutomaticUpdates)
+	})
+
 	t.Run("InvalidArgs", func(t *testing.T) {
 		type testcase struct {
 			Name          string

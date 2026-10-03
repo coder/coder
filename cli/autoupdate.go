@@ -47,7 +47,7 @@ func (r *RootCmd) autoupdate() *serpent.Command {
 		},
 	}
 
-	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
+	cmd.Options = append(cmd.Options, cliui.HiddenSkipPromptOption())
 	return cmd
 }
 
