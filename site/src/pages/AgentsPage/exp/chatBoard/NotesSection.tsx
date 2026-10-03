@@ -127,17 +127,19 @@ const Note: React.FC<NoteProps> = ({
 		);
 	}
 
-	// The age sits on the right and takes only its own width. The actions
-	// float over the end of the note on hover or focus instead of reserving
-	// a column, and the age turns invisible (not hidden) under them so the
-	// text does not rewrap. The actions hide by opacity, not display: a
-	// display:none button cannot take focus, so Tab could never reveal them.
+	// Nothing reserves a column beside the note. The age floats right, so
+	// only the first line wraps around it. The actions appear over the end
+	// of the first line on hover or focus, on a background that fades in
+	// from the left so covered text trails off; the age turns invisible
+	// (not hidden) under them so the text does not rewrap. The actions hide
+	// by opacity, not display: a display:none button cannot take focus, so
+	// Tab could never reveal them.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
 			ref={setRefs}
 			className={cn(
-				"group/note relative flex items-start gap-2.5 py-[3px]",
+				"group/note relative flow-root py-[3px]",
 				isDragging && "opacity-40",
 				dropSide === "before" &&
 					"shadow-[inset_0_2px_0_0_var(--color-content-link)]",
@@ -145,15 +147,15 @@ const Note: React.FC<NoteProps> = ({
 					"shadow-[inset_0_-2px_0_0_var(--color-content-link)]",
 			)}
 		>
-			<CompactMarkdown className="min-w-0 flex-1 text-xs leading-[17px] text-content-primary/80">
-				{note.text}
-			</CompactMarkdown>
 			{note.timestamp ? (
-				<span className="flex h-[17px] shrink-0 items-center text-[11px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible">
+				<span className="float-right ml-2.5 text-[11px] leading-[17px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible">
 					<RelativeAge date={note.timestamp} />
 				</span>
 			) : null}
-			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center rounded bg-surface-primary pl-1 opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
+			<CompactMarkdown className="text-xs leading-[17px] text-content-primary/80">
+				{note.text}
+			</CompactMarkdown>
+			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center bg-[linear-gradient(to_right,transparent,var(--color-surface-primary)_20px)] pl-6 opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
 				<Button
 					variant="subtle"
 					size="icon"
