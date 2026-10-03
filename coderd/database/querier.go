@@ -813,6 +813,9 @@ type sqlcQuerier interface {
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
+	// Returns the members of an organization among the given users, with
+	// their display data. Deleted users and non-members are not returned.
+	GetOrganizationMembersByUserIDs(ctx context.Context, arg GetOrganizationMembersByUserIDsParams) ([]GetOrganizationMembersByUserIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
