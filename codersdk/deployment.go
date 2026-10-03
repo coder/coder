@@ -5532,6 +5532,7 @@ const (
 	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
+	ExperimentAgentPlugins              Experiment = "agent-plugins"               // Loads Agent Plugins (agent-plugins.org) found in workspaces: their skills appear in agent chats and their MCP servers run through the workspace agent.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5574,6 +5575,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Board"
 	case ExperimentChatAutomations:
 		return "Chat Automations"
+	case ExperimentAgentPlugins:
+		return "Agent Plugins"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5604,6 +5607,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatBoard,
 	ExperimentChatStageMetrics,
 	ExperimentChatAutomations,
+	ExperimentAgentPlugins,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

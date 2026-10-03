@@ -135,6 +135,9 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// PluginsSupported is true when the agent-plugins experiment is
+	// enabled. When false, the agent must not discover or emit plugins.
+	PluginsSupported bool `json:"plugins_supported"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
