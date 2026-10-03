@@ -44,6 +44,8 @@ const InlineLink: React.FC<React.ComponentProps<"a">> = ({
 	);
 };
 
+// The icon is a faded hint, smaller than the text: in notes nearly every
+// link is external, so a full-strength icon would repeat on every line.
 // Browsers may wrap before an inline icon, leaving it alone on a new line.
 // Binding it to the last character keeps it after the text; one character
 // rather than the last word, so a long URL can still wrap.
@@ -53,7 +55,7 @@ const WithTrailingIcon: React.FC<{ readonly children: React.ReactNode }> = ({
 	const icon = (
 		<SquareArrowOutUpRightIcon
 			aria-hidden="true"
-			className="ml-0.5 inline size-3 align-[-1px]"
+			className="ml-1 inline size-2.5 align-[-0.5px] opacity-55"
 		/>
 	);
 	if (typeof children !== "string" || children.length === 0) {
