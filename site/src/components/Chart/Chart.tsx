@@ -98,6 +98,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
 	return (
 		<style
+			// oxlint-disable-next-line react/no-danger -- This renders generated chart CSS, not HTML.
 			dangerouslySetInnerHTML={{
 				__html: Object.entries(THEMES)
 					.map(
