@@ -189,7 +189,7 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 // @Accept x-www-form-urlencoded
 // @Produce json
 // @Tags Enterprise
-// @Param Authorization header string false "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both." example(Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=)
+// @Param Authorization header string false "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=`."
 // @Param client_id formData string false "Client ID, required unless sent as the HTTP Basic username"
 // @Param client_secret formData string false "Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param token formData string true "The token to revoke"
