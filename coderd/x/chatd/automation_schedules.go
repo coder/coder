@@ -333,6 +333,7 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		errors.Is(err, ErrAutomationNotFound):
 		// The automation changed since the scan; the next scan reads it
 		// again.
+		logger.Debug(ctx, "chat automation schedule occurrence changed during publish", slog.Error(err))
 	default:
 		// The cursor stays, so the next scan retries while the occurrence
 		// is within the grace window. This includes
