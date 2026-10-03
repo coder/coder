@@ -3,6 +3,8 @@ import {
 	clampPercentage,
 	formatSpendPeriodLabel,
 	getSeverity,
+	MIN_PROJECTION_ELAPSED_MS,
+	projectPeriodSpendMicros,
 	usageProgressPercentage,
 } from "./budget";
 
@@ -61,6 +63,111 @@ describe("usageProgressPercentage", () => {
 		expect(usageProgressPercentage(Number.NaN, 100)).toBe(0);
 		expect(usageProgressPercentage(1, Number.POSITIVE_INFINITY)).toBe(0);
 		expect(usageProgressPercentage(1, -100)).toBe(0);
+	});
+});
+
+describe("projectPeriodSpendMicros", () => {
+	const periodStart = "2026-07-01T00:00:00Z";
+	const periodEnd = "2026-08-01T00:00:00Z";
+	const startMs = Date.parse(periodStart);
+	const dayMs = 24 * 60 * 60 * 1000;
+
+	it("scales spend so far across the full period", () => {
+		// 10 of 31 days elapsed: $12.50 * 31 / 10 = $38.75.
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 12_500_000,
+				periodStart,
+				periodEnd,
+				nowMs: startMs + 10 * dayMs,
+			}),
+		).toBe(38_750_000);
+	});
+
+	it("rounds to whole micros", () => {
+		// 3 of 31 days elapsed: 1,000,000 * 31 / 3 = 10,333,333.33...
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 1_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: startMs + 3 * dayMs,
+			}),
+		).toBe(10_333_333);
+	});
+
+	it("hides the projection until the minimum elapsed time", () => {
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: startMs + MIN_PROJECTION_ELAPSED_MS - 1,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: startMs + MIN_PROJECTION_ELAPSED_MS,
+			}),
+		).toBe(155_000_000);
+	});
+
+	it("clamps elapsed time to the period", () => {
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: Date.parse(periodEnd) + 5 * dayMs,
+			}),
+		).toBe(5_000_000);
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: startMs - dayMs,
+			}),
+		).toBeUndefined();
+	});
+
+	it("returns undefined without spend or with invalid inputs", () => {
+		const nowMs = startMs + 10 * dayMs;
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 0,
+				periodStart,
+				periodEnd,
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: Number.NaN,
+				periodStart,
+				periodEnd,
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart: "not a date",
+				periodEnd,
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart: periodEnd,
+				periodEnd: periodStart,
+				nowMs,
+			}),
+		).toBeUndefined();
 	});
 });
 
