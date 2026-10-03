@@ -2203,7 +2203,9 @@ export interface ChatAutomation {
 	readonly schedule_time_zone?: string;
 	/**
 	 * ScheduleNextRunAt is the scheduler cursor, not a promise that a run
-	 * happens then. It does not change while the automation is paused.
+	 * happens then. While the automation is paused it can stay in the past,
+	 * or keep moving past occurrences that are refused, for example while
+	 * its model is unavailable.
 	 */
 	readonly schedule_next_run_at?: string;
 	/**

@@ -18894,7 +18894,7 @@
 					"type": "string"
 				},
 				"schedule_next_run_at": {
-					"description": "ScheduleNextRunAt is the scheduler cursor, not a promise that a run\nhappens then. It does not change while the automation is paused.",
+					"description": "ScheduleNextRunAt is the scheduler cursor, not a promise that a run\nhappens then. While the automation is paused it can stay in the past,\nor keep moving past occurrences that are refused, for example while\nits model is unavailable.",
 					"type": "string",
 					"format": "date-time"
 				},

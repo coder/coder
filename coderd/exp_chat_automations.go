@@ -92,6 +92,20 @@ func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAut
 	return chats, nil
 }
 
+// chatAutomationWriteResponse is chatAutomationResponse for a row that a
+// create or update already committed. A failed read of the derived fields
+// must not report the committed write, or a new webhook secret that is
+// returned only once, as an error. It then logs the failure and returns
+// the row without paused reasons or referenced chats.
+func (api *API) chatAutomationWriteResponse(ctx context.Context, row database.ChatAutomation) codersdk.ChatAutomation {
+	automation, err := api.chatAutomationResponse(ctx, row)
+	if err == nil {
+		return automation
+	}
+	api.Logger.Warn(ctx, "read chat automation status after write", slog.F("automation_id", row.ID), slog.Error(err))
+	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, api.Clock.Now(), chatAutomationNextRunCount))
+}
+
 // chatAutomationResponse is chatAutomationResponses for one row.
 func (api *API) chatAutomationResponse(ctx context.Context, row database.ChatAutomation) (codersdk.ChatAutomation, error) {
 	automations, err := api.chatAutomationResponses(ctx, []database.ChatAutomation{row})
@@ -187,11 +201,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = automation
 
-	response, err := api.chatAutomationResponse(ctx, automation)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
+	response := api.chatAutomationWriteResponse(ctx, automation)
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
 		Automation:    response,
 		WebhookSecret: secret,
@@ -285,11 +295,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	response, err := api.chatAutomationResponse(ctx, updated)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
+	response := api.chatAutomationWriteResponse(ctx, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
