@@ -50,8 +50,9 @@ const compactedHeat: ChatHeat = {
 const button = () => screen.getByRole("button", { name: /next message/i });
 const badge = () => screen.queryByTestId("heat-badge");
 
-// Timers chain through effects, so advance one minute per act, slightly
-// past the boundary the tick is scheduled for.
+// Timers chain through effects: each tick schedules the next from the
+// clock it just read, so advance one minute per act, slightly past the
+// boundary, rather than several minutes in one step.
 const advanceMinutes = (minutes: number) => {
 	for (let i = 0; i < minutes; i++) {
 		act(() => {
@@ -87,26 +88,85 @@ describe("LiveChatHeatIndicator", () => {
 
 	it("counts whole minutes down and flips to cold at expiry", () => {
 		renderComponent(live(getHeat(), false));
-		expect(button()).toHaveAccessibleName(/^Next message: Low\. Reads 165K/);
+		expect(button()).toHaveAccessibleName(
+			/^Next message: Low\. Reads 165K.*expires in about 5 minutes\.$/,
+		);
 		expect(badge()).toHaveTextContent("5");
+		expect(badge()).toHaveClass("bg-surface-primary");
 
 		// The clock is re-read at minute boundaries, not every second.
 		advanceMinutes(1);
 		expect(badge()).toHaveTextContent("4");
-		expect(button()).toHaveAccessibleName(/expires in 4:00/i);
+		expect(button()).toHaveAccessibleName(/expires in about 4 minutes/i);
 
-		advanceMinutes(3);
+		advanceMinutes(2);
+		expect(badge()).toHaveTextContent("2");
+		expect(badge()).toHaveClass("bg-surface-primary");
+
+		advanceMinutes(1);
 		expect(badge()).toHaveTextContent("1");
-		expect(badge()).toHaveClass("animate-pulse");
+		expect(badge()).toHaveClass("bg-content-primary", "animate-pulse");
+		expect(button()).toHaveAccessibleName(/expires in under a minute/i);
 
 		act(() => {
 			vi.advanceTimersByTime(31_000);
 		});
 		expect(badge()).not.toHaveTextContent(/\d/);
 		expect(badge()).not.toHaveClass("animate-pulse");
+		expect(badge()).toHaveClass("bg-content-primary");
 		expect(button()).toHaveAccessibleName(
 			/^Next message: High\. Re-writes about 165K tokens.*Cache likely expired/,
 		);
+	});
+
+	it("re-reads the clock when a timer fires late", () => {
+		renderComponent(live(getHeat(), false));
+		// The wall clock jumps (a suspended machine) before the pending minute
+		// tick fires; the tick reads the clock rather than assuming a minute.
+		vi.setSystemTime(Date.now() + 10 * MINUTE_MS);
+		act(() => {
+			vi.advanceTimersByTime(MINUTE_MS);
+		});
+		expect(button()).toHaveAccessibleName(/cache likely expired/i);
+	});
+
+	it("re-reads the clock when the tab becomes visible", () => {
+		renderComponent(live(getHeat(), false));
+		vi.setSystemTime(Date.now() + 2 * MINUTE_MS);
+		act(() => {
+			document.dispatchEvent(new Event("visibilitychange"));
+		});
+		expect(badge()).toHaveTextContent("3");
+	});
+
+	it("clears its timer on unmount", () => {
+		const { unmount } = renderComponent(live(getHeat(), false));
+		expect(vi.getTimerCount()).toBe(1);
+		unmount();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("shows the seconds while the tooltip is open", async () => {
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		renderComponent(live(getHeat(), false));
+		// 25 s into the minute, so the stored minute tick is stale.
+		act(() => {
+			vi.advanceTimersByTime(25_000);
+		});
+		await user.hover(button());
+		// Past the tooltip's open delay.
+		act(() => {
+			vi.advanceTimersByTime(200);
+		});
+		const tooltip = screen.getByRole("tooltip");
+		expect(tooltip).toHaveTextContent(/cache expires in 4:05\./i);
+
+		act(() => {
+			vi.advanceTimersByTime(1_000);
+		});
+		expect(tooltip).toHaveTextContent(/cache expires in 4:04\./i);
+		// The name stays on whole minutes while focused.
+		expect(button()).toHaveAccessibleName(/expires in about 5 minutes/i);
 	});
 
 	it("hides the countdown while generating and restarts it after", () => {
@@ -136,6 +196,7 @@ describe("LiveChatHeatIndicator", () => {
 			/^Next message: High\. Re-writes.*Model changed/,
 		);
 		expect(badge()).not.toHaveTextContent(/\d/);
+		expect(badge()).toHaveClass("bg-content-primary");
 
 		// Generating with the new model is not a pending switch.
 		rerender(live(heat, true, "model-b"));
@@ -152,7 +213,7 @@ describe("LiveChatHeatIndicator", () => {
 		renderComponent(live(compactedHeat, false));
 		expect(badge()).toBeNull();
 		expect(button()).toHaveAccessibleName(
-			"Next message: unknown. Compacted: the next message writes a fresh cache from the summary.",
+			"Next message: fresh cache. Compacted: the next message writes a fresh cache from the summary.",
 		);
 	});
 });
@@ -183,10 +244,13 @@ describe("ChatHeatIndicator", () => {
 			remainingMs: 3 * MINUTE_MS + 42_000,
 		});
 		expect(tooltip).toHaveTextContent(
-			/reads 165K tokens from the cache, about 13\.2K tokens' worth of a re-write \(Low\)/i,
+			/reads 165K tokens from the cache, about 13K tokens' worth of a re-write \(Low\)/i,
 		);
 		expect(tooltip).toHaveTextContent(/cache expires in 3:42/i);
 		expect(tooltip).not.toHaveTextContent(/compact|reply now/i);
+		expect(tooltip).toHaveTextContent(
+			/last turn: 2 requests re-sent 2K tokens \(1% of 165K cacheable\)\./i,
+		);
 		expect(screen.getByTestId("at-stake")).toBeInTheDocument();
 	});
 
@@ -194,6 +258,12 @@ describe("ChatHeatIndicator", () => {
 		const tooltip = await openTooltip(getHeat(), { remainingMs: 42_000 });
 		expect(tooltip).toHaveTextContent(/cache expires in 0:42\./i);
 		expect(tooltip).toHaveTextContent(/reply now to keep it\./i);
+	});
+
+	it("enters the last minute at exactly sixty seconds", () => {
+		renderIndicator(getHeat(), { remainingMs: MINUTE_MS });
+		expect(badge()).toHaveTextContent("1");
+		expect(badge()).toHaveClass("bg-content-primary", "animate-pulse");
 	});
 
 	it("suggests compacting or clearing when cold and at least moderate", async () => {
@@ -216,6 +286,23 @@ describe("ChatHeatIndicator", () => {
 		expect(tooltip).not.toHaveTextContent(/compact/i);
 	});
 
+	it("gates the compact hint on the moderate band edge", async () => {
+		const { unmount } = renderIndicator(getHeat(61_000), {
+			remainingMs: -MINUTE_MS,
+		});
+		await userEvent.hover(button());
+		expect(await screen.findByRole("tooltip")).not.toHaveTextContent(
+			/compact/i,
+		);
+		unmount();
+
+		const tooltip = await openTooltip(getHeat(63_000), {
+			remainingMs: -MINUTE_MS,
+		});
+		expect(tooltip).toHaveTextContent(/\(Moderate\)/);
+		expect(tooltip).toHaveTextContent(/type \/compact/i);
+	});
+
 	it("offers switching back with the time left while the model is offered", async () => {
 		const tooltip = await openTooltip(getHeat(), {
 			remainingMs: 2 * MINUTE_MS,
@@ -223,6 +310,13 @@ describe("ChatHeatIndicator", () => {
 		});
 		expect(tooltip).toHaveTextContent(
 			/selected model differs.*switch back within 2:00/i,
+		);
+	});
+
+	it("offers switching back without a time when no countdown is known", async () => {
+		const tooltip = await openTooltip(getHeat(), { isModelChanged: true });
+		expect(tooltip).toHaveTextContent(
+			/switch back to the previous model to reuse its cache\./i,
 		);
 	});
 
@@ -244,7 +338,6 @@ describe("ChatHeatIndicator", () => {
 				requestCount: 3,
 				missedTokens: 150_000,
 				reusableTokens: 60_000,
-				hasSegmentStart: false,
 				isPartial: false,
 			},
 		});

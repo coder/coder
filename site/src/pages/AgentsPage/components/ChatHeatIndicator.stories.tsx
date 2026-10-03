@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import type { ChatHeat } from "./ChatConversation/chatHeat";
 import { ChatHeatIndicator } from "./ChatHeatIndicator";
 
@@ -12,7 +12,6 @@ const heatWith = (lastPromptTokens: number): ChatHeat => ({
 		requestCount: 3,
 		missedTokens: 3_400,
 		reusableTokens: lastPromptTokens - 1_200,
-		hasSegmentStart: false,
 		isPartial: false,
 	},
 });
@@ -33,11 +32,13 @@ const meta: Meta<typeof ChatHeatIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ChatHeatIndicator>;
 
-// Opens the tooltip so the screenshot captures the breakdown.
+// Opens the tooltip and waits for it so the screenshot captures the
+// breakdown.
 const hoverTrigger: Story["play"] = async ({ canvasElement }) => {
 	await userEvent.hover(
 		within(canvasElement).getByRole("button", { name: /next message/i }),
 	);
+	await screen.findByRole("tooltip");
 };
 
 /** Warm cache with four minutes left; the grey segment shows the cold reading. */
@@ -100,7 +101,6 @@ export const PartialTurn: Story = {
 				requestCount: 12,
 				missedTokens: 0,
 				reusableTokens: 0,
-				hasSegmentStart: false,
 				isPartial: true,
 			},
 		},

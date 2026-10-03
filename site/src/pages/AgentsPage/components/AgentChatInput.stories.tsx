@@ -1506,7 +1506,6 @@ const highChatHeat: ChatHeat = {
 		requestCount: 3,
 		missedTokens: 40_000,
 		reusableTokens: 42_000,
-		hasSegmentStart: false,
 		isPartial: false,
 	},
 };

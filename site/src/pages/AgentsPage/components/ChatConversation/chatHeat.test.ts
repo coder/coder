@@ -168,8 +168,27 @@ describe("getChatHeat", () => {
 			requestCount: 3,
 			missedTokens: 6_000,
 			reusableTokens: 10_300,
-			hasSegmentStart: false,
 			isPartial: false,
+		});
+	});
+
+	it("caps a request's miss at the tokens it was billed uncached", () => {
+		const next = requestChain(10_000);
+		// The prompt shrinks to 2.5K: 8.1K of the previous prefix goes unread,
+		// but only 500 tokens were written.
+		const heat = getChatHeat([
+			...turn(next()),
+			...turn(
+				request({
+					input_tokens: 100,
+					cache_read_tokens: 2_000,
+					cache_creation_tokens: 400,
+				}),
+			),
+		]);
+		expect(heat?.lastTurn).toMatchObject({
+			missedTokens: 500,
+			reusableTokens: 10_100,
 		});
 	});
 
@@ -180,7 +199,6 @@ describe("getChatHeat", () => {
 		expect(heat?.lastTurn).toMatchObject({
 			missedTokens: 0,
 			reusableTokens: 0,
-			hasSegmentStart: true,
 		});
 	});
 
@@ -203,6 +221,15 @@ describe("getChatHeat", () => {
 		expect(heat?.lastPromptTokens).toBe(10_200);
 	});
 
+	it("treats the only loaded turn as complete when its user message is loaded", () => {
+		const next = requestChain(10_000);
+		const heat = getChatHeat([...turn(next(), next(3_000))], false);
+		expect(heat?.lastTurn).toMatchObject({
+			missedTokens: 3_000,
+			isPartial: false,
+		});
+	});
+
 	it("starts a new segment at a compaction or clear boundary", () => {
 		for (const boundary of [MockChatCompactionMessage, clearedMessage]) {
 			const next = requestChain(10_000);
@@ -216,7 +243,7 @@ describe("getChatHeat", () => {
 			);
 			expect(heat?.lastTurn).toMatchObject({
 				missedTokens: 0,
-				hasSegmentStart: true,
+				reusableTokens: 0,
 			});
 			expect(heat?.boundary).toBeUndefined();
 		}

@@ -28,11 +28,12 @@ type ChatContextBoundary = "compacted" | "cleared";
 
 export type ChatHeatTurn = {
 	readonly requestCount: number;
+	// Cacheable tokens the turn's requests were billed for without a cache
+	// read, summed over the turn.
 	readonly missedTokens: number;
 	// The largest prefix any request in the turn could have read from the
 	// cache; 0 for a segment's first request.
 	readonly reusableTokens: number;
-	readonly hasSegmentStart: boolean;
 	// True when older messages are not loaded and this is the only loaded
 	// turn, so its first loaded request has no known previous prompt.
 	readonly isPartial: boolean;
@@ -62,6 +63,9 @@ export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
 type HeatRequest = {
 	readonly promptTokens: number;
 	readonly cacheReadTokens: number;
+	// Input and cache-write tokens: the part of the prompt billed at or above
+	// the base price.
+	readonly uncachedTokens: number;
 	readonly usesCache: boolean;
 	readonly createdAt: string;
 	readonly modelConfigId: string | undefined;
@@ -85,6 +89,7 @@ const toHeatRequest = (message: TypesGen.ChatMessage): HeatRequest | null => {
 	return {
 		promptTokens,
 		cacheReadTokens,
+		uncachedTokens: promptTokens - cacheReadTokens,
 		usesCache: cacheReadTokens > 0 || cacheCreationTokens > 0,
 		createdAt: message.created_at,
 		modelConfigId: message.model_config_id,
@@ -131,7 +136,6 @@ export const projectNextMessage = (
 type ScoredRequest = HeatRequest & {
 	readonly reusableTokens: number;
 	readonly missedTokens: number;
-	readonly isSegmentStart: boolean;
 };
 
 type ScoredSegment = {
@@ -163,11 +167,14 @@ const scoreSegment = (
 	const turns: ScoredRequest[][] = [];
 	let current: ScoredRequest[] = [];
 	let previousPromptTokens: number | undefined;
+	let oldestTurnHasUserMessage = false;
 	for (const message of messages.slice(boundaryIndex + 1)) {
 		if (message.role === "user") {
 			if (current.length > 0) {
 				turns.push(current);
 				current = [];
+			} else if (turns.length === 0) {
+				oldestTurnHasUserMessage = true;
 			}
 			continue;
 		}
@@ -179,8 +186,13 @@ const scoreSegment = (
 		current.push({
 			...request,
 			reusableTokens,
-			missedTokens: Math.max(0, reusableTokens - request.cacheReadTokens),
-			isSegmentStart: reachedSegmentStart && previousPromptTokens === undefined,
+			// A prompt shorter than the previous one misses the tail of that
+			// prefix without paying for it, so the miss is capped at the tokens
+			// the request was actually billed uncached.
+			missedTokens: Math.min(
+				Math.max(0, reusableTokens - request.cacheReadTokens),
+				request.uncachedTokens,
+			),
 		});
 		previousPromptTokens = request.promptTokens;
 	}
@@ -189,8 +201,10 @@ const scoreSegment = (
 	}
 	// Without the segment start, the oldest loaded turn may be the tail of a
 	// longer turn whose earlier requests are not loaded, and its first loaded
-	// request cannot be scored because its previous prompt is unknown.
-	const latestIsPartial = !reachedSegmentStart && turns.length === 1;
+	// request cannot be scored because its previous prompt is unknown. A turn
+	// whose user message is loaded is complete.
+	const latestIsPartial =
+		!reachedSegmentStart && turns.length === 1 && !oldestTurnHasUserMessage;
 	if (!reachedSegmentStart && turns.length > 1) {
 		turns.shift();
 	}
@@ -244,7 +258,6 @@ export const getChatHeat = (
 			requestCount: latestTurn.length,
 			missedTokens: sumMissedTokens(latestTurn),
 			reusableTokens: maxReusableTokens(latestTurn),
-			hasSegmentStart: latestTurn.some((request) => request.isSegmentStart),
 			isPartial: segment.latestIsPartial,
 		},
 	};

@@ -13,6 +13,7 @@ import {
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { coarsePointerMediaQuery, isMobileViewport } from "#/utils/mobile";
 import {
+	CACHE_IDLE_TTL_MS,
 	type ChatHeat,
 	type ChatHeatTurn,
 	getCacheExpiresAtMs,
@@ -57,6 +58,18 @@ const formatCountdown = (remainingMs: number): string => {
 	const seconds = totalSeconds % 60;
 	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
+
+const formatRemainingMinutes = (remainingMs: number): string => {
+	const minutes = getRemainingMinutes(remainingMs);
+	return minutes === 1 ? "under a minute" : `about ${minutes} minutes`;
+};
+
+// The projection is an estimate from a single ratio, so it is shown to the
+// nearest thousand tokens.
+const formatProjectedTokens = (tokens: number): string =>
+	formatTokenCountCompact(
+		tokens >= 1_000 ? Math.round(tokens / 1_000) * 1_000 : Math.round(tokens),
+	);
 
 const formatMinutesAgo = (elapsedMs: number): string => {
 	const minutes = Math.floor(elapsedMs / 60_000);
@@ -276,14 +289,14 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 
 	const summary = hasReading
 		? `Next message: ${level}`
-		: "Next message: unknown";
+		: "Next message: fresh cache";
 	const readingLine = !hasReading
 		? heat.boundary === "cleared"
 			? "Cleared: the next message writes a fresh cache from the new context."
 			: "Compacted: the next message writes a fresh cache from the summary."
 		: isCold
 			? `Next message: re-writes about ${promptTokens} tokens without the cache (${level}).`
-			: `Next message: reads ${promptTokens} tokens from the cache, about ${formatTokenCountCompact(projection.tokens)} tokens' worth of a re-write (${level}).`;
+			: `Next message: reads ${promptTokens} tokens from the cache, about ${formatProjectedTokens(projection.tokens)} tokens' worth of a re-write (${level}).`;
 	const timerLine = !hasReading
 		? undefined
 		: isExpired
@@ -312,6 +325,8 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 				: undefined
 		: undefined;
 
+	// The accessible name uses whole minutes so it does not change every
+	// second while the control is focused; mm:ss stays in the panel.
 	const ariaNotes = [`${summary}.`];
 	if (!hasReading) {
 		ariaNotes.push(readingLine);
@@ -326,8 +341,8 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 		ariaNotes.push("Cache likely expired.");
 	} else if (showModelChanged) {
 		ariaNotes.push("Model changed; the next message will not use the cache.");
-	} else if (countdown) {
-		ariaNotes.push(`Cache expires in ${countdown}.`);
+	} else if (countdown && remainingMs !== undefined) {
+		ariaNotes.push(`Cache expires in ${formatRemainingMinutes(remainingMs)}.`);
 	}
 
 	const minutesLeft =
@@ -339,12 +354,17 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	) : showModelChanged ? (
 		<ArrowRightLeftIcon className="size-2.5" strokeWidth={3} />
 	) : minutesLeft !== undefined ? (
-		<span className="text-[9px] font-semibold leading-none">{minutesLeft}</span>
+		<span className="text-[10px] font-semibold leading-none">
+			{minutesLeft}
+		</span>
 	) : null;
 	const badgeInverted = isCold || isLastMinute;
 
+	const isPopover = isMobileViewport() || isCoarsePointer;
 	const panelContent = (
-		<div className="flex max-w-64 flex-col gap-1 text-xs text-content-primary">
+		<div
+			className={`flex flex-col gap-1 text-xs text-content-primary ${isPopover ? "" : "max-w-64"}`}
+		>
 			<span className="font-medium">{summary}</span>
 			<span className="text-content-secondary">{readingLine}</span>
 			{timerLine && (
@@ -388,12 +408,13 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	);
 
 	// Tooltips do not open on tap, so touch devices get a popover.
-	if (isMobileViewport() || isCoarsePointer) {
+	if (isPopover) {
 		return (
 			<Popover onOpenChange={onOpenChange}>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 				<PopoverContent
 					side="top"
+					aria-label={summary}
 					className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-auto max-w-72 px-3 py-2"
 				>
 					{panelContent}
@@ -414,41 +435,75 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 
 const MINUTE_MS = 60_000;
 
+type CountdownTick = {
+	expiresAtMs: number | undefined;
+	perSecond: boolean;
+	nowMs: number;
+};
+
 /**
  * The current time, re-read when the countdown display would change: at
  * each whole-minute boundary before expiry and at expiry itself, or every
- * second while the panel is open and shows mm:ss.
+ * second while the panel is open and shows mm:ss. Once expired the panel
+ * shows elapsed minutes, so the open cadence drops to once a minute. The
+ * clock is also re-read when the panel opens or closes and when the tab
+ * becomes visible again, since a hidden tab's timers may have been
+ * throttled.
  */
 const useCountdownNow = (
 	expiresAtMs: number | undefined,
 	perSecond: boolean,
 ): number => {
-	const [tick, setTick] = useState(() => ({ expiresAtMs, nowMs: Date.now() }));
+	const [tick, setTick] = useState<CountdownTick>(() => ({
+		expiresAtMs,
+		perSecond,
+		nowMs: Date.now(),
+	}));
 	// A new expiry (a request landed, or a stream ended) restarts the clock,
-	// since the stored time may date from before a long idle period.
-	if (tick.expiresAtMs !== expiresAtMs) {
-		setTick({ expiresAtMs, nowMs: Date.now() });
+	// since the stored time may date from before a long idle period. Opening
+	// the panel re-reads it too, so mm:ss starts from the real time rather
+	// than the last minute tick.
+	if (tick.expiresAtMs !== expiresAtMs || tick.perSecond !== perSecond) {
+		setTick({ expiresAtMs, perSecond, nowMs: Date.now() });
 	}
 	const nowMs = tick.nowMs;
 	useEffect(() => {
 		if (expiresAtMs === undefined) {
 			return;
 		}
-		const remaining = expiresAtMs - nowMs;
-		let delay: number;
-		if (perSecond) {
-			delay = 1000;
-		} else if (remaining <= 0) {
-			return;
+		const reread = () => setTick({ expiresAtMs, perSecond, nowMs: Date.now() });
+		const onVisibilityChange = () => {
+			if (document.visibilityState === "visible") {
+				reread();
+			}
+		};
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		// Measured from the real clock rather than the stored reading, so a
+		// late effect does not shift the boundary the timer aims for.
+		const remaining = expiresAtMs - Date.now();
+		let delay: number | undefined;
+		if (remaining <= 0) {
+			if (perSecond) {
+				delay = MINUTE_MS - (-remaining % MINUTE_MS);
+			}
+		} else if (perSecond) {
+			delay = remaining % 1000 || 1000;
 		} else {
 			delay = remaining % MINUTE_MS || MINUTE_MS;
 		}
-		// A few milliseconds past the boundary so the new minute is read.
-		const handle = setTimeout(
-			() => setTick({ expiresAtMs, nowMs: Date.now() }),
-			delay + 20,
-		);
-		return () => clearTimeout(handle);
+		if (delay === undefined) {
+			return () => {
+				document.removeEventListener("visibilitychange", onVisibilityChange);
+			};
+		}
+		// A few milliseconds past the boundary so the new reading is taken.
+		const handle = setTimeout(reread, delay + 20);
+		return () => {
+			clearTimeout(handle);
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+		};
+		// Each re-read changes nowMs, which re-runs the effect to schedule the
+		// next tick.
 	}, [expiresAtMs, perSecond, nowMs]);
 	return nowMs;
 };
@@ -484,7 +539,13 @@ export const LiveChatHeatIndicator: React.FC<LiveChatHeatIndicatorProps> = ({
 	return (
 		<ChatHeatIndicator
 			heat={heat}
-			remainingMs={expiresAtMs === undefined ? undefined : expiresAtMs - nowMs}
+			// Clamped to the lifetime in case the client clock runs behind the
+			// server timestamp.
+			remainingMs={
+				expiresAtMs === undefined
+					? undefined
+					: Math.min(CACHE_IDLE_TTL_MS, expiresAtMs - nowMs)
+			}
 			isModelChanged={Boolean(
 				!isStreaming &&
 					selectedModelConfigId &&
