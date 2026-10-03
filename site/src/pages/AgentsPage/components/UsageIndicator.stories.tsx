@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useQueryClient } from "react-query";
-import { userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesKey } from "#/api/queries/workspaces";
@@ -80,6 +80,20 @@ const openUsageMenu = async (canvasElement: HTMLElement) => {
 	await userEvent.click(canvas.getByRole("button"));
 };
 
+// 10 of the 31 days in the fixture period have elapsed, so a projection is
+// current spend x 3.1.
+const FIXTURE_NOW = Date.parse("2026-07-11T00:00:00Z");
+// Under the 24 hour minimum, so no projection is shown.
+const FIXTURE_EARLY_NOW = Date.parse("2026-07-01T12:00:00Z");
+
+const withFixedNow = (nowMs: number) => () => {
+	const real = Date.now;
+	Date.now = () => nowMs;
+	return () => {
+		Date.now = real;
+	};
+};
+
 const aiSpendStatus = (
 	overrides: Partial<UserAISpendStatus> = {},
 ): UserAISpendStatus => ({
@@ -114,6 +128,7 @@ const defaultWorkspaceQuota = {
 const meta: Meta<typeof UsageIndicator> = {
 	title: "pages/AgentsPage/UsageIndicator",
 	component: UsageIndicator,
+	beforeEach: withFixedNow(FIXTURE_NOW),
 	decorators: [
 		withAuthProvider,
 		withDashboardProvider,
@@ -179,6 +194,52 @@ export const LimitExceeded: Story = {
 		),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
+};
+
+// $12.50 of $50 at day 10 of 31 projects to $38.75, under budget.
+export const ProjectedOnPace: Story = {
+	decorators: [
+		withAISpend(aiSpendStatus()),
+		withWorkspaceQuota(noWorkspaceQuota),
+	],
+	play: async ({ canvasElement }) => {
+		await openUsageMenu(canvasElement);
+		await expect(screen.findByText("Projected $38.75")).resolves.toBeVisible();
+	},
+};
+
+// $16 of $20 at day 10 of 31 projects to $49.60, over budget.
+export const ProjectedOverBudget: Story = {
+	decorators: [
+		withAISpend(
+			aiSpendStatus({
+				effective_budget: {
+					spend_limit_micros: 20_000_000,
+					limit_source: "group",
+				},
+				current_spend_micros: 16_000_000,
+			}),
+		),
+		withWorkspaceQuota(noWorkspaceQuota),
+	],
+	play: async ({ canvasElement }) => {
+		await openUsageMenu(canvasElement);
+		const projection = await screen.findByText("Projected $49.60");
+		await expect(projection).toHaveClass("text-content-warning");
+	},
+};
+
+export const ProjectedHiddenEarlyInPeriod: Story = {
+	beforeEach: withFixedNow(FIXTURE_EARLY_NOW),
+	decorators: [
+		withAISpend(aiSpendStatus()),
+		withWorkspaceQuota(noWorkspaceQuota),
+	],
+	play: async ({ canvasElement }) => {
+		await openUsageMenu(canvasElement);
+		await screen.findByText("July 1 - August 1, 2026");
+		await expect(screen.queryByText(/^Projected/)).not.toBeInTheDocument();
+	},
 };
 
 export const WorkspaceQuotaOnly: Story = {

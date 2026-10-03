@@ -28,6 +28,7 @@ import {
 	clampPercentage,
 	formatSpendPeriodLabel,
 	getSeverity,
+	projectPeriodSpendMicros,
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
@@ -43,6 +44,7 @@ type UsageSectionData = {
 	icon: React.ReactNode;
 	hoverLabel: string;
 	secondaryDetail?: React.ReactNode;
+	projection?: React.ReactNode;
 	tooltip?: React.ReactNode;
 	severity: UsageSeverity;
 };
@@ -86,6 +88,16 @@ export const UsageIndicator: React.FC = () => {
 		// The gateway blocks once spend >= limit, so a zero budget is
 		// always exhausted.
 		const exceeded = currentSpend >= spendLimit;
+		// Once the gateway blocks, spend stops growing and a projection
+		// says nothing new.
+		const projectedSpend = exceeded
+			? undefined
+			: projectPeriodSpendMicros({
+					currentSpendMicros: currentSpend,
+					periodStart: aiSpend.period_start,
+					periodEnd: aiSpend.period_end,
+					nowMs: Date.now(),
+				});
 
 		sections.push({
 			id: "ai-spend",
@@ -111,6 +123,17 @@ export const UsageIndicator: React.FC = () => {
 			secondaryDetail: formatSpendPeriodLabel(
 				aiSpend.period_start,
 				aiSpend.period_end,
+			),
+			projection: projectedSpend !== undefined && (
+				<span
+					className={
+						projectedSpend >= spendLimit
+							? severityTextClasses.warning
+							: undefined
+					}
+				>
+					Projected {formatCostMicros(projectedSpend)}
+				</span>
 			),
 		});
 	}
@@ -291,7 +314,7 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 			<div
 				className={cn(
 					"px-2 text-xs leading-5 text-content-secondary",
-					section.secondaryDetail ? "pb-1.5" : "pb-2",
+					section.secondaryDetail || section.projection ? "pb-1.5" : "pb-2",
 				)}
 			>
 				<div className="flex items-start gap-1.5">
@@ -320,6 +343,17 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 					)}
 				</div>
 			</div>
+
+			{section.projection && (
+				<div
+					className={cn(
+						"px-2 text-xs leading-5 text-content-secondary",
+						section.secondaryDetail ? "pb-1.5" : "pb-2",
+					)}
+				>
+					{section.projection}
+				</div>
+			)}
 
 			{section.secondaryDetail && (
 				<div className="px-2 pb-2 text-xs text-content-secondary">
