@@ -53,26 +53,59 @@ describe("extractContextUsageFromMessage", () => {
 		expect(result!.usedTokens).toBe(50);
 	});
 
-	it("sums all token components into usedTokens", () => {
-		const msg = {
-			...MockChatMessage,
+	it.each<{
+		provider: string;
+		usage: TypesGen.ChatMessageUsage;
+		usedTokens: number;
+	}>([
+		// Persisted rows from live runs. Output tokens include reasoning tokens
+		// for every shape that reports both.
+		{
+			provider: "OpenAI Responses",
 			usage: {
-				input_tokens: 10,
-				output_tokens: 20,
-				reasoning_tokens: 5,
-				cache_creation_tokens: 3,
-				cache_read_tokens: 2,
+				input_tokens: 110,
+				output_tokens: 334,
+				reasoning_tokens: 256,
+				cache_read_tokens: 5632,
 			},
-		};
-		const result = extractContextUsageFromMessage(msg);
-		expect(result).not.toBeNull();
-		expect(result!.usedTokens).toBe(10 + 20 + 5 + 3 + 2);
-		expect(result!.inputTokens).toBe(10);
-		expect(result!.outputTokens).toBe(20);
-		expect(result!.reasoningTokens).toBe(5);
-		expect(result!.cacheCreationTokens).toBe(3);
-		expect(result!.cacheReadTokens).toBe(2);
-	});
+			usedTokens: 110 + 334 + 5632,
+		},
+		{
+			provider: "OpenAI-compatible Chat Completions",
+			usage: {
+				input_tokens: 190,
+				output_tokens: 379,
+				reasoning_tokens: 320,
+				cache_read_tokens: 5632,
+			},
+			usedTokens: 190 + 379 + 5632,
+		},
+		{
+			provider: "Anthropic with thinking",
+			usage: {
+				input_tokens: 3,
+				output_tokens: 120,
+				cache_read_tokens: 7736,
+				cache_creation_tokens: 129,
+			},
+			usedTokens: 3 + 120 + 7736 + 129,
+		},
+		{
+			provider: "Gemini through its OpenAI-compatible API",
+			usage: { input_tokens: 4220, output_tokens: 41 },
+			usedTokens: 4220 + 41,
+		},
+	])(
+		"counts prompt and output tokens without adding reasoning again for $provider",
+		({ usage, usedTokens }) => {
+			const result = extractContextUsageFromMessage({
+				...MockChatMessage,
+				usage,
+			});
+			expect(result?.usedTokens).toBe(usedTokens);
+			expect(result?.reasoningTokens).toBe(usage.reasoning_tokens);
+		},
+	);
 
 	it("includes contextLimitTokens when context_limit is set", () => {
 		const msg = { ...MockChatMessage, usage: { context_limit: 128000 } };
@@ -197,6 +230,40 @@ describe("getLatestContextUsage", () => {
 		];
 		const result = getLatestContextUsage(messages);
 		expect(result?.inputTokens).toBe(300);
+	});
+
+	it("uses the last step of a tool loop instead of summing steps", () => {
+		const step = (
+			id: number,
+			usage: TypesGen.ChatMessageUsage,
+		): TypesGen.ChatMessage => ({
+			...MockChatMessage,
+			id,
+			role: "assistant",
+			usage,
+		});
+		const toolResult: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			id: 2,
+			role: "tool",
+			content: [{ type: "tool-result", tool_name: "lookup_code" }],
+		};
+		const result = getLatestContextUsage([
+			step(1, {
+				input_tokens: 139,
+				output_tokens: 139,
+				reasoning_tokens: 64,
+				cache_read_tokens: 5632,
+			}),
+			toolResult,
+			step(3, {
+				input_tokens: 110,
+				output_tokens: 207,
+				reasoning_tokens: 128,
+				cache_read_tokens: 5760,
+			}),
+		]);
+		expect(result?.usedTokens).toBe(110 + 207 + 5760);
 	});
 
 	it("returns null when a compaction summary is newer than usage", () => {

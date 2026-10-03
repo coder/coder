@@ -21,12 +21,13 @@ export const extractContextUsageFromMessage = (
 	const cacheReadTokens = usage.cache_read_tokens;
 	const contextLimitTokens = usage.context_limit;
 
+	// Output tokens already include reasoning tokens, so adding
+	// reasoning_tokens would count them twice.
 	const components = [
 		inputTokens,
 		outputTokens,
 		cacheReadTokens,
 		cacheCreationTokens,
-		reasoningTokens,
 	].filter((value): value is number => value !== undefined);
 	const usedTokens =
 		components.length > 0
