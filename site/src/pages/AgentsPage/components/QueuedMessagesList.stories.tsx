@@ -141,7 +141,7 @@ export const AutomationLabelTooltip: Story = {
 	},
 };
 
-// Opens the first label's tooltip after the automations list failed.
+// Opens the first label's tooltip after the references request failed.
 export const AutomationLabelTooltipError: Story = {
 	...AutomationLabelTooltip,
 	args: {

@@ -39,4 +39,26 @@ describe("AutomationLabel", () => {
 			expect(tooltip).toHaveTextContent(`Input ID: ${inputId}`);
 		},
 	);
+
+	it("keeps the UUID out of the label when the references request fails", async () => {
+		const user = userEvent.setup();
+		render(
+			<TooltipProvider delayDuration={0}>
+				<AutomationLabel
+					variant="card"
+					automationId={automationId}
+					inputId={inputId}
+					nameStatus="error"
+				/>
+			</TooltipProvider>,
+		);
+
+		const label = screen.getByRole("note", { name: "Automation run" });
+		expect(label).not.toHaveTextContent(automationId);
+
+		await user.tab();
+		const tooltip = await screen.findByRole("tooltip");
+		expect(tooltip).toHaveTextContent("Could not load the automation name.");
+		expect(tooltip).toHaveTextContent(`Automation ID: ${automationId}`);
+	});
 });
