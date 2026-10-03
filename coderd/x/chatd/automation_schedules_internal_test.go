@@ -37,6 +37,22 @@ import (
 
 // automationsExperimentStore turns the chat-automations experiment off for
 // every user while off is set.
+// shiftedCursorStore reports a schedule cursor one minute later than the
+// stored one while shift is set, so a publish sees a claimed occurrence as
+// not due yet.
+type shiftedCursorStore struct {
+	database.Store
+	shift atomic.Bool
+}
+
+func (s *shiftedCursorStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	row, err := s.Store.GetChatAutomationByID(ctx, id)
+	if err == nil && s.shift.Load() {
+		row.ScheduleNextRunAt.Time = row.ScheduleNextRunAt.Time.Add(time.Minute)
+	}
+	return row, err
+}
+
 type automationsExperimentStore struct {
 	t   testing.TB
 	off atomic.Bool
@@ -730,6 +746,37 @@ WHERE id = $1`, automation.ID, edited)
 
 		// Once the clock reaches the cursor, the next scan accepts it.
 		f.advanceTo(ctx, t, due)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Equal(t, 1, f.inputs(ctx, t))
+	})
+
+	t.Run("StalePublishReleasesClaim", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reads := &shiftedCursorStore{}
+		server := f.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+			reads.Store = store
+			return reads
+		})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		f.advanceTo(ctx, t, due)
+
+		// The publish refuses the claimed occurrence as stale while the
+		// row still has the observed revision and cursor, as when the
+		// clock steps back after the claim. The claim is released, so it
+		// does not hide the occurrence past the grace window.
+		row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		reads.shift.Store(true)
+		server.runAutomationOccurrence(ctx, row, f.clock.Now())
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
+
+		// The next scan within the grace window accepts it.
+		reads.shift.Store(false)
 		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 		require.Equal(t, 1, f.inputs(ctx, t))
 	})

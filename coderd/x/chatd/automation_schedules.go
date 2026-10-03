@@ -243,7 +243,8 @@ func (p *Server) scanAutomationSchedules(ctx context.Context, batchSize int32) {
 // An occurrence is claimed before it is published. When another instance
 // holds the claim, this call leaves the occurrence to it. Moving the
 // cursor drops the claim, and a publish that fails with a retryable error
-// releases it, so the next scan retries within the grace window.
+// or finds the occurrence stale releases it, so the next scan retries
+// within the grace window.
 func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatAutomation, now time.Time) {
 	occurrence := automationOccurrence{revision: row.ScheduleRevision, cursor: row.ScheduleNextRunAt.Time}
 	occurrenceLogger := func(occurrence automationOccurrence) slog.Logger {
@@ -303,6 +304,18 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		logger.Debug(ctx, "chat automation schedule occurrence not claimed")
 		return
 	}
+	// release drops this call's claim after a publish that did not move
+	// the cursor.
+	release := func() {
+		if ctx.Err() != nil {
+			// The server is stopping, so a release would fail. The claim
+			// expires on its own and the occurrence is missed.
+			return
+		}
+		if err := releaseAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedUntil); err != nil {
+			logger.Warn(ctx, "release chat automation schedule occurrence", slog.Error(err))
+		}
+	}
 	result, err := p.publishAutomation(ctx, automationPublish{
 		automationID: row.ID,
 		content: func(automation database.ChatAutomation) []codersdk.ChatMessagePart {
@@ -333,23 +346,22 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		errors.Is(err, ErrAutomationDisabled),
 		errors.Is(err, ErrAutomationNotFound):
 		// The automation changed since the scan; the next scan reads it
-		// again.
+		// again. The publish can also see an unchanged occurrence as not
+		// due when the clock steps back after the claim. The release
+		// drops the claim only when the revision and cursor still match,
+		// so the next scan can retry within the grace window.
 		logger.Debug(ctx, "chat automation schedule occurrence changed during publish", slog.Error(err))
+		release()
 	default:
 		// The cursor stays, so the next scan retries while the occurrence
 		// is within the grace window. This includes
 		// ErrAutomationsExperimentDisabled: the evaluator also reports a
 		// failed read as off, and the next scan drops an owner whose
 		// experiment really is off.
-		if ctx.Err() != nil {
-			// The server is stopping, so a release would fail. The claim
-			// expires on its own and the occurrence is missed.
-			return
+		if ctx.Err() == nil {
+			logger.Warn(ctx, "publish chat automation schedule occurrence", slog.Error(err))
 		}
-		logger.Warn(ctx, "publish chat automation schedule occurrence", slog.Error(err))
-		if err := releaseAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedUntil); err != nil {
-			logger.Warn(ctx, "release chat automation schedule occurrence", slog.Error(err))
-		}
+		release()
 	}
 }
 
