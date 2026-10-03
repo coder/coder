@@ -36,12 +36,53 @@ type seededChat struct {
 	// promoted message content matches what was originally queued.
 	queuedMessageBodies    []string
 	queuedMessageCreatedBy []uuid.UUID
-	dynamicToolName        string
-	pendingToolCallID      string
-	pendingToolCallIDs     []string
+	// editingQueuedID is the queued row seeded under edit, or zero when
+	// no row is. Cases use it to assert the marker survives a
+	// transition that must not touch it.
+	editingQueuedID    int64
+	dynamicToolName    string
+	pendingToolCallID  string
+	pendingToolCallIDs []string
 	// staleQueuedMessageID is the stale automation row seeded at the
 	// queue head by staleHeadSeed.
 	staleQueuedMessageID int64
+}
+
+// readyHeadOf maps each blocked-head state to the sibling state with
+// the same status and a ready head. Seeders build the sibling and then
+// begin an edit on the head.
+var readyHeadOf = map[chatstate.ExecutionState]chatstate.ExecutionState{
+	chatstate.StateE1P: chatstate.StateE1,
+	chatstate.StateR1P: chatstate.StateR1,
+	chatstate.StateI1P: chatstate.StateI1,
+	chatstate.StateA1P: chatstate.StateA1,
+}
+
+// withEditingRow wraps seed so the queued row at idx is under edit
+// before the transition under test runs. idx 0 blocks the head; a
+// later idx seeds an edit behind a ready head.
+func withEditingRow(seed seederFn, idx int) seederFn {
+	return func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+		t.Helper()
+		seeded := seed(t, f, from)
+		require.Less(t, idx, len(seeded.queuedMessageIDs), "withEditingRow: no queued row at %d", idx)
+		beginQueuedMessageEdit(testutil.Context(t, testutil.WaitShort), t, f, seeded.chatID, seeded.queuedMessageIDs[idx])
+		seeded.editingQueuedID = seeded.queuedMessageIDs[idx]
+		return seeded
+	}
+}
+
+// assertQueueEditMarkers asserts that, among the rows still queued,
+// exactly the row with id wantEditingID carries the edit marker. Zero
+// asserts no queued row is under edit.
+func assertQueueEditMarkers(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, wantEditingID int64) {
+	t.Helper()
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
+	require.NoError(t, err)
+	for _, row := range rows {
+		require.Equal(t, row.ID == wantEditingID, row.EditingSince.Valid,
+			"edit marker on queued row %d", row.ID)
+	}
 }
 
 // dynamicToolJSON returns the canonical [{name,description,input_schema}]
@@ -189,8 +230,8 @@ func seedAOrA1(t *testing.T, f *testFixture, queuedExtras int, namePrefix string
 // returns identifying handles useful for downstream assertions. For
 // [chatstate.StateN] the returned chatID is a fresh UUID that does
 // not exist in the database. Multi-queued seeds (for E1, R1, I1,
-// A1 with 2 queued messages, and Invalid with a non-empty queue) live in
-// seedStateMultiQueued.
+// A1 and their blocked-head siblings with 2 queued messages, and
+// Invalid with a non-empty queue) live in seedStateMultiQueued.
 func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -198,6 +239,21 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 	switch state {
 	case chatstate.StateN:
 		return seededChat{chatID: uuid.New(), exists: false}
+
+	case chatstate.StateP:
+		return seedPaused(t, f, 0)
+
+	case chatstate.StateE1P, chatstate.StateR1P, chatstate.StateI1P, chatstate.StateA1P:
+		return seedBlockedHead(t, f, readyHeadOf[state], 0)
+
+	case chatstate.StateXE1P:
+		seeded := seedBlockedHead(t, f, chatstate.StateE1, 0)
+		m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
+			return err
+		}))
+		return seeded
 
 	case chatstate.StateR0:
 		created := createTestChat(t, f)
@@ -408,11 +464,14 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 
 // seedStateMultiQueued seeds a state with two queued messages. Used
 // by cases that need the post-mutation queue to remain non-empty.
-// Supported states: E1, R1, I1, A1.
+// Supported states: E1, R1, I1, A1 and their blocked-head siblings.
 func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.ExecutionState) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	switch state {
+	case chatstate.StateE1P, chatstate.StateR1P, chatstate.StateI1P, chatstate.StateA1P:
+		return seedBlockedHead(t, f, readyHeadOf[state], 1)
+
 	case chatstate.StateE1:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
@@ -608,11 +667,11 @@ func firstAssistantMessageID(ctx context.Context, t *testing.T, f *testFixture, 
 	return 0
 }
 
-// seedForEnterRequiresAction extends seedState for R0 and R1 with a
-// chat that has dynamic_tools plus an assistant tool-call message in
-// history. EnterRequiresAction's precondition rejects R0/R1 without
-// pending dynamic tool calls, so the generic seedState path will not
-// do. Other states fall through to the default seedState.
+// seedForEnterRequiresAction extends seedState for R0, R1, and R1P
+// with a chat that has dynamic_tools plus an assistant tool-call
+// message in history. EnterRequiresAction's precondition rejects R*
+// without pending dynamic tool calls, so the generic seedState path
+// will not do. Other states fall through to the default seedState.
 func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.ExecutionState) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -642,7 +701,7 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 			pendingToolCallID:      callID,
 			pendingToolCallIDs:     []string{callID},
 		}
-	case chatstate.StateR1:
+	case chatstate.StateR1, chatstate.StateR1P:
 		toolName := "ra_tool_r1"
 		callID := "call_" + uuid.NewString()
 		created := createTestChatWithDynamicTools(t, f, toolName)
@@ -661,7 +720,7 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 		queuedBody := "queued-for-RA-r1"
 		sm := sendQueuedMessage(t, f, m, queuedBody)
 		require.NotNil(t, sm.QueuedMessage)
-		return seededChat{
+		seeded := seededChat{
 			chatID:                 created.Chat.ID,
 			exists:                 true,
 			initialUserMessageID:   firstUserMessageID(ctx, t, f, created.Chat.ID),
@@ -672,6 +731,11 @@ func seedForEnterRequiresAction(t *testing.T, f *testFixture, state chatstate.Ex
 			pendingToolCallID:      callID,
 			pendingToolCallIDs:     []string{callID},
 		}
+		if state == chatstate.StateR1P {
+			beginQueuedMessageEdit(ctx, t, f, seeded.chatID, sm.QueuedMessage.ID)
+			seeded.editingQueuedID = sm.QueuedMessage.ID
+		}
+		return seeded
 	}
 	return seedState(t, f, state)
 }
@@ -832,7 +896,7 @@ func assertQueuedMessageContent(t *testing.T, content json.RawMessage, want stri
 // finish-interruption.
 func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, want []string) {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
 	require.Len(t, rows, len(want), "queue length must match expected bodies")
 	for i, r := range rows {

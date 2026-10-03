@@ -56,6 +56,7 @@ export const CHAT_STATUS_FILTER_ORDER = [
 	"error",
 	"running",
 	"waiting",
+	"paused",
 ] as const satisfies readonly Exclude<TypesGen.ChatStatus, "interrupting">[];
 export const CHAT_STATUS_GROUP_ORDER = [
 	"requires_action",
@@ -63,6 +64,7 @@ export const CHAT_STATUS_GROUP_ORDER = [
 	"running",
 	"interrupting",
 	"waiting",
+	"paused",
 ] as const satisfies readonly TypesGen.ChatStatus[];
 type _Assert<T extends true> = T;
 type _ChatStatusFilterCovers = _Assert<

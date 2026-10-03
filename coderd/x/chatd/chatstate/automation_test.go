@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -102,6 +103,19 @@ func queueAutomationMessage(
 // the queue head, and deletes the automation so the row is stale.
 func insertStaleHeadRow(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) database.ChatQueuedMessage {
 	t.Helper()
+	row := insertStaleRow(ctx, t, f, chatID)
+	_, err := f.DB.ReorderChatQueuedMessageToHead(ctx, database.ReorderChatQueuedMessageToHeadParams{
+		ID:     row.ID,
+		ChatID: chatID,
+	})
+	require.NoError(t, err)
+	return row
+}
+
+// insertStaleRow inserts a queued row from an automation at the queue
+// tail and deletes the automation so the row is stale.
+func insertStaleRow(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) database.ChatQueuedMessage {
+	t.Helper()
 	automation := f.newAutomation(t)
 	message := userTextMessage("stale", f.User.ID, f.Model.ID)
 	row, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
@@ -112,11 +126,6 @@ func insertStaleHeadRow(ctx context.Context, t *testing.T, f *testFixture, chatI
 		AutomationID:    uuid.NullUUID{UUID: automation.ID, Valid: true},
 		InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		QueueGeneration: sql.NullInt64{Int64: automation.QueueGeneration, Valid: true},
-	})
-	require.NoError(t, err)
-	_, err = f.DB.ReorderChatQueuedMessageToHead(ctx, database.ReorderChatQueuedMessageToHeadParams{
-		ID:     row.ID,
-		ChatID: chatID,
 	})
 	require.NoError(t, err)
 	require.NoError(t, f.DB.DeleteChatAutomationByID(ctx, automation.ID))
@@ -243,6 +252,220 @@ func requireAutomationProvenance(t *testing.T, msg database.ChatMessage, want ch
 	t.Helper()
 	require.Equal(t, uuid.NullUUID{UUID: want.AutomationID, Valid: true}, msg.AutomationID)
 	require.Equal(t, uuid.NullUUID{UUID: want.InputID, Valid: true}, msg.InputID)
+}
+
+// Matrix cases for the queue promotion guard meeting a row under edit.
+// The guard never runs on a row under edit and never promotes one: a
+// transition that drops stale heads and reaches a row under edit takes
+// its blocked-head outcome. Promotions out of P go through the guard
+// like every other promotion.
+
+// staleBeforeEditSeed seeds a "1" state whose head is a stale
+// automation row and whose next row is under edit, so dropping the
+// stale head exposes a blocked head.
+func staleBeforeEditSeed(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+	t.Helper()
+	seeded := staleHeadSeed(staleThenOrdinary)(t, f, from)
+	beginQueuedMessageEdit(testutil.Context(t, testutil.WaitShort), t, f, seeded.chatID, seeded.queuedMessageIDs[0])
+	seeded.editingQueuedID = seeded.queuedMessageIDs[0]
+	return seeded
+}
+
+// staleUnderEditSeed seeds a blocked-head state, or P, whose head is a
+// stale automation row under edit. shape selects the rows behind it.
+func staleUnderEditSeed(shape staleQueueShape) seederFn {
+	return func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ready := readyHeadOf[from]
+		if from == chatstate.StateP {
+			ready = chatstate.StateR1
+		}
+		seeded := staleHeadSeed(shape)(t, f, ready)
+		beginQueuedMessageEdit(ctx, t, f, seeded.chatID, seeded.staleQueuedMessageID)
+		seeded.editingQueuedID = seeded.staleQueuedMessageID
+		if from == chatstate.StateP {
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+				return err
+			}))
+		}
+		return seeded
+	}
+}
+
+// staleBehindEditSeed seeds a blocked-head state, or P, with a stale
+// automation row queued behind the head under edit.
+func staleBehindEditSeed(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+	t.Helper()
+	seeded := seedState(t, f, from)
+	stale := insertStaleRow(testutil.Context(t, testutil.WaitShort), t, f, seeded.chatID)
+	seeded.staleQueuedMessageID = stale.ID
+	return seeded
+}
+
+func applyPromoteStale(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.promoteQueuedMessage, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+		QueuedMessageID: seeded.staleQueuedMessageID,
+	})
+	return err
+}
+
+// requireGuardEditOutcome asserts what every guard and edit case shares:
+// the stale row is gone, the row under edit keeps its marker unless it
+// was the stale row, and a row was promoted into history exactly when
+// promotedQueuedAt is set.
+func requireGuardEditOutcome(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, promotedQueuedAt time.Time) {
+	t.Helper()
+	requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, seeded.staleQueuedMessageID)
+	wantEditing := seeded.editingQueuedID
+	if wantEditing == seeded.staleQueuedMessageID {
+		wantEditing = 0
+	}
+	assertQueueEditMarkers(ctx, t, f, seeded.chatID, wantEditing)
+	history := activeHistoryIDs(ctx, t, f, seeded.chatID)
+	if promotedQueuedAt.IsZero() {
+		require.Equal(t, base.historyIDs, history, "nothing was promoted into history")
+	} else {
+		require.Len(t, history, len(base.historyIDs)+1, "one row was promoted into history")
+	}
+}
+
+// promoteRejectedEditCase covers PromoteQueuedMessage on a stale target
+// next to a row under edit. The target is deleted; from P the chat then
+// leaves paused as when its head is deleted.
+func promoteRejectedEditCase(from, want chatstate.ExecutionState, sc scenario, seed seederFn) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionPromoteQueuedMessage,
+		from:       from,
+		want:       want,
+		scenario:   sc,
+		seed:       seed,
+		apply:      applyPromoteStale,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			require.True(t, result.promoteQueuedMessage.Rejected)
+			require.Nil(t, result.promoteQueuedMessage.InsertedMessage)
+			requireGuardEditOutcome(ctx, t, f, seeded, base, result.promoteQueuedMessage.PromotedQueuedAt)
+		},
+	}
+}
+
+// finishGuardEditCase covers FinishTurn and FinishInterruption reaching
+// P through the guard: the stale head is dropped, or kept when it is the
+// row under edit, and the row under edit is not promoted.
+func finishGuardEditCase(tr chatstate.Transition, from chatstate.ExecutionState, seed seederFn) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: tr,
+		from:       from,
+		want:       chatstate.StateP,
+		scenario:   scenarioStaleAutomation,
+		seed:       seed,
+		apply:      defaultApplier(tr),
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			require.Nil(t, result.finishTurn.PromotedMessage)
+			require.Nil(t, result.finishInterruption.PromotedMessage)
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID)[:len(base.historyIDs)])
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
+			head := queuedIDsByPosition(ctx, t, f, seeded.chatID)[0]
+			require.Equal(t, seeded.editingQueuedID, head, "the row under edit is the paused head")
+			if seeded.editingQueuedID != seeded.staleQueuedMessageID {
+				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, seeded.staleQueuedMessageID)
+			}
+		},
+	}
+}
+
+func guardEditMatrixCases() []transitionCaseSpec {
+	cases := []transitionCaseSpec{
+		// E1 -> SendMessage -> E1P: the guard drops the stale head and
+		// stops at the row under edit, so the send queues and the chat
+		// keeps its error.
+		{
+			transition: chatstate.TransitionSendMessage,
+			from:       chatstate.StateE1,
+			want:       chatstate.StateE1P,
+			scenario:   scenarioStaleAutomation,
+			seed:       staleBeforeEditSeed,
+			apply:      applySendMessageQueue,
+			assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+				require.NotNil(t, result.sendMessage.QueuedMessage)
+				require.Empty(t, result.sendMessage.InsertedMessages)
+				requireGuardEditOutcome(ctx, t, f, seeded, base, result.sendMessage.PromotedQueuedAt)
+				require.Equal(t, base.chat.LastError, f.readChat(ctx, t, seeded.chatID).LastError)
+			},
+		},
+		finishGuardEditCase(chatstate.TransitionFinishTurn, chatstate.StateR1, staleBeforeEditSeed),
+		finishGuardEditCase(chatstate.TransitionFinishInterruption, chatstate.StateI1, staleBeforeEditSeed),
+		// The guard does not judge a stale row while it is under edit.
+		finishGuardEditCase(chatstate.TransitionFinishTurn, chatstate.StateR1P, staleUnderEditSeed(staleThenOrdinary)),
+		finishGuardEditCase(chatstate.TransitionFinishInterruption, chatstate.StateI1P, staleUnderEditSeed(staleThenOrdinary)),
+	}
+	for _, ready := range []chatstate.ExecutionState{chatstate.StateE1, chatstate.StateR1, chatstate.StateI1, chatstate.StateA1} {
+		var blocked chatstate.ExecutionState
+		for b, r := range readyHeadOf {
+			if r == ready {
+				blocked = b
+			}
+		}
+		cases = append(cases,
+			promoteRejectedEditCase(ready, blocked, scenarioStaleAutomation, staleBeforeEditSeed),
+			promoteRejectedEditCase(blocked, emptyQueueSibling[ready], scenarioStaleAutomation, staleUnderEditSeed(staleOnly)),
+			promoteRejectedEditCase(blocked, ready, scenarioStaleAutomation, staleUnderEditSeed(staleThenOrdinary)),
+			promoteRejectedEditCase(blocked, blocked, scenarioStaleBehindEdit, staleBehindEditSeed),
+		)
+	}
+	return append(cases,
+		// From P a rejected head leaves paused like a deleted head: the
+		// next passing row is promoted, or the chat waits.
+		promoteRejectedEditCase(chatstate.StateP, chatstate.StateW, scenarioStaleAutomation, staleUnderEditSeed(staleOnly)),
+		promoteRejectedEditCase(chatstate.StateP, chatstate.StateR0, scenarioStaleAutomation, staleUnderEditSeed(staleThenOrdinary)),
+		promoteRejectedEditCase(chatstate.StateP, chatstate.StateP, scenarioStaleBehindEdit, staleBehindEditSeed),
+		// Ending the edit of a stale head from P runs the guard on it.
+		endEditStaleCase(chatstate.StateW, staleOnly),
+		endEditStaleCase(chatstate.StateR0, staleThenOrdinary),
+		// Deleting the P head runs the guard on the rows behind it.
+		transitionCaseSpec{
+			transition: chatstate.TransitionDeleteQueuedMessage,
+			from:       chatstate.StateP,
+			want:       chatstate.StateW,
+			scenario:   scenarioStaleBehindEdit,
+			seed:       staleBehindEditSeed,
+			apply:      applyDeleteQueuedMessageAt(0),
+			assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
+				require.Empty(t, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+				requireGuardEditOutcome(ctx, t, f, seeded, base, result.deleteQueuedMessage.PromotedQueuedAt)
+			},
+		},
+	)
+}
+
+// endEditStaleCase covers EditQueuedMessage ending the edit of a stale
+// P head: the guard deletes it and the chat leaves paused.
+func endEditStaleCase(want chatstate.ExecutionState, shape staleQueueShape) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionEditQueuedMessage,
+		from:       chatstate.StateP,
+		want:       want,
+		scenario:   scenarioStaleAutomation,
+		seed:       staleUnderEditSeed(shape),
+		apply: func(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+			t.Helper()
+			editing := false
+			var err error
+			result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+				QueuedMessageID: seeded.staleQueuedMessageID,
+				Editing:         &editing,
+			})
+			return err
+		},
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			requireGuardEditOutcome(ctx, t, f, seeded, base, result.editQueuedMessage.PromotedQueuedAt)
+		},
+	}
 }
 
 // TestQueuePromotionGuard_HeadPromotion covers every head-promoting
@@ -852,7 +1075,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 	// already queued on the chat.
 	admit := func(own database.ChatAutomation) chatstate.AdmitFunc {
 		return func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
-			queue, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
+			queue, err := store.GetChatQueuedMessages(ctx, chatID)
 			if err != nil {
 				return chatstate.AutomationProvenance{}, err
 			}
@@ -931,7 +1154,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range rounds {
-				queue, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+				queue, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 				if err != nil || len(queue) == 0 {
 					record(err)
 					continue

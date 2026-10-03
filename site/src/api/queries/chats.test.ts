@@ -632,6 +632,7 @@ describe("invalidateChatListQueries", () => {
 		{ status: "interrupting", matchingFilters: ["working"] },
 		{ status: "error", matchingFilters: ["error", "attention"] },
 		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+		{ status: "paused", matchingFilters: ["paused"] },
 	])(
 		"prepends $status root chats only to matching list caches",
 		({ status, matchingFilters }) => {
@@ -647,10 +648,17 @@ describe("invalidateChatListQueries", () => {
 					name: "attention",
 					input: { statuses: ["error", "requires_action"] },
 				},
+				{ name: "paused", input: { statuses: ["paused"] } },
 				{
 					name: "all",
 					input: {
-						statuses: ["requires_action", "error", "running", "waiting"],
+						statuses: [
+							"requires_action",
+							"error",
+							"running",
+							"waiting",
+							"paused",
+						],
 					},
 				},
 				{ name: "archived", input: { archived: true, statuses: [status] } },
@@ -2244,12 +2252,20 @@ describe("getChatListQueryString", () => {
 		expect(
 			getChatListQueryString(
 				toChatListParams({
+					statuses: ["paused", "waiting"],
+				}),
+			),
+		).toBe("archived:false status:waiting,paused");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
 					statuses: [
 						"requires_action",
 						"error",
 						"running",
 						"interrupting",
 						"waiting",
+						"paused",
 					],
 				}),
 			),

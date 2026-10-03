@@ -197,7 +197,7 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		return PublishAutomationResult{}, err
 	}
 	//nolint:gocritic // The owner's write access to the chat was checked above.
-	queued, err := p.db.GetChatQueuedMessagesByPosition(dbauthz.AsChatd(ctx), chatID)
+	queued, err := p.db.GetChatQueuedMessages(dbauthz.AsChatd(ctx), chatID)
 	if err != nil {
 		return PublishAutomationResult{}, xerrors.Errorf("get queued messages: %w", err)
 	}
@@ -311,7 +311,7 @@ func (p *Server) admitAutomation(
 	automationID, chatID uuid.UUID,
 	inputID uuid.UUID,
 ) (chatstate.AutomationProvenance, error) {
-	queued, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
+	queued, err := store.GetChatQueuedMessages(ctx, chatID)
 	if err != nil {
 		return chatstate.AutomationProvenance{}, xerrors.Errorf("get queued messages: %w", err)
 	}
@@ -532,7 +532,7 @@ func (p *Server) checkAdmission(
 		}
 	}
 	// Idle chats take the message directly; every other state queues it.
-	state := chatstate.ClassifyExecutionState(chat, promotable > 0, true)
+	state := chatstate.ClassifyExecutionState(chat, chatstate.QueueState{HasRows: promotable > 0}, true)
 	if state == chatstate.StateW || state == chatstate.StateE0 {
 		return nil
 	}

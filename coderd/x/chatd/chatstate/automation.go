@@ -185,9 +185,15 @@ func (tx *Tx) guardQueuedRows(rows []database.ChatQueuedMessage) ([]database.Cha
 }
 
 // nextPromotableQueueHead returns the queue head that the next
-// head-promoting transition should promote, or false when no queued row
-// can be promoted. Heads that fail the promotion guard are deleted until
-// a passing head is found; rows behind it are untouched.
+// head-promoting transition reaches, or false when no queued row is
+// left. Heads that fail the promotion guard are deleted until a passing
+// head is found; rows behind it are untouched.
+//
+// A paused head (see [queuePaused]) stops the loop and is returned
+// without running the guard on it: it is not about to be promoted, so
+// it is not judged yet. Callers must check queuePaused on the result and
+// take their blocked-head outcome instead of promoting it. The guard
+// runs on the row when the pause ends and a transition promotes it.
 //
 // A head without an automation is returned with no extra queries. When
 // the head has an automation, the automations of every row in the queue
@@ -204,7 +210,7 @@ func (tx *Tx) nextPromotableQueueHead() (database.ChatQueuedMessage, bool, error
 	if !head.AutomationID.Valid {
 		return head, true, nil
 	}
-	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	queue, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return database.ChatQueuedMessage{}, false, xerrors.Errorf("get queued messages: %w", err)
 	}
@@ -213,6 +219,9 @@ func (tx *Tx) nextPromotableQueueHead() (database.ChatQueuedMessage, bool, error
 		return database.ChatQueuedMessage{}, false, err
 	}
 	for _, row := range queue {
+		if queuePaused(row) {
+			return row, true, nil
+		}
 		passing, err := tx.dropUnpromotable([]database.ChatQueuedMessage{row}, locked)
 		if err != nil {
 			return database.ChatQueuedMessage{}, false, err
