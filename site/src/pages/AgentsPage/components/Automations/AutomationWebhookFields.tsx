@@ -47,50 +47,48 @@ export const AutomationWebhookFields: React.FC<
 	const rotateButtonRef = useRef<HTMLButtonElement>(null);
 	const [confirmingRotate, setConfirmingRotate] = useState(false);
 
+	const webhookUseField = (
+		<div className="flex flex-col gap-2">
+			<span
+				id={useLabelId}
+				className="text-sm font-medium text-content-primary"
+			>
+				Use
+			</span>
+			<RadioGroup
+				aria-labelledby={useLabelId}
+				aria-describedby={useHelpId}
+				value={webhookUse}
+				disabled={Boolean(automation)}
+				onValueChange={(value) => {
+					if (value === "single" || value === "multi") {
+						onWebhookUseChange(value);
+					}
+				}}
+			>
+				<RadioOption value="multi" label="Multi-use" />
+				<RadioOption value="single" label="Single-use" />
+			</RadioGroup>
+			<span id={useHelpId} className="text-xs text-content-secondary">
+				A single-use webhook accepts one event.
+			</span>
+		</div>
+	);
 	if (!automation) {
-		return (
-			<div className="flex flex-col gap-2">
-				<span
-					id={useLabelId}
-					className="text-sm font-medium text-content-primary"
-				>
-					Use
-				</span>
-				<RadioGroup
-					aria-labelledby={useLabelId}
-					aria-describedby={useHelpId}
-					value={webhookUse}
-					onValueChange={(value) => {
-						if (value === "single" || value === "multi") {
-							onWebhookUseChange(value);
-						}
-					}}
-				>
-					<RadioOption value="single" label="Single-use" />
-					<RadioOption value="multi" label="Multi-use" />
-				</RadioGroup>
-				<span id={useHelpId} className="text-xs text-content-secondary">
-					A single-use webhook accepts one event.
-				</span>
-			</div>
-		);
+		return webhookUseField;
 	}
 
-	const isSingleUse = automation.webhook_use === "single";
 	// A used single-use webhook rejects every event, so a new secret is useless.
-	const isUsedUp = isSingleUse && Boolean(automation.webhook_consumed_at);
+	const isUsedUp =
+		automation.webhook_use === "single" &&
+		Boolean(automation.webhook_consumed_at);
 	// getErrorDetail would add a developer-console hint the server never sent.
 	const rotateErrorDetail = isApiError(rotateSecretError)
 		? rotateSecretError.response.data.detail
 		: undefined;
 	return (
 		<>
-			<p className="m-0 text-sm font-medium text-content-primary">
-				Use:{" "}
-				<span className="font-normal text-content-secondary">
-					{isSingleUse ? "Single-use" : "Multi-use"}
-				</span>
-			</p>
+			{webhookUseField}
 			{automation.webhook_consumed_at && (
 				<p className="m-0 text-sm text-content-secondary">
 					Used on{" "}

@@ -98,8 +98,8 @@ You can create an automation on the **Automations** page or with the API.
 1. Enter a **Name**.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Webhook**.
-1. Under **Use**, select **Single-use** or **Multi-use**.
-1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. Under **Use**, select **Multi-use** or **Single-use**.
+1. Under **Runs in**, select **Existing chat** or **New chat each run**.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
@@ -247,10 +247,11 @@ Create a new automation instead.
 1. Under **Trigger**, select **Schedule**.
 1. Select a **Repeat** option.
 1. If the **Repeat** option runs at a time of day, select a **Time**.
+1. For **Hourly**, enter the **Minute** past each hour.
 1. To write the schedule yourself, enter a **Cron expression** instead.
 1. Select a **Time zone**.
 1. Check the times under **Upcoming runs**.
-1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. Under **Runs in**, select **Existing chat** or **New chat each run**.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
