@@ -57,6 +57,12 @@ because `CODER_DERP_SERVER_RELAY_URL` is ignored and no fallback address is
 available. If a node has neither value set, Coder logs an error and falls back
 to PostgreSQL for pubsub.
 
+Nodes connect to each other's pubsub on TCP port 6222, which isn't
+configurable. Allow it between `coderd` nodes, along with the port in
+`CODER_DERP_SERVER_RELAY_URL`, in any firewall or Kubernetes NetworkPolicy that
+sits between them. If it's blocked, events published on one node don't reach
+clients connected to another, such as workspace updates.
+
 Here's an example 3-node network configuration setup:
 
 | Name      | `CODER_HTTP_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_CLUSTER_HOST` | `CODER_ACCESS_URL`       |
