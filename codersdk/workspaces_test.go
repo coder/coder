@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -308,5 +309,44 @@ func TestResolveWorkspace(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid workspace identifier: \"a/b/c\"")
 		require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
+	})
+
+	t.Run("ForwardsOptions", func(t *testing.T) {
+		t.Parallel()
+
+		// The option must be forwarded whether the identifier resolves
+		// through the UUID endpoint or the owner-and-name endpoint.
+		config := wsrelated.Config{Template: true}
+		opt := codersdk.WorkspaceOptions{IncludeRelated: &config}
+
+		tests := []struct {
+			name       string
+			identifier string
+			path       string
+		}{
+			{name: "ByUUID", identifier: uuid.NewString(), path: "/api/v2/workspaces/{workspace}"},
+			{name: "ByName", identifier: "my-workspace", path: "/api/v2/users/{user}/workspace/{workspace}"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				r := chi.NewRouter()
+				r.Get(tt.path, func(w http.ResponseWriter, req *http.Request) {
+					assert.Equal(t, config.QueryParam(), req.URL.Query().Get("include_related"))
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(codersdk.Workspace{})
+				})
+				srv := httptest.NewServer(r)
+				defer srv.Close()
+
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
+
+				_, err = client.ResolveWorkspace(t.Context(), tt.identifier, opt)
+				require.NoError(t, err)
+			})
+		}
 	})
 }
