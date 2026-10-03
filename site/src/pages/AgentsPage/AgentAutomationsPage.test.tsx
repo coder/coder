@@ -596,9 +596,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 		await pickNewChatModel(user, dialog);
 		await user.keyboard("{Escape}");
-		await user.click(
-			within(dialog).getByRole("combobox", { name: /^Project/ }),
-		);
+		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
+		await waitFor(() => expect(project).toBeEnabled());
+		await user.click(project);
 		const option = await screen.findByRole("option", {
 			name: mockProject.name,
 		});
@@ -645,9 +645,8 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 		const dialog = await screen.findByRole("dialog");
 		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
-		await waitFor(() => {
-			expect(project).toHaveTextContent(mockProject.name);
-		});
+		// The select stays disabled until the projects load.
+		await waitFor(() => expect(project).toBeEnabled());
 		await user.click(project);
 		await user.click(await screen.findByRole("option", { name: "No project" }));
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));

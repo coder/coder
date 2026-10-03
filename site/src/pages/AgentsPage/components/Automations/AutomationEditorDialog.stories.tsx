@@ -246,6 +246,53 @@ export const EditNewChatUnknownProject: Story = {
 	},
 };
 
+export const ProjectsLoading: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const NoProjects: Story = {
+	args: {
+		automation: { ...mockNewChatAutomation, project_id: undefined },
+		projectsEnabled: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
 export const ProjectsLoadError: Story = {
 	args: { automation: mockNewChatAutomation, projectsEnabled: true },
 	parameters: {

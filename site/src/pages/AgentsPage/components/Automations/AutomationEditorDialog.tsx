@@ -272,7 +272,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		}),
 		onSubmit: (rawValues) => {
 			setSubmittedValues(rawValues);
-			const values = normalize(rawValues);
+			const values = {
+				...normalize(rawValues),
+				// The field unmounts if the experiment turns off while the
+				// dialog is open; never send its hidden value.
+				...(!projectsEnabled && { project_id: initialValues.project_id }),
+			};
 			if (!automation) {
 				onCreate(buildCreateRequest(values));
 				return;

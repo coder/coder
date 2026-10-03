@@ -21,14 +21,13 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 	onValueChange,
 }) => {
 	const value = String(field.value ?? NO_PROJECT);
-	// Projects can be deleted elsewhere, so each open loads a fresh list.
-	const projectsQuery = useQuery({
-		...chatProjects(),
-		refetchOnMount: "always",
-	});
+	const projectsQuery = useQuery(chatProjects());
 	const projects = (projectsQuery.data ?? []).filter(
 		(project) => project.organization_id === organizationId,
 	);
+	// Project names need not be unique, so repeated names show an ID prefix.
+	const isRepeatedName = (name: string) =>
+		projects.filter((project) => project.name === name).length > 1;
 	// A stored project the viewer cannot list gets its own option, so the
 	// trigger shows a label instead of rendering blank.
 	const isUnlisted =
@@ -38,6 +37,8 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 		<SelectField
 			field={field}
 			label="Project"
+			// Saving before the list loads would drop the intended project.
+			disabled={projectsQuery.isLoading}
 			description={
 				projectsQuery.isError
 					? "Could not load projects."
@@ -54,7 +55,9 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 			<SelectItem value={NO_PROJECT}>No project</SelectItem>
 			{projects.map((project) => (
 				<SelectItem key={project.id} value={project.id}>
-					{project.name}
+					{isRepeatedName(project.name)
+						? `${project.name} (${project.id.slice(0, 8)})`
+						: project.name}
 				</SelectItem>
 			))}
 			{isUnlisted && (
