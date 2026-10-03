@@ -50,6 +50,9 @@ type CreateWorkspacePageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
+	// True while a parameter change has been sent but its response has not
+	// arrived, so submitting now would use values the server has not evaluated.
+	parametersUpdating: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.MinimalUser;
 	diagnostics: readonly FriendlyDiagnostic[];
@@ -86,6 +89,7 @@ export const CreateWorkspacePageView: React.FC<
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,
+	parametersUpdating,
 	defaultName,
 	defaultOwner,
 	diagnostics,
@@ -376,6 +380,7 @@ export const CreateWorkspacePageView: React.FC<
 
 	const disabled =
 		creatingWorkspace ||
+		parametersUpdating ||
 		!hasAllRequiredExternalAuth ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
@@ -794,8 +799,10 @@ export const CreateWorkspacePageView: React.FC<
 
 					<div className="flex flex-row justify-end">
 						<Button type="submit" disabled={disabled}>
-							<Spinner loading={creatingWorkspace} />
-							Create workspace
+							<Spinner loading={creatingWorkspace || parametersUpdating} />
+							{parametersUpdating && !creatingWorkspace
+								? "Loading parameters..."
+								: "Create workspace"}
 						</Button>
 					</div>
 				</form>
