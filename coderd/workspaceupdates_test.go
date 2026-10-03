@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -304,6 +305,75 @@ func TestWorkspaceUpdates(t *testing.T) {
 	})
 }
 
+func TestWorkspaceUpdatesClose(t *testing.T) {
+	t.Parallel()
+
+	for _, stage := range []string{"QueryInFlight", "BlockedSend", "CallbackAfterClose"} {
+		t.Run(stage, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				// A canceled context and a closed send are both selectable.
+				// Repeat to exercise either selection without scheduler timing.
+				for range 32 {
+					ownerID := uuid.New()
+					db := &mockWorkspaceStore{}
+					ps := &mockPubsub{cbs: map[string]pubsub.ListenerWithErr{}}
+					provider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
+					ctx := dbauthz.As(t.Context(), rbac.Subject{ID: ownerID.String()})
+					sub, err := provider.Subscribe(ctx, ownerID)
+					require.NoError(t, err)
+
+					queryRelease := make(chan struct{})
+					var queryContext context.Context
+					db.getWorkspaces = func(ctx context.Context, _ uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+						queryContext = ctx
+						if stage == "QueryInFlight" {
+							<-queryRelease
+						}
+						// A query can return successfully even as its context is canceled.
+						return []database.GetWorkspacesAndAgentsByOwnerIDRow{{ID: uuid.New()}}, nil
+					}
+					msg, err := json.Marshal(wspubsub.WorkspaceEvent{Kind: wspubsub.WorkspaceEventKindStateChange})
+					require.NoError(t, err)
+					// Pubsub unsubscribe does not join an already-dispatched callback.
+					callback := ps.cbs[wspubsub.WorkspaceEventChannel(ownerID)]
+					callbackDone := make(chan struct{})
+					invoke := func() {
+						defer close(callbackDone)
+						callback(context.Background(), msg, nil)
+					}
+
+					if stage != "CallbackAfterClose" {
+						// Leave the initial update buffered so sending cannot proceed.
+						go invoke()
+						synctest.Wait()
+					}
+					closeDone := make(chan error, 1)
+					go func() { closeDone <- sub.Close() }()
+					if stage == "QueryInFlight" {
+						<-queryContext.Done()
+					}
+					close(queryRelease)
+					require.NoError(t, <-closeDone)
+					if stage == "CallbackAfterClose" {
+						go invoke()
+					}
+					<-callbackDone
+
+					// Closing preserves the buffered update and then terminates readers.
+					initial, ok := <-sub.Updates()
+					require.True(t, ok)
+					require.NotNil(t, initial)
+					_, ok = <-sub.Updates()
+					require.False(t, ok)
+					require.NoError(t, provider.Close())
+				}
+			})
+		})
+	}
+}
+
 func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, event *wspubsub.WorkspaceEvent) {
 	msg, err := json.Marshal(event)
 	require.NoError(t, err)
@@ -311,11 +381,15 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 }
 
 type mockWorkspaceStore struct {
-	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
+	orderedRows   []database.GetWorkspacesAndAgentsByOwnerIDRow
+	getWorkspaces func(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
-func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	if m.getWorkspaces != nil {
+		return m.getWorkspaces(ctx, ownerID)
+	}
 	return m.orderedRows, nil
 }
 
