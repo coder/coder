@@ -448,8 +448,10 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			logger.Critical(context.Background(), "failed to convert proto node to tailcfg", slog.F("node_proto", update.Node))
 			return false
 		}
-		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node))
 		node.KeepAlive = c.nodeKeepalive(lc, status, node)
+		// Log a copy: node becomes lc.node and is mutated later under c.L, but a
+		// flight recorder may format the entry after c.L is released.
+		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node.Clone()))
 	}
 	switch {
 	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
