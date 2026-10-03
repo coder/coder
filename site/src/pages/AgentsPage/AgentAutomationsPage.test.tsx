@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent, {
 	PointerEventsCheckLevel,
 } from "@testing-library/user-event";
@@ -1089,6 +1089,15 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const { updateBodies } = setupEditor({
 				automations: [{ ...automation, owner_id: "another-user" }],
 			});
+			// Other owners' chats are usually unreadable, so the view must not
+			// look up the target and report a valid private chat as missing.
+			const chatLookups: string[] = [];
+			server.use(
+				http.get("/api/v2/chats/:chatId", ({ params }) => {
+					chatLookups.push(String(params.chatId));
+					return HttpResponse.json({ message: "Not found." }, { status: 404 });
+				}),
+			);
 
 			const view = await screen.findByRole("button", {
 				name: `View ${automation.name}`,
@@ -1112,6 +1121,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				expect(screen.queryByRole("dialog")).toBeNull();
 			});
 			expect(updateBodies).toEqual([]);
+			expect(chatLookups).toEqual([]);
 		},
 	);
 
@@ -1438,6 +1448,33 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ name: "Renamed" }]);
+		});
+	});
+
+	it("returns focus to Rotate secret when a click did not focus it", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([mockWebhookAutomation]),
+			),
+		);
+		const dialog = await openWebhookEditor(user);
+		within(dialog).getByLabelText(/^Name/).focus();
+
+		// Safari on macOS does not focus a button on click.
+		fireEvent.click(
+			within(dialog).getByRole("button", { name: "Rotate secret" }),
+		);
+		const confirm = await screen.findByRole("dialog", {
+			name: "Rotate the webhook secret?",
+		});
+		await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Rotate secret" }),
+			).toHaveFocus();
 		});
 	});
 

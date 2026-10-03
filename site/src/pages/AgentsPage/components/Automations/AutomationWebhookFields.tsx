@@ -11,7 +11,7 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
+import { restoreFocusTo } from "#/hooks/useRestoreFocusOnClose";
 import { formatDate } from "#/utils/time";
 import { RadioOption } from "./RadioOption";
 
@@ -46,7 +46,6 @@ export const AutomationWebhookFields: React.FC<
 	const useHelpId = useId();
 	const rotateButtonRef = useRef<HTMLButtonElement>(null);
 	const [confirmingRotate, setConfirmingRotate] = useState(false);
-	const restoreFocus = useRestoreFocusOnClose(confirmingRotate);
 
 	const webhookUseField = (
 		<div className="flex flex-col gap-2">
@@ -154,7 +153,11 @@ export const AutomationWebhookFields: React.FC<
 					setConfirmingRotate(false);
 					onRotateSecret(rotateButtonRef.current);
 				}}
-				onCloseAutoFocus={restoreFocus}
+				// The button, not the focused element: Safari does not focus a
+				// button on click.
+				onCloseAutoFocus={(event) =>
+					restoreFocusTo(event, rotateButtonRef.current)
+				}
 			/>
 		</>
 	);

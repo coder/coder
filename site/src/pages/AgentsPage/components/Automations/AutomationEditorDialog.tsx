@@ -420,6 +420,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							<AutomationTargetField
 								organizationId={organizationId}
 								isCreate={isCreate}
+								isReadOnly={isReadOnly}
 								form={form}
 								getFieldHelpers={getFieldHelpers}
 								onWhenBusyChange={() => setWhenBusyChosen(true)}
