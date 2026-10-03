@@ -318,6 +318,7 @@ This requires the `chat-projects` experiment.
 Select the project in the **Project** field of the editor, or set `project_id` in the API.
 The project must be one of yours, in the automation's organization.
 To remove the project, select **No project**, or send `project_id` as `00000000-0000-0000-0000-000000000000` in a `PATCH` request.
+A `PATCH` request that omits `project_id` or sends `null` leaves the project unchanged.
 A change applies to the chats that later runs create.
 
 Coder creates the chat without a project, and the run still happens, in these cases:
