@@ -598,7 +598,7 @@ export const CreateWorkspacePageView: React.FC<
 						<section>
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">
-									External Authentication
+									External authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.

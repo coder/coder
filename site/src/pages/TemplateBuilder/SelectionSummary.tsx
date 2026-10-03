@@ -72,7 +72,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 							reachable(1) ? () => onNavigateStep("base-infra") : undefined
 						}
 					>
-						Base Template
+						Base template
 					</StepIndicator>
 				</VariantContext.Provider>
 				<VariantContext.Provider value={dividerVariant(1)}>

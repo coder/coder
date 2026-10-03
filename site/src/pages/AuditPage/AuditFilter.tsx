@@ -143,7 +143,7 @@ export const useResourceTypeFilterMenu = ({
 		let label: string = capitalize(type);
 
 		if (type === "api_key") {
-			label = "API Key";
+			label = "API key";
 		}
 
 		if (type === "git_ssh_key") {
@@ -159,15 +159,15 @@ export const useResourceTypeFilterMenu = ({
 		}
 
 		if (type === "chat_instruction_settings") {
-			label = "Chat Instruction Settings";
+			label = "Chat instruction settings";
 		}
 
 		if (type === "chat_operational_settings") {
-			label = "Chat Operational Settings";
+			label = "Chat operational settings";
 		}
 
 		if (type === "experiment_rule") {
-			label = "Experiment Rule";
+			label = "Experiment rule";
 		}
 
 		return {

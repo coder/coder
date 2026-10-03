@@ -31,7 +31,7 @@ const InstructionsPage: React.FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<title>{pageTitle("Instructions", "AI Settings")}</title>
+			<title>{pageTitle("Instructions", "AI settings")}</title>
 
 			<InstructionsPageView
 				systemPromptData={systemPromptQuery.data}

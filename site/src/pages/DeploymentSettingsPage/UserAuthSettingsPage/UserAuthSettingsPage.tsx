@@ -7,7 +7,7 @@ const UserAuthSettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("User Authentication Settings")}</title>
+			<title>{pageTitle("User authentication settings")}</title>
 
 			<UserAuthSettingsPageView options={deploymentConfig.options} />
 		</>

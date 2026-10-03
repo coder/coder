@@ -40,7 +40,7 @@ const AddModelPage: React.FC = () => {
 	if (requestedOrganizationDenied) {
 		return (
 			<>
-				<title>{pageTitle("Add model", "AI Settings")}</title>
+				<title>{pageTitle("Add model", "AI settings")}</title>
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -56,7 +56,7 @@ const AddModelPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Add model", "AI Settings")}</title>
+			<title>{pageTitle("Add model", "AI settings")}</title>
 
 			<RequirePermission
 				isFeatureVisible={permissions?.createChatModelConfigs ?? false}

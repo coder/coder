@@ -69,7 +69,7 @@ export const Page: Story = {
 		);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Enabled/,
+				name: /Browser-only connections Enabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(
@@ -87,7 +87,7 @@ export const EntitledAndTurnedOff: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Disabled/,
+				name: /Browser-only connections Disabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(
@@ -105,7 +105,7 @@ export const NotEntitled: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("heading", {
-				name: /Browser-Only Connections Disabled/,
+				name: /Browser-only connections Disabled/,
 			}),
 		).toBeInTheDocument();
 		await expect(

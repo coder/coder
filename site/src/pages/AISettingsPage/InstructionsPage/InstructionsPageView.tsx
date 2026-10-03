@@ -271,7 +271,7 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 			{showDefaultPromptPreview && (
 				<TextPreviewDialog
 					content={defaultSystemPrompt}
-					fileName="Default System Prompt"
+					fileName="Default system prompt"
 					onClose={() => setShowDefaultPromptPreview(false)}
 				/>
 			)}

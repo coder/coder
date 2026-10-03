@@ -123,7 +123,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 											{connectionLog.ssh_info?.disconnect_reason && (
 												<div>
 													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Close Reason:
+														Close reason:
 													</h4>
 													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
 												</div>

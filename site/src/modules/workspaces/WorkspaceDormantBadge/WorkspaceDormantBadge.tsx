@@ -22,7 +22,7 @@ export const WorkspaceDormantBadge: React.FC<WorkspaceDormantBadgeProps> = ({
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<Badge role="status" variant="destructive" size="xs">
-					Deletion Pending
+					Deletion pending
 				</Badge>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" className="max-w-xs">

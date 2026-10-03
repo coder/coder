@@ -61,7 +61,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 				<Button asChild variant="outline">
 					<RouterLink to="/deployment/licenses">
 						<ChevronLeftIcon />
-						All Licenses
+						All licenses
 					</RouterLink>
 				</Button>
 			</div>
@@ -93,7 +93,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 					}}
 					button={
 						<Button type="submit" disabled={isSavingLicense}>
-							Upload License
+							Upload license
 						</Button>
 					}
 				>

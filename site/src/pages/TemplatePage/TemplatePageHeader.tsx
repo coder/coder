@@ -226,7 +226,7 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 								<Button asChild>
 									<RouterLink to={`${templateLink}/workspace`}>
 										<PlusIcon />
-										Create Workspace
+										Create workspace
 									</RouterLink>
 								</Button>
 							)}

@@ -59,7 +59,7 @@ export const WorkspaceProxyView: React.FC<WorkspaceProxyViewProps> = ({
 			{showPaywall ? (
 				<PremiumPaywall
 					source="workspace_proxies"
-					message="Workspace Proxies"
+					message="Workspace proxies"
 					description="Provide low-latency connections for geo-distributed teams."
 					features={[
 						"Low-latency connections for global teams",

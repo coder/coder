@@ -710,7 +710,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 		expect(
 			await within(dialog).findByRole("combobox", {
-				name: "Model, No Models Configured",
+				name: "Model, No models configured",
 			}),
 		).toBeDisabled();
 	});

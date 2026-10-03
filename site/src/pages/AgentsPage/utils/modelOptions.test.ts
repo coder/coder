@@ -244,7 +244,7 @@ describe("getModelSelectorPlaceholder", () => {
 		]);
 
 		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
-			"Configure API Keys",
+			"Configure API keys",
 		);
 	});
 
@@ -258,7 +258,7 @@ describe("getModelSelectorPlaceholder", () => {
 		]);
 
 		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
-			"No Models Available",
+			"No models available",
 		);
 	});
 });

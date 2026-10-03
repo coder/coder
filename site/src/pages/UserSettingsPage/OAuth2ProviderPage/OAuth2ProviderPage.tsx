@@ -24,7 +24,7 @@ const OAuth2ProviderPage: React.FC = () => {
 	return (
 		<>
 			<SettingsHeader>
-				<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
+				<SettingsHeaderTitle>OAuth2 applications</SettingsHeaderTitle>
 			</SettingsHeader>
 			<OAuth2ProviderPageView
 				isLoading={userOAuth2AppsQuery.isLoading}

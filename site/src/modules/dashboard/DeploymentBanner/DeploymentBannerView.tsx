@@ -303,7 +303,7 @@ const SESSION_FAMILIES = {
 	},
 	ssh: { name: "SSH", icon: <SquareTerminalIcon className="size-icon-xs" /> },
 	reconnecting_pty: {
-		name: "Web Terminal",
+		name: "Web terminal",
 		icon: <AppWindowIcon className="size-icon-xs" />,
 	},
 	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
@@ -354,7 +354,7 @@ const ActiveConnections = memo(
 		return (
 			<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
 				<div className="flex items-center">
-					<div className="mr-4 text-content-primary">Active Connections</div>
+					<div className="mr-4 text-content-primary">Active connections</div>
 					<div className="flex gap-2 text-content-secondary">
 						{FAMILY_SLOTS.map(({ key, name, icon }, index) => {
 							const apps = groups.get(key) ?? [];

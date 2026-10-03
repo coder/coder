@@ -61,7 +61,7 @@ export const SecuritySettingsPageView: React.FC<
 						hierarchy="secondary"
 						className="items-center"
 					>
-						Browser-Only Connections{" "}
+						Browser-only connections{" "}
 						<BadgeGroup>
 							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
 						</BadgeGroup>
@@ -79,7 +79,7 @@ export const SecuritySettingsPageView: React.FC<
 				{!isBrowserOnlyEntitled ? (
 					<PremiumPaywallSmall
 						source="browser_only"
-						message="Browser-Only Connections"
+						message="Browser-only connections"
 						description="Block all workspace access via SSH, port forward, and other non-browser connections."
 						features={[
 							"Restrict access to web-based connections",

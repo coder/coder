@@ -21,7 +21,7 @@ const RequestOTPPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Reset Password", applicationName)}</title>
+			<title>{pageTitle("Reset password", applicationName)}</title>
 
 			<main className="p-6 flex items-center justify-center flex-col min-h-full text-center">
 				<div>

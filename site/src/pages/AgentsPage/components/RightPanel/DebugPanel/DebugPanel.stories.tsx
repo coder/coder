@@ -805,7 +805,7 @@ export const SingleStepSuccessfulRun: Story = {
 		// Expand the run and open the first step before inspecting nested
 		// content.
 		const runTrigger = await canvas.findByRole("button", {
-			name: /Chat Turn/i,
+			name: /Chat turn/i,
 		});
 		await user.click(runTrigger);
 		await expandStep(canvas, user);
@@ -1053,7 +1053,7 @@ export const ExportSingleRun: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await user.click(
 			await canvas.findByRole("button", { name: "Export this run" }),
 		);
@@ -1085,7 +1085,7 @@ export const ExportSingleRunDownloadError: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		const errorSpy = spyOn(toast, "error");
 		await user.click(
 			await canvas.findByRole("button", { name: "Export this run" }),
@@ -1128,7 +1128,7 @@ export const MultiStepRunWithRetries: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		await user.click(await canvas.findByRole("button", { name: /Attempt 1/i }));
@@ -1173,7 +1173,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		// Expand the request body to reveal the redacted headers.
@@ -1276,7 +1276,7 @@ export const LongRawPayloads: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(await canvas.findByRole("button", { name: /Chat turn/i }));
 		await expandStep(canvas, user);
 
 		await user.click(await canvas.findByText("Request body"));

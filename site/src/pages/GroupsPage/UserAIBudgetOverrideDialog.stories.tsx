@@ -58,7 +58,7 @@ export const WithOverride: Story = {
 	},
 	play: async () => {
 		const body = within(document.body);
-		await expect(await body.findByText("AI Budget")).toBeInTheDocument();
+		await expect(await body.findByText("AI budget")).toBeInTheDocument();
 		await expect(body.getByText("$12,000 USD")).toBeInTheDocument();
 		await expect(body.getByText(/charged to/)).toBeInTheDocument();
 		await expect(body.getByRole("checkbox")).toBeChecked();

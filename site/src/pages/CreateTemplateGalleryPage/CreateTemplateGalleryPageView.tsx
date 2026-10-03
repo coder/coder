@@ -73,7 +73,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 							</div>
 							<div>
 								<h4 className="m-0 mb-1 text-sm font-semibold text-content-secondary">
-									Upload Template
+									Upload template
 								</h4>
 								<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 									Get started by uploading an existing template

@@ -23,7 +23,7 @@ export const ChatAccessDeniedAlert: React.FC = () => {
 				kept and reappear when your access is restored. Contact your Coder
 				administrator, then refresh this page.{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
-					View Docs
+					View docs
 				</Link>
 			</AlertDescription>
 		</Alert>

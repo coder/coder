@@ -87,7 +87,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 	if (!organization) {
 		return (
 			<>
-				<title>{pageTitle("Provisioner Jobs")}</title>
+				<title>{pageTitle("Provisioner jobs")}</title>
 
 				<EmptyState message="Organization not found" />
 			</>
@@ -107,7 +107,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 				<SettingsHeader>
 					<SettingsHeaderTitle>Provisioner jobs</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Provisioner Jobs are the individual tasks assigned to Provisioners
+						Provisioner jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}
 						<Link href={docs("/admin/provisioners/manage-provisioner-jobs")}>
 							View docs

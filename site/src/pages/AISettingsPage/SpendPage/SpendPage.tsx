@@ -181,7 +181,7 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("Spend", "AI Settings")}</title>
+			<title>{pageTitle("Spend", "AI settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
