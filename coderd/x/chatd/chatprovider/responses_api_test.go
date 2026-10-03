@@ -8,6 +8,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -93,6 +94,71 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}},
 			)
 			require.NoError(t, err)
+
+			_, err = model.LanguageModel().Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Test message"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, tc.wantPath, gotPath)
+		})
+	}
+}
+
+// OpenAI-compatible endpoints have no known-model list, so the client must
+// stay on Chat Completions until the config opts in to Responses.
+func TestModelFromConfig_OpenAICompatResponsesAPIOverride(t *testing.T) {
+	t.Parallel()
+
+	forceResponses := true
+	forceCompletions := false
+
+	cases := []struct {
+		name     string
+		override *bool
+		wantPath string
+	}{
+		{"Default", nil, "/chat/completions"},
+		{"ForceResponses", &forceResponses, "/responses"},
+		{"ForceCompletions", &forceCompletions, "/chat/completions"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var mu sync.Mutex
+			var gotPath string
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				mu.Lock()
+				gotPath = req.URL.Path
+				mu.Unlock()
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+
+			var openAIConfig *codersdk.ChatModelOpenAIConfig
+			if tc.override != nil {
+				openAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}
+			}
+			model, err := chatprovider.ModelFromConfig(
+				fantasyopenaicompat.Name,
+				"gpt-4o",
+				chatprovider.ProviderAPIKeys{
+					ByProvider:        map[string]string{fantasyopenaicompat.Name: "test-key"},
+					BaseURLByProvider: map[string]string{fantasyopenaicompat.Name: serverURL},
+				},
+				chatprovider.UserAgent(),
+				nil,
+				nil,
+				&codersdk.ChatModelCallConfig{OpenAIConfig: openAIConfig},
+			)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantPath == "/responses", model.Transport().UsesResponses())
 
 			_, err = model.LanguageModel().Generate(context.Background(), fantasy.Call{
 				Prompt: []fantasy.Message{{
