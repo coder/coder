@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
@@ -198,6 +198,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	onClose,
 }) => {
 	const isCreate = !automation;
+	const pointerFocusRef = useRef(false);
 	const isReadOnly = Boolean(
 		automation && automation.owner_id !== currentUserId,
 	);
@@ -365,8 +366,20 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					<div
 						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
 						// The focus trap wraps Tab with preventScroll, which would
-						// leave the wrapped-to field out of view.
+						// leave the wrapped-to field out of view. Pointer focus is
+						// skipped: scrolling between pointerdown and pointerup would
+						// move the control away from the pointer and lose the click.
+						onPointerDown={() => {
+							pointerFocusRef.current = true;
+						}}
+						onPointerUp={() => {
+							pointerFocusRef.current = false;
+						}}
 						onFocus={(event) => {
+							if (pointerFocusRef.current) {
+								pointerFocusRef.current = false;
+								return;
+							}
 							if (event.target instanceof HTMLElement) {
 								// The parent first keeps a field's label in view too.
 								event.target.parentElement?.scrollIntoView({
