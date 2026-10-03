@@ -85,15 +85,16 @@ describe("projectPeriodSpendMicros", () => {
 	});
 
 	it("rounds to whole micros", () => {
-		// 3 of 31 days elapsed: 1,000,000 * 31 / 3 = 10,333,333.33...
+		// 6 of 31 days elapsed: 1,000,000 * 31 / 6 = 5,166,666.67, which
+		// distinguishes rounding from truncation.
 		expect(
 			projectPeriodSpendMicros({
 				currentSpendMicros: 1_000_000,
 				periodStart,
 				periodEnd,
-				nowMs: startMs + 3 * dayMs,
+				nowMs: startMs + 6 * dayMs,
 			}),
-		).toBe(10_333_333);
+		).toBe(5_166_667);
 	});
 
 	it("hides the projection until the minimum elapsed time", () => {
@@ -146,6 +147,14 @@ describe("projectPeriodSpendMicros", () => {
 		).toBeUndefined();
 		expect(
 			projectPeriodSpendMicros({
+				currentSpendMicros: -5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
 				currentSpendMicros: Number.NaN,
 				periodStart,
 				periodEnd,
@@ -155,8 +164,32 @@ describe("projectPeriodSpendMicros", () => {
 		expect(
 			projectPeriodSpendMicros({
 				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd,
+				nowMs: Number.NaN,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
 				periodStart: "not a date",
 				periodEnd,
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd: "not a date",
+				nowMs,
+			}),
+		).toBeUndefined();
+		expect(
+			projectPeriodSpendMicros({
+				currentSpendMicros: 5_000_000,
+				periodStart,
+				periodEnd: periodStart,
 				nowMs,
 			}),
 		).toBeUndefined();

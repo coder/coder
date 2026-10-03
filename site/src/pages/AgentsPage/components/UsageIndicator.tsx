@@ -124,17 +124,18 @@ export const UsageIndicator: React.FC = () => {
 				aiSpend.period_start,
 				aiSpend.period_end,
 			),
-			projection: projectedSpend !== undefined && (
-				<span
-					className={
-						projectedSpend >= spendLimit
-							? severityTextClasses.warning
-							: undefined
-					}
-				>
-					Projected {formatCostMicros(projectedSpend)}
-				</span>
-			),
+			projection:
+				projectedSpend === undefined ? undefined : (
+					<span
+						className={
+							projectedSpend >= spendLimit
+								? severityTextClasses.warning
+								: undefined
+						}
+					>
+						Projected {formatCostMicros(projectedSpend)}
+					</span>
+				),
 		});
 	}
 
@@ -356,7 +357,7 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 			)}
 
 			{section.secondaryDetail && (
-				<div className="px-2 pb-2 text-xs text-content-secondary">
+				<div className="px-2 pb-2 text-xs leading-5 text-content-secondary">
 					{section.secondaryDetail}
 				</div>
 			)}
