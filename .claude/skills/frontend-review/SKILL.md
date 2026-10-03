@@ -106,5 +106,7 @@ when all rules PASS or remaining FAILs have a written justification.
 
 - This audit does not replace `pnpm check`, `pnpm lint`, `pnpm format`, or
   tests; run those too (see the Completion section of `site/AGENTS.md`).
+- After this audit passes, run `frontend-deep-review` for the long tail of
+  patterns human reviewers flag beyond FE1 to FE10.
 - Report findings in the current diff only. Do not refactor pre-existing
   violations in untouched code; note them at most.
