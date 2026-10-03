@@ -274,6 +274,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		automation, err = tx.InsertChatAutomation(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("insert chat automation: %w", err)
 		}
 		return nil
@@ -469,6 +472,9 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		}
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("update chat automation: %w", err)
 		}
 		return nil
@@ -809,6 +815,18 @@ func (p *Server) validateAutomationProject(ctx context.Context, store database.S
 		return automationFieldError("project_id", "project is not in the automation's organization")
 	}
 	return nil
+}
+
+// automationProjectOrganizationCheck is raised by the
+// enforce_chat_automation_chat_organization trigger, which runs before the
+// foreign key and also fails when the project row is gone.
+const automationProjectOrganizationCheck database.CheckConstraint = "chat_automations_project_organization"
+
+// isAutomationProjectDeleted reports whether a write failed because the
+// project was deleted after validation read it.
+func isAutomationProjectDeleted(err error) bool {
+	return database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsProjectID) ||
+		database.IsCheckViolation(err, automationProjectOrganizationCheck)
 }
 
 // newAutomationWebhookSecret returns a new webhook secret and the SHA-256

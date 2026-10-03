@@ -1036,3 +1036,30 @@ func TestAutomationQueuedInputRunsAfterExperimentOff(t *testing.T) {
 		return m.Role == database.ChatMessageRoleAssistant
 	}), "a turn ran for the promoted input")
 }
+
+// A project deleted after the update validated it fails the write's
+// foreign key, which must come back as a project_id validation error.
+func TestUpdateAutomationProjectDeletedBeforeWrite(t *testing.T) {
+	t.Parallel()
+	f := newPublishFixture(t, database.ChatStatusWaiting)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+	project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+
+	// The guard runs on the stored row and then on the row as the update
+	// would leave it, after validation and before the write.
+	calls := 0
+	guard := func(database.Store, database.ChatAutomation) error {
+		calls++
+		if calls == 2 {
+			_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_projects WHERE id = $1", project.ID)
+			return err
+		}
+		return nil
+	}
+	_, err := f.server.UpdateAutomation(ctx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, guard)
+	var validation *chatd.AutomationValidationError
+	require.ErrorAs(t, err, &validation)
+	require.Equal(t, "project_id", validation.Field)
+	require.Equal(t, 2, calls)
+}
