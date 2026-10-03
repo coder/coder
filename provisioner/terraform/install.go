@@ -65,7 +65,7 @@ func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wan
 	installer := &releases.ExactVersion{
 		InstallDir: dir,
 		Product:    product.Terraform,
-		Version:    TerraformVersion,
+		Version:    wantVersion,
 	}
 	installer.SetLogger(slog.Stdlib(ctx, log, slog.LevelDebug))
 	if baseURL != "" {
@@ -80,7 +80,7 @@ func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wan
 	logInstall(ctx, "installing terraform",
 		slog.F("prev_version", hasVersionStr),
 		slog.F("dir", dir),
-		slog.F("version", TerraformVersion))
+		slog.F("version", wantVersion))
 
 	prolongedInstall := atomic.Bool{}
 	prolongedInstallCtx, prolongedInstallCancel := context.WithCancel(ctx)
@@ -95,7 +95,7 @@ func Install(ctx context.Context, log slog.Logger, verbose bool, dir string, wan
 				fmt.Sprintf("terraform installation is taking longer than %d seconds, still in progress", seconds),
 				slog.F("prev_version", hasVersionStr),
 				slog.F("dir", dir),
-				slog.F("version", TerraformVersion),
+				slog.F("version", wantVersion),
 			)
 		case <-prolongedInstallCtx.Done():
 			return

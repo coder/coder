@@ -7,12 +7,14 @@ package terraform_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -158,6 +160,13 @@ func TestInstall(t *testing.T) {
 				require.Equal(t, firstPath, p, "installs returned different paths")
 			}
 		}
+		output, err := exec.CommandContext(ctx, firstPath, "version", "-json").Output()
+		require.NoError(t, err)
+		var installed struct {
+			Version string `json:"terraform_version"`
+		}
+		require.NoError(t, json.Unmarshal(output, &installed))
+		require.Equal(t, version.String(), installed.Version)
 		return firstPath
 	}
 
