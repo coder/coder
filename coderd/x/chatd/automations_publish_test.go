@@ -726,6 +726,12 @@ func TestPublishAutomationWebhook(t *testing.T) {
 				_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET project_id = NULL WHERE owner_id = $1", f.owner.ID)
 				return err
 			}, chatd.ErrAutomationTargetUnavailable},
+			// The insert fails the project foreign key before admission
+			// can see the cleared reference.
+			{"ProjectDeleted", true, func(f publishFixture, ctx context.Context) error {
+				_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_projects WHERE owner_id = $1", f.owner.ID)
+				return err
+			}, chatd.ErrAutomationTargetUnavailable},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

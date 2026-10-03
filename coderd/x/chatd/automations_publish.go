@@ -290,6 +290,11 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		if errors.Is(err, ErrInvalidModelConfigID) {
 			err = ErrAutomationModelUnavailable
 		}
+		// The project was deleted after it was selected, so the insert
+		// failed before admission could see the cleared reference.
+		if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+			err = ErrAutomationTargetUnavailable
+		}
 		logAutomationRefusal(ctx, logger, err)
 		return PublishAutomationResult{}, err
 	}
