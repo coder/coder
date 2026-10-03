@@ -708,6 +708,32 @@ WHERE id = $1`, automation.ID, edited)
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
 	})
 
+	t.Run("ClockStepBackLeavesOccurrenceUnclaimed", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+
+		// The scan saw the occurrence as due, but the clock read before
+		// the claim is earlier than the cursor, as after a backward clock
+		// step. The occurrence is not claimed, so it is not held past the
+		// grace window.
+		row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.True(t, f.clock.Now().Before(due))
+		server.runAutomationOccurrence(ctx, row, due)
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+		require.False(t, f.claimedUntil(ctx, t, automation.ID).Valid)
+
+		// Once the clock reaches the cursor, the next scan accepts it.
+		f.advanceTo(ctx, t, due)
+		server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
+		require.Equal(t, 1, f.inputs(ctx, t))
+	})
+
 	t.Run("SlowOccurrenceDoesNotBlockOthers", func(t *testing.T) {
 		t.Parallel()
 		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)

@@ -1892,8 +1892,11 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		// An occurrence that is not due yet cannot be claimed.
+		require.Zero(t, claim(ctx, t, automation, revision, next, now, now.Add(lease)))
+
 		// An edit that keeps the occurrence keeps its claim.
-		require.EqualValues(t, 1, claim(ctx, t, automation, revision, next, now, now.Add(lease)))
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, next, next, next.Add(lease)))
 		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.Name = "renamed" })
 		require.True(t, claimedUntil(ctx, t, automation).Valid)
 
@@ -1902,7 +1905,7 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 		require.False(t, claimedUntil(ctx, t, automation).Valid)
 
 		// So does a moved cursor, as disabling does.
-		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, next, now, now.Add(lease)))
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, next, next, next.Add(lease)))
 		update(t, func(arg *database.UpdateChatAutomationByIDParams) {
 			arg.Enabled = false
 			arg.ScheduleNextRunAt = sql.NullTime{}

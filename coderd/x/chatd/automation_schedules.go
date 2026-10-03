@@ -37,8 +37,8 @@ const (
 	//
 	// The lease is longer than the grace window, so the claim keeps the
 	// prompt hooks from running twice for one occurrence however skewed
-	// the clocks of the instances are. An instance claims only an
-	// occurrence it sees as due, at now_A >= cursor by its clock. Another
+	// the clocks of the instances are. The claim requires the occurrence
+	// to be due by the clock read it is taken with, now_A >= cursor. Another
 	// instance can claim the same occurrence only once the lease has
 	// expired by its clock, at now_B >= now_A + lease > cursor + grace,
 	// and its check before the hooks then refuses the occurrence as
@@ -121,10 +121,11 @@ func advanceAutomationSchedule(ctx context.Context, store database.Store, automa
 }
 
 // claimAutomationOccurrence claims the observed occurrence of the
-// automation until claimedUntil, judging other claims at now. It reports
-// false when another instance holds an unexpired claim on it or the
-// schedule revision or cursor changed since they were observed. Moving
-// the cursor drops the claim.
+// automation until claimedUntil, judging the occurrence and other claims
+// at now. It reports false when the occurrence is not due at now, another
+// instance holds an unexpired claim on it, or the schedule revision or
+// cursor changed since they were observed. Moving the cursor drops the
+// claim.
 func claimAutomationOccurrence(ctx context.Context, store database.Store, automationID uuid.UUID, occurrence automationOccurrence, now, claimedUntil time.Time) (bool, error) {
 	//nolint:gocritic // The scheduler claims the occurrences of every owner's automations; chatd may update them.
 	count, err := store.ClaimChatAutomationScheduleOccurrence(dbauthz.AsChatd(ctx), database.ClaimChatAutomationScheduleOccurrenceParams{
