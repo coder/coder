@@ -69,9 +69,11 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			retErr = err
 			break
 		}
+		clientSessionID := agentssh.ClientSessionIDFromConn(conn)
 		clog := s.logger.With(
 			slog.F("remote", conn.RemoteAddr()),
-			slog.F("local", conn.LocalAddr()))
+			slog.F("local", conn.LocalAddr()),
+			slog.F("client_session_id", clientSessionID))
 		clog.Info(ctx, "accepted conn")
 
 		// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
@@ -85,9 +87,10 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 
 		wg.Add(1)
 		connReporter := s.connectionReporter.Connect(proto.ConnectEvent{
-			ID:   uuid.New(),
-			Type: proto.Connection_RECONNECTING_PTY,
-			IP:   remoteAddrString,
+			ID:              uuid.New(),
+			Type:            proto.Connection_RECONNECTING_PTY,
+			IP:              remoteAddrString,
+			ClientSessionID: clientSessionID,
 		})
 		closed := make(chan struct{})
 		go func() {
