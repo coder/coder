@@ -389,6 +389,114 @@ func TestPrintDeprecatedOptions(t *testing.T) {
 	})
 }
 
+func TestWarnIgnoredColumnFlag(t *testing.T) {
+	t.Parallel()
+
+	makeCmd := func() *serpent.Command {
+		var (
+			columns []string
+			output  string
+		)
+		return &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				{
+					Flag:          "column",
+					FlagShorthand: "c",
+					Default:       "foo,bar",
+					Value:         serpent.EnumArrayOf(&columns, "foo", "bar"),
+				},
+				{
+					Flag:          "output",
+					FlagShorthand: "o",
+					Default:       "table",
+					Value:         serpent.EnumOf(&output, "table", "json"),
+				},
+			},
+			Middleware: WarnIgnoredColumnFlag(),
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+	}
+
+	t.Run("ColumnWithNonTableOutput_Warning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo", "-o", "json")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, stderr.String(), "--column only applies to table output")
+	})
+
+	t.Run("ColumnWithTableOutput_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo", "-o", "table")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("ColumnWithDefaultTableOutput_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("NoColumnFlag_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-o", "json")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("NoOutputFlag_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		var columns []string
+		cmd := &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				{
+					Flag:          "column",
+					FlagShorthand: "c",
+					Default:       "foo,bar",
+					Value:         serpent.EnumArrayOf(&columns, "foo", "bar"),
+				},
+			},
+			Middleware: WarnIgnoredColumnFlag(),
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String(),
+			"a command with no --output flag always renders a table, so no warning should be printed")
+	})
+}
+
 func Test_wrapTransportWithEntitlementsCheck(t *testing.T) {
 	t.Parallel()
 
