@@ -166,6 +166,40 @@ describe("optionValue", () => {
 			},
 			expected: "",
 		},
+		{
+			// serpent.Enum options are serialized as { Choices, Value }.
+			option: {
+				...defaultOption,
+				name: "SameSite Auth Cookie",
+				value: { Choices: ["lax", "none"], Value: "lax" },
+			},
+			expected: "lax",
+		},
+		{
+			option: {
+				...defaultOption,
+				name: "Postgres Auth",
+				value: { Choices: ["password", "awsiamrds"], Value: "" },
+			},
+			expected: "",
+		},
+		{
+			option: {
+				...defaultOption,
+				name: "AI Budget Policy",
+				value: { Choices: ["block", "warn"], Value: null },
+			},
+			expected: "",
+		},
+		{
+			// A plain map value must still be passed through untouched.
+			option: {
+				...defaultOption,
+				name: "Some Map Option",
+				value: { enabled_feature: true, disabled_feature: false },
+			},
+			expected: { enabled_feature: true, disabled_feature: false },
+		},
 	])(
 		"[$option.name]optionValue($option.value)",
 		({ option, expected, additionalValues }) => {

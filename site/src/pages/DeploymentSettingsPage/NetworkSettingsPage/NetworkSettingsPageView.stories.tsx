@@ -62,6 +62,18 @@ const meta: Meta<typeof NetworkSettingsPageView> = {
 				flag_shorthand: "d",
 				hidden: false,
 			},
+			{
+				name: "SameSite Auth Cookie",
+				description:
+					"Controls the 'SameSite' property is set on browser session cookies.",
+				// serpent.Enum options are serialized as { Choices, Value }.
+				value: { Choices: ["lax", "none"], Value: "lax" },
+				group,
+				flag: "samesite-auth-cookie",
+				env: "CODER_SAMESITE_AUTH_COOKIE",
+				yaml: "sameSiteAuthCookie",
+				hidden: false,
+			},
 		],
 	},
 };
@@ -82,5 +94,15 @@ export const Page: Story = {
 			"href",
 			docs("/admin/networking/port-forwarding"),
 		);
+
+		// Enum options must show the configured value, not the struct's keys.
+		const sameSiteRow = canvas.getByText("SameSite Auth Cookie").closest("tr");
+		if (!sameSiteRow) {
+			throw new Error("SameSite Auth Cookie row not rendered");
+		}
+		await expect(within(sameSiteRow).getByText("lax")).toBeInTheDocument();
+		await expect(
+			within(sameSiteRow).queryByText("Choices"),
+		).not.toBeInTheDocument();
 	},
 };
