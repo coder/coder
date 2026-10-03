@@ -516,9 +516,12 @@ func TestAutomationScheduleScan(t *testing.T) {
 		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
 
-		// The edit holds the automation lock while the publish waits for
-		// it, then changes the schedule like UpdateAutomation does.
-		held := f.lockRow(ctx, t, lockAutomationRow, automation.ID)
+		// The publish has claimed the occurrence and waits for the chat
+		// lock, which it takes before the automation lock, while the edit
+		// changes the schedule like UpdateAutomation does. Holding the
+		// automation lock instead would stop the scan at its claim, before
+		// the publish rechecks the occurrence.
+		held := f.lockRow(ctx, t, lockChatRow, f.chat.ID)
 		wait := scanAsync(ctx, server)
 		f.waitForLockWaits(ctx, t, 1)
 		edited := scheduleStart.Add(270 * time.Second)
