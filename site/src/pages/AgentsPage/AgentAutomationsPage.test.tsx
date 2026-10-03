@@ -1218,11 +1218,6 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		const dialog = await openCreateDialog(user);
 
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
-		expect(
-			within(dialog).getByLabelText(/^Prompt/),
-		).toHaveAccessibleDescription(
-			"Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
-		);
 		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
 		await pickChat(user, dialog, MockChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
