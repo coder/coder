@@ -112,8 +112,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    web search sources with the search that found them. Pinned as
 //    branch mafredri/responses-web-search-queries-pin, which merges it
 //    with patch 11.
-// See: https://github.com/coder/fantasy/commits/0c24225a1c0a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260925154427-0c24225a1c0a
+// See: https://github.com/coder/fantasy/commits/134bc46a3dd2
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261003160155-134bc46a3dd2
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
