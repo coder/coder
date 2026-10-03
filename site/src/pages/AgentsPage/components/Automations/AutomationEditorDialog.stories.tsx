@@ -410,6 +410,27 @@ export const ViewWebhookAsNonOwner: Story = {
 	},
 };
 
+export const ViewNewChatAsNonOwner: Story = {
+	args: {
+		automation: {
+			...mockWebhookAutomation,
+			target_mode: "new_chat",
+			target_chat_id: undefined,
+			when_busy: undefined,
+			new_chat_model_config_id: "owner-only-model",
+		},
+		currentUserId: "another-user",
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+		],
+	},
+};
+
 export const RotatingSecret: Story = {
 	args: { automation: mockWebhookAutomation, isRotatingSecret: true },
 	parameters: {
