@@ -87,8 +87,8 @@ type CreateAutomationParams struct {
 
 // CreateAutomation validates and inserts an enabled automation. ctx must
 // carry the caller's authorization: referenced chats, model configs, and
-// projects are loaded as the caller. For webhook automations it returns the plaintext
-// webhook secret, which is not stored and cannot be read again.
+// projects are loaded as the caller. For webhook automations it returns the
+// plaintext webhook secret, which is not stored and cannot be read again.
 func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationParams) (database.ChatAutomation, string, error) {
 	if params.OrganizationID == uuid.Nil || params.OwnerID == uuid.Nil {
 		return database.ChatAutomation{}, "", xerrors.New("create automation: organization and owner are required")

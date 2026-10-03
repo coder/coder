@@ -6340,7 +6340,6 @@ func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertC
 		}
 	}
 	if arg.ProjectID.Valid {
-		// New chats join this project, so the caller must be able to read it.
 		if _, err := q.GetChatProjectByID(ctx, arg.ProjectID.UUID); err != nil {
 			return database.ChatAutomation{}, err
 		}
