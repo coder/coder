@@ -385,9 +385,16 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							/>
 							<FormField
 								field={getFieldHelpers("prompt", {
-									helperText: isSchedule
-										? "Sent as the message for every run."
-										: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+									helperText: [
+										isSchedule
+											? "Sent as the message for every run."
+											: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+										// Queued messages keep the prompt they were sent with.
+										!isCreate &&
+											"Changes apply to future runs. Messages already queued keep the previous prompt.",
+									]
+										.filter(Boolean)
+										.join(" "),
 								})}
 								label="Prompt"
 								required
