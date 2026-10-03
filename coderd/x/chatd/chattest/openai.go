@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -43,8 +44,21 @@ type OpenAIReasoningItem struct {
 // OpenAIWebSearchCall configures a streamed web_search_call output item for the
 // Responses API test server.
 type OpenAIWebSearchCall struct {
-	ID    string `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
+	// Queries is action.queries.
+	Queries []string `json:"queries,omitempty"`
+	// Query is the deprecated action.query; OpenAI sends both.
 	Query string `json:"query,omitempty"`
+	// Sources are the pages the search found, reported in action.sources
+	// on the item's output_item.done. Like OpenAI, the server returns them
+	// only when the request includes web_search_call.action.sources.
+	Sources []string `json:"sources,omitempty"`
+	// SummaryOnlySources are added to the search's action.sources only in
+	// the response.completed output, as OpenAI does for pages the answer
+	// cited.
+	SummaryOnlySources []string `json:"summary_only_sources,omitempty"`
+	// Status is the finished item's status. It defaults to "completed".
+	Status string `json:"status,omitempty"`
 }
 
 // OpenAIRequest represents an OpenAI chat completion request.
@@ -351,10 +365,22 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req.Request, resp)
+		writeResponsesAPIStreaming(s.t, w, req, resp)
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
+}
+
+// requestIncludes reports whether a Responses API request body lists value
+// in its include array.
+func requestIncludes(rawBody []byte, value string) bool {
+	var body struct {
+		Include []string `json:"include"`
+	}
+	if err := json.Unmarshal(rawBody, &body); err != nil {
+		return false
+	}
+	return slices.Contains(body.Include, value)
 }
 
 func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
@@ -494,7 +520,8 @@ func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) 
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, resp OpenAIResponse) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+	r := req.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -513,6 +540,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 	responseModel := "gpt-4"
 	sequenceNumber := int64(0)
 	textOffset := 0
+	// completedOutput holds output items that response.completed reports
+	// beyond the streamed text and function calls.
+	completedOutput := []interface{}{}
 	// outputs tracks per-output-index state so the done-event emission
 	// at stream close can distinguish message items (text) from
 	// function_call items (tool invocation).
@@ -649,9 +679,27 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 		if itemID == "" {
 			itemID = fmt.Sprintf("ws_%s", uuid.New().String()[:8])
 		}
-		query := resp.WebSearch.Query
-		if query == "" {
-			query = "latest AI news"
+		status := resp.WebSearch.Status
+		if status == "" {
+			status = "completed"
+		}
+		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
+		newAction := func(sourceURLs []string) map[string]interface{} {
+			action := map[string]interface{}{"type": "search"}
+			if len(resp.WebSearch.Queries) > 0 {
+				action["queries"] = resp.WebSearch.Queries
+			}
+			if resp.WebSearch.Query != "" {
+				action["query"] = resp.WebSearch.Query
+			}
+			if includeSources && len(sourceURLs) > 0 {
+				sources := make([]interface{}, 0, len(sourceURLs))
+				for _, source := range sourceURLs {
+					sources = append(sources, map[string]interface{}{"type": "url", "url": source})
+				}
+				action["sources"] = sources
+			}
+			return action
 		}
 
 		if !writeEvent("response.output_item.added", map[string]interface{}{
@@ -669,15 +717,19 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 			"item": map[string]interface{}{
 				"type":   "web_search_call",
 				"id":     itemID,
-				"status": "completed",
-				"action": map[string]interface{}{
-					"type":  "search",
-					"query": query,
-				},
+				"status": status,
+				"action": newAction(resp.WebSearch.Sources),
 			},
 		}) {
 			return
 		}
+		completedAction := newAction(append(slices.Clone(resp.WebSearch.Sources), resp.WebSearch.SummaryOnlySources...))
+		completedOutput = append(completedOutput, map[string]interface{}{
+			"type":   "web_search_call",
+			"id":     itemID,
+			"status": status,
+			"action": completedAction,
+		})
 		textOffset++
 	}
 
@@ -765,7 +817,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 						"object": "response",
 						"model":  responseModel,
 						"status": "completed",
-						"output": []interface{}{},
+						"output": completedOutput,
 						"usage":  map[string]interface{}{},
 					},
 				}) {

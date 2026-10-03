@@ -6,6 +6,7 @@ import {
 	CompassIcon,
 	FilePenLineIcon,
 	FileTextIcon,
+	GlobeIcon,
 	LightbulbIcon,
 	type LucideIcon,
 	MonitorIcon,
@@ -52,6 +53,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	computer: MonitorIcon,
 	find_tools: SearchIcon,
 	manage_automations: ZapIcon,
+	web_search: GlobeIcon,
 };
 
 export const ToolIcon: React.FC<{

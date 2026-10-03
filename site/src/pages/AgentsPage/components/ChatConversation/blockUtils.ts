@@ -31,6 +31,47 @@ export const appendTextBlock = (
 	return nextBlocks;
 };
 
+/**
+ * Moves each block of answer citations after the response text that follows
+ * it, merging the text around it. Citations arrive while their text streams:
+ * persisted messages store them before that text, and a live stream splits
+ * the text around them.
+ */
+export const placeCitationsAfterText = (
+	blocks: readonly RenderBlock[],
+): RenderBlock[] => {
+	const placed: RenderBlock[] = [];
+	for (const block of blocks) {
+		const last = placed[placed.length - 1];
+		if (block.type === "response" && last?.type === "sources") {
+			placed.pop();
+			const previous = placed[placed.length - 1];
+			if (previous?.type === "response") {
+				placed[placed.length - 1] = {
+					type: "response",
+					text: `${previous.text}${block.text}`,
+				};
+			} else {
+				placed.push(block);
+			}
+			placed.push(last);
+			continue;
+		}
+		if (block.type === "sources" && last?.type === "sources") {
+			const sources = [...last.sources];
+			for (const source of block.sources) {
+				if (!sources.some(({ url }) => url === source.url)) {
+					sources.push(source);
+				}
+			}
+			placed[placed.length - 1] = { type: "sources", sources };
+			continue;
+		}
+		placed.push(block);
+	}
+	return placed;
+};
+
 type ToolGroupRenderBlock = {
 	type: "tool-group";
 	ids: string[];
