@@ -133,7 +133,11 @@ const Note: React.FC<NoteProps> = ({
 	// from the left so covered text trails off; the age turns invisible
 	// (not hidden) under them so the text does not rewrap. The actions hide
 	// by opacity, not display: a display:none button cannot take focus, so
-	// Tab could never reveal them.
+	// Tab could never reveal them. While hidden they also ignore the pointer,
+	// so nothing invisible sits over the text. A tap also counts as hover
+	// here (the hover variant is plain :hover), so a tap would reveal the
+	// actions and land on them in one go; without hover the actions just
+	// stay visible.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
@@ -148,14 +152,14 @@ const Note: React.FC<NoteProps> = ({
 			)}
 		>
 			{note.timestamp ? (
-				<span className="float-right ml-2.5 text-[11px] leading-[17px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible">
+				<span className="float-right ml-2.5 text-[11px] leading-[17px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible [@media(hover:none)]:invisible">
 					<RelativeAge date={note.timestamp} />
 				</span>
 			) : null}
 			<CompactMarkdown className="text-xs leading-[17px] text-content-primary/80">
 				{note.text}
 			</CompactMarkdown>
-			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center bg-[linear-gradient(to_right,transparent,var(--color-surface-primary)_20px)] pl-6 opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
+			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center bg-[linear-gradient(to_right,transparent,var(--color-surface-primary)_20px)] pl-6 pointer-events-none opacity-0 group-hover/note:pointer-events-auto group-hover/note:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 group-has-[[data-state=open]]/note:pointer-events-auto group-has-[[data-state=open]]/note:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
 				<Button
 					variant="subtle"
 					size="icon"
