@@ -385,6 +385,9 @@ coderd_chatd_model_stage_duration_seconds{stage="",provider_type="",chat_kind=""
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt per LLM request.
 # TYPE coderd_chatd_prompt_size_bytes histogram
 coderd_chatd_prompt_size_bytes{provider="",model=""} 0
+# HELP coderd_chatd_response_size_bytes Byte size of streamed model response content (assistant text, reasoning, and tool-call input deltas) per LLM request.
+# TYPE coderd_chatd_response_size_bytes histogram
+coderd_chatd_response_size_bytes{provider="",model=""} 0
 # HELP coderd_chatd_stage_anomalies_total Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_stage_anomalies_total counter
 coderd_chatd_stage_anomalies_total{reason=""} 0
