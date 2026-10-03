@@ -100,7 +100,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
