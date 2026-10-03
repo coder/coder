@@ -23,18 +23,10 @@ export const CompactMarkdown: React.FC<CompactMarkdownProps> = ({
 	</Markdown>
 );
 
-// The shared Link is an inline-flex box, so a link that wraps in a narrow
-// card turns into a block with its icon floating at the side and its hover
-// underline under the whole box. An inline anchor wraps like the text around
-// it and underlines each line.
-//
-// The external icon is a faded hint, smaller than the text: in notes nearly
-// every link is external, so a full-strength icon would repeat on every line.
-// It is drawn out of flow in the anchor's end padding. Inline padding only
-// lands on the last line, so the icon cannot wrap onto a line of its own,
-// whatever the label contains. It comes before the label in the DOM because
-// Chrome treats an out-of-flow child after the text as a break point, which
-// would let the padding wrap alone.
+// Unlike the shared inline-flex Link, an inline anchor wraps and underlines
+// like text. The icon sits in the end padding, which stays on the last line;
+// it precedes the label because Chrome breaks before a trailing out-of-flow
+// child.
 const InlineLink: React.FC<React.ComponentProps<"a">> = ({
 	href,
 	children,

@@ -127,17 +127,10 @@ const Note: React.FC<NoteProps> = ({
 		);
 	}
 
-	// Nothing reserves a column beside the note. The age floats right, so
-	// only the first line wraps around it. The actions appear over the end
-	// of the first line on hover or focus, on a background that fades in
-	// from the left so covered text trails off; the age turns invisible
-	// (not hidden) under them so the text does not rewrap. The actions hide
-	// by opacity, not display: a display:none button cannot take focus, so
-	// Tab could never reveal them. While hidden they also ignore the pointer,
-	// so nothing invisible sits over the text. A tap also counts as hover
-	// here (the hover variant is plain :hover), so a tap would reveal the
-	// actions and land on them in one go; without hover the actions just
-	// stay visible.
+	// The actions float over the text instead of reserving a column; the age
+	// goes invisible, not hidden, so the text does not rewrap. They hide by
+	// opacity so Tab can reach them. A tap counts as hover, so without hover
+	// they stay visible rather than catching taps meant for the text.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
