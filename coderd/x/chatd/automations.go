@@ -135,6 +135,7 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		ScheduleCron:         sql.NullString{},
 		ScheduleTimeZone:     sql.NullString{},
 		ScheduleNextRunAt:    sql.NullTime{},
+		ProjectID:            uuid.NullUUID{},
 	}
 
 	var (

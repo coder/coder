@@ -145,6 +145,7 @@ The request takes these fields:
 | `when_busy`                | `queue` or `skip`                                             | `existing_chat` only. Defaults to `queue` for webhooks and `skip` for schedules. |
 | `new_chat_model_config_id` | Model configuration ID                                        | Required for `new_chat`.                                                         |
 | `reasoning_effort`         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` | `new_chat` only. Optional.                                                       |
+| `project_id`               | Project ID                                                    | `new_chat` only. Optional. Requires the `chat-projects` experiment.              |
 
 The response returns `201` with the automation and a `webhook_secret` field.
 The secret starts with `coder_automation_`.
@@ -310,6 +311,22 @@ Each new chat is titled with the automation name and the run time.
 Schedules use the schedule's time zone, and webhooks use UTC.
 New chats get only the MCP servers with the `force_on` [availability policy](./platform-controls/mcp-servers.md#availability-policies) that the owner can access.
 
+A new chat target can also put its chats into a project.
+This requires the `chat-projects` experiment.
+Set `project_id` in the create or update request.
+The project must be one of yours, in the automation's organization.
+To remove the project, send `project_id` as `00000000-0000-0000-0000-000000000000` in a `PATCH` request.
+A `PATCH` request that omits `project_id` or sends `null` leaves the project unchanged.
+A change applies to the chats that later runs create.
+
+Coder creates the chat without a project, and the run still happens, in these cases:
+
+- The project was deleted.
+  Deleting a project also removes it from the automation.
+- The `chat-projects` experiment is off.
+  The automation keeps the project and uses it again when the experiment is on.
+- The owner can no longer use the project.
+
 To find the chats an automation created or sent messages to, select **View chats** on its row.
 
 If an existing chat target is deleted or archived, the row shows **Missing target**.
@@ -361,6 +378,8 @@ The agent can create, update, enable, or run only automations that stay close to
 
 - An existing chat automation must target the calling chat.
 - A new chat automation must use the chat's model, or a model without provider tools such as web search.
+- A new chat automation must use the chat's project or no project.
+  When the agent creates one, it uses the chat's project by default if the `chat-projects` experiment is on.
 
 Coder checks these rules again when it applies the change.
 
