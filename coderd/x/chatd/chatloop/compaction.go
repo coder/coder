@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -136,7 +137,8 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
-	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
+	// EstimatedContextTokens estimates the prompt of the next request:
+	// SystemSummary plus GenerateCompactionOptions.NextPrompt.
 	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
@@ -234,7 +236,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		Runtime:            summaryRuntime,
 		ProviderResponseID: responseID,
 	}
-	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+	result.EstimatedContextTokens = opts.NextPrompt.estimateTokens(len(result.SystemSummary))
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
 			"summary":                  summary,
@@ -367,6 +369,123 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 		total = usage.TotalTokens
 	}
 
+	return total
+}
+
+const (
+	// nextPromptBytesPerTokenFallback converts the next prompt's text
+	// bytes to tokens when the chat has no usable calibration. The
+	// system prompt and tool definitions measured 4.0 bytes per token
+	// on Claude Sonnet 4.6 and 5.3 on gpt-5-mini.
+	nextPromptBytesPerTokenFallback = 4.0
+	// Calibrated ratios outside these bounds come from inconsistent
+	// usage and fall back to nextPromptBytesPerTokenFallback.
+	minNextPromptBytesPerToken = 1.0
+	maxNextPromptBytesPerToken = 16.0
+)
+
+// CompactionNextPrompt sizes the request that follows a compaction,
+// apart from the summary, so the estimate published with the summary
+// covers the whole prompt.
+type CompactionNextPrompt struct {
+	// RetainedBytes is the text size of what the next request carries
+	// besides the summary: system messages, tool definitions, and the
+	// pending user messages replayed after the boundary.
+	RetainedBytes int
+	// BytesPerToken converts text bytes to tokens. Zero uses
+	// bytesPerTokenEstimate.
+	BytesPerToken float64
+}
+
+// NewCompactionNextPrompt sizes the next request from the chat
+// model's history (system messages included), the pending user
+// messages replayed after the boundary, and the tool definitions.
+//
+// The bytes-per-token ratio comes from the first step of the current
+// context window: firstStepUsage is the usage of the first assistant
+// message in history, and that step's prompt is everything before it.
+// That prompt is mostly system messages and tool definitions, like the
+// prompt after compaction. Later prompts are dominated by history whose
+// tokenization differs: calibrating on the last prompt overestimated by
+// 30% to 50% after large tool results, against 1% for the first step.
+func NewCompactionNextPrompt(
+	history []fantasy.Message,
+	pending []fantasy.Message,
+	tools []fantasy.Tool,
+	firstStepUsage fantasy.Usage,
+) CompactionNextPrompt {
+	toolBytes := toolDefinitionBytes(tools)
+	retained := toolBytes + promptTextBytes(pending)
+	firstAssistant := -1
+	for i, msg := range history {
+		if msg.Role == fantasy.MessageRoleSystem {
+			retained += messageTextBytes(msg)
+		}
+		if firstAssistant < 0 && msg.Role == fantasy.MessageRoleAssistant {
+			firstAssistant = i
+		}
+	}
+
+	bytesPerToken := nextPromptBytesPerTokenFallback
+	if tokens := contextTokensFromUsage(firstStepUsage); tokens > 0 && firstAssistant > 0 {
+		ratio := float64(toolBytes+promptTextBytes(history[:firstAssistant])) / float64(tokens)
+		if ratio >= minNextPromptBytesPerToken && ratio <= maxNextPromptBytesPerToken {
+			bytesPerToken = ratio
+		}
+	}
+	return CompactionNextPrompt{RetainedBytes: retained, BytesPerToken: bytesPerToken}
+}
+
+func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
+	bytesPerToken := p.BytesPerToken
+	if bytesPerToken <= 0 {
+		bytesPerToken = bytesPerTokenEstimate
+	}
+	return int64(math.Ceil(float64(p.RetainedBytes+summaryBytes) / bytesPerToken))
+}
+
+// promptTextBytes sums the text the provider tokenizes as text. Media
+// is skipped because its token count does not follow its byte size.
+func promptTextBytes(messages []fantasy.Message) int {
+	total := 0
+	for _, msg := range messages {
+		total += messageTextBytes(msg)
+	}
+	return total
+}
+
+func messageTextBytes(msg fantasy.Message) int {
+	total := 0
+	for _, part := range msg.Content {
+		switch p := part.(type) {
+		case fantasy.FilePart:
+		case fantasy.ToolResultPart:
+			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); !media {
+				total += ContentPartSize(p)
+			}
+		default:
+			total += ContentPartSize(part)
+		}
+	}
+	return total
+}
+
+// toolDefinitionBytes sums each tool's name, description, and JSON
+// schema, the parts a provider tokenizes.
+func toolDefinitionBytes(tools []fantasy.Tool) int {
+	total := 0
+	for _, tool := range tools {
+		switch t := tool.(type) {
+		case fantasy.FunctionTool:
+			schema, _ := json.Marshal(t.InputSchema)
+			total += len(t.Name) + len(t.Description) + len(schema)
+		case fantasy.ProviderDefinedTool:
+			args, _ := json.Marshal(t.Args)
+			total += len(t.Name) + len(args)
+		default:
+			total += len(tool.GetName())
+		}
+	}
 	return total
 }
 

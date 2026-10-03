@@ -991,6 +991,121 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 	}
 }
 
+func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
+	t.Parallel()
+	var parts []codersdk.ChatMessagePart
+	result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+		Model: &chattest.FakeModel{
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				), nil
+			},
+		},
+		Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		SystemSummaryPrefix: "Prefix",
+		NextPrompt:          CompactionNextPrompt{RetainedBytes: 9985, BytesPerToken: 5},
+		Force:               true,
+		ContextLimit:        100000,
+		StepUsage:           fantasy.Usage{InputTokens: 800},
+		ToolCallID:          "summary",
+		ToolName:            "chat_summarized",
+		PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			parts = append(parts, part)
+		},
+		Clock: quartz.NewMock(t),
+	})
+	require.NoError(t, err)
+	// "Prefix\n\nsummary" is 15 bytes: (9985 + 15) / 5.
+	require.Equal(t, int64(2000), result.EstimatedContextTokens)
+	require.Len(t, parts, 2)
+	var metadata map[string]any
+	require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
+	require.Equal(t, float64(2000), metadata["estimated_context_tokens"])
+}
+
+func TestNewCompactionNextPrompt(t *testing.T) {
+	t.Parallel()
+
+	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 3000))
+	tool := fantasy.FunctionTool{
+		Name:        "read_file",
+		Description: strings.Repeat("d", 891),
+		InputSchema: map[string]any{"type": "object"},
+	}
+	// read_file (9) + description (891) + {"type":"object"} (17).
+	const toolBytes = 917
+	firstUser := textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 83))
+	assistant := textMessage(fantasy.MessageRoleAssistant, strings.Repeat("a", 500))
+	toolResult := fantasy.Message{
+		Role: fantasy.MessageRoleTool,
+		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+			ToolCallID: "call",
+			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("r", 20000)},
+		}},
+	}
+	history := []fantasy.Message{system, firstUser, assistant, toolResult}
+	pending := []fantasy.Message{textMessage(fantasy.MessageRoleUser, strings.Repeat("p", 100))}
+
+	t.Run("CalibratesOnFirstStep", func(t *testing.T) {
+		t.Parallel()
+		// The first step's prompt is the system message, the first user
+		// message, and the tools: 3000 + 83 + 917 = 4000 bytes over 1000
+		// tokens. Later history, such as the large tool result, does not
+		// shift the ratio.
+		next := NewCompactionNextPrompt(history, pending, []fantasy.Tool{tool},
+			fantasy.Usage{InputTokens: 200, CacheReadTokens: 800})
+		require.Equal(t, 3000+toolBytes+100, next.RetainedBytes)
+		require.InDelta(t, 4.0, next.BytesPerToken, 1e-9)
+		require.Equal(t, int64((3000+toolBytes+100+83)/4), next.estimateTokens(83))
+	})
+
+	t.Run("FallsBackWithoutFirstStepUsage", func(t *testing.T) {
+		t.Parallel()
+		next := NewCompactionNextPrompt(history, nil, []fantasy.Tool{tool}, fantasy.Usage{})
+		require.Equal(t, 3000+toolBytes, next.RetainedBytes)
+		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+	})
+
+	t.Run("FallsBackOnImplausibleRatio", func(t *testing.T) {
+		t.Parallel()
+		next := NewCompactionNextPrompt(history, nil, []fantasy.Tool{tool}, fantasy.Usage{InputTokens: 10})
+		require.InDelta(t, nextPromptBytesPerTokenFallback, next.BytesPerToken, 1e-9)
+	})
+
+	t.Run("SkipsMedia", func(t *testing.T) {
+		t.Parallel()
+		media := fantasy.Message{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "see image"},
+				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
+				fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("x", 50000)}},
+			},
+		}
+		next := NewCompactionNextPrompt([]fantasy.Message{system}, []fantasy.Message{media}, nil, fantasy.Usage{})
+		require.Equal(t, 3000+len("see image"), next.RetainedBytes)
+	})
+
+	t.Run("CountsProviderDefinedTools", func(t *testing.T) {
+		t.Parallel()
+		next := NewCompactionNextPrompt(nil, nil, []fantasy.Tool{fantasy.ProviderDefinedTool{
+			ID:   "anthropic.web_search",
+			Name: "web_search",
+			Args: map[string]any{"max_uses": 5},
+		}}, fantasy.Usage{})
+		require.Equal(t, len("web_search")+len(`{"max_uses":5}`), next.RetainedBytes)
+	})
+
+	t.Run("ZeroValueKeepsSummaryEstimate", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, int64(4), CompactionNextPrompt{}.estimateTokens(10))
+	})
+}
+
 // TestGenerateCompaction_RequiresClock verifies a nil clock is
 // rejected instead of silently falling back to a real clock; tests
 // must supply their own.

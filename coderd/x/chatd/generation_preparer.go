@@ -851,6 +851,18 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	// The pending tail is replayed after the boundary only when it is
+	// kept out of the summarizer input.
+	var compactionPendingPrompt []fantasy.Message
+	if pendingUserRows != nil {
+		compactionPendingPrompt = pendingPrompt
+	}
+	compactionNextPrompt := chatloop.NewCompactionNextPrompt(
+		compactionPromptMessages,
+		compactionPendingPrompt,
+		toolDefinitions,
+		firstPromptUsage(promptRows),
+	)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -868,6 +880,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		NextPrompt:           compactionNextPrompt,
 		SummaryCall:          compactionSummaryCall(resolved),
 		ToolDefinitions:      toolDefinitions,
 	}
@@ -938,6 +951,18 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 		usage := usageFromMessage(messages[i])
 		if usage != (fantasy.Usage{}) {
 			return usage
+		}
+	}
+	return fantasy.Usage{}
+}
+
+// firstPromptUsage returns the usage of the first assistant message,
+// the first step of the current context window. It is zero when that
+// step persisted no usage.
+func firstPromptUsage(messages []database.ChatMessage) fantasy.Usage {
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleAssistant {
+			return usageFromMessage(msg)
 		}
 	}
 	return fantasy.Usage{}

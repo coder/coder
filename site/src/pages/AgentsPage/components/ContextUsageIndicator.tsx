@@ -405,8 +405,8 @@ export const ContextUsageIndicator: React.FC<{
 			{usageLabel}
 			{hasPercent && usage.estimated && (
 				<div className="mt-1 max-w-64 text-content-secondary">
-					Based on the compacted summary only, excluding other prompt content
-					and tools. Replaced by measured usage after the next response.
+					Estimated after compaction. Replaced by measured usage after the next
+					response.
 				</div>
 			)}
 			{hasPercent &&
