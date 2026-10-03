@@ -2233,6 +2233,239 @@ func TestTunnelAllWorkspaceUpdatesController_SnapshotClearsInheritedState(t *tes
 	require.ErrorIs(t, err, io.EOF)
 }
 
+// peerLivenessHarness wires a TunnelAllWorkspaceUpdatesController with a
+// mock clock and a blocking peer liveness source, connected to one workspace
+// with one agent. Liveness queries block until the test answers them, which
+// makes each check iteration observable and deterministic.
+type peerLivenessHarness struct {
+	uut      *tailnet.TunnelAllWorkspaceUpdatesController
+	clock    *quartz.Mock
+	fDNS     *fakeDNSSetter
+	coordC   *fakeCoordinatorClient
+	coordCW  tailnet.CloserWaiter
+	agentID  uuid.UUID
+	liveness chan *livenessCall
+}
+
+type livenessCall struct {
+	agentID uuid.UUID
+	reply   chan<- time.Time
+}
+
+func newPeerLivenessHarness(ctx context.Context, t *testing.T) *peerLivenessHarness {
+	t.Helper()
+	logger := testutil.Logger(t)
+	h := &peerLivenessHarness{
+		clock:    quartz.NewMock(t),
+		fDNS:     newFakeDNSSetter(ctx, t),
+		agentID:  testUUID(1, 1),
+		liveness: make(chan *livenessCall),
+	}
+	tsc := tailnet.NewTunnelSrcCoordController(logger, &fakeCoordinatee{})
+	h.uut = tailnet.NewTunnelAllWorkspaceUpdatesController(logger, tsc,
+		tailnet.WithDNS(h.fDNS, "testy", tailnet.DNSNameOptions{Suffix: "mctest"}),
+		tailnet.WithPeerLiveness(func(id uuid.UUID) time.Time {
+			reply := make(chan time.Time)
+			select {
+			case <-ctx.Done():
+				return time.Time{}
+			case h.liveness <- &livenessCall{agentID: id, reply: reply}:
+			}
+			select {
+			case <-ctx.Done():
+				return time.Time{}
+			case at := <-reply:
+				return at
+			}
+		}),
+		tailnet.WithTunnelAllClock(h.clock),
+	)
+	h.coordC = newFakeCoordinatorClient(ctx, t)
+	h.coordCW = tsc.New(h.coordC)
+	return h
+}
+
+// tick advances the clock to the next liveness check and answers its query
+// for the agent with the given handshake time.
+func (h *peerLivenessHarness) tick(ctx context.Context, t *testing.T, lastHandshake time.Time) {
+	t.Helper()
+	h.clock.Advance(30 * time.Second).MustWait(ctx)
+	call := testutil.TryReceive(ctx, t, h.liveness)
+	require.Equal(t, h.agentID, call.agentID)
+	testutil.RequireSend(ctx, t, call.reply, lastHandshake)
+}
+
+// connect starts a new updates client and sends the initial snapshot. The
+// caller consumes the resulting calls: consumeAddTunnel on the first
+// connection only, since the coordination controller remembers destinations
+// across reconnects, and then consumeDNS.
+func (h *peerLivenessHarness) connect(
+	ctx context.Context, t *testing.T,
+) (*fakeWorkspaceUpdateClient, tailnet.CloserWaiter) {
+	t.Helper()
+	w1ID := testUUID(1)
+	updateC := newFakeWorkspaceUpdateClient(ctx, t)
+	updateCW := h.uut.New(updateC)
+	upRecvCall := testutil.TryReceive(ctx, t, updateC.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.resp, &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{{Id: w1ID[:], Name: "w1"}},
+		UpsertedAgents:     []*proto.Agent{{Id: h.agentID[:], Name: "w1a1", WorkspaceId: w1ID[:]}},
+	})
+	return updateC, updateCW
+}
+
+func (h *peerLivenessHarness) consumeAddTunnel(ctx context.Context, t *testing.T) {
+	t.Helper()
+	coordCall := testutil.TryReceive(ctx, t, h.coordC.reqs)
+	testutil.RequireSend(ctx, t, coordCall.err, nil)
+}
+
+func (h *peerLivenessHarness) consumeDNS(ctx context.Context, t *testing.T) map[dnsname.FQDN][]netip.Addr {
+	t.Helper()
+	dnsCall := testutil.TryReceive(ctx, t, h.fDNS.calls)
+	require.NotEmpty(t, dnsCall.hosts)
+	testutil.RequireSend(ctx, t, dnsCall.err, nil)
+	return dnsCall.hosts
+}
+
+// disconnect hangs up the updates client and waits for the liveness check
+// to arm its ticker.
+func (h *peerLivenessHarness) disconnect(
+	ctx context.Context, t *testing.T, updateC *fakeWorkspaceUpdateClient, updateCW tailnet.CloserWaiter,
+) {
+	t.Helper()
+	trap := h.clock.Trap().NewTicker("tunnelAllWorkspaceUpdates", "peerLiveness")
+	defer trap.Close()
+	upRecvCall := testutil.TryReceive(ctx, t, updateC.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	err := testutil.TryReceive(ctx, t, updateCW.Wait())
+	require.ErrorIs(t, err, io.EOF)
+	trap.MustWait(ctx).MustRelease(ctx)
+}
+
+func (h *peerLivenessHarness) closeCoordinator(ctx context.Context, t *testing.T) {
+	t.Helper()
+	coordRecv := testutil.TryReceive(ctx, t, h.coordC.resps)
+	testutil.RequireSend(ctx, t, coordRecv.err, io.EOF)
+	cCall := testutil.TryReceive(ctx, t, h.coordC.close)
+	testutil.RequireSend(ctx, t, cCall, nil)
+	err := testutil.TryReceive(ctx, t, h.coordCW.Wait())
+	require.ErrorIs(t, err, io.EOF)
+}
+
+func TestTunnelAllWorkspaceUpdatesController_ExpiresDNSWhenPeersUnreachable(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	h := newPeerLivenessHarness(ctx, t)
+	defer h.uut.Close()
+
+	updateC1, updateCW1 := h.connect(ctx, t)
+	h.consumeAddTunnel(ctx, t)
+	h.consumeDNS(ctx, t)
+	h.disconnect(ctx, t, updateC1, updateCW1)
+
+	// The agent handshook recently, so the first check keeps DNS. If it
+	// wrongly cleared DNS, the blocked SetDNSHosts call would stall the
+	// next tick and fail the test.
+	h.tick(ctx, t, h.clock.Now())
+
+	// Once the handshake is older than the threshold, DNS is cleared,
+	// including the Coder Connect sentinel record.
+	cleared := make(chan map[dnsname.FQDN][]netip.Addr, 1)
+	go func() {
+		call := testutil.TryReceive(ctx, t, h.fDNS.calls)
+		cleared <- call.hosts
+		testutil.RequireSend(ctx, t, call.err, nil)
+	}()
+	h.tick(ctx, t, h.clock.Now().Add(-6*time.Minute))
+	require.Empty(t, testutil.TryReceive(ctx, t, cleared))
+
+	// Reconnecting must not re-apply the expired hosts; the next DNS
+	// update comes from the server snapshot.
+	updateC2, updateCW2 := h.connect(ctx, t)
+	hosts := h.consumeDNS(ctx, t)
+	sentinel, err := dnsname.ToFQDN(fmt.Sprintf(tailnet.IsCoderConnectEnabledFmtString, "mctest"))
+	require.NoError(t, err)
+	require.Contains(t, hosts, sentinel)
+
+	upRecvCall := testutil.TryReceive(ctx, t, updateC2.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	err = testutil.TryReceive(ctx, t, updateCW2.Wait())
+	require.ErrorIs(t, err, io.EOF)
+	h.closeCoordinator(ctx, t)
+}
+
+func TestTunnelAllWorkspaceUpdatesController_ReconnectStopsDNSExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	h := newPeerLivenessHarness(ctx, t)
+	defer h.uut.Close()
+
+	updateC1, updateCW1 := h.connect(ctx, t)
+	h.consumeAddTunnel(ctx, t)
+	initialHosts := h.consumeDNS(ctx, t)
+	h.disconnect(ctx, t, updateC1, updateCW1)
+
+	// Reconnect before the first tick. New() re-applies the inherited
+	// hosts synchronously, so consume that call concurrently, and wait
+	// for the check to stop its ticker before advancing the clock.
+	stopTrap := h.clock.Trap().TickerStop()
+	defer stopTrap.Close()
+	reapplied := make(chan map[dnsname.FQDN][]netip.Addr, 1)
+	go func() {
+		call := testutil.TryReceive(ctx, t, h.fDNS.calls)
+		reapplied <- call.hosts
+		testutil.RequireSend(ctx, t, call.err, nil)
+	}()
+	updateC2 := newFakeWorkspaceUpdateClient(ctx, t)
+	updateCW2 := h.uut.New(updateC2)
+	require.Equal(t, initialHosts, testutil.TryReceive(ctx, t, reapplied))
+	stopTrap.MustWait(ctx).MustRelease(ctx)
+
+	// No ticker remains, so advancing well past the threshold neither
+	// queries liveness nor programs DNS.
+	h.clock.Advance(10 * time.Minute).MustWait(ctx)
+	select {
+	case <-h.liveness:
+		t.Fatal("liveness must not be checked after reconnecting")
+	case <-h.fDNS.calls:
+		t.Fatal("DNS must not be cleared after reconnecting")
+	default:
+	}
+
+	upRecvCall := testutil.TryReceive(ctx, t, updateC2.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	err := testutil.TryReceive(ctx, t, updateCW2.Wait())
+	require.ErrorIs(t, err, io.EOF)
+	h.closeCoordinator(ctx, t)
+}
+
+func TestTunnelAllWorkspaceUpdatesController_GracefulCloseDoesNotExpireDNS(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	h := newPeerLivenessHarness(ctx, t)
+	defer h.uut.Close()
+
+	updateC1, updateCW1 := h.connect(ctx, t)
+	h.consumeAddTunnel(ctx, t)
+	h.consumeDNS(ctx, t)
+
+	// A deliberate Close is not an outage, so no liveness check starts.
+	closeErr := make(chan error, 1)
+	go func() {
+		closeErr <- updateCW1.Close(ctx)
+	}()
+	cCall := testutil.TryReceive(ctx, t, updateC1.close)
+	testutil.RequireSend(ctx, t, cCall, nil)
+	upRecvCall := testutil.TryReceive(ctx, t, updateC1.recv)
+	testutil.RequireSend(ctx, t, upRecvCall.err, io.EOF)
+	require.NoError(t, testutil.TryReceive(ctx, t, closeErr))
+
+	// Advancing would fail if a 30s ticker had been created.
+	h.clock.Advance(10 * time.Minute).MustWait(ctx)
+	h.closeCoordinator(ctx, t)
+}
+
 func TestBasicDERPController_RewriteDERPMap(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
