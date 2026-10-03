@@ -672,23 +672,25 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
-		args := safeToolCallArgs(value.Input)
+		args, invalidArgs := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
 			Args:             args,
+			InvalidArgs:      invalidArgs,
 			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.ToolCallContent:
-		args := safeToolCallArgs(value.Input)
+		args, invalidArgs := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
 			Args:             args,
+			InvalidArgs:      invalidArgs,
 			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
@@ -1171,18 +1173,18 @@ func providerMetadataToOptions(logger slog.Logger, raw json.RawMessage) fantasy.
 	return opts
 }
 
-// safeToolCallArgs ensures tool call args are valid JSON. Returns
-// nil for empty or invalid input so the field is omitted.
-func safeToolCallArgs(input string) json.RawMessage {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return nil
+// safeToolCallArgs returns valid JSON input as args (trimmed) and any
+// other non-blank input as invalidArgs (untrimmed).
+func safeToolCallArgs(input string) (args json.RawMessage, invalidArgs string) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return nil, ""
 	}
-	raw := json.RawMessage(input)
+	raw := json.RawMessage(trimmed)
 	if !json.Valid(raw) {
-		return nil
+		return nil, input
 	}
-	return raw
+	return raw, ""
 }
 
 func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string {
@@ -1887,6 +1889,7 @@ var partNulFields = []partNulField{
 	{name: "Text", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Text }},
 	{name: "Args", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Args }},
 	{name: "ArgsDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ArgsDelta }},
+	{name: "InvalidArgs", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.InvalidArgs }},
 	{name: "Result", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Result }},
 	{name: "ResultDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ResultDelta }},
 	{name: "ReasoningDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ReasoningDelta }},
