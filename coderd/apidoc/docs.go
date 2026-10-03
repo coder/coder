@@ -20883,6 +20883,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "created_by_chat": {
+                    "description": "CreatedByChat is the chat that created the automation. It is set by\nthe chat automations API only when the caller can read that chat, so\nit is absent for automations created outside a chat, for deleted\nchats, and for chats the caller cannot read.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
+                },
                 "created_by_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20913,7 +20921,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "next_run_times": {
-                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks and disabled schedules.",
+                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks, disabled schedules, and schedules with any\npaused reason.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -20928,6 +20936,19 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "paused_reasons": {
+                    "description": "PausedReasons lists conditions that stop the automation from running\neven while it is enabled: schedule occurrences, Run now, and webhook\ndeliveries are refused. It is set by the chat automations API and\nabsent when none was found. It is computed independently of Enabled.\nIt is an advisory snapshot: admission stays authoritative, and an\nempty list does not guarantee that a run is accepted, because lost\nchat permissions, busy chats, and full queues are not reported.",
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "owner_inactive",
+                            "experiment_disabled",
+                            "target_unavailable",
+                            "model_unavailable"
+                        ],
+                        "$ref": "#/definitions/codersdk.ChatAutomationPausedReason"
+                    }
+                },
                 "prompt": {
                     "type": "string"
                 },
@@ -20938,11 +20959,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "schedule_next_run_at": {
+                    "description": "ScheduleNextRunAt is the scheduler cursor, not a promise that a run\nhappens then. While the automation is paused it can stay in the past,\nor keep moving past occurrences that are refused, for example while\nits model is unavailable.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "schedule_time_zone": {
                     "type": "string"
+                },
+                "target_chat": {
+                    "description": "TargetChat is the target chat of an existing_chat automation. Like\nCreatedByChat, it is set only when the caller can read that chat.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
                 },
                 "target_chat_id": {
                     "type": "string",
@@ -20994,6 +21024,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutomationChat": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatAutomationEventResponse": {
             "type": "object",
             "properties": {
@@ -21016,6 +21058,21 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatAutomationKindWebhook",
                 "ChatAutomationKindSchedule"
+            ]
+        },
+        "codersdk.ChatAutomationPausedReason": {
+            "type": "string",
+            "enum": [
+                "owner_inactive",
+                "experiment_disabled",
+                "target_unavailable",
+                "model_unavailable"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationPausedReasonOwnerInactive",
+                "ChatAutomationPausedReasonExperimentDisabled",
+                "ChatAutomationPausedReasonTargetUnavailable",
+                "ChatAutomationPausedReasonModelUnavailable"
             ]
         },
         "codersdk.ChatAutomationRunResponse": {

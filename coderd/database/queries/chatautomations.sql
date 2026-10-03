@@ -77,6 +77,33 @@ ORDER BY
     id
 FOR UPDATE;
 
+-- name: GetChatAutomationRunStatusesByIDs :many
+-- Returns, for each given automation, whether its owner is active and
+-- whether its existing_chat target chat is usable, with the same rules
+-- that GetDueChatAutomationSchedules and publishing apply. Missing ids
+-- are not returned.
+SELECT
+    chat_automations.id,
+    chat_automations.organization_id,
+    chat_automations.owner_id,
+    (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    (
+        chat_automations.target_mode <> 'existing_chat'
+        OR (
+            chats.id IS NOT NULL
+            AND NOT chats.archived
+            AND chats.organization_id = chat_automations.organization_id
+            AND chats.owner_id = chat_automations.owner_id
+            AND chats.parent_chat_id IS NULL
+        )
+    )::boolean AS target_available
+FROM
+    chat_automations
+    LEFT JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.id = ANY(@ids::uuid[]);
+
 -- name: GetChatAutomationsByOrganizationID :many
 SELECT
     *
@@ -84,6 +111,9 @@ FROM
     chat_automations
 WHERE
     organization_id = @organization_id::uuid
+    -- Authorize Filter clause will be injected below in
+    -- GetAuthorizedChatAutomationsByOrganizationID.
+    -- @authorize_filter
 ORDER BY
     created_at DESC,
     id DESC;

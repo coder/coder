@@ -2176,10 +2176,22 @@ export interface ChatAutomation {
 	readonly owner_id: string;
 	readonly name: string;
 	readonly created_by_chat_id?: string;
+	/**
+	 * CreatedByChat is the chat that created the automation. It is set by
+	 * the chat automations API only when the caller can read that chat, so
+	 * it is absent for automations created outside a chat, for deleted
+	 * chats, and for chats the caller cannot read.
+	 */
+	readonly created_by_chat?: ChatAutomationChat;
 	readonly kind: ChatAutomationKind;
 	readonly enabled: boolean;
 	readonly target_mode: ChatAutomationTargetMode;
 	readonly target_chat_id?: string;
+	/**
+	 * TargetChat is the target chat of an existing_chat automation. Like
+	 * CreatedByChat, it is set only when the caller can read that chat.
+	 */
+	readonly target_chat?: ChatAutomationChat;
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
@@ -2189,14 +2201,40 @@ export interface ChatAutomation {
 	readonly prompt: string;
 	readonly schedule_cron?: string;
 	readonly schedule_time_zone?: string;
+	/**
+	 * ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	 * happens then. While the automation is paused it can stay in the past,
+	 * or keep moving past occurrences that are refused, for example while
+	 * its model is unavailable.
+	 */
 	readonly schedule_next_run_at?: string;
 	/**
 	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
-	 * It is empty for webhooks and disabled schedules.
+	 * It is empty for webhooks, disabled schedules, and schedules with any
+	 * paused reason.
 	 */
 	readonly next_run_times: readonly string[];
+	/**
+	 * PausedReasons lists conditions that stop the automation from running
+	 * even while it is enabled: schedule occurrences, Run now, and webhook
+	 * deliveries are refused. It is set by the chat automations API and
+	 * absent when none was found. It is computed independently of Enabled.
+	 * It is an advisory snapshot: admission stays authoritative, and an
+	 * empty list does not guarantee that a run is accepted, because lost
+	 * chat permissions, busy chats, and full queues are not reported.
+	 */
+	readonly paused_reasons?: readonly ChatAutomationPausedReason[];
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that a chat automation refers to.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
 }
 
 // From codersdk/chatautomations.go
@@ -2216,6 +2254,20 @@ export type ChatAutomationKind = "schedule" | "webhook";
 export const ChatAutomationKinds: ChatAutomationKind[] = [
 	"schedule",
 	"webhook",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationPausedReason =
+	| "experiment_disabled"
+	| "model_unavailable"
+	| "owner_inactive"
+	| "target_unavailable";
+
+export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
+	"experiment_disabled",
+	"model_unavailable",
+	"owner_inactive",
+	"target_unavailable",
 ];
 
 // From codersdk/chatautomations.go

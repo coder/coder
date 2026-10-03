@@ -149,7 +149,7 @@ func TestChatAutomationRuns(t *testing.T) {
 		require.NoError(t, err)
 		_, err = env.member.RunChatAutomation(ctx, env.orgID, queue.Automation.ID)
 		sdkErr = requireSDKError(t, err, http.StatusTooManyRequests)
-		require.Equal(t, "At most 1 automation messages can be queued in a chat.", sdkErr.Detail)
+		require.Equal(t, "Automations can queue at most 1 message in a chat.", sdkErr.Detail)
 		require.Len(t, env.queuedMessageIDs(t, busy.ID), 1)
 	})
 

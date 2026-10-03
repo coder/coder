@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -29,10 +32,87 @@ import (
 // returned with each automation.
 const chatAutomationNextRunCount = 5
 
-// chatAutomationResponse converts row to its SDK form with its upcoming
-// schedule runs after now.
-func chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
-	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+// chatAutomationResponses converts rows to their SDK form with their
+// paused reasons, upcoming schedule runs, and the chats they refer to. A
+// paused automation lists no upcoming runs. ctx must carry the caller's
+// authorization: only chats the caller can read are included.
+func (api *API) chatAutomationResponses(ctx context.Context, rows []database.ChatAutomation) ([]codersdk.ChatAutomation, error) {
+	reasons, err := api.chatDaemon.AutomationPausedReasons(ctx, rows)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation paused reasons: %w", err)
+	}
+	chats, err := api.chatAutomationChats(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	now := api.Clock.Now()
+	automations := make([]codersdk.ChatAutomation, 0, len(rows))
+	for _, row := range rows {
+		var nextRuns []time.Time
+		if len(reasons[row.ID]) == 0 {
+			nextRuns = chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount)
+		}
+		automation := db2sdk.ChatAutomation(row, nextRuns)
+		automation.PausedReasons = reasons[row.ID]
+		if row.TargetChatID.Valid {
+			automation.TargetChat = chats[row.TargetChatID.UUID]
+		}
+		if row.CreatedByChatID.Valid {
+			automation.CreatedByChat = chats[row.CreatedByChatID.UUID]
+		}
+		automations = append(automations, automation)
+	}
+	return automations, nil
+}
+
+// chatAutomationChats reads the target and creating chats of rows in one
+// query as the caller, so chats the caller cannot read are left out.
+func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAutomation) (map[uuid.UUID]*codersdk.ChatAutomationChat, error) {
+	seen := make(map[uuid.UUID]bool)
+	var ids []uuid.UUID
+	for _, row := range rows {
+		for _, id := range []uuid.NullUUID{row.TargetChatID, row.CreatedByChatID} {
+			if id.Valid && !seen[id.UUID] {
+				seen[id.UUID] = true
+				ids = append(ids, id.UUID)
+			}
+		}
+	}
+	chats := make(map[uuid.UUID]*codersdk.ChatAutomationChat, len(ids))
+	if len(ids) == 0 {
+		return chats, nil
+	}
+	found, err := api.Database.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation chats: %w", err)
+	}
+	for _, chat := range found {
+		chats[chat.ID] = &codersdk.ChatAutomationChat{ID: chat.ID, Title: chat.Title}
+	}
+	return chats, nil
+}
+
+// chatAutomationWriteResponse is chatAutomationResponse for a row that a
+// create or update already committed. A failed read of the derived fields
+// must not report the committed write, or a new webhook secret that is
+// returned only once, as an error. It then logs the failure and returns
+// the row without paused reasons or referenced chats.
+func (api *API) chatAutomationWriteResponse(ctx context.Context, row database.ChatAutomation) codersdk.ChatAutomation {
+	automation, err := api.chatAutomationResponse(ctx, row)
+	if err == nil {
+		return automation
+	}
+	api.Logger.Warn(ctx, "read chat automation status after write", slog.F("automation_id", row.ID), slog.Error(err))
+	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, api.Clock.Now(), chatAutomationNextRunCount))
+}
+
+// chatAutomationResponse is chatAutomationResponses for one row.
+func (api *API) chatAutomationResponse(ctx context.Context, row database.ChatAutomation) (codersdk.ChatAutomation, error) {
+	automations, err := api.chatAutomationResponses(ctx, []database.ChatAutomation{row})
+	if err != nil {
+		return codersdk.ChatAutomation{}, err
+	}
+	return automations[0], nil
 }
 
 // requireChatAutomations returns 404 unless the chat-automations
@@ -69,10 +149,10 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	now := api.Clock.Now()
-	automations := make([]codersdk.ChatAutomation, 0, len(rows))
-	for _, row := range rows {
-		automations = append(automations, chatAutomationResponse(row, now))
+	automations, err := api.chatAutomationResponses(ctx, rows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
 }
@@ -121,8 +201,9 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = automation
 
+	response := api.chatAutomationWriteResponse(ctx, automation)
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
-		Automation:    chatAutomationResponse(automation, api.Clock.Now()),
+		Automation:    response,
 		WebhookSecret: secret,
 	})
 }
@@ -145,7 +226,12 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(automation, api.Clock.Now()))
+	response, err := api.chatAutomationResponse(ctx, automation)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -209,7 +295,8 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
+	response := api.chatAutomationWriteResponse(ctx, updated)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -632,7 +719,11 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 	case errors.Is(err, chatd.ErrAutomationQueueShareFull):
 		detail := ""
 		if shareFull, ok := errors.AsType[*chatd.AutomationQueueShareFullError](err); ok {
-			detail = fmt.Sprintf("At most %d automation messages can be queued in a chat.", shareFull.Max)
+			noun := "messages"
+			if shareFull.Max == 1 {
+				noun = "message"
+			}
+			detail = fmt.Sprintf("Automations can queue at most %d %s in a chat.", shareFull.Max, noun)
 		}
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 			Message: "Too many automation messages are queued in the target chat.",

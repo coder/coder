@@ -3256,12 +3256,20 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
 }
 
+func (q *querier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatAutomationRunStatusesByIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationRunStatusesByIDs)(ctx, ids)
+}
+
 func (q *querier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByIDsForUpdate)(ctx, ids)
 }
 
 func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatAutomation, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationID)(ctx, organizationID)
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatAutomation.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, organizationID, prep)
 }
 
 func (q *querier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]database.ChatAutomation, error) {
@@ -3865,6 +3873,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -9796,6 +9808,10 @@ func (q *querier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uui
 
 func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
 	return q.db.GetAuthorizedChatModelConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatAutomation, error) {
+	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {

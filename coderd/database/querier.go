@@ -468,6 +468,11 @@ type sqlcQuerier interface {
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	// Returns, for each given automation, whether its owner is active and
+	// whether its existing_chat target chat is usable, with the same rules
+	// that GetDueChatAutomationSchedules and publishing apply. Missing ids
+	// are not returned.
+	GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatAutomationRunStatusesByIDsRow, error)
 	// Locks the given automations in ascending id order so concurrent
 	// lockers always acquire automation row locks in the same order.
 	// Missing ids are not returned.
@@ -615,6 +620,8 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	// Returns the given chats. Missing ids are not returned.
+	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry

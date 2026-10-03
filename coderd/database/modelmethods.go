@@ -198,6 +198,10 @@ func (a ChatAutomation) RBACObject() rbac.Object {
 		WithOwner(a.OwnerID.String())
 }
 
+func (r GetChatAutomationRunStatusesByIDsRow) RBACObject() rbac.Object {
+	return ChatAutomation{ID: r.ID, OrganizationID: r.OrganizationID, OwnerID: r.OwnerID}.RBACObject()
+}
+
 func (m MCPServerConfig) RBACObject() rbac.Object {
 	return rbac.ResourceMCPServerConfig.
 		WithID(m.ID).

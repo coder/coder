@@ -2698,6 +2698,13 @@ FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
+-- name: GetChatsByIDs :many
+-- Returns the given chats. Missing ids are not returned.
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[])
+ORDER BY id ASC;
+
 -- name: RenewChatHeartbeats :many
 -- Renews (chat_id, runner_id) leases that are still fresh and still own
 -- their chat, and returns the renewed pairs. A stale lease is never

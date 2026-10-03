@@ -648,6 +648,22 @@ func (p *Server) checkAutomationTarget(ctx context.Context, store database.Store
 // automation's organization and read the automation's model config, which
 // must be enabled and in the same organization.
 func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Store, owner rbac.Subject, automation database.ChatAutomation) error {
+	if err := checkAutomationModel(ctx, store, owner, automation); err != nil {
+		return err
+	}
+	// The object InsertChat authorizes.
+	chat := rbac.ResourceChat.WithOwner(automation.OwnerID.String()).InOrg(automation.OrganizationID)
+	if err := p.authorizer.Authorize(ctx, owner, policy.ActionCreate, chat); err != nil {
+		return ErrAutomationForbidden
+	}
+	return nil
+}
+
+// checkAutomationModel requires that the automation's model config is set,
+// enabled with an enabled provider, readable by owner, and in the
+// automation's organization. It returns ErrAutomationModelUnavailable
+// otherwise.
+func checkAutomationModel(ctx context.Context, store database.Store, owner rbac.Subject, automation database.ChatAutomation) error {
 	if !automation.NewChatModelConfigID.Valid {
 		return ErrAutomationModelUnavailable
 	}
@@ -660,11 +676,6 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 	}
 	if config.OrganizationID != automation.OrganizationID {
 		return ErrAutomationModelUnavailable
-	}
-	// The object InsertChat authorizes.
-	chat := rbac.ResourceChat.WithOwner(automation.OwnerID.String()).InOrg(automation.OrganizationID)
-	if err := p.authorizer.Authorize(ctx, owner, policy.ActionCreate, chat); err != nil {
-		return ErrAutomationForbidden
 	}
 	return nil
 }

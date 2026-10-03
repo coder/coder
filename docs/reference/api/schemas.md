@@ -2597,6 +2597,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "created_by_chat": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
   "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -2608,11 +2612,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "paused_reasons": [
+    "owner_inactive"
+  ],
   "prompt": "string",
   "reasoning_effort": "string",
   "schedule_cron": "string",
   "schedule_next_run_at": "2019-08-24T14:15:22Z",
   "schedule_time_zone": "string",
+  "target_chat": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "title": "string"
+  },
   "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
   "target_mode": "existing_chat",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2625,30 +2636,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                            |
-|----------------------------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `created_at`               | string                                                                 | false    |              |                                                                                                                        |
-| `created_by_chat_id`       | string                                                                 | false    |              |                                                                                                                        |
-| `enabled`                  | boolean                                                                | false    |              |                                                                                                                        |
-| `id`                       | string                                                                 | false    |              |                                                                                                                        |
-| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                        |
-| `name`                     | string                                                                 | false    |              |                                                                                                                        |
-| `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                        |
-| `next_run_times`           | array of string                                                        | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks and disabled schedules. |
-| `organization_id`          | string                                                                 | false    |              |                                                                                                                        |
-| `owner_id`                 | string                                                                 | false    |              |                                                                                                                        |
-| `prompt`                   | string                                                                 | false    |              |                                                                                                                        |
-| `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_cron`            | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_next_run_at`     | string                                                                 | false    |              |                                                                                                                        |
-| `schedule_time_zone`       | string                                                                 | false    |              |                                                                                                                        |
-| `target_chat_id`           | string                                                                 | false    |              |                                                                                                                        |
-| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                        |
-| `updated_at`               | string                                                                 | false    |              |                                                                                                                        |
-| `webhook_consumed_at`      | string                                                                 | false    |              |                                                                                                                        |
-| `webhook_secret_version`   | integer                                                                | false    |              |                                                                                                                        |
-| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |                                                                                                                        |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |                                                                                                                        |
+| Name                       | Type                                                                                | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|----------------------------|-------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `created_by_chat`          | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              | Created by chat is the chat that created the automation. It is set by the chat automations API only when the caller can read that chat, so it is absent for automations created outside a chat, for deleted chats, and for chats the caller cannot read.                                                                                                                                                                                                                               |
+| `created_by_chat_id`       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `enabled`                  | boolean                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `id`                       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `name`                     | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `new_chat_model_config_id` | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `next_run_times`           | array of string                                                                     | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks, disabled schedules, and schedules with any paused reason.                                                                                                                                                                                                                                                                                                                              |
+| `organization_id`          | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `owner_id`                 | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `paused_reasons`           | array of [codersdk.ChatAutomationPausedReason](#codersdkchatautomationpausedreason) | false    |              | Paused reasons lists conditions that stop the automation from running even while it is enabled: schedule occurrences, Run now, and webhook deliveries are refused. It is set by the chat automations API and absent when none was found. It is computed independently of Enabled. It is an advisory snapshot: admission stays authoritative, and an empty list does not guarantee that a run is accepted, because lost chat permissions, busy chats, and full queues are not reported. |
+| `prompt`                   | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `reasoning_effort`         | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `schedule_cron`            | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `schedule_next_run_at`     | string                                                                              | false    |              | Schedule next run at is the scheduler cursor, not a promise that a run happens then. While the automation is paused it can stay in the past, or keep moving past occurrences that are refused, for example while its model is unavailable.                                                                                                                                                                                                                                             |
+| `schedule_time_zone`       | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `target_chat`              | [codersdk.ChatAutomationChat](#codersdkchatautomationchat)                          | false    |              | Target chat is the target chat of an existing_chat automation. Like CreatedByChat, it is set only when the caller can read that chat.                                                                                                                                                                                                                                                                                                                                                  |
+| `target_chat_id`           | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode)              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `updated_at`               | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `webhook_consumed_at`      | string                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `webhook_secret_version`   | integer                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse)              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 #### Enumerated Values
 
@@ -2658,6 +2672,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `target_mode` | `existing_chat`, `new_chat` |
 | `webhook_use` | `multi`, `single`           |
 | `when_busy`   | `queue`, `skip`             |
+
+## codersdk.ChatAutomationChat
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `id`    | string | false    |              |             |
+| `title` | string | false    |              |             |
 
 ## codersdk.ChatAutomationEventResponse
 
@@ -2688,6 +2718,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)              |
 |-----------------------|
 | `schedule`, `webhook` |
+
+## codersdk.ChatAutomationPausedReason
+
+```json
+"owner_inactive"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                           |
+|------------------------------------------------------------------------------------|
+| `experiment_disabled`, `model_unavailable`, `owner_inactive`, `target_unavailable` |
 
 ## codersdk.ChatAutomationRunResponse
 
@@ -6206,6 +6250,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "automation": {
     "created_at": "2019-08-24T14:15:22Z",
+    "created_by_chat": {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
     "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
     "enabled": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -6217,11 +6265,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "paused_reasons": [
+      "owner_inactive"
+    ],
     "prompt": "string",
     "reasoning_effort": "string",
     "schedule_cron": "string",
     "schedule_next_run_at": "2019-08-24T14:15:22Z",
     "schedule_time_zone": "string",
+    "target_chat": {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "title": "string"
+    },
     "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
     "target_mode": "existing_chat",
     "updated_at": "2019-08-24T14:15:22Z",
