@@ -11,7 +11,7 @@ Edit workspace start schedule
 ## Usage
 
 ```console
-coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual }
+coder schedule start [flags] <workspace-name> { <start-time> [day-of-week] [location] | manual }
 ```
 
 ## Description
@@ -31,3 +31,23 @@ Schedule format: <start-time> [day-of-week] [location].
 
      $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin
 ```
+
+## Options
+
+### -c, --column
+
+|         |                                                                           |
+|---------|---------------------------------------------------------------------------|
+| Type    | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
+| Default | <code>workspace,starts at,starts next,stops after,stops next</code>       |
+
+Columns to display in table output.
+
+### -o, --output
+
+|         |                          |
+|---------|--------------------------|
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
+
+Output format.
