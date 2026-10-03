@@ -178,15 +178,16 @@ The MCP server supports two authentication methods:
 
 ### OAuth2 (Recommended for Interactive Clients)
 
-MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
-(Protected Resource Metadata) can authenticate automatically using OAuth2. The
-server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
-`/.well-known/oauth-protected-resource` endpoint.
+MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (Protected Resource Metadata) can authenticate automatically using OAuth2.
+The MCP endpoint's `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource/api/experimental/mcp/http` through its `resource_metadata` parameter.
+This metadata identifies the full MCP endpoint URL as the `resource`, for example, `https://coder.example.com/api/experimental/mcp/http`.
 
 This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
 
 > [!NOTE]
 > OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
+>
+> [Dynamic Client Registration (DCR)](../admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is off by default and must be enabled before clients can self-register.
 
 ### Session Token (For Programmatic Access)
 

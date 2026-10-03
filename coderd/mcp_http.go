@@ -39,9 +39,17 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			})
 			return
 		}
-		// Extract the original session token from the request
+		// Keep tool requests in-process. The private transport carries the
+		// originating MCP audience without granting external REST access.
+		transport, closeTransport := newMCPDelegatedTransport(api.Logger, api.RootHandler, api.AccessURL, httpmw.APIKey(r).ID)
+		defer closeTransport()
+		// The MCP SDK detaches tool cancellation and waits for in-flight tools
+		// before returning, so close their transport independently on disconnect.
+		stopClose := context.AfterFunc(r.Context(), closeTransport)
+		defer stopClose()
 		authenticatedClient := codersdk.New(api.AccessURL,
-			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)))
+			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)),
+			codersdk.WithHTTPClient(&http.Client{Transport: transport}))
 
 		// Wrap the agent connection function to enforce ActionSSH
 		// on the workspace. Without this check, a user who can read

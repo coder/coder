@@ -34,7 +34,24 @@ import (
 type (
 	apiKeyContextKey           struct{}
 	apiKeyPrecheckedContextKey struct{}
+	apiKeyDelegationContextKey struct{}
 )
+
+type apiKeyDelegation struct {
+	resourceURI string
+	apiKeyID    string
+}
+
+// WithAPIKeyDelegation binds server-owned, in-process work to the originating
+// resource URI and authenticated API key. Never derive these values from HTTP
+// headers or query parameters. The original credential must still pass
+// validation, including its audience, scopes, and expiry.
+func WithAPIKeyDelegation(ctx context.Context, resourceURI, apiKeyID string) context.Context {
+	return context.WithValue(ctx, apiKeyDelegationContextKey{}, apiKeyDelegation{
+		resourceURI: resourceURI,
+		apiKeyID:    apiKeyID,
+	})
+}
 
 // ValidateAPIKeyConfig holds the settings needed for API key
 // validation at the top of the request lifecycle. Unlike
@@ -175,8 +192,16 @@ type ExtractAPIKeyConfig struct {
 	PostAuthAdditionalHeadersFunc func(a rbac.Subject, header http.Header)
 
 	// AccessURL is the configured access URL for this Coder deployment.
-	// Used for generating OAuth2 resource metadata URLs in WWW-Authenticate headers.
+	// It supplies the default OAuth2 resource URI and metadata URL.
 	AccessURL *url.URL
+
+	// ResourceURI overrides the OAuth2 audience expected by this route.
+	// Empty uses the deployment access URL, or the request origin if unset.
+	ResourceURI string
+
+	// ResourceMetadataURL overrides the OAuth2 discovery URL advertised in
+	// WWW-Authenticate. Empty uses the deployment's root metadata endpoint.
+	ResourceMetadataURL string
 
 	// Logger is used for logging middleware operations.
 	Logger slog.Logger
@@ -263,6 +288,13 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
+	}
+
+	if delegation, ok := ctx.Value(apiKeyDelegationContextKey{}).(apiKeyDelegation); ok && delegation.apiKeyID != key.ID {
+		return nil, &ValidateAPIKeyError{
+			Code:     http.StatusUnauthorized,
+			Response: codersdk.Response{Message: SignedOutErrorMessage},
+		}
 	}
 
 	// Log the API key ID for all requests that have a valid key
@@ -628,7 +660,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 		// Add WWW-Authenticate header for 401/403 responses (RFC 6750 + RFC 9728)
 		if code == http.StatusUnauthorized || code == http.StatusForbidden {
-			rw.Header().Set("WWW-Authenticate", buildWWWAuthenticateHeader(cfg.AccessURL, r, code, response))
+			rw.Header().Set("WWW-Authenticate", buildWWWAuthenticateHeader(cfg.AccessURL, cfg.ResourceMetadataURL, r, code, response))
 		}
 
 		httpapi.Write(ctx, rw, code, response)
@@ -701,7 +733,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	// Validate OAuth2 provider app token audience (RFC 8707) if applicable.
 	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
-		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, cfg.AccessURL, r); err != nil {
+		resourceURI := cfg.ResourceURI
+		if resourceURI == "" {
+			resourceURI = extractExpectedAudience(cfg.AccessURL, r)
+		}
+		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, resourceURI); err != nil {
 			// Log the detailed error for debugging but don't expose it to the client.
 			cfg.Logger.Debug(ctx, "oauth2 token audience validation failed", slog.Error(err))
 			return optionalWrite(http.StatusForbidden, codersdk.Response{
@@ -742,7 +778,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 // validateOAuth2ProviderAppTokenAudience validates that an OAuth2 provider app token
 // is being used with the correct audience/resource server (RFC 8707).
-func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
+func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, expectedAudience string) error {
 	// Get the OAuth2 provider app token to check its audience
 	//nolint:gocritic // OAuth2 system context — audience validation for provider app tokens
 	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID)
@@ -755,8 +791,11 @@ func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Sto
 		return nil
 	}
 
-	// Extract the expected audience from the access URL
-	expectedAudience := extractExpectedAudience(accessURL, r)
+	if delegation, ok := ctx.Value(apiKeyDelegationContextKey{}).(apiKeyDelegation); ok && delegation.apiKeyID == key.ID {
+		// Server-owned delegation validates the originating resource rather
+		// than the resource implementing the internal request.
+		expectedAudience = delegation.resourceURI
+	}
 
 	// Normalize both audience values for RFC 3986 compliant comparison
 	normalizedTokenAudience := normalizeAudienceURI(token.Audience.String)
@@ -878,7 +917,7 @@ func normalizePathSegments(path string) string {
 // Test export functions for testing package access
 
 // buildWWWAuthenticateHeader constructs RFC 6750 + RFC 9728 compliant WWW-Authenticate header
-func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, response codersdk.Response) string {
+func buildWWWAuthenticateHeader(accessURL *url.URL, resourceMetadata string, r *http.Request, code int, response codersdk.Response) string {
 	// Use the configured access URL for resource metadata
 	if accessURL == nil {
 		scheme := "https"
@@ -893,7 +932,9 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 		}
 	}
 
-	resourceMetadata := accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+	if resourceMetadata == "" {
+		resourceMetadata = accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+	}
 
 	switch code {
 	case http.StatusUnauthorized:
@@ -920,8 +961,6 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 // extractExpectedAudience determines the expected audience for the current request.
 // This should match the resource parameter used during authorization.
 func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
-	// For MCP compliance, the audience should be the canonical URI of the resource server
-	// This typically matches the access URL of the Coder deployment
 	var audience string
 
 	if accessURL != nil {
