@@ -905,6 +905,73 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, &codersdk.ChatAutomationChat{ID: unreadable.ID, Title: unreadable.Title}, got.TargetChat)
 	})
 
+	t.Run("OwnerDisplayData", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		memberUser, err := env.db.GetUserByID(sysCtx, env.memberID)
+		require.NoError(t, err)
+		memberUser, err = env.db.UpdateUserProfile(sysCtx, database.UpdateUserProfileParams{
+			ID:        memberUser.ID,
+			Email:     memberUser.Email,
+			Username:  memberUser.Username,
+			Name:      "Member Name",
+			AvatarURL: "https://example.com/member.png",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		wantOwner := &codersdk.MinimalUser{
+			ID:        memberUser.ID,
+			Username:  memberUser.Username,
+			Name:      "Member Name",
+			AvatarURL: "https://example.com/member.png",
+		}
+
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		require.Equal(t, wantOwner, created.Automation.Owner)
+
+		// An owner who left the organization and a deleted owner keep
+		// their owner_id but have no display data.
+		leaver := dbgen.User(t, env.db, database.User{})
+		dbgen.OrganizationMember(t, env.db, database.OrganizationMember{OrganizationID: env.orgID, UserID: leaver.ID})
+		ofLeaver := dbgen.ChatAutomation(t, env.db, database.ChatAutomation{OrganizationID: env.orgID, OwnerID: leaver.ID})
+		require.NoError(t, env.db.DeleteOrganizationMember(sysCtx, database.DeleteOrganizationMemberParams{OrganizationID: env.orgID, UserID: leaver.ID}))
+		deleted := dbgen.User(t, env.db, database.User{})
+		dbgen.OrganizationMember(t, env.db, database.OrganizationMember{OrganizationID: env.orgID, UserID: deleted.ID})
+		ofDeleted := dbgen.ChatAutomation(t, env.db, database.ChatAutomation{OrganizationID: env.orgID, OwnerID: deleted.ID})
+		require.NoError(t, env.db.UpdateUserDeletedByID(sysCtx, deleted.ID))
+
+		// The member sees their own owner data, and the site owner sees
+		// the member as owner, on both list and get.
+		for name, client := range map[string]*codersdk.ExperimentalClient{"Member": env.member, "SiteOwner": env.owner} {
+			list, err := client.ChatAutomations(ctx, env.orgID)
+			require.NoError(t, err, name)
+			byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
+			for _, automation := range list {
+				byID[automation.ID] = automation
+			}
+			require.Equal(t, wantOwner, byID[created.Automation.ID].Owner, name)
+			got, err := client.ChatAutomation(ctx, env.orgID, created.Automation.ID)
+			require.NoError(t, err, name)
+			require.Equal(t, wantOwner, got.Owner, name)
+		}
+
+		list, err := env.owner.ChatAutomations(ctx, env.orgID)
+		require.NoError(t, err)
+		byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
+		for _, automation := range list {
+			byID[automation.ID] = automation
+		}
+		require.Len(t, byID, 3)
+		require.Equal(t, leaver.ID, byID[ofLeaver.ID].OwnerID)
+		require.Nil(t, byID[ofLeaver.ID].Owner)
+		require.Equal(t, deleted.ID, byID[ofDeleted.ID].OwnerID)
+		require.Nil(t, byID[ofDeleted.ID].Owner)
+	})
+
 	t.Run("SchedulePreview", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)

@@ -23455,6 +23455,65 @@ func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uu
 	return items, nil
 }
 
+const getOrganizationMembersByUserIDs = `-- name: GetOrganizationMembersByUserIDs :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username, users.name, users.avatar_url
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	organization_members.organization_id = $1 :: uuid
+	AND organization_members.user_id = ANY($2 :: uuid[])
+`
+
+type GetOrganizationMembersByUserIDsParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+}
+
+type GetOrganizationMembersByUserIDsRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+	Name               string             `db:"name" json:"name"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+}
+
+// Returns the members of an organization among the given users, with
+// their display data. Deleted users and non-members are not returned.
+func (q *sqlQuerier) GetOrganizationMembersByUserIDs(ctx context.Context, arg GetOrganizationMembersByUserIDsParams) ([]GetOrganizationMembersByUserIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationMembersByUserIDs, arg.OrganizationID, pq.Array(arg.UserIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationMembersByUserIDsRow
+	for rows.Next() {
+		var i GetOrganizationMembersByUserIDsRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (

@@ -4570,6 +4570,10 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
+func (q *querier) GetOrganizationMembersByUserIDs(ctx context.Context, arg database.GetOrganizationMembersByUserIDsParams) ([]database.GetOrganizationMembersByUserIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationMembersByUserIDs)(ctx, arg)
+}
+
 func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (database.GetOrganizationResourceCountByIDRow, error) {
 	// Can read org members
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(organizationID)); err != nil {

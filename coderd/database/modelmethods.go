@@ -572,6 +572,10 @@ func (m OrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }
 
+func (m GetOrganizationMembersByUserIDsRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
 func (m PaginatedOrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }

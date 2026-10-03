@@ -179,6 +179,7 @@ A response without `paused_reasons` can still be refused, for example when the t
 
 Responses also include `target_chat` and `created_by_chat` with the `id` and `title` of the target chat and of the chat that created the automation.
 They're included only when you can read that chat, so they're missing for deleted chats and for chats you can't read.
+Responses include `owner` with the `id`, `username`, `name`, and `avatar_url` of the automation owner when you can read that user's membership in the organization.
 
 ## Send an event to a webhook
 

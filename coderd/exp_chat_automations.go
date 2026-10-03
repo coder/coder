@@ -33,15 +33,20 @@ import (
 const chatAutomationNextRunCount = 5
 
 // chatAutomationResponses converts rows to their SDK form with their
-// paused reasons, upcoming schedule runs, and the chats they refer to. A
-// paused automation lists no upcoming runs. ctx must carry the caller's
-// authorization: only chats the caller can read are included.
+// paused reasons, upcoming schedule runs, owners, and the chats they refer
+// to. A paused automation lists no upcoming runs. ctx must carry the
+// caller's authorization: only chats and owner memberships the caller can
+// read are included.
 func (api *API) chatAutomationResponses(ctx context.Context, rows []database.ChatAutomation) ([]codersdk.ChatAutomation, error) {
 	reasons, err := api.chatDaemon.AutomationPausedReasons(ctx, rows)
 	if err != nil {
 		return nil, xerrors.Errorf("get chat automation paused reasons: %w", err)
 	}
 	chats, err := api.chatAutomationChats(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	owners, err := api.chatAutomationOwners(ctx, rows)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +59,7 @@ func (api *API) chatAutomationResponses(ctx context.Context, rows []database.Cha
 		}
 		automation := db2sdk.ChatAutomation(row, nextRuns)
 		automation.PausedReasons = reasons[row.ID]
+		automation.Owner = owners[row.OrganizationID][row.OwnerID]
 		if row.TargetChatID.Valid {
 			automation.TargetChat = chats[row.TargetChatID.UUID]
 		}
@@ -92,11 +98,48 @@ func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAut
 	return chats, nil
 }
 
+// chatAutomationOwners reads the owners of rows as the caller with one
+// query per organization, keyed by organization and user ID. Owners whose
+// organization membership the caller cannot read are left out, as are
+// deleted owners and owners who are no longer members.
+func (api *API) chatAutomationOwners(ctx context.Context, rows []database.ChatAutomation) (map[uuid.UUID]map[uuid.UUID]*codersdk.MinimalUser, error) {
+	ownerIDs := make(map[uuid.UUID][]uuid.UUID)
+	seen := make(map[[2]uuid.UUID]bool)
+	for _, row := range rows {
+		key := [2]uuid.UUID{row.OrganizationID, row.OwnerID}
+		if !seen[key] {
+			seen[key] = true
+			ownerIDs[row.OrganizationID] = append(ownerIDs[row.OrganizationID], row.OwnerID)
+		}
+	}
+	owners := make(map[uuid.UUID]map[uuid.UUID]*codersdk.MinimalUser, len(ownerIDs))
+	for orgID, userIDs := range ownerIDs {
+		members, err := api.Database.GetOrganizationMembersByUserIDs(ctx, database.GetOrganizationMembersByUserIDsParams{
+			OrganizationID: orgID,
+			UserIds:        userIDs,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("get chat automation owners: %w", err)
+		}
+		byUser := make(map[uuid.UUID]*codersdk.MinimalUser, len(members))
+		for _, member := range members {
+			byUser[member.OrganizationMember.UserID] = &codersdk.MinimalUser{
+				ID:        member.OrganizationMember.UserID,
+				Username:  member.Username,
+				Name:      member.Name,
+				AvatarURL: member.AvatarURL,
+			}
+		}
+		owners[orgID] = byUser
+	}
+	return owners, nil
+}
+
 // chatAutomationWriteResponse is chatAutomationResponse for a row that a
 // create or update already committed. A failed read of the derived fields
 // must not report the committed write, or a new webhook secret that is
 // returned only once, as an error. It then logs the failure and returns
-// the row without paused reasons or referenced chats.
+// the row without paused reasons, owner, or referenced chats.
 func (api *API) chatAutomationWriteResponse(ctx context.Context, row database.ChatAutomation) codersdk.ChatAutomation {
 	automation, err := api.chatAutomationResponse(ctx, row)
 	if err == nil {

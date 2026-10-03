@@ -2865,6 +2865,23 @@ func (s *MethodTestSuite) TestOrganization() {
 			Asserts(rows[0].RBACObject(), policy.ActionRead, rows[1].RBACObject(), policy.ActionRead).
 			OutOfOrder()
 	}))
+	s.Run("GetOrganizationMembersByUserIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		ua := testutil.Fake(s.T(), faker, database.User{})
+		ub := testutil.Fake(s.T(), faker, database.User{})
+		ma := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: ua.ID})
+		mb := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: ub.ID})
+		arg := database.GetOrganizationMembersByUserIDsParams{OrganizationID: o.ID, UserIds: []uuid.UUID{ua.ID, ub.ID}}
+		rows := []database.GetOrganizationMembersByUserIDsRow{
+			{OrganizationMember: ma, Username: ua.Username},
+			{OrganizationMember: mb, Username: ub.Username},
+		}
+		dbm.EXPECT().GetOrganizationMembersByUserIDs(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(ma, policy.ActionRead, mb, policy.ActionRead).
+			OutOfOrder().
+			Returns(rows)
+	}))
 	s.Run("GetOrganizations", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		def := testutil.Fake(s.T(), faker, database.Organization{})
 		a := testutil.Fake(s.T(), faker, database.Organization{})
