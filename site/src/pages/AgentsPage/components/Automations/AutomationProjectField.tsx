@@ -43,7 +43,7 @@ export const AutomationProjectField: React.FC<AutomationProjectFieldProps> = ({
 			description={
 				projectsQuery.isError
 					? "Could not load projects."
-					: projectsQuery.isLoading
+					: projectsQuery.isFetching
 						? "Loading projects…"
 						: isUnlisted
 							? "This project was deleted, or you cannot see it."

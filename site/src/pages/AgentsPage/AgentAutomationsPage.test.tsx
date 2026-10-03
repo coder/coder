@@ -641,7 +641,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		);
 		const dialog = await screen.findByRole("dialog");
 		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
-		// The select stays disabled until the projects load.
 		await waitFor(() => expect(project).toBeEnabled());
 		await user.click(project);
 		await user.click(await screen.findByRole("option", { name: "No project" }));
