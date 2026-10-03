@@ -7,14 +7,16 @@
  *
  * Text is read from the TypeScript AST: JSX text plus string and template
  * literals. Literals that are not displayed text are skipped: module
- * specifiers, type positions, property names, and operands of equality
- * checks or `case` clauses (those usually compare against API values).
+ * specifiers, type positions, property names, tagged templates, and
+ * operands of equality checks or `case` clauses (those usually compare
+ * against API values).
  *
  * A phrase is a run of consecutive words that start with an uppercase
- * letter. A word is reported when it is not the first word of its run,
- * looks like a regular capitalized word ("Workspace"), and is not part of
- * a proper noun from PROPER_NOUNS. Acronyms ("SSH") and mixed-case names
- * ("GitHub") are never reported.
+ * letter, including lowercase connectors such as "a" or "of" between them
+ * ("Create a Template"). A word is reported when it is not the first word
+ * of its run, looks like a regular capitalized word ("Workspace"), and is
+ * not part of a proper noun from PROPER_NOUNS. Acronyms ("SSH") and
+ * mixed-case names ("GitHub") are never reported.
  *
  * For deliberate exceptions, put a comment containing
  * "sentence-case-expect" on the line above the text. Like
@@ -52,8 +54,19 @@ const PROPER_NOUNS = [
 	"Dynamic Parameters",
 	"Organization Workspace Access",
 	"Template Admin",
+	"Terms of Service",
+
+	// Days of the week.
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+	"Sunday",
 
 	// Third-party products and companies.
+	"Splunk",
 	"Anthropic",
 	"Azure Repos",
 	"Bedrock",
@@ -118,13 +131,33 @@ const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
 // A regular capitalized word, like "Workspace" or "Don't".
 const CAPITALIZED_WORD = /^[A-Z][a-z]+(?:['’-][a-z]+)*$/;
 
+// Lowercase words that title case leaves uncapitalized. They continue a
+// phrase, so "Create a Template" is reported like "Create Template".
+const CONNECTORS = new Set([
+	"a",
+	"an",
+	"and",
+	"as",
+	"at",
+	"by",
+	"for",
+	"from",
+	"in",
+	"of",
+	"on",
+	"or",
+	"the",
+	"to",
+	"with",
+]);
+
 // Punctuation that ends a sentence, label, or list item, so the next
 // word starts a new phrase and may be capitalized ("GitHub, GitLab").
 const PHRASE_END = /[.!?:;,]["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
- * offset in `text`, the word itself, and the phrase it belongs to.
+ * offset in `text` and the word itself.
  */
 export function findTitleCaseWords(text) {
 	const tokens = [];
@@ -165,14 +198,19 @@ export function findTitleCaseWords(text) {
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 		const capitalized = /^[A-Z]/.test(token.word);
-		if (!capitalized || token.startsPhrase) {
+		if (token.raw.includes(SUBSTITUTION)) {
+			// Unknown text; keep the current phrase, if any, going.
+		} else if (
+			phraseStart !== -1 &&
+			!token.startsPhrase &&
+			CONNECTORS.has(token.word)
+		) {
+			// Keep the current phrase going.
+		} else if (!capitalized || token.startsPhrase) {
 			phraseStart = capitalized ? i : -1;
 		} else if (phraseStart === -1) {
 			phraseStart = i;
-		} else if (
-			CAPITALIZED_WORD.test(token.word) &&
-			!properNounTokens.has(i)
-		) {
+		} else if (CAPITALIZED_WORD.test(token.word) && !properNounTokens.has(i)) {
 			results.push({ offset: token.offset, word: token.word });
 		}
 		if (PHRASE_END.test(token.raw)) {
@@ -191,7 +229,8 @@ function isNonDisplayLiteral(node) {
 		ts.isExternalModuleReference(parent) ||
 		ts.isLiteralTypeNode(parent) ||
 		ts.isCaseClause(parent) ||
-		ts.isElementAccessExpression(parent)
+		ts.isElementAccessExpression(parent) ||
+		ts.isTaggedTemplateExpression(parent)
 	) {
 		return true;
 	}
@@ -216,28 +255,69 @@ function isNonDisplayLiteral(node) {
 	return false;
 }
 
-/** Collects the source ranges of every displayed text node. */
-function collectTextRanges(sourceFile) {
-	const ranges = [];
+// Stands in for a template substitution. A substitution continues a
+// phrase but does not start one, so `New ${name} Provider` is reported
+// while `${message} To continue` is not, because the substitution may
+// end a sentence.
+const SUBSTITUTION = "\uE000";
+
+/**
+ * Collects every displayed text node as its text plus the source position
+ * of each character. Substitutions in template literals map to -1.
+ */
+function collectTexts(sourceFile) {
+	const sourceText = sourceFile.text;
+	const texts = [];
+	const addRange = (start, end) => {
+		texts.push({
+			text: sourceText.slice(start, end),
+			positions: Array.from({ length: end - start }, (_, i) => start + i),
+		});
+	};
 	const visit = (node) => {
 		switch (node.kind) {
 			case ts.SyntaxKind.JsxText:
-				ranges.push({ start: node.getStart(sourceFile), end: node.end });
+				addRange(node.getStart(sourceFile), node.end);
 				break;
 			case ts.SyntaxKind.StringLiteral:
 			case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
-			case ts.SyntaxKind.TemplateHead:
-			case ts.SyntaxKind.TemplateMiddle:
-			case ts.SyntaxKind.TemplateTail:
 				if (!isNonDisplayLiteral(node)) {
-					ranges.push({ start: node.getStart(sourceFile), end: node.end });
+					addRange(node.getStart(sourceFile), node.end);
 				}
 				break;
+			case ts.SyntaxKind.TemplateExpression: {
+				if (isNonDisplayLiteral(node)) {
+					break;
+				}
+				// Join the literal parts without their `, ${, and } delimiters.
+				let text = "";
+				const positions = [];
+				const addPart = (start, end) => {
+					text += sourceText.slice(start, end);
+					for (let i = start; i < end; i++) {
+						positions.push(i);
+					}
+				};
+				const head = node.head;
+				addPart(head.getStart(sourceFile) + 1, head.end - 2);
+				for (const span of node.templateSpans) {
+					text += SUBSTITUTION;
+					positions.push(-1);
+					const literal = span.literal;
+					const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
+					addPart(
+						literal.getStart(sourceFile) + 1,
+						literal.end - (isTail ? 1 : 2),
+					);
+				}
+				texts.push({ text, positions });
+				break;
+			}
 		}
 		ts.forEachChild(node, visit);
 	};
 	visit(sourceFile);
-	return ranges;
+	return texts;
 }
 
 /**
@@ -265,10 +345,9 @@ export function checkSource(fileName, sourceText) {
 
 	const issues = [];
 	const usedExpectations = new Set();
-	for (const { start, end } of collectTextRanges(sourceFile)) {
-		const text = sourceText.slice(start, end);
+	for (const { text, positions } of collectTexts(sourceFile)) {
 		for (const { offset, word } of findTitleCaseWords(text)) {
-			const position = start + offset;
+			const position = positions[offset];
 			const { line, character } =
 				sourceFile.getLineAndCharacterOfPosition(position);
 			if (expectedLines.has(line)) {
@@ -356,7 +435,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 				"",
 				"Use sentence case for UI text: capitalize only the first word and proper nouns.",
 				"To fix automatically: pnpm run lint:sentence-case --fix",
-				`For proper nouns: add them to PROPER_NOUNS in scripts/check-sentence-case.mjs.`,
+				"For proper nouns: add them to PROPER_NOUNS in scripts/check-sentence-case.mjs.",
 				`For other exceptions: add a "${EXPECT_COMMENT}" comment on the line above.`,
 			].join("\n"),
 		);

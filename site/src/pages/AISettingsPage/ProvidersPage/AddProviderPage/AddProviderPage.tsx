@@ -38,7 +38,7 @@ const AddProviderPage: React.FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>
-				{pageTitle(`New ${provider.label} Provider`, "AI providers")}
+				{pageTitle(`New ${provider.label} provider`, "AI providers")}
 			</title>
 
 			<AddProviderPageView provider={provider} />

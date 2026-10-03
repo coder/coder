@@ -51,7 +51,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 					</div>
 				}
 			>
-				<PageHeaderTitle>Create a Template</PageHeaderTitle>
+				<PageHeaderTitle>Create a template</PageHeaderTitle>
 			</PageHeader>
 			<div className="flex flex-col gap-16">
 				<div className="flex flex-row gap-8">

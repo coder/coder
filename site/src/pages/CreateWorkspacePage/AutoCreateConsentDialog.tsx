@@ -69,7 +69,7 @@ export const AutoCreateConsentDialog: React.FC<
 						Cancel
 					</Button>
 					<Button variant="default" onClick={onConfirm}>
-						Confirm and Create
+						Confirm and create
 					</Button>
 				</DialogFooter>
 			</DialogContent>

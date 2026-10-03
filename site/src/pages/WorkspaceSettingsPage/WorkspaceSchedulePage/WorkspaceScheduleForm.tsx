@@ -310,7 +310,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
 					<fieldset className="border-0 p-0 m-0">
 						<legend className="text-xs text-content-secondary font-medium mb-1">
-							Days of Week
+							Days of week
 						</legend>
 
 						<div className="flex flex-row flex-wrap gap-x-4 gap-y-2 pt-1">

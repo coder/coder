@@ -17,6 +17,12 @@ describe("findTitleCaseWords", () => {
 		expect(words("Open in VS Code")).toEqual([]);
 	});
 
+	it("continues a phrase across lowercase connectors", () => {
+		expect(words("Create a Template")).toEqual(["Template"]);
+		expect(words("Sign in to Coder")).toEqual([]);
+		expect(words("Create a template")).toEqual([]);
+	});
+
 	it("reports regular words that follow an acronym", () => {
 		expect(words("SSH Keys")).toEqual(["Keys"]);
 	});
@@ -68,6 +74,20 @@ describe("checkSource", () => {
 			'const value = lookup["Other Key"];',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);
+	});
+
+	it("checks template literals as one phrase", () => {
+		const source = [
+			"const a = `New ${label} Provider`;",
+			"const b = `${message} To continue, sign in.`;",
+			"const c = `${count}ms`;",
+			"const d = css`font-family: Fira Code Mono;`;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.ts", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Provider"],
+		]);
+		expect(fixedText.split("\n")[0]).toBe("const a = `New ${label} provider`;");
 	});
 
 	it("lowercases reported words in the fixed text", () => {
