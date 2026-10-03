@@ -644,6 +644,28 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, stored.ProjectID)
 	})
 
+	t.Run("NewChatProjectNotUsable", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+		// The owner can no longer use the stored project: it belongs to
+		// another user, which the service refuses to store.
+		other := dbgen.User(t, f.db, database.User{})
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: other.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET project_id = $1 WHERE id = $2", project.ID, automation.ID)
+		require.NoError(t, err)
+
+		result, err := f.publish(ctx, automation)
+		require.NoError(t, err)
+		chat, err := f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.False(t, chat.ProjectID.Valid)
+		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, stored.ProjectID)
+	})
+
 	t.Run("NewChatModelUnavailable", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
