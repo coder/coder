@@ -1921,8 +1921,20 @@ func TestChatAutomationScheduleClaim(t *testing.T) {
 		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.ScheduleRevision++ })
 		require.False(t, claimedUntil(ctx, t, automation).Valid)
 
-		// So does a moved cursor, as disabling does.
+		// So does a cursor write that does not name the claim column, as
+		// from a replica that predates it during a rolling upgrade. A write
+		// that leaves the cursor alone keeps the claim.
 		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, next, next, next.Add(lease)))
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = schedule_next_run_at WHERE id = $1", automation.ID)
+		require.NoError(t, err)
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = $1 WHERE id = $2", next.Add(time.Minute), automation.ID)
+		require.NoError(t, err)
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		// So does a moved cursor, as disabling does.
+		later := next.Add(time.Minute)
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, later, later, later.Add(lease)))
 		update(t, func(arg *database.UpdateChatAutomationByIDParams) {
 			arg.Enabled = false
 			arg.ScheduleNextRunAt = sql.NullTime{}

@@ -57,7 +57,7 @@ type sqlcQuerier interface {
 	// revision or the cursor changed since they were observed, so exactly one
 	// caller moves the cursor past each occurrence. A NULL next_run_at means
 	// no occurrence is pending. Moving the cursor also drops the claim on the
-	// observed occurrence.
+	// observed occurrence (trigger_clear_chat_automation_schedule_claim).
 	AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error)
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)

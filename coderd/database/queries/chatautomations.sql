@@ -123,15 +123,6 @@ SET
     schedule_time_zone = @schedule_time_zone,
     schedule_revision = @schedule_revision,
     schedule_next_run_at = @schedule_next_run_at,
-    -- A new schedule revision or cursor drops the claim on the old
-    -- occurrence, so a stale lease never blocks the next one. SET reads
-    -- the old row values.
-    schedule_claimed_until = CASE
-        WHEN schedule_revision IS DISTINCT FROM @schedule_revision
-            OR schedule_next_run_at IS DISTINCT FROM @schedule_next_run_at
-        THEN NULL
-        ELSE schedule_claimed_until
-    END,
     enabled = @enabled,
     queue_generation = @queue_generation,
     updated_at = @updated_at
@@ -210,12 +201,11 @@ LIMIT
 -- revision or the cursor changed since they were observed, so exactly one
 -- caller moves the cursor past each occurrence. A NULL next_run_at means
 -- no occurrence is pending. Moving the cursor also drops the claim on the
--- observed occurrence.
+-- observed occurrence (trigger_clear_chat_automation_schedule_claim).
 UPDATE
     chat_automations
 SET
     schedule_next_run_at = sqlc.narg('next_run_at')::timestamptz,
-    schedule_claimed_until = NULL,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid

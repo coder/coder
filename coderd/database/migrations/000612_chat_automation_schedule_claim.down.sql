@@ -22,5 +22,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trigger_clear_chat_automation_schedule_claim ON chat_automations;
+DROP FUNCTION IF EXISTS clear_chat_automation_schedule_claim();
+
 ALTER TABLE chat_automations
     DROP COLUMN schedule_claimed_until;

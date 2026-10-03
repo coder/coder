@@ -26,3 +26,24 @@ ALTER TABLE chat_automations
     ADD COLUMN schedule_claimed_until timestamptz;
 
 COMMENT ON COLUMN chat_automations.schedule_claimed_until IS 'Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.';
+
+-- A claim names the occurrence at the cursor it was taken on. Every write
+-- that moves the cursor or changes the schedule revision drops it, in the
+-- database rather than in each query, so a writer that does not know the
+-- column (a replica that predates it, during a rolling upgrade) cannot
+-- leave a claim attached to the next occurrence.
+CREATE FUNCTION clear_chat_automation_schedule_claim() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.schedule_next_run_at IS DISTINCT FROM OLD.schedule_next_run_at
+		OR NEW.schedule_revision IS DISTINCT FROM OLD.schedule_revision THEN
+		NEW.schedule_claimed_until := NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_clear_chat_automation_schedule_claim
+    BEFORE UPDATE OF schedule_next_run_at, schedule_revision ON chat_automations
+    FOR EACH ROW EXECUTE FUNCTION clear_chat_automation_schedule_claim();

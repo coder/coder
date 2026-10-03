@@ -5484,7 +5484,6 @@ UPDATE
     chat_automations
 SET
     schedule_next_run_at = $1::timestamptz,
-    schedule_claimed_until = NULL,
     updated_at = $2::timestamptz
 WHERE
     id = $3::uuid
@@ -5507,7 +5506,7 @@ type AdvanceChatAutomationScheduleCursorParams struct {
 // revision or the cursor changed since they were observed, so exactly one
 // caller moves the cursor past each occurrence. A NULL next_run_at means
 // no occurrence is pending. Moving the cursor also drops the claim on the
-// observed occurrence.
+// observed occurrence (trigger_clear_chat_automation_schedule_claim).
 func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, advanceChatAutomationScheduleCursor,
 		arg.NextRunAt,
@@ -6137,15 +6136,6 @@ SET
     schedule_time_zone = $8,
     schedule_revision = $9,
     schedule_next_run_at = $10,
-    -- A new schedule revision or cursor drops the claim on the old
-    -- occurrence, so a stale lease never blocks the next one. SET reads
-    -- the old row values.
-    schedule_claimed_until = CASE
-        WHEN schedule_revision IS DISTINCT FROM $9
-            OR schedule_next_run_at IS DISTINCT FROM $10
-        THEN NULL
-        ELSE schedule_claimed_until
-    END,
     enabled = $11,
     queue_generation = $12,
     updated_at = $13

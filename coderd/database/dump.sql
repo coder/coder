@@ -947,6 +947,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION clear_chat_automation_schedule_claim() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.schedule_next_run_at IS DISTINCT FROM OLD.schedule_next_run_at
+		OR NEW.schedule_revision IS DISTINCT FROM OLD.schedule_revision THEN
+		NEW.schedule_claimed_until := NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5303,6 +5315,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_clear_chat_automation_schedule_claim BEFORE UPDATE OF schedule_next_run_at, schedule_revision ON chat_automations FOR EACH ROW EXECUTE FUNCTION clear_chat_automation_schedule_claim();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
