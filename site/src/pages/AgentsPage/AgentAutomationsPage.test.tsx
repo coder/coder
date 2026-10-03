@@ -16,6 +16,7 @@ import type {
 import {
 	MockChat,
 	MockChatAutomation,
+	MockChatProject,
 	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
 import {
@@ -379,14 +380,8 @@ const mockModel: ChatModel = {
 };
 
 const mockProject: ChatProject = {
-	id: "project-1",
+	...MockChatProject,
 	organization_id: MockDefaultOrganization.id,
-	owner_id: MockChat.owner_id,
-	name: "Release work",
-	description: "",
-	icon: "",
-	created_at: "2026-01-01T00:00:00Z",
-	updated_at: "2026-01-01T00:00:00Z",
 };
 
 const mockOtherOrgProject: ChatProject = {

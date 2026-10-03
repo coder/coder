@@ -609,7 +609,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									<AutomationProjectField
 										organizationId={organizationId}
 										field={getFieldHelpers("project_id")}
-										value={form.values.project_id}
 										onValueChange={(value) =>
 											form.setFieldValue("project_id", value)
 										}

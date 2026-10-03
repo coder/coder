@@ -13,6 +13,7 @@ import type {
 import {
 	MockChat,
 	MockChatAutomation,
+	MockChatProject,
 	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
 import {
@@ -46,14 +47,8 @@ const mockWebhookAutomation: ChatAutomation = {
 };
 
 const mockProject: ChatProject = {
-	id: "project-1",
+	...MockChatProject,
 	organization_id: organizationId,
-	owner_id: MockUserOwner.id,
-	name: "Release work",
-	description: "",
-	icon: "",
-	created_at: "2026-01-01T00:00:00Z",
-	updated_at: "2026-01-01T00:00:00Z",
 };
 
 const mockNewChatAutomation: ChatAutomation = {
@@ -182,34 +177,97 @@ export const Edit: Story = {
 	},
 };
 
-const newChatProjectQueries = [
-	{
-		key: organizationChatModelsKey(organizationId),
-		data: mockModelCatalog,
+export const CreateNewChatProject: Story = {
+	args: { projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
 	},
-	{ key: chatProjectsKey, data: [mockProject] },
-	{
-		key: chatAutomationSchedulePreviewKey(organizationId, {
-			schedule_cron: "0 9 * * *",
-			schedule_time_zone: "UTC",
-		}),
-		data: { next_run_times: nextRunTimes },
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "New chat each run" }),
+		);
 	},
-];
+};
 
 export const EditNewChatProject: Story = {
 	args: { automation: mockNewChatAutomation, projectsEnabled: true },
-	parameters: { queries: newChatProjectQueries },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
 };
 
-// The viewer cannot list the stored project, so the form keeps it as an
-// unknown option instead of removing it on save.
 export const EditNewChatUnknownProject: Story = {
 	args: {
 		automation: { ...mockNewChatAutomation, project_id: "project-gone" },
 		projectsEnabled: true,
 	},
-	parameters: { queries: newChatProjectQueries },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Projects error." }),
+		);
+	},
 };
 
 export const TargetChatNotFound: Story = {
