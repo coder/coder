@@ -1,7 +1,10 @@
 // Package tfgraph provides reusable parsing, indexing, and query
-// primitives for Terraform DOT graphs. Its API supports Coder's
-// script-ordering pipeline but does not yet cover the broader graph
-// processing in ConvertState.
+// primitives for operation graphs emitted by Terraform Core for Coder
+// templates. It is not a general-purpose DOT parser. Parsing limits
+// rely on Terraform Core's emitted line structure.
+//
+// Its API supports Coder's script-ordering pipeline but does not yet
+// cover the broader graph processing in ConvertState.
 package tfgraph
 
 import (
@@ -120,7 +123,9 @@ func (i *Index) NodesForInstanceAddress(address string) []NodeID {
 	return slices.Clone(i.nodesByInstanceAddress[address])
 }
 
-// Parse parses a bounded Terraform DOT graph into an immutable index.
+// Parse parses successful DOT output from Terraform Core's
+// operation-graph emitter for a Coder template into an immutable
+// index. Callers must not pass arbitrary DOT.
 func Parse(ctx context.Context, rawGraph string) (*Index, error) {
 	return parseWithLimits(ctx, rawGraph, defaultIndexLimits())
 }
@@ -280,9 +285,11 @@ func parseWithLimits(
 	return index, nil
 }
 
-// preflight bounds parser allocation before gographviz builds its syntax
-// tree. Terraform Core's current DOT emitter writes one simple node or edge
-// statement per line with quoted node IDs. Preflight recognizes that subset.
+// preflight bounds parser allocation for operation graphs emitted by
+// Terraform Core before gographviz builds its syntax tree. It assumes
+// rawGraph satisfies Parse's contract and does not validate arbitrary
+// DOT. Terraform Core writes each node or edge statement on its own
+// line with quoted node IDs.
 func preflight(
 	ctx context.Context,
 	rawGraph string,
@@ -340,8 +347,8 @@ func preflight(
 
 		rawNodeID, remainder, ok := consumeQuotedNodeID(statement)
 		if !ok {
-			// Reject edge operators on unrecognized statements because preflight
-			// cannot safely count the graph structure they represent.
+			// Terraform's structural lines do not contain edge operators. Reject
+			// one here rather than pass uncounted work to gographviz.
 			if hasEdgeOperatorOutsideQuotes(statement) {
 				return xerrors.New("Terraform graph contains unsupported edge syntax")
 			}

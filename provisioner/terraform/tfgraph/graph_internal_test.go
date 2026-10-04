@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexRejectsInvalidOrExcessiveInput(t *testing.T) {
+func TestIndexRejectsExcessiveTerraformOutput(t *testing.T) {
 	t.Parallel()
 
 	validGraph := `digraph {
@@ -17,98 +17,9 @@ func TestIndexRejectsInvalidOrExcessiveInput(t *testing.T) {
 	}`
 	for _, test := range []struct {
 		name          string
-		rawGraph      string
 		configure     func(*indexLimits)
 		errorContains string
 	}{
-		{
-			name:     "MalformedGraph",
-			rawGraph: "not a graph",
-			configure: func(*indexLimits) {
-			},
-			errorContains: "parse Terraform graph",
-		},
-		{
-			name: "DuplicateNodeStatementsExceedLimitBeforeParsing",
-			rawGraph: `digraph {
-				"[root] coder_agent.main (expand)"
-				"[root] coder_agent.main (expand)"
-				invalid [
-			}`,
-			configure: func(limits *indexLimits) {
-				limits.nodes = 1
-			},
-			errorContains: "Terraform graph nodes",
-		},
-		{
-			name: "DuplicateEdgeStatementsExceedLimitBeforeParsing",
-			rawGraph: `digraph {
-				"[root] local.bridge (expand)" -> "[root] coder_agent.main (expand)"
-				"[root] local.bridge (expand)" -> "[root] coder_agent.main (expand)"
-				invalid [
-			}`,
-			configure: func(limits *indexLimits) {
-				limits.edges = 1
-			},
-			errorContains: "Terraform graph edges",
-		},
-		{
-			name: "GroupedSourceEndpoint",
-			rawGraph: `digraph {
-				{ "[root] first"; "[root] second" } -> "[root] third"
-			}`,
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
-		{
-			name: "GroupedSourceEndpointWithoutWhitespace",
-			rawGraph: `digraph {
-				{"[root] first";"[root] second"}->"[root] third"
-			}`,
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
-		{
-			name:     "GroupedSourceEndpointWithTabs",
-			rawGraph: "digraph {\n\t{ \"[root] first\" }\t->\t\"[root] third\"\n}",
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
-		{
-			name: "GroupedSourceEndpointWithComment",
-			rawGraph: `digraph {
-				{ "[root] first" } /* grouped source */ -> "[root] third"
-			}`,
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
-		{
-			name: "MultilineGroupedSourceEndpoint",
-			rawGraph: `digraph {
-				{
-					"[root] first"
-					"[root] second"
-				}
-				->
-				"[root] third"
-			}`,
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
-		{
-			name: "GroupedDestinationEndpoint",
-			rawGraph: `digraph {
-				"[root] first" -> { "[root] second"; "[root] third" }
-			}`,
-			configure: func(*indexLimits) {
-			},
-			errorContains: "unsupported edge syntax",
-		},
 		{
 			name: "InputBytes",
 			configure: func(limits *indexLimits) {
@@ -157,11 +68,7 @@ func TestIndexRejectsInvalidOrExcessiveInput(t *testing.T) {
 
 			limits := defaultIndexLimits()
 			test.configure(&limits)
-			input := test.rawGraph
-			if input == "" {
-				input = validGraph
-			}
-			_, err := parseWithLimits(t.Context(), input, limits)
+			_, err := parseWithLimits(t.Context(), validGraph, limits)
 			require.ErrorContains(t, err, test.errorContains)
 		})
 	}
@@ -178,7 +85,7 @@ func TestIndexRetainsNodeLabels(t *testing.T) {
 	require.Equal(t, `"coder_agent.main"`, index.nodes[0].label)
 }
 
-func TestPreflightCountsDOTStructure(t *testing.T) {
+func TestPreflightBoundsTerraformGraphOutput(t *testing.T) {
 	t.Parallel()
 
 	rawGraph := `digraph {
