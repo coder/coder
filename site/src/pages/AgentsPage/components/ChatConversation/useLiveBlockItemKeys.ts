@@ -11,34 +11,43 @@ const continuesLiveBlock = (
 	block: WorkingBlock,
 	identity: LiveBlockIdentity | null,
 	streamStartedAt: string | undefined,
-): identity is LiveBlockIdentity =>
-	identity !== null &&
-	((identity.firstMemberId !== undefined &&
-		block.memberIds.includes(identity.firstMemberId)) ||
-		(block.isLive &&
-			identity.streamStartedAt !== undefined &&
-			(identity.streamStartedAt === streamStartedAt ||
-				// A live-only block's first persisted step keeps its streamed
-				// part timestamps, even when the stream clears in the same render.
-				(identity.firstMemberId === undefined &&
-					block.startedAt === Date.parse(identity.streamStartedAt)))));
+): identity is LiveBlockIdentity => {
+	if (identity === null) {
+		return false;
+	}
+	if (
+		identity.firstMemberId !== undefined &&
+		block.memberIds.includes(identity.firstMemberId)
+	) {
+		return true;
+	}
+	if (!block.isLive || identity.streamStartedAt === undefined) {
+		return false;
+	}
+	if (identity.streamStartedAt === streamStartedAt) {
+		return true;
+	}
+	// A live-only block's first persisted step keeps its streamed part
+	// timestamps, even when the stream clears in the same render.
+	return (
+		identity.firstMemberId === undefined &&
+		block.startedAt === Date.parse(identity.streamStartedAt)
+	);
+};
 
 type LiveBlockKeys = {
 	itemKeys: ReadonlyMap<string, string>;
 	identity: LiveBlockIdentity | null;
 };
 
-// Returns the input state when nothing changed so the caller can skip setState.
 const reconcile = (
 	blocks: readonly WorkingBlock[],
 	streamStartedAt: string | undefined,
 	state: LiveBlockKeys,
 ): LiveBlockKeys => {
 	let { itemKeys: nextItemKeys, identity: nextIdentity } = state;
-	// A completed block may take over a live key by name only while nothing
-	// continues the live block itself. Head ordinals shift when an older page
-	// reveals an earlier block of the same turn, so the revealed block would
-	// otherwise alias the still-live one.
+	// Head ordinals shift when an older page reveals an earlier block of the
+	// turn, so a live key passes by name only once nothing continues the live block.
 	const liveBlockContinues = blocks.some((block) =>
 		continuesLiveBlock(block, state.identity, streamStartedAt),
 	);
@@ -73,10 +82,8 @@ const reconcile = (
 };
 
 /**
- * Scroller item keys of blocks that rendered live, kept once they complete so
- * the handoff does not remount an open block. Paging re-keys a live block
- * anchored on the head once its turn's prompt loads; its oldest member and
- * its stream both outlive the re-key, so either one identifies it.
+ * Scroller item keys of blocks that rendered live, kept once they complete or
+ * paging re-keys them, so an open block does not remount.
  */
 export const useLiveBlockItemKeys = (
 	workingBlocks: readonly WorkingBlock[],

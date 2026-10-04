@@ -217,20 +217,22 @@ export const buildReconnectState = (
 const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
 	workingStepMessages(100 + index * 2, `step-${index}`, index, index),
 ).flat();
-const MockLongTurnPrompt: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 99,
-	created_at: workingFixtureTime(-1),
-	content: [{ type: "text", text: "Run every step" }],
-};
 /**
  * The loaded transcript of a 60-step turn after each of its three history
  * pages, newest first, so the prompt row only arrives with the final page.
  */
-export const MockLongTurnPageLoads = [
+export const MockLongTurnPageLoads: TypesGen.ChatMessage[][] = [
 	MockLongTurn.slice(60),
 	MockLongTurn.slice(30),
-	[MockLongTurnPrompt, ...MockLongTurn],
+	[
+		{
+			...MockChatMessage,
+			id: 99,
+			created_at: workingFixtureTime(-1),
+			content: [{ type: "text", text: "Run every step" }],
+		},
+		...MockLongTurn,
+	],
 ];
 
 export const buildRetryState = (

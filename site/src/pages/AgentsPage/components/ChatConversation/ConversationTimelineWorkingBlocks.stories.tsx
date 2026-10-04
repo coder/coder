@@ -79,9 +79,8 @@ export const Paginated: Story = {
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
-		// The button follows the rows so the scroller sees the previous first
-		// item move to a later index, as in the real page, and stays fixed so
-		// clicking it never scrolls the viewport away from the top.
+		// Placed after the rows, as on the real page, and fixed so clicking it
+		// never scrolls the viewport.
 		return (
 			<>
 				<ConversationTimeline
@@ -107,10 +106,8 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 			canvas.getByRole("button", { name: /Worked for at least/ }),
 		);
 		const viewport = canvas.getByRole("region", { name: "Messages" });
-		// History only pages while the reader sits at the very top, where the
-		// browser suspends its own scroll anchoring. The scroller stops
-		// following the bottom only on wheel, touch, or key input, so scroll
-		// up the way a reader does.
+		// History pages at the very top, and the scroller only stops following
+		// the bottom on user input, so wheel up first.
 		const loadOlderFromTop = async () => {
 			await fireEvent.wheel(viewport, { deltaY: -100 });
 			viewport.scrollTop = 0;
