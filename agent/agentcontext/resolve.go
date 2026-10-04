@@ -378,12 +378,16 @@ func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Re
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		child := filepath.Join(root.Path, e.Name())
-		if r.readInstructionFilesIn(child, out, seenID) {
-			projects++
-			if projects == maxChildProjects {
-				break
-			}
+		files := r.readInstructionFiles(filepath.Join(root.Path, e.Name()), "")
+		if len(files) == 0 {
+			continue
+		}
+		for _, res := range files {
+			appendResource(out, seenID, res)
+		}
+		projects++
+		if projects == maxChildProjects {
+			break
 		}
 	}
 }
@@ -420,17 +424,6 @@ func lstatInstructionFiles(dir string) []instructionFileEntry {
 		}
 	}
 	return found
-}
-
-// readInstructionFilesIn appends the recognized instruction files that sit
-// directly in dir, with dir as the containment root, and reports whether
-// any was found.
-func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
-	files := r.readInstructionFiles(dir, "")
-	for _, res := range files {
-		appendResource(out, seenID, res)
-	}
-	return len(files) > 0
 }
 
 // readInstructionFiles reads the recognized instruction files that sit
