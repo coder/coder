@@ -521,18 +521,20 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
-	// the agent binding while preserving the pin, so a missing prior agent also
-	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The row is re-read after the re-pin so the
-	// turn sees the new pin state: the binding row still carries the previous
-	// agent's hash, which would read a cleared pin as a snapshot without files.
-	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
+	// the agent binding while preserving the pin, and discovery can pin rows
+	// before any snapshot, so binding a chat with no prior agent clears its
+	// context whatever its hash says; first-turn hydration then pins the new
+	// agent and notifies watchers. Best-effort: a context error must never
+	// fail the binding. The row is re-read after the re-pin so the turn sees
+	// the new pin state: the binding row still carries the previous agent's
+	// hash, which would read a cleared pin as a snapshot without files.
+	if !chatSnapshot.AgentID.Valid || chatSnapshot.AgentID.UUID != agentID {
+		repinTo := uuid.NullUUID{UUID: agentID, Valid: chatSnapshot.AgentID.Valid}
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
 		repinCtx := dbauthz.AsChatd(ctx)
 		var repinned database.Chat
 		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}, false); err != nil {
+			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, repinTo, false); err != nil {
 				return err
 			}
 			var err error

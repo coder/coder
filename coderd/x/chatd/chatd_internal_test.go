@@ -1299,6 +1299,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1324,6 +1325,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
 			ID:      chat.ID,
 		}).Return(updatedChat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil),
 	)
 
 	chatStateMu := &sync.Mutex{}
@@ -1349,7 +1351,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 
 // expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
 // context re-pin run against a mock store. The re-pin fires whenever a turn
-// rebinds a chat to a different agent; these agent-switch tests set up no
+// binds a chat to a new agent, its first included; these tests set up no
 // context snapshot, so it takes the no-snapshot clear path; each test
 // expects the GetChatByID that re-reads the row after the re-pin. The
 // re-pin behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
@@ -1637,6 +1639,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	deletedWorkspaceID := uuid.New()
 	replacementWorkspaceID := uuid.New()
@@ -1681,6 +1684,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
 			AgentID: uuid.NullUUID{UUID: replacementAgent.ID, Valid: true},
 		}).Return(updatedChat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil),
 	)
 
 	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
@@ -1742,6 +1746,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
@@ -1768,6 +1773,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
 			AgentID: uuid.NullUUID{UUID: resolvedAgent.ID, Valid: true},
 		}).Return(updatedChat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil),
 	)
 
 	chatStateMu := &sync.Mutex{}
