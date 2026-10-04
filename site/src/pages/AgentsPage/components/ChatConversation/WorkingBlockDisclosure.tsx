@@ -1,22 +1,9 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
 import { Component } from "react";
 import { useTime } from "#/hooks/useTime";
+import { humanDurationShort } from "#/utils/time";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import type { WorkingBlock } from "./workingBlockGrouping";
-
-export const formatWorkingDuration = (milliseconds: number): string => {
-	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-	const hours = Math.floor(totalSeconds / 3600);
-	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	const seconds = totalSeconds % 60;
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	if (minutes > 0) {
-		return `${minutes}m ${seconds}s`;
-	}
-	return `${seconds}s`;
-};
 
 /**
  * Whether older history joined the front of a block between two renders. A
@@ -53,7 +40,7 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 	if (block.startedAt === undefined) {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
-	const elapsed = formatWorkingDuration(now - block.startedAt);
+	const elapsed = humanDurationShort(Math.max(0, now - block.startedAt));
 	return (
 		<ToolCall.Label>{`Working for ${atLeast(block)}${elapsed}`}</ToolCall.Label>
 	);
@@ -64,7 +51,9 @@ const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 	if (block.startedAt === undefined || block.endedAt === undefined) {
 		return `Completed ${steps}`;
 	}
-	const duration = formatWorkingDuration(block.endedAt - block.startedAt);
+	const duration = humanDurationShort(
+		Math.max(0, block.endedAt - block.startedAt),
+	);
 	return `Worked for ${atLeast(block)}${duration} (${steps})`;
 };
 

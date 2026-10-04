@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
-	formatWorkingDuration,
 	WorkingBlockDisclosure,
 } from "./WorkingBlockDisclosure";
 
@@ -83,20 +82,5 @@ describe("didPrependIntoBlock", () => {
 		["the live row becoming its persisted step", [], [7], false],
 	])("%s", (_name, previous, next, expected) => {
 		expect(didPrependIntoBlock(previous, next)).toBe(expected);
-	});
-});
-
-describe("formatWorkingDuration", () => {
-	it.each([
-		[0, "0s"],
-		[999, "0s"],
-		[12_000, "12s"],
-		[60_000, "1m 0s"],
-		[134_000, "2m 14s"],
-		[3_600_000, "1h 0m"],
-		[3_780_000, "1h 3m"],
-		[-5000, "0s"],
-	])("formats %d ms as %s", (milliseconds, expected) => {
-		expect(formatWorkingDuration(milliseconds)).toBe(expected);
 	});
 });
