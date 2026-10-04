@@ -14,7 +14,10 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
-import type { OrganizationCompactionTrigger } from "../compactionTriggers";
+import {
+	modelCompactionTrigger,
+	type OrganizationCompactionTrigger,
+} from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -28,11 +31,14 @@ const organizationWithEmptyDisplayName = {
 	display_name: "",
 };
 
-const mockCompactionTrigger: OrganizationCompactionTrigger = {
-	model: MockCompactionChatModel,
-	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
-	pointTokens: 16_000,
-};
+const organizationTriggerFor = (
+	model: TypesGen.ChatModel,
+): OrganizationCompactionTrigger => ({
+	model,
+	trigger: modelCompactionTrigger(model),
+	pointTokens: (model.context_limit * model.compression_threshold) / 100,
+});
+const mockCompactionTrigger = organizationTriggerFor(MockCompactionChatModel);
 const mockCompactionTriggersByOrganizationID = new Map([
 	[MockChatModel.organization_id, mockCompactionTrigger],
 ]);
@@ -265,11 +271,10 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 		compactionTriggersByOrganizationID: new Map([
 			[
 				MockChatModel.organization_id,
-				{
-					model: { ...MockCompactionChatModel, context_limit: 256_000 },
-					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
-					pointTokens: 128_000,
-				},
+				organizationTriggerFor({
+					...MockCompactionChatModel,
+					context_limit: 256_000,
+				}),
 			],
 		]),
 	},

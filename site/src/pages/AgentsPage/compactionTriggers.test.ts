@@ -300,7 +300,7 @@ describe("compaction triggers", () => {
 				overrides,
 			);
 
-		it("returns the organization percent when its trigger binds", () => {
+		it("returns the organization point when its trigger binds", () => {
 			expect(resolve({ data: mockCompactionOverrides, error: null })).toEqual({
 				source: "organization",
 				pointTokens: 16_000,

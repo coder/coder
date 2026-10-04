@@ -47,6 +47,9 @@ const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
 
+// Mirrors chatd (keep in sync with TestBindingCompactionTriggerSource): a
+// disabled trigger never binds, the lower token point binds with ties to chat,
+// and the point is undefined when neither trigger is enabled.
 export const bindingCompactionTriggerSource = (
 	chat: CompactionTrigger,
 	organization: CompactionTrigger,
@@ -78,8 +81,8 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
-// "viewer" also drops an override whose provider the current user cannot use,
-// as chatd does per user.
+// "viewer" (the default) drops an override whose provider the current user
+// cannot use, as chatd does per user; "organization" keeps it.
 export const resolveOrganizationCompactionTrigger = (
 	modelConfigID: string | undefined,
 	models: readonly TypesGen.ChatModel[],
@@ -211,7 +214,6 @@ export const resolveChatCompactionThreshold = (
 	);
 	if (
 		organizationTrigger &&
-		config.context_limit > 0 &&
 		bindingCompactionTriggerSource(
 			{
 				thresholdPercent,
