@@ -158,14 +158,14 @@ type sqlcQuerier interface {
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error
-	// Drops a discovered row whose file a later probe of its directory no
-	// longer returned. A snapshot row under the same source is left to the
-	// agent push that owns it.
+	// Drops a discovered row a refresh re-reads. A snapshot row under the
+	// same source is left to the agent push that owns it.
 	DeleteChatContextDiscoveredResource(ctx context.Context, arg DeleteChatContextDiscoveredResourceParams) error
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
-	// has no snapshot.
-	DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error
+	// has no snapshot. A refresh keeps the rows chatd discovered, which it
+	// re-reads separately.
+	DeleteChatContextResourcesByChatID(ctx context.Context, arg DeleteChatContextResourcesByChatIDParams) error
 	// Deletes debug runs (and their cascaded steps) whose message IDs
 	// exceed the cutoff. The started_before bound prevents retried
 	// cleanup from deleting runs created by a replacement turn that
@@ -1191,11 +1191,10 @@ type sqlcQuerier interface {
 	// a chat's pinned hash and pinned bodies are always written together.
 	// Runs as a side effect of an agent push and of chat-create hydration,
 	// so chats created before the agent was ready pick up the snapshot
-	// without a dirty marker. The ON CONFLICT upsert covers rows chatd
-	// discovered from tool-touched directories before the agent's first push;
-	// the snapshot copy replaces them and clears the discovered flag.
-	// Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
-	// sets chat_context_resources.updated_at on the rows it rewrites.
+	// without a dirty marker. A row chatd discovered before the agent's first
+	// push is adopted as the model read it; SettleChatsContextDrift then marks
+	// the chat out of date if that body differs from the snapshot's.
+	// Does not bump chats.updated_at.
 	// Returns the hydrated chat IDs so callers can notify watchers of every
 	// chat the statement pinned.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error)
@@ -1231,6 +1230,10 @@ type sqlcQuerier interface {
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
+	// Pins an instruction file chatd resolved from a directory a tool touched
+	// during the chat. A row the chat already holds under the source is left
+	// as the model read it.
+	InsertChatContextDiscoveredResource(ctx context.Context, arg InsertChatContextDiscoveredResourceParams) error
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
@@ -1431,6 +1434,12 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks a chat before a read-modify-write of its context resources. The
+	// no-op write, unlike FOR UPDATE alone, makes every other repeatable-read
+	// writer whose snapshot predates this commit fail with a serialization
+	// error instead of acting on a stale inventory: resource writes do not
+	// touch the chat row. No trigger fires and no activity column changes.
+	LockChatContextForWrite(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
@@ -1503,6 +1512,14 @@ type sqlcQuerier interface {
 	// A wait longer than lock_timeout_ms fails with lock_not_available
 	// instead of blocking. The setting reverts when the transaction ends.
 	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
+	// Settles chats whose resources hydration or the additive sync just
+	// changed, under the locks those statements took: a chat whose pinned
+	// prompt rows match the agent's snapshot, each published prompt included,
+	// moves to its hash and is clean; any other is marked out of date. It is a
+	// separate statement so it sees the rows those statements wrote. Bodies are
+	// compared too, since an adopted row keeps the body the model read and the
+	// hash leaves out fields such as an instruction file's global flag.
+	SettleChatsContextDrift(ctx context.Context, arg SettleChatsContextDriftParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
@@ -1530,31 +1547,23 @@ type sqlcQuerier interface {
 	// source the chat has never pinned) to hydrated chats whose pinned hash
 	// drifted from the agent's latest snapshot, so an open chat sees a
 	// repository cloned during the conversation on its next step. Rows the chat
-	// already holds are never rewritten here, and a skill that replaces a
-	// pinned skill of the same name is not added. A chat whose pinned prompts
-	// equal the snapshot afterwards moves to the new hash and stays clean; a
-	// chat that also has changed or removed rows keeps its old hash so
-	// MarkChatsContextDirtyByAgent still flags it, which is why only the
-	// statuses that query marks dirty are eligible here; its row is written
-	// either way so a concurrent refresh cannot overwrite the additions. An
-	// out-of-date chat whose pinned prompts have come level with the snapshot
-	// again (a changed file changed back) settles the same way with nothing to
-	// add, since nothing else clears the marker. Rows chatd discovered from
-	// tool-touched directories are not part of the pinned snapshot: they do not
-	// count as already pinned or as divergent, and the snapshot copy replaces
-	// them once the agent publishes the same source. Changed chats are locked
-	// in ID order like the MCP sync.
-	// A divergent chat keeps its hash, but its row is still written: an
-	// already-dirty chat would otherwise gain rows with no chats version
-	// change, and a refresh that read the previous snapshot under repeatable
-	// read before waiting on the lock could then re-pin over the additions
-	// without a serialization failure and commit a hybrid set as clean.
-	// MarkChatsContextDirtyByAgent skips already-dirty chats, so the marker is
-	// set here for chats it would otherwise leave untouched.
+	// already holds are never rewritten: a row chatd discovered from a
+	// tool-touched directory is adopted as the model read it, and a skill that
+	// replaces a pinned skill of the same name is not added. New sources are
+	// admitted in source order while the chat stays within @max_resources rows
+	// of any kind and @max_content_bytes of readable prompt content, so
+	// successive snapshots cannot accumulate without bound; refresh reclaims
+	// the space. Out-of-date chats whose pinned prompts have come level with
+	// the snapshot again (a changed file changed back) are locked too, since
+	// nothing else clears their marker. Callers settle the returned chats with
+	// SettleChatsContextDrift. Changed chats are locked in ID order and written
+	// like the MCP sync.
 	SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error)
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
-	// cannot interleave with the replacement.
+	// cannot interleave with the replacement, and written like
+	// LockChatContextForWrite so writers that read their inventory earlier
+	// retry. A prompt row at a server's source is left as the model read it.
 	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
@@ -1837,11 +1846,6 @@ type sqlcQuerier interface {
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
-	// Pins an instruction file chatd resolved from a directory a tool touched
-	// during the chat. A row the snapshot already covers is left alone, so a
-	// discovered copy never shadows the watched one; a discovered row that
-	// exists is refreshed with the latest read.
-	UpsertChatContextDiscoveredResource(ctx context.Context, arg UpsertChatContextDiscoveredResourceParams) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error

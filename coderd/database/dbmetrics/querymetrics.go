@@ -560,7 +560,7 @@ func (m queryMetricsStore) DeleteChatContextDiscoveredResource(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
+func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID database.DeleteChatContextResourcesByChatIDParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatContextResourcesByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("DeleteChatContextResourcesByChatID").Observe(time.Since(start).Seconds())
@@ -4416,6 +4416,14 @@ func (m queryMetricsStore) InsertChatAutomation(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatContextDiscoveredResource(ctx context.Context, arg database.InsertChatContextDiscoveredResourceParams) error {
+	start := time.Now()
+	r0 := m.s.InsertChatContextDiscoveredResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatContextDiscoveredResource").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatDebugRun(ctx, arg)
@@ -5200,6 +5208,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatContextForWrite(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatContextForWrite(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatContextForWrite").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatContextForWrite").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockProvisionerKeyByIDForShare(ctx, id)
@@ -5373,6 +5389,14 @@ func (m queryMetricsStore) SetTransactionLockTimeout(ctx context.Context, lockTi
 	r0 := m.s.SetTransactionLockTimeout(ctx, lockTimeoutMspgCatalogint8)
 	m.queryLatencies.WithLabelValues("SetTransactionLockTimeout").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTransactionLockTimeout").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SettleChatsContextDrift(ctx context.Context, arg database.SettleChatsContextDriftParams) error {
+	start := time.Now()
+	r0 := m.s.SettleChatsContextDrift(ctx, arg)
+	m.queryLatencies.WithLabelValues("SettleChatsContextDrift").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SettleChatsContextDrift").Inc()
 	return r0
 }
 
@@ -6654,14 +6678,6 @@ func (m queryMetricsStore) UpsertChatComputerUseProvider(ctx context.Context, pr
 	r0 := m.s.UpsertChatComputerUseProvider(ctx, provider)
 	m.queryLatencies.WithLabelValues("UpsertChatComputerUseProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatComputerUseProvider").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatContextDiscoveredResource(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatContextDiscoveredResource").Inc()
 	return r0
 }
 

@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path"
+	"slices"
 	"testing"
 	"time"
 
@@ -159,6 +161,12 @@ func TestCandidateInstructionDirs(t *testing.T) {
 		require.Equal(t, workingDir+"/site", got[0], "the highest nested scope survives, and sorts first for the request cap")
 	})
 
+	t.Run("NoWorkingDirStopsBelowRoot", func(t *testing.T) {
+		t.Parallel()
+		got := candidateInstructionDirs([]string{"/home/coder/project/site/a.ts"}, nil, "")
+		require.Equal(t, []string{"/home", "/home/coder", "/home/coder/project", "/home/coder/project/site"}, got)
+	})
+
 	t.Run("NoRequestCap", func(t *testing.T) {
 		t.Parallel()
 		var dirs []string
@@ -174,165 +182,36 @@ func TestCandidateInstructionDirs(t *testing.T) {
 func TestSelectInstructionProbes(t *testing.T) {
 	t.Parallel()
 
-	// Writing a rule file or running a command in a directory makes it
-	// stale: it is probed again even when it already holds a pinned file
-	// or was recently found empty.
-	stale := staleInstructionDirs(
+	// Writing a rule file or running a command in a directory may create a
+	// file the agent last reported missing.
+	require.Equal(t, []string{"/repo/pkg", "/repo/site"}, rewrittenInstructionDirs(
 		[]string{"/repo/site/CLAUDE.md", "/repo/site/src/App.tsx"},
 		[]string{"/repo/pkg"},
-	)
-	require.Equal(t, map[string]struct{}{"/repo/site": {}, "/repo/pkg": {}}, stale)
+	))
 	// Windows spells the recognized names in any case; POSIX does not.
-	require.Equal(t, map[string]struct{}{"c:/repo/site": {}}, staleInstructionDirs([]string{"C:/repo/site/agents.md", "/repo/docs/agents.md"}, nil))
+	require.Equal(t, []string{"C:/repo/site"}, rewrittenInstructionDirs([]string{"C:/repo/site/agents.md", "/repo/docs/agents.md"}, nil))
 
 	pinned := map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}
-	negative := func(dir string) bool { return dir == "/repo/pkg" || dir == "/repo/cmd" }
-	got := selectInstructionProbes(
-		[]string{"/repo/site", "/repo/site/src", "/repo/docs", "/repo/pkg", "/repo/cmd", "/repo/lib"},
-		pinned, stale, negative,
-	)
-	require.Equal(t, []string{"/repo/site", "/repo/site/src", "/repo/pkg", "/repo/lib"}, got)
+	negative := func(dir string) bool { return dir == "/repo/pkg" }
+	got := selectInstructionProbes([]string{"/repo/site", "/repo/site/src", "/repo/docs", "/repo/pkg", "/repo/lib"}, pinned, negative)
+	require.Equal(t, []string{"/repo/site/src", "/repo/lib"}, got)
 
 	// A pinned Windows directory matches however the tool spelled it.
-	got = selectInstructionProbes([]string{"c:/Repo/site", "C:/repo/docs"}, map[string]struct{}{"c:/repo/site": {}}, nil, func(string) bool { return false })
+	got = selectInstructionProbes([]string{"c:/Repo/site", "C:/repo/docs"}, map[string]struct{}{"c:/repo/site": {}}, func(string) bool { return false })
 	require.Equal(t, []string{"C:/repo/docs"}, got)
 }
 
 func TestPinnedInstructionDirs(t *testing.T) {
 	t.Parallel()
 
-	instruction := func(source string, discovered bool, status database.WorkspaceAgentContextResourceStatus, size int64) database.ChatContextResource {
-		return database.ChatContextResource{Source: source, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: discovered, Status: status, SizeBytes: size}
-	}
-	const ok, excluded, oversize = database.WorkspaceAgentContextResourceStatusOk, database.WorkspaceAgentContextResourceStatusExcluded, database.WorkspaceAgentContextResourceStatusOversize
 	rows := []database.ChatContextResource{
-		instruction("/repo/AGENTS.md", false, ok, 10),
-		instruction("/repo/site/AGENTS.md", true, ok, maxDiscoveredInstructionBytes-100),
-		instruction("/repo/site/CLAUDE.md", true, excluded, 100),
-		instruction("/repo/docs/AGENTS.md", true, excluded, 101),
-		instruction("/repo/pkg/AGENTS.md", true, oversize, 5),
-		instruction("/repo/lib/AGENTS.md", false, excluded, 1),
-		{Source: "/repo/cmd/skill", BodyKind: database.WorkspaceAgentContextBodyKindSkill, Discovered: true, Status: ok},
+		{Source: "/repo/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile},
+		{Source: "/repo/site/CLAUDE.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true, Status: database.WorkspaceAgentContextResourceStatusExcluded},
+		{Source: "C:\\repo\\win\\AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
+		{Source: "/repo/cmd/skill/SKILL.md", BodyKind: database.WorkspaceAgentContextBodyKindSkill},
 	}
-
-	// site holds a file the cap kept out that fits the 100 free bytes, so
-	// it is probed again even though its other file is pinned. docs does
-	// not fit yet, pkg is too large for any budget, and lib's exclusion is
-	// the snapshot's, not this chat's.
-	pinned, freed := pinnedInstructionDirs(rows)
-	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/docs": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinned)
-	require.Equal(t, map[string]struct{}{"/repo/site": {}}, freed)
-
-	// Removing the large file frees the budget for docs as well.
-	pinned, freed = pinnedInstructionDirs(append(rows[:1:1], rows[2:]...))
-	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinned)
-	require.Equal(t, map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}, freed)
-}
-
-func TestRemovedDiscoveredSources(t *testing.T) {
-	t.Parallel()
-
-	rows := []database.ChatContextResource{
-		{Source: "/repo/site/AGENTS.md", Discovered: true},
-		{Source: "/repo/site/CLAUDE.md", Discovered: true},
-		{Source: "/repo/pkg/AGENTS.md", Discovered: true},
-		{Source: "/repo/lib/AGENTS.md", Discovered: true},
-		{Source: "/repo/docs/AGENTS.md", Discovered: true},
-		{Source: "/repo/AGENTS.md", Discovered: false},
-		{Source: "C:\\repo\\win\\AGENTS.md", Discovered: true},
-	}
-	stale := staleInstructionDirs([]string{"/repo/site/CLAUDE.md", "/repo/AGENTS.md"}, []string{"/repo/pkg", "/repo/lib", "c:/repo/win"})
-	probed := []string{"/repo/site", "/repo/pkg", "/repo/docs", "C:/repo/win"}
-	returned := map[string]struct{}{"/repo/site/CLAUDE.md": {}}
-
-	// site: AGENTS.md vanished, CLAUDE.md was returned. pkg: stale and probed,
-	// nothing returned. lib: stale but its batch failed, so it is kept. docs:
-	// probed but not stale, so a missing answer is not evidence. The root
-	// row is a snapshot copy, never touched. The Windows row matches its
-	// directory case-insensitively.
-	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/pkg/AGENTS.md", "C:\\repo\\win\\AGENTS.md"}, removedDiscoveredSources(rows, stale, probed, returned))
-}
-
-// The row key is case-sensitive while the agent echoes the request's casing.
-func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	rows := []database.ChatContextResource{
-		{Source: "C:\\repo\\site\\AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
-		{Source: "C:\\repo\\site\\CLAUDE.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
-	}
-	resolved := []workspacesdk.ContextInstructionFile{{
-		Directory: "c:/Repo/site", Source: "c:/Repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 5, Status: "ok",
-	}}
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
-		return arg.ChatID == chatID && arg.Source == "C:\\repo\\site\\AGENTS.md"
-	})).Return(nil)
-	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "C:\\repo\\site\\CLAUDE.md"}).Return(nil)
-
-	stale := map[string]struct{}{"c:/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, 1, result.pinned)
-	require.Equal(t, 1, result.removed)
-}
-
-func TestUnchangedDiscoveredRows(t *testing.T) {
-	t.Parallel()
-
-	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
-		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: int64(hash) * 10}
-	}
-	file := func(source string) workspacesdk.ContextInstructionFile {
-		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Status: "ok"}
-	}
-	// The excluded capture keeps the hash of the content it could not hold,
-	// so a step that later pins the content changes status and body only.
-	excluded := row("/repo/site/pkg/AGENTS.md", 4, true)
-	excluded.Status = database.WorkspaceAgentContextResourceStatusExcluded
-	captured := []database.ChatContextResource{
-		row("/repo/site/AGENTS.md", 1, true),
-		row("/repo/site/CLAUDE.md", 1, true),
-		row("/repo/docs/AGENTS.md", 1, true),
-		excluded,
-	}
-	current := []database.ChatContextResource{
-		row("/repo/AGENTS.md", 9, false),
-		row("/repo/site/AGENTS.md", 1, true),
-		row("/repo/site/CLAUDE.md", 2, true),
-		row("/repo/site/.cursorrules", 3, true),
-		row("/repo/site/pkg/AGENTS.md", 4, true),
-	}
-	resolved := []workspacesdk.ContextInstructionFile{
-		file("/repo/site/AGENTS.md"),
-		file("/repo/site/CLAUDE.md"),
-		file("/repo/site/.cursorrules"),
-		file("/repo/docs/AGENTS.md"),
-		file("/repo/lib/AGENTS.md"),
-		file("/repo/site/pkg/AGENTS.md"),
-	}
-
-	rows, files, reserved := unchangedDiscoveredRows(captured, current, resolved)
-	sources := func(rows []database.ChatContextResource) []string {
-		out := make([]string, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, r.Source)
-		}
-		return out
-	}
-	require.Equal(t, []string{"/repo/AGENTS.md", "/repo/site/AGENTS.md"}, sources(rows),
-		"snapshot rows and the unchanged discovered row stay; the rewritten, the step-discovered, and the excluded-then-pinned rows are off limits")
-	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/lib/AGENTS.md"}, func() []string {
-		out := make([]string, 0, len(files))
-		for _, f := range files {
-			out = append(out, f.Source)
-		}
-		return out
-	}(), "only an unchanged row or a source nobody holds may be written; a rewritten row, a step-discovered file, and a vanished capture are skipped")
-	require.Equal(t, discoveryBudget{bytes: 90, files: 3}, reserved,
-		"the rows a step owns still count toward the chat's caps, so the rediscovery cannot hand their share out again")
+	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/site": {}, "c:/repo/win": {}}, pinnedInstructionDirs(rows),
+		"an excluded file pins its directory like a readable one; a skill does not")
 }
 
 func TestResolveInstructionDirsBatches(t *testing.T) {
@@ -361,178 +240,142 @@ func TestInstructionProbeCache(t *testing.T) {
 
 	var cache instructionProbeCache
 	agentID := uuid.New()
-	chatA, chatB := uuid.New(), uuid.New()
 	now := time.Now()
 
-	require.False(t, cache.negative(now, agentID, chatA, "/tmp"))
-	cache.markNegative(now, agentID, uuid.Nil, []string{"/tmp", "/tmp/repo"})
-	require.True(t, cache.negative(now, agentID, chatA, "/tmp"))
-	require.True(t, cache.negative(now, agentID, chatB, "/tmp"), "an empty directory is empty for every chat on the agent")
-	require.False(t, cache.negative(now, uuid.New(), chatA, "/tmp"), "negatives are per agent")
-	require.False(t, cache.negative(now.Add(instructionProbeTTL), agentID, chatA, "/tmp"), "entries expire")
+	require.False(t, cache.negative(now, agentID, "/tmp"))
+	cache.markNegative(now, agentID, []string{"/tmp", "/tmp/repo"})
+	require.True(t, cache.negative(now, agentID, "/tmp"))
+	require.False(t, cache.negative(now, uuid.New(), "/tmp"), "negatives are per agent")
+	require.False(t, cache.negative(now.Add(instructionProbeTTL), agentID, "/tmp"), "entries expire")
 
-	cache.forget(agentID, chatA, []string{"/tmp/repo"})
-	require.False(t, cache.negative(now, agentID, chatA, "/tmp/repo"))
-	require.True(t, cache.negative(now, agentID, chatA, "/tmp"))
+	cache.forget(agentID, []string{"/tmp/repo"})
+	require.False(t, cache.negative(now, agentID, "/tmp/repo"))
+	require.True(t, cache.negative(now, agentID, "/tmp"))
 
-	// A directory one chat's row cap kept out is that chat's business only.
-	cache.markNegative(now, agentID, chatA, []string{"/tmp/capped"})
-	require.True(t, cache.negative(now, agentID, chatA, "/tmp/capped"))
-	require.False(t, cache.negative(now, agentID, chatB, "/tmp/capped"), "another chat on the agent still probes the directory")
-	cache.forget(agentID, chatA, []string{"/tmp/capped"})
-	require.False(t, cache.negative(now, agentID, chatA, "/tmp/capped"))
-
-	cache.markNegative(now, agentID, uuid.Nil, []string{"C:/Repo/site"})
-	require.True(t, cache.negative(now, agentID, chatA, "c:/repo/site"), "Windows directories match case-insensitively")
-	cache.forget(agentID, chatA, []string{"c:/REPO/site"})
-	require.False(t, cache.negative(now, agentID, chatA, "C:/Repo/site"))
+	cache.markNegative(now, agentID, []string{"C:/Repo/site"})
+	require.True(t, cache.negative(now, agentID, "c:/repo/site"), "Windows directories match case-insensitively")
+	cache.forget(agentID, []string{"c:/REPO/site"})
+	require.False(t, cache.negative(now, agentID, "C:/Repo/site"))
 
 	// Filling the cache past its bound resets it instead of growing.
 	many := make([]string, 0, maxInstructionProbeEntries)
 	for i := range maxInstructionProbeEntries {
 		many = append(many, "/bulk/"+uuid.NewString()+string(rune('a'+i%26)))
 	}
-	cache.markNegative(now, agentID, uuid.Nil, many)
+	cache.markNegative(now, agentID, many)
 	require.LessOrEqual(t, len(cache.entries), maxInstructionProbeEntries)
-	require.False(t, cache.negative(now, agentID, chatA, "/tmp"))
+	require.False(t, cache.negative(now, agentID, "/tmp"))
 }
 
-func TestReconcileDiscoveredInstructionFilesBudget(t *testing.T) {
+func TestPinInstructionFiles(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	const held = maxDiscoveredInstructionBytes - 16
-	rows := []database.ChatContextResource{{
-		Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
-		Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: held,
-	}}
+	const ok = database.WorkspaceAgentContextResourceStatusOk
+	instruction := func(source string, discovered bool, size int64) database.ChatContextResource {
+		return database.ChatContextResource{Source: source, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: discovered, Status: ok, SizeBytes: size}
+	}
 	file := func(source string, size uint64) workspacesdk.ContextInstructionFile {
 		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Content: "rules", ContentHash: "ab", SizeBytes: size, Status: "ok"}
 	}
-	resolved := []workspacesdk.ContextInstructionFile{
-		file("/repo/site/AGENTS.md", held),
-		file("/repo/site/CLAUDE.md", 16),
-		file("/repo/site/docs/AGENTS.md", 1),
+	pin := func(t *testing.T, rows []database.ChatContextResource, resolved ...workspacesdk.ContextInstructionFile) map[string]database.InsertChatContextDiscoveredResourceParams {
+		t.Helper()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		inserted := make(map[string]database.InsertChatContextDiscoveredResourceParams)
+		db.EXPECT().InsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).AnyTimes().
+			DoAndReturn(func(_ context.Context, arg database.InsertChatContextDiscoveredResourceParams) error {
+				inserted[arg.Source] = arg
+				return nil
+			})
+		pinned, err := pinInstructionFiles(context.Background(), db, uuid.New(), rows, resolved)
+		require.NoError(t, err)
+		require.Len(t, inserted, pinned)
+		return inserted
 	}
-	upserted := make(map[string]database.UpsertChatContextDiscoveredResourceParams)
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).Times(3).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-			upserted[arg.Source] = arg
-			return nil
-		})
 
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/site/docs"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, 3, result.pinned)
-	require.Zero(t, result.removed)
-	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, upserted["/repo/site/AGENTS.md"].Status, "a re-read replaces the held bytes")
-	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, upserted["/repo/site/CLAUDE.md"].Status, "the remaining budget holds the second file exactly")
-	over := upserted["/repo/site/docs/AGENTS.md"]
-	require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, over.Status)
-	require.Contains(t, over.Error, "cap")
-	var body agentproto.InstructionFileBody
-	require.NoError(t, protojson.Unmarshal(over.Body, &body))
-	require.Empty(t, body.Content, "an excluded file is pinned without its content")
-}
+	// The row key is case-sensitive while the agent echoes the request's casing.
+	t.Run("LeavesHeldSources", func(t *testing.T) {
+		t.Parallel()
+		inserted := pin(t, []database.ChatContextResource{
+			instruction("/repo/site/AGENTS.md", false, 5),
+			instruction("C:\\repo\\win\\AGENTS.md", true, 5),
+		}, file("/repo/site/AGENTS.md", 5), file("c:/Repo/win/AGENTS.md", 5), file("/repo/site/CLAUDE.md", 5))
+		require.Equal(t, []string{"/repo/site/CLAUDE.md"}, slices.Collect(maps.Keys(inserted)))
+	})
 
-func TestReconcileDiscoveredInstructionFilesReplacesUnreadable(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	rows := []database.ChatContextResource{
-		{Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: 5},
-		{Source: "/repo/site/CLAUDE.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: 5},
-	}
-	resolved := []workspacesdk.ContextInstructionFile{
-		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Status: "unreadable", Error: "permission denied"},
-		{Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Status: "from-a-newer-agent"},
-	}
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
+	t.Run("ExcludesContentPastAByteCap", func(t *testing.T) {
+		t.Parallel()
+		inserted := pin(t, []database.ChatContextResource{instruction("/repo/site/AGENTS.md", true, maxDiscoveredInstructionBytes-16)},
+			file("/repo/site/CLAUDE.md", 16), file("/repo/site/docs/AGENTS.md", 1))
+		require.Equal(t, ok, inserted["/repo/site/CLAUDE.md"].Status, "the remaining budget holds the file exactly")
+		over := inserted["/repo/site/docs/AGENTS.md"]
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, over.Status)
+		require.Contains(t, over.Error, "cap")
 		var body agentproto.InstructionFileBody
-		return arg.Source == "/repo/site/AGENTS.md" && arg.Status == database.WorkspaceAgentContextResourceStatusUnreadable &&
-			arg.Error == "permission denied" && protojson.Unmarshal(arg.Body, &body) == nil && len(body.Content) == 0
-	})).Return(nil)
+		require.NoError(t, protojson.Unmarshal(over.Body, &body))
+		require.Empty(t, body.Content, "an excluded file is pinned without its content")
 
-	stale := map[string]struct{}{"/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, 1, result.pinned)
-	require.Zero(t, result.removed, "a file the probe returned is not treated as vanished, whatever its status")
+		// Snapshot prompts count against the chat's content cap; MCP tool
+		// inventory does not.
+		inserted = pin(t, []database.ChatContextResource{
+			instruction("/repo/AGENTS.md", false, maxChatContextContentBytes-16),
+			{Source: "/repo/.mcp.json", BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig, Status: ok, SizeBytes: 1 << 20},
+		}, file("/repo/site/AGENTS.md", 16), file("/repo/site/CLAUDE.md", 1))
+		require.Equal(t, ok, inserted["/repo/site/AGENTS.md"].Status)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, inserted["/repo/site/CLAUDE.md"].Status)
+	})
+
+	t.Run("StopsAtARowCap", func(t *testing.T) {
+		t.Parallel()
+		discovered := make([]database.ChatContextResource, 0, maxDiscoveredInstructionFiles)
+		for i := range maxDiscoveredInstructionFiles - 1 {
+			discovered = append(discovered, instruction(fmt.Sprintf("/repo/d%d/AGENTS.md", i), true, 1))
+		}
+		inserted := pin(t, discovered, file("/repo/a/AGENTS.md", 1), file("/repo/b/AGENTS.md", 1))
+		require.Equal(t, []string{"/repo/a/AGENTS.md"}, slices.Collect(maps.Keys(inserted)), "the discovered row cap keeps the first in resolved order")
+
+		snapshot := make([]database.ChatContextResource, 0, maxChatContextResources)
+		for i := range maxChatContextResources - 1 {
+			snapshot = append(snapshot, instruction(fmt.Sprintf("/repo/s%d/AGENTS.md", i), false, 0))
+		}
+		inserted = pin(t, snapshot, file("/repo/a/AGENTS.md", 1), file("/repo/b/AGENTS.md", 1))
+		require.Equal(t, []string{"/repo/a/AGENTS.md"}, slices.Collect(maps.Keys(inserted)), "so does the chat's row cap")
+	})
 }
 
-// A vanished row is removed before the replacement is classified.
-func TestReconcileDiscoveredInstructionFilesReleasesVanishedBudget(t *testing.T) {
+func TestReleaseCapturedRows(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
+	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
+		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk}
+	}
+	captured := []database.ChatContextResource{
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 1, true),
+		row("/repo/site/.cursorrules", 1, true),
+		row("/repo/lib/AGENTS.md", 1, true),
+		row("/repo/docs/AGENTS.md", 1, true),
+	}
+	current := []database.ChatContextResource{
+		row("/repo/AGENTS.md", 9, false),
+		row("/repo/docs/AGENTS.md", 1, true),
+		row("/repo/lib/AGENTS.md", 1, false),
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 2, true),
+	}
 	chatID := uuid.New()
-	const held = maxDiscoveredInstructionBytes - 1
-	rows := []database.ChatContextResource{{
-		Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
-		Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: held,
-	}}
-	resolved := []workspacesdk.ContextInstructionFile{{
-		Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: held, Status: "ok",
-	}}
-	gomock.InOrder(
-		db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "/repo/site/AGENTS.md"}).Return(nil),
-		db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
-			return arg.Source == "/repo/site/CLAUDE.md" && arg.Status == database.WorkspaceAgentContextResourceStatusOk
-		})).Return(nil),
-	)
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "/repo/site/AGENTS.md"}).Return(nil)
 
-	stale := map[string]struct{}{"/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
+	rows, kept, err := releaseCapturedRows(context.Background(), db, chatID, current, captured, []string{"/repo/site", "/repo/lib"})
 	require.NoError(t, err)
-	require.Equal(t, 1, result.pinned)
-	require.Equal(t, 1, result.removed)
-}
-
-func TestReconcileDiscoveredInstructionFilesRowCap(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	rows := make([]database.ChatContextResource, 0, maxDiscoveredInstructionFiles+1)
-	for i := range maxDiscoveredInstructionFiles {
-		rows = append(rows, database.ChatContextResource{
-			Source: fmt.Sprintf("/repo/pkg%03d/AGENTS.md", i), BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
-			Discovered: true, Status: database.WorkspaceAgentContextResourceStatusExcluded,
-		})
+	sources := make([]string, 0, len(rows))
+	for _, r := range rows {
+		sources = append(sources, r.Source)
 	}
-	rows = append(rows, database.ChatContextResource{Source: "/repo/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile})
-	file := func(source string) workspacesdk.ContextInstructionFile {
-		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Content: "rules", ContentHash: "ab", SizeBytes: 5, Status: "ok"}
-	}
-	resolved := []workspacesdk.ContextInstructionFile{
-		file("/repo/pkg000/AGENTS.md"),
-		file("/repo/pkg000/CLAUDE.md"),
-		file("/repo/new/AGENTS.md"),
-		file("/repo/new/CLAUDE.md"),
-		file("/repo/other/AGENTS.md"),
-	}
-	upserted := make([]string, 0, 2)
-	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "/repo/pkg001/AGENTS.md"}).Return(nil)
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).Times(2).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-			upserted = append(upserted, arg.Source)
-			return nil
-		})
-
-	stale := map[string]struct{}{"/repo/pkg001": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/pkg000", "/repo/pkg001", "/repo/new", "/repo/other"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, 1, result.removed)
-	require.Equal(t, 2, result.pinned)
-	require.Equal(t, []string{"/repo/pkg000/AGENTS.md", "/repo/pkg000/CLAUDE.md"}, upserted,
-		"a held source is re-pinned and the freed slot goes to the first new file; the rest stay out")
-	require.Equal(t, []string{"/repo/new", "/repo/other"}, result.capped)
+	require.Equal(t, []string{"/repo/AGENTS.md", "/repo/docs/AGENTS.md", "/repo/lib/AGENTS.md", "/repo/site/CLAUDE.md"}, sources,
+		"only the unchanged row in a probed directory is released")
+	require.Equal(t, map[string]struct{}{"/repo/site/CLAUDE.md": {}, "/repo/site/.cursorrules": {}, "/repo/lib/AGENTS.md": {}}, kept,
+		"a rewritten, removed, or snapshot-owned row belongs to the newer writer")
 }
 
 func TestDiscoveredInstructionDirsShallowestFirst(t *testing.T) {
@@ -545,96 +388,6 @@ func TestDiscoveredInstructionDirsShallowestFirst(t *testing.T) {
 	}
 	require.Equal(t, []string{"/repo/z", "/repo/a/deep"}, discoveredInstructionDirs(rows),
 		"a refresh probes the directories that govern the most first, whatever the inventory order")
-}
-
-func TestReconcileDiscoveredInstructionFilesReleasesBytesOfNonOKReRead(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	const held = maxDiscoveredInstructionBytes - 16
-	rows := []database.ChatContextResource{{
-		Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
-		Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: held,
-	}}
-	resolved := []workspacesdk.ContextInstructionFile{
-		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Status: "unreadable", Error: "permission denied"},
-		{Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: 32, Status: "ok"},
-	}
-	statuses := make(map[string]database.WorkspaceAgentContextResourceStatus)
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).Times(2).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-			statuses[arg.Source] = arg.Status
-			return nil
-		})
-
-	stale := map[string]struct{}{"/repo/site": {}}
-	_, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, database.WorkspaceAgentContextResourceStatusUnreadable, statuses["/repo/site/AGENTS.md"])
-	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, statuses["/repo/site/CLAUDE.md"], "the bytes the unreadable file held are free again")
-}
-
-func TestReconcileDiscoveredInstructionFilesLeavesSnapshotRows(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	rows := []database.ChatContextResource{
-		{Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: 1 << 16},
-		{Source: "/repo/site/docs/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: maxDiscoveredInstructionBytes - 16},
-	}
-	resolved := []workspacesdk.ContextInstructionFile{
-		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 1 << 16, Status: "ok"},
-		{Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: 16, Status: "ok"},
-	}
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
-		return arg.Source == "/repo/site/CLAUDE.md" && arg.Status == database.WorkspaceAgentContextResourceStatusOk
-	})).Return(nil)
-
-	stale := map[string]struct{}{"/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
-	require.NoError(t, err)
-	require.Equal(t, 1, result.pinned, "the snapshot's file is not counted as pinned")
-}
-
-func TestReconcileDiscoveredInstructionFilesHonorsReservedBudget(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	resolved := []workspacesdk.ContextInstructionFile{
-		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 32, Status: "ok"},
-		{Directory: "/repo/docs", Source: "/repo/docs/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 1, Status: "ok"},
-	}
-	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
-		return arg.Source == "/repo/site/AGENTS.md" && arg.Status == database.WorkspaceAgentContextResourceStatusExcluded
-	})).Return(nil)
-
-	reserved := discoveryBudget{bytes: maxDiscoveredInstructionBytes - 16, files: maxDiscoveredInstructionFiles - 1}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, nil, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/docs"}, reserved)
-	require.NoError(t, err)
-	require.Equal(t, 1, result.pinned, "the reserved bytes leave no room for the first file's content and the reserved rows leave one slot")
-	require.Equal(t, []string{"/repo/docs"}, result.capped)
-}
-
-func TestInstructionProbeCachePendingCoversTree(t *testing.T) {
-	t.Parallel()
-
-	var cache instructionProbeCache
-	agentID := uuid.New()
-	now := time.Now()
-
-	cache.markPending(now, agentID, []string{"/repo/site", "C:/Repo/win"})
-	require.True(t, cache.isPending(now, agentID, "/repo/site"))
-	require.True(t, cache.isPending(now, agentID, "/repo/site/src/components"), "a descendant of the command's directory is pending")
-	require.False(t, cache.isPending(now, agentID, "/repo/docs"), "a sibling tree is not")
-	require.False(t, cache.isPending(now, agentID, "/repo"), "nor is a parent")
-	require.True(t, cache.isPending(now, agentID, "c:/repo/WIN/src"), "Windows trees match case-insensitively")
-	require.False(t, cache.isPending(now.Add(pendingProbeTTL), agentID, "/repo/site/src"), "pending entries expire")
 }
 
 // discoveryOp is a chat bound to the fixture's agent A, with A's snapshot
@@ -707,7 +460,7 @@ func (op discoveryOp) expectProbe(dirs []string, files ...workspacesdk.ContextIn
 		Return(workspacesdk.ResolveContextInstructionsResponse{Files: files}, nil)
 }
 
-// discoveryWriteFailStore fails the discovered-row upsert for one source,
+// discoveryWriteFailStore fails the discovered-row insert for one source,
 // in and out of transactions.
 type discoveryWriteFailStore struct {
 	database.Store
@@ -720,11 +473,28 @@ func (s *discoveryWriteFailStore) InTx(fn func(database.Store) error, opts *data
 	}, opts)
 }
 
-func (s *discoveryWriteFailStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+func (s *discoveryWriteFailStore) InsertChatContextDiscoveredResource(ctx context.Context, arg database.InsertChatContextDiscoveredResourceParams) error {
 	if arg.Source == s.failSource {
 		return xerrors.New("injected discovered row write failure")
 	}
-	return s.Store.UpsertChatContextDiscoveredResource(ctx, arg)
+	return s.Store.InsertChatContextDiscoveredResource(ctx, arg)
+}
+
+// txStartStore runs onStart once, inside the first transaction and before
+// its body.
+type txStartStore struct {
+	database.Store
+	onStart func(tx database.Store)
+}
+
+func (s *txStartStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		if onStart := s.onStart; onStart != nil {
+			s.onStart = nil
+			onStart(tx)
+		}
+		return fn(tx)
+	}, opts)
 }
 
 func resolvedInstructionFile(source, content string) workspacesdk.ContextInstructionFile {
@@ -748,21 +518,19 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 		secondSource = nestedDir + "/CLAUDE.md"
 	)
 	probed := []string{nestedDir}
-	noStale := map[string]struct{}{}
 
 	// A half-pinned directory would be skipped by later touches.
 	t.Run("PinsNothingWhenAWriteFails", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		captured := op.captured(t)
 		op.server.db = &discoveryWriteFailStore{Store: op.fix.db, failSource: secondSource}
 
-		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
-			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules"), resolvedInstructionFile(secondSource, "claude rules")}, noStale, probed)
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules"), resolvedInstructionFile(secondSource, "claude rules")}, probed, nil)
 		require.ErrorContains(t, err, "injected")
 
 		rows := op.rows(t)
-		require.Len(t, rows, 1, "the failed reconciliation pinned nothing")
+		require.Len(t, rows, 1, "the failed apply pinned nothing")
 		require.False(t, rows[op.fix.srcA].Discovered)
 	})
 
@@ -770,19 +538,18 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 	t.Run("DropsTheAnswerAfterARebind", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		captured := op.captured(t)
 		_, err := op.fix.db.UpdateChatBuildAgentBinding(op.fix.ctx, database.UpdateChatBuildAgentBindingParams{
 			ID:      op.chat.ID,
 			BuildID: op.chat.BuildID,
 			AgentID: uuid.NullUUID{UUID: op.fix.agentB, Valid: true},
 		})
 		require.NoError(t, err)
-		require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, op.chat.ID))
+		require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, database.DeleteChatContextResourcesByChatIDParams{ChatID: op.chat.ID}))
 
-		result, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
-			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules")}, noStale, probed)
+		pinned, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules")}, probed, nil)
 		require.NoError(t, err)
-		require.Zero(t, result.pinned)
+		require.Zero(t, pinned)
 		require.Empty(t, op.rows(t), "the previous agent's file is not pinned onto the rebound chat")
 	})
 
@@ -790,7 +557,6 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 	t.Run("LeavesSnapshotRowsToTheAgent", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		captured := op.captured(t)
 		seedAgentContext(op.fix.ctx, t, op.fix.db, op.fix.agentA, nestedSource, []byte{0x5e},
 			database.WorkspaceAgentContextBodyKindInstructionFile, json.RawMessage(`{"instruction_file":{"content":"site rules"}}`))
 		require.NoError(t, op.fix.db.InsertAgentContextResourcesIntoChat(op.fix.ctx, database.InsertAgentContextResourcesIntoChatParams{
@@ -800,10 +566,10 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 		nested := resolvedInstructionFile(nestedSource, "site rules")
 		nested.SizeBytes = maxDiscoveredInstructionBytes
 
-		result, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
-			[]workspacesdk.ContextInstructionFile{nested, resolvedInstructionFile(secondSource, "claude rules")}, noStale, probed)
+		pinned, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{nested, resolvedInstructionFile(secondSource, "claude rules")}, probed, nil)
 		require.NoError(t, err)
-		require.Equal(t, 1, result.pinned)
+		require.Equal(t, 1, pinned)
 
 		rows := op.rows(t)
 		require.False(t, rows[nestedSource].Discovered, "the snapshot's row is left to the agent")
@@ -811,28 +577,57 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 		require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, rows[secondSource].Status, "the snapshot-owned file's bytes are not charged to the discovered budget")
 	})
 
-	// The other writer read the file after the probe did.
-	t.Run("KeepsANewerPin", func(t *testing.T) {
+	// Two pins that each fit the budget alone must not both land.
+	t.Run("AdmitsAgainstAConcurrentPin", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		captured := op.captured(t)
-		newer := resolvedInstructionFile(nestedSource, "site rules v3")
-		newerHash, err := hex.DecodeString(newer.ContentHash)
-		require.NoError(t, err)
-		require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
+		const content = "site rules"
+		require.NoError(t, op.fix.db.InsertChatContextDiscoveredResource(op.fix.ctx, database.InsertChatContextDiscoveredResourceParams{
 			ChatID:      op.chat.ID,
-			Source:      nestedSource,
+			Source:      "/home/coder/workspace/big/AGENTS.md",
 			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
-			Body:        []byte("{}"),
-			ContentHash: newerHash,
-			SizeBytes:   int64(len("site rules v3")),
+			Body:        json.RawMessage(`{}`),
+			ContentHash: []byte{0x01},
+			SizeBytes:   maxDiscoveredInstructionBytes - int64(len(content)),
 			Status:      database.WorkspaceAgentContextResourceStatusOk,
 		}))
+		concurrent := &Server{db: op.fix.db, logger: op.server.logger}
+		op.server.db = &txStartStore{Store: op.fix.db, onStart: func(tx database.Store) {
+			// The first statement fixes this transaction's snapshot before
+			// the concurrent pin commits.
+			_, err := tx.GetChatByID(op.fix.ctx, op.chat.ID)
+			require.NoError(t, err)
+			pinned, err := concurrent.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+				[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, content)}, probed, nil)
+			require.NoError(t, err)
+			require.Equal(t, 1, pinned)
+		}}
 
-		_, err = op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
-			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2")}, noStale, probed)
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(secondSource, "more rules")}, probed, nil)
 		require.NoError(t, err)
-		require.Equal(t, newerHash, op.rows(t)[nestedSource].ContentHash, "the newer read stays")
+
+		rows := op.rows(t)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, rows[nestedSource].Status)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, rows[secondSource].Status, "the later pin is charged for the earlier one's bytes")
+	})
+
+	// Only Refresh rewrites what the model has read.
+	t.Run("NeverRewritesAPinnedRow", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v1")}, probed, nil)
+		require.NoError(t, err)
+		first := op.rows(t)[nestedSource]
+
+		pinned, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2"), resolvedInstructionFile(secondSource, "claude rules")}, probed, nil)
+		require.NoError(t, err)
+		require.Equal(t, 1, pinned)
+		rows := op.rows(t)
+		require.Equal(t, first, rows[nestedSource], "the pinned row keeps the content the model read")
+		require.True(t, rows[secondSource].Discovered)
 	})
 }
 
@@ -847,8 +642,7 @@ func TestDiscoverInstructionContext(t *testing.T) {
 	)
 	chain := []string{nestedDir, nestedDir + "/src"}
 
-	// The excluded file is larger than the chat's budget, so no later probe
-	// could fit it and the second read asks nothing.
+	// Pinned and empty directories are not asked again.
 	t.Run("PinsFoundFilesOnce", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
@@ -876,78 +670,46 @@ func TestDiscoverInstructionContext(t *testing.T) {
 		testutil.RequireReceive(op.fix.ctx, t, events)
 	})
 
-	t.Run("SwallowsAFailedProbe", func(t *testing.T) {
-		t.Parallel()
-		op := newDiscoveryOp(t)
-		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
-			Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("404 not found"))
-
-		op.discover([]string{touchedFile}, nil)
-
-		require.Len(t, op.rows(t), 1, "a failed probe pins nothing")
-	})
-
-	t.Run("ReconcilesRemovedFiles", func(t *testing.T) {
+	// The strict connection fails the test on any probe after the first.
+	t.Run("LeavesPinnedDirectoriesToRefresh", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
 		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"))
-		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(secondSource, "new rules"))
 
 		op.discover([]string{touchedFile}, nil)
+		pinned := op.rows(t)[nestedSource]
 		op.discover([]string{secondSource}, nil)
+		op.discover(nil, []string{nestedDir})
 
 		rows := op.rows(t)
-		require.NotContains(t, rows, nestedSource, "the removed file is gone")
-		require.True(t, rows[secondSource].Discovered)
+		require.Equal(t, pinned, rows[nestedSource])
+		require.NotContains(t, rows, secondSource)
 	})
 
-	// The write may not have landed when the first probe ran.
-	t.Run("ReprobesAStaleDirectory", func(t *testing.T) {
+	t.Run("ReprobesWhereAToolMayHaveWritten", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		op.expectProbe([]string{nestedDir})
-		op.expectProbe(chain, resolvedInstructionFile(secondSource, "final rules"))
+		op.expectProbe(chain)
+		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(secondSource, "final rules"))
+		op.expectProbe([]string{nestedDir + "/src"})
 
-		op.discover([]string{secondSource}, nil)
 		op.discover([]string{touchedFile}, nil)
+		op.discover([]string{touchedFile}, nil)
+		op.discover([]string{secondSource}, nil)
+		op.discover(nil, []string{nestedDir + "/src"})
 
 		require.True(t, op.rows(t)[secondSource].Discovered)
 	})
 
-	// The command may still be writing when its result returns.
-	t.Run("ReprobesAfterACommand", func(t *testing.T) {
+	t.Run("WalksToTheRootWithoutAWorkingDirectory", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
-		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(nestedSource, "site rules"))
-		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"), resolvedInstructionFile(secondSource, "generated rules"))
-
-		op.discover(nil, []string{nestedDir})
-		op.discover([]string{touchedFile}, nil)
-
-		rows := op.rows(t)
-		require.True(t, rows[nestedSource].Discovered)
-		require.True(t, rows[secondSource].Discovered, "the file the command created after its result is pinned by the next read")
-	})
-
-	// The excluded row would otherwise keep the directory probed forever.
-	t.Run("DropsAVanishedExcludedFile", func(t *testing.T) {
-		t.Parallel()
-		op := newDiscoveryOp(t)
-		require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
-			ChatID:      op.chat.ID,
-			Source:      nestedSource,
-			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
-			Body:        []byte("{}"),
-			ContentHash: []byte("gone"),
-			SizeBytes:   12,
-			Status:      database.WorkspaceAgentContextResourceStatusExcluded,
-			Error:       "discovered instruction content cap reached",
-		}))
-		op.expectProbe(chain)
+		op.agent.Directory, op.agent.ExpandedDirectory = "", ""
+		op.expectProbe([]string{"/home", "/home/coder", nestedDir, nestedDir + "/src"}, resolvedInstructionFile(nestedSource, "site rules"))
 
 		op.discover([]string{touchedFile}, nil)
 
-		require.NotContains(t, op.rows(t), nestedSource, "the vanished file's row is dropped")
+		require.True(t, op.rows(t)[nestedSource].Discovered)
 	})
 }
 
@@ -962,7 +724,7 @@ func TestRefreshChatContextRediscoversInstructionFiles(t *testing.T) {
 	newRefreshOp := func(t *testing.T, discovered ...workspacesdk.ContextInstructionFile) discoveryOp {
 		t.Helper()
 		op := newDiscoveryOp(t)
-		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, nil, discovered, map[string]struct{}{}, []string{nestedDir})
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, discovered, []string{nestedDir}, nil)
 		require.NoError(t, err)
 		op.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return op.conn, func() {}, nil
@@ -1011,29 +773,26 @@ func TestRefreshChatContextRediscoversInstructionFiles(t *testing.T) {
 		require.Equal(t, hashOf("site rules v1"), rows[nestedSource].ContentHash)
 	})
 
-	// A step pins newer bytes while the refresh probe is in flight.
-	t.Run("KeepsANewerStepPin", func(t *testing.T) {
+	// An overlapping refresh found the file gone and a step pinned a new
+	// one while this refresh's probe was in flight.
+	t.Run("KeepsNewerStateOverAnOlderAnswer", func(t *testing.T) {
 		t.Parallel()
+		const addedSource = "/home/coder/workspace/docs/AGENTS.md"
 		op := newRefreshOp(t, resolvedInstructionFile(nestedSource, "site rules v1"))
 		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
-				require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
-					ChatID:      op.chat.ID,
-					Source:      nestedSource,
-					BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
-					Body:        op.rows(t)[nestedSource].Body,
-					ContentHash: hashOf("site rules v3"),
-					SizeBytes:   int64(len("site rules v3")),
-					Status:      database.WorkspaceAgentContextResourceStatusOk,
-				}))
+				require.NoError(t, op.fix.db.DeleteChatContextDiscoveredResource(op.fix.ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: op.chat.ID, Source: nestedSource}))
+				_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA,
+					[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(addedSource, "docs rules")}, []string{path.Dir(addedSource)}, nil)
+				require.NoError(t, err)
 				return workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2")}}, nil
 			})
 
 		refresh(t, op)
 
 		rows := op.rows(t)
-		require.Equal(t, hashOf("site rules v3"), rows[nestedSource].ContentHash, "the step's newer read survives the refresh")
-		require.True(t, rows[nestedSource].Discovered)
+		require.NotContains(t, rows, nestedSource, "the older answer does not bring back a removed row")
+		require.True(t, rows[addedSource].Discovered, "the concurrent addition survives")
 	})
 
 	// The chat is rebound and its rows cleared while the refresh probe is in flight.
@@ -1048,7 +807,7 @@ func TestRefreshChatContextRediscoversInstructionFiles(t *testing.T) {
 					AgentID: uuid.NullUUID{UUID: op.fix.agentB, Valid: true},
 				})
 				require.NoError(t, err)
-				require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, op.chat.ID))
+				require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, database.DeleteChatContextResourcesByChatIDParams{ChatID: op.chat.ID}))
 				return workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{
 					resolvedInstructionFile(nestedSource, "site rules v2"),
 					resolvedInstructionFile(secondSource, "claude rules"),

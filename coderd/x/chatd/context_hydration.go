@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,17 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+const (
+	// maxChatContextResources caps the rows of any kind a chat holds once
+	// additions land between refreshes: a full agent snapshot plus the
+	// discovered rows.
+	maxChatContextResources = 1000 + maxDiscoveredInstructionFiles
+	// maxChatContextContentBytes caps the readable prompt content a chat
+	// holds the same way: the agent's default snapshot content plus the
+	// discovered content.
+	maxChatContextContentBytes = 2<<20 + maxDiscoveredInstructionBytes
 )
 
 // latestAgentSnapshot looks up an agent's pinned context snapshot; ok is false
@@ -60,17 +72,19 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	// Sources the chat has never pinned (a repository cloned mid-chat, a new
 	// skill) are safe to add without rewriting anything the model already
 	// saw, so they land on the next step instead of waiting for a refresh.
-	// Chats whose pinned prompts are level with the snapshot afterwards, or
-	// have come level again, move to its hash here, so the dirty marking
-	// below skips them.
 	added, err := tx.SyncAgentChatsContextAddedResources(ctx, database.SyncAgentChatsContextAddedResourcesParams{
-		AgentID:       agentID,
-		AggregateHash: aggregateHash,
-		ContextError:  snapshotError,
-		DirtySince:    now,
+		AgentID:         agentID,
+		AggregateHash:   aggregateHash,
+		MaxResources:    maxChatContextResources,
+		MaxContentBytes: maxChatContextContentBytes,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("sync agent chats added context resources: %w", err)
+	}
+	// Hydrated and grown chats whose pinned prompts are level with the
+	// snapshot move to its hash, so the dirty marking below skips them.
+	if err := settleChatsContextDrift(ctx, tx, slices.Concat(hydrated, added), agentID, aggregateHash, snapshotError, now); err != nil {
+		return nil, err
 	}
 
 	dirtied, err := tx.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
@@ -155,12 +169,38 @@ func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid
 			AggregateHash: aggregateHash,
 			ContextError:  snapshotError,
 		})
-		return err
+		if err != nil {
+			return xerrors.Errorf("hydrate agent chats context: %w", err)
+		}
+		if len(hydrated) == 0 {
+			return nil
+		}
+		return settleChatsContextDrift(ctx, tx, hydrated, agentID, aggregateHash, snapshotError, p.clock.Now())
 	})
 	if err != nil {
 		return nil, false, err
 	}
 	return hydrated, published, nil
+}
+
+// settleChatsContextDrift settles chats whose rows hydration or the additive
+// sync just wrote: hydration adopts a discovered row as the model read it,
+// and the additive sync can leave out sources, so either can leave a chat
+// out of date.
+func settleChatsContextDrift(ctx context.Context, tx database.Store, chatIDs []uuid.UUID, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) error {
+	if len(chatIDs) == 0 {
+		return nil
+	}
+	if err := tx.SettleChatsContextDrift(ctx, database.SettleChatsContextDriftParams{
+		ChatIds:       chatIDs,
+		AgentID:       agentID,
+		AggregateHash: aggregateHash,
+		ContextError:  snapshotError,
+		DirtySince:    now,
+	}); err != nil {
+		return xerrors.Errorf("settle chats context drift: %w", err)
+	}
+	return nil
 }
 
 // hydrateChatContextOnCreate pins a newly created chat to its agent's latest
@@ -251,8 +291,10 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 // snapshot: it sets the pinned hash and error and rewrites the chat's pinned
 // resources (clear-then-copy) so the two always agree. A chat with no bound
 // agent, or whose agent has no snapshot, has its pinned hash, dirty marker,
-// and resources cleared. Callers run this inside a transaction.
-func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, agentID uuid.NullUUID) error {
+// and resources cleared. keepDiscovered keeps the rows chatd discovered,
+// unless the snapshot now publishes their source. Callers run this inside a
+// transaction.
+func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, agentID uuid.NullUUID, keepDiscovered bool) error {
 	var (
 		aggregateHash []byte
 		snapshotError string
@@ -281,7 +323,10 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	// Clear-then-copy so the pinned resources always match the pinned hash.
 	// A single delete+insert statement cannot see its own delete under
 	// snapshot isolation, so overlapping sources would collide.
-	if err := db.DeleteChatContextResourcesByChatID(ctx, chatID); err != nil {
+	if err := db.DeleteChatContextResourcesByChatID(ctx, database.DeleteChatContextResourcesByChatIDParams{
+		ChatID:         chatID,
+		KeepDiscovered: keepDiscovered,
+	}); err != nil {
 		return xerrors.Errorf("clear chat context resources: %w", err)
 	}
 	if hasSnapshot {
@@ -322,35 +367,18 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 		if err != nil {
 			return xerrors.Errorf("get chat for refresh: %w", err)
 		}
-		// Capture the discovered rows on the snapshot the clear-then-copy
-		// deletes from, so a row a step discovers meanwhile is either listed
-		// here or survives the delete.
+		// Discovered rows survive the re-pin, so a failed re-read below
+		// leaves the last known nested files rather than none.
 		rows, err := tx.ListChatContextResourcesByChatID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources for refresh: %w", err)
 		}
-		discovered = discoveredInstructionRows(rows)
-		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
-			return err
-		}
-		// Put the discovered rows back as they were, so a failed re-read
-		// leaves the last known nested files rather than none. A snapshot row
-		// now covering the same source wins.
+		discovered = nil
 		if current.AgentID.Valid {
-			for _, row := range discovered {
-				if err := tx.UpsertChatContextDiscoveredResource(ctx, database.UpsertChatContextDiscoveredResourceParams{
-					ChatID:      current.ID,
-					Source:      row.Source,
-					BodyKind:    row.BodyKind,
-					Body:        row.Body,
-					ContentHash: row.ContentHash,
-					SizeBytes:   row.SizeBytes,
-					Status:      row.Status,
-					Error:       row.Error,
-				}); err != nil {
-					return xerrors.Errorf("keep discovered context resource: %w", err)
-				}
-			}
+			discovered = discoveredInstructionRows(rows)
+		}
+		if err := repinChatContext(ctx, tx, current.ID, current.AgentID, current.AgentID.Valid); err != nil {
+			return err
 		}
 		got, err := tx.GetChatByID(ctx, chat.ID)
 		if err != nil {

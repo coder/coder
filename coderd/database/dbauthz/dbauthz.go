@@ -2285,15 +2285,15 @@ func (q *querier) DeleteChatContextDiscoveredResource(ctx context.Context, arg d
 	return q.db.DeleteChatContextDiscoveredResource(ctx, arg)
 }
 
-func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
+func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, arg database.DeleteChatContextResourcesByChatIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatContextResourcesByChatID(ctx, chatID)
+	return q.db.DeleteChatContextResourcesByChatID(ctx, arg)
 }
 
 func (q *querier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
@@ -6460,6 +6460,17 @@ func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertC
 	return q.db.InsertChatAutomation(ctx, arg)
 }
 
+func (q *querier) InsertChatContextDiscoveredResource(ctx context.Context, arg database.InsertChatContextDiscoveredResourceParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.InsertChatContextDiscoveredResource(ctx, arg)
+}
+
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7381,6 +7392,17 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
+func (q *querier) LockChatContextForWrite(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return uuid.NullUUID{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return uuid.NullUUID{}, err
+	}
+	return q.db.LockChatContextForWrite(ctx, id)
+}
+
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	// The lock query returns only the key ID, so fetch the key to authorize
 	// the read against its RBAC object.
@@ -7579,6 +7601,15 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 // transaction and reads no data, like AcquireLock.
 func (q *querier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
 	return q.db.SetTransactionLockTimeout(ctx, lockTimeoutMs)
+}
+
+func (q *querier) SettleChatsContextDrift(ctx context.Context, arg database.SettleChatsContextDriftParams) error {
+	// The push can update multiple chats bound to the agent, so authorize the
+	// chat resource class.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.SettleChatsContextDrift(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
@@ -9403,17 +9434,6 @@ func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider st
 		return err
 	}
 	return q.db.UpsertChatComputerUseProvider(ctx, provider)
-}
-
-func (q *querier) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.UpsertChatContextDiscoveredResource(ctx, arg)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {

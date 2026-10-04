@@ -532,7 +532,7 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 		repinCtx := dbauthz.AsChatd(ctx)
 		var repinned database.Chat
 		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}, false); err != nil {
 				return err
 			}
 			var err error
