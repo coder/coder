@@ -169,6 +169,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 // ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
 // GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
 // Release Versions from 2.9+
+//
 // Deprecated: use ConnectRPC20WithTailnet
 func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0), "")
@@ -193,6 +194,7 @@ func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 
 // ConnectRPC21 returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
 // maximally compatible with Coderd Release Versions from 2.12+
+//
 // Deprecated: use ConnectRPC21WithTailnet
 func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1), "")
@@ -696,6 +698,7 @@ type PatchAppStatus struct {
 }
 
 // PatchAppStatus updates the status of a workspace app.
+//
 // Deprecated: use the DRPCAgentClient.UpdateAppStatus instead
 func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)

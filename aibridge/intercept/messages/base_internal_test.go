@@ -1410,6 +1410,7 @@ func TestCredentialResolutionContext(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				synctest.Test(t, func(t *testing.T) {
 					called := make(chan context.Context, 1)
 					creds := aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
@@ -1489,6 +1490,7 @@ func TestCredentialResolutionContext(t *testing.T) {
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				synctest.Test(t, func(t *testing.T) {
 					reader, writer := io.Pipe()
 					defer reader.Close()

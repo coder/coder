@@ -58,6 +58,7 @@ func TestWorkspaceBash(t *testing.T) {
 
 		// Test input validation errors (these should fail before client access)
 		t.Run("EmptyWorkspace", func(t *testing.T) {
+			t.Parallel()
 			args := toolsdk.WorkspaceBashArgs{
 				Workspace: "", // Empty workspace should be caught by validation
 				Command:   "echo test",
@@ -68,6 +69,7 @@ func TestWorkspaceBash(t *testing.T) {
 		})
 
 		t.Run("EmptyCommand", func(t *testing.T) {
+			t.Parallel()
 			args := toolsdk.WorkspaceBashArgs{
 				Workspace: "test-workspace",
 				Command:   "", // Empty command should be caught by validation

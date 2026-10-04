@@ -228,10 +228,10 @@ func sendTestEmail(smtpAddr, to, subject, body string) error {
 	now := time.Now().Format(time.RFC1123Z)
 
 	msg := strings.Builder{}
-	_, _ = msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	_, _ = msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	_, _ = msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
-	_, _ = msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
+	_, _ = fmt.Fprintf(&msg, "From: %s\r\n", from)
+	_, _ = fmt.Fprintf(&msg, "To: %s\r\n", to)
+	_, _ = fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
+	_, _ = fmt.Fprintf(&msg, "Date: %s\r\n", now)
 	_, _ = msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	_, _ = msg.WriteString("\r\n")
 	_, _ = msg.WriteString(body)
@@ -244,11 +244,11 @@ func sendTestEmailWithMessageID(smtpAddr, to, subject, messageID, body string) e
 	now := time.Now().Format(time.RFC1123Z)
 
 	msg := strings.Builder{}
-	_, _ = msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	_, _ = msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	_, _ = msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
-	_, _ = msg.WriteString(fmt.Sprintf("Message-Id: %s\r\n", messageID))
-	_, _ = msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
+	_, _ = fmt.Fprintf(&msg, "From: %s\r\n", from)
+	_, _ = fmt.Fprintf(&msg, "To: %s\r\n", to)
+	_, _ = fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
+	_, _ = fmt.Fprintf(&msg, "Message-Id: %s\r\n", messageID)
+	_, _ = fmt.Fprintf(&msg, "Date: %s\r\n", now)
 	_, _ = msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	_, _ = msg.WriteString("\r\n")
 	_, _ = msg.WriteString(body)

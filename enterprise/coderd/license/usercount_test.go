@@ -319,6 +319,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		}
 
 		t.Run("NoAddonFnNotCalled", func(t *testing.T) {
+			t.Parallel()
 			licenses := []database.License{dbLicense(*(&coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureUserLimit: 100},
 			}).Valid(now))}
@@ -335,6 +336,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("AddonMissingDependenciesIgnored", func(t *testing.T) {
+			t.Parallel()
 			// A license carrying the addon without its required features
 			// records a validation error and the addon is skipped, so
 			// workspace-capable counting must not activate.
@@ -356,6 +358,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("ActiveModeIgnoresFn", func(t *testing.T) {
+			t.Parallel()
 			// UserCountingMode is authoritative: with the mode left at its
 			// active-users zero value, the counting function must not be
 			// called even though it is set and the addon is present.
@@ -372,6 +375,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("AddonUsesFn", func(t *testing.T) {
+			t.Parallel()
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:   7,
 				ActiveAISeatCount: 5,
@@ -401,6 +405,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("BestPairSelection", func(t *testing.T) {
+			t.Parallel()
 			// A deployment holding both an addon license and a non-addon
 			// license has two user_limit candidates, each evaluated with
 			// its own counting mode. Limits and modes never mix.
@@ -423,6 +428,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}
 
 			t.Run("LegacyPairCompliant", func(t *testing.T) {
+				t.Parallel()
 				// 180 active <= 200 wins over 150 capable > 100: the
 				// non-addon license keeps the deployment compliant.
 				entitlements := run(t, 180, 150)
@@ -434,6 +440,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 
 			t.Run("AddonPairCompliant", func(t *testing.T) {
+				t.Parallel()
 				// 90 capable <= 100 wins over 250 active > 200: the addon
 				// license keeps the deployment compliant.
 				entitlements := run(t, 250, 90)
@@ -445,6 +452,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 
 			t.Run("NeitherPairCompliant", func(t *testing.T) {
+				t.Parallel()
 				// Both pairs over: the higher limit is reported, with the
 				// counting mode of its own license.
 				entitlements := run(t, 250, 150)
@@ -455,6 +463,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 
 			t.Run("GraceAddonCompliantBeatsEntitledOver", func(t *testing.T) {
+				t.Parallel()
 				// A grace-period addon pair that fits its count wins over an
 				// entitled non-addon pair that does not, carrying its grace
 				// entitlement and the revert warning with it.
@@ -484,6 +493,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 
 			t.Run("EqualLimitsPreferAddon", func(t *testing.T) {
+				t.Parallel()
 				// Identical limit and entitlement on an addon and a
 				// non-addon license: the addon pair wins the tie, so the
 				// workspace-capable count is displayed.
@@ -506,6 +516,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 
 			t.Run("TwoAddonCandidates", func(t *testing.T) {
+				t.Parallel()
 				// Two addon licenses: the entitled higher-limit pair fits
 				// the capable count and wins over the grace pair, and its
 				// presence suppresses the revert warning.
@@ -536,6 +547,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("ModeWithoutFnIsDevError", func(t *testing.T) {
+			t.Parallel()
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
 				UserCountingMode: license.UserCountingModeWorkspaceCapable,
@@ -544,6 +556,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
+			t.Parallel()
 			// The over-limit warning must report the workspace-capable
 			// count it was compared against, and say so, rather than
 			// claiming that many "active users" exist.
@@ -561,6 +574,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("GracePeriodAddonUsesFn", func(t *testing.T) {
+			t.Parallel()
 			// A license in its grace period still includes the addon, so
 			// counting must not revert until the license hard-expires.
 			licenses := []database.License{dbLicense(*(&coderdenttest.LicenseOptions{
@@ -584,6 +598,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("FnErrorPropagates", func(t *testing.T) {
+			t.Parallel()
 			// A failed capable count aborts the computation, matching the
 			// legacy active-user-count error semantics; the caller keeps
 			// the previous entitlements rather than seeing a silently
@@ -600,6 +615,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 
 		t.Run("ContextCanceledBails", func(t *testing.T) {
+			t.Parallel()
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
 				UserCountingMode: license.UserCountingModeWorkspaceCapable,

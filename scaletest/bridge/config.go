@@ -105,7 +105,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func (c Config) NewStrategy(client *codersdk.Client) requestModeStrategy {
+func (c Config) newStrategy(client *codersdk.Client) requestModeStrategy {
 	if c.Mode == RequestModeDirect {
 		return newDirectStrategy(directStrategyConfig{
 			UpstreamURL: c.UpstreamURL,

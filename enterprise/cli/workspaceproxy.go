@@ -354,7 +354,7 @@ func (r *RootCmd) listProxies() *serpent.Command {
 			sep := ""
 			for i, proxy := range resp {
 				_, _ = str.WriteString(sep)
-				_, _ = str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.PathAppURL, proxy.Status.Status))
+				_, _ = fmt.Fprintf(&str, "%d: %s %s %s", i, proxy.Name, proxy.PathAppURL, proxy.Status.Status)
 				for _, errMsg := range proxy.Status.Report.Errors {
 					_, _ = str.WriteString(color.RedString("\n\tErr: %s", errMsg))
 				}

@@ -72,7 +72,7 @@ func TestAuthzRecorder(t *testing.T) {
 		}
 		sub := coderdtest.RandomRBACSubject()
 		pairs := fuzzAuthz(t, sub, rec, 10)
-		rand.Shuffle(len(pairs), func(i, j int) {
+		rand.Shuffle(len(pairs), func(i, j int) { //nolint:gosec // Test ordering does not need crypto/rand.
 			pairs[i], pairs[j] = pairs[j], pairs[i]
 		})
 

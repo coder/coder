@@ -1,9 +1,8 @@
 package maps
 
 import (
+	"cmp"
 	"sort"
-
-	"golang.org/x/exp/constraints"
 )
 
 func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
@@ -31,7 +30,7 @@ func Subset[T, U comparable](a, b map[T]U) bool {
 }
 
 // SortedKeys returns the keys of m in sorted order.
-func SortedKeys[K constraints.Ordered, V any](m map[K]V) (keys []K) {
+func SortedKeys[K cmp.Ordered, V any](m map[K]V) (keys []K) {
 	for k := range m {
 		keys = append(keys, k)
 	}

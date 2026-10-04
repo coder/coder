@@ -2458,7 +2458,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 		defer cancel()
 
 		// Test successful exit code
-		t.Run("Success", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 			inv, root := clitest.New(t, "ssh", workspace.Name, "exit 0")
 			clitest.SetupConfig(t, client, root)
 
@@ -2467,7 +2467,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 		})
 
 		// Test error exit code
-		t.Run("Error", func(t *testing.T) {
+		t.Run("Error", func(t *testing.T) { //nolint:paralleltest // parent defers cancel
 			inv, root := clitest.New(t, "ssh", workspace.Name, "exit 1")
 			clitest.SetupConfig(t, client, root)
 

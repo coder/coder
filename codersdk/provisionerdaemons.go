@@ -270,6 +270,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
 	// ID is a unique ID for a provisioner daemon.
+	//
 	// Deprecated: this field has always been ignored.
 	ID uuid.UUID `json:"id" format:"uuid"`
 	// Name is the human-readable unique identifier for the daemon.

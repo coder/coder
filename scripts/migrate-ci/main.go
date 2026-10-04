@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	dbURL := "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
+	dbURL := "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable" //nolint:gosec // Local CI database, not a real credential.
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		panic(err)

@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +19,6 @@ import (
 	"github.com/natefinch/atomic"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
-	"golang.org/x/exp/constraints"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -251,7 +251,7 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 }
 
 // slicesSortedEqual compares two slices without side-effects or regard to order.
-func slicesSortedEqual[S ~[]E, E constraints.Ordered](a, b S) bool {
+func slicesSortedEqual[S ~[]E, E cmp.Ordered](a, b S) bool {
 	if len(a) != len(b) {
 		return false
 	}

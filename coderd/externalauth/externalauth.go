@@ -1366,7 +1366,7 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 // When the decision is not obvious, just defer to the cloud defaults.
 // Any user specific fields will override this if provided.
 func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
-	cloud := codersdk.ExternalAuthConfig{
+	cloud := codersdk.ExternalAuthConfig{ //nolint:gosec // OAuth endpoint URLs, not credentials.
 		AuthURL:                       "https://gitlab.com/oauth/authorize",
 		TokenURL:                      "https://gitlab.com/oauth/token",
 		ValidateURL:                   "https://gitlab.com/oauth/token/info",
@@ -1513,7 +1513,7 @@ func azureDevopsEntraDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 }
 
 var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
-	codersdk.EnhancedExternalAuthProviderAzureDevops: {
+	codersdk.EnhancedExternalAuthProviderAzureDevops: { //nolint:gosec // OAuth endpoint URLs, not credentials.
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
 		TokenURL:    "https://app.vssps.visualstudio.com/oauth2/token",
 		DisplayName: "Azure DevOps",
@@ -1523,7 +1523,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
-	codersdk.EnhancedExternalAuthProviderBitBucketCloud: {
+	codersdk.EnhancedExternalAuthProviderBitBucketCloud: { //nolint:gosec // OAuth endpoint URLs, not credentials.
 		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
 		TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
 		ValidateURL: "https://api.bitbucket.org/2.0/user",
@@ -1534,7 +1534,7 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
-	codersdk.EnhancedExternalAuthProviderSlack: {
+	codersdk.EnhancedExternalAuthProviderSlack: { //nolint:gosec // OAuth endpoint URLs, not credentials.
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
 		TokenURL:    "https://slack.com/api/oauth.v2.access",
 		RevokeURL:   "https://slack.com/api/auth.revoke",

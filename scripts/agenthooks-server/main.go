@@ -299,7 +299,7 @@ func parseFlags() (config, error) {
 	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event, on by default (CODER_AGENTHOOKS_LOG_ONLY)")
 	flag.StringVar(&cfg.denyToolPattern, "deny-tool-pattern", os.Getenv("CODER_AGENTHOOKS_DENY_TOOL_PATTERN"), "Example regexp for denied tool names, requires -log-only=false (CODER_AGENTHOOKS_DENY_TOOL_PATTERN)")
 	flag.StringVar(&cfg.redactPrompt, "redact-prompt-pattern", os.Getenv("CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN"), "Example regexp to redact in prompts, requires -log-only=false to override the prompt (CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN)")
-	flag.Parse()
+	flag.Parse() //nolint:revive // Only reached from main through run.
 	return cfg, nil
 }
 

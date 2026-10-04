@@ -250,7 +250,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 			case fmt.Stringer:
 				// Protect against typed nils since fmt.Stringer is an interface.
 				vv := reflect.ValueOf(v)
-				nilPtr := vv.Kind() == reflect.Ptr && vv.IsNil()
+				nilPtr := vv.Kind() == reflect.Pointer && vv.IsNil()
 				if val != nil && !nilPtr {
 					v = val.String()
 				} else if nilPtr {
@@ -282,7 +282,7 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 			// the string value, not the pointer.
 			if v != nil {
 				vv := reflect.ValueOf(v)
-				for vv.Kind() == reflect.Ptr && !vv.IsNil() {
+				for vv.Kind() == reflect.Pointer && !vv.IsNil() {
 					vv = vv.Elem()
 				}
 				v = vv.Interface()

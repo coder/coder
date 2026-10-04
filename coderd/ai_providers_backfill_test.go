@@ -36,7 +36,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		t.Run("NoLegacyRows", func(t *testing.T) {
+		t.Run("NoLegacyRows", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
@@ -47,7 +47,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Empty(t, all)
 		})
 
-		t.Run("PromotesLegacyRow", func(t *testing.T) {
+		t.Run("PromotesLegacyRow", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			legacy := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
@@ -61,7 +61,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		})
 
-		t.Run("Idempotent", func(t *testing.T) {
+		t.Run("Idempotent", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			// DB already has one bedrock row from the previous subtest.
 			// A second run must be a no-op: no type changes, no new rows.
 			before, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
@@ -87,7 +87,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			}
 		})
 
-		t.Run("PreservesNativeAnthropicRow", func(t *testing.T) {
+		t.Run("PreservesNativeAnthropicRow", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			native := dbgen.AIProvider(t, db, database.AIProvider{
 				Type: database.AIProviderTypeAnthropic,
 			})
@@ -100,7 +100,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Equal(t, database.AIProviderTypeAnthropic, row.Type)
 		})
 
-		t.Run("PreservesNativeBedrockRow", func(t *testing.T) {
+		t.Run("PreservesNativeBedrockRow", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			native := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
@@ -114,7 +114,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		})
 
-		t.Run("SkipsDeletedRows", func(t *testing.T) {
+		t.Run("SkipsDeletedRows", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			deleted := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
@@ -139,7 +139,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.True(t, found, "deleted row must appear in IncludeDeleted result set")
 		})
 
-		t.Run("IncludesDisabledRows", func(t *testing.T) {
+		t.Run("IncludesDisabledRows", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			disabled := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AIProviderTypeAnthropic,
 				Enabled:  false,
@@ -154,7 +154,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Equal(t, database.AIProviderTypeBedrock, row.Type, "disabled legacy row must be promoted")
 		})
 
-		t.Run("PreservesAnthropicRowWithNonBedrockSettings", func(t *testing.T) {
+		t.Run("PreservesAnthropicRowWithNonBedrockSettings", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			// {} has no _type discriminator, so UnmarshalJSON returns an error
 			// and the row is skipped via the unparsable-settings path, not the
 			// settings.Bedrock == nil guard. Either way the row must stay anthropic.
@@ -171,7 +171,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.Equal(t, database.AIProviderTypeAnthropic, row.Type, "anthropic row with non-bedrock settings must not be promoted")
 		})
 
-		t.Run("SkipsUnparsableSettings", func(t *testing.T) {
+		t.Run("SkipsUnparsableSettings", func(t *testing.T) { //nolint:paralleltest // subtests run in order on a shared database
 			malformed := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AIProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{", Valid: true},
