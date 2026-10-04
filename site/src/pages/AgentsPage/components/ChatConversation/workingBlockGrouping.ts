@@ -15,10 +15,8 @@ export type WorkingBlock = {
 	/** Newest row's key, stable across paging; live blocks use liveKey. */
 	key: string;
 	/**
-	 * Identity the block had (or would have had) while live: its turn's
-	 * opening row plus its position in the turn. Deterministic across the
-	 * live-to-complete handoff, so expansion recorded before any step
-	 * persisted can still be found afterwards.
+	 * Turn anchor plus position in the turn. Unchanged across the
+	 * live-to-complete handoff, so expansion recorded while live survives.
 	 */
 	liveKey: string;
 	rowIndices: number[];
@@ -132,9 +130,8 @@ const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
 /**
- * Groups consecutive step rows into working blocks. Timestamps come from the
- * raw entries, because the timeline rows already dropped tool-result messages
- * and merged read_file runs.
+ * Timestamps come from the raw entries, because the timeline rows already
+ * dropped tool-result messages and merged read_file runs.
  */
 export const groupWorkingBlocks = (
 	rows: readonly TimelineRow[],

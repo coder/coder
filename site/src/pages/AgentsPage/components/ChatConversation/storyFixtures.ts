@@ -99,7 +99,7 @@ export const FIXTURE_NOW = new Date("2026-03-10T00:00:00.000Z").getTime();
 
 /**
  * Start of the working-block fixtures. Their tool work begins one second in,
- * so under the pinned clock a live block reads "Working for 12s".
+ * so under the pinned clock a live block has been working for 12 seconds.
  */
 export const WORKING_FIXTURE_START = FIXTURE_NOW - 13_000;
 export const workingFixtureTime = (seconds: number) =>
