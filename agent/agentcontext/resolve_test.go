@@ -253,7 +253,7 @@ func TestResolver_MCPConfigEmitted(t *testing.T) {
 // shared content elsewhere inside the same workspace tree. The
 // target lives under the scan root, so the resolver follows the
 // symlink, emits the target bytes, and attributes the resource
-// to the resolved target path.
+// to the link, whose directory is where the instructions apply.
 func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -271,11 +271,11 @@ func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 
 	// The nested target is not independently recognized (only the
 	// top-level symlink is), so exactly one resource is emitted,
-	// carrying the target bytes and attributed to the target.
+	// carrying the target bytes and attributed to the link.
 	require.Len(t, snap.Resources, 1)
 	got := snap.Resources[0]
 	require.Equal(t, agentcontext.StatusOK, got.Status)
-	require.Equal(t, target, got.Source)
+	require.Equal(t, link, got.Source)
 	require.Equal(t, "shared monorepo guidance", string(got.Payload))
 }
 
@@ -283,8 +283,8 @@ func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 // the common repo layout where CLAUDE.md and .cursorrules are
 // symlinks to a single AGENTS.md. All three resolve to the same
 // file, so the resolver must emit one instruction resource
-// attributed to the real AGENTS.md rather than three copies of
-// identical content.
+// attributed to AGENTS.md rather than three copies of identical
+// content, in snapshot and lazy discovery alike.
 func TestResolver_SymlinkedInstructionFilesDeduplicated(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -304,6 +304,61 @@ func TestResolver_SymlinkedInstructionFilesDeduplicated(t *testing.T) {
 	require.Equal(t, agentcontext.KindInstructionFile, got.Kind)
 	require.Equal(t, agents, got.Source)
 	require.Equal(t, "the one true guidance", string(got.Payload))
+	require.Equal(t, snap.Resources, r.ResolveInstructionFiles(dir))
+}
+
+func TestResolver_ChildInstructionSymlinkKeepsApplicabilityPath(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	root := testutil.TempDirResolved(t)
+	child := filepath.Join(root, "repo")
+	link := filepath.Join(child, "AGENTS.md")
+	mustWriteFile(t, filepath.Join(child, "docs", "rules.md"), "repository rules")
+	require.NoError(t, os.Symlink(filepath.Join("docs", "rules.md"), link))
+
+	r := &agentcontext.Resolver{}
+	snapshot := r.Resolve([]agentcontext.ScanRoot{{Path: root, ChildProjects: true}})
+	lazy := r.ResolveInstructionFiles(child)
+	require.Len(t, snapshot.Resources, 1)
+	require.Len(t, lazy, 1)
+	require.Equal(t, agentcontext.StatusOK, snapshot.Resources[0].Status)
+	require.Equal(t, agentcontext.StatusOK, lazy[0].Status)
+	require.Equal(t, snapshot.Resources[0].Payload, lazy[0].Payload)
+	require.Equal(t, link, lazy[0].Source)
+	require.Equal(t, link, snapshot.Resources[0].Source)
+	require.Equal(t, snapshot.Resources[0].ID, lazy[0].ID)
+}
+
+// A link in another directory is a separate scope, so it must not absorb
+// the global file it points at.
+func TestResolver_CrossDirectoryInstructionSymlinkKeepsBothScopes(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	home := testutil.TempDirResolved(t)
+	global := filepath.Join(home, ".coder")
+	globalFile := filepath.Join(global, "AGENTS.md")
+	mustWriteFile(t, globalFile, "global rules")
+	require.NoError(t, os.Symlink(globalFile, filepath.Join(home, "AGENTS.md")))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: home, ChildProjects: true},
+		{Path: global, Global: true},
+	})
+	got := map[string]bool{}
+	for _, res := range snap.Resources {
+		require.Equal(t, agentcontext.StatusOK, res.Status)
+		require.Equal(t, "global rules", string(res.Payload))
+		got[res.Source] = res.Global
+	}
+	require.Equal(t, map[string]bool{
+		filepath.Join(home, "AGENTS.md"): false,
+		globalFile:                       true,
+	}, got)
 }
 
 // TestResolver_InstructionFilesOnlyAtScanRoot verifies the
