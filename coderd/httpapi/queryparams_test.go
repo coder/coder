@@ -524,7 +524,7 @@ func TestParseQueryParams(t *testing.T) {
 				QueryParam:            "incorrect_type",
 				Value:                 `{"key1": 1, "key2": true}`,
 				Expected:              map[string]string(nil),
-				ExpectedErrorContains: `Query param "incorrect_type" must be a valid JSON object: json: cannot unmarshal number into Go value of type string`,
+				ExpectedErrorContains: `Query param "incorrect_type" must be a valid JSON object: json: cannot unmarshal number into Go struct field .key1 of type string`,
 			},
 			{
 				QueryParam:            "multiple_keys",

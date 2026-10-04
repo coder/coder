@@ -271,7 +271,7 @@ func handleTestSubprocess(t *testing.T) {
 		case "client":
 			logger = logger.Named(*clientName)
 			if *clientNumber != int(integration.ClientNumber1) && *clientNumber != int(integration.ClientNumber2) {
-				t.Fatalf("invalid client number %d", clientNumber)
+				t.Fatalf("invalid client number %d", *clientNumber)
 			}
 			me, peer := integration.Client1, integration.Client2
 			if *clientNumber == int(integration.ClientNumber2) {

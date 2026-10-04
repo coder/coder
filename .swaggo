@@ -8,3 +8,6 @@ replace github.com/coder/coder/v2/codersdk.ProvisionerType string
 replace netip.Addr string
 // Replace all NullUUID with string
 replace github.com/google/uuid.NullUUID string
+// Go 1.27 defines json.RawMessage as an alias of jsontext.Value, which swag
+// cannot resolve. Keep rendering it as the underlying byte slice.
+replace encoding/json.RawMessage array,integer
