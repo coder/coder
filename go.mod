@@ -111,8 +111,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    finalized OpenAI Responses reasoning (item ID, encrypted content,
 //    summary) and replay it in full regardless of store. Skip hosted search
 //    references from unstored source responses.
-// See: https://github.com/coder/fantasy/commits/f8a25c79b3ad
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261002142535-f8a25c79b3ad
+// See: https://github.com/coder/fantasy/commits/d55a86791a63
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261004200827-d55a86791a63
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
