@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // TestMain points the test binary's HOME (and USERPROFILE on
@@ -648,4 +649,58 @@ func TestManager_GlobalRootMarksHomeDotCoder(t *testing.T) {
 		filepath.Join(home, "AGENTS.md"):   false,
 		filepath.Join(vendor, "AGENTS.md"): false,
 	}, got)
+}
+
+// A repository cloned into a child directory that already existed while
+// empty is not watched, so only the periodic rescan publishes it, and a
+// rescan that finds nothing new publishes nothing.
+func TestManager_PeriodicRescanFindsCloneIntoEmptyChild(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	child := filepath.Join(root, "repo")
+	require.NoError(t, os.MkdirAll(child, 0o755))
+
+	resolves := make(chan struct{}, 16)
+	clock := quartz.NewMock(t)
+	tickerTrap := clock.Trap().NewTicker("agentcontext", "rescan")
+	defer tickerTrap.Close()
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return root },
+		Clock:      clock,
+		Resolver: &agentcontext.Resolver{MCPResources: func() []agentcontext.Resource {
+			resolves <- struct{}{}
+			return nil
+		}},
+	})
+	m.SetReady()
+	<-resolves
+	require.Empty(t, m.Snapshot().Resources)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	go func() { _ = m.Run(ctx) }()
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	changes, unsub := m.SubscribeChanges()
+	defer unsub()
+
+	mustWriteFile(t, filepath.Join(child, ".git", "HEAD"), "ref: refs/heads/main")
+	mustWriteFile(t, filepath.Join(child, "AGENTS.md"), "cloned rules")
+	clock.Advance(agentcontext.ChildRescanInterval).MustWait(ctx)
+	testutil.TryReceive(ctx, t, changes)
+	snap := m.Snapshot()
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(child, "AGENTS.md"), snap.Resources[0].Source)
+
+	// The resolve of the second unchanged tick only starts after the first
+	// unchanged rescan finished, so its publication decision is final.
+	<-resolves
+	for range 2 {
+		clock.Advance(agentcontext.ChildRescanInterval).MustWait(ctx)
+		testutil.TryReceive(ctx, t, resolves)
+	}
+	select {
+	case <-changes:
+		t.Fatal("an unchanged rescan must not publish")
+	default:
+	}
+	require.Equal(t, snap.Version, m.Snapshot().Version)
 }

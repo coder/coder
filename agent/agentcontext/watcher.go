@@ -369,7 +369,8 @@ func childProjectDirs(root string) []string {
 // its immediate skill subdirectories (catching skill add/remove
 // and SKILL.md writes). ChildProjects roots also watch the children
 // childProjectDirs selects; a child that gains its first marker later
-// is picked up by the next resync or by any watched event. The
+// is picked up by the Manager's periodic rescan, the next resync, or any
+// watched event. The
 // watcher never recurses further.
 func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
