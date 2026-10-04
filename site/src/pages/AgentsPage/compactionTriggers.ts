@@ -48,8 +48,8 @@ const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
 
 // Mirrors chatd (keep in sync with TestBindingCompactionTriggerSource): a
-// disabled trigger never binds, the lower token point binds with ties to chat,
-// and the point is undefined when neither trigger is enabled.
+// disabled organization trigger yields chat, a disabled chat trigger yields
+// organization, otherwise the lower token point binds with ties to chat.
 export const bindingCompactionTriggerSource = (
 	chat: CompactionTrigger,
 	organization: CompactionTrigger,
@@ -65,6 +65,7 @@ export const bindingCompactionTriggerSource = (
 		: "chat";
 };
 
+// Undefined when neither trigger is enabled.
 export const bindingCompactionTriggerPoint = (
 	chat: CompactionTrigger,
 	organizationTrigger: OrganizationCompactionTrigger | undefined,
