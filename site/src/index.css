@@ -18,6 +18,14 @@
 /* Preserve Tailwind CSS v3 hover behavior on all pointer types. */
 @custom-variant hover (&:hover);
 
+@custom-variant ios-standalone {
+	@media (display-mode: standalone) {
+		@supports (-webkit-touch-callout: none) {
+			@slot;
+		}
+	}
+}
+
 @source "../node_modules/streamdown";
 
 @theme inline {
@@ -755,15 +763,6 @@
 	html[data-agents-layout] {
 		overflow: hidden;
 		scrollbar-gutter: auto;
-	}
-
-	@media (display-mode: standalone) {
-		@supports (-webkit-touch-callout: none) {
-			html[data-agents-layout] {
-				/* iOS standalone can blur past the safe-area inset; add conservative clearance. */
-				--agents-pwa-top-inset: calc(env(safe-area-inset-top, 0px) + 40px);
-			}
-		}
 	}
 
 	html[data-agents-layout] body,

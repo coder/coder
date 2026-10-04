@@ -770,9 +770,14 @@ const AgentsPageLayout: React.FC = () => {
 
 	return (
 		<>
+			{/* iOS samples fixed top-edge backgrounds for the status bar. */}
+			<div
+				aria-hidden
+				className="pointer-events-none fixed inset-x-0 top-0 z-50 hidden h-px bg-surface-primary ios-standalone:block"
+			/>
 			<div
 				data-testid="agents-page-layout"
-				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary pt-[var(--agents-pwa-top-inset,0px)] sm:flex-row"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 			>
 				<title>{pageTitle("Agents")}</title>
 				<ResizableChatsSidebarFrame

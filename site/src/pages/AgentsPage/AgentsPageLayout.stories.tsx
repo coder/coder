@@ -407,22 +407,6 @@ export const EmptyState: Story = {
 	},
 };
 
-export const IOSStandalone: Story = {
-	parameters: {
-		pixel: { matrix: { viewports: ["desktop", "phone"] } },
-	},
-	beforeEach: () => {
-		// Storybook cannot emulate iOS standalone chrome; preview a 20px safe area plus clearance.
-		document.documentElement.style.setProperty(
-			"--agents-pwa-top-inset",
-			"60px",
-		);
-		return () => {
-			document.documentElement.style.removeProperty("--agents-pwa-top-inset");
-		};
-	},
-};
-
 export const OrganizationScopedMCPServers: Story = {
 	parameters: {
 		showOrganizations: true,

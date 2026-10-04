@@ -19,10 +19,11 @@ export const DialogClose = DialogPrimitive.Close;
 const DialogOverlay: React.FC<
 	React.ComponentProps<typeof DialogPrimitive.Overlay>
 > = ({ className, ...props }) => {
+	// Keep the dimmer off the top edge so iOS doesn't sample it for the status bar.
 	return (
 		<DialogPrimitive.Overlay
 			className={cn(
-				`fixed inset-0 z-50 bg-overlay ease-out-strong
+				`fixed inset-0 z-50 bg-overlay ease-out-strong [html[data-agents-layout]_&]:ios-standalone:top-px
 			data-[state=open]:animate-in data-[state=closed]:animate-out
 			data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0`,
 				className,
