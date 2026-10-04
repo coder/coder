@@ -205,10 +205,12 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 			Args:             json.RawMessage(`{"key":"value"}`),
 			ProviderMetadata: json.RawMessage(`{"type":"ephemeral"}`),
 			ProviderIdentity: "provider-1",
+			ProviderModel:    "model-1",
 		}
 		part.StripInternal()
 		assert.Nil(t, part.ProviderMetadata)
 		assert.Empty(t, part.ProviderIdentity)
+		assert.Empty(t, part.ProviderModel)
 		// Public fields preserved.
 		assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
 		assert.Equal(t, "call-1", part.ToolCallID)
@@ -306,6 +308,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"type":                         "discriminant, added automatically by codegen",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
 		"provider_identity":            "internal only, stripped by db2sdk before API responses",
+		"provider_model":               "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",

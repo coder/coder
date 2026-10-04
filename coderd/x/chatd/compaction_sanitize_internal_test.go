@@ -73,7 +73,7 @@ func TestSanitizeCompactionPrompt_FlattensForeignProviderExecutedToolParts(t *te
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()), compactionModel.ModelID())
 
 	require.Len(t, sanitized, 3)
 	// Provider-executed parts are flattened to text so the summary keeps
@@ -119,22 +119,34 @@ func TestSanitizeCompactionPrompt_OpenAIReasoning(t *testing.T) {
 
 		// Reasoning IDs and encrypted content only resolve on the provider
 		// instance that issued them.
-		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()), compactionModel.ModelID())
 
 		require.Len(t, sanitized, 2)
 		require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{Text: "answer"}}, sanitized[1].Content)
 		require.Equal(t, finalized, prompt[1].Content[0])
 	})
 
-	t.Run("SameProviderKeepsReasoning", func(t *testing.T) {
+	t.Run("SameModelKeepsReasoning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		sharedProviderID := uuid.New()
 
-		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), compactionModel.ModelID())
 
 		require.Equal(t, prompt, sanitized)
+	})
+
+	t.Run("SameProviderDifferentModelDropsReasoning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		sharedProviderID := uuid.New()
+
+		sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), "gpt-5.4")
+
+		require.Len(t, sanitized, 2)
+		require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{Text: "answer"}}, sanitized[1].Content)
 	})
 }
 
@@ -165,7 +177,7 @@ func TestSanitizeCompactionPrompt_DropsNonAssistantProviderExecutedParts(t *test
 	}
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(uuid.New()), configWithProvider(uuid.New()), compactionModel.ModelID())
 
 	require.Len(t, sanitized, 1)
 	require.Equal(t, fantasy.MessageRoleUser, sanitized[0].Role)
@@ -195,7 +207,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedFileParts(t *testing.T) {
 	// placeholder while the prompt stays otherwise intact.
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "mistral", ModelName: "mistral-large"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), compactionModel.ModelID())
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)
@@ -226,7 +238,7 @@ func TestSanitizeCompactionPrompt_ReplacesUnsupportedToolMedia(t *testing.T) {
 	// not, and the filter must run even when both models share a provider.
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai-compat", ModelName: "model"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, "google", configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, "google", configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), compactionModel.ModelID())
 
 	require.Len(t, sanitized, 1)
 	result, ok := sanitized[0].Content[0].(fantasy.ToolResultPart)
@@ -262,7 +274,7 @@ func TestSanitizeCompactionPrompt_SameProviderKeepsProviderExecutedParts(t *test
 
 	compactionModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4.1-mini"}, nil)
 	sharedProviderID := uuid.New()
-	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID))
+	sanitized := sanitizeCompactionPrompt(ctx, logger, prompt, compactionModel, compactionModel.Provider(), configWithProvider(sharedProviderID), configWithProvider(sharedProviderID), compactionModel.ModelID())
 
 	require.Len(t, sanitized, 1)
 	require.Len(t, sanitized[0].Content, 2)

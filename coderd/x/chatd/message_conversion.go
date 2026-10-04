@@ -33,7 +33,7 @@ type buildCommitStepMessagesInput struct {
 	logger                 slog.Logger
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
-	providerIdentity       string
+	reasoningProvenance    reasoningProvenance
 }
 
 type stepMessagesForCommit struct {
@@ -53,7 +53,8 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
 	for i := range assistantParts {
 		if assistantParts[i].Type == codersdk.ChatMessagePartTypeReasoning {
-			assistantParts[i].ProviderIdentity = input.providerIdentity
+			assistantParts[i].ProviderIdentity = input.reasoningProvenance.ProviderIdentity
+			assistantParts[i].ProviderModel = input.reasoningProvenance.Model
 		}
 	}
 

@@ -217,91 +217,115 @@ func TestOpenAIResponsesStatelessReasoningReplay(t *testing.T) {
 	}
 }
 
-func TestOpenAIResponsesReasoningNotReplayedAfterConfigMovesProvider(t *testing.T) {
+func TestOpenAIResponsesReasoningNotReplayedAfterModelConfigChange(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, tc := range []struct {
+		name   string
+		change func(cfg *database.UpdateChatModelConfigParams, otherProvider uuid.UUID)
+	}{
+		{
+			name: "ProviderMoved",
+			change: func(cfg *database.UpdateChatModelConfigParams, otherProvider uuid.UUID) {
+				cfg.AIProviderID = uuid.NullUUID{UUID: otherProvider, Valid: true}
+			},
+		},
+		{
+			name: "ModelChanged",
+			change: func(cfg *database.UpdateChatModelConfigParams, _ uuid.UUID) {
+				cfg.Model = "gpt-4.1"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	const (
-		reasoningID = "rs_moved_config"
-		blob        = "encrypted-moved-config"
-	)
-	var recorder responsesRequestRecorder
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
-		if recorder.record(req) == 1 {
-			resp.Reasoning = &chattest.OpenAIReasoningItem{
-				ID:               reasoningID,
-				EncryptedContent: blob,
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			const (
+				reasoningID = "rs_changed_config"
+				blob        = "encrypted-changed-config"
+			)
+			var recorder responsesRequestRecorder
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+				if recorder.record(req) == 1 {
+					resp.Reasoning = &chattest.OpenAIReasoningItem{
+						ID:               reasoningID,
+						EncryptedContent: blob,
+					}
+				}
+				return resp
+			})
+
+			user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+			model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+				codersdk.ChatModelCallConfig{})
+			otherProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
+				Provider: "openai",
+				BaseUrl:  openAIURL,
+			})
+			factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+			server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+			})
+
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          uniqueResponsesTitle(t, "changed-config"),
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("hello"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			requireResponsesChatWaiting(ctx, t, db, chat.ID)
+			require.Len(t, recorder.all(), 1)
+
+			update := database.UpdateChatModelConfigParams{
+				ID:                   model.ID,
+				Model:                model.Model,
+				DisplayName:          model.DisplayName,
+				Enabled:              model.Enabled,
+				IsDefault:            model.IsDefault,
+				ContextLimit:         model.ContextLimit,
+				CompressionThreshold: model.CompressionThreshold,
+				Options:              model.Options,
+				AIProviderID:         model.AIProviderID,
 			}
-		}
-		return resp
-	})
+			tc.change(&update, otherProvider.ID)
+			_, err = db.UpdateChatModelConfig(ctx, update)
+			require.NoError(t, err)
 
-	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
-		codersdk.ChatModelCallConfig{})
-	otherProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider: "openai",
-		BaseUrl:  openAIURL,
-	})
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("thanks"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			requireResponsesChatWaiting(ctx, t, db, chat.ID)
 
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          uniqueResponsesTitle(t, "moved-config"),
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
-	require.Len(t, recorder.all(), 1)
-
-	_, err = db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
-		ID:                   model.ID,
-		Model:                model.Model,
-		DisplayName:          model.DisplayName,
-		Enabled:              model.Enabled,
-		IsDefault:            model.IsDefault,
-		ContextLimit:         model.ContextLimit,
-		CompressionThreshold: model.CompressionThreshold,
-		Options:              model.Options,
-		AIProviderID:         uuid.NullUUID{UUID: otherProvider.ID, Valid: true},
-	})
-	require.NoError(t, err)
-
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:        chat.ID,
-		CreatedBy:     user.ID,
-		ModelConfigID: model.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("thanks"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
-
-	requests := recorder.all()
-	require.Len(t, requests, 2)
-	followup := requests[1]
-	require.NotEmpty(t, followup.Prompt)
-	require.NotContains(t, promptItemTypes(followup.Prompt), "reasoning")
-	requireNoResponsesProviderItemReplay(t, followup.Prompt, reasoningID)
-	encoded, err := json.Marshal(followup.Prompt)
-	require.NoError(t, err)
-	require.NotContains(t, string(encoded), blob)
+			requests := recorder.all()
+			require.Len(t, requests, 2)
+			followup := requests[1]
+			require.NotEmpty(t, followup.Prompt)
+			require.NotContains(t, promptItemTypes(followup.Prompt), "reasoning")
+			requireNoResponsesProviderItemReplay(t, followup.Prompt, reasoningID)
+			encoded, err := json.Marshal(followup.Prompt)
+			require.NoError(t, err)
+			require.NotContains(t, string(encoded), blob)
+		})
+	}
 }
 
 func TestOpenAIResponsesPersistsProviderResponseID(t *testing.T) {
