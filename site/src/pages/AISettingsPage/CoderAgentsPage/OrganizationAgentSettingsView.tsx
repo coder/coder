@@ -123,7 +123,7 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 		return (
 			<Alert severity="info">
 				<AlertDescription>
-					{`${getModelLabel(selectedModel)} has compaction off (100%), so chats summarize with their own model instead.`}
+					{`${getModelLabel(selectedModel)} has compaction off (${compactionDisabledThresholdPercent}%), so chats summarize with their own model instead.`}
 				</AlertDescription>
 			</Alert>
 		);

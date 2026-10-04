@@ -352,6 +352,20 @@ describe("compaction triggers", () => {
 			});
 		});
 
+		it("binds the organization trigger when the chat window is zero", () => {
+			expect(
+				resolve(
+					{ data: mockCompactionOverrides, error: null },
+					{
+						models: [
+							{ ...mockChatModel, context_limit: 0 },
+							MockCompactionChatModel,
+						],
+					},
+				),
+			).toEqual({ source: "organization", pointTokens: 16_000 });
+		});
+
 		it("returns undefined for unknown or unloaded models", () => {
 			expect(
 				resolve(

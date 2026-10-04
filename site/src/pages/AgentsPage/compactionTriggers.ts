@@ -81,8 +81,8 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
-// "viewer" (the default) drops an override whose provider the current user
-// cannot use, as chatd does per user; "organization" keeps it.
+// "viewer" drops an override whose provider the current user cannot use, as
+// chatd does per user; "organization" keeps it.
 export const resolveOrganizationCompactionTrigger = (
 	modelConfigID: string | undefined,
 	models: readonly TypesGen.ChatModel[],
