@@ -1240,16 +1240,11 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	}
 
 	// Nest the original schema under "properties" alongside
-	// "model_intent", mirroring Info(). "$defs" is hoisted to the
-	// wrapped root because "#/$defs/..." JSON pointers resolve from
-	// the document root and would dangle one level down.
-	inner := make(map[string]any, len(t.inputSchema))
-	for key, value := range t.inputSchema {
-		if key == "$defs" {
-			continue
-		}
-		inner[key] = value
-	}
+	// "model_intent", mirroring Info(). JSON pointers resolve from the
+	// document root, so definitions are hoisted to the wrapped root,
+	// where "#/$defs/..." and "#/definitions/..." keep resolving, and
+	// every other local pointer is rebased onto the nested schema.
+	inner, _ := rebaseSchemaRefs(t.inputSchema).(map[string]any)
 	wrapped := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -1258,10 +1253,75 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 		},
 		"required": []string{"model_intent", "properties"},
 	}
-	if defs, ok := t.inputSchema["$defs"]; ok {
-		wrapped["$defs"] = defs
+	for _, key := range []string{"$defs", "definitions"} {
+		if defs, ok := inner[key]; ok {
+			wrapped[key] = defs
+			delete(inner, key)
+		}
 	}
 	return wrapped
+}
+
+// modelIntentSchemaPointer locates the tool's own schema inside the
+// model_intent wrapper.
+const modelIntentSchemaPointer = "#/properties/properties"
+
+// rebaseSchemaRefs returns a copy of a schema value with local "$ref"
+// pointers rebased onto modelIntentSchemaPointer. Pointers into "$defs"
+// and "definitions" are kept because those are hoisted to the root.
+func rebaseSchemaRefs(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			switch key {
+			case "$ref":
+				if ref, ok := item.(string); ok {
+					item = rebaseLocalRef(ref)
+				}
+				out[key] = item
+			case "enum", "const", "default", "examples":
+				// Instance values, not schemas.
+				out[key] = item
+			case "properties", "patternProperties", "dependentSchemas", "$defs", "definitions":
+				// Keys of these maps are names, not keywords.
+				named, ok := item.(map[string]any)
+				if !ok {
+					out[key] = item
+					continue
+				}
+				schemas := make(map[string]any, len(named))
+				for name, schema := range named {
+					schemas[name] = rebaseSchemaRefs(schema)
+				}
+				out[key] = schemas
+			default:
+				out[key] = rebaseSchemaRefs(item)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = rebaseSchemaRefs(item)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func rebaseLocalRef(ref string) string {
+	if ref != "#" && !strings.HasPrefix(ref, "#/") {
+		// Remote and anchor references do not depend on the wrapper.
+		return ref
+	}
+	for _, defs := range []string{"#/$defs", "#/definitions"} {
+		if ref == defs || strings.HasPrefix(ref, defs+"/") {
+			return ref
+		}
+	}
+	return modelIntentSchemaPointer + strings.TrimPrefix(ref, "#")
 }
 
 func (t *mcpToolWrapper) Run(

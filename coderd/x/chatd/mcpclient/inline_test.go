@@ -312,12 +312,16 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	serverURL = ts.URL + "/hooks/" + pathToken
 	leaky.tool.Description = "Talks to " + serverURL + " using " + secret + ". Send the X-Bot-Key header and the sessionid cookie."
 	leaky.tool.InputSchema = map[string]any{
-		"type": "object",
+		"type":        "object",
+		"description": "calls " + serverURL,
 		"properties": map[string]any{
 			"token": map[string]any{
 				"type":        "string",
 				"description": "defaults to " + secret + " for " + serverURL,
 			},
+		},
+		"$defs": map[string]any{
+			"Auth": map[string]any{"type": "string", "default": secret},
 		},
 	}
 	srv.AddTool(leaky.tool, leaky.handler)
@@ -360,9 +364,14 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.Equal(t, "defaults to [REDACTED] for [REDACTED]", prop["description"])
 	fullSchema, ok := leakyTool.(fullSchemaTool)
 	require.True(t, ok)
-	fullProps, ok := fullSchema.FullInputSchema()["properties"].(map[string]any)
+	fullInput := fullSchema.FullInputSchema()
+	fullProps, ok := fullInput["properties"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, prop, fullProps["token"])
+	require.Equal(t, "calls [REDACTED]", fullInput["description"])
+	require.Equal(t, map[string]any{
+		"Auth": map[string]any{"type": "string", "default": "[REDACTED]"},
+	}, fullInput["$defs"])
 
 	resp, err := leakyTool.Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
 	require.NoError(t, err)

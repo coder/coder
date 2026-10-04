@@ -791,6 +791,89 @@ func TestConnectAll_FullInputSchema_ModelIntentHoistsDefs(t *testing.T) {
 	assert.Equal(t, "#/$defs/Filter", filter["$ref"])
 }
 
+// TestConnectAll_FullInputSchema_ModelIntentRebasesRefs verifies that
+// the model_intent wrapper keeps every local JSON pointer resolvable:
+// draft-07 "definitions" are hoisted like "$defs", and root-relative
+// pointers are rebased onto the nested schema.
+func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refTool := testTool{
+		tool: &mcp.Tool{
+			Name: "tree_search",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"kind":       map[string]any{"type": "string", "enum": []any{"a", "b"}},
+					"other_kind": map[string]any{"$ref": "#/properties/kind"},
+					"child":      map[string]any{"$ref": "#"},
+					"filter":     map[string]any{"$ref": "#/definitions/Filter"},
+					// A property named like a keyword is still a schema.
+					"enum": map[string]any{"$ref": "#/properties/kind"},
+				},
+				"definitions": map[string]any{
+					"Filter": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"kind": map[string]any{"$ref": "#/properties/kind"},
+						},
+					},
+				},
+				// Instance values are not schemas and stay untouched.
+				"default": map[string]any{"$ref": "#/properties/kind"},
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, refTool)
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := full.FullInputSchema()
+
+	rawDefinitions, err := json.Marshal(schema["definitions"])
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"Filter": {
+			"type": "object",
+			"properties": {"kind": {"$ref": "#/properties/properties/properties/kind"}}
+		}
+	}`, string(rawDefinitions))
+
+	wrapped, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	rawInner, err := json.Marshal(wrapped["properties"])
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"kind": {"type": "string", "enum": ["a", "b"]},
+			"other_kind": {"$ref": "#/properties/properties/properties/kind"},
+			"child": {"$ref": "#/properties/properties"},
+			"filter": {"$ref": "#/definitions/Filter"},
+			"enum": {"$ref": "#/properties/properties/properties/kind"}
+		},
+		"default": {"$ref": "#/properties/kind"}
+	}`, string(rawInner))
+
+	// Wrapping copies, so the tool's stored schema is not rewritten.
+	again, err := json.Marshal(full.FullInputSchema())
+	require.NoError(t, err)
+	first, err := json.Marshal(schema)
+	require.NoError(t, err)
+	require.JSONEq(t, string(first), string(again))
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {
