@@ -16,6 +16,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverridesKey,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -391,6 +392,10 @@ const buildQueries = (
 		{
 			key: userCompactionThresholdsKey,
 			data: MockUserChatCompactionThresholds,
+		},
+		{
+			key: organizationChatModelOverridesKey(chat.organization_id),
+			data: { overrides: [] },
 		},
 	];
 };
@@ -969,11 +974,14 @@ const mockContextUsageMessage: TypesGen.ChatMessage = {
 
 export const CompactionHintSurvivesOverrideFetchError: Story = {
 	parameters: {
-		queries: buildQueries(MockChat, {
-			messages: [mockContextUsageMessage],
-			queued_messages: [],
-			has_more: false,
-		}),
+		queries: withoutQuery(
+			buildQueries(MockChat, {
+				messages: [mockContextUsageMessage],
+				queued_messages: [],
+				has_more: false,
+			}),
+			organizationChatModelOverridesKey(MockChat.organization_id),
+		),
 	},
 	beforeEach: () => {
 		spyOn(

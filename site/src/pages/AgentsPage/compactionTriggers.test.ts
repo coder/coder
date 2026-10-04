@@ -144,50 +144,59 @@ describe("compaction triggers", () => {
 	});
 
 	it("resolves an enabled member-visible organization override model", () => {
-		const model = MockCompactionChatModel;
-
-		expect(
-			resolveOrganizationCompactionTrigger(model.id, [model], providers),
-		).toEqual(mockCompactionTrigger);
-		expect(
-			resolveOrganizationCompactionTrigger(undefined, [model], providers),
-		).toBeUndefined();
-		expect(
-			resolveOrganizationCompactionTrigger(model.id, [], providers),
-		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[{ ...model, enabled: false }],
+				MockCompactionChatModel.id,
+				[MockCompactionChatModel],
+				providers,
+			),
+		).toEqual(mockCompactionTrigger);
+		expect(
+			resolveOrganizationCompactionTrigger(
+				undefined,
+				[MockCompactionChatModel],
 				providers,
 			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[{ ...model, compression_threshold: 100 }],
+				MockCompactionChatModel.id,
+				[],
+				providers,
+			),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(
+				MockCompactionChatModel.id,
+				[{ ...MockCompactionChatModel, enabled: false }],
+				providers,
+			),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(
+				MockCompactionChatModel.id,
+				[{ ...MockCompactionChatModel, compression_threshold: 100 }],
 				providers,
 			),
 		).toBeUndefined();
 	});
 
 	it("ignores an organization override model whose provider is disabled", () => {
-		const model = MockCompactionChatModel;
 		const disabledProviders = providerInfoByIDFromDescriptors([
 			{ ...MockChatModelProviderDescriptor, enabled: false },
 		]);
 
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[model],
+				MockCompactionChatModel.id,
+				[MockCompactionChatModel],
 				disabledProviders,
 			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[model],
+				MockCompactionChatModel.id,
+				[MockCompactionChatModel],
 				disabledProviders,
 				"organization",
 			),
@@ -195,7 +204,6 @@ describe("compaction triggers", () => {
 	});
 
 	it("ignores an override the viewer lacks provider credentials for", () => {
-		const model = MockCompactionChatModel;
 		const unavailableProviders = providerInfoByIDFromDescriptors([
 			{
 				...MockChatModelProviderDescriptor,
@@ -206,15 +214,15 @@ describe("compaction triggers", () => {
 
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[model],
+				MockCompactionChatModel.id,
+				[MockCompactionChatModel],
 				unavailableProviders,
 			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				model.id,
-				[model],
+				MockCompactionChatModel.id,
+				[MockCompactionChatModel],
 				unavailableProviders,
 				"organization",
 			),
@@ -222,15 +230,13 @@ describe("compaction triggers", () => {
 	});
 
 	describe("resolveCompactionTriggersByOrganization", () => {
-		const compactionModel = MockCompactionChatModel;
-		const overrides = mockCompactionOverrides;
-		const organizationID = compactionModel.organization_id;
+		const organizationID = MockCompactionChatModel.organization_id;
 
 		it("reports an organization whose first overrides load failed", () => {
 			expect(
 				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: undefined, error }],
-					[compactionModel],
+					[MockCompactionChatModel],
 					providers,
 				),
 			).toEqual({
@@ -242,8 +248,8 @@ describe("compaction triggers", () => {
 		it("keeps cached overrides without reporting a failed refetch", () => {
 			expect(
 				resolveCompactionTriggersByOrganization(
-					[{ organizationID, data: overrides, error }],
-					[compactionModel],
+					[{ organizationID, data: mockCompactionOverrides, error }],
+					[MockCompactionChatModel],
 					providers,
 				),
 			).toEqual({
@@ -257,8 +263,8 @@ describe("compaction triggers", () => {
 		it("reports nothing when the overrides load succeeds", () => {
 			expect(
 				resolveCompactionTriggersByOrganization(
-					[{ organizationID, data: overrides, error: null }],
-					[compactionModel],
+					[{ organizationID, data: mockCompactionOverrides, error: null }],
+					[MockCompactionChatModel],
 					providers,
 				).loadErrors,
 			).toEqual([]);
@@ -268,7 +274,7 @@ describe("compaction triggers", () => {
 			expect(
 				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: undefined, error }],
-					[{ ...compactionModel, enabled: false }],
+					[{ ...MockCompactionChatModel, enabled: false }],
 					providers,
 				).loadErrors,
 			).toEqual([]);
@@ -296,7 +302,6 @@ describe("compaction triggers", () => {
 
 		it("returns the organization percent when its trigger binds", () => {
 			expect(resolve({ data: mockCompactionOverrides, error: null })).toEqual({
-				percent: 12.5,
 				source: "organization",
 				pointTokens: 16_000,
 			});
@@ -320,7 +325,11 @@ describe("compaction triggers", () => {
 						],
 					},
 				),
-			).toEqual({ percent: 60, source: "user" });
+			).toEqual({
+				percent: 60,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			});
 		});
 
 		it("reports the binding organization trigger when the chat threshold is disabled", () => {
@@ -338,7 +347,6 @@ describe("compaction triggers", () => {
 					},
 				),
 			).toEqual({
-				percent: 100,
 				source: "organization",
 				pointTokens: 128_000,
 			});
@@ -374,9 +382,9 @@ describe("compaction triggers", () => {
 			expect(resolve({ data: { overrides: [] }, error })).toEqual({
 				percent: 80,
 				source: "model",
+				organizationOverrideNotLoaded: false,
 			});
 			expect(resolve({ data: mockCompactionOverrides, error })).toEqual({
-				percent: 12.5,
 				source: "organization",
 				pointTokens: 16_000,
 			});
@@ -386,6 +394,7 @@ describe("compaction triggers", () => {
 			expect(resolve({ data: { overrides: [] }, error: null })).toEqual({
 				percent: 80,
 				source: "model",
+				organizationOverrideNotLoaded: false,
 			});
 		});
 
@@ -393,34 +402,43 @@ describe("compaction triggers", () => {
 			expect(resolve({ data: undefined, error: null })).toEqual({
 				percent: 80,
 				source: "model",
+				organizationOverrideNotLoaded: false,
 			});
 		});
 	});
 
 	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([
 		[
-			{ percent: 12.5, source: "organization", pointTokens: 16_000 },
+			{ source: "organization", pointTokens: 16_000 },
 			200_000,
 			"Compacts at 8% (organization override)",
 		],
 		[
-			{ percent: 100, source: "organization", pointTokens: 10_000 },
+			{ source: "organization", pointTokens: 10_000 },
 			10_000,
 			"Compacts at 100% (organization override)",
 		],
+		[{ source: "organization", pointTokens: 16_000 }, 10_000, undefined],
 		[
-			{ percent: 160, source: "organization", pointTokens: 16_000 },
-			10_000,
-			undefined,
+			{ percent: 70, source: "model", organizationOverrideNotLoaded: false },
+			200_000,
+			"Compacts at 70%",
 		],
-		[{ percent: 70, source: "model" }, 200_000, "Compacts at 70%"],
-		[{ percent: 33.33, source: "user" }, 200_000, "Compacts at 33.3%"],
+		[
+			{ percent: 33.33, source: "user", organizationOverrideNotLoaded: false },
+			200_000,
+			"Compacts at 33.3%",
+		],
 		[
 			{ percent: 70, source: "model", organizationOverrideNotLoaded: true },
 			200_000,
 			"Compacts at 70% (organization override not loaded)",
 		],
-		[{ percent: 100, source: "user" }, 200_000, undefined],
+		[
+			{ percent: 100, source: "user", organizationOverrideNotLoaded: false },
+			200_000,
+			undefined,
+		],
 		[
 			{ percent: 100, source: "user", organizationOverrideNotLoaded: true },
 			200_000,

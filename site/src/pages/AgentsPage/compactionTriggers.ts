@@ -22,10 +22,9 @@ export type ResolvedCompactionThreshold =
 			readonly source: "user" | "model";
 			// The organization overrides never loaded, so a binding organization
 			// override may exist that this threshold does not reflect.
-			readonly organizationOverrideNotLoaded?: boolean;
+			readonly organizationOverrideNotLoaded: boolean;
 	  }
 	| {
-			readonly percent: number;
 			readonly source: "organization";
 			// Token count that triggers organization compaction.
 			readonly pointTokens: number;
@@ -210,36 +209,28 @@ export const resolveChatCompactionThreshold = (
 		models,
 		providerInfoByID,
 	);
-	if (organizationTrigger) {
-		const organizationPercent = compactionPointAsPercent(
-			organizationTrigger.pointTokens,
-			config.context_limit,
-		);
-		// Bind on token points, not organizationPercent: the organization point
-		// can convert to 100% or more of this window, which reads as disabled.
-		if (
-			organizationPercent !== undefined &&
-			bindingCompactionTriggerSource(
-				{
-					thresholdPercent,
-					contextLimit: config.context_limit,
-				},
-				organizationTrigger.trigger,
-			) === "organization"
-		) {
-			return {
-				percent: organizationPercent,
-				source: "organization",
-				pointTokens: organizationTrigger.pointTokens,
-			};
-		}
+	if (
+		organizationTrigger &&
+		config.context_limit > 0 &&
+		bindingCompactionTriggerSource(
+			{
+				thresholdPercent,
+				contextLimit: config.context_limit,
+			},
+			organizationTrigger.trigger,
+		) === "organization"
+	) {
+		return {
+			source: "organization",
+			pointTokens: organizationTrigger.pointTokens,
+		};
 	}
 
 	return {
 		percent: thresholdPercent,
 		source: userOverride ? "user" : "model",
-		...(overrides.error != null &&
-			overrides.data === undefined && { organizationOverrideNotLoaded: true }),
+		organizationOverrideNotLoaded:
+			overrides.error != null && overrides.data === undefined,
 	};
 };
 
@@ -247,8 +238,8 @@ export const formatCompactionPercent = (percent: number) =>
 	percent.toLocaleString("en-US", { maximumFractionDigits: 1 });
 
 /**
- * Labels the compaction point against the displayed context window, which may
- * be a runtime-reported window that differs from the configured one.
+ * Converts an organization point against the displayed context window, which
+ * may differ from the configured one.
  */
 export const compactionThresholdLabel = (
 	compaction: ResolvedCompactionThreshold,

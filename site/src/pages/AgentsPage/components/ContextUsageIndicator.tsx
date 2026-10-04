@@ -280,9 +280,7 @@ export const ContextUsageIndicator: React.FC<{
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
 	const compactionLabel =
-		usage?.compactionThreshold &&
-		contextLimitTokens !== undefined &&
-		contextLimitTokens > 0
+		usage?.compactionThreshold && contextLimitTokens !== undefined
 			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
 			: undefined;
 	const clampedPercent = hasPercent

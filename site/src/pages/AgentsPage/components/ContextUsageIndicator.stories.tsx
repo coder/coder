@@ -23,7 +23,6 @@ export const OrganizationCompactionPointUsesReportedLimit: Story = {
 			usedTokens: 64_000,
 			contextLimitTokens: 200_000,
 			compactionThreshold: {
-				percent: 25,
 				source: "organization",
 				pointTokens: 32_000,
 			},
@@ -43,7 +42,6 @@ export const OrganizationCompactionPointBeyondReportedLimit: Story = {
 			usedTokens: 5_200,
 			contextLimitTokens: 10_000,
 			compactionThreshold: {
-				percent: 160,
 				source: "organization",
 				pointTokens: 16_000,
 			},
@@ -62,7 +60,11 @@ export const ChatModelCompactionDisabled: Story = {
 		usage: {
 			usedTokens: 64_000,
 			contextLimitTokens: 128_000,
-			compactionThreshold: { percent: 100, source: "user" },
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -98,7 +100,11 @@ export const ChatModelCompactionBinding: Story = {
 		usage: {
 			usedTokens: 64_000,
 			contextLimitTokens: 128_000,
-			compactionThreshold: { percent: 80, source: "model" },
+			compactionThreshold: {
+				percent: 80,
+				source: "model",
+				organizationOverrideNotLoaded: false,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {

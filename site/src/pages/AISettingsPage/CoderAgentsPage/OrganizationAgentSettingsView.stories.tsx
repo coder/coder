@@ -243,13 +243,9 @@ export const CompactionTriggerWarningManyModels: Story = {
 			MockCompactionChatModel,
 			model,
 			alternateModel,
-			...["Model Three", "Model Four", "Model Five"].map(
-				(display_name, index) => ({
-					...MockChatModel,
-					id: `model-${index + 3}`,
-					display_name,
-				}),
-			),
+			{ ...MockChatModel, id: "model-3", display_name: "Model Three" },
+			{ ...MockChatModel, id: "model-4", display_name: "Model Four" },
+			{ ...MockChatModel, id: "model-5", display_name: "Model Five" },
 		],
 	},
 	play: CompactionTriggerWarning.play,
