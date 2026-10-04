@@ -21,7 +21,8 @@ func sameCompactionProviderIdentity(chatConfig, overrideConfig database.ChatMode
 }
 
 // sanitizeCompactionPrompt adapts a prompt built for the chat model to a
-// differing compaction model. The input messages are never mutated; the
+// differing compaction model. reasoningModel is the model whose OpenAI
+// reasoning the prompt may carry. The input messages are never mutated; the
 // assistant generation keeps using the original prompt.
 func sanitizeCompactionPrompt(
 	ctx context.Context,
@@ -31,10 +32,14 @@ func sanitizeCompactionPrompt(
 	configuredProvider string,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
+	reasoningModel string,
 ) []fantasy.Message {
 	messages := prompt
-	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
+	sameProvider := sameCompactionProviderIdentity(chatConfig, overrideConfig)
+	if !sameProvider {
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
+	}
+	if !sameProvider || compactionModel.ModelID() != reasoningModel {
 		messages = dropOpenAIReasoningParts(ctx, logger, messages)
 	}
 	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
@@ -123,8 +128,9 @@ func flattenProviderExecutedToolParts(
 }
 
 // dropOpenAIReasoningParts removes OpenAI reasoning parts from a copy of
-// messages, since the compaction provider cannot resolve another provider's
-// reasoning items. Messages emptied by the drop are removed.
+// messages, since another provider cannot resolve their item IDs and another
+// model can reject their encrypted content. Messages emptied by the drop are
+// removed.
 func dropOpenAIReasoningParts(
 	ctx context.Context,
 	logger slog.Logger,

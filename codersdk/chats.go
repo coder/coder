@@ -496,6 +496,10 @@ type ChatMessagePart struct {
 	// part, because a model config's provider can change after the
 	// message was written. Internal only: stripped before API responses.
 	ProviderIdentity string `json:"provider_identity,omitempty" typescript:"-"`
+	// ProviderModel records the model that produced a reasoning part,
+	// because a model config's model can change after the message was
+	// written. Internal only: stripped before API responses.
+	ProviderModel string `json:"provider_model,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
@@ -583,6 +587,7 @@ type ChatMessagePart struct {
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	p.ProviderIdentity = ""
+	p.ProviderModel = ""
 	if p.FileID.Valid {
 		p.Data = nil
 	}

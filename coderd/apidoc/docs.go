@@ -21808,6 +21808,10 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "provider_model": {
+                    "description": "ProviderModel records the model that produced a reasoning part,\nbecause a model config's model can change after the message was\nwritten. Internal only: stripped before API responses.",
+                    "type": "string"
+                },
                 "reasoning_delta": {
                     "type": "string"
                 },

@@ -3337,6 +3337,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "provider_model": "string",
       "reasoning_delta": "string",
       "result": [
         0
@@ -3436,6 +3437,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "provider_model": "string",
   "reasoning_delta": "string",
   "result": [
     0
@@ -3491,6 +3493,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_identity`            | string                                                       | false    |              | Provider identity records the provider that produced a reasoning part, because a model config's provider can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                           |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `provider_model`               | string                                                       | false    |              | Provider model records the model that produced a reasoning part, because a model config's model can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                                    |
 | `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3613,6 +3616,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -3697,6 +3701,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -5049,6 +5054,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "provider_model": "string",
       "reasoning_delta": "string",
       "result": [
         0
@@ -5217,6 +5223,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -5298,6 +5305,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "provider_model": "string",
       "reasoning_delta": "string",
       "result": [
         0
@@ -5366,6 +5374,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -5483,6 +5492,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "provider_model": "string",
     "reasoning_delta": "string",
     "result": [
       0
@@ -6362,6 +6372,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -6445,6 +6456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -6529,6 +6541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -9427,6 +9440,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -9510,6 +9524,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0

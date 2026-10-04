@@ -2598,6 +2598,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -2682,6 +2683,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -2839,6 +2841,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -2922,6 +2925,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -3006,6 +3010,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -3149,6 +3154,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -3232,6 +3238,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -3774,6 +3781,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "provider_metadata": [
             0
           ],
+          "provider_model": "string",
           "reasoning_delta": "string",
           "result": [
             0
@@ -3855,6 +3863,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "provider_metadata": [
           0
         ],
+        "provider_model": "string",
         "reasoning_delta": "string",
         "result": [
           0
@@ -3923,6 +3932,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "provider_metadata": [
               0
             ],
+            "provider_model": "string",
             "reasoning_delta": "string",
             "result": [
               0
@@ -4026,6 +4036,7 @@ Status Code **200**
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `»»» provider_identity`            | string                                                                           | false    |              | Provider identity records the provider that produced a reasoning part, because a model config's provider can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                           |
 | `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `»»» provider_model`               | string                                                                           | false    |              | Provider model records the model that produced a reasoning part, because a model config's model can change after the message was written. Internal only: stripped before API responses.                                                                                                                                                                                                                    |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

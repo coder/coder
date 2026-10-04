@@ -70,8 +70,8 @@ type generationPrepared struct {
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider string
-	ProviderIdentity string
+	ResolvedProvider    string
+	ReasoningProvenance reasoningProvenance
 
 	StageModel chatloop.StageModel
 
@@ -878,7 +878,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
-		providerIdentity:       prepared.ProviderIdentity,
+		reasoningProvenance:    prepared.ReasoningProvenance,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1108,12 +1108,12 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		step:               step,
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
-		providerIdentity:   prepared.ProviderIdentity,
+		modelConfigID:       prepared.ModelConfigID,
+		step:                step,
+		toolNameToConfigID:  prepared.ToolNameToConfigID,
+		logger:              s.opts.Logger,
+		contentVersion:      chatprompt.CurrentContentVersion,
+		reasoningProvenance: prepared.ReasoningProvenance,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1210,6 +1210,7 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
+			prepared.ReasoningProvenance.Model,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
