@@ -1150,9 +1150,8 @@ func (s *taskStarter) executeLocalTools(
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	// Pin nested instruction files before the step commits so the next
-	// preparation reads them. Only executed calls count: an exclusively
-	// rejected batch never ran, the denied results are appended below, and
-	// a call to an inactive tool is answered without running it.
+	// preparation reads them. Only calls that ran count: not an exclusively
+	// rejected batch, denied calls, or calls to inactive tools.
 	if prepared.DiscoverInstructions != nil && !exclusiveRejected {
 		executed := slices.DeleteFunc(slices.Clone(allowed), func(call fantasy.ToolCallContent) bool {
 			return !chatloop.ToolActive(call.ToolName, prepared.ActiveTools, prepared.AllowInactiveTools)

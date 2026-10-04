@@ -5448,9 +5448,9 @@ func (m queryMetricsStore) SyncAgentChatsContextAddedResources(ctx context.Conte
 	return r0, r1
 }
 
-func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, arg database.SyncAgentChatsContextMCPResourcesParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0, r1 := m.s.SyncAgentChatsContextMCPResources(ctx, agentID)
+	r0, r1 := m.s.SyncAgentChatsContextMCPResources(ctx, arg)
 	m.queryLatencies.WithLabelValues("SyncAgentChatsContextMCPResources").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextMCPResources").Inc()
 	return r0, r1

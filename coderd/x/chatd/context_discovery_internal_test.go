@@ -182,14 +182,14 @@ func TestCandidateInstructionDirs(t *testing.T) {
 func TestSelectInstructionProbes(t *testing.T) {
 	t.Parallel()
 
-	// Writing a rule file or running a command in a directory may create a
+	// Touching a rule file or running a command in a directory may reveal a
 	// file the agent last reported missing.
-	require.Equal(t, []string{"/repo/pkg", "/repo/site"}, rewrittenInstructionDirs(
+	require.Equal(t, []string{"/repo/pkg", "/repo/site"}, invalidatedProbeDirs(
 		[]string{"/repo/site/CLAUDE.md", "/repo/site/src/App.tsx"},
 		[]string{"/repo/pkg"},
 	))
 	// Windows spells the recognized names in any case; POSIX does not.
-	require.Equal(t, []string{"C:/repo/site"}, rewrittenInstructionDirs([]string{"C:/repo/site/agents.md", "/repo/docs/agents.md"}, nil))
+	require.Equal(t, []string{"C:/repo/site"}, invalidatedProbeDirs([]string{"C:/repo/site/agents.md", "/repo/docs/agents.md"}, nil))
 
 	pinned := map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}
 	negative := func(dir string) bool { return dir == "/repo/pkg" }
@@ -642,7 +642,9 @@ func TestDiscoverInstructionContext(t *testing.T) {
 	)
 	chain := []string{nestedDir, nestedDir + "/src"}
 
-	// Pinned and empty directories are not asked again.
+	// Pinned and empty directories are not asked again, even after a tool
+	// touches an instruction file or runs a command there: the strict
+	// connection fails the test on any probe after the first.
 	t.Run("PinsFoundFilesOnce", func(t *testing.T) {
 		t.Parallel()
 		op := newDiscoveryOp(t)
@@ -660,30 +662,18 @@ func TestDiscoverInstructionContext(t *testing.T) {
 		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"), excluded)
 
 		op.discover([]string{touchedFile}, nil)
-		op.discover([]string{touchedFile}, nil)
-
-		rows := op.rows(t)
-		require.Len(t, rows, 3)
-		require.False(t, rows[op.fix.srcA].Discovered)
-		require.True(t, rows[nestedSource].Discovered)
-		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, rows[secondSource].Status, "an excluded file is part of the inventory")
-		testutil.RequireReceive(op.fix.ctx, t, events)
-	})
-
-	// The strict connection fails the test on any probe after the first.
-	t.Run("LeavesPinnedDirectoriesToRefresh", func(t *testing.T) {
-		t.Parallel()
-		op := newDiscoveryOp(t)
-		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"))
-
-		op.discover([]string{touchedFile}, nil)
 		pinned := op.rows(t)[nestedSource]
+		op.discover([]string{touchedFile}, nil)
 		op.discover([]string{secondSource}, nil)
 		op.discover(nil, []string{nestedDir})
 
 		rows := op.rows(t)
+		require.Len(t, rows, 3)
+		require.False(t, rows[op.fix.srcA].Discovered)
+		require.True(t, pinned.Discovered)
 		require.Equal(t, pinned, rows[nestedSource])
-		require.NotContains(t, rows, secondSource)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, rows[secondSource].Status, "an excluded file is part of the inventory")
+		testutil.RequireReceive(op.fix.ctx, t, events)
 	})
 
 	t.Run("ReprobesWhereAToolMayHaveWritten", func(t *testing.T) {

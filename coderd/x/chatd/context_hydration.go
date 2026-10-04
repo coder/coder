@@ -64,7 +64,10 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	// They go before the additive sync: rows share one (chat, source) key
 	// across kinds, so a server removed in this push must release its row
 	// before a prompt published at the same source is looked for.
-	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
+	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, database.SyncAgentChatsContextMCPResourcesParams{
+		AgentID:      agentID,
+		MaxResources: maxChatContextResources,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
 	}
@@ -342,10 +345,11 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 
 // RefreshChatContext re-pins a chat to its agent's latest context snapshot
 // (hash, error, and resource bodies) and clears the dirty marker. It backs
-// PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose
-// agent has no snapshot, simply has its pinned hash, dirty marker, and
-// resources cleared. Discovered instruction files are kept and re-read
-// through the agent afterwards; a failed re-read leaves them as they were.
+// PUT /chats/{chat}/context (no body). A chat whose agent has no snapshot
+// has its pinned hash, dirty marker, and snapshot rows cleared; an unbound
+// chat loses all its resources. A bound chat keeps its discovered
+// instruction files, re-read through the agent afterwards; a failed re-read
+// leaves them as they were.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a

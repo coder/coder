@@ -520,14 +520,14 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
-	// injecting the previous agent's resources. Workspace lifecycle tools clear
-	// the agent binding while preserving the pin, and discovery can pin rows
-	// before any snapshot, so binding a chat with no prior agent clears its
-	// context whatever its hash says; first-turn hydration then pins the new
-	// agent and notifies watchers. Best-effort: a context error must never
-	// fail the binding. The row is re-read after the re-pin so the turn sees
-	// the new pin state: the binding row still carries the previous agent's
-	// hash, which would read a cleared pin as a snapshot without files.
+	// injecting the previous agent's resources. Binding an unbound chat
+	// clears its context instead, whatever its hash says: lifecycle tools
+	// unbind while keeping the old pin, and discovered rows need no hash.
+	// First-turn hydration then pins the new agent. Best-effort: a context
+	// error must never fail the binding. The row is re-read after the re-pin
+	// so the turn sees the new pin state: the binding row still carries the
+	// previous agent's hash, which would read a cleared pin as a snapshot
+	// without files.
 	if !chatSnapshot.AgentID.Valid || chatSnapshot.AgentID.UUID != agentID {
 		repinTo := uuid.NullUUID{UUID: agentID, Valid: chatSnapshot.AgentID.Valid}
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.

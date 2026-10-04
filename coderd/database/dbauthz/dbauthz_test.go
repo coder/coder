@@ -716,10 +716,10 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
 	}))
 	s.Run("SyncAgentChatsContextMCPResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		agentID := uuid.New()
+		arg := database.SyncAgentChatsContextMCPResourcesParams{AgentID: uuid.New(), MaxResources: 1}
 		synced := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).Return(synced, nil).AnyTimes()
-		check.Args(agentID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
+		dbm.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), arg).Return(synced, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
 	}))
 	s.Run("SetChatContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

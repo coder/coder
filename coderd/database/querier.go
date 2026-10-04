@@ -1547,15 +1547,15 @@ type sqlcQuerier interface {
 	// source the chat has never pinned) to hydrated chats whose pinned hash
 	// drifted from the agent's latest snapshot, so an open chat sees a
 	// repository cloned during the conversation on its next step. Rows the chat
-	// already holds are never rewritten: a row chatd discovered from a
-	// tool-touched directory is adopted as the model read it, and a skill that
-	// replaces a pinned skill of the same name is not added. New sources are
-	// admitted in source order while the chat stays within @max_resources rows
-	// of any kind and @max_content_bytes of readable prompt content, so
-	// successive snapshots cannot accumulate without bound; refresh reclaims
-	// the space. Out-of-date chats whose pinned prompts have come level with
-	// the snapshot again (a changed file changed back) are locked too, since
-	// nothing else clears their marker. Callers settle the returned chats with
+	// already holds are never rewritten: a discovered row is adopted as the
+	// model read it, and a skill replacing a pinned one of the same name is not
+	// added. New sources are admitted in source order within @max_resources rows
+	// of any kind and @max_content_bytes of readable prompt content; refresh
+	// reclaims the space. Out-of-date chats whose pinned prompts are level with
+	// the snapshot again are selected too, since nothing else clears their
+	// marker, and so are clean chats holding a body that differs from the
+	// snapshot's, since the hash leaves out fields such as an instruction
+	// file's global flag. Callers settle the returned chats with
 	// SettleChatsContextDrift. Changed chats are locked in ID order and written
 	// like the MCP sync.
 	SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error)
@@ -1564,7 +1564,11 @@ type sqlcQuerier interface {
 	// cannot interleave with the replacement, and written like
 	// LockChatContextForWrite so writers that read their inventory earlier
 	// retry. A prompt row at a server's source is left as the model read it.
-	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	// Sources the chat does not hold yet are admitted in source order within
+	// @max_resources rows of any kind, counted after stale servers go.
+	// Sibling statements cannot see the delete, so the kept rows are counted
+	// directly.
+	SyncAgentChatsContextMCPResources(ctx context.Context, arg SyncAgentChatsContextMCPResourcesParams) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has

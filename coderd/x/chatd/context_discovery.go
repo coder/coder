@@ -31,7 +31,7 @@ const (
 	// workspace cannot stall the step.
 	instructionDiscoveryTimeout = 3 * time.Second
 	// instructionProbeTTL is how long a directory the agent reported empty
-	// is skipped, unless a tool writes an instruction file or runs a
+	// is skipped, unless a tool touches an instruction file or runs a
 	// command there.
 	instructionProbeTTL = 10 * time.Minute
 	// maxInstructionProbeEntries bounds the probe cache across all agents;
@@ -50,7 +50,7 @@ const (
 )
 
 // instructionFileNames mirrors the agent resolver's recognized names so a
-// tool that writes one of them re-probes its directory.
+// tool that touches one of them re-probes its directory.
 var instructionFileNames = []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"}
 
 type instructionDiscoverer func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content)
@@ -293,10 +293,10 @@ func sortShallowestFirst(dirs []string) {
 	})
 }
 
-// rewrittenInstructionDirs lists the directories an instruction file was
-// written to and the explicit execute workdirs, where the step may have
-// created a file since the agent last reported the directory empty.
-func rewrittenInstructionDirs(files, dirs []string) []string {
+// invalidatedProbeDirs lists the directories whose cached empty answer
+// the step's touches invalidate: those of touched instruction files and
+// explicit execute workdirs.
+func invalidatedProbeDirs(files, dirs []string) []string {
 	out := slices.Clone(dirs)
 	for _, file := range files {
 		if isInstructionFilePath(file) {
@@ -379,7 +379,7 @@ func (p *Server) discoverInstructionContext(
 		return
 	}
 	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("agent_id", agent.ID))
-	p.instructionProbes.forget(agent.ID, rewrittenInstructionDirs(files, dirs))
+	p.instructionProbes.forget(agent.ID, invalidatedProbeDirs(files, dirs))
 
 	//nolint:gocritic // Chatd reads the chat's pinned rows as the daemon subject.
 	dbCtx := dbauthz.AsChatd(ctx)
@@ -545,12 +545,10 @@ func insertDiscoveredInstructionFile(ctx context.Context, store database.Store, 
 	return nil
 }
 
-// applyDiscoveredInstructionFiles pins a probe's answer, given for agentID,
-// in one repeatable-read transaction that drops it after a rebind, against
-// the chat's inventory as it is then. A refresh passes the discovered rows
-// it captured: each one still unchanged in a probed directory is replaced
-// by what the probe found there, while one that changed or disappeared
-// meanwhile keeps the newer state.
+// applyDiscoveredInstructionFiles pins a probe's answer against the chat's
+// current inventory, and drops it once the chat is bound to another agent.
+// A refresh passes the discovered rows it captured, so rows still unchanged
+// in a probed directory take the probe's answer and newer state wins.
 func (p *Server) applyDiscoveredInstructionFiles(
 	ctx context.Context,
 	chatID, agentID uuid.UUID,
@@ -588,12 +586,10 @@ func (p *Server) applyDiscoveredInstructionFiles(
 	return pinned, err
 }
 
-// releaseCapturedRows deletes the captured discovered rows in probed
-// directories that are still as captured, so the files the probe found
-// there are pinned in their place, and returns the remaining inventory. It
-// also returns, by pathKey, the captured sources that changed or
-// disappeared meanwhile: a newer writer owns them, so the probe's answer
-// must not recreate or overwrite them.
+// releaseCapturedRows deletes the captured rows in probed directories that
+// are still as captured, so the probe's answer replaces them. The captured
+// sources that changed or disappeared meanwhile are returned by pathKey: a
+// newer writer owns them, so the answer must not recreate or overwrite them.
 func releaseCapturedRows(
 	ctx context.Context,
 	store database.Store,

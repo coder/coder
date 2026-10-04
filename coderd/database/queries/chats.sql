@@ -1829,6 +1829,8 @@ RETURNING id, owner_id;
 -- cannot interleave with the replacement, and written like
 -- LockChatContextForWrite so writers that read their inventory earlier
 -- retry. A prompt row at a server's source is left as the model read it.
+-- Sources the chat does not hold yet are admitted in source order within
+-- @max_resources rows of any kind, counted after stale servers go.
 WITH agent_mcp AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
@@ -1888,15 +1890,47 @@ deleted AS (
         AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
         AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
 ),
+-- Sibling statements cannot see the delete, so the kept rows are counted
+-- directly.
+inventory AS (
+    SELECT locked.id AS chat_id, count(ccr.source) AS resources
+    FROM locked
+    LEFT JOIN chat_context_resources ccr ON ccr.chat_id = locked.id
+        AND (
+            ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+            OR ccr.source IN (SELECT source FROM agent_mcp)
+        )
+    GROUP BY locked.id
+),
+candidates AS (
+    SELECT
+        locked.id AS chat_id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path,
+        EXISTS (
+            SELECT 1 FROM chat_context_resources ccr
+            WHERE ccr.chat_id = locked.id
+                AND ccr.source = m.source
+        ) AS held
+    FROM locked
+    CROSS JOIN agent_mcp m
+),
+admitted AS (
+    SELECT
+        c.chat_id, c.source, c.body_kind, c.body, c.content_hash,
+        c.size_bytes, c.status, c.error, c.source_path, c.held,
+        i.resources + row_number() OVER (PARTITION BY c.chat_id, c.held ORDER BY c.source) AS resources_after
+    FROM candidates c
+    JOIN inventory i ON i.chat_id = c.chat_id
+),
 upserted AS (
     INSERT INTO chat_context_resources (
         chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
     )
     SELECT
-        locked.id, m.source, m.body_kind, m.body, m.content_hash,
-        m.size_bytes, m.status, m.error, m.source_path
-    FROM locked
-    CROSS JOIN agent_mcp m
+        chat_id, source, body_kind, body, content_hash,
+        size_bytes, status, error, source_path
+    FROM admitted
+    WHERE held OR resources_after <= @max_resources::bigint
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -1915,15 +1949,15 @@ SELECT id FROM locked;
 -- source the chat has never pinned) to hydrated chats whose pinned hash
 -- drifted from the agent's latest snapshot, so an open chat sees a
 -- repository cloned during the conversation on its next step. Rows the chat
--- already holds are never rewritten: a row chatd discovered from a
--- tool-touched directory is adopted as the model read it, and a skill that
--- replaces a pinned skill of the same name is not added. New sources are
--- admitted in source order while the chat stays within @max_resources rows
--- of any kind and @max_content_bytes of readable prompt content, so
--- successive snapshots cannot accumulate without bound; refresh reclaims
--- the space. Out-of-date chats whose pinned prompts have come level with
--- the snapshot again (a changed file changed back) are locked too, since
--- nothing else clears their marker. Callers settle the returned chats with
+-- already holds are never rewritten: a discovered row is adopted as the
+-- model read it, and a skill replacing a pinned one of the same name is not
+-- added. New sources are admitted in source order within @max_resources rows
+-- of any kind and @max_content_bytes of readable prompt content; refresh
+-- reclaims the space. Out-of-date chats whose pinned prompts are level with
+-- the snapshot again are selected too, since nothing else clears their
+-- marker, and so are clean chats holding a body that differs from the
+-- snapshot's, since the hash leaves out fields such as an instruction
+-- file's global flag. Callers settle the returned chats with
 -- SettleChatsContextDrift. Changed chats are locked in ID order and written
 -- like the MCP sync.
 WITH agent_prompt AS (
@@ -1966,6 +2000,16 @@ changed AS (
                                 AND p.content_hash = ccr.content_hash
                                 AND p.status = ccr.status
                         )
+                )
+            )
+            OR (
+                chats.context_dirty_since IS NULL
+                AND EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    JOIN agent_prompt p ON p.source = ccr.source
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.discovered = false
+                        AND p.body <> ccr.body
                 )
             )
         )

@@ -7679,13 +7679,13 @@ func (q *querier) SyncAgentChatsContextAddedResources(ctx context.Context, arg d
 	return q.db.SyncAgentChatsContextAddedResources(ctx, arg)
 }
 
-func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, arg database.SyncAgentChatsContextMCPResourcesParams) ([]uuid.UUID, error) {
 	// The push can update multiple chats bound to the agent, so authorize the
 	// chat resource class.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
+	return q.db.SyncAgentChatsContextMCPResources(ctx, arg)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

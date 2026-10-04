@@ -10330,18 +10330,18 @@ func (mr *MockStoreMockRecorder) SyncAgentChatsContextAddedResources(ctx, arg an
 }
 
 // SyncAgentChatsContextMCPResources mocks base method.
-func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, arg database.SyncAgentChatsContextMCPResourcesParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, agentID)
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, arg)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SyncAgentChatsContextMCPResources indicates an expected call of SyncAgentChatsContextMCPResources.
-func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, arg)
 }
 
 // TouchChatDebugRunUpdatedAt mocks base method.
