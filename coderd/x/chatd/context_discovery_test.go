@@ -102,7 +102,7 @@ func newDiscoveryTurn(ctx context.Context, t *testing.T, model func(*chattest.Op
 
 // start runs the first turn on a server that dials agentConn (the mock
 // connection when nil) and returns the chat once it is waiting.
-func (d *discoveryTurn) start(t *testing.T, agentConn chatd.AgentConnFunc) database.Chat {
+func (d *discoveryTurn) start(t *testing.T, agentConn chatd.AgentConnFunc, opts ...func(*chatd.CreateOptions)) database.Chat {
 	t.Helper()
 	if agentConn == nil {
 		agentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -114,7 +114,7 @@ func (d *discoveryTurn) start(t *testing.T, agentConn chatd.AgentConnFunc) datab
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, d.openAIURL))
 		cfg.AgentConn = agentConn
 	})
-	chat, err := server.CreateChat(d.ctx, chatd.CreateOptions{
+	createOpts := chatd.CreateOptions{
 		OrganizationID: d.org.ID,
 		OwnerID:        d.user.ID,
 		WorkspaceID:    uuid.NullUUID{UUID: d.ws.ID, Valid: true},
@@ -124,7 +124,11 @@ func (d *discoveryTurn) start(t *testing.T, agentConn chatd.AgentConnFunc) datab
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("read the app"),
 		},
-	})
+	}
+	for _, opt := range opts {
+		opt(&createOpts)
+	}
+	chat, err := server.CreateChat(d.ctx, createOpts)
 	require.NoError(t, err)
 	waitForChatStatus(d.ctx, t, d.db, chat.ID, database.ChatStatusWaiting)
 	return chat
@@ -230,6 +234,47 @@ func TestLazyInstructionDiscoveryNeverFailsStep(t *testing.T) {
 	}
 	require.Equal(t, 1, toolResults)
 	require.Len(t, pinnedBySource(ctx, t, turn.db, chat.ID), 1, "a failed probe pins nothing")
+}
+
+// A call the turn's tool policy rejects never ran, so it is not evidence of
+// a new instruction file.
+func TestLazyInstructionDiscoverySkipsInactiveTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var modelCalls atomic.Int32
+	turn := newDiscoveryTurn(ctx, t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("write_file", `{"path":"`+discoveryNestedSource+`","content":"site rules"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	var probes atomic.Int32
+	turn.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+			probes.Add(1)
+			return instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil
+		}).AnyTimes()
+	// Plan-mode subagents cannot write files.
+	parent := dbgen.Chat(t, turn.db, database.Chat{
+		OrganizationID:    turn.org.ID,
+		OwnerID:           turn.user.ID,
+		LastModelConfigID: turn.model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	chat := turn.start(t, nil, func(opts *chatd.CreateOptions) {
+		opts.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		opts.RootChatID = opts.ParentChatID
+		opts.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	})
+
+	require.EqualValues(t, 2, modelCalls.Load(), "the rejected call was answered and the turn finished")
+	require.Zero(t, probes.Load(), "the rejected write triggers no probe")
+	require.NotContains(t, pinnedBySource(ctx, t, turn.db, chat.ID), discoveryNestedSource)
 }
 
 // The agent drops between the step's preparation and its tools, and the

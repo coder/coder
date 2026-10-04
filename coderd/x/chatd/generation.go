@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -1150,9 +1151,13 @@ func (s *taskStarter) executeLocalTools(
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	// Pin nested instruction files before the step commits so the next
 	// preparation reads them. Only executed calls count: an exclusively
-	// rejected batch never ran, and the denied results are appended below.
+	// rejected batch never ran, the denied results are appended below, and
+	// a call to an inactive tool is answered without running it.
 	if prepared.DiscoverInstructions != nil && !exclusiveRejected {
-		prepared.DiscoverInstructions(ctx, allowed, outcome.Content)
+		executed := slices.DeleteFunc(slices.Clone(allowed), func(call fantasy.ToolCallContent) bool {
+			return !chatloop.ToolActive(call.ToolName, prepared.ActiveTools, prepared.AllowInactiveTools)
+		})
+		prepared.DiscoverInstructions(ctx, executed, outcome.Content)
 	}
 	for _, result := range denied {
 		outcome.Content = append(outcome.Content, result)
