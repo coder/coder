@@ -295,7 +295,7 @@ describe("ConversationTimeline working blocks", () => {
 const streamingStage = (
 	messages: ChatMessage[],
 	toolCallId: string,
-	at: number,
+	seconds: number,
 ): TimelineStage => ({
 	messages,
 	chatStatus: "running",
@@ -305,7 +305,7 @@ const streamingStage = (
 			tool_call_id: toolCallId,
 			tool_name: "execute",
 			args: { command: `echo ${toolCallId}` },
-			created_at: workingFixtureTime(at),
+			created_at: workingFixtureTime(seconds),
 		},
 	]),
 });

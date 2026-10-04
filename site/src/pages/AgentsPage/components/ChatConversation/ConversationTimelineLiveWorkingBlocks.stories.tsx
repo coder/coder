@@ -141,7 +141,7 @@ export const RequiresActionCompletesBlock: Story = {
 	},
 };
 
-const MockParkedToolMessage: ChatMessage = {
+const MockPendingToolMessage: ChatMessage = {
 	...MockChatMessage,
 	id: 4,
 	role: "assistant",
@@ -161,7 +161,7 @@ export const RequiresActionKeepsPendingToolVisible: Story = {
 	args: {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
-			[...MockWorkingMessages.slice(0, 3), MockParkedToolMessage],
+			[...MockWorkingMessages.slice(0, 3), MockPendingToolMessage],
 			{ pendingToolCallIDs: new Set(["editor"]) },
 		),
 	},
