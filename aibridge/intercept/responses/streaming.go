@@ -120,6 +120,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	}()
 
 	var respCopy responseCopier
+	defer respCopy.closeUpstream()
 	var firstResponseID string
 	var completedResponse *responses.Response
 	var innerLoopErr error
@@ -159,6 +160,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		var stream *ssestream.Stream[responses.ResponseStreamEventUnion]
 		var startErr error
 		for {
+			respCopy.closeUpstream()
 			respCopy = responseCopier{}
 			opts := i.requestOptions(&respCopy)
 
