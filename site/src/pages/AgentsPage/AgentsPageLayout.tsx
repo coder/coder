@@ -772,7 +772,7 @@ const AgentsPageLayout: React.FC = () => {
 		<>
 			<div
 				data-testid="agents-page-layout"
-				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary pt-[var(--agents-pwa-top-inset,0px)] sm:flex-row"
 			>
 				<title>{pageTitle("Agents")}</title>
 				<ResizableChatsSidebarFrame

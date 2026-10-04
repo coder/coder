@@ -49,6 +49,21 @@ type Story = StoryObj<typeof RightPanel>;
 
 export const Default: Story = {};
 
+export const IOSStandalone: Story = {
+	parameters: {
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () => {
+		document.documentElement.style.setProperty(
+			"--agents-pwa-top-inset",
+			"60px",
+		);
+		return () => {
+			document.documentElement.style.removeProperty("--agents-pwa-top-inset");
+		};
+	},
+};
+
 export const Closed: Story = {
 	args: { isOpen: false },
 };

@@ -757,6 +757,15 @@
 		scrollbar-gutter: auto;
 	}
 
+	@media (display-mode: standalone) {
+		@supports (-webkit-touch-callout: none) {
+			html[data-agents-layout] {
+				/* iOS standalone can blur past the safe-area inset; add conservative clearance. */
+				--agents-pwa-top-inset: calc(env(safe-area-inset-top, 0px) + 40px);
+			}
+		}
+	}
+
 	html[data-agents-layout] body,
 	html[data-agents-layout] body[data-scroll-locked] {
 		overflow: hidden !important;
