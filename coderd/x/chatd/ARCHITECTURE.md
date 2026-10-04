@@ -1059,6 +1059,12 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+##### Skill index
+
+Each turn, chatd merges the user's personal skills with the skills the workspace agent pushed and inserts an `<available-skills>` block into the system prompt, after the chat instruction and before the user prompt. Each entry is a skill alias and its description. A name held by one skill is listed bare; a name held by several is listed as `personal/<name>` or `workspace/<name>`. The model passes an alias to `read_skill` to load the body, and to `read_skill_file` to read a supporting file of a workspace skill.
+
+Every description is sanitized before it is rendered, whatever its source: invisible and format runes (including Unicode tag characters and variation selectors, but not U+200C) are removed, control runes and whitespace runs collapse to one space, and ASCII `<` and `>` are escaped as `&lt;` and `&gt;`. This keeps each entry on one line, so a description cannot end the block or add entries; it does not make the text trusted, and the model still reads it as part of the system prompt. Lookalike brackets such as U+FF1C are not escaped. Descriptions other than personal ones are cut to the Agent Skills limit of 1024 runes, ending in `…`, before escaping; personal descriptions are already bounded at upload (4096 bytes).
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.

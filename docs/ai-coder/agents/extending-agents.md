@@ -81,6 +81,7 @@ The agent looks for skill directories in the immediate children of these contain
 Because `~/.coder/skills` is itself a scan root, skills placed directly under it are discovered too.
 
 Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
+The description shown in `<available-skills>` is flattened to one line, with invisible characters removed, control characters and runs of whitespace replaced by one space, `<` and `>` escaped, and workspace skill descriptions cut at 1,024 characters.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
 A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
 
@@ -174,6 +175,7 @@ Instructions for the skill go here...
 Each personal skill is stored as a single `SKILL.md` file containing
 frontmatter and body content. Supporting files are not supported. Each
 `SKILL.md` file can be up to 64&nbsp;KB, and each user can create up to 100 personal skills.
+A personal skill's `description` can be up to 4,096 bytes; in `<available-skills>` it is flattened and escaped like a workspace skill description, but not cut.
 
 Personal skills are stored in Coder, not in the workspace, so they are not part of a workspace context snapshot and do not depend on a pin or a refresh.
 

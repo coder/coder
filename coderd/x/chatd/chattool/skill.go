@@ -6,17 +6,24 @@ import (
 	"io"
 	"path"
 	"strings"
+	"unicode"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
 	maxSkillMetaBytes = workspacesdk.MaxSkillMetaBytes
 	maxSkillFileBytes = 512 * 1024
+
+	// maxAgentSkillsDescriptionRunes is the Agent Skills specification's
+	// description limit.
+	maxAgentSkillsDescriptionRunes = 1024
 
 	// AvailableSkillsOpenTag is the XML start tag for the skill index block.
 	AvailableSkillsOpenTag = "<available-skills>"
@@ -58,6 +65,7 @@ type SkillContent struct {
 
 // FormatResolvedSkillIndex renders an XML block listing all source-aware
 // skills. Aliases are the names the model should pass to the skill tools.
+// Descriptions are sanitized for prompt rendering regardless of source.
 func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 	if len(resolved) == 0 {
 		return ""
@@ -69,7 +77,7 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 	for _, s := range resolved {
 		entries = append(entries, skillIndexEntry{
 			Alias:       s.Alias,
-			Description: s.Description,
+			Description: sanitizeSkillDescription(s.Description, s.Source),
 		})
 		if s.Source == skillspkg.SourceWorkspace {
 			hasWorkspaceSkill = true
@@ -82,6 +90,38 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 		includeQualifiedAliasInstruction: hasQualifiedAlias,
 		includeReadSkillFileInstruction:  hasWorkspaceSkill,
 	})
+}
+
+// sanitizeSkillDescription returns description as one line with no
+// invisible or format runes (except U+200C) and no ASCII "<" or ">";
+// those are escaped as "&lt;" and "&gt;". Lookalike brackets such as
+// U+FF1C are not escaped. A description from any source other than
+// personal is first cut to maxAgentSkillsDescriptionRunes runes, ending
+// in "…" when cut. Personal descriptions are bounded at upload by
+// skillspkg.MaxPersonalSkillDescriptionBytes.
+func sanitizeSkillDescription(description string, source skillspkg.Source) string {
+	description = codersdk.SanitizePromptText(description)
+	description = strings.Map(func(r rune) rune {
+		switch {
+		case unicode.IsControl(r):
+			return ' '
+		// Tag characters (U+E0001, U+E0020 to U+E007F) and variation
+		// selectors render as nothing but can encode text a model reads;
+		// codersdk.SanitizePromptText keeps them. U+200C (zero-width
+		// non-joiner) controls cursive joining in Persian and other
+		// scripts and stays.
+		case r != '\u200c' && unicode.In(r, unicode.Cf, unicode.Variation_Selector):
+			return -1
+		default:
+			return r
+		}
+	}, description)
+	description = strings.Join(strings.Fields(description), " ")
+	if source != skillspkg.SourcePersonal {
+		description = coderstrings.Truncate(description, maxAgentSkillsDescriptionRunes, coderstrings.TruncateWithEllipsis)
+	}
+	description = strings.ReplaceAll(description, "<", "&lt;")
+	return strings.ReplaceAll(description, ">", "&gt;")
 }
 
 type skillIndexEntry struct {
