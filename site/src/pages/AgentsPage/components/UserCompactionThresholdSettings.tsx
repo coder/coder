@@ -46,9 +46,11 @@ import {
 	type CompactionTriggerLoadError,
 	compactionDisabledThresholdPercent,
 	compactionPointAsPercent,
+	formatCompactionPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 } from "../compactionTriggers";
+import { getModelLabel } from "../utils/modelOptions";
 
 type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
@@ -59,7 +61,7 @@ type UserCompactionThresholdSettingsProps = {
 		OrganizationCompactionTrigger
 	>;
 	modelsError?: unknown;
-	compactionTriggerLoadErrors?: readonly CompactionTriggerLoadError[];
+	compactionTriggerLoadErrors: readonly CompactionTriggerLoadError[];
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -142,31 +144,6 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 	);
 };
 
-type OrganizationOverridePopoverProps = {
-	modelName: string;
-	isWarning: boolean;
-	children: React.ReactNode;
-};
-
-const OrganizationOverridePopover: React.FC<
-	OrganizationOverridePopoverProps
-> = ({ modelName, isWarning, children }) => (
-	<HelpPopover>
-		<HelpPopoverIconTrigger
-			size="small"
-			hoverEffect={!isWarning}
-			aria-label={`Organization override for ${modelName}`}
-			className={cn(isWarning && "text-content-warning")}
-		>
-			{isWarning ? <TriangleAlertIcon /> : undefined}
-		</HelpPopoverIconTrigger>
-		<HelpPopoverContent>
-			<HelpPopoverTitle>Organization override</HelpPopoverTitle>
-			<HelpPopoverText>{children}</HelpPopoverText>
-		</HelpPopoverContent>
-	</HelpPopover>
-);
-
 type EffectiveCompactionThresholdProps = {
 	modelConfig: TypesGen.ChatModel;
 	chatTrigger: CompactionTrigger | undefined;
@@ -184,19 +161,16 @@ const EffectiveCompactionThreshold: React.FC<
 	organizationTriggerPercentLabel,
 	isOrganizationPointBeyondWindow,
 }) => {
-	const modelName = modelConfig.display_name || modelConfig.model;
-	const isOrganizationTriggerBinding =
+	const off = <span className="text-content-secondary">Off</span>;
+
+	if (
 		chatTrigger !== undefined &&
 		organizationTrigger !== undefined &&
 		organizationTriggerPercentLabel !== undefined &&
 		bindingCompactionTriggerSource(chatTrigger, organizationTrigger.trigger) ===
-			"organization";
-	const off = <span className="text-content-secondary">Off</span>;
-
-	if (isOrganizationTriggerBinding && organizationTrigger) {
-		const organizationModelName =
-			organizationTrigger.model.display_name.trim() ||
-			organizationTrigger.model.model;
+			"organization"
+	) {
+		const organizationModelName = getModelLabel(organizationTrigger.model);
 		const organizationWindowLabel =
 			organizationTrigger.model.context_limit.toLocaleString("en-US");
 
@@ -208,30 +182,46 @@ const EffectiveCompactionThreshold: React.FC<
 					) : (
 						<span>{organizationTriggerPercentLabel}%</span>
 					)}
-					<OrganizationOverridePopover
-						modelName={modelName}
-						isWarning={!isOrganizationPointBeyondWindow}
-					>
-						{isOrganizationPointBeyondWindow ? (
-							<>
-								{organizationModelName} compacts at{" "}
-								{organizationTrigger.pointTokens.toLocaleString("en-US")} tokens
-								({organizationTrigger.model.compression_threshold}% of its{" "}
-								{organizationWindowLabel}-token window), beyond this
-								model&apos;s {modelConfig.context_limit.toLocaleString("en-US")}
-								-token window. Chats with this model do not compact
-								automatically. Set a threshold below 100% to turn compaction
-								back on.
-							</>
-						) : (
-							<>
-								{organizationModelName} compacts at{" "}
-								{organizationTrigger.model.compression_threshold}% of its{" "}
-								{organizationWindowLabel}-token window, about{" "}
-								{organizationTriggerPercentLabel}% of this model&apos;s window.
-							</>
-						)}
-					</OrganizationOverridePopover>
+					<HelpPopover>
+						<HelpPopoverIconTrigger
+							size="small"
+							hoverEffect={isOrganizationPointBeyondWindow}
+							aria-label={`Organization override for ${getModelLabel(modelConfig)}`}
+							className={cn(
+								!isOrganizationPointBeyondWindow && "text-content-warning",
+							)}
+						>
+							{isOrganizationPointBeyondWindow ? undefined : (
+								<TriangleAlertIcon />
+							)}
+						</HelpPopoverIconTrigger>
+						<HelpPopoverContent>
+							<HelpPopoverTitle>Organization override</HelpPopoverTitle>
+							<HelpPopoverText>
+								{isOrganizationPointBeyondWindow ? (
+									<>
+										{organizationModelName} compacts at{" "}
+										{organizationTrigger.pointTokens.toLocaleString("en-US")}{" "}
+										tokens ({organizationTrigger.model.compression_threshold}%
+										of its {organizationWindowLabel}-token window), beyond this
+										model&apos;s{" "}
+										{modelConfig.context_limit.toLocaleString("en-US")}
+										-token window. Chats with this model do not compact
+										automatically. Set a threshold below 100% to turn compaction
+										back on.
+									</>
+								) : (
+									<>
+										{organizationModelName} compacts at{" "}
+										{organizationTrigger.model.compression_threshold}% of its{" "}
+										{organizationWindowLabel}-token window, about{" "}
+										{organizationTriggerPercentLabel}% of this model&apos;s
+										window.
+									</>
+								)}
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</div>
 			</TableCell>
 		);
@@ -239,11 +229,10 @@ const EffectiveCompactionThreshold: React.FC<
 
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
-			{chatTrigger === undefined
-				? null
-				: chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
+			{chatTrigger &&
+				(chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
 					? off
-					: `${chatTrigger.thresholdPercent}%`}
+					: `${chatTrigger.thresholdPercent}%`)}
 		</TableCell>
 	);
 };
@@ -290,18 +279,22 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 			organizationTrigger.pointTokens,
 			modelConfig.context_limit,
 		);
-	const organizationTriggerPercentLabel = organizationTrigger
-		? compactionPointAsPercent(
-				organizationTrigger.pointTokens,
-				modelConfig.context_limit,
-			)?.toLocaleString("en-US", { maximumFractionDigits: 1 })
-		: undefined;
+	const organizationTriggerPercent =
+		organizationTrigger &&
+		compactionPointAsPercent(
+			organizationTrigger.pointTokens,
+			modelConfig.context_limit,
+		);
+	const organizationTriggerPercentLabel =
+		organizationTriggerPercent === undefined
+			? undefined
+			: formatCompactionPercent(organizationTriggerPercent);
 	const disablingCompactionWarning =
 		organizationTriggerPercentLabel !== undefined &&
 		!isOrganizationPointBeyondWindow
 			? `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`
 			: "Setting 100% turns off automatic compaction for this model.";
-	const modelName = modelConfig.display_name || modelConfig.model;
+	const modelName = getModelLabel(modelConfig);
 	const providerLabel = formatProviderLabel(provider);
 	const effectiveThresholdPercent =
 		parsedDraftValue ??
@@ -442,7 +435,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
-	compactionTriggerLoadErrors = [],
+	compactionTriggerLoadErrors,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
-	organizationChatModelOverrides,
+	organizationChatModelOverridesKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -513,7 +513,7 @@ export const CompactsAtUserOverride: Story = {
 				data: mockUserChatCompactionThresholdsWithOverride,
 			},
 			{
-				key: organizationChatModelOverrides(MockChat.organization_id).queryKey,
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
 				data: { overrides: [] },
 			},
 			{
@@ -545,7 +545,7 @@ export const CompactsAtHistoricalModelDefault: Story = {
 				data: MockUserChatCompactionThresholds,
 			},
 			{
-				key: organizationChatModelOverrides(MockChat.organization_id).queryKey,
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
 				data: { overrides: [] },
 			},
 			{

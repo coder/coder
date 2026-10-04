@@ -1,3 +1,4 @@
+import type { UseQueryResult } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	filterModelsWithEnabledProvider,
@@ -26,8 +27,7 @@ export type ResolvedCompactionThreshold =
 	| {
 			readonly percent: number;
 			readonly source: "organization";
-			// Token count that triggers organization compaction. The gauge converts
-			// this using its runtime context limit; percent uses the configured limit.
+			// Token count that triggers organization compaction.
 			readonly pointTokens: number;
 	  };
 
@@ -40,16 +40,14 @@ export const modelCompactionTrigger = (
 	contextLimit: model.context_limit,
 });
 
-export const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
+const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 	trigger.thresholdPercent >= 0 &&
 	trigger.thresholdPercent < compactionDisabledThresholdPercent &&
 	trigger.contextLimit > 0;
 
-export const compactionTriggerPoint = (trigger: CompactionTrigger) =>
+const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
 
-// A disabled organization trigger yields "chat" and a disabled chat trigger
-// yields "organization"; otherwise the lower token point binds, ties to chat.
 export const bindingCompactionTriggerSource = (
 	chat: CompactionTrigger,
 	organization: CompactionTrigger,
@@ -65,8 +63,6 @@ export const bindingCompactionTriggerSource = (
 		: "chat";
 };
 
-// Token count at which compaction fires, from whichever trigger binds, or
-// undefined when neither is enabled.
 export const bindingCompactionTriggerPoint = (
 	chat: CompactionTrigger,
 	organizationTrigger: OrganizationCompactionTrigger | undefined,
@@ -83,31 +79,17 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
-/**
- * Builds the trigger fields for a model without the enabled, provider, or
- * disabled-threshold checks. Production code should call
- * resolveOrganizationCompactionTrigger.
- */
-export const organizationCompactionTrigger = (
-	model: TypesGen.ChatModel,
-): OrganizationCompactionTrigger => {
-	const trigger = modelCompactionTrigger(model);
-	return { model, trigger, pointTokens: compactionTriggerPoint(trigger) };
-};
-
 // "viewer" also drops an override whose provider the current user cannot use,
-// as chatd does per user; admin views of the organization setting pass
-// "organization".
+// as chatd does per user.
 export const resolveOrganizationCompactionTrigger = (
 	modelConfigID: string | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
+	models: readonly TypesGen.ChatModel[],
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 	scope: "viewer" | "organization" = "viewer",
 ): OrganizationCompactionTrigger | undefined => {
-	const model = filterModelsWithEnabledProvider(
-		models ?? [],
-		providerInfoByID,
-	).find((candidate) => candidate.id === modelConfigID);
+	const model = filterModelsWithEnabledProvider(models, providerInfoByID).find(
+		(candidate) => candidate.id === modelConfigID,
+	);
 	// Override models that are disabled or whose provider is disabled fall
 	// back to the chat model on the backend.
 	if (!model?.enabled) {
@@ -120,11 +102,12 @@ export const resolveOrganizationCompactionTrigger = (
 		return undefined;
 	}
 
-	if (!isCompactionTriggerEnabled(modelCompactionTrigger(model))) {
+	const trigger = modelCompactionTrigger(model);
+	if (!isCompactionTriggerEnabled(trigger)) {
 		return undefined;
 	}
 
-	return organizationCompactionTrigger(model);
+	return { model, trigger, pointTokens: compactionTriggerPoint(trigger) };
 };
 
 export type CompactionTriggerLoadError = {
@@ -132,10 +115,10 @@ export type CompactionTriggerLoadError = {
 	readonly error: unknown;
 };
 
-type OverridesQueryState = {
-	readonly data: TypesGen.ChatModelOverridesResponse | undefined;
-	readonly error: unknown;
-};
+type OverridesQueryState = Pick<
+	UseQueryResult<TypesGen.ChatModelOverridesResponse>,
+	"data" | "error"
+>;
 
 type OrganizationOverridesState = OverridesQueryState & {
 	readonly organizationID: string;
@@ -148,10 +131,8 @@ const compactionOverrideModelConfigID = (
 		?.model_config_id;
 
 /**
- * Maps each organization to its usable compaction trigger. A failed overrides
- * fetch is reported only when no cached data exists and the organization has
- * an enabled model, because only those organizations have rows in the
- * thresholds table.
+ * Reports a failed overrides fetch only when nothing is cached and the
+ * organization has an enabled model, since only those have threshold rows.
  */
 export const resolveCompactionTriggersByOrganization = (
 	organizationOverrides: readonly OrganizationOverridesState[],
@@ -202,13 +183,16 @@ export const isCompactionPointBeyondWindow = (
 	contextLimit: number,
 ) => contextLimit > 0 && point > contextLimit;
 
-export const resolveCompactionThreshold = (
-	modelID: string | undefined,
+// An initial overrides failure keeps the chat threshold but flags it; a failed
+// background refetch keeps using the cached overrides.
+export const resolveChatCompactionThreshold = (
+	modelID: string,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-	organizationTrigger: OrganizationCompactionTrigger | undefined,
+	models: readonly TypesGen.ChatModel[] | undefined,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+	overrides: OverridesQueryState,
 ): ResolvedCompactionThreshold | undefined => {
-	if (!modelID || !Array.isArray(models)) {
+	if (!models) {
 		return undefined;
 	}
 	const config = models.find((candidate) => candidate.id === modelID);
@@ -221,7 +205,11 @@ export const resolveCompactionThreshold = (
 	);
 	const thresholdPercent =
 		userOverride?.threshold_percent ?? config.compression_threshold;
-	const source = userOverride ? "user" : "model";
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		compactionOverrideModelConfigID(overrides.data),
+		models,
+		providerInfoByID,
+	);
 	if (organizationTrigger) {
 		const organizationPercent = compactionPointAsPercent(
 			organizationTrigger.pointTokens,
@@ -247,36 +235,46 @@ export const resolveCompactionThreshold = (
 		}
 	}
 
-	return { percent: thresholdPercent, source };
+	return {
+		percent: thresholdPercent,
+		source: userOverride ? "user" : "model",
+		...(overrides.error != null &&
+			overrides.data === undefined && { organizationOverrideNotLoaded: true }),
+	};
 };
 
-// Resolves the threshold the chat gauge shows. An initial overrides failure
-// keeps the chat threshold but flags it; a failed background refetch keeps
-// using the cached overrides.
-export const resolveChatCompactionThreshold = (
-	modelID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
-	overrides: OverridesQueryState,
-): ResolvedCompactionThreshold | undefined => {
-	const threshold = resolveCompactionThreshold(
-		modelID,
-		userThresholds,
-		models,
-		resolveOrganizationCompactionTrigger(
-			compactionOverrideModelConfigID(overrides.data),
-			models,
-			providerInfoByID,
-		),
-	);
-	if (
-		threshold &&
-		threshold.source !== "organization" &&
-		overrides.error != null &&
-		overrides.data === undefined
-	) {
-		return { ...threshold, organizationOverrideNotLoaded: true };
+export const formatCompactionPercent = (percent: number) =>
+	percent.toLocaleString("en-US", { maximumFractionDigits: 1 });
+
+/**
+ * Labels the compaction point against the displayed context window, which may
+ * be a runtime-reported window that differs from the configured one.
+ */
+export const compactionThresholdLabel = (
+	compaction: ResolvedCompactionThreshold,
+	contextLimit: number,
+): string | undefined => {
+	if (compaction.source === "organization") {
+		const percent = compactionPointAsPercent(
+			compaction.pointTokens,
+			contextLimit,
+		);
+		if (
+			percent === undefined ||
+			isCompactionPointBeyondWindow(compaction.pointTokens, contextLimit)
+		) {
+			return undefined;
+		}
+		return `Compacts at ${formatCompactionPercent(percent)}% (organization override)`;
 	}
-	return threshold;
+	const notLoadedSuffix = compaction.organizationOverrideNotLoaded
+		? " (organization override not loaded)"
+		: "";
+	if (compaction.percent < compactionDisabledThresholdPercent) {
+		return `Compacts at ${formatCompactionPercent(compaction.percent)}%${notLoadedSuffix}`;
+	}
+	if (compaction.organizationOverrideNotLoaded) {
+		return "Compaction off (organization override not loaded)";
+	}
+	return undefined;
 };

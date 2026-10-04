@@ -24,6 +24,15 @@ export const MockChatModel: ChatModel = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
+export const MockCompactionChatModel: ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+
 export const MockDefaultChatModel: ChatModel = {
 	...MockChatModel,
 	id: "model-config-1",

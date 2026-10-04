@@ -8,7 +8,10 @@ import {
 	modelCompactionTrigger,
 	resolveOrganizationCompactionTrigger,
 } from "#/pages/AgentsPage/compactionTriggers";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	getModelLabel,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
 import {
 	type MutationCallbacks,
@@ -111,8 +114,6 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 		const selectedModel = enabledModels.find(
 			(model) => model.id === selectedModelID,
 		);
-		// chatd ignores an override whose own trigger is off, since nothing then
-		// bounds the history by the override model's window.
 		if (
 			!selectedModel ||
 			selectedModel.compression_threshold < compactionDisabledThresholdPercent
@@ -122,15 +123,13 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 		return (
 			<Alert severity="info">
 				<AlertDescription>
-					{`${selectedModel.display_name.trim() || selectedModel.model} has compaction disabled (100%), so chats summarize with their own model instead.`}
+					{`${getModelLabel(selectedModel)} has compaction off, so chats summarize with their own model instead.`}
 				</AlertDescription>
 			</Alert>
 		);
 	}
 
 	const compactionModel = organizationTrigger.model;
-	const compactionModelName =
-		compactionModel.display_name.trim() || compactionModel.model;
 	const undercutModels = enabledModels.filter(
 		(model) =>
 			bindingCompactionTriggerSource(
@@ -145,20 +144,17 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 	if (undercutModels.length === 0) {
 		return null;
 	}
-	const undercutModelNames = undercutModels.map(
-		(model) => model.display_name.trim() || model.model,
-	);
 	const offModelsNote = undercutModels.some(
 		(model) =>
 			model.compression_threshold >= compactionDisabledThresholdPercent,
 	)
-		? ", including models whose compaction is off,"
+		? ", including models with compaction off,"
 		: "";
 
 	return (
 		<Alert severity="warning">
 			<AlertDescription>
-				{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' thresholds${offModelsNote} because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because ${getModelLabel(compactionModel)} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
 			</AlertDescription>
 		</Alert>
 	);

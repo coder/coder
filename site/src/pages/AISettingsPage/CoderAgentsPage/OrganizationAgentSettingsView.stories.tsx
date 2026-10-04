@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+} from "#/testHelpers/chatModels";
 import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
@@ -16,16 +19,8 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
-const mockSmallCompactionModel: TypesGen.ChatModel = {
-	...MockChatModel,
-	id: "compaction-model",
-	model: "compact-mini",
-	display_name: "Compact Mini",
-	context_limit: 32_000,
-	compression_threshold: 50,
-};
 const mockDisabledCompactionModel: TypesGen.ChatModel = {
-	...mockSmallCompactionModel,
+	...MockCompactionChatModel,
 	compression_threshold: 100,
 };
 const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
@@ -37,7 +32,7 @@ const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
 	compression_threshold: 100,
 };
 const mockWarningModels = [
-	mockSmallCompactionModel,
+	MockCompactionChatModel,
 	model,
 	{ ...alternateModel, compression_threshold: 100 },
 	mockTinyModelWithCompactionOff,
@@ -196,7 +191,8 @@ export const CompactionTriggerWarning: Story = {
 	args: {
 		overrides: mockWarningOverrides,
 		enabledModels: mockWarningModels,
-		// available: false covers the alert's "organization" scope.
+		// Unavailable to this viewer; the admin alert must still warn because it
+		// ignores per-user provider access.
 		providerInfoByID: new Map([
 			[
 				model.ai_provider_id,
@@ -210,15 +206,15 @@ export const CompactionTriggerWarning: Story = {
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const section = within(canvas.getByRole("form", { name: "Compaction" }));
+		const section = within(
+			within(canvasElement).getByRole("form", { name: "Compaction" }),
+		);
 
 		await userEvent.click(
 			section.getByRole("combobox", { name: /Model One/i }),
 		);
 		await userEvent.click(
-			await body.findByRole("option", { name: /Compact Mini/i }),
+			await screen.findByRole("option", { name: /Compact Mini/i }),
 		);
 	},
 };
@@ -226,7 +222,7 @@ export const CompactionTriggerWarning: Story = {
 export const CompactionTriggerWarningWithoutCompactionOff: Story = {
 	args: {
 		overrides: mockWarningOverrides,
-		enabledModels: [mockSmallCompactionModel, model, alternateModel],
+		enabledModels: [MockCompactionChatModel, model, alternateModel],
 	},
 	play: CompactionTriggerWarning.play,
 };
@@ -234,13 +230,31 @@ export const CompactionTriggerWarningWithoutCompactionOff: Story = {
 export const CompactionOverrideDisabledNotice: Story = {
 	args: {
 		overrides: [
-			{ context: "compaction", model_config_id: mockSmallCompactionModel.id },
+			{ context: "compaction", model_config_id: MockCompactionChatModel.id },
 		],
 		enabledModels: [mockDisabledCompactionModel, model],
 	},
 };
 
-export const NoCompactionTriggerWarning: Story = {};
+export const CompactionTriggerWarningManyModels: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [
+			MockCompactionChatModel,
+			model,
+			alternateModel,
+			...["Model Three", "Model Four", "Model Five"].map(
+				(display_name, index) => ({
+					...MockChatModel,
+					id: `model-${index + 3}`,
+					display_name,
+				}),
+			),
+		],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
 export const AdvisorDisabled: Story = {
 	args: { showAdvisor: false },
 	play: async ({ canvasElement }) => {

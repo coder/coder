@@ -3,51 +3,57 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockCompactionChatModel,
 } from "#/testHelpers/chatModels";
 import {
 	bindingCompactionTriggerPoint,
 	bindingCompactionTriggerSource,
 	compactionPointAsPercent,
-	compactionTriggerPoint,
+	compactionThresholdLabel,
 	isCompactionPointBeyondWindow,
-	isCompactionTriggerEnabled,
-	organizationCompactionTrigger,
+	type OrganizationCompactionTrigger,
+	type ResolvedCompactionThreshold,
 	resolveChatCompactionThreshold,
-	resolveCompactionThreshold,
 	resolveCompactionTriggersByOrganization,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
 import { providerInfoByIDFromDescriptors } from "./utils/modelOptions";
 
+const mockChatModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "chat-model",
+	context_limit: 128_000,
+	compression_threshold: 80,
+};
+const mockCompactionTrigger: OrganizationCompactionTrigger = {
+	model: MockCompactionChatModel,
+	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
+	pointTokens: 16_000,
+};
+const mockCompactionOverrides: TypesGen.ChatModelOverridesResponse = {
+	overrides: [
+		{ context: "compaction", model_config_id: MockCompactionChatModel.id },
+	],
+};
+const providers = providerInfoByIDFromDescriptors([
+	MockChatModelProviderDescriptor,
+]);
+const error = new Error("Network Error");
+
 describe("compaction triggers", () => {
-	it("enables thresholds from 0 through 99 with a positive context limit", () => {
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: 0, contextLimit: 1 }),
-		).toBe(true);
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: 99, contextLimit: 1 }),
-		).toBe(true);
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: 100, contextLimit: 1 }),
-		).toBe(false);
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: -1, contextLimit: 1 }),
-		).toBe(false);
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: 50, contextLimit: 0 }),
-		).toBe(false);
-		expect(
-			isCompactionTriggerEnabled({ thresholdPercent: 50, contextLimit: -1 }),
-		).toBe(false);
+	it.each([
+		[{ thresholdPercent: 0, contextLimit: 1 }, 0],
+		[{ thresholdPercent: 99, contextLimit: 100 }, 99],
+		[{ thresholdPercent: 80, contextLimit: 128_000 }, 102_400],
+		[{ thresholdPercent: 100, contextLimit: 1 }, undefined],
+		[{ thresholdPercent: -1, contextLimit: 1 }, undefined],
+		[{ thresholdPercent: 50, contextLimit: 0 }, undefined],
+		[{ thresholdPercent: 50, contextLimit: -1 }, undefined],
+	])("reports the chat trigger point for %o", (chat, expected) => {
+		expect(bindingCompactionTriggerPoint(chat, undefined)).toBe(expected);
 	});
 
-	it("computes compaction trigger token counts and percentages", () => {
-		expect(
-			compactionTriggerPoint({
-				thresholdPercent: 80,
-				contextLimit: 128_000,
-			}),
-		).toBe(102_400);
+	it("converts compaction points to percentages of a known window", () => {
 		expect(compactionPointAsPercent(32_000, 128_000)).toBe(25);
 		expect(compactionPointAsPercent(32_000, 0)).toBeUndefined();
 	});
@@ -118,34 +124,16 @@ describe("compaction triggers", () => {
 
 	it("reports the token point of whichever trigger binds", () => {
 		const chat = { thresholdPercent: 80, contextLimit: 128_000 };
-		const organizationTrigger = organizationCompactionTrigger({
-			...MockChatModel,
-			compression_threshold: 50,
-			context_limit: 32_000,
-		});
 
-		expect(bindingCompactionTriggerPoint(chat, undefined)).toBe(102_400);
-		expect(bindingCompactionTriggerPoint(chat, organizationTrigger)).toBe(
+		expect(bindingCompactionTriggerPoint(chat, mockCompactionTrigger)).toBe(
 			16_000,
 		);
 		expect(
 			bindingCompactionTriggerPoint(
 				{ thresholdPercent: 100, contextLimit: 128_000 },
-				organizationTrigger,
+				mockCompactionTrigger,
 			),
 		).toBe(16_000);
-		expect(
-			bindingCompactionTriggerPoint(
-				{ thresholdPercent: 100, contextLimit: 128_000 },
-				undefined,
-			),
-		).toBeUndefined();
-		expect(
-			bindingCompactionTriggerPoint(
-				{ thresholdPercent: 80, contextLimit: 0 },
-				undefined,
-			),
-		).toBeUndefined();
 	});
 
 	it("treats a point past a known window as beyond it, but not one at the edge", () => {
@@ -156,23 +144,11 @@ describe("compaction triggers", () => {
 	});
 
 	it("resolves an enabled member-visible organization override model", () => {
-		const model: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "compaction-model",
-			context_limit: 40_000,
-			compression_threshold: 50,
-		};
-		const providers = providerInfoByIDFromDescriptors([
-			MockChatModelProviderDescriptor,
-		]);
+		const model = MockCompactionChatModel;
 
 		expect(
 			resolveOrganizationCompactionTrigger(model.id, [model], providers),
-		).toEqual({
-			model,
-			trigger: { thresholdPercent: 50, contextLimit: 40_000 },
-			pointTokens: 20_000,
-		});
+		).toEqual(mockCompactionTrigger);
 		expect(
 			resolveOrganizationCompactionTrigger(undefined, [model], providers),
 		).toBeUndefined();
@@ -196,37 +172,31 @@ describe("compaction triggers", () => {
 	});
 
 	it("ignores an organization override model whose provider is disabled", () => {
-		const model: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "compaction-model",
-			context_limit: 40_000,
-			compression_threshold: 50,
-		};
-		const providers = providerInfoByIDFromDescriptors([
+		const model = MockCompactionChatModel;
+		const disabledProviders = providerInfoByIDFromDescriptors([
 			{ ...MockChatModelProviderDescriptor, enabled: false },
 		]);
 
 		expect(
-			resolveOrganizationCompactionTrigger(model.id, [model], providers),
+			resolveOrganizationCompactionTrigger(
+				model.id,
+				[model],
+				disabledProviders,
+			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
 				model.id,
 				[model],
-				providers,
+				disabledProviders,
 				"organization",
 			),
 		).toBeUndefined();
 	});
 
 	it("ignores an override the viewer lacks provider credentials for", () => {
-		const model: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "compaction-model",
-			context_limit: 40_000,
-			compression_threshold: 50,
-		};
-		const providers = providerInfoByIDFromDescriptors([
+		const model = MockCompactionChatModel;
+		const unavailableProviders = providerInfoByIDFromDescriptors([
 			{
 				...MockChatModelProviderDescriptor,
 				available: false,
@@ -235,34 +205,25 @@ describe("compaction triggers", () => {
 		]);
 
 		expect(
-			resolveOrganizationCompactionTrigger(model.id, [model], providers),
+			resolveOrganizationCompactionTrigger(
+				model.id,
+				[model],
+				unavailableProviders,
+			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
 				model.id,
 				[model],
-				providers,
+				unavailableProviders,
 				"organization",
 			),
-		).toMatchObject({ model, pointTokens: 20_000 });
+		).toEqual(mockCompactionTrigger);
 	});
 
 	describe("resolveCompactionTriggersByOrganization", () => {
-		const compactionModel: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "compaction-model",
-			context_limit: 40_000,
-			compression_threshold: 50,
-		};
-		const overrides: TypesGen.ChatModelOverridesResponse = {
-			overrides: [
-				{ context: "compaction", model_config_id: compactionModel.id },
-			],
-		};
-		const providers = providerInfoByIDFromDescriptors([
-			MockChatModelProviderDescriptor,
-		]);
-		const error = new Error("Network Error");
+		const compactionModel = MockCompactionChatModel;
+		const overrides = mockCompactionOverrides;
 		const organizationID = compactionModel.organization_id;
 
 		it("reports an organization whose first overrides load failed", () => {
@@ -287,7 +248,7 @@ describe("compaction triggers", () => {
 				),
 			).toEqual({
 				triggersByOrganizationID: new Map([
-					[organizationID, organizationCompactionTrigger(compactionModel)],
+					[organizationID, mockCompactionTrigger],
 				]),
 				loadErrors: [],
 			});
@@ -314,33 +275,27 @@ describe("compaction triggers", () => {
 		});
 	});
 
-	describe("resolveCompactionThreshold", () => {
-		const chatModel: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "chat-model",
-			context_limit: 128_000,
-			compression_threshold: 80,
-		};
-		const organizationTrigger = (
-			thresholdPercent: number,
-			contextLimit: number,
+	describe("resolveChatCompactionThreshold", () => {
+		const resolve = (
+			overrides: Parameters<typeof resolveChatCompactionThreshold>[4],
+			{
+				models = [mockChatModel, MockCompactionChatModel],
+				userThresholds,
+			}: {
+				models?: readonly TypesGen.ChatModel[];
+				userThresholds?: readonly TypesGen.UserChatCompactionThreshold[];
+			} = {},
 		) =>
-			organizationCompactionTrigger({
-				...MockChatModel,
-				id: "compaction-model",
-				compression_threshold: thresholdPercent,
-				context_limit: contextLimit,
-			});
+			resolveChatCompactionThreshold(
+				mockChatModel.id,
+				userThresholds,
+				models,
+				providers,
+				overrides,
+			);
 
 		it("returns the organization percent when its trigger binds", () => {
-			expect(
-				resolveCompactionThreshold(
-					chatModel.id,
-					undefined,
-					[chatModel],
-					organizationTrigger(50, 32_000),
-				),
-			).toEqual({
+			expect(resolve({ data: mockCompactionOverrides, error: null })).toEqual({
 				percent: 12.5,
 				source: "organization",
 				pointTokens: 16_000,
@@ -349,22 +304,38 @@ describe("compaction triggers", () => {
 
 		it("keeps the user threshold when the organization point is higher", () => {
 			expect(
-				resolveCompactionThreshold(
-					chatModel.id,
-					[{ model_config_id: chatModel.id, threshold_percent: 60 }],
-					[chatModel],
-					organizationTrigger(90, 128_000),
+				resolve(
+					{ data: mockCompactionOverrides, error: null },
+					{
+						models: [
+							mockChatModel,
+							{
+								...MockCompactionChatModel,
+								context_limit: 128_000,
+								compression_threshold: 90,
+							},
+						],
+						userThresholds: [
+							{ model_config_id: mockChatModel.id, threshold_percent: 60 },
+						],
+					},
 				),
 			).toEqual({ percent: 60, source: "user" });
 		});
 
 		it("reports the binding organization trigger when the chat threshold is disabled", () => {
 			expect(
-				resolveCompactionThreshold(
-					chatModel.id,
-					[{ model_config_id: chatModel.id, threshold_percent: 100 }],
-					[chatModel],
-					organizationTrigger(50, 256_000),
+				resolve(
+					{ data: mockCompactionOverrides, error: null },
+					{
+						models: [
+							mockChatModel,
+							{ ...MockCompactionChatModel, context_limit: 256_000 },
+						],
+						userThresholds: [
+							{ model_config_id: mockChatModel.id, threshold_percent: 100 },
+						],
+					},
 				),
 			).toEqual({
 				percent: 100,
@@ -373,65 +344,26 @@ describe("compaction triggers", () => {
 			});
 		});
 
-		it("falls back to the model default without user or organization input", () => {
+		it("returns undefined for unknown or unloaded models", () => {
 			expect(
-				resolveCompactionThreshold(
-					chatModel.id,
-					undefined,
-					[chatModel],
-					undefined,
+				resolve(
+					{ data: mockCompactionOverrides, error: null },
+					{ models: [MockCompactionChatModel] },
 				),
-			).toEqual({ percent: 80, source: "model" });
-		});
-
-		it("returns undefined for unknown models", () => {
+			).toBeUndefined();
 			expect(
-				resolveCompactionThreshold(
-					"missing",
+				resolveChatCompactionThreshold(
+					mockChatModel.id,
 					undefined,
-					[chatModel],
-					organizationTrigger(50, 32_000),
+					undefined,
+					providers,
+					{ data: mockCompactionOverrides, error: null },
 				),
 			).toBeUndefined();
 		});
-	});
-
-	describe("resolveChatCompactionThreshold", () => {
-		const chatModel: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "chat-model",
-			context_limit: 128_000,
-			compression_threshold: 80,
-		};
-		const compactionModel: TypesGen.ChatModel = {
-			...MockChatModel,
-			id: "compaction-model",
-			context_limit: 32_000,
-			compression_threshold: 50,
-		};
-		const bindingOverrides: TypesGen.ChatModelOverridesResponse = {
-			overrides: [
-				{ context: "compaction", model_config_id: compactionModel.id },
-			],
-		};
-		const providers = providerInfoByIDFromDescriptors([
-			MockChatModelProviderDescriptor,
-		]);
-		const error = new Error("Network Error");
-		const resolve = (
-			data: TypesGen.ChatModelOverridesResponse | undefined,
-			queryError: unknown,
-		) =>
-			resolveChatCompactionThreshold(
-				chatModel.id,
-				undefined,
-				[chatModel, compactionModel],
-				providers,
-				{ data, error: queryError },
-			);
 
 		it("flags the chat threshold when the first overrides load failed", () => {
-			expect(resolve(undefined, error)).toEqual({
+			expect(resolve({ data: undefined, error })).toEqual({
 				percent: 80,
 				source: "model",
 				organizationOverrideNotLoaded: true,
@@ -439,11 +371,11 @@ describe("compaction triggers", () => {
 		});
 
 		it("does not flag a failed refetch with cached overrides", () => {
-			expect(resolve({ overrides: [] }, error)).toEqual({
+			expect(resolve({ data: { overrides: [] }, error })).toEqual({
 				percent: 80,
 				source: "model",
 			});
-			expect(resolve(bindingOverrides, error)).toEqual({
+			expect(resolve({ data: mockCompactionOverrides, error })).toEqual({
 				percent: 12.5,
 				source: "organization",
 				pointTokens: 16_000,
@@ -451,17 +383,50 @@ describe("compaction triggers", () => {
 		});
 
 		it("does not flag loaded overrides without a compaction override", () => {
-			expect(resolve({ overrides: [] }, null)).toEqual({
+			expect(resolve({ data: { overrides: [] }, error: null })).toEqual({
 				percent: 80,
 				source: "model",
 			});
 		});
 
 		it("does not flag a pending overrides load", () => {
-			expect(resolve(undefined, null)).toEqual({
+			expect(resolve({ data: undefined, error: null })).toEqual({
 				percent: 80,
 				source: "model",
 			});
 		});
+	});
+
+	it.each<[ResolvedCompactionThreshold, number, string | undefined]>([
+		[
+			{ percent: 12.5, source: "organization", pointTokens: 16_000 },
+			200_000,
+			"Compacts at 8% (organization override)",
+		],
+		[
+			{ percent: 100, source: "organization", pointTokens: 10_000 },
+			10_000,
+			"Compacts at 100% (organization override)",
+		],
+		[
+			{ percent: 160, source: "organization", pointTokens: 16_000 },
+			10_000,
+			undefined,
+		],
+		[{ percent: 70, source: "model" }, 200_000, "Compacts at 70%"],
+		[{ percent: 33.33, source: "user" }, 200_000, "Compacts at 33.3%"],
+		[
+			{ percent: 70, source: "model", organizationOverrideNotLoaded: true },
+			200_000,
+			"Compacts at 70% (organization override not loaded)",
+		],
+		[{ percent: 100, source: "user" }, 200_000, undefined],
+		[
+			{ percent: 100, source: "user", organizationOverrideNotLoaded: true },
+			200_000,
+			"Compaction off (organization override not loaded)",
+		],
+	])("labels %o in a %i-token window", (compaction, contextLimit, expected) => {
+		expect(compactionThresholdLabel(compaction, contextLimit)).toBe(expected);
 	});
 });

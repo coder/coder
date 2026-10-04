@@ -15,7 +15,7 @@ export type AgentSettingsCompactionPageViewProps = {
 		OrganizationCompactionTrigger
 	>;
 	modelsError: unknown;
-	compactionTriggerLoadErrors?: readonly CompactionTriggerLoadError[];
+	compactionTriggerLoadErrors: readonly CompactionTriggerLoadError[];
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;

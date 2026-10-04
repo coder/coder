@@ -21,13 +21,13 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
+	const providerConfigsQuery = useQuery(userChatProviderConfigs());
+	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
 		),
 	});
-	const providerConfigsQuery = useQuery(userChatProviderConfigs());
-	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const saveThresholdMutation = useMutation(
 		updateUserCompactionThreshold(queryClient),
 	);
@@ -47,20 +47,14 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
-	const providerInfoByID = providerInfoByIDFromDescriptors(
-		organizationModels.providers,
-	);
-	const isCompactionOverridesLoading = modelOverrideQueries.some(
-		(query) => query.isLoading,
-	);
 	const compactionTriggers = resolveCompactionTriggersByOrganization(
 		organizations.map((organization, index) => ({
 			organizationID: organization.id,
-			data: modelOverrideQueries[index]?.data,
-			error: modelOverrideQueries[index]?.error,
+			data: modelOverrideQueries[index].data,
+			error: modelOverrideQueries[index].error,
 		})),
 		organizationModels.models,
-		providerInfoByID,
+		providerInfoByIDFromDescriptors(organizationModels.providers),
 	);
 
 	return (
@@ -73,7 +67,8 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
-				organizationModels.isLoading || isCompactionOverridesLoading
+				organizationModels.isLoading ||
+				modelOverrideQueries.some((query) => query.isLoading)
 			}
 			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}

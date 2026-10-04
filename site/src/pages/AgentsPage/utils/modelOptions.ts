@@ -197,6 +197,9 @@ export const providerTypeByIDFromUserConfigs = (
 		),
 	);
 
+export const getModelLabel = (model: TypesGen.ChatModel): string =>
+	model.display_name.trim() || model.model || model.id;
+
 /**
  * Drops models whose provider row is disabled or missing. Provider descriptors
  * include disabled providers, while user provider configs may omit inaccessible

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -11,7 +14,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
-import { organizationCompactionTrigger } from "../compactionTriggers";
+import type { OrganizationCompactionTrigger } from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -25,16 +28,11 @@ const organizationWithEmptyDisplayName = {
 	display_name: "",
 };
 
-const mockCompactionModel: TypesGen.ChatModel = {
-	...MockChatModel,
-	id: "compaction-model",
-	model: "compact-mini",
-	display_name: "Compact Mini",
-	context_limit: 32_000,
-	compression_threshold: 50,
+const mockCompactionTrigger: OrganizationCompactionTrigger = {
+	model: MockCompactionChatModel,
+	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
+	pointTokens: 16_000,
 };
-const mockCompactionTrigger =
-	organizationCompactionTrigger(mockCompactionModel);
 const mockCompactionTriggersByOrganizationID = new Map([
 	[MockChatModel.organization_id, mockCompactionTrigger],
 ]);
@@ -91,6 +89,7 @@ const meta = {
 		]),
 		organizations: [modelsOrganization],
 		compactionTriggersByOrganizationID: new Map(),
+		compactionTriggerLoadErrors: [],
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -266,10 +265,11 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 		compactionTriggersByOrganizationID: new Map([
 			[
 				MockChatModel.organization_id,
-				organizationCompactionTrigger({
-					...mockCompactionModel,
-					context_limit: 256_000,
-				}),
+				{
+					model: { ...MockCompactionChatModel, context_limit: 256_000 },
+					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
+					pointTokens: 128_000,
+				},
 			],
 		]),
 	},

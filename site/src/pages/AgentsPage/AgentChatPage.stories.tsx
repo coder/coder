@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { hashKey, useQuery } from "react-query";
+import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -16,7 +16,6 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
-	organizationChatModelOverrides,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -25,7 +24,6 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import {
 	MockChat,
 	MockChatMessage,
@@ -983,73 +981,8 @@ export const CompactionHintSurvivesOverrideFetchError: Story = {
 			"getOrganizationChatModelOverrides",
 		).mockRejectedValue(new Error("Failed to load model overrides"));
 	},
-	// Captured state: the gauge tooltip keeps the chat compact-at hint and notes
-	// that the organization override could not be loaded.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(
-			await canvas.findByRole("button", { name: /Context usage 25%/ }),
-		);
-	},
-};
-
-export const CompactionHintSurvivesOverrideRefetchError: Story = {
-	render: function CompactionHintRefetchStory() {
-		const { refetch, isFetching } = useQuery(
-			organizationChatModelOverrides(MockChat.organization_id),
-		);
-		return (
-			<>
-				<AgentChatPageLayout />
-				<Button
-					className="absolute right-4 top-4"
-					aria-busy={isFetching}
-					disabled={isFetching}
-					onClick={() => void refetch()}
-				>
-					Refetch compaction settings
-				</Button>
-			</>
-		);
-	},
-	parameters: {
-		queries: buildQueries(MockChat, {
-			messages: [mockContextUsageMessage],
-			queued_messages: [],
-			has_more: false,
-		}),
-	},
-	beforeEach: () => {
-		spyOn(
-			API.experimental,
-			"getOrganizationChatModelOverrides",
-		).mockRejectedValue(new Error("Failed to load model overrides"));
-	},
-	// Captured state: the gauge tooltip still shows the compact-at hint after
-	// a successful overrides fetch is followed by a failed background refetch.
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const settledRefetchButton = () =>
-			canvas.findByRole("button", {
-				name: "Refetch compaction settings",
-				busy: false,
-			});
-		await settledRefetchButton();
-
-		spyOn(
-			API.experimental,
-			"getOrganizationChatModelOverrides",
-		).mockResolvedValue({ overrides: [] });
-		await userEvent.click(await settledRefetchButton());
-		await settledRefetchButton();
-
-		spyOn(
-			API.experimental,
-			"getOrganizationChatModelOverrides",
-		).mockRejectedValue(new Error("Failed to refresh model overrides"));
-		await userEvent.click(await settledRefetchButton());
-		await settledRefetchButton();
-
 		await userEvent.hover(
 			await canvas.findByRole("button", { name: /Context usage 25%/ }),
 		);

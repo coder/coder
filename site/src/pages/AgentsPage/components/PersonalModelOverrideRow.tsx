@@ -8,6 +8,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { getModelLabel } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
@@ -107,10 +108,6 @@ const toUpdateRequest = (
 		};
 	}
 	return { mode: values.mode, model_config_id: "" };
-};
-
-const getModelLabel = (model: TypesGen.ChatModel): string => {
-	return model.display_name.trim() || model.model || model.id;
 };
 
 const getModelLabelByID = (
