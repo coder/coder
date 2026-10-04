@@ -1,4 +1,4 @@
-import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
+import { getVisibleContent } from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -59,29 +59,11 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 const parseTimestamp = (value: string | undefined): number | undefined => {
-	if (!value) {
-		return undefined;
-	}
-	const time = Date.parse(value);
+	const time = Date.parse(value ?? "");
 	return Number.isFinite(time) ? time : undefined;
 };
 
-type RowContent = {
-	visibleBlocks: RenderBlock[];
-	visibleTools: MergedTool[];
-};
-
-const getRowContent = (
-	blocks: readonly RenderBlock[],
-	tools: readonly MergedTool[],
-): RowContent => {
-	const visibleTools = tools.filter((tool) => shouldRenderTool(tool));
-	const visibleIds = new Set(visibleTools.map((tool) => tool.id));
-	const visibleBlocks = blocks.filter(
-		(block) => block.type !== "tool" || visibleIds.has(block.id),
-	);
-	return { visibleBlocks, visibleTools };
-};
+type RowContent = ReturnType<typeof getVisibleContent>;
 
 /**
  * A step row is assistant output that ends in tool activity or reasoning
@@ -98,7 +80,7 @@ const getStepRowContent = (
 		if (!options.isLiveRowCollapsible) {
 			return undefined;
 		}
-		content = getRowContent(options.liveBlocks, options.liveTools);
+		content = getVisibleContent(options.liveBlocks, options.liveTools);
 		if (content.visibleBlocks.length === 0) {
 			return content;
 		}
@@ -107,7 +89,7 @@ const getStepRowContent = (
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
 			return undefined;
 		}
-		content = getRowContent(parsed.blocks, parsed.tools);
+		content = getVisibleContent(parsed.blocks, parsed.tools);
 	}
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
@@ -233,10 +215,7 @@ export const groupWorkingBlocks = (
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
 	);
-	const lastUserMessageId = Math.max(
-		Number.NEGATIVE_INFINITY,
-		...userMessageIds,
-	);
+	const lastUserMessageId = Math.max(...userMessageIds);
 	const messageIdAfter = (lastRowIndex: number): number => {
 		for (let i = lastRowIndex + 1; i < rows.length; i++) {
 			const ids = rowMessageIds(rows[i]);
