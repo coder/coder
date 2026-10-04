@@ -56,6 +56,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 									pendingToolCallIDs,
 								})}
 								chatStatus={null}
+								hasMoreMessages={false}
 								isChatCompleted
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}

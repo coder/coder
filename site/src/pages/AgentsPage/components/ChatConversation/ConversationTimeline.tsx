@@ -423,7 +423,7 @@ const ChatMessageItem = memo<{
 );
 
 type ConversationTimelineProps = {
-	hasMoreMessages?: boolean;
+	hasMoreMessages: boolean;
 	chatStatus: TypesGen.ChatStatus | null;
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
@@ -454,7 +454,7 @@ type ConversationTimelineProps = {
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
-		hasMoreMessages = false,
+		hasMoreMessages,
 		chatStatus,
 		organizationId,
 		parsedMessages,

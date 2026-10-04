@@ -30,6 +30,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		subagentTitles: new Map(),
 		automationNames: { names: new Map(), status: "settled" },
 		chatStatus: null,
+		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
 	},
 	decorators: [

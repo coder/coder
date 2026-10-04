@@ -439,6 +439,7 @@ const defaultArgs: Omit<
 	subagentTitles: new Map(),
 	automationNames: { names: new Map(), status: "settled" },
 	chatStatus: null,
+	hasMoreMessages: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
