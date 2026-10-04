@@ -73,13 +73,10 @@ type WorkingBlockContentProps = {
 };
 
 /**
- * Older pages prepend rows inside an expanded partial block rather than as
- * new scroller items, so the scroller cannot hold the reading position and
- * browsers skip scroll anchoring at the top. Scroll by the growth instead.
- *
- * A class component because getSnapshotBeforeUpdate is the only React API
- * that measures the DOM right before a commit; nested rows resize on their
- * own state, so a height cached any earlier can be stale.
+ * Older pages prepend rows inside the block, where neither MessageScroller nor
+ * browser scroll anchoring holds the reading position, so scroll by the growth.
+ * A class so getSnapshotBeforeUpdate can measure right before the commit:
+ * nested rows resize on their own state, so an earlier height can be stale.
  */
 class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 	private content: HTMLDivElement | null = null;
