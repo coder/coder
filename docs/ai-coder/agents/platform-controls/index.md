@@ -84,17 +84,6 @@ The organization instructions are exposed over the chat configuration API:
 - `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
 - `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
 
-Coder records each change to the system prompt, the organization instructions, and the [plan mode instructions](#plan-mode-instructions) in the [audit log](../../../admin/security/audit-logs.md).
-Audit logs require a Premium license.
-Each entry shows who made the change and when, along with the previous and new values.
-A save that changes nothing adds no entry.
-Anyone who can view these entries can read the full prompt text.
-
-To find these entries, open **Admin settings** > **Audit logs** and filter by one of these resource types:
-
-- **Chat Instruction Settings** for the system prompt and the plan mode instructions.
-- **Chat Organization System Prompt** for the organization instructions.
-
 ### Plan mode instructions
 
 Administrators can add deployment-wide instructions that apply only when a chat
