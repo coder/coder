@@ -25,7 +25,7 @@ export const AgentDevcontainerMoreActions: React.FC<
 			<DropdownMenuTrigger asChild>
 				<Button size="icon-lg" variant="subtle" aria-controls={menuContentId}>
 					<EllipsisVerticalIcon aria-hidden="true" />
-					<span className="sr-only">Dev Container actions</span>
+					<span className="sr-only">Dev container actions</span>
 				</Button>
 			</DropdownMenuTrigger>
 
@@ -67,12 +67,12 @@ const DevcontainerDeleteDialog: React.FC<DevcontainerDeleteDialogProps> = ({
 		<ConfirmDialog
 			type="delete"
 			open={isOpen}
-			title="Delete Dev Container"
+			title="Delete dev container"
 			onConfirm={onConfirm}
 			onClose={onCancel}
 			description={
 				<p>
-					Are you sure you want to delete this Dev Container? Any unsaved work
+					Are you sure you want to delete this dev container? Any unsaved work
 					will be lost.
 				</p>
 			}

@@ -1915,7 +1915,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
-		await body.findByText("New Terminal");
+		await body.findByText("New terminal");
 		for (const label of ["Browser", "Desktop", "Debug"]) {
 			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
 		}

@@ -52,7 +52,7 @@ export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
-						<span>Connection Log</span>
+						<span>Connection log</span>
 						<ConnectionLogHelpPopover />
 					</div>
 				</PageHeaderTitle>

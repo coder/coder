@@ -170,12 +170,12 @@ const resourceTypeFilterStory = (
 });
 
 export const FilterByChatInstructionSettings = resourceTypeFilterStory(
-	"Chat Instruction Settings",
+	"Chat instruction settings",
 	"chat_instruction_settings",
 );
 
 export const ChatOperationalSettingsFilter = resourceTypeFilterStory(
-	"Chat Operational Settings",
+	"Chat operational settings",
 	"chat_operational_settings",
 );
 

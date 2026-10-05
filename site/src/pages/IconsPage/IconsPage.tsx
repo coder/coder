@@ -93,7 +93,7 @@ const IconsPage: React.FC = () => {
 								</Link>
 							</TooltipTrigger>
 							<TooltipContent side="bottom" align="end" className="max-w-xs">
-								You can suggest a new icon by submitting a Pull Request to our
+								You can suggest a new icon by submitting a pull request to our
 								public GitHub repository. Just keep in mind that it should be
 								relevant to many Coder users, and redistributable under a
 								permissive license.

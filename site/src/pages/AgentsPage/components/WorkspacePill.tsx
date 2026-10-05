@@ -259,7 +259,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							<DropdownMenuItem asChild>
 								<Link to={route} target="_blank" rel="noreferrer">
 									<MonitorIcon className="size-3.5" />
-									View Workspace
+									View workspace
 								</Link>
 							</DropdownMenuItem>
 							{onRemoveWorkspace && (
@@ -411,7 +411,7 @@ const CopySSHMenuItem: React.FC<{
 			}}
 		>
 			<CopyIcon className="size-3.5" />
-			Copy SSH Command
+			Copy SSH command
 		</DropdownMenuItem>
 	);
 };

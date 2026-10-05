@@ -244,7 +244,7 @@ export const WithDeleteError: Story = {
 		const canvas = within(canvasElement);
 
 		const moreActionsButton = canvas.getByRole("button", {
-			name: "Dev Container actions",
+			name: "Dev container actions",
 		});
 		await user.click(moreActionsButton);
 

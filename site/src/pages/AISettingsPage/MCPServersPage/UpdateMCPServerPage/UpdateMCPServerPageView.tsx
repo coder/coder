@@ -37,7 +37,7 @@ const UpdateMCPServerPageView: React.FC<UpdateMCPServerPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<title>{pageTitle(server.display_name, "AI Settings")}</title>
+			<title>{pageTitle(server.display_name, "AI settings")}</title>
 			<MCPServerForm
 				key={server.id}
 				server={server}

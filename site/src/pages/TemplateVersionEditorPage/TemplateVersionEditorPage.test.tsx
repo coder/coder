@@ -300,12 +300,12 @@ test("Creating a new file opens it in the editor", async () => {
 	});
 
 	const createButton = await screen.findByRole("button", {
-		name: "Create File",
+		name: "Create file",
 	});
 	await user.click(createButton);
 
 	const dialog = await screen.findByTestId("dialog");
-	const pathField = within(dialog).getByLabelText("File Path");
+	const pathField = within(dialog).getByLabelText("File path");
 	await user.type(pathField, "newfile.tf");
 	await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -343,7 +343,7 @@ test("Renaming a file does not throw and opens the new path", async () => {
 	await user.click(await screen.findByRole("menuitem", { name: /rename/i }));
 
 	const dialog = await screen.findByTestId("dialog");
-	const pathField = within(dialog).getByLabelText("File Path");
+	const pathField = within(dialog).getByLabelText("File path");
 	await user.clear(pathField);
 	await user.type(pathField, "renamed.tf");
 	await user.click(within(dialog).getByRole("button", { name: "Rename" }));

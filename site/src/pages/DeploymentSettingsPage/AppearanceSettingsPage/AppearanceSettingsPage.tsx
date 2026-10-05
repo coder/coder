@@ -49,7 +49,7 @@ const AppearanceSettingsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Appearance Settings")}</title>
+			<title>{pageTitle("Appearance settings")}</title>
 
 			<RequirePermission isFeatureVisible={canEditAppearance}>
 				<AppearanceSettingsPageView

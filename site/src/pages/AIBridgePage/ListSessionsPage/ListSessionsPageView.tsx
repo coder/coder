@@ -85,12 +85,12 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 				<Table className="text-sm font-normal">
 					<TableHeader>
 						<TableRow>
-							<TableHead className="text-nowrap">Last Prompt</TableHead>
+							<TableHead className="text-nowrap">Last prompt</TableHead>
 							<TableHead className="text-nowrap">User</TableHead>
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
-							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="text-nowrap">Network Requests</TableHead>
+							<TableHead className="text-nowrap">In/Out tokens</TableHead>
+							<TableHead className="text-nowrap">Network requests</TableHead>
 							<TableHead className="flex items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>
@@ -98,7 +98,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 								</ThreadTooltip>
 							</TableHead>
 							<TableHead className="text-nowrap">
-								Last Prompt At [UTC{utcOffset}]
+								Last prompt at [UTC{utcOffset}]
 							</TableHead>
 						</TableRow>
 					</TableHeader>

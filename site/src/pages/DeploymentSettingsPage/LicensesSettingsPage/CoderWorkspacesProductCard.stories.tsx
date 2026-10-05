@@ -34,7 +34,7 @@ export const TooltipInteraction: Story = {
 		).toHaveFocus();
 		await waitFor(async () => {
 			await expect(screen.getByRole("tooltip")).toHaveTextContent(
-				"Only Active user accounts consume license seats.",
+				"Only active user accounts consume license seats.",
 			);
 		});
 	},

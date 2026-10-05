@@ -83,7 +83,7 @@ export const ScheduleDialog: React.FC<ScheduleDialogProps> = ({
 					{showDormancyWarning && (
 						<div className="flex flex-col gap-3">
 							<h4 className="m-0 text-base font-semibold text-content-primary">
-								Dormancy Threshold
+								Dormancy threshold
 							</h4>
 							<p className="m-0 leading-relaxed">
 								This change will result in{" "}
@@ -111,7 +111,7 @@ export const ScheduleDialog: React.FC<ScheduleDialogProps> = ({
 									}}
 								/>
 								<span>
-									Prevent Dormancy - Reset all workspace inactivity periods
+									Prevent dormancy - Reset all workspace inactivity periods
 								</span>
 							</label>
 						</div>
@@ -120,7 +120,7 @@ export const ScheduleDialog: React.FC<ScheduleDialogProps> = ({
 					{showDeletionWarning && (
 						<div className="flex flex-col gap-3">
 							<h4 className="m-0 text-base font-semibold text-content-primary">
-								Dormancy Auto-Deletion
+								Dormancy auto-deletion
 							</h4>
 							<p className="m-0 leading-relaxed">
 								This change will result in{" "}
@@ -148,7 +148,7 @@ export const ScheduleDialog: React.FC<ScheduleDialogProps> = ({
 									}}
 								/>
 								<span>
-									Prevent Deletion - Reset all workspace dormancy periods
+									Prevent deletion - Reset all workspace dormancy periods
 								</span>
 							</label>
 						</div>

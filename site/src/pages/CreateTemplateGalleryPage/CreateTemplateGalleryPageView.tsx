@@ -51,7 +51,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 					</div>
 				}
 			>
-				<PageHeaderTitle>Create a Template</PageHeaderTitle>
+				<PageHeaderTitle>Create a template</PageHeaderTitle>
 			</PageHeader>
 			<div className="flex flex-col gap-16">
 				<div className="flex flex-row gap-8">
@@ -73,7 +73,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 							</div>
 							<div>
 								<h4 className="m-0 mb-1 text-sm font-semibold text-content-secondary">
-									Upload Template
+									Upload template
 								</h4>
 								<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 									Get started by uploading an existing template

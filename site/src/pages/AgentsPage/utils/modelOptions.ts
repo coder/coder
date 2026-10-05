@@ -417,8 +417,8 @@ export const getModelSelectorPlaceholder = (
 	}
 	if (hasConfiguredModels) {
 		return hasUserFixableProviders(catalog)
-			? "Configure API Keys"
-			: "No Models Available";
+			? "Configure API keys"
+			: "No models available";
 	}
-	return "No Models Configured";
+	return "No models configured";
 };

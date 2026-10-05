@@ -42,7 +42,7 @@ test.describe("IdP organization sync", () => {
 		});
 
 		await expect(
-			page.getByRole("switch", { name: "Assign Default Organization" }),
+			page.getByRole("switch", { name: "Assign default organization" }),
 		).toBeChecked();
 
 		await expect(page.getByRole("row", { name: "idp-org-1" })).toBeVisible();
@@ -101,7 +101,7 @@ test.describe("IdP organization sync", () => {
 		});
 
 		const toggle = page.getByRole("switch", {
-			name: "Assign Default Organization",
+			name: "Assign default organization",
 		});
 		await toggle.click();
 

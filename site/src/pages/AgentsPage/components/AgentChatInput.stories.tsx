@@ -1559,7 +1559,7 @@ export const LongWorkspaceNameMobile: Story = {
 		// The menu fades in from opacity 0; retry instead of racing the
 		// entrance animation.
 		const menuItem = await within(document.body).findByRole("menuitem", {
-			name: /View Workspace/,
+			name: /View workspace/,
 		});
 		await waitFor(() => {
 			expect(menuItem).toBeVisible();

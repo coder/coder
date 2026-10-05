@@ -71,9 +71,9 @@ export const OverviewPageView: React.FC<OverviewPageViewProps> = ({
 				<OptionsTable
 					options={useDeploymentOptions(
 						deploymentOptions,
-						"Access URL",
-						"Wildcard Access URL",
-						"Experiments",
+						"access-url",
+						"wildcard-access-url",
+						"experiments",
 					)}
 					additionalValues={safeExperiments}
 				/>

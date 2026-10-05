@@ -56,6 +56,7 @@ const TemplatePermissionsPage: React.FC = () => {
 						message="Template permissions"
 						description="Restrict template access by user or group."
 						features={[
+							// sentence-case-expect: "Use" is the name of a permission level.
 							"Choose Use or Admin-level access",
 							"Prevent unauthorized template use",
 							"Let teams self-serve templates without admin bottlenecks",

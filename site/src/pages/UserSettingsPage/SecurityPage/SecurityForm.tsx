@@ -82,18 +82,18 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
 					{Boolean(error) && <ErrorAlert error={error} />}
 					<FormField
 						field={getFieldHelpers("old_password")}
-						label="Old Password"
+						label="Old password"
 						type="password"
 						autoComplete="current-password"
 					/>
 					<PasswordField
 						field={getFieldHelpers("password")}
-						label="New Password"
+						label="New password"
 						autoComplete="new-password"
 					/>
 					<FormField
 						field={getFieldHelpers("confirm_password")}
-						label="Confirm Password"
+						label="Confirm password"
 						type="password"
 						autoComplete="new-password"
 					/>

@@ -33,7 +33,7 @@ export const ExternalAuthSettingsPageView: React.FC<
 	return (
 		<>
 			<SettingsHeader>
-				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+				<SettingsHeaderTitle>External authentication</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and
 					OpenID Connect to authenticate developers with external services.{" "}
@@ -57,7 +57,7 @@ export const ExternalAuthSettingsPageView: React.FC<
 				<div className="mt-6 mb-6">
 					<PremiumPaywallSmall
 						source="external_auth"
-						message="External Authentication"
+						message="External authentication"
 						description="Connect multiple Git and OAuth providers at once."
 						features={[
 							"Connect multiple Git providers at once",
@@ -88,7 +88,7 @@ export const ExternalAuthSettingsPageView: React.FC<
 								<TableRow key={name}>
 									<TableCell>{name}</TableCell>
 									<TableCell>{git.client_id}</TableCell>
-									<TableCell>{git.regex || "Not Set"}</TableCell>
+									<TableCell>{git.regex || "Not set"}</TableCell>
 								</TableRow>
 							);
 						})

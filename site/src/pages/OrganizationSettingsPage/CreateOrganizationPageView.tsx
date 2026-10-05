@@ -96,7 +96,7 @@ export const CreateOrganizationPageView: React.FC<
 			<div className="flex flex-col gap-4 w-full mx-auto max-w-2xl">
 				<div className="flex flex-col">
 					<SettingsHeader>
-						<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
+						<SettingsHeaderTitle>New organization</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
 							Isolate members, templates, and provisioners for a team or
 							project.{" "}

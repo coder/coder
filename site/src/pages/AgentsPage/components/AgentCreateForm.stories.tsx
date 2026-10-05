@@ -2006,7 +2006,7 @@ export const ForbiddenNoOrganizationAccess: Story = {
 			canvas.getByText(/don't have permission to use Coder Agents/),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /View Docs/ }),
+			canvas.getByRole("link", { name: /View docs/ }),
 		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),

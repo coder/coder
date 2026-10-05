@@ -149,7 +149,7 @@ export const UserAIBudgetOverrideDialog: React.FC<
 			<DialogContent className="max-w-md gap-5 border-border-default bg-surface-primary p-8 text-content-primary">
 				<div className="flex items-start justify-between gap-4">
 					<DialogTitle className="font-semibold text-content-primary">
-						AI Budget
+						AI budget
 					</DialogTitle>
 					<AvatarData
 						avatar={
@@ -160,7 +160,7 @@ export const UserAIBudgetOverrideDialog: React.FC<
 							/>
 						}
 						title={user.username}
-						subtitle={user.is_service_account ? "Service Account" : user.email}
+						subtitle={user.is_service_account ? "Service account" : user.email}
 					/>
 				</div>
 

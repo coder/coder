@@ -17,7 +17,7 @@ const CreateTemplatesGalleryPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Create a Template")}</title>
+			<title>{pageTitle("Create a template")}</title>
 
 			<CreateTemplateGalleryPageView
 				error={templateExamplesQuery.error}

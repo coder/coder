@@ -18,12 +18,12 @@ const ProvisionerDaemonsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Provisioner Daemons - Health")}</title>
+			<title>{pageTitle("Provisioner daemons - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
 					<HealthyDot severity={daemons.severity} />
-					Provisioner Daemons
+					Provisioner daemons
 				</HeaderTitle>
 				<MuteWarningsButton healthcheck="ProvisionerDaemons" />
 			</Header>

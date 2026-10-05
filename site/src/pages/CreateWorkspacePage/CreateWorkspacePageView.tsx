@@ -152,7 +152,7 @@ export const CreateWorkspacePageView: React.FC<
 			},
 			initialTouched,
 			validationSchema: Yup.object({
-				name: nameValidator("Workspace Name"),
+				name: nameValidator("Workspace name"),
 				rich_parameter_values:
 					useValidationSchemaForDynamicParameters(parameters),
 			}),
@@ -598,7 +598,7 @@ export const CreateWorkspacePageView: React.FC<
 						<section>
 							<hgroup>
 								<h2 className="text-xl font-semibold m-0">
-									External Authentication
+									External authentication
 								</h2>
 								<p className="text-sm text-content-secondary mt-0">
 									This template uses external services for authentication.

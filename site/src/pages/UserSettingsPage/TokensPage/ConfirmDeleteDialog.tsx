@@ -36,7 +36,7 @@ export const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 	return (
 		<ConfirmDialog
 			type="delete"
-			title="Delete Token"
+			title="Delete token"
 			description={
 				<>
 					Are you sure you want to permanently delete token{" "}
