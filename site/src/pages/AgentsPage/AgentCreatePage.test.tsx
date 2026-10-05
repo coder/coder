@@ -92,6 +92,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 							message: "Create this chat",
 							organizationId:
 								project?.organization_id ?? MockDefaultOrganization.id,
+							projectId: project?.id,
 							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
