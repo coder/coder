@@ -78,6 +78,9 @@ export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
 				project.organization_id,
 				project.id,
 			),
+		// Instructions are shared by every editor of the project, so refresh
+		// them when the tab regains focus to avoid editing stale text.
+		refetchOnWindowFocus: true,
 	});
 
 export const updateChatProjectInstructions = (

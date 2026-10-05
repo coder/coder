@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 
 	"cdr.dev/slog/v3"
@@ -55,14 +56,23 @@ func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Log
 	return formatProjectInstructions(row.ChatProjectInstruction.Instructions)
 }
 
+// projectInstructionsTagPattern matches opening and closing
+// <project-instructions> tags, including case and spacing variants.
+var projectInstructionsTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*project-instructions\b[^>]*>`)
+
 // formatProjectInstructions wraps project instructions for the system
 // prompt. The text is sanitized again because rows may predate the API's
-// sanitization or be written outside it.
+// sanitization or be written outside it. Wrapper tags inside the text are
+// escaped so the text cannot end the block early and place content outside
+// it.
 func formatProjectInstructions(instructions string) string {
 	trimmed := strings.TrimSpace(codersdk.SanitizePromptText(instructions))
 	if trimmed == "" {
 		return ""
 	}
+	trimmed = projectInstructionsTagPattern.ReplaceAllStringFunc(trimmed, func(tag string) string {
+		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
+	})
 	return "The following instructions were set for the project this chat belongs to and apply to every chat in it.\n" +
 		"<project-instructions>\n" + trimmed + "\n</project-instructions>"
 }

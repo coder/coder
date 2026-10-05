@@ -31067,9 +31067,6 @@ const docTemplate = `{
         },
         "codersdk.UpdateChatProjectInstructionsRequest": {
             "type": "object",
-            "required": [
-                "instructions"
-            ],
             "properties": {
                 "instructions": {
                     "type": "string"

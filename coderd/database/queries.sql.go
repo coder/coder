@@ -7534,11 +7534,12 @@ func (q *sqlQuerier) DeleteChatProjectInstructionsByProjectID(ctx context.Contex
 const getChatProjectInstructionsByProjectID = `-- name: GetChatProjectInstructionsByProjectID :one
 SELECT
     chat_project_instructions.project_id, chat_project_instructions.instructions, chat_project_instructions.updated_by, chat_project_instructions.created_at, chat_project_instructions.updated_at,
-    visible_users.username AS updated_by_username,
-    visible_users.name AS updated_by_name,
-    visible_users.avatar_url AS updated_by_avatar_url
+    users.username AS updated_by_username,
+    users.name AS updated_by_name,
+    users.avatar_url AS updated_by_avatar_url
 FROM chat_project_instructions
-LEFT JOIN visible_users ON visible_users.id = chat_project_instructions.updated_by
+LEFT JOIN users ON users.id = chat_project_instructions.updated_by
+    AND users.deleted = false
 WHERE chat_project_instructions.project_id = $1::uuid
 `
 
@@ -7549,6 +7550,8 @@ type GetChatProjectInstructionsByProjectIDRow struct {
 	UpdatedByAvatarUrl     sql.NullString         `db:"updated_by_avatar_url" json:"updated_by_avatar_url"`
 }
 
+// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
+// Excluding deleted users here reports their edits as anonymous.
 func (q *sqlQuerier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectInstructionsByProjectID, projectID)
 	var i GetChatProjectInstructionsByProjectIDRow

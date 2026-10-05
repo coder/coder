@@ -240,7 +240,7 @@ type ChatProjectInstructions struct {
 // UpdateChatProjectInstructionsRequest sets a project's instructions. Use
 // DeleteChatProjectInstructions to clear them.
 type UpdateChatProjectInstructionsRequest struct {
-	Instructions string `json:"instructions" validate:"required"`
+	Instructions string `json:"instructions"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.

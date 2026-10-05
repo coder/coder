@@ -57,17 +57,19 @@ func TestChatProjectInstructions(t *testing.T) {
 	require.False(t, updated.UpdatedAt.Before(*created.UpdatedAt))
 
 	// Clearing instructions is a delete, not a blank update.
-	_, err = client.UpdateChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{
-		Instructions: " \n\u200b ",
-	})
-	sdkErr := coderdtest.SDKError(t, err)
-	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	require.Equal(t, "Instructions must not be blank.", sdkErr.Message)
+	for _, blank := range []string{"", " \n\u200b "} {
+		_, err = client.UpdateChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{
+			Instructions: blank,
+		})
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Instructions must not be blank.", sdkErr.Message)
+	}
 
 	_, err = client.UpdateChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{
 		Instructions: strings.Repeat("x", codersdk.DefaultChatMaxPromptBytes+1),
 	})
-	sdkErr = coderdtest.SDKError(t, err)
+	sdkErr := coderdtest.SDKError(t, err)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	require.Equal(t, "Instructions exceed maximum length.", sdkErr.Message)
 
@@ -75,6 +77,15 @@ func TestChatProjectInstructions(t *testing.T) {
 	instructions, err = client.ChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID)
 	require.NoError(t, err)
 	require.Equal(t, updated, instructions)
+
+	// Users are soft deleted, so a deleted editor must be dropped explicitly
+	// rather than reported by name.
+	require.NoError(t, client.DeleteUser(ctx, admin.ID))
+	instructions, err = client.ChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID)
+	require.NoError(t, err)
+	require.Nil(t, instructions.UpdatedBy)
+	require.Equal(t, updated.Instructions, instructions.Instructions)
+	require.Equal(t, updated.UpdatedAt, instructions.UpdatedAt)
 
 	// A member who cannot read the project can neither see nor change its
 	// instructions, and the response does not reveal that the project exists.

@@ -1,11 +1,14 @@
 -- name: GetChatProjectInstructionsByProjectID :one
 SELECT
     sqlc.embed(chat_project_instructions),
-    visible_users.username AS updated_by_username,
-    visible_users.name AS updated_by_name,
-    visible_users.avatar_url AS updated_by_avatar_url
+    users.username AS updated_by_username,
+    users.name AS updated_by_name,
+    users.avatar_url AS updated_by_avatar_url
 FROM chat_project_instructions
-LEFT JOIN visible_users ON visible_users.id = chat_project_instructions.updated_by
+-- Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
+-- Excluding deleted users here reports their edits as anonymous.
+LEFT JOIN users ON users.id = chat_project_instructions.updated_by
+    AND users.deleted = false
 WHERE chat_project_instructions.project_id = @project_id::uuid;
 
 -- name: UpsertChatProjectInstructions :one

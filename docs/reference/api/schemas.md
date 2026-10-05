@@ -16355,7 +16355,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name           | Type   | Required | Restrictions | Description |
 |----------------|--------|----------|--------------|-------------|
-| `instructions` | string | true     |              |             |
+| `instructions` | string | false    |              |             |
 
 ## codersdk.UpdateChatProjectRequest
 

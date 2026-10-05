@@ -1,6 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { focusManager, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
@@ -34,6 +40,7 @@ const renderPanel = () => {
 describe("ProjectDetailsPanel", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+		focusManager.setFocused(undefined);
 	});
 
 	it("creates instructions and shows the saved text without refetching", async () => {
@@ -84,6 +91,9 @@ describe("ProjectDetailsPanel", () => {
 		expect(textbox).toHaveValue(MockChatProjectInstructions.instructions);
 		const saveButton = screen.getByRole("button", { name: "Save" });
 		expect(saveButton).toBeDisabled();
+		// Surrounding whitespace alone is not a change worth saving.
+		await user.type(textbox, "  ");
+		expect(saveButton).toBeDisabled();
 		// Blank instructions are deleted rather than saved.
 		await user.clear(textbox);
 		expect(saveButton).toBeDisabled();
@@ -119,7 +129,10 @@ describe("ProjectDetailsPanel", () => {
 			API.experimental,
 			"updateChatProjectInstructions",
 		).mockRejectedValue(
-			mockApiError({ message: "Instructions exceed maximum length." }),
+			mockApiError({
+				message: "Instructions exceed maximum length.",
+				detail: "Maximum length is 131072 bytes, got 140000.",
+			}),
 		);
 		mockInstructions(MockUnsetChatProjectInstructions);
 		const user = renderPanel();
@@ -130,7 +143,87 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await screen.findByText("Instructions exceed maximum length.");
+		// The detail names the limit the user has to stay under.
+		expect(
+			screen.getByText("Maximum length is 131072 bytes, got 140000."),
+		).toBeInTheDocument();
 		expect(textbox).toHaveValue("Too long");
+
+		// Editing the draft dismisses the error about the old text.
+		await user.type(textbox, "!");
+		expect(
+			screen.queryByText("Instructions exceed maximum length."),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows the error of the latest failed action", async () => {
+		vi.spyOn(
+			API.experimental,
+			"updateChatProjectInstructions",
+		).mockRejectedValue(mockApiError({ message: "Failed to save." }));
+		vi.spyOn(
+			API.experimental,
+			"deleteChatProjectInstructions",
+		).mockRejectedValue(mockApiError({ message: "Failed to delete." }));
+		mockInstructions(MockChatProjectInstructions);
+		const user = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			" More.",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await screen.findByText("Failed to save.");
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await screen.findByText("Failed to delete.");
+		expect(screen.queryByText("Failed to save.")).not.toBeInTheDocument();
+	});
+
+	it("sends one update when Save is double clicked", async () => {
+		const updateInstructions = vi
+			.spyOn(API.experimental, "updateChatProjectInstructions")
+			.mockReturnValue(new Promise(() => {}));
+		mockInstructions(MockUnsetChatProjectInstructions);
+		const user = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Create" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			"Be brief.",
+		);
+		// Two clicks in one task, before the pending state can render.
+		const saveButton = screen.getByRole("button", { name: "Save" });
+		fireEvent.click(saveButton);
+		fireEvent.click(saveButton);
+
+		await waitFor(() => expect(updateInstructions).toHaveBeenCalled());
+		expect(updateInstructions).toHaveBeenCalledTimes(1);
+	});
+
+	it("refetches the instructions when the window regains focus", async () => {
+		const getInstructions = mockInstructions(MockChatProjectInstructions);
+		const user = renderPanel();
+		await screen.findByRole("button", { name: "Edit" });
+
+		// Another editor changed the instructions while this tab was hidden.
+		getInstructions.mockResolvedValue({
+			...MockChatProjectInstructions,
+			instructions: "Edited in another tab.",
+		});
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await waitFor(() =>
+			expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
+				"Edited in another tab.",
+			),
+		);
 	});
 
 	it("retries loading the instructions after an error", async () => {

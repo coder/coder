@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -22,6 +22,8 @@ type ProjectInstructionsDialogProps = {
 	readonly isSaving: boolean;
 	readonly isDeleting: boolean;
 	readonly error: unknown;
+	/** Called when the user edits the draft, so stale errors can clear. */
+	readonly onDraftChange: () => void;
 	readonly onSave: (instructions: string) => void;
 	readonly onDelete: () => void;
 };
@@ -62,6 +64,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	isSaving,
 	isDeleting,
 	error,
+	onDraftChange,
 	onSave,
 	onDelete,
 	onCancel,
@@ -71,8 +74,11 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	const isEditing = instructions !== "";
 	const isBusy = isSaving || isDeleting;
 	const invisibleCharCount = countInvisibleCharacters(draft);
-	// Blank instructions are cleared with Delete rather than saved.
-	const canSave = draft.trim() !== "" && draft !== instructions && !isBusy;
+	const errorDetail = getErrorDetail(error);
+	// Blank instructions are cleared with Delete rather than saved, and
+	// whitespace-only edits at either end are not a change worth saving.
+	const canSave =
+		draft.trim() !== "" && draft.trim() !== instructions.trim() && !isBusy;
 
 	return (
 		<form
@@ -100,7 +106,10 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				className="max-h-[50vh] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link"
 				placeholder="Conventions, context, and preferences for every chat in this project"
 				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
+				onChange={(event) => {
+					setDraft(event.target.value);
+					onDraftChange();
+				}}
 				disabled={isBusy}
 				minRows={6}
 				autoFocus
@@ -115,9 +124,12 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				</Alert>
 			)}
 			{Boolean(error) && (
-				<p className="m-0 text-sm text-content-destructive">
-					{getErrorMessage(error, "Failed to save instructions.")}
-				</p>
+				<div className="text-sm text-content-destructive">
+					<p className="m-0">
+						{getErrorMessage(error, "Failed to save instructions.")}
+					</p>
+					{errorDetail && <p className="m-0 mt-1">{errorDetail}</p>}
+				</div>
 			)}
 			<DialogFooter>
 				{isEditing && (

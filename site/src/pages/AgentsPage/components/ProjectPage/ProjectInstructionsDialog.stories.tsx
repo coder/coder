@@ -16,6 +16,7 @@ const meta: Meta<typeof ProjectInstructionsDialog> = {
 		isSaving: false,
 		isDeleting: false,
 		error: undefined,
+		onDraftChange: fn(),
 		onSave: fn(),
 		onDelete: fn(),
 	},
@@ -33,6 +34,9 @@ export const Edit: Story = {
 export const SaveError: Story = {
 	args: {
 		instructions: MockChatProjectInstructions.instructions,
-		error: mockApiError({ message: "Instructions exceed maximum length." }),
+		error: mockApiError({
+			message: "Instructions exceed maximum length.",
+			detail: "Maximum length is 131072 bytes, got 140000.",
+		}),
 	},
 };
