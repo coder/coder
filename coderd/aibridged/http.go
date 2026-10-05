@@ -177,8 +177,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Attach only the verified identity. API-key secrets remain outside the
-	// actor so recording and proxy routing only receive the authenticated ID.
+	// Attach only the verified identity. Key secrets remain outside the
+	// request context.
 	ctx = aibridge.AsActor(ctx, aibridge.Actor{
 		ID:       id,
 		APIKeyID: resp.GetApiKeyId(),

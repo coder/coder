@@ -22,9 +22,9 @@ import (
 	"github.com/coder/quartz"
 )
 
-// NewPassthroughHandler returns a reverse proxy to prov's upstream.
-// Callers must strip prov.RoutePrefix() from the request path first.
-// One proxy is created per call and reused across requests.
+// NewPassthroughHandler returns a reverse proxy handler that should be mounted
+// on provider's PassthroughRoutes endpoints. Proxy is built once and reused
+// by returned HandlerFunc.
 func NewPassthroughHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	provBaseURL, err := url.Parse(prov.BaseURL())
 	if err != nil {

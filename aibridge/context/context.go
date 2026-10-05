@@ -19,8 +19,8 @@ type Actor struct {
 	ID       uuid.UUID
 	APIKeyID string
 	Username string
-	// Email is only used when forwarding configured actor headers. It must not
-	// be included in recorded metadata or logs.
+	// Email is only used for the opt-in email actor header forwarding. It is kept
+	// out of interception recordings.
 	Email string
 }
 
