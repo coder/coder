@@ -243,6 +243,25 @@ describe("ProjectDetailsPanel", () => {
 		expect(dialog).not.toHaveTextContent("Failed to save.");
 	});
 
+	it("labels a failed delete without an API message as a delete failure", async () => {
+		// For example, a proxy error page instead of a coderd response.
+		vi.spyOn(
+			API.experimental,
+			"deleteChatProjectInstructions",
+		).mockRejectedValue(mockApiError({ message: "" }));
+		mockInstructions(MockChatProjectInstructions);
+		const { user } = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		const dialog = screen.getByRole("dialog");
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() =>
+			expect(dialog).toHaveTextContent("Failed to delete instructions."),
+		);
+		expect(dialog).not.toHaveTextContent("Failed to save instructions.");
+	});
+
 	it("sends one update when Save is double clicked", async () => {
 		const updateInstructions = vi
 			.spyOn(API.experimental, "updateChatProjectInstructions")

@@ -14,14 +14,10 @@ import {
 } from "#/testHelpers/storybook";
 import { ProjectPage } from "./ProjectPage";
 
-const pageQueries = (chats: Chat[]) => [
+const chatQueries = (chats: Chat[]) => [
 	{
 		key: projectChatsKey(MockChatProject.id),
 		data: { pages: [chats], pageParams: [0] },
-	},
-	{
-		key: chatProjectInstructionsKey(MockChatProject.id),
-		data: MockChatProjectInstructions,
 	},
 	...chats.map((chat) => ({
 		key: chatCostTreeKey(chat.id),
@@ -52,15 +48,21 @@ const meta: Meta<typeof ProjectPage> = {
 	parameters: {
 		user: MockUserOwner,
 		features: ["aibridge"],
-		queries: pageQueries([
-			{ ...MockChat, id: "chat-1", title: "Plan the launch" },
+		queries: [
+			...chatQueries([
+				{ ...MockChat, id: "chat-1", title: "Plan the launch" },
+				{
+					...MockChat,
+					id: "chat-2",
+					title: "Draft the announcement",
+					status: "running",
+				},
+			]),
 			{
-				...MockChat,
-				id: "chat-2",
-				title: "Draft the announcement",
-				status: "running",
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
 			},
-		]),
+		],
 	},
 };
 
@@ -74,12 +76,18 @@ export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
-		queries: pageQueries(
-			Array.from({ length: 12 }, (_, index) => ({
-				...MockChat,
-				id: `chat-${index}`,
-				title: `Chat ${index + 1}`,
-			})),
-		),
+		queries: [
+			...chatQueries(
+				Array.from({ length: 12 }, (_, index) => ({
+					...MockChat,
+					id: `chat-${index}`,
+					title: `Chat ${index + 1}`,
+				})),
+			),
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+		],
 	},
 };

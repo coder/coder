@@ -24,7 +24,8 @@ type ProjectInstructionsDialogProps = {
 	readonly instructions: string;
 	readonly isSaving: boolean;
 	readonly isDeleting: boolean;
-	readonly error: unknown;
+	readonly saveError: unknown;
+	readonly deleteError: unknown;
 	/** Called when the user edits the draft, so stale errors can clear. */
 	readonly onDraftChange: () => void;
 	readonly onSave: (instructions: string) => void;
@@ -66,7 +67,8 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	instructions,
 	isSaving,
 	isDeleting,
-	error,
+	saveError,
+	deleteError,
 	onDraftChange,
 	onSave,
 	onDelete,
@@ -81,6 +83,11 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	const isEditing = initialInstructions !== "";
 	const isBusy = isSaving || isDeleting;
 	const invisibleCharCount = countInvisibleCharacters(draft);
+	// Only the latest action's error is set, so at most one of these is.
+	const error = saveError ?? deleteError;
+	const errorFallback = saveError
+		? "Failed to save instructions."
+		: "Failed to delete instructions.";
 	const errorDetail = getErrorDetail(error);
 	// Blank instructions are cleared with Delete rather than saved, and
 	// whitespace-only edits at either end are not a change worth saving.
@@ -137,9 +144,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 			)}
 			{Boolean(error) && (
 				<div className="text-sm text-content-destructive">
-					<p className="m-0">
-						{getErrorMessage(error, "Failed to save instructions.")}
-					</p>
+					<p className="m-0">{getErrorMessage(error, errorFallback)}</p>
 					{errorDetail && <p className="m-0 mt-1">{errorDetail}</p>}
 				</div>
 			)}

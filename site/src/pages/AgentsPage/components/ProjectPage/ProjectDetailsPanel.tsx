@@ -75,7 +75,8 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				instructions={instructionsQuery.data?.instructions ?? ""}
 				isSaving={updateMutation.isPending}
 				isDeleting={deleteMutation.isPending}
-				error={updateMutation.error ?? deleteMutation.error}
+				saveError={updateMutation.error}
+				deleteError={deleteMutation.error}
 				onDraftChange={() => {
 					if (updateMutation.error || deleteMutation.error) {
 						resetErrors();
