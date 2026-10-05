@@ -15,7 +15,10 @@ type GetFormHelperOptions = {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
-	/** Measures the value against maxLength. Defaults to UTF-16 code units. */
+	/**
+	 * measureLength returns the length shown in the counter and compared with
+	 * maxLength. Defaults to value.length, which counts UTF-16 code units.
+	 */
 	measureLength?: (value: string) => number;
 };
 
@@ -28,6 +31,12 @@ export type FormHelpers = {
 	error: boolean;
 	helperText?: React.ReactNode;
 };
+
+/**
+ * The length counter appears once the measured length is within this many
+ * units of maxLength.
+ */
+const lengthCounterMargin = 30;
 
 export const getFormHelpers =
 	<TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
@@ -58,7 +67,12 @@ export const getFormHelpers =
 		let lengthError: React.ReactNode = null;
 		const length = typeof value === "string" ? measureLength(value) : 0;
 		// Show a message if the input is approaching or over the maximum length.
-		if (maxLength && maxLength > 0 && length > maxLength - 30) {
+		if (
+			maxLength &&
+			maxLength > 0 &&
+			typeof value === "string" &&
+			length > maxLength - lengthCounterMargin
+		) {
 			helperText = `This cannot be longer than ${maxLength} characters. (${length}/${maxLength})`;
 			// Show it as an error, rather than a hint
 			if (length > maxLength) {
