@@ -31,6 +31,10 @@ type pgTxnDriver struct {
 	tx  *sql.Tx
 
 	logger slog.Logger
+	// logCtx is used only for logging so the caller's context fields are
+	// attached without letting its cancellation abort the migration
+	// transaction.
+	logCtx context.Context
 	// source resolves migration versions to their names for logging.
 	source source.Driver
 	// inFlight is the version of the migration currently executing, or -1.
@@ -122,12 +126,12 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 	case dirty:
 		d.inFlight = version
 		d.inFlightStart = time.Now()
-		d.logger.Info(d.ctx, "starting database migration",
+		d.logger.Info(d.logCtx, "starting database migration",
 			slog.F("version", version),
 			slog.F("name", d.migrationName(version)),
 		)
 	case d.inFlight == version:
-		d.logger.Info(d.ctx, "database migration applied, pending commit",
+		d.logger.Info(d.logCtx, "database migration applied, pending commit",
 			slog.F("version", version),
 			slog.F("name", d.migrationName(version)),
 			slog.F("duration", time.Since(d.inFlightStart)),

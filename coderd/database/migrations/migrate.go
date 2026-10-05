@@ -75,11 +75,10 @@ func GetMigrationsHash() string {
 	return migrationsHash
 }
 
-func setup(db *sql.DB, migs fs.FS, logger slog.Logger) (source.Driver, *pgTxnDriver, *migrate.Migrate, error) {
+func setup(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (source.Driver, *pgTxnDriver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
-	ctx := context.Background()
 	sourceDriver, err := iofs.New(migs, ".")
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("create iofs: %w", err)
@@ -87,13 +86,13 @@ func setup(db *sql.DB, migs fs.FS, logger slog.Logger) (source.Driver, *pgTxnDri
 
 	// migration_cursor is a v1 migration table. If this exists, we're on v1.
 	// Do no run v2 migrations on a v1 database!
-	row := db.QueryRowContext(ctx, "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
+	row := db.QueryRowContext(context.Background(), "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
 	var v1Exists int
 	if row.Scan(&v1Exists) == nil {
 		return nil, nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, logger: logger, source: sourceDriver, inFlight: -1}
+	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, logger: logger, logCtx: ctx, source: sourceDriver, inFlight: -1}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("ensure version table: %w", err)
@@ -131,7 +130,7 @@ func UpWithFS(db *sql.DB, migs fs.FS) error {
 }
 
 func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (retErr error) {
-	sourceDriver, dbDriver, m, err := setup(db, migs, logger)
+	sourceDriver, dbDriver, m, err := setup(ctx, db, migs, logger)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -225,7 +224,7 @@ func pendingMigrations(sourceDriver source.Driver, currentVersion int) (latest i
 
 // Down runs all down SQL migrations.
 func Down(db *sql.DB) error {
-	_, _, m, err := setup(db, migrations, slog.Make())
+	_, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -247,7 +246,7 @@ func Down(db *sql.DB) error {
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, _, m, err := setup(db, migrations, slog.Make())
+	sourceDriver, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -313,7 +312,7 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
-	_, _, m, err := setup(db, migrations, slog.Make())
+	_, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}
