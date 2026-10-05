@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import {
-	MockChatProjectInstructions,
-	mockApiError,
-} from "#/testHelpers/entities";
+import { MockChatProjectInstructions } from "#/testHelpers/entities";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 
 type DialogProps = React.ComponentProps<typeof ProjectInstructionsDialog>;
@@ -35,46 +32,48 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 };
 
 describe("ProjectInstructionsDialog", () => {
-	it("does not save text that is blank once invisible characters are stripped", () => {
-		renderDialog();
+	it("does not save text that is blank once the server normalizes it", async () => {
+		const { user, props } = renderDialog();
 
 		fireEvent.change(screen.getByRole("textbox", { name: "Instructions" }), {
-			target: { value: "\u200B\u2060 \u200B" },
+			target: { value: "\u200B\u2060 \n\n\n\u200B" },
 		});
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(props.onSave).not.toHaveBeenCalled();
 	});
 
-	it.each([
-		{ errorProp: "saveError", message: "Failed to save instructions." },
-		{ errorProp: "deleteError", message: "Failed to delete instructions." },
-	] as const)(
-		"labels a $errorProp without an API message by its action",
-		({ errorProp, message }) => {
-			// For example, a proxy error page instead of a coderd response.
-			renderDialog({
-				instructions: MockChatProjectInstructions.instructions,
-				[errorProp]: mockApiError({ message: "" }),
-			});
+	it("does not save edits the server would discard", async () => {
+		const { user, props } = renderDialog({ instructions: "One.\n\nTwo." });
+		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 
-			expect(screen.getByRole("dialog")).toHaveTextContent(message);
-		},
-	);
+		// Trailing whitespace on a line and a third newline are both
+		// removed when the server stores the text.
+		fireEvent.change(textbox, { target: { value: "One.  \n\n\nTwo." } });
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(props.onSave).not.toHaveBeenCalled();
+
+		await user.type(textbox, " Three.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(props.onSave).toHaveBeenCalledWith("One.  \n\n\nTwo. Three.");
+	});
 
 	it("blocks Save and Delete when the saved instructions change while editing, until the user loads them", async () => {
-		const { user, rerenderWithInstructions } = renderDialog({
+		const { user, props, rerenderWithInstructions } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,
 		});
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, " My edit.");
 
 		rerenderWithInstructions("Edited in another tab.");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(props.onSave).not.toHaveBeenCalled();
+		expect(props.onDelete).not.toHaveBeenCalled();
 
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
 		expect(textbox).toHaveValue("Edited in another tab.");
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(props.onDelete).toHaveBeenCalledTimes(1);
 	});
 });

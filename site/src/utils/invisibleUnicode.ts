@@ -65,15 +65,23 @@ export function countInvisibleCharacters(text: string): number {
 }
 
 /**
- * Removes the invisible characters that the backend strips from prompt
- * text, so callers can tell whether text will be blank once saved.
+ * Normalizes prompt text the way the backend's SanitizePromptText does
+ * before storing it: unify line endings, strip invisible characters, trim
+ * trailing whitespace from each line, collapse three or more consecutive
+ * newlines to two, and trim the result. Callers can tell whether a draft
+ * would be blank or unchanged once saved.
  */
-export function removeInvisibleCharacters(text: string): string {
-	let result = "";
-	for (let i = 0; i < text.length; i++) {
-		if (isVisible(text.charCodeAt(i))) {
-			result += text[i];
+export function sanitizePromptText(text: string): string {
+	let visible = "";
+	for (const char of text.replace(/\r\n?/g, "\n")) {
+		if (char.length > 1 || isVisible(char.charCodeAt(0))) {
+			visible += char;
 		}
 	}
-	return result;
+	return visible
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.join("\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
 }

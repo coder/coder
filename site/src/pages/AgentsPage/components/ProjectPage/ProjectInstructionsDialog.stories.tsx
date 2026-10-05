@@ -43,6 +43,14 @@ export const SaveError: Story = {
 	},
 };
 
+/** An error without an API message is labelled by the failed action. */
+export const DeleteErrorWithoutMessage: Story = {
+	args: {
+		instructions: MockChatProjectInstructions.instructions,
+		deleteError: mockApiError({ message: "" }),
+	},
+};
+
 export const InvisibleCharacterWarning: Story = {
 	args: { instructions: "Use TypeScript\u200B for new code.\u2060" },
 };

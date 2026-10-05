@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { countInvisibleCharacters } from "./invisibleUnicode";
+import {
+	countInvisibleCharacters,
+	sanitizePromptText,
+} from "./invisibleUnicode";
 
 describe("countInvisibleCharacters", () => {
 	it("returns 0 for normal text", () => {
@@ -151,5 +154,32 @@ describe("countInvisibleCharacters", () => {
 		// Tag characters (U+E0067) are astral-plane and are NOT
 		// detected. They appear as surrogate pairs in UTF-16.
 		expect(countInvisibleCharacters("\u{E0067}")).toBe(0);
+	});
+});
+
+describe("sanitizePromptText", () => {
+	// Each case matches codersdk.SanitizePromptText on the same input.
+	it.each([
+		[
+			"strips invisible characters",
+			"Use\u200B TypeScript\u2060",
+			"Use TypeScript",
+		],
+		["unifies line endings", "one\r\ntwo\rthree", "one\ntwo\nthree"],
+		[
+			"trims trailing whitespace on each line",
+			"one  \n  two\t\nthree",
+			"one\n  two\nthree",
+		],
+		["collapses three or more newlines to two", "one\n\n\n\ntwo", "one\n\ntwo"],
+		[
+			"collapses lines left empty by stripping",
+			"one\n\u200B\n\u200B\ntwo",
+			"one\n\ntwo",
+		],
+		["trims the result", "  \n one \n ", "one"],
+		["keeps astral characters", "ship it \u{1F680}", "ship it \u{1F680}"],
+	])("%s", (_, input, expected) => {
+		expect(sanitizePromptText(input)).toBe(expected);
 	});
 });
