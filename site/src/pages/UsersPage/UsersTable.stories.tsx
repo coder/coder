@@ -98,6 +98,34 @@ export const Editable: Story = {
 	},
 };
 
+export const LongGroupNames: Story = {
+	args: {
+		users: [MockUserMember],
+		canEditUsers: false,
+		groupsByUserId: new Map([
+			[
+				MockUserMember.id,
+				[
+					"Northwind Infrastructure Production Access Administrators",
+					"Northwind Infrastructure Production Access Auditors",
+					"northwind-production-platform-infrastructure-administrators",
+				].map((name) => ({
+					...MockGroup,
+					id: name,
+					name,
+					display_name: name,
+					avatar_url: "",
+				})),
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "View 3 groups" }),
+		);
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		users: [],
