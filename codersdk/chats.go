@@ -128,6 +128,10 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
+	// ChatStatusPaused: a turn finished at a queued message under edit.
+	// The chat continues when that edit ends or the message is promoted
+	// or deleted; new messages queue behind it.
+	ChatStatusPaused ChatStatus = "paused"
 )
 
 // ChatClientType indicates whether a chat was created from the
@@ -1911,6 +1915,32 @@ type ChatQueuedMessage struct {
 	// message: a webhook delivery or a schedule occurrence. It is set
 	// only when AutomationID is set.
 	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
+	// ReasoningEffort is the message's reasoning effort override, when
+	// one is set.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+	// EditingSince is set while the owner edits the message. A message
+	// under edit and every message behind it wait until the edit ends; a
+	// turn that ends at a message under edit pauses the chat.
+	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
+}
+
+// EditChatQueuedMessageRequest edits a queued message. Omitted fields
+// are left unchanged; a request with no fields is rejected. A message
+// queued by an automation refuses Content and beginning an edit with
+// 409; ending its edit is accepted.
+type EditChatQueuedMessageRequest struct {
+	// Content replaces the queued content. An empty array is rejected.
+	Content []ChatInputPart `json:"content,omitempty"`
+	// ModelConfigID and ReasoningEffort require Content; sending either
+	// without it returns 400. Omitted values keep the stored ones.
+	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// Editing begins (true) or ends (false) an edit of the message. A
+	// chat has at most one message under edit; beginning another ends the
+	// first. While the chat is paused, beginning an edit on another
+	// message returns 409. Ending the edit of a paused chat's head sends
+	// it.
+	Editing *bool `json:"editing,omitempty"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -3382,6 +3412,29 @@ func (c *Client) EditChatMessage(
 	defer res.Body.Close()
 	var resp EditChatMessageResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// EditChatQueuedMessage edits a queued message's content or edit marker.
+func (c *Client) EditChatQueuedMessage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+	req EditChatQueuedMessageRequest,
+) error {
+	res, err := c.Request(
+		ctx,
+		http.MethodPatch,
+		fmt.Sprintf("/api/v2/chats/%s/queue/%d", chatID, queuedMessageID),
+		req,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.

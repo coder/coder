@@ -503,7 +503,7 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 //     (default: false, excludes archived chats unless explicitly set)
 //   - has_unread: nullable boolean (filter by unread message status)
 //   - status: repeated or comma-separated chat_status enum value:
-//     waiting, running, error, requires_action, or interrupting
+//     waiting, running, error, requires_action, interrupting, or paused
 //   - pr_status: repeated or comma-separated list of draft, open,
 //     merged, closed, or none (no pull request)
 //   - diff_url: string (matches chats whose linked diff URL equals the

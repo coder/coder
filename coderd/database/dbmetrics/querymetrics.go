@@ -1920,14 +1920,6 @@ func (m queryMetricsStore) GetChatQueuedMessagesByAutomationBelowGeneration(ctx 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatQueuedMessagesByPosition(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatQueuedMessagesByPosition").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatQueuedMessagesByPosition").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatRetentionDays(ctx)
@@ -5614,6 +5606,22 @@ func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg databa
 	r0, r1 := m.s.UpdateChatProjectByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatProjectByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatQueuedMessageContent(ctx context.Context, arg database.UpdateChatQueuedMessageContentParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageContent(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageContent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageContent").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatQueuedMessageEditing(ctx context.Context, arg database.UpdateChatQueuedMessageEditingParams) (database.ChatQueuedMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatQueuedMessageEditing(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatQueuedMessageEditing").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatQueuedMessageEditing").Inc()
 	return r0, r1
 }
 

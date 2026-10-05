@@ -601,6 +601,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
+	// A paused chat also finished its turn, so it gets the same
+	// status label call as a waiting one.
+	t.Run("PausedDerivesFromHistory", func(t *testing.T) {
+		t.Parallel()
+		server, chat, _ := setup(t, "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusPaused
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.Equal(t, "the answer is 42", result.FinalAssistantText)
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+	})
+
 	// The status label is a structured side call, so it must prefer the
 	// title generation model over a chat model that may reject forced tools.
 	t.Run("WaitingPrefersSmallModelOverChatModel", func(t *testing.T) {

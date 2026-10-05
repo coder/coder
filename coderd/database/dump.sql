@@ -409,7 +409,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'error',
     'requires_action',
-    'interrupting'
+    'interrupting',
+    'paused'
 );
 
 CREATE TYPE chat_title_source AS ENUM (
@@ -2296,6 +2297,7 @@ CREATE TABLE chat_queued_messages (
     automation_id uuid,
     input_id uuid,
     queue_generation bigint,
+    editing_since timestamp with time zone,
     CONSTRAINT chat_queued_messages_automation_shape CHECK ((((automation_id IS NULL) AND (input_id IS NULL) AND (queue_generation IS NULL)) OR ((automation_id IS NOT NULL) AND (input_id IS NOT NULL) AND (queue_generation IS NOT NULL))))
 );
 
@@ -2306,6 +2308,8 @@ COMMENT ON COLUMN chat_queued_messages.automation_id IS 'Automation that queued 
 COMMENT ON COLUMN chat_queued_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that queued this message.';
 
 COMMENT ON COLUMN chat_queued_messages.queue_generation IS 'chat_automations.queue_generation at queue time. A lower value than the automation''s current generation marks the message stale.';
+
+COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -4913,6 +4917,8 @@ CREATE INDEX chat_messages_automation_idx ON chat_messages USING btree (automati
 
 CREATE INDEX chat_queued_messages_automation_idx ON chat_queued_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
+CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (editing_since IS NOT NULL);
+
 CREATE INDEX chats_automation_idx ON chats USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
@@ -5299,7 +5305,7 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by, editing_since ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

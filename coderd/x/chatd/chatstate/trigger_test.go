@@ -434,6 +434,61 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 		"UPDATE of queued content bumps queue_version")
 }
 
+// TestQueueUpdateEditingSinceUpdatesQueueVersion verifies that setting and
+// clearing editing_since bumps queue_version, so open streams learn about an
+// edit marker change through the regular queue_update event.
+func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:    created.Chat.ID,
+		Content:   userMessageContent(t, "initial"),
+		CreatedBy: f.User.ID,
+	})
+	require.NoError(t, err)
+
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	editing, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: true,
+	})
+	require.NoError(t, err)
+	require.True(t, editing.EditingSince.Valid)
+	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
+		"setting editing_since bumps queue_version")
+
+	// Beginning again keeps the original timestamp.
+	editingAgain, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, editing.EditingSince, editingAgain.EditingSince, "re-beginning is idempotent")
+
+	bumped, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	ended, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+		ChatID:  created.Chat.ID,
+		ID:      queued.ID,
+		Editing: false,
+	})
+	require.NoError(t, err)
+	require.False(t, ended.EditingSince.Valid)
+	after, err = f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, bumped.SnapshotVersion, after.QueueVersion,
+		"clearing editing_since bumps queue_version")
+}
+
 // TestQueueUpdatePositionUpdatesQueueVersion verifies that an UPDATE
 // of chat_queued_messages.position (such as the reorder-to-head
 // path) bumps queue_version.

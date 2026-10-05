@@ -67,55 +67,6 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 		require.NoError(t, err)
 	}
 
-	// startMigration runs the migration in a transaction on its own
-	// connection and rolls it back, so the next case starts from the same
-	// version. It returns the backend PID and the migration's result, sent
-	// after the rollback.
-	startMigration := func(t *testing.T, ctx context.Context) (int, <-chan error) {
-		t.Helper()
-		conn, pid := dedicatedConn(ctx, t, sqlDB)
-		return pid, async(func() error {
-			tx, err := conn.BeginTx(ctx, nil)
-			if err != nil {
-				return err
-			}
-			// The migration lowers lock_timeout while it takes its locks
-			// and must restore the caller's setting afterwards.
-			_, err = tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'`)
-			if err == nil {
-				_, err = tx.ExecContext(ctx, string(migrationSQL))
-			}
-			if err == nil {
-				var lockTimeout string
-				err = tx.QueryRowContext(ctx, `SHOW lock_timeout`).Scan(&lockTimeout)
-				if err == nil && lockTimeout != "5s" {
-					err = xerrors.Errorf("lock_timeout after migration = %q, want 5s", lockTimeout)
-				}
-			}
-			return errors.Join(err, tx.Rollback())
-		})
-	}
-	// isBlockedBy reports whether pid waits for a lock held or requested by
-	// blocker.
-	isBlockedBy := func(ctx context.Context, pid, blocker int) bool {
-		var blocked bool
-		err := sqlDB.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, pid, blocker).Scan(&blocked)
-		return err == nil && blocked
-	}
-	requireBlockedBy := func(t *testing.T, ctx context.Context, pid, blocker int) {
-		t.Helper()
-		require.Eventually(t, func() bool { return isBlockedBy(ctx, pid, blocker) },
-			testutil.WaitMedium, testutil.IntervalFast, "pid %d never waited for pid %d", pid, blocker)
-	}
-	requireNoDeadlock := func(t *testing.T, ctx context.Context, who string, done <-chan error) {
-		t.Helper()
-		err := testutil.TryReceive(ctx, t, done)
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "40P01" {
-			t.Fatalf("%s: %v: %s", who, err, pqErr.Detail)
-		}
-		require.NoError(t, err, who)
-	}
 	// lockChat opens an application transaction that holds a row lock on
 	// the chat, as GetChatByIDForUpdate does.
 	lockChat := func(t *testing.T, ctx context.Context) (*sql.Tx, int) {
@@ -145,11 +96,11 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		tx, appPID := lockChat(t, ctx)
 
-		pid, migrated := startMigration(t, ctx)
-		requireBlockedBy(t, ctx, pid, appPID)
+		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
+		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
 
-		requireNoDeadlock(t, ctx, "application", async(updateAndCommit(ctx, tx)))
-		requireNoDeadlock(t, ctx, "migration", migrated)
+		requireNoDeadlock(ctx, t, "application", async(updateAndCommit(ctx, tx)))
+		requireNoDeadlock(ctx, t, "migration", migrated)
 	})
 
 	// chatd inserts a message, whose triggers read and update chats, then
@@ -165,11 +116,11 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 			VALUES ($1, 'user', 1)`, chatID)
 		require.NoError(t, err)
 
-		pid, migrated := startMigration(t, ctx)
-		requireBlockedBy(t, ctx, pid, appPID)
+		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
+		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
 
-		requireNoDeadlock(t, ctx, "application", async(updateAndCommit(ctx, tx)))
-		requireNoDeadlock(t, ctx, "migration", migrated)
+		requireNoDeadlock(ctx, t, "application", async(updateAndCommit(ctx, tx)))
+		requireNoDeadlock(ctx, t, "migration", migrated)
 	})
 
 	// GetChatByID reads chats_expanded, which locks the view before chats.
@@ -179,8 +130,8 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		tx, appPID := lockChat(t, ctx)
 
-		pid, migrated := startMigration(t, ctx)
-		requireBlockedBy(t, ctx, pid, appPID)
+		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
+		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
 
 		reader, readerPID := dedicatedConn(ctx, t, sqlDB)
 		read := async(func() error {
@@ -191,12 +142,12 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 		// without ever waiting. Either way, it must have started before the
 		// application commits.
 		require.Eventually(t, func() bool {
-			return len(read) > 0 || isBlockedBy(ctx, readerPID, pid)
+			return len(read) > 0 || isBlockedBy(ctx, sqlDB, readerPID, pid)
 		}, testutil.WaitMedium, testutil.IntervalFast, "reader neither finished nor waited for the migration")
 
 		require.NoError(t, tx.Commit())
-		requireNoDeadlock(t, ctx, "reader", read)
-		requireNoDeadlock(t, ctx, "migration", migrated)
+		requireNoDeadlock(ctx, t, "reader", read)
+		requireNoDeadlock(ctx, t, "migration", migrated)
 	})
 
 	// A transaction that already locked a chat reads chats_expanded, as
@@ -205,8 +156,8 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		tx, appPID := lockChat(t, ctx)
 
-		pid, migrated := startMigration(t, ctx)
-		requireBlockedBy(t, ctx, pid, appPID)
+		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
+		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
 
 		read := async(func() error {
 			var id uuid.UUID
@@ -215,9 +166,64 @@ func testChatMigrationConcurrentTraffic(t *testing.T, from uint, file string) {
 			}
 			return tx.Commit()
 		})
-		requireNoDeadlock(t, ctx, "application", read)
-		requireNoDeadlock(t, ctx, "migration", migrated)
+		requireNoDeadlock(ctx, t, "application", read)
+		requireNoDeadlock(ctx, t, "migration", migrated)
 	})
+}
+
+// startMigration runs migrationSQL in a transaction on its own connection
+// and rolls it back, so the next case starts from the same version. It
+// returns the backend PID and the migration's result, sent after the
+// rollback.
+func startMigration(ctx context.Context, t *testing.T, db *sql.DB, migrationSQL []byte) (int, <-chan error) {
+	t.Helper()
+	conn, pid := dedicatedConn(ctx, t, db)
+	return pid, async(func() error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		// The migration lowers lock_timeout while it takes its locks and
+		// must restore the caller's setting afterwards.
+		_, err = tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'`)
+		if err == nil {
+			_, err = tx.ExecContext(ctx, string(migrationSQL))
+		}
+		if err == nil {
+			var lockTimeout string
+			err = tx.QueryRowContext(ctx, `SHOW lock_timeout`).Scan(&lockTimeout)
+			if err == nil && lockTimeout != "5s" {
+				err = xerrors.Errorf("lock_timeout after migration = %q, want 5s", lockTimeout)
+			}
+		}
+		return errors.Join(err, tx.Rollback())
+	})
+}
+
+// isBlockedBy reports whether pid waits for a lock held or requested by
+// blocker.
+func isBlockedBy(ctx context.Context, db *sql.DB, pid, blocker int) bool {
+	var blocked bool
+	err := db.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, pid, blocker).Scan(&blocked)
+	return err == nil && blocked
+}
+
+func requireBlockedBy(ctx context.Context, t *testing.T, db *sql.DB, pid, blocker int) {
+	t.Helper()
+	require.Eventually(t, func() bool { return isBlockedBy(ctx, db, pid, blocker) },
+		testutil.WaitMedium, testutil.IntervalFast, "pid %d never waited for pid %d", pid, blocker)
+}
+
+// requireNoDeadlock receives the result from done and fails the test with
+// the deadlock detail if PostgreSQL chose that side as a deadlock victim.
+func requireNoDeadlock(ctx context.Context, t *testing.T, who string, done <-chan error) {
+	t.Helper()
+	err := testutil.TryReceive(ctx, t, done)
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "40P01" {
+		t.Fatalf("%s: %v: %s", who, err, pqErr.Detail)
+	}
+	require.NoError(t, err, who)
 }
 
 // async runs fn in a goroutine and returns a channel that receives its

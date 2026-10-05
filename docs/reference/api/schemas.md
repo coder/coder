@@ -3717,9 +3717,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
       "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ]
 }
@@ -5068,23 +5070,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
+  "editing_since": "2019-08-24T14:15:22Z",
   "id": 0,
   "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                                                |
-|-------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `automation_id`   | string                                                        | false    |              | Automation ID is the chat automation that queued this message, if any. The automation may since have been deleted.                                         |
-| `chat_id`         | string                                                        | false    |              |                                                                                                                                                            |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                            |
-| `created_at`      | string                                                        | false    |              |                                                                                                                                                            |
-| `id`              | integer                                                       | false    |              |                                                                                                                                                            |
-| `input_id`        | string                                                        | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set. |
-| `model_config_id` | string                                                        | false    |              |                                                                                                                                                            |
+| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                  |
+|--------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `automation_id`    | string                                                        | false    |              | Automation ID is the chat automation that queued this message, if any. The automation may since have been deleted.                                                                           |
+| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                              |
+| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                              |
+| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                              |
+| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat. |
+| `id`               | integer                                                       | false    |              |                                                                                                                                                                                              |
+| `input_id`         | string                                                        | false    |              | Input ID identifies the automation input that produced this message: a webhook delivery or a schedule occurrence. It is set only when AutomationID is set.                                   |
+| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                              |
+| `reasoning_effort` | string                                                        | false    |              | Reasoning effort is the message's reasoning effort override, when one is set.                                                                                                                |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5124,9 +5130,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                         |
-|------------------------------------------------------------------|
-| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                                   |
+|----------------------------------------------------------------------------|
+| `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -5382,9 +5388,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
       "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
   "retry": {
@@ -6541,9 +6549,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
+    "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
     "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -9551,6 +9561,41 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
 | `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
+
+## codersdk.EditChatQueuedMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "editing": true,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                              |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              | Content replaces the queued content. An empty array is rejected.                                                                                                                                                                                                         |
+| `editing`          | boolean                                                   | false    |              | Editing begins (true) or ends (false) an edit of the message. A chat has at most one message under edit; beginning another ends the first. While the chat is paused, beginning an edit on another message returns 409. Ending the edit of a paused chat's head sends it. |
+| `model_config_id`  | string                                                    | false    |              | Model config ID and ReasoningEffort require Content; sending either without it returns 400. Omitted values keep the stored ones.                                                                                                                                         |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                                                                                                                          |
 
 ## codersdk.Entitlement
 
