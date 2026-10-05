@@ -79,4 +79,50 @@ describe("ModelForm", () => {
 			),
 		);
 	});
+
+	it("selects a provider by its raw provider type", async () => {
+		const onProviderChange = vi.fn();
+		const path = "/ai/settings/models/add";
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path,
+						element: (
+							<OrganizationModelsContext.Provider
+								value={{
+									organization: MockDefaultOrganization,
+									accessibleOrganizations: [MockDefaultOrganization],
+									permissions: MockOrganizationPermissions,
+									requestedOrganizationDenied: false,
+								}}
+							>
+								<ModelForm
+									providerStates={[
+										MockOpenAIProviderState,
+										MockAnthropicProviderState,
+									]}
+									selectedProviderState={MockOpenAIProviderState}
+									onProviderChange={onProviderChange}
+									isSaving={false}
+									isDeleting={false}
+									onCreateModel={vi.fn(async () => undefined)}
+									onUpdateModel={vi.fn(async () => undefined)}
+								/>
+							</OrganizationModelsContext.Provider>
+						),
+					},
+				],
+				{ initialEntries: [path] },
+			),
+		);
+		const user = userEvent.setup();
+
+		await user.click(screen.getByRole("combobox", { name: /^provider\b/i }));
+		await user.click(
+			await screen.findByRole("option", { name: /Anthropic\s*anthropic/ }),
+		);
+
+		expect(onProviderChange).toHaveBeenCalledWith("prov-anthropic");
+	});
 });

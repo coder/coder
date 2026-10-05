@@ -98,6 +98,9 @@ const AddModelDropdown: React.FC<{
 						>
 							<ProviderIcon provider={providerState.provider} />
 							<span>{providerState.label}</span>
+							<span className="font-mono text-xs text-content-secondary">
+								{providerState.provider}
+							</span>
 						</DropdownMenuItem>
 					))
 				)}

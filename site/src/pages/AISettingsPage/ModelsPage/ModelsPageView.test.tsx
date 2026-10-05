@@ -87,4 +87,20 @@ describe("ModelsPageView", () => {
 		);
 		expect(router.state.location.search).toContain("provider=prov-anthropic");
 	});
+
+	it("selects an add-model provider by its raw provider type", async () => {
+		const user = userEvent.setup();
+		const { router } = renderModelsPageView();
+
+		await user.click(screen.getByRole("button", { name: /add model/i }));
+		// The display label "AWS Bedrock" is capitalized, so a lowercase match
+		// at the end of the name only succeeds when the raw type is rendered.
+		await user.click(
+			await screen.findByRole("menuitem", { name: /AWS Bedrock\s*bedrock$/ }),
+		);
+
+		await waitFor(() =>
+			expect(router.state.location.search).toContain("provider=prov-bedrock"),
+		);
+	});
 });
