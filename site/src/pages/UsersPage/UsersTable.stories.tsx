@@ -98,24 +98,6 @@ export const Editable: Story = {
 	},
 };
 
-export const KeyboardFocusedRoles: Story = {
-	args: {
-		users: [
-			{
-				...MockUserMember,
-				roles: [MockUserAdminRole, MockTemplateAdminRole, MockAuditorRole],
-			},
-		],
-		canEditUsers: false,
-		groupsByUserId: mockGroupsByUserId,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		canvas.getByRole("button", { name: "View 1 group" }).focus();
-		await userEvent.tab({ shift: true });
-	},
-};
-
 export const Empty: Story = {
 	args: {
 		users: [],
