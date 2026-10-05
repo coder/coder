@@ -9,7 +9,10 @@ import {
 
 export const chatProjectsKey = ["chat-projects"] as const;
 
-/** Lists the current user's chat projects across all organizations. */
+/**
+ * Lists the current user's chat projects across all organizations.
+ * @public
+ */
 export const chatProjects = () =>
 	queryOptions({
 		queryKey: chatProjectsKey,
