@@ -3966,7 +3966,7 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	}
 	if (selector.RemoteOrigin == "") != (selector.GitBranch == "") {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The origin and branch query parameters must be set together.",
+			Message: "Set the origin and branch query parameters together, or omit both.",
 		})
 		return
 	}

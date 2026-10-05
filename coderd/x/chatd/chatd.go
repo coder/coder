@@ -3347,7 +3347,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 	}
 
 	var changed *codersdk.ChatDiffStatus
-	var primarySDK *codersdk.ChatDiffStatus
+	var primary *codersdk.ChatDiffStatus
 	for i := range dbStatuses {
 		row := &dbStatuses[i]
 		if row.GitRemoteOrigin == ref.RemoteOrigin && row.GitBranch == ref.GitBranch {
@@ -3358,7 +3358,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 	}
 	if len(dbStatuses) > 0 {
 		sdk := db2sdk.ChatDiffStatus(chatID, &dbStatuses[0])
-		primarySDK = &sdk
+		primary = &sdk
 	}
 	if changed == nil {
 		// The ref has no row (its PR was cleared). The event still
@@ -3367,7 +3367,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 	}
 	event := codersdk.ChatWatchEvent{
 		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
-		Chat: chatWatchEventSDKChat(chat, primarySDK),
+		Chat: chatWatchEventSDKChat(chat, primary),
 		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
 			Ref:    ref,
 			Status: changed,
