@@ -2995,22 +2995,26 @@ const getAIModelPrices = `-- name: GetAIModelPrices :many
 SELECT DISTINCT ON (
     provider,
     model,
+    provider_id,
     CASE WHEN $1::text = 'all' THEN source::text ELSE '' END
 ) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source, provider_id
 FROM ai_model_prices
-    -- Provider-specific prices are keyed by provider ID rather than provider
-    -- type, so they are left out of this listing.
-WHERE provider_id IS NULL
-    -- Filter by provider
-    AND CASE
+    -- Filter by provider type
+WHERE CASE
         WHEN $2::text != '' THEN
             provider = $2
         ELSE true
     END
+    -- Filter by configured provider
+    AND CASE
+        WHEN $3::uuid IS NOT NULL THEN
+            provider_id = $3::uuid
+        ELSE true
+    END
     -- Filter by model
     AND CASE
-        WHEN $3::text != '' THEN
-            model = $3
+        WHEN $4::text != '' THEN
+            model = $4
         ELSE true
     END
     -- Filter by source
@@ -3022,14 +3026,16 @@ WHERE provider_id IS NULL
 ORDER BY
     provider ASC,
     model ASC,
+    provider_id ASC NULLS FIRST,
     CASE WHEN $1::text = 'all' THEN source::text ELSE '' END ASC,
     CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetAIModelPricesParams struct {
-	Source   string `db:"source" json:"source"`
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
+	Source     string        `db:"source" json:"source"`
+	Provider   string        `db:"provider" json:"provider"`
+	ProviderID uuid.NullUUID `db:"provider_id" json:"provider_id"`
+	Model      string        `db:"model" json:"model"`
 }
 
 // Returns the price in effect for each model, preferring a custom price over
@@ -3037,9 +3043,18 @@ type GetAIModelPricesParams struct {
 // model carrying both prices reports the one from the named source.
 // The source 'all' reports every row instead. It joins the DISTINCT ON key, so
 // each source forms its own group and nothing collapses. Every other source
-// contributes the same constant, leaving the key as (provider, model).
+// contributes the same constant, leaving the key as (provider, model,
+// provider_id).
+// A provider-specific price prices a different set of providers than the
+// provider-type price for the same model, so it is reported as its own row.
+// DISTINCT ON treats NULLs as equal, so provider-type rows still collapse.
 func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
-	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Source, arg.Provider, arg.Model)
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices,
+		arg.Source,
+		arg.Provider,
+		arg.ProviderID,
+		arg.Model,
+	)
 	if err != nil {
 		return nil, err
 	}

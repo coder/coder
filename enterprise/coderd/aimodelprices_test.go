@@ -7,9 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -22,14 +26,19 @@ import (
 func setupAIModelPricesTest(t *testing.T) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
 	t.Helper()
 
-	return coderdenttest.New(t, &coderdenttest.Options{
+	return coderdenttest.New(t, aiModelPricesTestOptions())
+}
+
+// aiModelPricesTestOptions entitles a deployment to manage model prices.
+func aiModelPricesTestOptions() *coderdenttest.Options {
+	return &coderdenttest.Options{
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 				codersdk.FeatureAIBridge:     1,
 			},
 		},
-	})
+	}
 }
 
 func newAIModelPrice(provider, model string, input int64) codersdk.AIModelPriceUpsert {
@@ -361,6 +370,102 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Equal(t, "anthropic/my-model", prices[0].Model)
 		require.Equal(t, int64(100), *prices[0].InputPrice)
 	})
+
+	t.Run("SetsProviderSpecificPrices", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: two configured azure providers, priced in different regions,
+		// and an openai-compat gateway, whose type cannot be priced.
+		ownerClient, db, _ := coderdenttest.NewWithDatabase(t, aiModelPricesTestOptions())
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		azureEast := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAzure})
+		azureWest := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAzure})
+		gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+
+		// When: the same model is priced for each provider and for the azure
+		// type, leaving out the provider type where a provider ID is given.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				newAIModelPrice("azure", "my-model", 1),
+				{ProviderID: &azureEast.ID, Model: "my-model", InputPrice: ptr.Ref(int64(2))},
+				{Provider: "azure", ProviderID: &azureWest.ID, Model: "my-model", InputPrice: ptr.Ref(int64(3))},
+				{ProviderID: &gateway.ID, Model: "my-model", InputPrice: ptr.Ref(int64(0))},
+			},
+		}))
+
+		// Then: each price is listed as its own row, stored under its
+		// provider's type.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{Model: "my-model"})
+		require.NoError(t, err)
+		got := make(map[uuid.UUID]codersdk.AIModelPrice, len(prices))
+		for _, price := range prices {
+			got[ptr.NilToEmpty(price.ProviderID)] = price
+		}
+		require.Len(t, got, 4)
+		for _, want := range []struct {
+			id       uuid.UUID
+			provider string
+			input    int64
+		}{
+			{uuid.Nil, "azure", 1},
+			{azureEast.ID, "azure", 2},
+			{azureWest.ID, "azure", 3},
+			{gateway.ID, "openai-compat", 0},
+		} {
+			price, ok := got[want.id]
+			require.True(t, ok, "missing price for provider %s", want.id)
+			require.Equal(t, want.provider, price.Provider)
+			require.Equal(t, want.input, *price.InputPrice)
+			require.Equal(t, codersdk.AIModelPriceSourceCustom, price.Source)
+		}
+
+		// Then: updating one provider's price leaves the others alone.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				{ProviderID: &azureEast.ID, Model: "my-model", InputPrice: ptr.Ref(int64(20))},
+			},
+		}))
+		prices, err = exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{Model: "my-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 4)
+		for _, price := range prices {
+			want := got[ptr.NilToEmpty(price.ProviderID)].InputPrice
+			if ptr.NilToEmpty(price.ProviderID) == azureEast.ID {
+				want = ptr.Ref(int64(20))
+			}
+			require.Equal(t, *want, *price.InputPrice)
+		}
+	})
+
+	t.Run("RejectsADeletedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a configured provider that has since been deleted.
+		ownerClient, db, _ := coderdenttest.NewWithDatabase(t, aiModelPricesTestOptions())
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAzure})
+		//nolint:gocritic // Deleting the provider is setup, not the behavior under test.
+		require.NoError(t, db.DeleteAIProviderByID(dbauthz.AsSystemRestricted(ctx), provider.ID))
+
+		// When: a price is set for it.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		err := exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				{ProviderID: &provider.ID, Model: "my-model", InputPrice: ptr.Ref(int64(1))},
+			},
+		})
+
+		// Then: the request is rejected on the provider ID.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "prices[0].provider_id", sdkErr.Validations[0].Field)
+	})
 }
 
 func TestListAIModelPrices(t *testing.T) {
@@ -435,6 +540,57 @@ func TestListAIModelPrices(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "provider", sdkErr.Validations[0].Field)
 		require.Equal(t, `Provider "openai-compat" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`, sdkErr.Validations[0].Detail)
+	})
+
+	t.Run("ByProviderID", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: my-model priced for the azure type and for two configured
+		// azure providers.
+		ownerClient, db, _ := coderdenttest.NewWithDatabase(t, aiModelPricesTestOptions())
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		azureEast := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAzure})
+		azureWest := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAzure})
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				newAIModelPrice("azure", "my-model", 1),
+				{ProviderID: &azureEast.ID, Model: "my-model", InputPrice: ptr.Ref(int64(2))},
+				{ProviderID: &azureWest.ID, Model: "my-model", InputPrice: ptr.Ref(int64(3))},
+			},
+		}))
+
+		// When: the prices are listed for one of the providers.
+		//nolint:gocritic // Reading AI model prices is owner-only.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{ProviderID: azureEast.ID})
+		require.NoError(t, err)
+
+		// Then: only the price set for that provider comes back.
+		require.Len(t, prices, 1)
+		require.Equal(t, &azureEast.ID, prices[0].ProviderID)
+		require.Equal(t, "azure", prices[0].Provider)
+		require.Equal(t, int64(2), *prices[0].InputPrice)
+	})
+
+	t.Run("RejectsAnInvalidProviderID", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an entitled deployment.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: the prices are listed with a provider ID that is not a UUID.
+		res, err := ownerClient.Request(ctx, http.MethodGet, "/api/experimental/ai/model-prices?provider_id=not-a-uuid", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: a 400 comes back naming the field.
+		sdkErr, ok := codersdk.ReadBodyAsError(res).(*codersdk.Error)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "provider_id", sdkErr.Validations[0].Field)
 	})
 
 	t.Run("RejectsAnUnknownSource", func(t *testing.T) {

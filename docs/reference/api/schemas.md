@@ -1126,6 +1126,7 @@ title: Schemas
   "model": "string",
   "output_price": 0,
   "provider": "string",
+  "provider_id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "source": "default",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1133,17 +1134,18 @@ title: Schemas
 
 ### Properties
 
-| Name                | Type                                                       | Required | Restrictions | Description |
-|---------------------|------------------------------------------------------------|----------|--------------|-------------|
-| `cache_read_price`  | integer                                                    | false    |              |             |
-| `cache_write_price` | integer                                                    | false    |              |             |
-| `created_at`        | string                                                     | false    |              |             |
-| `input_price`       | integer                                                    | false    |              |             |
-| `model`             | string                                                     | false    |              |             |
-| `output_price`      | integer                                                    | false    |              |             |
-| `provider`          | string                                                     | false    |              |             |
-| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
-| `updated_at`        | string                                                     | false    |              |             |
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                            |
+|---------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer                                                    | false    |              |                                                                                                                                                                                                                                        |
+| `cache_write_price` | integer                                                    | false    |              |                                                                                                                                                                                                                                        |
+| `created_at`        | string                                                     | false    |              |                                                                                                                                                                                                                                        |
+| `input_price`       | integer                                                    | false    |              |                                                                                                                                                                                                                                        |
+| `model`             | string                                                     | false    |              |                                                                                                                                                                                                                                        |
+| `output_price`      | integer                                                    | false    |              |                                                                                                                                                                                                                                        |
+| `provider`          | string                                                     | false    |              | Provider is the provider type the model is priced for.                                                                                                                                                                                 |
+| `provider_id`       | string                                                     | false    |              | Provider ID is the configured provider a custom price applies to. It is nil for a price that applies to every provider of the Provider type. A provider-specific price takes precedence over a provider-type price for the same model. |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |                                                                                                                                                                                                                                        |
+| `updated_at`        | string                                                     | false    |              |                                                                                                                                                                                                                                        |
 
 ## codersdk.AIModelPriceSource
 
@@ -1168,20 +1170,22 @@ title: Schemas
   "input_price": 0,
   "model": "string",
   "output_price": 0,
-  "provider": "string"
+  "provider": "string",
+  "provider_id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                                    |
+|---------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                                                                                                                                |
+| `cache_write_price` | integer | false    |              |                                                                                                                                                                                                |
+| `input_price`       | integer | false    |              |                                                                                                                                                                                                |
+| `model`             | string  | false    |              |                                                                                                                                                                                                |
+| `output_price`      | integer | false    |              |                                                                                                                                                                                                |
+| `provider`          | string  | false    |              | Provider is the provider type the model is priced for. It may be omitted when ProviderID is set, and must match that provider's type otherwise.                                                |
+| `provider_id`       | string  | false    |              | Provider ID prices the model for one configured provider rather than for every provider of the Provider type. It allows pricing models served by generic provider types such as openai-compat. |
 
 ## codersdk.AIProvider
 

@@ -64,6 +64,13 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
+						"description": "Only return prices set for the configured provider with this ID",
+						"name": "provider_id",
+						"in": "query"
+					},
+					{
+						"type": "string",
 						"description": "Only return prices for this model",
 						"name": "model",
 						"in": "query"
@@ -16489,7 +16496,13 @@
 					"type": "integer"
 				},
 				"provider": {
+					"description": "Provider is the provider type the model is priced for.",
 					"type": "string"
+				},
+				"provider_id": {
+					"description": "ProviderID is the configured provider a custom price applies to. It is\nnil for a price that applies to every provider of the Provider type. A\nprovider-specific price takes precedence over a provider-type price for\nthe same model.",
+					"type": "string",
+					"format": "uuid"
 				},
 				"source": {
 					"$ref": "#/definitions/codersdk.AIModelPriceSource"
@@ -16527,7 +16540,13 @@
 					"type": "integer"
 				},
 				"provider": {
+					"description": "Provider is the provider type the model is priced for. It may be omitted\nwhen ProviderID is set, and must match that provider's type otherwise.",
 					"type": "string"
+				},
+				"provider_id": {
+					"description": "ProviderID prices the model for one configured provider rather than for\nevery provider of the Provider type. It allows pricing models served by\ngeneric provider types such as openai-compat.",
+					"type": "string",
+					"format": "uuid"
 				}
 			}
 		},

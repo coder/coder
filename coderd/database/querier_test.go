@@ -19224,10 +19224,44 @@ func TestGetAIModelPriceByProviderModel(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, sql.NullInt64{Int64: 11, Valid: true}, got.InputPrice)
 
-		// Provider prices are not part of the provider type listing.
+		// The listing reports the single updated row.
 		listed, err := db.GetAIModelPrices(ctx, database.GetAIModelPricesParams{Source: "all"})
 		require.NoError(t, err)
-		require.Empty(t, listed)
+		require.Len(t, listed, 1)
+		require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, listed[0].ProviderID)
+		require.Equal(t, sql.NullInt64{Int64: 11, Valid: true}, listed[0].InputPrice)
+	})
+
+	t.Run("ListsProviderPricesAlongsideProviderTypePrices", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		east := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-east", Type: database.AIProviderTypeAnthropic})
+		west := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-west", Type: database.AIProviderTypeAnthropic})
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}))
+		setProviderPrice(t, ctx, db, east, 10)
+		setProviderPrice(t, ctx, db, west, 20)
+
+		// Each provider's price is its own row next to the provider type's
+		// price, which still reports the price book.
+		listed, err := db.GetAIModelPrices(ctx, database.GetAIModelPricesParams{Model: "model-a"})
+		require.NoError(t, err)
+		got := make(map[uuid.UUID]database.AIModelPrice, len(listed))
+		for _, price := range listed {
+			got[price.ProviderID.UUID] = price
+		}
+		require.Len(t, got, 3)
+		require.Equal(t, database.AIModelPriceSourceDefault, got[uuid.Nil].Source)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got[east.ID].InputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, got[west.ID].InputPrice)
+
+		// Filtering by provider ID reports only that provider's price.
+		listed, err = db.GetAIModelPrices(ctx, database.GetAIModelPricesParams{
+			ProviderID: uuid.NullUUID{UUID: west.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		require.Equal(t, uuid.NullUUID{UUID: west.ID, Valid: true}, listed[0].ProviderID)
 	})
 
 	t.Run("ProviderPriceMustBeCustom", func(t *testing.T) {

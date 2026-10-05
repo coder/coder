@@ -1773,6 +1773,7 @@ func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
 func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	return codersdk.AIModelPrice{
 		Provider:        dbPrice.Provider,
+		ProviderID:      nullUUIDPtr(dbPrice.ProviderID),
 		Model:           dbPrice.Model,
 		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
 		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),

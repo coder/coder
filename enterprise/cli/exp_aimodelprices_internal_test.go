@@ -3,6 +3,7 @@ package cli
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -37,6 +38,8 @@ func TestFormatMicros(t *testing.T) {
 
 func TestDiffAIModelPrices(t *testing.T) {
 	t.Parallel()
+
+	providerID := uuid.New()
 
 	tests := []struct {
 		name        string
@@ -110,6 +113,32 @@ func TestDiffAIModelPrices(t *testing.T) {
 			}},
 			wantAdded:   1,
 			wantChanged: 0,
+		},
+		{
+			// A provider-specific price is a different row from the provider
+			// type's price for the same model.
+			name: "ProviderSpecificPriceIsNotTheProviderTypePrice",
+			current: []codersdk.AIModelPrice{{
+				Provider: "azure", Model: "my-model", InputPrice: new(int64(100)),
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				ProviderID: &providerID, Model: "my-model", InputPrice: new(int64(100)),
+			}},
+			wantAdded:   1,
+			wantChanged: 0,
+		},
+		{
+			// A provider-specific price matches by provider ID, so the request
+			// may leave the provider type out.
+			name: "ProviderSpecificPriceMatchesByProviderID",
+			current: []codersdk.AIModelPrice{{
+				Provider: "azure", ProviderID: &providerID, Model: "my-model", InputPrice: new(int64(100)),
+			}},
+			requested: []codersdk.AIModelPriceUpsert{{
+				ProviderID: &providerID, Model: "my-model", InputPrice: new(int64(200)),
+			}},
+			wantAdded:   0,
+			wantChanged: 1,
 		},
 	}
 

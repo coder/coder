@@ -368,7 +368,17 @@ export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
  * which declares the model free of charge.
  */
 export interface AIModelPrice {
+	/**
+	 * Provider is the provider type the model is priced for.
+	 */
 	readonly provider: string;
+	/**
+	 * ProviderID is the configured provider a custom price applies to. It is
+	 * nil for a price that applies to every provider of the Provider type. A
+	 * provider-specific price takes precedence over a provider-type price for
+	 * the same model.
+	 */
+	readonly provider_id: string | null;
 	readonly model: string;
 	readonly input_price: number | null;
 	readonly output_price: number | null;
@@ -390,7 +400,17 @@ export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
  * only the writable fields of AIModelPrice.
  */
 export interface AIModelPriceUpsert {
-	readonly provider: string;
+	/**
+	 * Provider is the provider type the model is priced for. It may be omitted
+	 * when ProviderID is set, and must match that provider's type otherwise.
+	 */
+	readonly provider?: string;
+	/**
+	 * ProviderID prices the model for one configured provider rather than for
+	 * every provider of the Provider type. It allows pricing models served by
+	 * generic provider types such as openai-compat.
+	 */
+	readonly provider_id?: string;
 	readonly model: string;
 	readonly input_price: number | null;
 	readonly output_price: number | null;

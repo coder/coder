@@ -100,20 +100,28 @@ LIMIT 1;
 -- model carrying both prices reports the one from the named source.
 -- The source 'all' reports every row instead. It joins the DISTINCT ON key, so
 -- each source forms its own group and nothing collapses. Every other source
--- contributes the same constant, leaving the key as (provider, model).
+-- contributes the same constant, leaving the key as (provider, model,
+-- provider_id).
+-- A provider-specific price prices a different set of providers than the
+-- provider-type price for the same model, so it is reported as its own row.
+-- DISTINCT ON treats NULLs as equal, so provider-type rows still collapse.
 SELECT DISTINCT ON (
     provider,
     model,
+    provider_id,
     CASE WHEN @source::text = 'all' THEN source::text ELSE '' END
 ) *
 FROM ai_model_prices
-    -- Provider-specific prices are keyed by provider ID rather than provider
-    -- type, so they are left out of this listing.
-WHERE provider_id IS NULL
-    -- Filter by provider
-    AND CASE
+    -- Filter by provider type
+WHERE CASE
         WHEN @provider::text != '' THEN
             provider = @provider
+        ELSE true
+    END
+    -- Filter by configured provider
+    AND CASE
+        WHEN sqlc.narg('provider_id')::uuid IS NOT NULL THEN
+            provider_id = sqlc.narg('provider_id')::uuid
         ELSE true
     END
     -- Filter by model
@@ -131,6 +139,7 @@ WHERE provider_id IS NULL
 ORDER BY
     provider ASC,
     model ASC,
+    provider_id ASC NULLS FIRST,
     CASE WHEN @source::text = 'all' THEN source::text ELSE '' END ASC,
     CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
 

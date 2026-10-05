@@ -84,6 +84,7 @@ export const MockUnsetUserChatPersonalModelOverrides: UserChatPersonalModelOverr
 // Prices are micro-units per million tokens.
 export const MockGPT5ModelPrice: AIModelPrice = {
 	provider: "openai",
+	provider_id: null,
 	model: "gpt-5",
 	input_price: 1250000,
 	output_price: 10000000,

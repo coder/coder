@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -29,6 +31,15 @@ func TestValidateAIModelPrices(t *testing.T) {
 	t.Parallel()
 
 	const allPrices = `"input_price": 100, "output_price": 200, "cache_read_price": 300, "cache_write_price": 400`
+
+	// The configured providers a provider-specific price may name.
+	compatProvider := database.AIProvider{ID: uuid.MustParse("6a1b7d2e-0f3c-4b8a-9e51-1d2c3b4a5f60"), Type: database.AIProviderTypeOpenaiCompat}
+	azureProvider := database.AIProvider{ID: uuid.MustParse("7b2c8e3f-1a4d-4c9b-8f62-2e3d4c5b6a71"), Type: database.AIProviderTypeAzure}
+	configured := map[uuid.UUID]database.AIProvider{
+		compatProvider.ID: compatProvider,
+		azureProvider.ID:  azureProvider,
+	}
+	unknownProviderID := "8c3d9f40-2b5e-4dac-9a73-3f4e5d6c7b82"
 
 	tests := []struct {
 		name string
@@ -179,6 +190,50 @@ func TestValidateAIModelPrices(t *testing.T) {
 			body: `{"prices":[{"provider":"anthropic","model":"my-model","input_price":0,"output_price":0,"cache_read_price":null,"cache_write_price":null}]}`,
 			want: nil,
 		},
+		{
+			// A configured provider identifies the upstream behind it, so a
+			// generic type is priced through it and the provider type may be
+			// left out.
+			name: "ProviderIDOfOpenAICompatWithoutProvider",
+			body: `{"prices":[{"provider_id":"` + compatProvider.ID.String() + `","model":"my-model",` + allPrices + `}]}`,
+			want: nil,
+		},
+		{
+			name: "ProviderIDWithMatchingProvider",
+			body: `{"prices":[{"provider":"azure","provider_id":"` + azureProvider.ID.String() + `","model":"my-model",` + allPrices + `}]}`,
+			want: nil,
+		},
+		{
+			name: "ProviderIDWithMismatchedProvider",
+			body: `{"prices":[{"provider":"openai","provider_id":"` + azureProvider.ID.String() + `","model":"my-model",` + allPrices + `}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[0].provider", Detail: `Provider "openai" does not match the type "azure" of the configured provider ` + azureProvider.ID.String() + `.`},
+			},
+		},
+		{
+			// Deleted providers are absent from the configured set too.
+			name: "UnknownProviderID",
+			body: `{"prices":[{"provider_id":"` + unknownProviderID + `","model":"my-model",` + allPrices + `}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[0].provider_id", Detail: `Provider ID "` + unknownProviderID + `" does not match a configured provider.`},
+			},
+		},
+		{
+			// A provider-specific price and the provider-type price for the
+			// same model are different rows.
+			name: "ProviderIDAndProviderTypeForSameModel",
+			body: `{"prices":[{"provider":"azure","model":"my-model",` + allPrices + `},` +
+				`{"provider_id":"` + azureProvider.ID.String() + `","model":"my-model",` + allPrices + `}]}`,
+			want: nil,
+		},
+		{
+			name: "DuplicateProviderIDEntry",
+			body: `{"prices":[{"provider_id":"` + azureProvider.ID.String() + `","model":"my-model",` + allPrices + `},` +
+				`{"provider":"azure","provider_id":"` + azureProvider.ID.String() + `","model":"my-model",` + allPrices + `}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[1]", Detail: azureProvider.ID.String() + "/my-model appears more than once."},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -186,7 +241,7 @@ func TestValidateAIModelPrices(t *testing.T) {
 			t.Parallel()
 
 			requested, raw := decodeAIModelPrices(t, tt.body)
-			require.Equal(t, tt.want, validateAIModelPrices(requested, raw))
+			require.Equal(t, tt.want, validateAIModelPrices(requested, raw, configured))
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
 
@@ -48,7 +49,10 @@ Coder's price book:
     }
   ]
   * A price is keyed by provider type and model, so every configured
-    provider of that type shares it.
+    provider of that type shares it. Add "provider_id" to price the model
+    for one configured provider instead, which takes precedence over the
+    provider type's price. "provider" may then be omitted, and a provider
+    of a generic type such as openai-compat can be priced.
   * Prices are micro-units per million tokens, so 3000000 is $3.00 per
     million tokens.
   * A 'null' price is unknown and adds no cost. An explicit 0 declares the
@@ -66,6 +70,7 @@ type aiModelPriceRow struct {
 
 	// For table format:
 	Provider        string `json:"-" table:"provider,default_sort"`
+	ProviderID      string `json:"-" table:"provider id"`
 	Model           string `json:"-" table:"model"`
 	InputPrice      string `json:"-" table:"input price"`
 	OutputPrice     string `json:"-" table:"output price"`
@@ -78,12 +83,13 @@ type aiModelPriceRow struct {
 
 func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	var (
-		provider  string
-		model     string
-		source    string
-		formatter = cliui.NewOutputFormatter(
+		provider   string
+		providerID string
+		model      string
+		source     string
+		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]aiModelPriceRow{}, []string{
-				"provider", "model", "input price", "output price", "cache read price", "cache write price", "source",
+				"provider", "provider id", "model", "input price", "output price", "cache read price", "cache write price", "source",
 			}),
 			cliui.JSONFormat(),
 		)
@@ -101,6 +107,11 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 				Flag:        "provider",
 				Description: "Only show models for this provider type.",
 				Value:       serpent.StringOf(&provider),
+			},
+			{
+				Flag:        "provider-id",
+				Description: "Only show prices set for the configured provider with this ID.",
+				Value:       serpent.StringOf(&providerID),
 			},
 			{
 				Flag:        "model",
@@ -126,20 +137,34 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 				return err
 			}
 
-			prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			filter := codersdk.AIModelPricesFilter{
 				Provider: provider,
 				Model:    model,
 				Source:   codersdk.AIModelPriceSourceFilter(source),
-			})
+			}
+			if providerID != "" {
+				filter.ProviderID, err = uuid.Parse(providerID)
+				if err != nil {
+					return xerrors.Errorf("--provider-id: %w", err)
+				}
+			}
+			prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx, filter)
 			if err != nil {
 				return xerrors.Errorf("list model prices: %w", err)
 			}
 
 			rows := make([]aiModelPriceRow, 0, len(prices))
 			for _, price := range prices {
+				// A price without a provider ID applies to every provider of
+				// its type.
+				providerID := "-"
+				if price.ProviderID != nil {
+					providerID = price.ProviderID.String()
+				}
 				rows = append(rows, aiModelPriceRow{
 					AIModelPrice:    price,
 					Provider:        price.Provider,
+					ProviderID:      providerID,
 					Model:           price.Model,
 					InputPrice:      formatMicros(price.InputPrice),
 					OutputPrice:     formatMicros(price.OutputPrice),
@@ -415,9 +440,9 @@ type aiModelPriceChange struct {
 // no price for and models whose prices would move. Requests that match the
 // stored prices exactly are dropped.
 func diffAIModelPrices(requested []codersdk.AIModelPriceUpsert, current []codersdk.AIModelPrice) ([]codersdk.AIModelPriceUpsert, []aiModelPriceChange) {
-	stored := make(map[string]codersdk.AIModelPrice, len(current))
+	stored := make(map[aiModelPriceKey]codersdk.AIModelPrice, len(current))
 	for _, row := range current {
-		stored[row.Provider+"/"+row.Model] = row
+		stored[newAIModelPriceKey(row.Provider, row.ProviderID, row.Model)] = row
 	}
 
 	var (
@@ -425,7 +450,7 @@ func diffAIModelPrices(requested []codersdk.AIModelPriceUpsert, current []coders
 		changes   []aiModelPriceChange
 	)
 	for _, entry := range requested {
-		old, ok := stored[entry.Provider+"/"+entry.Model]
+		old, ok := stored[newAIModelPriceKey(entry.Provider, entry.ProviderID, entry.Model)]
 		if !ok {
 			additions = append(additions, entry)
 			continue
@@ -436,6 +461,21 @@ func diffAIModelPrices(requested []codersdk.AIModelPriceUpsert, current []coders
 		changes = append(changes, aiModelPriceChange{price: entry, old: old})
 	}
 	return additions, changes
+}
+
+// aiModelPriceKey identifies a stored price. A provider-specific price is
+// keyed by provider ID alone, since a request may omit its provider type.
+type aiModelPriceKey struct {
+	provider   string
+	providerID uuid.UUID
+	model      string
+}
+
+func newAIModelPriceKey(provider string, providerID *uuid.UUID, model string) aiModelPriceKey {
+	if providerID != nil {
+		return aiModelPriceKey{providerID: *providerID, model: model}
+	}
+	return aiModelPriceKey{provider: provider, model: model}
 }
 
 // pricesEqual reports whether all four prices already hold the requested values.
@@ -468,14 +508,24 @@ func printAIModelPriceChanges(inv *serpent.Invocation, additions []codersdk.AIMo
 	cliui.Infof(inv.Stdout, "Plan: %s.", strings.Join(summary, ", "))
 
 	for _, price := range additions {
-		_, _ = fmt.Fprintf(inv.Stdout, "  + %s/%s   %s\n", price.Provider, price.Model, describePrices(price))
+		_, _ = fmt.Fprintf(inv.Stdout, "  + %s   %s\n", describeAIModelPriceTarget(price), describePrices(price))
 	}
 	for _, change := range changes {
-		_, _ = fmt.Fprintf(inv.Stdout, "  ~ %s/%s\n", change.price.Provider, change.price.Model)
+		_, _ = fmt.Fprintf(inv.Stdout, "  ~ %s\n", describeAIModelPriceTarget(change.price))
 		for _, line := range describePriceChanges(change) {
 			_, _ = fmt.Fprintf(inv.Stdout, "      %s\n", line)
 		}
 	}
+}
+
+// describeAIModelPriceTarget names the model an entry prices, as
+// provider/model for a provider type or provider-id/model for one configured
+// provider.
+func describeAIModelPriceTarget(price codersdk.AIModelPriceUpsert) string {
+	if price.ProviderID != nil {
+		return price.ProviderID.String() + "/" + price.Model
+	}
+	return price.Provider + "/" + price.Model
 }
 
 // describePrices renders an entry as a one-line list of its set prices.

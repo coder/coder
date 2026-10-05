@@ -711,7 +711,11 @@ export const PricingEstimateFields: React.FC<{
 	const livePriceLoading =
 		debouncePending ||
 		(livePricesQuery.fetchStatus !== "idle" && !livePricesQuery.isSuccess);
-	const livePrice = debouncePending ? undefined : livePricesQuery.data?.[0];
+	// Prices set for one configured provider do not apply to the provider type
+	// as a whole, so only the provider-type row is shown.
+	const livePrice = debouncePending
+		? undefined
+		: livePricesQuery.data?.find((price) => !price.provider_id);
 
 	const knownModel =
 		findKnownModelByCanonicalId(normalizedProvider, trimmedModel) ??

@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 	"github.com/coder/coder/v2/coderd/database"
@@ -34,6 +36,7 @@ var aiModelPriceSources = []string{
 // @Produce json
 // @Tags Enterprise
 // @Param provider query string false "Only return prices for this provider"
+// @Param provider_id query string false "Only return prices set for the configured provider with this ID" format(uuid)
 // @Param model query string false "Only return prices for this model"
 // @Param source query string false "Only return prices from this source, or all to return every price a model holds" Enums(default,custom,all)
 // @Success 200 {array} codersdk.AIModelPrice
@@ -67,10 +70,27 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var providerID uuid.NullUUID
+	if raw := r.URL.Query().Get("provider_id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid AI model price provider ID.",
+				Validations: []codersdk.ValidationError{{
+					Field:  "provider_id",
+					Detail: fmt.Sprintf("Provider ID %q is not a valid UUID.", raw),
+				}},
+			})
+			return
+		}
+		providerID = uuid.NullUUID{UUID: id, Valid: true}
+	}
+
 	dbPrices, err := api.Database.GetAIModelPrices(ctx, database.GetAIModelPricesParams{
-		Provider: provider,
-		Model:    r.URL.Query().Get("model"),
-		Source:   source,
+		Provider:   provider,
+		ProviderID: providerID,
+		Model:      r.URL.Query().Get("model"),
+		Source:     source,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -137,15 +157,43 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A provider-specific price must name a live configured provider, so load
+	// them only when the request carries one.
+	var configured map[uuid.UUID]database.AIProvider
+	if slices.ContainsFunc(req.Prices, func(p codersdk.AIModelPriceUpsert) bool { return p.ProviderID != nil }) {
+		dbProviders, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		if err != nil {
+			api.Logger.Error(ctx, "get ai providers", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		configured = make(map[uuid.UUID]database.AIProvider, len(dbProviders))
+		for _, provider := range dbProviders {
+			configured[provider.ID] = provider
+		}
+	}
+
 	// Validate the whole request before writing anything, so a single bad
 	// entry cannot leave the table half-updated.
-	validations := validateAIModelPrices(req.Prices, rawReq.Prices)
+	validations := validateAIModelPrices(req.Prices, rawReq.Prices, configured)
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI model prices.",
 			Validations: validations,
 		})
 		return
+	}
+
+	// A provider-specific price is stored under its provider's type, so the
+	// type-level filters and the cost lookup find it.
+	for i, price := range req.Prices {
+		if price.ProviderID != nil {
+			req.Prices[i].Provider = string(configured[*price.ProviderID].Type)
+		}
 	}
 
 	// The batch upsert reads the rows as a JSON array, matching the embedded
@@ -185,16 +233,19 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// modelKey identifies a priced model.
+// modelKey identifies a priced model. A provider-specific price is keyed by
+// its provider ID and leaves provider empty.
 type modelKey struct {
-	provider string
-	model    string
+	provider   string
+	providerID uuid.UUID
+	model      string
 }
 
 // validateAIModelPrices reports every problem with the requested prices: a
-// supported provider, a model, all four price keys, non-negative prices with
+// supported provider, or a provider ID naming one of the configured providers
+// with a matching type, a model, all four price keys, non-negative prices with
 // at least one set, and no repeated model.
-func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
+func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage, configured map[uuid.UUID]database.AIProvider) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
 			Field:  "prices",
@@ -209,8 +260,31 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 	for i, price := range requested {
 		field := fmt.Sprintf("prices[%d]", i)
 
-		// Provider and model identify the row, so report them first.
+		// Provider and model identify the row, so report them first. A
+		// configured provider identifies its upstream, so a provider of any
+		// type may be priced, including generic ones the type list leaves out.
+		key := modelKey{provider: price.Provider, model: price.Model}
+		var (
+			configuredProvider database.AIProvider
+			isConfigured       bool
+		)
+		if price.ProviderID != nil {
+			key = modelKey{providerID: *price.ProviderID, model: price.Model}
+			configuredProvider, isConfigured = configured[*price.ProviderID]
+		}
 		switch {
+		case price.ProviderID != nil && !isConfigured:
+			validations = append(validations, codersdk.ValidationError{
+				Field:  field + ".provider_id",
+				Detail: fmt.Sprintf("Provider ID %q does not match a configured provider.", price.ProviderID.String()),
+			})
+		case price.ProviderID != nil && price.Provider != "" && price.Provider != string(configuredProvider.Type):
+			validations = append(validations, codersdk.ValidationError{
+				Field:  field + ".provider",
+				Detail: fmt.Sprintf("Provider %q does not match the type %q of the configured provider %s.", price.Provider, configuredProvider.Type, configuredProvider.ID),
+			})
+		case price.ProviderID != nil:
+			// A configured provider is valid whatever its type.
 		case price.Provider == "":
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field + ".provider",
@@ -285,11 +359,14 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 			})
 		}
 
-		key := modelKey{provider: price.Provider, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
+			name := price.Provider
+			if key.providerID != uuid.Nil {
+				name = key.providerID.String()
+			}
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field,
-				Detail: fmt.Sprintf("%s/%s appears more than once.", price.Provider, price.Model),
+				Detail: fmt.Sprintf("%s/%s appears more than once.", name, price.Model),
 			})
 		}
 		seen[key] = struct{}{}

@@ -348,7 +348,11 @@ type sqlcQuerier interface {
 	// model carrying both prices reports the one from the named source.
 	// The source 'all' reports every row instead. It joins the DISTINCT ON key, so
 	// each source forms its own group and nothing collapses. Every other source
-	// contributes the same constant, leaving the key as (provider, model).
+	// contributes the same constant, leaving the key as (provider, model,
+	// provider_id).
+	// A provider-specific price prices a different set of providers than the
+	// provider-type price for the same model, so it is reported as its own row.
+	// DISTINCT ON treats NULLs as equal, so provider-type rows still collapse.
 	GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The

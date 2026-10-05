@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // AIModelPrice is a per-model token price used by AI Gateway to compute the
@@ -14,7 +16,13 @@ import (
 // calculation treats the same as zero. Distinguish that from an explicit 0,
 // which declares the model free of charge.
 type AIModelPrice struct {
-	Provider        string             `json:"provider"`
+	// Provider is the provider type the model is priced for.
+	Provider string `json:"provider"`
+	// ProviderID is the configured provider a custom price applies to. It is
+	// nil for a price that applies to every provider of the Provider type. A
+	// provider-specific price takes precedence over a provider-type price for
+	// the same model.
+	ProviderID      *uuid.UUID         `json:"provider_id" format:"uuid"`
 	Model           string             `json:"model"`
 	InputPrice      *int64             `json:"input_price"`
 	OutputPrice     *int64             `json:"output_price"`
@@ -61,12 +69,18 @@ type UpsertAIModelPricesRequest struct {
 // AIModelPriceUpsert is one model's prices in an upsert request. It carries
 // only the writable fields of AIModelPrice.
 type AIModelPriceUpsert struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
+	// Provider is the provider type the model is priced for. It may be omitted
+	// when ProviderID is set, and must match that provider's type otherwise.
+	Provider string `json:"provider,omitempty"`
+	// ProviderID prices the model for one configured provider rather than for
+	// every provider of the Provider type. It allows pricing models served by
+	// generic provider types such as openai-compat.
+	ProviderID      *uuid.UUID `json:"provider_id,omitempty" format:"uuid"`
+	Model           string     `json:"model"`
+	InputPrice      *int64     `json:"input_price"`
+	OutputPrice     *int64     `json:"output_price"`
+	CacheReadPrice  *int64     `json:"cache_read_price"`
+	CacheWritePrice *int64     `json:"cache_write_price"`
 }
 
 // AIModelPricesFilter narrows the listed model prices. An empty field does not
@@ -75,7 +89,9 @@ type AIModelPriceUpsert struct {
 // @typescript-ignore AIModelPricesFilter
 type AIModelPricesFilter struct {
 	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model,omitempty"`
+	// ProviderID narrows to the prices set for one configured provider.
+	ProviderID uuid.UUID `json:"provider_id,omitempty" format:"uuid"`
+	Model      string    `json:"model,omitempty"`
 	// Source narrows to prices from one source. A model with both reports only
 	// its custom price unless this is set.
 	Source AIModelPriceSourceFilter `json:"source,omitempty"`
@@ -86,6 +102,9 @@ func (f AIModelPricesFilter) asRequestOption() RequestOption {
 		query := r.URL.Query()
 		if f.Provider != "" {
 			query.Set("provider", f.Provider)
+		}
+		if f.ProviderID != uuid.Nil {
+			query.Set("provider_id", f.ProviderID.String())
 		}
 		if f.Model != "" {
 			query.Set("model", f.Model)
