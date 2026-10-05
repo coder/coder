@@ -1,4 +1,3 @@
-import { PencilIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -10,7 +9,7 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -38,8 +37,8 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
+import { ProjectComposerFooter } from "./components/ProjectComposerFooter";
 import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
 import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
@@ -456,50 +455,6 @@ const AgentCreatePage: React.FC = () => {
 				/>
 			)}
 		</>
-	);
-};
-
-type ProjectComposerFooterProps = {
-	readonly project: TypesGen.ChatProject;
-};
-
-const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
-	project,
-}) => {
-	const queryClient = useQueryClient();
-	const [isEditing, setIsEditing] = useState(false);
-	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => setIsEditing(false);
-
-	return (
-		<div className="flex justify-center pt-2">
-			<Button
-				variant="subtle"
-				size="sm"
-				onClick={() => {
-					updateProjectMutation.reset();
-					setIsEditing(true);
-				}}
-			>
-				<PencilIcon />
-				Edit project
-			</Button>
-			<ChatProjectDialog
-				project={project}
-				open={isEditing}
-				onOpenChange={(open) => {
-					if (!open) closeDialog();
-				}}
-				isSubmitting={updateProjectMutation.isPending}
-				error={updateProjectMutation.error}
-				onSubmit={(request) => {
-					updateProjectMutation.mutate(
-						{ project, request },
-						{ onSuccess: closeDialog },
-					);
-				}}
-			/>
-		</div>
 	);
 };
 
