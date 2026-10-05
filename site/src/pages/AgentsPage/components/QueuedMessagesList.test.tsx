@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
+	MockChatAutomation,
 	MockChatQueuedMessage,
 	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
@@ -317,6 +318,34 @@ describe("QueuedMessagesList", () => {
 			await user.click(button);
 		}
 		expect(onEdit.mock.calls.map(([id]) => id)).toEqual(editedIDs);
+	});
+
+	it("automation rows have no Edit, and one under edit keeps Cancel edit", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList(
+			[
+				{
+					...MockChatQueuedMessageUnderEdit,
+					id: 9,
+					automation_id: MockChatAutomation.id,
+				},
+				{
+					...MockChatQueuedMessage,
+					id: 10,
+					automation_id: MockChatAutomation.id,
+				},
+				{ ...MockChatQueuedMessage, id: 11 },
+			],
+			{ queuedMessageUnderEditID: 9 },
+		);
+
+		for (const button of screen.getAllByRole("button", { name: "Edit" })) {
+			await user.click(button);
+		}
+		expect(onEdit.mock.calls.map(([id]) => id)).toEqual([11]);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
 	});
 
 	it("while the chat is paused with no row under edit, Edit calls onEdit", async () => {

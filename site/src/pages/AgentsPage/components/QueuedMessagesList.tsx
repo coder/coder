@@ -386,20 +386,25 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 										}
 									/>
 								)}
-								{onEdit && item.id !== composerQueuedMessageID && (
-									<QueuedMessageActionButton
-										label="Edit"
-										icon={<PencilIcon className="size-3.5" />}
-										busy={false}
-										disabled={isBusy}
-										disabledReason={
-											isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
-												? "Finish the current edit first."
-												: undefined
-										}
-										onClick={() => onEdit(item.id)}
-									/>
-								)}
+								{/* The server refuses edits to rows an automation queued. */}
+								{onEdit &&
+									!item.automationId &&
+									item.id !== composerQueuedMessageID && (
+										<QueuedMessageActionButton
+											label="Edit"
+											icon={<PencilIcon className="size-3.5" />}
+											busy={false}
+											disabled={isBusy}
+											disabledReason={
+												isChatPaused &&
+												underEditIndex !== -1 &&
+												!item.isUnderEdit
+													? "Finish the current edit first."
+													: undefined
+											}
+											onClick={() => onEdit(item.id)}
+										/>
+									)}
 								<QueuedMessageActionButton
 									label="Send now"
 									icon={<ArrowUpIcon className="size-3.5" />}
