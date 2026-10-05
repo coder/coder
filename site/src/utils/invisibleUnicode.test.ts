@@ -179,6 +179,12 @@ describe("sanitizePromptText", () => {
 		],
 		["trims the result", "  \n one \n ", "one"],
 		["keeps astral characters", "ship it \u{1F680}", "ship it \u{1F680}"],
+		[
+			"trims Go whitespace that JavaScript keeps",
+			"one\u0085\ntwo\u0085",
+			"one\ntwo",
+		],
+		["treats text of only Go whitespace as blank", "\u0085 \u0085", ""],
 	])("%s", (_, input, expected) => {
 		expect(sanitizePromptText(input)).toBe(expected);
 	});
