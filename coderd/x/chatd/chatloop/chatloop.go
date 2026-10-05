@@ -376,6 +376,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	// Observe before error handling so failed or rejected responses are still counted.
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -384,7 +386,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 
 	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
 	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(

@@ -444,3 +444,84 @@ func TestGenerateAssistant_StreamRetry_ContextCanceledTransportResetIncrements(t
 		"kind":     string(codersdk.ChatErrorKindTimeout),
 	})
 }
+
+func TestGenerateAssistant_ResponseSizeBytesRecordedOnError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		parts   []fantasy.StreamPart
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			},
+		},
+		{
+			name: "StreamErrorAfterContent",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello"},
+				{Type: fantasy.StreamPartTypeError, Error: xerrors.New("upstream reset")},
+			},
+			wantErr: true,
+		},
+		{
+			name: "RejectedNoOutputFinish",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning-1"},
+				{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning-1", Delta: "hello"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonUnknown},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reg := prometheus.NewRegistry()
+			model := &chattest.FakeModel{
+				ProviderName: "test-provider",
+				ModelName:    "test-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return func(yield func(fantasy.StreamPart) bool) {
+						for _, part := range tt.parts {
+							if !yield(part) {
+								return
+							}
+						}
+					}, nil
+				},
+			}
+
+			_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+				Model:   model,
+				Metrics: chatloop.NewMetrics(reg),
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			families, err := reg.Gather()
+			require.NoError(t, err)
+			var histogram *dto.Histogram
+			for _, family := range families {
+				if family.GetName() == "coderd_chatd_response_size_bytes" {
+					require.Len(t, family.GetMetric(), 1)
+					histogram = family.GetMetric()[0].GetHistogram()
+				}
+			}
+			require.NotNil(t, histogram, "response size histogram not recorded")
+			require.Equal(t, uint64(1), histogram.GetSampleCount())
+			require.Equal(t, float64(len("hello")), histogram.GetSampleSum())
+		})
+	}
+}
