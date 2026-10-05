@@ -15,6 +15,7 @@ const renderLayout = (route = "/agents") =>
 			{ path: "projects/:projectId", element: null },
 			{ path: "automations", element: null },
 			{ path: "board", element: null },
+			{ path: ":agentId", element: null },
 		],
 	});
 
@@ -51,6 +52,7 @@ describe("AgentsPageLayout New chat", () => {
 	);
 
 	it.each([
+		"/agents/chat-1",
 		"/agents/projects/project-1",
 		"/agents/automations",
 		"/agents/board",
