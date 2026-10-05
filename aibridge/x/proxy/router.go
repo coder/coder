@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 )
 
 // Router is an [http.Handler] which serves the AI Gateway routes of an
@@ -51,8 +52,8 @@ func NewRouter(providers []provider.Provider, logger slog.Logger) (*Router, erro
 
 // ServeHTTP serves the routes registered for the router's providers.
 func (p *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	if err := routing.ValidateForwardPath(r.URL); err != nil {
-		http.Error(rw, err.Error(), http.StatusBadRequest)
+	if xurl.ContainsEncodedPath(r.URL) {
+		http.Error(rw, routing.InvalidPathMessage, http.StatusBadRequest)
 		return
 	}
 	// Cap the body as it is read; routes that do not read it retain their status.
