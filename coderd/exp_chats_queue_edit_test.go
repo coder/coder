@@ -238,6 +238,59 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			"leaving paused publishes the running status to watchers")
 	})
 
+	// A row queued by an automation refuses content and beginning an
+	// edit with 409; ending an edit and edits of user rows still work.
+	t.Run("AutomationRowRefused", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+			LastModelConfigID: modelConfig.ID, Title: "automation queued edit", Status: database.ChatStatusError,
+		})
+		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID, Enabled: true,
+		})
+		fromAutomation, err := db.InsertChatQueuedMessageWithCreator(sysCtx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:          chat.ID,
+			Content:         queuedTextContent(t, "from automation"),
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			CreatedBy:       user.UserID,
+			AutomationID:    uuid.NullUUID{UUID: automation.ID, Valid: true},
+			InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			QueueGeneration: sql.NullInt64{Int64: automation.QueueGeneration, Valid: true},
+		})
+		require.NoError(t, err)
+		fromUser := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "from user"), modelConfig.ID)
+
+		const refusal = "Messages queued by an automation cannot be edited."
+		err = client.EditChatQueuedMessage(ctx, chat.ID, fromAutomation.ID, codersdk.EditChatQueuedMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "rewritten"}},
+		})
+		require.Equal(t, refusal, requireSDKError(t, err, http.StatusConflict).Message)
+		err = client.EditChatQueuedMessage(ctx, chat.ID, fromAutomation.ID, codersdk.EditChatQueuedMessageRequest{Editing: new(true)})
+		require.Equal(t, refusal, requireSDKError(t, err, http.StatusConflict).Message)
+		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, fromAutomation.ID, codersdk.EditChatQueuedMessageRequest{Editing: new(false)}),
+			"ending an edit stays allowed")
+
+		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, fromUser.ID, codersdk.EditChatQueuedMessageRequest{Editing: new(true)}))
+		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, fromUser.ID, codersdk.EditChatQueuedMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "user edited"}},
+			Editing: new(false),
+		}))
+
+		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, listed.QueuedMessages, 2)
+		require.Equal(t, "from automation", listed.QueuedMessages[0].Content[0].Text)
+		require.Nil(t, listed.QueuedMessages[0].EditingSince)
+		require.Equal(t, "user edited", listed.QueuedMessages[1].Content[0].Text)
+	})
+
 	t.Run("Guards", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

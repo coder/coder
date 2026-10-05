@@ -3611,6 +3611,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
 			})
+		case errors.Is(err, chatstate.ErrQueuedMessageFromAutomation):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Messages queued by an automation cannot be edited.",
+				Detail:  "Send or remove the message instead.",
+			})
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat has no queued messages to edit.",
