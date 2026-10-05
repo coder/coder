@@ -170,6 +170,7 @@ func TestOrganizationChatSystemPrompt(t *testing.T) {
 			require.Equal(t, database.AuditActionWrite, got[i].Action)
 			require.Equal(t, auditOrg.ID, got[i].OrganizationID)
 			require.Equal(t, auditOrg.ID, got[i].ResourceID)
+			require.Empty(t, got[i].ResourceTarget)
 			require.EqualValues(t, http.StatusNoContent, got[i].StatusCode)
 		}
 

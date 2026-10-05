@@ -172,7 +172,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.ChatOperationalSettings:
 		return ""
 	case database.ChatOrganizationSystemPrompt:
-		return "Organization system prompt"
+		return ""
 	case database.ExperimentRule:
 		return typed.Experiment
 	default:
