@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import {
 	useCallback,
 	useEffect,
@@ -30,7 +31,6 @@ import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatQueuedMessagesEqual,
 	createChatStore,
 	isActiveChatStatus,
 	isTurnCompletedChatStatus,
@@ -49,9 +49,7 @@ const writeQueuedMessagesToCache = (
 			return currentData;
 		}
 		const firstPage = currentData.pages[0];
-		if (
-			chatQueuedMessagesEqual(firstPage.queued_messages, nextQueuedMessages)
-		) {
+		if (isEqual(firstPage.queued_messages, nextQueuedMessages)) {
 			return currentData;
 		}
 		return {
@@ -350,12 +348,7 @@ export const useChatStore = (
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		// An optimistic promotion cache write must not clear suppression before
 		// a stale pre-promotion queue_update arrives.
-		if (
-			chatQueuedMessagesEqual(
-				store.getSnapshot().queuedMessages,
-				chatQueuedMessages ?? [],
-			)
-		) {
+		if (isEqual(store.getSnapshot().queuedMessages, chatQueuedMessages ?? [])) {
 			return;
 		}
 		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
