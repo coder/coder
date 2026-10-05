@@ -380,6 +380,24 @@ Actions: `create`, `write`, `delete`
 </tbody>
 </table>
 
+### ChatProjectMemory
+
+Actions: `create`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>body</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### CustomRole
 
 <table width="100%">

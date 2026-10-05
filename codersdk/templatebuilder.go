@@ -152,7 +152,7 @@ type TemplateBuilderCreateTemplateRequest struct {
 	OrganizationID     uuid.UUID                      `json:"organization_id" format:"uuid" validate:"required"`
 	Name               string                         `json:"name" validate:"required,template_name"`
 	DisplayName        string                         `json:"display_name,omitempty" validate:"template_display_name"`
-	Description        string                         `json:"description,omitempty" validate:"lt=128"`
+	Description        string                         `json:"description,omitempty" validate:"lte=128"`
 	Icon               string                         `json:"icon,omitempty"`
 	ProvisionerTags    map[string]string              `json:"provisioner_tags,omitempty"`
 	// SessionID is the wizard session this request belongs to, as reported to
