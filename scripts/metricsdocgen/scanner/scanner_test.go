@@ -63,6 +63,24 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 	writeGoFile(t, root, "server/costcontrol", "metrics.go", "package costcontrol\n")
 	writeGoFile(t, root, "gateway/keypool", "collector.go", "package keypool\n")
 	writeGoFile(t, root, "proxy", "metrics.go", "package proxy\n")
+	// A same-package constant prefix, declared in a nested directory so the
+	// lookup key contains a separator.
+	writeGoFile(t, root, "server/cmd", "run.go", `package cmd
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/coder/coder/v2/server/local"
+)
+
+const localPrefix = "coder_local_"
+
+func run(registry *prometheus.Registry) {
+	reg := prometheus.WrapRegistererWithPrefix(localPrefix, registry)
+	local.NewMetrics(reg)
+}
+`)
+	writeGoFile(t, root, "server/local", "metrics.go", "package local\n")
 
 	index, err := buildPrefixIndex([]string{"cli", "gateway", "server"})
 	if err != nil {
@@ -81,6 +99,8 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 		{"gateway/keypool", []string{"coder_ai_gateway_"}},
 		// Alias registerer indexes only the canonical prefix.
 		{"proxy", []string{"coder_ai_gateway_proxy_"}},
+		// Prefix resolved through a same-package constant.
+		{"server/local", []string{"coder_local_"}},
 	}
 	for _, tc := range cases {
 		if got := index[tc.dir]; !slices.Equal(got, tc.want) {
