@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -79,6 +79,49 @@ describe("ChatProjectDialog", () => {
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "🚀".repeat(64) }),
 		);
+
+		await user.click(screen.getByLabelText(/Name/));
+		await user.paste("🚀");
+		expect(
+			screen.getByText("This cannot be longer than 64 characters. (65/64)"),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
+		);
+	});
+
+	it("measures the length limit after trimming", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.click(screen.getByLabelText("Description"));
+		await user.paste(`${"d".repeat(1024)} `);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ description: "d".repeat(1024) }),
+		);
+	});
+
+	it("does not save a name made only of spaces", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Name/), "   ");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not save an edit that only adds whitespace", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({ project: MockChatProject });
+
+		await user.type(screen.getByLabelText(/Name/), " ");
+
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("does not save an edit that changes nothing", async () => {
