@@ -2,7 +2,6 @@ import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	infiniteQueryOptions,
-	type Mutation,
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
@@ -1353,29 +1352,10 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
-const chatArchiveMutationKey = ["chats", "archive"] as const;
-
-/** Select all targets so pending state remains correct across navigation. */
-export const pendingChatArchives = {
-	filters: { mutationKey: chatArchiveMutationKey, status: "pending" as const },
-	select: ({ state: { variables } }: Mutation): string | undefined => {
-		if (typeof variables === "string") {
-			return variables;
-		}
-		if (
-			variables !== null &&
-			typeof variables === "object" &&
-			"chatId" in variables &&
-			typeof variables.chatId === "string"
-		) {
-			return variables.chatId;
-		}
-		return undefined;
-	},
-};
+export const chatArchiveMutationKey = (chatId: string) =>
+	["chats", "archive", chatId] as const;
 
 export const archiveChat = (queryClient: QueryClient) => ({
-	mutationKey: chatArchiveMutationKey,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
@@ -1431,7 +1411,6 @@ export const archiveChat = (queryClient: QueryClient) => ({
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
-	mutationKey: chatArchiveMutationKey,
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
@@ -1503,19 +1482,12 @@ type ArchiveAndDeleteChatResult = {
 	deleteBuild: TypesGen.WorkspaceBuild | null;
 };
 
-// Archive-first, delete-second. The archive is the reversible step and
-// doubles as the eligibility check: the server rejects it with 409 while
-// any family member is active, before anything destructive happens, so a
-// chat that became active while a confirmation dialog was open can never
-// lose its workspace. 404/410 on delete mean the workspace is already
-// gone and the archive stands. There is deliberately no compensating
-// unarchive when the delete enqueue fails: the delete outcome can be
-// ambiguous client-side (a late 5xx can arrive after the build was
-// committed), so restoring the chat risks resurrecting it while its
-// workspace is being deleted. The chat stays archived and the failure
-// toast points at the archived filter, where Unarchive is one click.
+export const archiveAndDeleteChatKey = (chatId: string) =>
+	[...chatArchiveMutationKey(chatId), "delete-workspace"] as const;
+
+// Archiving rejects active chat families before deletion. Keep the chat archived
+// on delete errors: the delete build may have committed despite a failed response.
 export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
-	mutationKey: chatArchiveMutationKey,
 	mutationFn: async ({
 		chatId,
 		workspaceId,

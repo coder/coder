@@ -9,16 +9,41 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
+import { useIsMutating, useMutation, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveAndDeleteChat,
+	archiveAndDeleteChatKey,
+	chatArchiveMutationKey,
+} from "#/api/queries/chats";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type {
+import {
+	ContextMenu,
+	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
-import type {
+import {
+	DropdownMenu,
+	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import {
+	type ArchiveAndDeleteAction,
+	fetchArchiveAndDeleteAction,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
+} from "../utils/agentWorkspaceUtils";
+import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
+import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
@@ -107,7 +132,157 @@ type ChatActionsMenuItemsProps = {
 	readonly Separator: SeparatorComponent;
 };
 
-export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
+type ChatActionsMenuProps = Omit<
+	ChatActionsMenuItemsProps,
+	"Item" | "Separator" | "onArchiveAndDeleteWorkspace"
+> & {
+	readonly children: React.ReactNode;
+	readonly variant?: "dropdown" | "context";
+	readonly align?: "start" | "end";
+	readonly contentClassName?: string;
+	readonly disabled?: boolean;
+	readonly onArchived?: (chatId: string) => void;
+};
+
+/** Owns chat menu actions and keeps confirmation alive after the menu closes. */
+export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
+	children,
+	variant = "dropdown",
+	align = "end",
+	contentClassName,
+	disabled,
+	onArchived,
+	...items
+}) => {
+	const { chat } = items;
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
+	const isArchiving =
+		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
+	const options = archiveAndDeleteChat(queryClient);
+	const mutation = useMutation({
+		...options,
+		mutationKey: archiveAndDeleteChatKey(chat.id),
+		onSuccess: (result, variables) => {
+			options.onSuccess(result, variables);
+			clearPersistedSidebarTabId(variables.chatId);
+			clearPersistedRightPanelState(variables.chatId);
+			if (variables.workspaceId) {
+				notifyDeleteQueueState(
+					queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(variables.workspaceId),
+					),
+					result.deleteBuild,
+				);
+			}
+			onArchived?.(variables.chatId);
+		},
+		onError: (error, variables) => {
+			notifyArchiveAndDeleteFailed(
+				variables.workspaceId
+					? queryClient.getQueryData<TypesGen.Workspace>(
+							workspaceByIdKey(variables.workspaceId),
+						)
+					: undefined,
+				error,
+				navigate,
+			);
+		},
+	});
+
+	const filters = { mutationKey: chatArchiveMutationKey(chat.id) };
+	const requestArchiveAndDelete = async () => {
+		const workspaceId = chat.workspace_id;
+		if (chat.archived || !workspaceId || queryClient.isMutating(filters)) {
+			return;
+		}
+		let action: ArchiveAndDeleteAction;
+		try {
+			action = await fetchArchiveAndDeleteAction(
+				queryClient,
+				workspaceId,
+				chat.created_at,
+			);
+		} catch (error) {
+			toast.error(
+				getErrorMessage(error, "Failed to look up workspace for deletion."),
+			);
+			return;
+		}
+		if (queryClient.isMutating(filters)) {
+			return;
+		}
+		if (action === "confirm") {
+			setConfirmation(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+			);
+		} else {
+			mutation.mutate({
+				chatId: chat.id,
+				workspaceId: action === "archive-only" ? undefined : workspaceId,
+			});
+		}
+	};
+
+	const menuItems = (
+		<ChatActionsMenuItems
+			{...items}
+			isArchiving={items.isArchiving || isArchiving}
+			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
+			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
+			Separator={
+				variant === "context" ? ContextMenuSeparator : DropdownMenuSeparator
+			}
+		/>
+	);
+
+	return (
+		<>
+			{variant === "context" ? (
+				<ContextMenu>
+					<ContextMenuTrigger asChild disabled={disabled}>
+						{children}
+					</ContextMenuTrigger>
+					<ContextMenuContent className={contentClassName}>
+						{menuItems}
+					</ContextMenuContent>
+				</ContextMenu>
+			) : (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild disabled={disabled}>
+						{children}
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align={align}
+						className={contentClassName}
+						onContextMenu={(event) => {
+							// Portaled dropdown events must not open the row's context menu.
+							event.preventDefault();
+							event.stopPropagation();
+						}}
+					>
+						{menuItems}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
+			<ArchiveAndDeleteWorkspaceDialog
+				workspace={confirmation}
+				onCancel={() => setConfirmation(undefined)}
+				onConfirm={(workspace) => {
+					if (!queryClient.isMutating(filters)) {
+						mutation.mutate({ chatId: chat.id, workspaceId: workspace.id });
+					}
+					setConfirmation(undefined);
+				}}
+			/>
+		</>
+	);
+};
+
+const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	canManage,
 	hasWorkspace,
