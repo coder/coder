@@ -61,7 +61,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 	},
 }));
 
-type MockAgentCreateFormProps = React.ComponentProps<
+type AgentCreateFormProps = React.ComponentProps<
 	typeof AgentCreateFormModule.AgentCreateForm
 >;
 
@@ -77,7 +77,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		header,
 		footer,
 		prefill,
-	}: MockAgentCreateFormProps) => {
+	}: AgentCreateFormProps) => {
 		renderedProjects.push(project);
 		return (
 			<div>
@@ -105,7 +105,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 	};
 	return {
 		...actual,
-		AgentCreateForm: (props: MockAgentCreateFormProps) => {
+		AgentCreateForm: (props: AgentCreateFormProps) => {
 			formProps.onCreateChat = props.onCreateChat;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
@@ -123,11 +123,9 @@ vi.mock("./components/AgentPageHeader", () => ({
 
 const projectPath = (projectId: string) => `/agents/projects/${projectId}`;
 
-const enableChatProjects = (...extra: TypesGen.Experiment[]) => {
+const enableExperiments = (...experiments: TypesGen.Experiment[]) => {
 	server.use(
-		http.get("/api/v2/experiments", () =>
-			HttpResponse.json(["chat-projects", ...extra]),
-		),
+		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
 	);
 };
 
@@ -152,14 +150,6 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 const failedBuild = MockFailedWorkspaceBuild();
 
 const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
-
-const enableExperiment = () => {
-	server.use(
-		http.get("/api/v2/experiments", () =>
-			HttpResponse.json(["enable-ai-workspace-debug"]),
-		),
-	);
-};
 
 const mockPageQueries = () => {
 	vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
@@ -220,7 +210,7 @@ afterEach(() => {
 
 describe("AgentCreatePage project assignment", () => {
 	it("includes the project ID from the route when chat projects are enabled", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects({
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
@@ -250,7 +240,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("omits the project ID on the plain new-chat route", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		let requestBody: Record<string, unknown> | undefined;
 		server.use(
 			http.post("/api/v2/chats", async ({ request }) => {
@@ -272,7 +262,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("retries a failed project lookup before offering the composer", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -295,7 +285,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("keeps a loaded project usable when a background refetch fails", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -323,7 +313,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows a not-found message when the project is missing", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects();
 
 		const { router } = renderAgentsRoutes();
@@ -338,7 +328,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("waits for the refetch before treating a cached list as final", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router, queryClient } = renderAgentsRoutes("/agents");
@@ -354,7 +344,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows the plain composer on /agents after a project list is cached", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router } = renderAgentsRoutes();
@@ -367,7 +357,7 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("offers a retry when refreshing a stale list fails", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json({ message: "List failed" }, { status: 500 }),
@@ -396,7 +386,7 @@ describe("AgentCreatePage project assignment", () => {
 
 describe("AgentCreatePage project frame", () => {
 	it("keeps the project route and organization after the debug prefill loads", async () => {
-		enableChatProjects("enable-ai-workspace-debug");
+		enableExperiments("chat-projects", "enable-ai-workspace-debug");
 		serveProjects(MockChatProject);
 		const logs = Promise.withResolvers<TypesGen.ProvisionerJobLog[]>();
 		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
@@ -423,7 +413,7 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("prefills the project composer from a prompt link", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
@@ -438,7 +428,7 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("shows a create error only under the project it was attempted for", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		const projectB = { ...MockChatProject, id: "project-b", name: "Beta" };
 		serveProjects(MockChatProject, projectB);
 		server.use(
@@ -460,7 +450,7 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("keeps the edit target aligned after browser history navigation", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		const projectA = {
 			...MockChatProject,
 			id: "project-a",
@@ -509,7 +499,7 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("edits the project from the composer and shows the saved name", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		let project = MockChatProject;
 		let requestBody: unknown;
 		server.use(
@@ -545,7 +535,7 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("clears a failed save when the edit dialog is reopened", async () => {
-		enableChatProjects();
+		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		server.use(
 			http.patch(
@@ -581,7 +571,7 @@ describe("AgentCreatePage debug deep link", () => {
 	});
 
 	it("prefills the prompt and the build logs, and sends them on Send", async () => {
-		enableExperiment();
+		enableExperiments("enable-ai-workspace-debug");
 		const { uploadChatFile, createChat } = mockPageQueries();
 		const user = userEvent.setup();
 
@@ -620,7 +610,7 @@ describe("AgentCreatePage debug deep link", () => {
 	});
 
 	it("moves the build ID out of the URL so New chat gets a plain composer", async () => {
-		enableExperiment();
+		enableExperiments("enable-ai-workspace-debug");
 		const { uploadChatFile, createChat } = mockPageQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		const user = userEvent.setup();
@@ -653,7 +643,7 @@ describe("AgentCreatePage debug deep link", () => {
 	});
 
 	it("leaves a plain composer when the build fails to load", async () => {
-		enableExperiment();
+		enableExperiments("enable-ai-workspace-debug");
 		const { uploadChatFile, createChat } = mockPageQueries();
 		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue(new Error("boom"));
 		const getWorkspaceBuildLogs = vi.spyOn(API, "getWorkspaceBuildLogs");
@@ -952,7 +942,7 @@ describe("AgentCreatePage prompt link", () => {
 	});
 
 	it("ignores the prompt when a debug link is also present", async () => {
-		enableExperiment();
+		enableExperiments("enable-ai-workspace-debug");
 		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
 

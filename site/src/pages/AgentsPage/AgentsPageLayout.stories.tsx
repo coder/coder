@@ -1125,6 +1125,15 @@ export const ProjectLoadError: Story = {
 	},
 };
 
+export const ProjectLoaded: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	},
+};
+
 export const ProjectNotFound: Story = {
 	parameters: projectPageParameters,
 	beforeEach: () => {
