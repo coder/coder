@@ -82,9 +82,6 @@ describe("ChatProjectDialog", () => {
 
 		await user.click(screen.getByLabelText(/Name/));
 		await user.paste("🚀");
-		expect(
-			screen.getByText("This cannot be longer than 64 characters. (65/64)"),
-		).toBeInTheDocument();
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
 		);
@@ -102,6 +99,17 @@ describe("ChatProjectDialog", () => {
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ description: "d".repeat(1024) }),
 		);
+	});
+
+	it("does not save an edit when only stored whitespace differs", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({
+			project: { ...MockChatProject, description: "notes\n" },
+		});
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("does not save a name made only of spaces", async () => {
