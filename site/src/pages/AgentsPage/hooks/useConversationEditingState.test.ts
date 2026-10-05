@@ -155,20 +155,23 @@ describe("useConversationEditingState", () => {
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
-		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 		expect(result.current.editorInitialValue).toBe("edited message");
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
 
 		const remountKeyAfterEdit = result.current.remountKey;
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
-		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("work in progress");
 		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
 		unmount();
@@ -185,12 +188,15 @@ describe("useConversationEditingState", () => {
 		// edit and cancel flows. handleSendFromInput is the only
 		// path that calls focus and it skips on mobile viewports.
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
@@ -201,11 +207,14 @@ describe("useConversationEditingState", () => {
 		const { result, unmount } = renderEditing();
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		// The hook reads the persisted draft from localStorage when
@@ -225,11 +234,14 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+			);
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		expect(result.current.editorInitialValue).toBe("live draft");
@@ -244,7 +256,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
@@ -256,7 +268,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyAfterSend = result.current.remountKey;
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		// remountKey increments each time an edit is loaded, even for
@@ -267,7 +279,7 @@ describe("useConversationEditingState", () => {
 			message: "hello",
 			attachments: undefined,
 			workspaceUploads: undefined,
-			editedMessageID: 7,
+			editingTarget: { kind: "history", id: 7 },
 		});
 		unmount();
 	});
@@ -279,7 +291,7 @@ describe("useConversationEditingState", () => {
 		];
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "hello");
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		await act(async () => {
@@ -293,7 +305,7 @@ describe("useConversationEditingState", () => {
 			message: "hello",
 			attachments,
 			workspaceUploads: undefined,
-			editedMessageID: 7,
+			editingTarget: { kind: "history", id: 7 },
 		});
 		unmount();
 	});
@@ -319,7 +331,11 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(7, "edited message", fileBlocks);
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 7 },
+				"edited message",
+				fileBlocks,
+			);
 			result.current.handleContentChange("edited message", editorState, false);
 		});
 
@@ -331,7 +347,7 @@ describe("useConversationEditingState", () => {
 
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("edited message");
-		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
 		expect(result.current.editorInitialValue).toBe("edited message");
 		expect(result.current.initialEditorState).toBe(editorState);
@@ -375,7 +391,7 @@ describe("useConversationEditingState", () => {
 			message: "hello",
 			attachments: undefined,
 			workspaceUploads: undefined,
-			editedMessageID: undefined,
+			editingTarget: undefined,
 		});
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
@@ -423,7 +439,7 @@ describe("useConversationEditingState", () => {
 					message: "hello",
 					attachments: undefined,
 					workspaceUploads: undefined,
-					editedMessageID: undefined,
+					editingTarget: undefined,
 				});
 			});
 		});
@@ -612,19 +628,22 @@ describe("useConversationEditingState", () => {
 
 		// Start editing a history message.
 		act(() => {
-			result.current.handleEditUserMessage(42, "old message text");
+			result.current.handleBeginEdit(
+				{ kind: "history", id: 42 },
+				"old message text",
+			);
 		});
 
-		expect(result.current.editingMessageId).toBe(42);
+		expect(result.current.editingTarget).toEqual({ kind: "history", id: 42 });
 		expect(result.current.initialEditorState).toBeUndefined();
 		expect(result.current.editorInitialValue).toBe("old message text");
 
 		// Cancel should restore both plain text and serialized state.
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
-		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.initialEditorState).toBe(editorState);
 		expect(result.current.editorInitialValue).toBe("my draft");
 		unmount();
@@ -646,15 +665,30 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(1, "editing");
+			result.current.handleBeginEdit({ kind: "history", id: 1 }, "editing");
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.handleCancelEdit();
 		});
 
 		expect(result.current.initialEditorState).toBeUndefined();
 		expect(result.current.editorInitialValue).toBe("plain text draft");
+		unmount();
+	});
+
+	it("does not overwrite the persisted draft while editing a message", () => {
+		const { result, unmount } = renderEditing();
+
+		act(() => {
+			result.current.handleContentChange("draft", "draft", false);
+			result.current.handleBeginEdit({ kind: "history", id: 7 }, "old text");
+		});
+		act(() => {
+			result.current.handleContentChange("edited text", "edited text", false);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe("draft");
 		unmount();
 	});
 });
