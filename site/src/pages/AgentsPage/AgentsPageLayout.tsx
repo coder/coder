@@ -177,7 +177,7 @@ const AgentsPageLayout: React.FC = () => {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const { agentId } = useParams();
+	const { agentId, projectId } = useParams();
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
@@ -535,7 +535,12 @@ const AgentsPageLayout: React.FC = () => {
 		// A composer prefilled from a prompt link shows the link's text,
 		// not the draft, so the draft is preserved there too. A debug link
 		// can fall back to the draft-backed composer, so it is not exempt.
-		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
+		// A project composer keeps its own draft, so leaving it keeps this one.
+		if (
+			!agentId &&
+			!projectId &&
+			readDeepLinkState(location.state).prompt === undefined
+		) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });

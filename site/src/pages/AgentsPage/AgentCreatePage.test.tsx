@@ -381,7 +381,7 @@ describe("AgentCreatePage project assignment", () => {
 		await screen.findByText("Failed to load project");
 		expect(screen.queryByText("Project not found")).toBeNull();
 
-		const retry = Promise.withResolvers<void>();
+		const retry = Promise.withResolvers<undefined>();
 		server.use(
 			http.get("/api/experimental/chats/projects", async () => {
 				await retry.promise;
@@ -393,7 +393,7 @@ describe("AgentCreatePage project assignment", () => {
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled(),
 		);
-		retry.resolve();
+		retry.resolve(undefined);
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: /Retry/ })).toBeEnabled(),
 		);

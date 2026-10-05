@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChatProject } from "#/testHelpers/entities";
@@ -12,7 +11,7 @@ const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
 	<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
 );
 
-type DialogProps = ComponentProps<typeof ChatProjectDialog>;
+type DialogProps = React.ComponentProps<typeof ChatProjectDialog>;
 
 const renderDialog = (props: Partial<DialogProps> = {}) => {
 	const allProps: DialogProps = {
