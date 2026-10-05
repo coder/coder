@@ -85,11 +85,7 @@ type EditingState = {
 	remountKey: number;
 	editingTarget: EditingTarget | null;
 	editingFileBlocks: readonly ChatMessagePart[];
-	handleBeginHistoryEdit: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-	) => void;
+	handleBeginHistoryEdit: (messageId: number) => void;
 	handleCancelEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
@@ -161,6 +157,9 @@ type AgentChatPageViewProps = {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => void;
+	handleEndQueuedMessageEdit: (id: number) => Promise<void>;
+	queuedMessageUnderEditID: number | null;
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -309,6 +308,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	handleEditQueuedMessage,
+	handleEndQueuedMessageEdit,
+	queuedMessageUnderEditID,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -954,6 +956,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onEditQueuedMessage={
+											isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+										}
+										onEndQueuedMessageEdit={
+											isOtherUserReadOnly
+												? undefined
+												: handleEndQueuedMessageEdit
+										}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
@@ -983,6 +993,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
 										editingTarget={editing.editingTarget}
+										queuedMessageUnderEditID={queuedMessageUnderEditID}
 										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}

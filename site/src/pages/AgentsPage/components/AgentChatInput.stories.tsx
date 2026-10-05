@@ -141,15 +141,31 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	},
 };
 
+export const EditingQueuedMessage: Story = {
+	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
+		editingKind: "queued",
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
+	},
+};
+
 // The chat is paused because the queue head is under edit; the send button
 // reads Queue.
 export const ChatPaused: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		isChatPaused: true,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },
 		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -165,6 +181,7 @@ export const ChatPaused: Story = {
 // one in error; the send button reads Queue.
 export const QueueHeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },
