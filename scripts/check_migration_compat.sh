@@ -12,7 +12,7 @@
 #
 # For each boundary, the base ref's sqlc queries are prepared against a
 # database migrated to HEAD (SQLC_DATABASE_URL), and migrations added since
-# the base ref are linted for NOT NULL changes that break old INSERTs.
+# the base ref are linted for NOT NULL changes that break old INSERT statements.
 #
 # Findings are reported as warnings. Set MIGRATION_COMPAT_BLOCKING=1 to exit
 # non-zero on findings. Override the base refs with MIGRATION_COMPAT_BRANCH_BASE
@@ -89,17 +89,15 @@ vet_queries() {
 }
 
 # Flags ALTER TABLE statements in migrations added since the base ref that
-# make a column NOT NULL without a default. INSERTs from the base ref omit the
-# column and fail at execution time, which prepare does not catch.
-# ponytail: statement-level regex, not a SQL parser. Upgrade to a parser if
-# multi-clause ALTERs produce false positives.
+# make a column NOT NULL without a default. INSERT statements from the base ref
+# omit the column and fail at execution time, which prepare does not catch.
 lint_not_null() {
 	local label=$1 ref=$2 file stmt
 	while IFS= read -r file; do
 		[[ -z "$file" ]] && continue
 		while IFS= read -r stmt; do
 			[[ -z "$stmt" ]] && continue
-			warn "$label" "$file adds NOT NULL without DEFAULT, which breaks INSERTs from $ref: $stmt"
+			warn "$label" "$file adds NOT NULL without DEFAULT, which breaks INSERT statements from $ref: $stmt"
 		done < <(
 			sed -E 's/--.*$//; s/IS[[:space:]]+NOT[[:space:]]+NULL/IS_NOT_NULL/gI' "$file" | tr '\n' ' ' | tr ';' '\n' |
 				grep -iE 'ALTER[[:space:]]+TABLE' |
