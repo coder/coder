@@ -486,42 +486,119 @@ func TestGenerateAssistant_ResponseSizeBytesRecordedOnError(t *testing.T) {
 			t.Parallel()
 
 			reg := prometheus.NewRegistry()
-			model := &chattest.FakeModel{
-				ProviderName: "test-provider",
-				ModelName:    "test-model",
-				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-					return func(yield func(fantasy.StreamPart) bool) {
-						for _, part := range tt.parts {
-							if !yield(part) {
-								return
-							}
-						}
-					}, nil
-				},
-			}
-
-			_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
-				Model:   model,
-				Metrics: chatloop.NewMetrics(reg),
-			})
+			err := generateFromParts(reg, tt.parts)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-
-			families, err := reg.Gather()
-			require.NoError(t, err)
-			var histogram *dto.Histogram
-			for _, family := range families {
-				if family.GetName() == "coderd_chatd_response_size_bytes" {
-					require.Len(t, family.GetMetric(), 1)
-					histogram = family.GetMetric()[0].GetHistogram()
-				}
-			}
-			require.NotNil(t, histogram, "response size histogram not recorded")
-			require.Equal(t, uint64(1), histogram.GetSampleCount())
-			require.Equal(t, float64(len("hello")), histogram.GetSampleSum())
+			requireResponseSizeHistogram(t, reg, len("hello"))
 		})
 	}
+}
+
+func TestGenerateAssistant_ResponseSizeBytesByPartType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		parts     []fantasy.StreamPart
+		wantBytes int
+	}{
+		{
+			name:      "TextDelta",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello"}},
+			wantBytes: len("hello"),
+		},
+		{
+			name:      "ReasoningStart",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning-1", Delta: "plan"}},
+			wantBytes: len("plan"),
+		},
+		{
+			name:      "ReasoningDelta",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning-1", Delta: "planning"}},
+			wantBytes: len("planning"),
+		},
+		{
+			name:      "ToolInputStart",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-1", ToolCallName: "calc", Delta: `{"op`}},
+			wantBytes: len(`{"op`),
+		},
+		{
+			name:      "ToolInputDelta",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-1", Delta: `":"ad`}},
+			wantBytes: len(`":"ad`),
+		},
+		{
+			name:      "ToolInputEnd",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-1", Delta: `d"}`}},
+			wantBytes: len(`d"}`),
+		},
+		{
+			name:      "ToolCallSummaryNotCounted",
+			parts:     []fantasy.StreamPart{{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "calc", ToolCallInput: `{"op":"add"}`}},
+			wantBytes: 0,
+		},
+		{
+			name: "StreamedToolCallCountedOnce",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-1", ToolCallName: "calc", Delta: `{"op`},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-1", Delta: `":"ad`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-1", Delta: `d"}`},
+				{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "calc", ToolCallInput: `{"op":"add"}`},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			},
+			wantBytes: len(`{"op":"add"}`),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reg := prometheus.NewRegistry()
+			// Some single-part streams are rejected as incomplete; the
+			// metric is observed either way.
+			_ = generateFromParts(reg, tt.parts)
+			requireResponseSizeHistogram(t, reg, tt.wantBytes)
+		})
+	}
+}
+
+func generateFromParts(reg *prometheus.Registry, parts []fantasy.StreamPart) error {
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				for _, part := range parts {
+					if !yield(part) {
+						return
+					}
+				}
+			}, nil
+		},
+	}
+	_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model:   model,
+		Metrics: chatloop.NewMetrics(reg),
+	})
+	return err
+}
+
+func requireResponseSizeHistogram(t *testing.T, reg *prometheus.Registry, wantBytes int) {
+	t.Helper()
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	var histogram *dto.Histogram
+	for _, family := range families {
+		if family.GetName() == "coderd_chatd_response_size_bytes" {
+			require.Len(t, family.GetMetric(), 1)
+			histogram = family.GetMetric()[0].GetHistogram()
+		}
+	}
+	require.NotNil(t, histogram, "response size histogram not recorded")
+	require.Equal(t, uint64(1), histogram.GetSampleCount())
+	require.Equal(t, float64(wantBytes), histogram.GetSampleSum())
 }
