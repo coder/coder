@@ -9,6 +9,7 @@ import {
 import {
 	Outlet,
 	useLocation,
+	useMatch,
 	useNavigate,
 	useParams,
 	useSearchParams,
@@ -178,6 +179,7 @@ const AgentsPageLayout: React.FC = () => {
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
+	const isPlainComposerRoute = useMatch("/agents") !== null;
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
@@ -537,7 +539,7 @@ const AgentsPageLayout: React.FC = () => {
 		// can fall back to the draft-backed composer, so it is not exempt.
 		// Other routes, such as a project composer, keep this draft too.
 		if (
-			location.pathname.replace(/\/$/, "") === "/agents" &&
+			isPlainComposerRoute &&
 			readDeepLinkState(location.state).prompt === undefined
 		) {
 			localStorage.removeItem(emptyInputStorageKey);
