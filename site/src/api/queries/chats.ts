@@ -24,7 +24,7 @@ const chatCollectionsKey = ["chats", "collections"] as const;
 
 export const chatListFamilyKey = [...chatCollectionsKey, "list"] as const;
 
-const chatSearchFamilyKey = [...chatCollectionsKey, "search"] as const;
+export const chatSearchFamilyKey = [...chatCollectionsKey, "search"] as const;
 
 const chatsByWorkspaceFamilyKey = [
 	...chatCollectionsKey,
