@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -144,6 +145,70 @@ func TestRead(t *testing.T) {
 		require.Equal(t, "value", v.Validations[0].Field)
 		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
 	})
+}
+
+func TestReadTemplateDescriptionLength(t *testing.T) {
+	t.Parallel()
+
+	requests := []struct {
+		name    string
+		request func(string) any
+	}{
+		{
+			name: "template",
+			request: func(description string) any {
+				return &codersdk.CreateTemplateRequest{
+					Name: "test", Description: description, VersionID: uuid.New(),
+				}
+			},
+		},
+		{
+			name: "template builder",
+			request: func(description string) any {
+				return &codersdk.TemplateBuilderCreateTemplateRequest{
+					Name: "test", Description: description, OrganizationID: uuid.New(),
+				}
+			},
+		},
+	}
+	cases := []struct {
+		name        string
+		description string
+		valid       bool
+	}{
+		{name: "127 characters", description: strings.Repeat("a", 127), valid: true},
+		{name: "128 characters", description: strings.Repeat("a", 128), valid: true},
+		{name: "129 characters", description: strings.Repeat("a", 129)},
+		{name: "128 multibyte code points", description: strings.Repeat("é", 128), valid: true},
+		{name: "129 multibyte code points", description: strings.Repeat("é", 129)},
+		{name: "128 supplementary code points", description: strings.Repeat("🚀", 128), valid: true},
+	}
+
+	for _, request := range requests {
+		t.Run(request.name, func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					body, err := json.Marshal(request.request(tc.description))
+					require.NoError(t, err)
+					r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+					rw := httptest.NewRecorder()
+					value := request.request("")
+					ok := httpapi.Read(r.Context(), rw, r, value)
+					require.Equal(t, tc.valid, ok)
+					if tc.valid {
+						return
+					}
+					require.Equal(t, http.StatusBadRequest, rw.Code)
+					var resp codersdk.Response
+					require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+					require.Len(t, resp.Validations, 1)
+					require.Equal(t, "description", resp.Validations[0].Field)
+				})
+			}
+		})
+	}
 }
 
 // readBody is decoded by the request body limit tests. It carries no validate
