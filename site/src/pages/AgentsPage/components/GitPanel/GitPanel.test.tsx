@@ -150,24 +150,25 @@ describe("GitPanel per-ref views", () => {
 			.spyOn(API.experimental, "getChatDiffContents")
 			.mockResolvedValue(mockDiffContents);
 
+		const mockFirstRef = {
+			...MockChatDiffStatus,
+			pull_request_title: "feat: first change",
+			git_branch: "feat/first",
+			pr_number: 23020,
+			url: "https://github.com/coder/coder/pull/23020",
+		};
+		const mockPrimaryRef = {
+			...MockChatDiffStatus,
+			pull_request_title: "fix: second change",
+			git_branch: "fix/second",
+			pr_number: 23021,
+			url: "https://github.com/coder/coder/pull/23021",
+			pull_request_state: "merged",
+		};
+
 		renderPanel({
-			remoteDiffStats: [
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "feat: first change",
-					git_branch: "feat/first",
-					pr_number: 23020,
-					url: "https://github.com/coder/coder/pull/23020",
-				},
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "fix: second change",
-					git_branch: "fix/second",
-					pr_number: 23021,
-					url: "https://github.com/coder/coder/pull/23021",
-					pull_request_state: "merged",
-				},
-			],
+			remoteDiffStats: [mockFirstRef, mockPrimaryRef],
+			primaryDiffStatus: mockPrimaryRef,
 		});
 
 		await waitFor(() =>
@@ -175,7 +176,7 @@ describe("GitPanel per-ref views", () => {
 				"test-chat",
 				expect.objectContaining({
 					remote_origin: "https://github.com/coder/coder",
-					git_branch: "feat/first",
+					git_branch: "fix/second",
 				}),
 				expect.any(AbortSignal),
 			),
@@ -183,14 +184,14 @@ describe("GitPanel per-ref views", () => {
 
 		await user.click(screen.getByRole("button", { name: "Switch git view" }));
 		const menu = await screen.findByRole("menu");
-		await user.click(within(menu).getByText("PR #23021"));
+		await user.click(within(menu).getByText("PR #23020"));
 
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenLastCalledWith(
 				"test-chat",
 				expect.objectContaining({
 					remote_origin: "https://github.com/coder/coder",
-					git_branch: "fix/second",
+					git_branch: "feat/first",
 				}),
 				expect.any(AbortSignal),
 			),
@@ -202,17 +203,18 @@ describe("GitPanel per-ref views", () => {
 			.spyOn(API.experimental, "getChatDiffContents")
 			.mockResolvedValue(mockDiffContents);
 
+		const mockBranchRef = {
+			...MockChatDiffStatus,
+			git_branch: "feature/no-pr-yet",
+			url: undefined,
+			pr_number: undefined,
+			pull_request_state: undefined,
+			pull_request_title: "",
+		};
+
 		renderPanel({
-			remoteDiffStats: [
-				{
-					...MockChatDiffStatus,
-					git_branch: "feature/no-pr-yet",
-					url: undefined,
-					pr_number: undefined,
-					pull_request_state: undefined,
-					pull_request_title: "",
-				},
-			],
+			remoteDiffStats: [mockBranchRef],
+			primaryDiffStatus: mockBranchRef,
 		});
 
 		await waitFor(() =>
@@ -248,7 +250,10 @@ describe("GitPanel per-ref views", () => {
 			pr_number: 23021,
 			url: "https://github.com/coder/coder/pull/23021",
 		};
-		view.rerenderPanel({ remoteDiffStats: [firstRef, secondRef] });
+		view.rerenderPanel({
+			remoteDiffStats: [firstRef, secondRef],
+			primaryDiffStatus: firstRef,
+		});
 
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenCalledWith(
@@ -285,11 +290,17 @@ describe("GitPanel per-ref views", () => {
 
 		// A chat upgraded from the unkeyed schema starts with the
 		// legacy row as its only ref.
-		const { rerenderPanel } = renderPanel({ remoteDiffStats: [legacyKeyless] });
+		const { rerenderPanel } = renderPanel({
+			remoteDiffStats: [legacyKeyless],
+			primaryDiffStatus: legacyKeyless,
+		});
 
 		// The agent later reports a keyed ref, which becomes the
-		// primary and demotes the legacy row behind it.
-		rerenderPanel({ remoteDiffStats: [keyedRef, legacyKeyless] });
+		// primary. The legacy row keeps its place in the list.
+		rerenderPanel({
+			remoteDiffStats: [legacyKeyless, keyedRef],
+			primaryDiffStatus: keyedRef,
+		});
 
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenLastCalledWith(
@@ -309,17 +320,20 @@ describe("GitPanel per-ref views", () => {
 			mockDiffContents,
 		);
 
+		const mockPrimaryRef = {
+			...MockChatDiffStatus,
+			pull_request_title: "shared branch",
+			git_branch: "feature/shared",
+			remote_origin: "https://github.com/coder/coder.git",
+			url: undefined,
+			pr_number: undefined,
+			pull_request_state: undefined,
+		};
+
 		renderPanel({
+			primaryDiffStatus: mockPrimaryRef,
 			remoteDiffStats: [
-				{
-					...MockChatDiffStatus,
-					pull_request_title: "shared branch",
-					git_branch: "feature/shared",
-					remote_origin: "https://github.com/coder/coder.git",
-					url: undefined,
-					pr_number: undefined,
-					pull_request_state: undefined,
-				},
+				mockPrimaryRef,
 				{
 					...MockChatDiffStatus,
 					pull_request_title: "same branch, other repo",

@@ -67,23 +67,29 @@ const mockDiffContents: ChatDiffContents = {
 };
 
 // The default PR shown across GitPanel stories.
-const makePrStatus = (overrides: Partial<ChatDiffStatus> = {}) => [
-	{
-		...MockChatDiffStatus,
-		chat_id: "test-chat",
-		url: "https://github.com/coder/coder/pull/23020",
-		pr_number: 23020,
-		pull_request_title: "feat(agents): add MCP server configuration to agents",
-		pull_request_state: "open",
-		base_branch: "main",
-		head_branch: "feat/add-mcp-config",
-		git_branch: "feat/add-mcp-config",
-		additions: 4037,
-		deletions: 7,
-		changed_files: 12,
-		...overrides,
-	},
-];
+const makePrStatus = (
+	overrides: Partial<ChatDiffStatus> = {},
+): ChatDiffStatus => ({
+	...MockChatDiffStatus,
+	chat_id: "test-chat",
+	url: "https://github.com/coder/coder/pull/23020",
+	pr_number: 23020,
+	pull_request_title: "feat(agents): add MCP server configuration to agents",
+	pull_request_state: "open",
+	base_branch: "main",
+	head_branch: "feat/add-mcp-config",
+	git_branch: "feat/add-mcp-config",
+	additions: 4037,
+	deletions: 7,
+	changed_files: 12,
+	...overrides,
+});
+
+// A chat that tracks one PR, which is then also the primary.
+const singlePrArgs = (overrides: Partial<ChatDiffStatus> = {}) => {
+	const status = makePrStatus(overrides);
+	return { remoteDiffStats: [status], primaryDiffStatus: status };
+};
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -125,7 +131,7 @@ type Story = StoryObj<typeof GitPanel>;
 export const PullRequestAndWorkingChanges: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus(),
+		...singlePrArgs(),
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 	beforeEach: () => {
@@ -136,6 +142,13 @@ export const PullRequestAndWorkingChanges: Story = {
 	},
 };
 
+const mockFirstPullRequest = makePrStatus({
+	pull_request_title: "feat: first change",
+	head_branch: "feat/first",
+	git_branch: "feat/first",
+	pr_number: 23020,
+});
+
 /**
  * Two tracked PRs on different branches, switching between them via
  * the view switcher.
@@ -143,14 +156,10 @@ export const PullRequestAndWorkingChanges: Story = {
 export const MultiplePullRequests: Story = {
 	args: {
 		chatId: "test-chat",
+		primaryDiffStatus: mockFirstPullRequest,
 		remoteDiffStats: [
-			...makePrStatus({
-				pull_request_title: "feat: first change",
-				head_branch: "feat/first",
-				git_branch: "feat/first",
-				pr_number: 23020,
-			}),
-			...makePrStatus({
+			mockFirstPullRequest,
+			makePrStatus({
 				pull_request_title: "fix: second change",
 				head_branch: "fix/second",
 				git_branch: "fix/second",
@@ -186,7 +195,7 @@ export const MultiplePullRequests: Story = {
 export const ViewSwitcherOpen: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus({
+		...singlePrArgs({
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
 		}),
@@ -227,7 +236,7 @@ export const ViewSwitcherOpen: Story = {
 export const DraftPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus({
+		...singlePrArgs({
 			url: "https://github.com/coder/coder/pull/22950",
 			pull_request_title: "fix: resolve race condition in workspace builds",
 			pull_request_draft: true,
@@ -252,7 +261,7 @@ export const DraftPullRequest: Story = {
 export const MergedPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus({
+		...singlePrArgs({
 			url: "https://github.com/coder/coder/pull/23000",
 			pull_request_title: "chore: update dependencies to latest",
 			pull_request_state: "merged",
@@ -274,7 +283,7 @@ export const MergedPullRequest: Story = {
 export const ClosedPullRequest: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus({
+		...singlePrArgs({
 			url: "https://github.com/coder/coder/pull/22800",
 			pull_request_title: "feat: experimental websocket transport",
 			pull_request_state: "closed",
@@ -292,25 +301,26 @@ export const ClosedPullRequest: Story = {
 	},
 };
 
+const mockBranchOnly: ChatDiffStatus = {
+	...MockChatDiffStatus,
+	chat_id: "test-chat",
+	git_branch: "feat/branch-only",
+	head_branch: "feat/branch-only",
+	url: "https://github.com/coder/coder/tree/feat/branch-only",
+	pr_number: undefined,
+	pull_request_state: undefined,
+	pull_request_title: "",
+	additions: 42,
+	deletions: 7,
+	changed_files: 3,
+};
+
 /** Branch pushed but no PR opened yet. */
 export const BranchOnly: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: [
-			{
-				...MockChatDiffStatus,
-				chat_id: "test-chat",
-				git_branch: "feat/branch-only",
-				head_branch: "feat/branch-only",
-				url: "https://github.com/coder/coder/tree/feat/branch-only",
-				pr_number: undefined,
-				pull_request_state: undefined,
-				pull_request_title: "",
-				additions: 42,
-				deletions: 7,
-				changed_files: 3,
-			},
-		],
+		remoteDiffStats: [mockBranchOnly],
+		primaryDiffStatus: mockBranchOnly,
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 };
@@ -322,27 +332,16 @@ export const BranchOnly: Story = {
 export const BranchPrimarySelectedPr: Story = {
 	args: {
 		chatId: "test-chat",
+		primaryDiffStatus: mockBranchOnly,
 		remoteDiffStats: [
-			{
-				...MockChatDiffStatus,
-				chat_id: "test-chat",
-				git_branch: "feat/branch-only",
-				head_branch: "feat/branch-only",
-				url: "https://github.com/coder/coder/tree/feat/branch-only",
-				pr_number: undefined,
-				pull_request_state: undefined,
-				pull_request_title: "",
-				additions: 42,
-				deletions: 7,
-				changed_files: 3,
-			},
-			...makePrStatus({
+			makePrStatus({
 				pull_request_title: "fix: second change",
 				head_branch: "fix/second",
 				git_branch: "fix/second",
 				pr_number: 23021,
 				url: "https://github.com/coder/coder/pull/23021",
 			}),
+			mockBranchOnly,
 		],
 	},
 	beforeEach: () => {
@@ -373,7 +372,7 @@ export const WorkingChangesOnly: Story = {
 export const MultipleRepos: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus({
+		...singlePrArgs({
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
 			additions: 500,
@@ -401,20 +400,23 @@ export const MultipleRepos: Story = {
 	},
 };
 
+const mockSharedBranch: ChatDiffStatus = {
+	...MockChatDiffStatus,
+	git_branch: "feature/shared",
+	remote_origin: "https://github.com/coder/coder.git",
+	pull_request_state: undefined,
+	pull_request_title: "",
+	pr_number: undefined,
+	url: undefined,
+};
+
 /** Refs across two origins share a branch name; entries name their repository. */
 export const MultipleOrigins: Story = {
 	args: {
 		chatId: "test-chat",
+		primaryDiffStatus: mockSharedBranch,
 		remoteDiffStats: [
-			{
-				...MockChatDiffStatus,
-				git_branch: "feature/shared",
-				remote_origin: "https://github.com/coder/coder.git",
-				pull_request_state: undefined,
-				pull_request_title: "",
-				pr_number: undefined,
-				url: undefined,
-			},
+			mockSharedBranch,
 			{
 				...MockChatDiffStatus,
 				git_branch: "feature/shared",
@@ -465,7 +467,7 @@ export const GitStatusLoading: Story = {
 export const InlineCommentInput: Story = {
 	args: {
 		chatId: "test-chat",
-		remoteDiffStats: makePrStatus(),
+		...singlePrArgs(),
 	},
 	decorators: [
 		(Story) => (

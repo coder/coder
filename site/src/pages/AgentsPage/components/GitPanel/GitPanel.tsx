@@ -53,11 +53,15 @@ const viewIdFor = (status: ChatDiffStatus): string =>
 	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
 // A keyless row predates the keyed schema and the API cannot select
-// it: an empty selector means the primary ref. Only the primary can
-// stay selectable; any other keyless row would fetch the primary's
+// it: an empty selector means the primary ref. Only a keyless primary
+// can stay selectable; any other keyless row would fetch the primary's
 // diff under its own title.
-const isSelectableRef = (status: ChatDiffStatus, index: number): boolean =>
-	index === 0 || Boolean(status.remote_origin || status.git_branch);
+const isSelectableRef = (
+	status: ChatDiffStatus,
+	primaryRefId: string,
+): boolean =>
+	viewIdFor(status) === primaryRefId ||
+	Boolean(status.remote_origin || status.git_branch);
 
 // Line counts for one repo's unified diff.
 const countDiffLines = (unifiedDiff: string): DiffStats => {
@@ -130,6 +134,8 @@ type GitPanelProps = {
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading: boolean;
 	remoteDiffStats?: readonly ChatDiffStatus[];
+	/** The primary ref: the ref with the most recent git report. */
+	primaryDiffStatus?: ChatDiffStatus;
 	/** Chat composer, used to insert commit prompts and file comments. */
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	/**
@@ -226,8 +232,9 @@ const fallbackView = (view: GitView, input: ViewFallbackInput): GitView => {
 		const isTracked =
 			view.refId === input.primaryRefId ||
 			(input.remoteDiffStats ?? []).some(
-				(status, index) =>
-					isSelectableRef(status, index) && viewIdFor(status) === view.refId,
+				(status) =>
+					isSelectableRef(status, primaryRefId) &&
+					viewIdFor(status) === view.refId,
 			);
 		if (isTracked) {
 			return view;
@@ -318,6 +325,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	isExpanded,
 	isGitStatusLoading,
 	remoteDiffStats,
+	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
 }) => {
@@ -330,9 +338,8 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 
 	// Default to the first local repo when nothing has been pushed
 	// upstream yet, so the panel opens on the diff the user just made.
-	const primaryRefStatus = remoteDiffStats?.[0];
-	const primaryRefId = primaryRefStatus
-		? viewIdFor(primaryRefStatus)
+	const primaryRefId = primaryDiffStatus
+		? viewIdFor(primaryDiffStatus)
 		: "remote";
 	const [view, setView] = useState<GitView>(() => {
 		if (!showRemoteTab && localRepos.length > 0) {
@@ -382,7 +389,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	const selectedRemote =
 		remoteDiffStats?.find(
 			(status) => viewRefId !== undefined && viewIdFor(status) === viewRefId,
-		) ?? remoteDiffStats?.[0];
+		) ?? primaryDiffStatus;
 
 	const prTitle = selectedRemote?.pull_request_title;
 	const selectedPrNumber =
@@ -417,7 +424,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	const remoteItems: ViewItem[] =
 		showRemoteTab && remoteDiffStats
 			? remoteDiffStats
-					.filter(isSelectableRef)
+					.filter((status) => isSelectableRef(status, primaryRefId))
 					.map((status) => buildRemoteItem(status, hasMultipleOrigins))
 			: [];
 
