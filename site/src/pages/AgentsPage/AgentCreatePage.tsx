@@ -91,9 +91,14 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	// Remount per project so the create mutation's pending and error state and
-	// the edit dialog do not carry over. A create still in flight opens its
-	// chat when it finishes, as it does from /agents.
+	const { experiments } = useDashboard();
+	if (projectId !== undefined && !experiments.includes("chat-projects")) {
+		return <Navigate to="/agents" replace />;
+	}
+	// Remount per project so the create mutation's pending and error state do
+	// not carry over. A create still in flight opens its chat when it
+	// finishes, as from /agents; one that fails after the page unmounted is
+	// dropped along with its message.
 	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
@@ -110,10 +115,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: chatProjectsEnabled && projectId !== undefined,
+		enabled: projectId !== undefined,
 	});
 	const project = projectQuery.data ?? undefined;
 	// null also covers a project that exists but is not in this user's list.
@@ -252,10 +256,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		prefillError == null &&
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
-
-	if (projectId !== undefined && !chatProjectsEnabled) {
-		return <Navigate to="/agents" replace />;
-	}
 
 	const handleCreateChat = async ({
 		message,

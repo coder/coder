@@ -17,7 +17,6 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 	const queryClient = useQueryClient();
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => setIsDialogOpen(false);
 
 	return (
 		<div className="flex justify-center pt-2">
@@ -35,15 +34,13 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 			<ChatProjectDialog
 				project={project}
 				open={isDialogOpen}
-				onOpenChange={(open) => {
-					if (!open) closeDialog();
-				}}
+				onOpenChange={setIsDialogOpen}
 				isSubmitting={updateProjectMutation.isPending}
 				error={updateProjectMutation.error}
 				onSubmit={(request) => {
 					updateProjectMutation.mutate(
 						{ project, request },
-						{ onSuccess: closeDialog },
+						{ onSuccess: () => setIsDialogOpen(false) },
 					);
 				}}
 			/>
