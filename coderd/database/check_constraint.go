@@ -13,6 +13,7 @@ const (
 	CheckAIModelPricesCacheWritePriceCheck                   CheckConstraint = "ai_model_prices_cache_write_price_check"                   // ai_model_prices
 	CheckAIModelPricesInputPriceCheck                        CheckConstraint = "ai_model_prices_input_price_check"                         // ai_model_prices
 	CheckAIModelPricesOutputPriceCheck                       CheckConstraint = "ai_model_prices_output_price_check"                        // ai_model_prices
+	CheckAIModelPricesProviderIDCustomCheck                  CheckConstraint = "ai_model_prices_provider_id_custom_check"                   // ai_model_prices
 	CheckAIProvidersNameCheck                                CheckConstraint = "ai_providers_name_check"                                   // ai_providers
 	CheckAIUserDailySpendSpendMicrosCheck                    CheckConstraint = "ai_user_daily_spend_spend_micros_check"                    // ai_user_daily_spend
 	CheckAibridgeTokenUsagesCacheReadPriceMicrosCheck        CheckConstraint = "aibridge_token_usages_cache_read_price_micros_check"       // aibridge_token_usages

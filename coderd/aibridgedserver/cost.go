@@ -107,8 +107,8 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	}
 
 	// The interception records one of three upstream wire formats. Prices are
-	// keyed on the configured provider type, the provider actually serving the
-	// request, resolved by provider name. Names are unique among live providers.
+	// keyed on the configured provider actually serving the request, resolved
+	// by provider name. Names are unique among live providers.
 	provider, err := s.store.GetAIProviderByName(ctx, intc.ProviderName)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -124,10 +124,12 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	}
 	configuredType := string(provider.Type)
 
-	// Snapshot the price for this (provider, model) and compute cost.
+	// Snapshot the price for this (provider, model) and compute cost. A price
+	// set for this provider wins over one set for its type.
 	price, err := s.store.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-		Provider: configuredType,
-		Model:    intc.Model,
+		ProviderID: provider.ID,
+		Provider:   configuredType,
+		Model:      intc.Model,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):

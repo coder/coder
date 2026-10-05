@@ -339,8 +339,9 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the model, preferring a custom price over
-	// the price book.
+	// Returns the price in effect for the model served by the configured provider
+	// with the given ID and type. A custom price set for that provider wins, then
+	// a custom price for its type, then the price book's price for its type.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
@@ -1679,11 +1680,16 @@ type sqlcQuerier interface {
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
 	// Upsert a batch of model prices from a JSON array, all recorded under the
 	// given source. Each element must have provider, model, and the four price
-	// fields, and null prices are written as SQL NULL.
+	// fields, and null prices are written as SQL NULL. An element may also carry a
+	// provider_id, which keys a custom price to that configured provider rather
+	// than to every provider of its type.
 	// Each source keeps its own row, so the price book and a custom price never
 	// overwrite each other. A conflicting row is only rewritten when a price
 	// differs, so updated_at records when a price last changed. Prices are
 	// nullable and a NULL on either side counts as a difference.
+	// Provider-type and provider-specific rows are unique under separate partial
+	// indexes and ON CONFLICT targets a single index, so each kind of row is
+	// written by its own statement.
 	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)

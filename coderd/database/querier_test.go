@@ -19007,6 +19007,17 @@ func TestGetUnpricedAIModelsSince(t *testing.T) {
 	}))
 	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
 
+	// Excluded because a current price exists for this provider.
+	providerSeed, err := json.Marshal([]map[string]any{
+		{"provider": string(anthropic.Type), "provider_id": anthropic.ID, "model": "provider-priced-model", "input_price": 1},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   providerSeed,
+		Source: database.AIModelPriceSourceCustom,
+	}))
+	seedUsage(anthropic, "provider-priced-model", now, 100, 100, sql.NullInt64{})
+
 	got, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
 		Since:              now.Add(-time.Hour),
 		PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
@@ -19093,8 +19104,144 @@ func TestGetAIModelPriceByProviderModel(t *testing.T) {
 			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
 			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
 			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
+			require.False(t, got.ProviderID.Valid, "provider type price")
 		})
 	}
+
+	// setProviderPrice sets a custom input price for model-a served by one
+	// configured provider.
+	setProviderPrice := func(t *testing.T, ctx context.Context, db database.Store, provider database.AIProvider, inputPrice int64) {
+		t.Helper()
+		seed, err := json.Marshal([]map[string]any{
+			{"provider": string(provider.Type), "provider_id": provider.ID, "model": "model-a", "input_price": inputPrice},
+		})
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: seed, Source: database.AIModelPriceSourceCustom}))
+	}
+	getPrice := func(t *testing.T, ctx context.Context, db database.Store, provider database.AIProvider) (database.AIModelPrice, error) {
+		t.Helper()
+		return db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			ProviderID: provider.ID, Provider: string(provider.Type), Model: "model-a",
+		})
+	}
+
+	t.Run("SameModelPricedPerProvider", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		east := dbgen.AIProvider(t, db, database.AIProvider{Name: "azure-east", Type: database.AIProviderTypeAzure})
+		west := dbgen.AIProvider(t, db, database.AIProvider{Name: "azure-west", Type: database.AIProviderTypeAzure})
+		setProviderPrice(t, ctx, db, east, 10)
+		setProviderPrice(t, ctx, db, west, 20)
+
+		got, err := getPrice(t, ctx, db, east)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got.InputPrice)
+		require.Equal(t, uuid.NullUUID{UUID: east.ID, Valid: true}, got.ProviderID)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+
+		got, err = getPrice(t, ctx, db, west)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, got.InputPrice)
+		require.Equal(t, uuid.NullUUID{UUID: west.ID, Valid: true}, got.ProviderID)
+	})
+
+	t.Run("ProviderPriceWinsOverProviderTypePrices", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-eu", Type: database.AIProviderTypeAnthropic})
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}))
+		setProviderPrice(t, ctx, db, provider, 42)
+
+		got, err := getPrice(t, ctx, db, provider)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 42, Valid: true}, got.InputPrice)
+		require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, got.ProviderID)
+	})
+
+	t.Run("FallsBackToProviderTypePrice", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		priced := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-priced", Type: database.AIProviderTypeAnthropic})
+		unpriced := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-unpriced", Type: database.AIProviderTypeAnthropic})
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}))
+		setProviderPrice(t, ctx, db, priced, 42)
+
+		got, err := getPrice(t, ctx, db, unpriced)
+		require.NoError(t, err)
+		require.Equal(t, defaultPrices.InputPrice, got.InputPrice)
+		require.Equal(t, database.AIModelPriceSourceDefault, got.Source)
+		require.False(t, got.ProviderID.Valid, "provider type price")
+
+		// A provider type custom price still wins over the price book.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}))
+		got, err = getPrice(t, ctx, db, unpriced)
+		require.NoError(t, err)
+		require.Equal(t, customPrices.InputPrice, got.InputPrice)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+		require.False(t, got.ProviderID.Valid, "provider type price")
+	})
+
+	t.Run("ZeroProviderPriceIsValid", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-free", Type: database.AIProviderTypeAnthropic})
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}))
+		setProviderPrice(t, ctx, db, provider, 0)
+
+		got, err := getPrice(t, ctx, db, provider)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 0, Valid: true}, got.InputPrice)
+		require.Equal(t, sql.NullInt64{}, got.OutputPrice)
+		require.Equal(t, uuid.NullUUID{UUID: provider.ID, Valid: true}, got.ProviderID)
+	})
+
+	t.Run("MissingPrice", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Name: "openai-compat-gateway", Type: database.AIProviderTypeOpenaiCompat})
+		// A price for the same model under another provider type does not apply.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}))
+
+		_, err := getPrice(t, ctx, db, provider)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("UpsertProviderPriceUpdatesInPlace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-eu", Type: database.AIProviderTypeAnthropic})
+		setProviderPrice(t, ctx, db, provider, 10)
+		setProviderPrice(t, ctx, db, provider, 11)
+
+		got, err := getPrice(t, ctx, db, provider)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 11, Valid: true}, got.InputPrice)
+
+		// Provider prices are not part of the provider type listing.
+		listed, err := db.GetAIModelPrices(ctx, database.GetAIModelPricesParams{Source: "all"})
+		require.NoError(t, err)
+		require.Empty(t, listed)
+	})
+
+	t.Run("ProviderPriceMustBeCustom", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Name: "anthropic-eu", Type: database.AIProviderTypeAnthropic})
+		seed, err := json.Marshal([]map[string]any{
+			{"provider": string(provider.Type), "provider_id": provider.ID, "model": "model-a", "input_price": 1},
+		})
+		require.NoError(t, err)
+		err = db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: seed, Source: database.AIModelPriceSourceDefault})
+		require.True(t, database.IsCheckViolation(err, database.CheckAIModelPricesProviderIDCustomCheck), "got %v", err)
+	})
 }
 
 func TestGetAIModelPrices(t *testing.T) {

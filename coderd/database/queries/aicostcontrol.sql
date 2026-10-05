@@ -1,24 +1,66 @@
 -- name: UpsertAIModelPrices :exec
 -- Upsert a batch of model prices from a JSON array, all recorded under the
 -- given source. Each element must have provider, model, and the four price
--- fields, and null prices are written as SQL NULL.
+-- fields, and null prices are written as SQL NULL. An element may also carry a
+-- provider_id, which keys a custom price to that configured provider rather
+-- than to every provider of its type.
 -- Each source keeps its own row, so the price book and a custom price never
 -- overwrite each other. A conflicting row is only rewritten when a price
 -- differs, so updated_at records when a price last changed. Prices are
 -- nullable and a NULL on either side counts as a difference.
+-- Provider-type and provider-specific rows are unique under separate partial
+-- indexes and ON CONFLICT targets a single index, so each kind of row is
+-- written by its own statement.
+WITH elems AS (
+	SELECT
+		elem->>'provider' AS provider,
+		elem->>'model' AS model,
+		(elem->>'provider_id')::uuid AS provider_id,
+		(elem->>'input_price')::bigint AS input_price,
+		(elem->>'output_price')::bigint AS output_price,
+		(elem->>'cache_read_price')::bigint AS cache_read_price,
+		(elem->>'cache_write_price')::bigint AS cache_write_price
+	FROM jsonb_array_elements(@seed::jsonb) AS elem
+),
+provider_specific AS (
+	INSERT INTO ai_model_prices (
+		provider, model, provider_id, input_price, output_price, cache_read_price, cache_write_price, source
+	)
+	SELECT
+		provider, model, provider_id, input_price, output_price, cache_read_price, cache_write_price,
+		@source::ai_model_price_source
+	FROM elems
+	WHERE provider_id IS NOT NULL
+	ON CONFLICT (provider_id, model, source) WHERE provider_id IS NOT NULL DO UPDATE SET
+		provider          = EXCLUDED.provider,
+		input_price       = EXCLUDED.input_price,
+		output_price      = EXCLUDED.output_price,
+		cache_read_price  = EXCLUDED.cache_read_price,
+		cache_write_price = EXCLUDED.cache_write_price,
+		updated_at        = NOW()
+	WHERE (
+		ai_model_prices.provider,
+		ai_model_prices.input_price,
+		ai_model_prices.output_price,
+		ai_model_prices.cache_read_price,
+		ai_model_prices.cache_write_price
+	) IS DISTINCT FROM (
+		EXCLUDED.provider,
+		EXCLUDED.input_price,
+		EXCLUDED.output_price,
+		EXCLUDED.cache_read_price,
+		EXCLUDED.cache_write_price
+	)
+)
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
-	elem->>'provider',
-	elem->>'model',
-	(elem->>'input_price')::bigint,
-	(elem->>'output_price')::bigint,
-	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint,
+	provider, model, input_price, output_price, cache_read_price, cache_write_price,
 	@source::ai_model_price_source
-FROM jsonb_array_elements(@seed::jsonb) AS elem
-ON CONFLICT (provider, model, source) DO UPDATE SET
+FROM elems
+WHERE provider_id IS NULL
+ON CONFLICT (provider, model, source) WHERE provider_id IS NULL DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -37,12 +79,19 @@ WHERE (
 );
 
 -- name: GetAIModelPriceByProviderModel :one
--- Returns the price in effect for the model, preferring a custom price over
--- the price book.
+-- Returns the price in effect for the model served by the configured provider
+-- with the given ID and type. A custom price set for that provider wins, then
+-- a custom price for its type, then the price book's price for its type.
 SELECT *
 FROM ai_model_prices
-WHERE provider = @provider AND model = @model
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+WHERE (
+		provider_id = @provider_id::uuid
+		OR (provider_id IS NULL AND provider = @provider::text)
+	)
+	AND model = @model
+ORDER BY
+	CASE WHEN provider_id IS NOT NULL THEN 0 ELSE 1 END ASC,
+	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
 -- name: GetAIModelPrices :many
@@ -58,8 +107,11 @@ SELECT DISTINCT ON (
     CASE WHEN @source::text = 'all' THEN source::text ELSE '' END
 ) *
 FROM ai_model_prices
+    -- Provider-specific prices are keyed by provider ID rather than provider
+    -- type, so they are left out of this listing.
+WHERE provider_id IS NULL
     -- Filter by provider
-WHERE CASE
+    AND CASE
         WHEN @provider::text != '' THEN
             provider = @provider
         ELSE true
@@ -573,8 +625,11 @@ WHERE interceptions.started_at >= @since::timestamptz
 	AND NOT EXISTS (
 		SELECT 1
 		FROM ai_model_prices AS prices
-		WHERE prices.provider = providers.type::text
-			AND prices.model = interceptions.model
+		WHERE prices.model = interceptions.model
+			AND (
+				prices.provider_id = providers.id
+				OR (prices.provider_id IS NULL AND prices.provider = providers.type::text)
+			)
 	)
 GROUP BY providers.type, interceptions.model
 ORDER BY token_count DESC, provider_type ASC, model ASC;

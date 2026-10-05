@@ -4880,6 +4880,8 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
+	// The configured provider a custom price applies to. NULL prices every provider of the given provider type. A provider-specific price takes precedence over a provider-type price for the same model.
+	ProviderID uuid.NullUUID `db:"provider_id" json:"provider_id"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

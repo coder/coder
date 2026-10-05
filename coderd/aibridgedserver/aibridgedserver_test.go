@@ -2331,11 +2331,13 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.Model = "gpt-5-mini"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
 					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeAzure),
-						Model:    intc.Model,
+						ProviderID: providerID,
+						Provider:   string(database.AIProviderTypeAzure),
+						Model:      intc.Model,
 					}).Return(database.AIModelPrice{
 						Provider:   string(database.AIProviderTypeAzure),
 						Model:      intc.Model,
@@ -2371,11 +2373,13 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.ProviderName = "bedrock-eu"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
 					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeBedrock),
-						Model:    intc.Model,
+						ProviderID: providerID,
+						Provider:   string(database.AIProviderTypeBedrock),
+						Model:      intc.Model,
 					}).Return(database.AIModelPrice{
 						Provider:   string(database.AIProviderTypeBedrock),
 						Model:      intc.Model,
@@ -2928,6 +2932,18 @@ func TestRecordTokenUsageProviderResolution(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rawDB.UpsertAIModelPrices(setupCtx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
 
+	// setProviderPrice sets a custom input price for the model served by one
+	// configured provider. Cases share the database, so prices that apply to
+	// a whole provider type are never set here.
+	setProviderPrice := func(t *testing.T, ctx context.Context, provider database.AIProvider, model string, inputPrice int64) {
+		t.Helper()
+		seed, err := json.Marshal([]map[string]any{
+			{"provider": string(provider.Type), "provider_id": provider.ID, "model": model, "input_price": inputPrice},
+		})
+		require.NoError(t, err)
+		require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: seed, Source: database.AIModelPriceSourceCustom}), "set provider price")
+	}
+
 	srv, err := aibridgedserver.NewServer(setupCtx, aibridgedserver.Options{
 		Store:         authzDB,
 		AISeatTracker: agplaiseats.Noop{},
@@ -3008,6 +3024,121 @@ func TestRecordTokenUsageProviderResolution(t *testing.T) {
 			// A deleted openai provider and a live azure provider sharing the name.
 			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
 				deleted := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: database.AIProviderTypeOpenai})
+				require.NoError(t, rawDB.DeleteAIProviderByID(ctx, deleted.ID), "delete provider")
+				dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+			},
+			wantInputPrice: sql.NullInt64{Int64: azureInputPrice, Valid: true},
+			// 100 input tokens at the azure input price: $0.0005.
+			wantCost: sql.NullInt64{Int64: 500, Valid: true},
+		},
+		{
+			// Providers of the same type, such as azure deployments in different
+			// regions, can price the same model differently.
+			name:         "provider price wins over provider type price",
+			wireProvider: "openai",
+			providerName: "azure-eastus",
+			providerType: database.AIProviderTypeAzure,
+			model:        gptModel,
+			// One live azure provider with its own price for the model.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				provider := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				setProviderPrice(t, ctx, provider, gptModel, 7_000_000)
+			},
+			wantInputPrice: sql.NullInt64{Int64: 7_000_000, Valid: true},
+			// 100 input tokens at the provider's input price: $0.0007.
+			wantCost: sql.NullInt64{Int64: 700, Valid: true},
+		},
+		{
+			name:         "provider without its own price falls back to provider type price",
+			wireProvider: "openai",
+			providerName: "azure-westeu",
+			providerType: database.AIProviderTypeAzure,
+			model:        gptModel,
+			// Two live azure providers, and only the other one has its own price.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				sibling := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName + "-sibling", Type: providerType})
+				setProviderPrice(t, ctx, sibling, gptModel, 8_000_000)
+			},
+			wantInputPrice: sql.NullInt64{Int64: azureInputPrice, Valid: true},
+			// 100 input tokens at the azure input price: $0.0005.
+			wantCost: sql.NullInt64{Int64: 500, Valid: true},
+		},
+		{
+			// openai-compat has no provider type prices, since it fronts arbitrary
+			// upstreams, but a configured provider can carry its own.
+			name:         "openai-compat provider priced by its own price",
+			wireProvider: "openai",
+			providerName: "litellm",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        claudeModel,
+			// One live openai-compat provider with its own price for the model.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				provider := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				setProviderPrice(t, ctx, provider, claudeModel, 6_000_000)
+			},
+			wantInputPrice: sql.NullInt64{Int64: 6_000_000, Valid: true},
+			// 100 input tokens at the provider's input price: $0.0006.
+			wantCost: sql.NullInt64{Int64: 600, Valid: true},
+		},
+		{
+			name:         "openai-compat provider without its own price is unpriced",
+			wireProvider: "openai",
+			providerName: "litellm-unpriced",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        claudeModel,
+			// One live openai-compat provider without a price.
+			setupProvider: func(t *testing.T, _ context.Context, providerName string, providerType database.AIProviderType) {
+				dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+			},
+			wantInputPrice: sql.NullInt64{Valid: false},
+			wantCost:       sql.NullInt64{Valid: false},
+		},
+		{
+			// A provider price of zero declares the model free, distinct from an
+			// unknown price, and still wins over the provider type price.
+			name:         "zero provider price is free",
+			wireProvider: "openai",
+			providerName: "azure-free",
+			providerType: database.AIProviderTypeAzure,
+			model:        gptModel,
+			// One live azure provider pricing the model at zero.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				provider := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				setProviderPrice(t, ctx, provider, gptModel, 0)
+			},
+			wantInputPrice: sql.NullInt64{Int64: 0, Valid: true},
+			wantCost:       sql.NullInt64{Int64: 0, Valid: true},
+		},
+		{
+			name:         "deleted provider with its own price is unpriced",
+			wireProvider: "openai",
+			providerName: "azure-deleted",
+			providerType: database.AIProviderTypeAzure,
+			model:        gptModel,
+			// One azure provider with its own price, deleted before the usage is
+			// recorded.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				provider := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				setProviderPrice(t, ctx, provider, gptModel, 9_000_000)
+				require.NoError(t, rawDB.DeleteAIProviderByID(ctx, provider.ID), "delete provider")
+			},
+			wantInputPrice: sql.NullInt64{Valid: false},
+			wantCost:       sql.NullInt64{Valid: false},
+		},
+		{
+			// A provider price belongs to the provider ID, so a live provider that
+			// reuses a deleted provider's name does not inherit it.
+			name:         "reused name does not inherit the deleted provider price",
+			wireProvider: "openai",
+			providerName: "azure-reused",
+			providerType: database.AIProviderTypeAzure,
+			model:        gptModel,
+			// A deleted azure provider with its own price and a live azure provider
+			// sharing the name.
+			setupProvider: func(t *testing.T, ctx context.Context, providerName string, providerType database.AIProviderType) {
+				deleted := dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
+				setProviderPrice(t, ctx, deleted, gptModel, 9_000_000)
 				require.NoError(t, rawDB.DeleteAIProviderByID(ctx, deleted.ID), "delete provider")
 				dbgen.AIProvider(t, rawDB, database.AIProvider{Name: providerName, Type: providerType})
 			},
@@ -3660,15 +3791,18 @@ func expectTokenUsageCostLookups(
 		}
 	}
 
+	providerID := uuid.New()
 	db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).Return(database.AIProvider{
+		ID:   providerID,
 		Name: intc.ProviderName,
 		Type: database.AIProviderType(intc.Provider),
 	}, nil)
 
 	if price != nil {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-			Provider: intc.Provider,
-			Model:    intc.Model,
+			ProviderID: providerID,
+			Provider:   intc.Provider,
+			Model:      intc.Model,
 		}).Return(*price, nil)
 	} else {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
