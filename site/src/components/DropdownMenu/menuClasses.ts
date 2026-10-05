@@ -7,11 +7,20 @@ export const menuContentClass = [
 	"data-[state=open]:data-[side=right]:slide-in-from-left-2 data-[state=open]:data-[side=top]:slide-in-from-bottom-2",
 ].join(" ");
 
+/**
+ * Keyboard focus indicator shared by every menu item. A background change
+ * alone is not enough because checked radio items already use the focus
+ * background. The ring is inset so scrollable menu containers cannot clip it.
+ */
+export const menuItemFocusClass =
+	"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
+
 export const menuItemClass = `
 	relative flex cursor-default select-none items-center gap-2 rounded-sm
 	px-2 py-1.5 text-sm text-content-secondary font-medium outline-hidden
 	no-underline
 	focus:bg-surface-secondary focus:text-content-primary
+	${menuItemFocusClass}
 	data-disabled:pointer-events-none data-disabled:opacity-50
 	[&>svg]:size-icon-sm [&>svg]:shrink-0
 	[&>img]:size-icon-sm [&>img]:shrink-0

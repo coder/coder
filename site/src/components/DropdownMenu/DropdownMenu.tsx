@@ -12,6 +12,7 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import {
 	menuContentClass,
 	menuItemClass,
+	menuItemFocusClass,
 	menuSeparatorClass,
 } from "./menuClasses";
 
@@ -81,6 +82,7 @@ export const DropdownMenuRadioItem: React.FC<
 				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden transition-colors",
 				"focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 				"data-[state=checked]:bg-surface-secondary data-[state=checked]:text-content-primary",
+				menuItemFocusClass,
 				"font-medium",
 				className,
 			)}
