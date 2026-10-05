@@ -1,150 +1,204 @@
 package migrations_test
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/testutil"
 )
 
-const (
-	insertConnectionLog000616 = `INSERT INTO connection_logs (id, connect_time, organization_id,
-		workspace_owner_id, workspace_id, workspace_name, agent_name, type, slug_or_port)
-		VALUES ($1, now(), $2, $3, $4, $5, 'main', $6, $7)`
-	insertConnectionLog000617 = `INSERT INTO connection_logs (id, connect_time, organization_id,
-		workspace_owner_id, workspace_id, workspace_name, agent_name, connection_method, app_name_or_port)
-		VALUES ($1, now(), $2, $3, $4, $5, 'main', $6, $7)`
-	selectConnectionLog000616 = `SELECT type::text, slug_or_port FROM connection_logs WHERE id = $1`
-	selectConnectionLog000617 = `SELECT connection_method::text, app_name_or_port FROM connection_logs WHERE id = $1`
-)
-
-// A pending migration batch can add tunnel to the old enum and then replace
-// that enum. Comparisons must not materialize its uncommitted new value.
-func TestMigration000617ConnectionLogsMethodInSingleTxn(t *testing.T) {
+// TestMigration000617QueuedMessagesConcurrentTraffic runs migration 000617
+// in both directions while other connections use chats and
+// chat_queued_messages the way chatd does. Each case blocks the migration
+// on an open application transaction, waits until pg_blocking_pids shows
+// the migration waiting on it, then lets the application continue.
+func TestMigration000617QueuedMessagesConcurrentTraffic(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
 
-	sqlDB := testSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	applyMigrationsInTxn(ctx, t, sqlDB, 1, 556)
-	orgID, ownerID, templateID, workspaceID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	_, err := sqlDB.ExecContext(ctx, `
-		INSERT INTO organizations (id, name, description, display_name, created_at, updated_at, default_org_member_roles)
-		VALUES ($1, 'migration-org', '', '', now(), now(), '{}');
-	`, orgID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO users (id, email, username, hashed_password, created_at, updated_at) VALUES ($1, 'migration@example.com', 'migration-user', '', now(), now());
-	`, ownerID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, created_by)
-		VALUES ($1, now(), now(), $2, 'migration-template', 'echo', $3, $4);
-	`, templateID, orgID, uuid.New(), ownerID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name)
-		VALUES ($1, now(), now(), $2, $3, $4, 'migration-workspace');
-	`, workspaceID, ownerID, orgID, templateID)
-	require.NoError(t, err)
-	id := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, insertConnectionLog000616, id, orgID, ownerID, workspaceID, "migration-workspace", "vscode", nil)
-	require.NoError(t, err)
+	// Every chatstate transition reads the queue. While the migration waits
+	// behind an open application transaction, new readers of
+	// chat_queued_messages must not queue behind it until that transaction
+	// ends.
+	t.Run("UpReadQueueWhileMigrationWaits", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		stepTo(t, sqlDB, 616)
+		migrationSQL, err := os.ReadFile("000617_chat_queued_messages_editing_since.up.sql")
+		require.NoError(t, err)
 
-	applyMigrationsInTxn(ctx, t, sqlDB, 557, 617)
-	var method string
-	var appName sql.NullString
-	require.NoError(t, sqlDB.QueryRowContext(ctx, selectConnectionLog000617, id).Scan(&method, &appName))
-	require.Equal(t, "ssh", method)
-	require.Equal(t, sql.NullString{String: "vscode", Valid: true}, appName)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chatID, userID := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+
+		// chatd queues a message on a locked chat. The insert trigger also
+		// bumps chats.queue_version.
+		conn, appPID := dedicatedConn(ctx, t, sqlDB)
+		tx, err := conn.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chatID)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO chat_queued_messages (chat_id, content, created_by)
+			VALUES ($1, '[]', $2)`, chatID, userID)
+		require.NoError(t, err)
+
+		pid, migrated := startRolledBackMigration(ctx, t, sqlDB, migrationSQL)
+		requireWaitsFor(ctx, t, sqlDB, pid, appPID)
+
+		reader, _ := dedicatedConn(ctx, t, sqlDB)
+		requireNoDeadlockVictim(ctx, t, "reader", async(func() error {
+			var n int
+			return reader.QueryRowContext(ctx,
+				`SELECT count(*) FROM chat_queued_messages WHERE chat_id = $1`, chatID).Scan(&n)
+		}))
+		select {
+		case err := <-migrated:
+			t.Fatalf("migration ended before the application transaction ended: %v", err)
+		default:
+		}
+
+		requireNoDeadlockVictim(ctx, t, "application", async(func() error {
+			_, err := tx.ExecContext(ctx, `DELETE FROM chat_queued_messages WHERE chat_id = $1`, chatID)
+			if err != nil {
+				return err
+			}
+			return tx.Commit()
+		}))
+		requireNoDeadlockVictim(ctx, t, "migration", migrated)
+	})
+
+	// chatd locks a chat row before touching its queued rows. The down
+	// migration changes chat_queued_messages and then updates paused chats,
+	// so it must not hold the queue while it waits for the chat row.
+	t.Run("DownLockChatThenTouchQueue", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		stepTo(t, sqlDB, 617)
+		migrationSQL, err := os.ReadFile("000617_chat_queued_messages_editing_since.down.sql")
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chatID, userID := seedChatWithStatus(ctx, t, sqlDB, "paused")
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO chat_queued_messages (chat_id, content, created_by)
+			VALUES ($1, '[]', $2)`, chatID, userID)
+		require.NoError(t, err)
+
+		conn, appPID := dedicatedConn(ctx, t, sqlDB)
+		tx, err := conn.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chatID)
+		require.NoError(t, err)
+
+		pid, migrated := startRolledBackMigration(ctx, t, sqlDB, migrationSQL)
+		requireWaitsFor(ctx, t, sqlDB, pid, appPID)
+
+		// The down migration keeps chats_expanded, so a reader of the view
+		// must get through while the migration waits for chats.
+		reader, _ := dedicatedConn(ctx, t, sqlDB)
+		requireNoDeadlockVictim(ctx, t, "reader", async(func() error {
+			var id uuid.UUID
+			return reader.QueryRowContext(ctx, `SELECT id FROM chats_expanded WHERE id = $1`, chatID).Scan(&id)
+		}))
+
+		// Promote the queued head: delete it, then update the chat.
+		requireNoDeadlockVictim(ctx, t, "application", async(func() error {
+			_, err := tx.ExecContext(ctx, `DELETE FROM chat_queued_messages WHERE chat_id = $1`, chatID)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `UPDATE chats SET status = 'running' WHERE id = $1`, chatID)
+			if err != nil {
+				return err
+			}
+			return tx.Commit()
+		}))
+		requireNoDeadlockVictim(ctx, t, "migration", migrated)
+	})
 }
 
-// The up migration splits each connection type into a method and an app name,
-// and the down migration folds app names back into types.
-func TestMigration000617ConnectionLogsMethod(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 616)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	db := database.New(sqlDB)
-	org := dbgen.Organization(t, db, database.Organization{})
-	owner := dbgen.User(t, db, database.User{})
-	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: owner.ID})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: owner.ID, TemplateID: tpl.ID})
-
-	// row is (type, slug_or_port) before 000617 and
-	// (connection_method, app_name_or_port) after it.
-	type row struct {
-		kind          string
-		appNameOrPort sql.NullString
-	}
-	app := func(name string) sql.NullString { return sql.NullString{String: name, Valid: true} }
-	ids := map[row]uuid.UUID{}
-	insert := func(query string, r row) {
-		ids[r] = uuid.New()
-		_, err := sqlDB.ExecContext(ctx, query, ids[r], org.ID, owner.ID, ws.ID, ws.Name, r.kind, r.appNameOrPort)
+// seedChatWithStatus creates a chat with the given status, owned by a new
+// user, and returns the chat and user IDs.
+func seedChatWithStatus(ctx context.Context, t *testing.T, db *sql.DB, status string) (chatID, userID uuid.UUID) {
+	t.Helper()
+	orgID, modelID := uuid.New(), uuid.New()
+	chatID, userID = uuid.New(), uuid.New()
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+			VALUES ($1, 'org-queue', 'org-queue', '', now(), now(), '{}')`, []any{orgID}},
+		{`INSERT INTO users (id, email, username, hashed_password, created_at, updated_at)
+			VALUES ($1, 'queue@example.com', 'queue', '\x', now(), now())`, []any{userID}},
+		{`INSERT INTO chat_model_configs (id, organization_id, model, context_limit, compression_threshold, deleted)
+			VALUES ($1, $2, 'model-queue', 1000, 50, true)`, []any{modelID, orgID}},
+		{`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title, status)
+			VALUES ($1, $2, $3, $4, 'chat-queue', $5)`, []any{chatID, userID, orgID, modelID, status}},
+	} {
+		_, err := db.ExecContext(ctx, q.sql, q.args...)
 		require.NoError(t, err)
 	}
-	read := func(query string, r row) (got row) {
-		require.NoError(t, sqlDB.QueryRowContext(ctx, query, ids[r]).Scan(&got.kind, &got.appNameOrPort))
-		return got
-	}
-	migrate := func(file string) {
-		migration, err := os.ReadFile(file)
-		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx, string(migration))
-		require.NoError(t, err)
-	}
+	return chatID, userID
+}
 
-	// Each released type and what the up migration turns it into.
-	converted := map[row]row{
-		{"ssh", sql.NullString{}}:              {"ssh", sql.NullString{}},
-		{"vscode", sql.NullString{}}:           {"ssh", app("vscode")},
-		{"jetbrains", sql.NullString{}}:        {"ssh", app("jetbrains")},
-		{"reconnecting_pty", sql.NullString{}}: {"reconnecting_pty", sql.NullString{}},
-		{"workspace_app", app("code-server")}:  {"workspace_app", app("code-server")},
-		{"port_forwarding", app("8080")}:       {"port_forwarding", app("8080")},
-		{"tunnel", sql.NullString{}}:           {"tunnel", sql.NullString{}},
-	}
-	for old := range converted {
-		insert(insertConnectionLog000616, old)
-	}
-	migrate("000617_connection_logs_method_app_name.up.sql")
-	for old, want := range converted {
-		require.Equal(t, want, read(selectConnectionLog000617, old), old.kind)
-	}
+// startRolledBackMigration runs migrationSQL in a transaction on its own
+// connection and rolls it back. It returns the backend PID and the
+// migration's result, sent after the rollback.
+func startRolledBackMigration(ctx context.Context, t *testing.T, db *sql.DB, migrationSQL []byte) (int, <-chan error) {
+	t.Helper()
+	conn, pid := dedicatedConn(ctx, t, db)
+	return pid, async(func() error {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		// The migration lowers lock_timeout while it takes its locks and
+		// must restore the caller's setting afterwards.
+		_, err = tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'`)
+		if err == nil {
+			_, err = tx.ExecContext(ctx, string(migrationSQL))
+		}
+		if err == nil {
+			var lockTimeout string
+			err = tx.QueryRowContext(ctx, `SHOW lock_timeout`).Scan(&lockTimeout)
+			if err == nil && lockTimeout != "5s" {
+				err = xerrors.Errorf("lock_timeout after migration = %q, want 5s", lockTimeout)
+			}
+		}
+		return errors.Join(err, tx.Rollback())
+	})
+}
 
-	// App names only newer servers write. The down migration folds them into
-	// types with its snapshot of the app registry.
-	folded := map[row]row{
-		{"ssh", app("cursor")}:              {"vscode", sql.NullString{}},
-		{"ssh", app("trae_cn")}:             {"vscode", sql.NullString{}},
-		{"ssh", app("goland")}:              {"jetbrains", sql.NullString{}},
-		{"ssh", app("zed")}:                 {"ssh", sql.NullString{}},
-		{"ssh", app("a_new_ide")}:           {"ssh", sql.NullString{}},
-		{"reconnecting_pty", app("cursor")}: {"reconnecting_pty", sql.NullString{}},
+// requireWaitsFor waits until pid waits for a lock held or requested by
+// blocker.
+func requireWaitsFor(ctx context.Context, t *testing.T, db *sql.DB, pid, blocker int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var blocked bool
+		err := db.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, pid, blocker).Scan(&blocked)
+		return err == nil && blocked
+	}, testutil.WaitMedium, testutil.IntervalFast, "pid %d never waited for pid %d", pid, blocker)
+}
+
+// requireNoDeadlockVictim receives the result from done and fails the
+// test with the deadlock detail if PostgreSQL chose that side as a
+// deadlock victim.
+func requireNoDeadlockVictim(ctx context.Context, t *testing.T, who string, done <-chan error) {
+	t.Helper()
+	err := testutil.TryReceive(ctx, t, done)
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "40P01" {
+		t.Fatalf("%s: %v: %s", who, err, pqErr.Detail)
 	}
-	for current := range folded {
-		insert(insertConnectionLog000617, current)
-	}
-	migrate("000617_connection_logs_method_app_name.down.sql")
-	for old := range converted {
-		require.Equal(t, old, read(selectConnectionLog000616, old), old.kind)
-	}
-	for current, want := range folded {
-		require.Equal(t, want, read(selectConnectionLog000616, current), current.kind+" "+current.appNameOrPort.String)
-	}
+	require.NoError(t, err, who)
 }
