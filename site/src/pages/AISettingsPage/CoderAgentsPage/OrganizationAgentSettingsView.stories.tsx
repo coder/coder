@@ -280,14 +280,6 @@ export const NoModels: Story = {
 	},
 };
 
-export const EmptyInstructions: Story = {
-	args: { systemPrompt: "" },
-};
-
-export const InstructionsWithInvisibleCharacters: Story = {
-	args: { systemPrompt: "Follow the style guide.\u200B\u200B" },
-};
-
 export const InstructionsLoading: Story = {
 	args: { systemPrompt: undefined, isSystemPromptLoading: true },
 };
@@ -309,10 +301,6 @@ export const InstructionsRefetchError: Story = {
 	},
 };
 
-export const SavingInstructions: Story = {
-	args: { isSavingSystemPrompt: true },
-};
-
 export const InstructionsSaveError: Story = {
 	args: {
 		saveSystemPromptError: mockApiError({
@@ -332,8 +320,4 @@ export const InstructionsSaveError: Story = {
 
 export const ReadOnlyInstructions: Story = {
 	args: { canEdit: false },
-};
-
-export const InstructionsHidden: Story = {
-	args: { canViewInstructions: false },
 };
