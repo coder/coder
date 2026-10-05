@@ -448,10 +448,8 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			logger.Critical(context.Background(), "failed to convert proto node to tailcfg", slog.F("node_proto", update.Node))
 			return false
 		}
+		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node))
 		node.KeepAlive = c.nodeKeepalive(lc, status, node)
-		// Log a copy: node becomes lc.node and is mutated later under c.L, but a
-		// flight recorder may format the entry after c.L is released.
-		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node.Clone()))
 	}
 	switch {
 	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
@@ -496,9 +494,15 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lc.readyForHandshakeTimer.Stop()
 		}
 		if lc.node != nil {
-			old := lc.node.KeepAlive
-			lc.node.KeepAlive = c.nodeKeepalive(lc, status, lc.node)
-			dirty = dirty || (old != lc.node.KeepAlive)
+			// Replace rather than mutate: a stored node is shared outside c.L
+			// (log entries in a flight recorder, peer diagnostics), so it must not
+			// change after it is stored.
+			if keepAlive := c.nodeKeepalive(lc, status, lc.node); keepAlive != lc.node.KeepAlive {
+				next := lc.node.Clone()
+				next.KeepAlive = keepAlive
+				lc.node = next
+				dirty = true
+			}
 		}
 		logger.Debug(context.Background(), "peer ready for handshake")
 		// only force a reconfig if the node populated
