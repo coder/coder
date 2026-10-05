@@ -13,7 +13,7 @@ describe("buildAgentChatPath", () => {
 
 describe("buildAgentProjectPath", () => {
 	it("encodes project IDs as a path segment", () => {
-		expect(buildAgentProjectPath("project/id")).toBe(
+		expect(buildAgentProjectPath({ projectId: "project/id" })).toBe(
 			"/agents/projects/project%2Fid",
 		);
 	});

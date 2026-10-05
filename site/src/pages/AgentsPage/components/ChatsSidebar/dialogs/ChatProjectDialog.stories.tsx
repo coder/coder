@@ -42,10 +42,9 @@ export const Submitting: Story = {
 
 export const SaveError: Story = {
 	args: {
-		project: MockChatProject,
 		error: mockApiError({
-			message: "You can have at most 100 chat projects.",
-			detail: "Delete a project before creating another.",
+			message:
+				"You can have at most 100 chat projects. Delete a project to create another.",
 		}),
 	},
 };

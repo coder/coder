@@ -14,7 +14,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { getFormHelpers } from "#/utils/formUtils";
+import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 
 export type ChatProjectFormValues = {
 	name: string;
@@ -22,37 +22,61 @@ export type ChatProjectFormValues = {
 	icon: string;
 };
 
-const nameMaxLength = 64;
-const descriptionMaxLength = 1024;
-const iconMaxLength = 256;
+// Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
+const nameMaxChars = 64;
+const descriptionMaxChars = 1024;
+const iconMaxChars = 256;
 
-// The server counts characters as code points, so an emoji counts once here
-// too. Yup's max() and the native maxLength attribute count UTF-16 units.
+// Counts code points, as the server does. Yup's max() and native maxLength
+// count UTF-16 units.
+const countCharacters = (value: unknown) => [...String(value ?? "")].length;
+
 const maxCharacters = (label: string, max: number) =>
-	Yup.string().test(
-		"max-characters",
-		`${label} cannot be longer than ${max} characters.`,
-		(value = "") => [...value].length <= max,
-	);
+	Yup.string()
+		.trim()
+		.test(
+			"max-characters",
+			`${label} cannot be longer than ${max} characters.`,
+			(value) => countCharacters(value) <= max,
+		);
 
 const validationSchema = Yup.object({
-	name: maxCharacters("Name", nameMaxLength)
-		.trim()
-		.required("Name is required."),
-	description: maxCharacters("Description", descriptionMaxLength),
-	icon: maxCharacters("Icon", iconMaxLength),
+	name: maxCharacters("Name", nameMaxChars).required("Name is required."),
+	description: maxCharacters("Description", descriptionMaxChars),
+	icon: maxCharacters("Icon", iconMaxChars),
 });
+
+const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
+	name: values.name.trim(),
+	description: values.description.trim(),
+	icon: values.icon.trim(),
+});
+
+// Mirrors the live counter getFormHelpers shows for maxLength, counting code
+// points, so an over-limit value is explained before the field loses focus.
+const withCharacterCount = (field: FormHelpers, max: number): FormHelpers => {
+	const count = countCharacters(field.value);
+	if (count <= max - 30) {
+		return field;
+	}
+	const message = `This cannot be longer than ${max} characters. (${count}/${max})`;
+	if (count > max) {
+		return { ...field, error: true, helperText: message };
+	}
+	return field.error ? field : { ...field, helperText: message };
+};
 
 type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSubmitting: boolean;
-	readonly error: unknown;
 	/**
-	 * Receives every field, trimmed. Editing sends all three, so it replaces
-	 * the stored name, description, and icon.
+	 * The save error. The caller's mutation outlives the dialog, so reset it
+	 * (for example with `mutation.reset()`) before opening.
 	 */
+	readonly error: unknown;
+	/** Receives all three fields, trimmed, including unchanged ones on edit. */
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
@@ -110,20 +134,23 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		},
 		validateOnMount: true,
 		validationSchema,
-		onSubmit: (values) => {
-			onSubmit({
-				name: values.name.trim(),
-				description: values.description.trim(),
-				icon: values.icon.trim(),
-			});
-		},
+		onSubmit: (values) => onSubmit(trimValues(values)),
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
-	const nameField = getFieldHelpers("name");
-	const descriptionField = getFieldHelpers("description");
+	const nameField = withCharacterCount(getFieldHelpers("name"), nameMaxChars);
+	const descriptionField = withCharacterCount(
+		getFieldHelpers("description"),
+		descriptionMaxChars,
+	);
 	const iconField = getFieldHelpers("icon");
+	const trimmed = trimValues(form.values);
 	// An unchanged edit would still bump updated_at and write an audit entry.
-	const canSave = form.isValid && (!project || form.dirty) && !isSubmitting;
+	const isUnchanged =
+		project !== undefined &&
+		trimmed.name === project.name &&
+		trimmed.description === project.description &&
+		trimmed.icon === project.icon;
+	const canSave = form.isValid && !isUnchanged && !isSubmitting;
 
 	return (
 		<>
