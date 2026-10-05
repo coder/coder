@@ -87,13 +87,9 @@ func TestUpLogging(t *testing.T) {
 		}
 
 		sink := testutil.NewFakeSink(t)
-		require.Error(t, migrations.UpWithFSAndLogger(ctx, db, bad, sink.Logger(slog.LevelInfo)))
-
-		failed := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "database migration failed" })
-		require.Len(t, failed, 1)
-		require.Equal(t, slog.LevelError, failed[0].Level)
-		require.Equal(t, 3, field(failed[0], "version"))
-		require.Equal(t, "broken", field(failed[0], "name"))
+		err := migrations.UpWithFSAndLogger(ctx, db, bad, sink.Logger(slog.LevelInfo))
+		require.ErrorContains(t, err, "migration 3 (broken)")
+		require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Level >= slog.LevelError }))
 
 		rolledBack := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "rolled back database migrations" })
 		require.Len(t, rolledBack, 1)

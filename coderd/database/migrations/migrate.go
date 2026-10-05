@@ -183,14 +183,11 @@ func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (ret
 		return nil
 	}
 
-	failFields := []slog.Field{slog.Error(err)}
+	// The returned error is logged by the caller, so name the failed migration
+	// in it rather than logging the failure separately.
 	if dbDriver.inFlight >= 0 {
-		failFields = append(failFields,
-			slog.F("version", dbDriver.inFlight),
-			slog.F("name", dbDriver.migrationName(dbDriver.inFlight)),
-		)
+		err = xerrors.Errorf("migration %d (%s): %w", dbDriver.inFlight, dbDriver.migrationName(dbDriver.inFlight), err)
 	}
-	logger.Error(ctx, "database migration failed", failFields...)
 
 	// Nothing was written in the migration transaction, or the lock was never
 	// acquired, so there is no commit outcome to report.
