@@ -2983,6 +2983,92 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	require.NotNil(t, snapshot[statusIdx].Status)
 }
 
+// TestReadSkillResolvesPersonalSkill runs a turn in which the model calls
+// read_skill with a personal skill's index alias, and checks that the tool
+// serves the personal skill body.
+func TestReadSkillResolvesPersonalSkill(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		skillName = "personal-review"
+		skillBody = "Follow the personal review checklist."
+	)
+
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Personal skill test")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("read_skill", `{"name":"`+skillName+`"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Done.")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	//nolint:gocritic // Test seeds a user-owned row; ctx carries no per-user actor.
+	_, err := db.InsertUserSkill(dbauthz.AsSystemRestricted(ctx), database.InsertUserSkillParams{
+		ID:          uuid.New(),
+		UserID:      user.ID,
+		Name:        skillName,
+		Description: "Personal review process",
+		Content:     "---\nname: " + skillName + "\ndescription: Personal review process\n---\n" + skillBody + "\n",
+	})
+	require.NoError(t, err)
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "personal-read-skill",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Use my review skill."),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var toolMessage *database.ChatMessage
+	for i := range messages {
+		if messages[i].Role == database.ChatMessageRoleTool {
+			toolMessage = &messages[i]
+			break
+		}
+	}
+	require.NotNil(t, toolMessage, "read_skill should have produced a tool result")
+
+	parts, err := chatprompt.ParseContent(*toolMessage)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, "read_skill", parts[0].ToolName)
+	require.False(t, parts[0].IsError, string(parts[0].Result))
+	require.Contains(t, string(parts[0].Result), skillBody)
+}
+
 func TestPersistToolResultWithBinaryData(t *testing.T) {
 	t.Parallel()
 

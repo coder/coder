@@ -3721,32 +3721,6 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 }
 
-func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
-	if len(workspaceSkills) == 0 {
-		return nil
-	}
-	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
-	for _, skill := range workspaceSkills {
-		resolved = append(resolved, skillspkg.Skill{
-			Name:        skill.Name,
-			Description: skill.Description,
-			Source:      skillspkg.SourceWorkspace,
-		})
-	}
-	return resolved
-}
-
-func mergeTurnSkills(
-	personalSkills []skillspkg.Skill,
-	workspaceSkills []chattool.SkillMeta,
-) []skillspkg.ResolvedSkill {
-	return skillspkg.MergeSkills(
-		personalSkills,
-		workspaceSkillsForResolution(workspaceSkills),
-		nil,
-	)
-}
-
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
 // user prompt, then mode overlay prompts.

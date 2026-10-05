@@ -2411,8 +2411,8 @@ export interface ChatContext {
 	 */
 	readonly error?: string;
 	/**
-	 * Resources is the chat's pinned context (instruction files and
-	 * skills) the prompt is built from, metadata only (no bodies). It is
+	 * Resources lists the chat's pinned context resources of the kinds
+	 * ChatContextResourceKind describes, metadata only (no bodies). It is
 	 * populated only on the single-chat GET response; list and watch
 	 * payloads leave it nil to stay lightweight.
 	 */
@@ -2451,7 +2451,9 @@ export interface ChatContextResource {
 	/**
 	 * Source is the resource locator: the canonical file path for an
 	 * instruction file, the skill directory for a skill, the file path for
-	 * an MCP config, or the server name for an MCP server.
+	 * an MCP config, the server name for an MCP server
+	 * ("<plugin_name>/<server_name>" for a plugin's server), or the plugin
+	 * root directory for a plugin.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
@@ -2465,6 +2467,13 @@ export interface ChatContextResource {
 	readonly skill_name?: string;
 	readonly skill_description?: string;
 	/**
+	 * PluginName is the owning Agent Plugin's name. It is the manifest name
+	 * on OK plugin rows, empty on non-OK plugin rows, and the attributing
+	 * plugin on skill and mcp_server rows shipped inside a plugin, in every
+	 * status; empty otherwise.
+	 */
+	readonly plugin_name?: string;
+	/**
 	 * Tools lists the tools exposed by an MCP server. Populated only for the
 	 * mcp_server kind; nil otherwise.
 	 */
@@ -2473,7 +2482,9 @@ export interface ChatContextResource {
 	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
 	 * oversize, excluded) are still reported so the UI can surface why a
 	 * resource was dropped from the prompt instead of silently omitting it;
-	 * their body-specific fields (skill name, tools) are empty.
+	 * their body-specific fields (skill name, tools) are empty, but
+	 * plugin_name is still set on skill and mcp_server rows shipped by a
+	 * plugin.
 	 */
 	readonly status: ChatContextResourceStatus;
 	/**
@@ -2488,12 +2499,14 @@ export type ChatContextResourceKind =
 	| "instruction_file"
 	| "mcp_config"
 	| "mcp_server"
+	| "plugin"
 	| "skill";
 
 export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"instruction_file",
 	"mcp_config",
 	"mcp_server",
+	"plugin",
 	"skill",
 ];
 

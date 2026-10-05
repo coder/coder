@@ -1961,7 +1961,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 		nil,
 		"",
 		"",
-		mergeTurnSkills(
+		chattool.MergePinnedSkills(
 			[]skillspkg.Skill{{
 				Name:        "personal-review",
 				Description: "Personal review process",
@@ -1983,7 +1983,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	resolved := mergeTurnSkills(
+	resolved := chattool.MergePinnedSkills(
 		[]skillspkg.Skill{{
 			Name:        "deploy",
 			Description: "Personal deployment process",
