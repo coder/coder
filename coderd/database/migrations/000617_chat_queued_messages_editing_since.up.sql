@@ -1,3 +1,33 @@
+-- Take the lock this migration needs before changing anything. Coder runs
+-- pending migrations while chatd may still use the chat tables, and an
+-- ALTER waiting for ACCESS EXCLUSIVE on chat_queued_messages behind an open
+-- application transaction would make every new reader of the queue wait
+-- behind it. Each attempt waits briefly; if the wait times out, the attempt
+-- releases what it took and tries again. No statement below locks chats.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			-- Well below the default deadlock_timeout of 1s, so this
+			-- transaction gives up before PostgreSQL can choose an
+			-- application transaction as the deadlock victim.
+			PERFORM set_config('lock_timeout', '100ms', true);
+			LOCK TABLE chat_queued_messages IN ACCESS EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000617 could not lock chat_queued_messages within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
+
 -- 'paused': a turn finished at a queued message under edit.
 ALTER TYPE chat_status ADD VALUE IF NOT EXISTS 'paused';
 
