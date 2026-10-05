@@ -313,7 +313,7 @@ const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
  * handling; otherwise the function falls back to iterating by
  * codepoint which still avoids splitting surrogate pairs.
  */
-function sliceAtGraphemeBoundary(
+export function sliceAtGraphemeBoundary(
 	text: string,
 	maxCodeUnitLength: number,
 ): string {
@@ -357,6 +357,17 @@ function sliceAtGraphemeBoundary(
 	}
 
 	return text.slice(0, safeEnd);
+}
+
+/**
+ * Slice a string to its first {@link maxGraphemes} grapheme clusters,
+ * counting codepoints when the `Intl.Segmenter` API is unavailable.
+ */
+export function sliceGraphemes(text: string, maxGraphemes: number): string {
+	const graphemes = graphemeSegmenter
+		? Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment)
+		: Array.from(text);
+	return graphemes.slice(0, maxGraphemes).join("");
 }
 
 export function useSmoothStreamingText(
