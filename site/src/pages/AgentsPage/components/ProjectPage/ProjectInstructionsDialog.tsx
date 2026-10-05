@@ -49,6 +49,7 @@ export const ProjectInstructionsDialog: React.FC<
 			<DialogContent>
 				<ProjectInstructionsForm
 					{...formProps}
+					open={open}
 					onCancel={() => handleOpenChange(false)}
 				/>
 			</DialogContent>
@@ -58,12 +59,13 @@ export const ProjectInstructionsDialog: React.FC<
 
 type ProjectInstructionsFormProps = Omit<
 	ProjectInstructionsDialogProps,
-	"open" | "onOpenChange"
+	"onOpenChange"
 > & {
 	readonly onCancel: () => void;
 };
 
 const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
+	open,
 	instructions,
 	isSaving,
 	isDeleting,
@@ -75,12 +77,18 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	onCancel,
 }) => {
 	const textareaId = useId();
-	// A refetch can change the saved instructions while the editor is open.
-	// Compare against the value the user started from, so an incoming
-	// update never looks like a local edit that Save would overwrite.
-	const [initialInstructions] = useState(instructions);
-	const [draft, setDraft] = useState(initialInstructions);
-	const isEditing = initialInstructions !== "";
+	// The saved instructions the draft is based on. A refetch can change
+	// the saved instructions while the editor is open (another user edited
+	// them); Save stays blocked until the user either loads the latest
+	// version or keeps their draft, so a stale draft never silently
+	// overwrites the newer instructions.
+	const [baseInstructions, setBaseInstructions] = useState(instructions);
+	const [draft, setDraft] = useState(baseInstructions);
+	// The content stays mounted during the close animation, after a
+	// successful save or delete has already updated the instructions, so
+	// only a change that arrives while the dialog is open is a conflict.
+	const hasConflict = open && instructions !== baseInstructions;
+	const isEditing = baseInstructions !== "";
 	const isBusy = isSaving || isDeleting;
 	const invisibleCharCount = countInvisibleCharacters(draft);
 	// Only the latest action's error is set, so at most one of these is.
@@ -96,7 +104,8 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	const visibleDraft = removeInvisibleCharacters(draft).trim();
 	const canSave =
 		visibleDraft !== "" &&
-		visibleDraft !== initialInstructions.trim() &&
+		visibleDraft !== baseInstructions.trim() &&
+		!hasConflict &&
 		!isBusy;
 
 	return (
@@ -133,6 +142,41 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				minRows={6}
 				autoFocus
 			/>
+			{hasConflict && (
+				<Alert
+					severity="warning"
+					actions={
+						<div className="flex gap-2">
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								disabled={isBusy}
+								onClick={() => setBaseInstructions(instructions)}
+							>
+								Keep my draft
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								disabled={isBusy}
+								onClick={() => {
+									setBaseInstructions(instructions);
+									setDraft(instructions);
+									onDraftChange();
+								}}
+							>
+								Load latest
+							</Button>
+						</div>
+					}
+				>
+					<AlertDescription>
+						Someone else changed these instructions while you were editing. Load
+						the latest version, or keep your draft to replace it.
+					</AlertDescription>
+				</Alert>
+			)}
 			{invisibleCharCount > 0 && (
 				<Alert severity="warning">
 					<AlertDescription>

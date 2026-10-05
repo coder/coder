@@ -6,7 +6,11 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { focusManager, QueryClientProvider } from "react-query";
+import {
+	focusManager,
+	type QueryClient,
+	QueryClientProvider,
+} from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
@@ -29,6 +33,27 @@ const mockInstructions = (instructions: ChatProjectInstructions) =>
 	vi
 		.spyOn(API.experimental, "getChatProjectInstructions")
 		.mockResolvedValue(instructions);
+
+/** Simulates a focus refetch that returns instructions saved elsewhere. */
+const refetchWith = async (
+	getInstructions: ReturnType<typeof mockInstructions>,
+	queryClient: QueryClient,
+	instructions: string,
+) => {
+	getInstructions.mockResolvedValue({
+		...MockChatProjectInstructions,
+		instructions,
+	});
+	act(() => {
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+	});
+	await waitFor(() =>
+		expect(
+			queryClient.getQueryData(chatProjectInstructionsKey(MockChatProject.id)),
+		).toMatchObject({ instructions }),
+	);
+};
 
 const renderPanel = (project: ChatProject = MockChatProject) => {
 	const queryClient = createTestQueryClient();
@@ -285,19 +310,11 @@ describe("ProjectDetailsPanel", () => {
 
 	it("refetches the instructions when the window regains focus", async () => {
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
-		const { user } = renderPanel();
+		const { user, queryClient } = renderPanel();
 		await screen.findByRole("button", { name: "Edit" });
 
 		// Another editor changed the instructions while this tab was hidden.
-		getInstructions.mockResolvedValue({
-			...MockChatProjectInstructions,
-			instructions: "Edited in another tab.",
-		});
-		act(() => {
-			focusManager.setFocused(false);
-			focusManager.setFocused(true);
-		});
-		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
+		await refetchWith(getInstructions, queryClient, "Edited in another tab.");
 
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		await waitFor(() =>
@@ -307,30 +324,48 @@ describe("ProjectDetailsPanel", () => {
 		);
 	});
 
-	it("keeps Save disabled when a refetch changes the instructions under an unedited draft", async () => {
+	it("blocks Save until the user resolves a refetch that changed the instructions", async () => {
+		const updateInstructions = vi
+			.spyOn(API.experimental, "updateChatProjectInstructions")
+			.mockResolvedValue(MockChatProjectInstructions);
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		const textbox = screen.getByRole("textbox", { name: "Instructions" });
+		await user.type(textbox, " My edit.");
 
-		getInstructions.mockResolvedValue({
-			...MockChatProjectInstructions,
-			instructions: "Edited in another tab.",
-		});
-		act(() => {
-			focusManager.setFocused(false);
-			focusManager.setFocused(true);
-		});
-		await waitFor(() =>
-			expect(
-				queryClient.getQueryData(
-					chatProjectInstructionsKey(MockChatProject.id),
-				),
-			).toMatchObject({ instructions: "Edited in another tab." }),
+		// Another editor changed the instructions while this one was open.
+		await refetchWith(getInstructions, queryClient, "Edited in another tab.");
+
+		const saveButton = screen.getByRole("button", { name: "Save" });
+		expect(saveButton).toBeDisabled();
+		await user.type(textbox, " More.");
+		expect(saveButton).toBeDisabled();
+
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		await user.click(saveButton);
+		expect(updateInstructions).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+			{
+				instructions: `${MockChatProjectInstructions.instructions} My edit. More.`,
+			},
+		);
+	});
+
+	it("replaces the draft with refetched instructions on request", async () => {
+		const getInstructions = mockInstructions(MockChatProjectInstructions);
+		const { user, queryClient } = renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		const textbox = screen.getByRole("textbox", { name: "Instructions" });
+		await user.type(textbox, " My edit.");
+
+		await refetchWith(getInstructions, queryClient, "Edited in another tab.");
+		await user.click(
+			await screen.findByRole("button", { name: "Load latest" }),
 		);
 
-		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-			MockChatProjectInstructions.instructions,
-		);
+		expect(textbox).toHaveValue("Edited in another tab.");
 		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 	});
 

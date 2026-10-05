@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useState } from "react";
 import { fn } from "storybook/test";
 import {
 	MockChatProjectInstructions,
@@ -57,5 +58,17 @@ export const Deleting: Story = {
 	args: {
 		instructions: MockChatProjectInstructions.instructions,
 		isDeleting: true,
+	},
+};
+
+/** Another user saved new instructions while this editor was open. */
+export const Conflict: Story = {
+	args: { instructions: MockChatProjectInstructions.instructions },
+	render: function ConflictStory(args) {
+		const [instructions, setInstructions] = useState(args.instructions);
+		useEffect(() => {
+			setInstructions("Edited in another tab.");
+		}, []);
+		return <ProjectInstructionsDialog {...args} instructions={instructions} />;
 	},
 };
