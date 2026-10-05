@@ -21670,6 +21670,10 @@ const docTemplate = `{
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatContextResourceKind"
                 },
+                "plugin_name": {
+                    "description": "PluginName is the owning Agent Plugin's name. Set on OK plugin rows\nand on skill and mcp_server rows shipped by a plugin, in any status.",
+                    "type": "string"
+                },
                 "size_bytes": {
                     "description": "SizeBytes is the original payload size in bytes.",
                     "type": "integer"
@@ -21682,7 +21686,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, the server name for an MCP server, or an ACP harness slug.",
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, the server name for an MCP server\n(\"\u003cplugin_name\u003e/\u003cserver_name\u003e\" for a plugin's server), the plugin\nroot directory for a plugin, or an ACP harness slug.",
                     "type": "string"
                 },
                 "source_path": {
@@ -21713,14 +21717,16 @@ const docTemplate = `{
                 "skill",
                 "mcp_config",
                 "mcp_server",
-                "acp_harness"
+                "acp_harness",
+                "plugin"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
                 "ChatContextResourceKindSkill",
                 "ChatContextResourceKindMCPConfig",
                 "ChatContextResourceKindMCPServer",
-                "ChatContextResourceKindACPHarness"
+                "ChatContextResourceKindACPHarness",
+                "ChatContextResourceKindPlugin"
             ]
         },
         "codersdk.ChatContextResourceStatus": {
@@ -22082,6 +22088,10 @@ const docTemplate = `{
                 "skill_name": {
                     "type": "string"
                 },
+                "skill_plugin_name": {
+                    "description": "SkillPluginName is required when SkillSource is\nChatSkillSourcePlugin and must be empty otherwise.",
+                    "type": "string"
+                },
                 "skill_source": {
                     "description": "The following fields are only set when Type is\nChatInputPartTypeSkillInvocation. The server loads the skill\nas the chat owner when the message is sent.",
                     "allOf": [
@@ -22317,6 +22327,10 @@ const docTemplate = `{
                 },
                 "skill_name": {
                     "description": "SkillName is the kebab-case name of the skill.",
+                    "type": "string"
+                },
+                "skill_plugin_name": {
+                    "description": "SkillPluginName is the Agent Plugin that ships the invoked skill.\nSet only when SkillSource is ChatSkillSourcePlugin.",
                     "type": "string"
                 },
                 "skill_source": {
@@ -23428,13 +23442,15 @@ const docTemplate = `{
                 "personal",
                 "org",
                 "project",
-                "workspace"
+                "workspace",
+                "plugin"
             ],
             "x-enum-varnames": [
                 "ChatSkillSourcePersonal",
                 "ChatSkillSourceOrganization",
                 "ChatSkillSourceProject",
-                "ChatSkillSourceWorkspace"
+                "ChatSkillSourceWorkspace",
+                "ChatSkillSourcePlugin"
             ]
         },
         "codersdk.ChatStatus": {

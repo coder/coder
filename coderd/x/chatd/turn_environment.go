@@ -399,7 +399,7 @@ func (p *Server) buildTurnEnvironment(
 		inlineMCPTools      []fantasy.AgentTool
 		inlineMCPSummaries  []mcpclient.ConnectSummary
 		workspaceMCPTools   []fantasy.AgentTool
-		workspaceSkills     []chattool.SkillMeta
+		pinnedSkills        []chattool.SkillMeta
 		personalSkills      []skillspkg.Skill
 		orgSkills           []skillspkg.Skill
 		orgSkillReader      rbac.Subject
@@ -462,7 +462,7 @@ func (p *Server) buildTurnEnvironment(
 		p.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = p.resolveTurnWorkspaceContext(ctx, chat, agent)
+		instruction, pinnedSkills, resolveErr = p.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
 			return turnEnvironment{}, resolveErr
 		}
@@ -661,13 +661,7 @@ func (p *Server) buildTurnEnvironment(
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
 	}
-	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, orgSkills, projectSkills, workspaceSkills)
-	}
-	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
-		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
-	}
-	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	initialResolvedSkills := chattool.MergePinnedSkills(personalSkills, orgSkills, projectSkills, pinnedSkills)
 	memoryStore, memoryProjectName, hasMemory := p.resolveProjectMemory(ctx, chat)
 	memoryIndex := ""
 	if hasMemory {
@@ -752,9 +746,11 @@ func (p *Server) buildTurnEnvironment(
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		GetSkills: func() []chattool.SkillMeta {
-			return workspaceSkills
+			return pinnedSkills
 		},
-		ResolveAlias: resolveSkillAlias,
+		PersonalSkills:     personalSkills,
+		OrganizationSkills: orgSkills,
+		ProjectSkills:      projectSkills,
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
@@ -767,7 +763,7 @@ func (p *Server) buildTurnEnvironment(
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(pinnedSkills) == 0 {
 			return current, false
 		}
 		updated := current
@@ -786,7 +782,7 @@ func (p *Server) buildTurnEnvironment(
 			updated = append(updated, tool)
 		}
 		appendTool(chattool.ReadSkill(skillOpts))
-		if len(workspaceSkills) > 0 {
+		if len(pinnedSkills) > 0 {
 			appendTool(chattool.ReadSkillFile(skillOpts))
 		}
 		return updated, changed
@@ -2130,35 +2126,6 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
-}
-
-func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
-	if len(workspaceSkills) == 0 {
-		return nil
-	}
-	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
-	for _, skill := range workspaceSkills {
-		resolved = append(resolved, skillspkg.Skill{
-			Name:        skill.Name,
-			Description: skill.Description,
-			Source:      skillspkg.SourceWorkspace,
-		})
-	}
-	return resolved
-}
-
-func mergeTurnSkills(
-	personalSkills []skillspkg.Skill,
-	organizationSkills []skillspkg.Skill,
-	projectSkills []skillspkg.Skill,
-	workspaceSkills []chattool.SkillMeta,
-) []skillspkg.ResolvedSkill {
-	return skillspkg.MergeSkills(
-		skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: personalSkills},
-		skillspkg.SourceSkills{Source: skillspkg.SourceOrganization, Skills: organizationSkills},
-		skillspkg.SourceSkills{Source: skillspkg.SourceProject, Skills: projectSkills},
-		skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: workspaceSkillsForResolution(workspaceSkills)},
-	)
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
