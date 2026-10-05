@@ -1970,6 +1970,7 @@ func TestMemoryInSystemPrompt(t *testing.T) {
 		"chat instruction",
 		nil,
 		"<memory>\n- release: Release process\n</memory>",
+		"",
 		"user prompt",
 		systemPromptBehaviorContext{},
 	)
@@ -1977,6 +1978,26 @@ func TestMemoryInSystemPrompt(t *testing.T) {
 	memoryIndex := strings.Index(text, "<memory>")
 	require.Greater(t, memoryIndex, strings.Index(text, "chat instruction"))
 	require.Less(t, memoryIndex, strings.Index(text, "user prompt"))
+}
+
+func TestProjectInstructionsInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"chat instruction",
+		nil,
+		"<memory>\n- release: Release process\n</memory>",
+		formatProjectInstructions("Reply in French."),
+		"user prompt",
+		systemPromptBehaviorContext{},
+	)
+	text := systemPromptText(t, prompt)
+	projectIndex := strings.Index(text, "<project-instructions>\nReply in French.\n</project-instructions>")
+	require.Greater(t, projectIndex, strings.Index(text, "<memory>"))
+	// Personal instructions come last so they win over project ones.
+	require.Less(t, projectIndex, strings.Index(text, "user prompt"))
 }
 
 func TestPersonalSkillsInSystemPrompt(t *testing.T) {
@@ -1994,6 +2015,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 		),
+		"",
 		"",
 		"",
 		systemPromptBehaviorContext{},
@@ -2025,6 +2047,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 		"",
 		"",
 		resolved,
+		"",
 		"",
 		"",
 		systemPromptBehaviorContext{},

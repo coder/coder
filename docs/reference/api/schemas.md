@@ -4758,6 +4758,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `owner_id`        | string | false    |              |                                                                                               |
 | `updated_at`      | string | false    |              |                                                                                               |
 
+## codersdk.ChatProjectInstructions
+
+```json
+{
+  "instructions": "string",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                         | Required | Restrictions | Description                                                                                                                  |
+|----------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `instructions` | string                                       | false    |              |                                                                                                                              |
+| `project_id`   | string                                       | false    |              |                                                                                                                              |
+| `updated_at`   | string                                       | false    |              |                                                                                                                              |
+| `updated_by`   | [codersdk.MinimalUser](#codersdkminimaluser) | false    |              | Updated by is the user who last changed the instructions. It is nil when the instructions are unset or the user was deleted. |
+
 ## codersdk.ChatProjectMemory
 
 ```json
@@ -16317,6 +16342,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                     | Type   | Required | Restrictions | Description |
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.UpdateChatProjectInstructionsRequest
+
+```json
+{
+  "instructions": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `instructions` | string | true     |              |             |
 
 ## codersdk.UpdateChatProjectRequest
 

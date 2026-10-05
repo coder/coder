@@ -163,6 +163,7 @@ type sqlcQuerier interface {
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (int64, error)
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -542,6 +543,7 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
@@ -1770,6 +1772,7 @@ type sqlcQuerier interface {
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
+	UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
