@@ -1922,7 +1922,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 }
 
 // ChatWithDiffStatuses converts a chat with its per-ref diff status
-// list. diffStatus is the primary shown in the legacy diff_status field.
+// list. diffStatus is the primary shown in the diff_status field.
 func ChatWithDiffStatuses(
 	c database.Chat,
 	diffStatus *database.ChatDiffStatus,
@@ -2209,7 +2209,7 @@ func ChildChatRows(
 	for i, row := range children {
 		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = ChatWithDiffStatuses(row.Chat, firstChatDiffStatus(statuses), statuses, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2241,7 +2241,7 @@ func ChatRowsWithChildren(
 	for i, row := range roots {
 		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = ChatWithDiffStatuses(row.Chat, firstChatDiffStatus(statuses), statuses, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2350,13 +2350,22 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	return result
 }
 
-// firstChatDiffStatus returns the primary status row of a chat. The
-// status list is ordered newest first, so the first row is the primary.
-func firstChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+// PrimaryChatDiffStatus returns the row with the most recent git
+// report, or nil when statuses is empty. Only a git report sets
+// updated_at. Ties go to the lowest origin, then the lowest branch.
+func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
 	if len(statuses) == 0 {
 		return nil
 	}
-	return &statuses[0]
+
+	primary := slices.MinFunc(statuses, func(a, b database.ChatDiffStatus) int {
+		return cmp.Or(
+			b.UpdatedAt.Compare(a.UpdatedAt),
+			cmp.Compare(a.GitRemoteOrigin, b.GitRemoteOrigin),
+			cmp.Compare(a.GitBranch, b.GitBranch),
+		)
+	})
+	return &primary
 }
 
 // UserSecret converts a database ListUserSecretsRow (metadata only,

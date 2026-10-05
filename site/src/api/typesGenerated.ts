@@ -2034,6 +2034,10 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 }
 
 // From codersdk/chats.go
+/**
+ * ChangedDiffStatus is the diff status of one ref after a change.
+ * When the ref has no stored status, Status has only chat_id.
+ */
 export interface ChangedDiffStatus {
 	readonly ref: DiffStatusRef;
 	readonly status: ChatDiffStatus | null;
@@ -2079,11 +2083,15 @@ export interface Chat {
 	 */
 	readonly summary: string | null;
 	/**
-	 * DiffStatus is the primary pull request, picked by the server.
-	 * @deprecated use DiffStatuses, which lists every pull request
-	 * the chat tracks.
+	 * DiffStatus is the primary pull request. It is the ref with the
+	 * most recent git report.
 	 */
 	readonly diff_status?: ChatDiffStatus;
+	/**
+	 * DiffStatuses lists every ref the chat tracks. The order is
+	 * stable and follows the first report of each ref. DiffStatus
+	 * marks the primary.
+	 */
 	readonly diff_statuses?: readonly ChatDiffStatus[];
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -3970,6 +3978,11 @@ export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
+	/**
+	 * ChangedDiffStatus is set when Kind is
+	 * ChatWatchEventKindDiffStatusChange. It identifies the ref that
+	 * changed.
+	 */
 	readonly changed_diff_status?: ChangedDiffStatus;
 }
 
@@ -5376,6 +5389,10 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 ];
 
 // From codersdk/chats.go
+/**
+ * DiffStatusRef identifies one ref that a chat tracks. A chat has
+ * one diff status for each ref.
+ */
 export interface DiffStatusRef {
 	readonly remote_origin: string;
 	readonly git_branch: string;

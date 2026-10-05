@@ -20742,7 +20742,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "diff_status": {
-                    "description": "DiffStatus is the primary pull request, picked by the server.\nDeprecated: use DiffStatuses, which lists every pull request\nthe chat tracks.",
+                    "description": "DiffStatus is the primary pull request. It is the ref with the\nmost recent git report.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatDiffStatus"
@@ -20750,6 +20750,7 @@ const docTemplate = `{
                     ]
                 },
                 "diff_statuses": {
+                    "description": "DiffStatuses lists every ref the chat tracks. The order is\nstable and follows the first report of each ref. DiffStatus\nmarks the primary.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatDiffStatus"
@@ -23016,7 +23017,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "changed_diff_status": {
-                    "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                    "description": "ChangedDiffStatus is set when Kind is\nChatWatchEventKindDiffStatusChange. It identifies the ref that\nchanged.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                        }
+                    ]
                 },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"

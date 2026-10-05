@@ -3356,8 +3356,8 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 			break
 		}
 	}
-	if len(dbStatuses) > 0 {
-		sdk := db2sdk.ChatDiffStatus(chatID, &dbStatuses[0])
+	if primaryRow := db2sdk.PrimaryChatDiffStatus(dbStatuses); primaryRow != nil {
+		sdk := db2sdk.ChatDiffStatus(chatID, primaryRow)
 		primary = &sdk
 	}
 	if changed == nil {

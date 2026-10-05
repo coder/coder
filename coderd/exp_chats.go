@@ -1683,11 +1683,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	var primary *database.ChatDiffStatus
-	if len(diffStatuses) > 0 {
-		primary = &diffStatuses[0]
-	}
-	sdkChat := db2sdk.ChatWithDiffStatuses(chat, primary, diffStatuses, chatFiles)
+	sdkChat := db2sdk.ChatWithDiffStatuses(chat, db2sdk.PrimaryChatDiffStatus(diffStatuses), diffStatuses, chatFiles)
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -4440,10 +4436,12 @@ func selectChatDiffStatus(
 	selector codersdk.DiffStatusRef,
 ) (database.ChatDiffStatus, bool) {
 	if selector.RemoteOrigin == "" && selector.GitBranch == "" {
-		if len(statuses) == 0 {
+		primary := db2sdk.PrimaryChatDiffStatus(statuses)
+		if primary == nil {
 			return database.ChatDiffStatus{}, false
 		}
-		return statuses[0], true
+
+		return *primary, true
 	}
 	for i := range statuses {
 		if statuses[i].GitRemoteOrigin == selector.RemoteOrigin && statuses[i].GitBranch == selector.GitBranch {

@@ -11734,7 +11734,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		before, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, before, 2)
-		require.Equal(t, "new", before[0].GitBranch)
+		require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(before).GitBranch)
 
 		// A discovery write lands on the old ref after the new one
 		// was reported, as an in-flight diff GET would.
@@ -11747,13 +11747,14 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The discovery write must not steal the primary position
-		// from the newer report.
+		// The discovery write must not steal the primary from the
+		// newer report.
 		after, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, after, 2)
-		require.Equal(t, "new", after[0].GitBranch, "discovery must not reorder the primary")
-		require.Equal(t, "https://github.com/o/r/pull/7", after[1].Url.String)
+		require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(after).GitBranch, "discovery must not change the primary")
+		require.Equal(t, "old", after[0].GitBranch)
+		require.Equal(t, "https://github.com/o/r/pull/7", after[0].Url.String)
 	})
 
 	t.Run("RefSelectorFetchesThatRefsDiff", func(t *testing.T) {
@@ -11782,7 +11783,7 @@ func TestGetChatDiffContents(t *testing.T) {
 			Title:             "sdk ref selector",
 		})
 
-		// Two tracked refs. The first report is the primary.
+		// Two tracked refs. The later report is the primary.
 		for _, ref := range []struct {
 			branch     string
 			staleDelta time.Duration

@@ -183,10 +183,12 @@ type Chat struct {
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary *string `json:"summary"`
-	// DiffStatus is the primary pull request, picked by the server.
-	// Deprecated: use DiffStatuses, which lists every pull request
-	// the chat tracks.
-	DiffStatus   *ChatDiffStatus  `json:"diff_status,omitempty"`
+	// DiffStatus is the primary pull request. It is the ref with the
+	// most recent git report.
+	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
+	// DiffStatuses lists every ref the chat tracks. The order is
+	// stable and follows the first report of each ref. DiffStatus
+	// marks the primary.
 	DiffStatuses []ChatDiffStatus `json:"diff_statuses,omitempty"`
 	CreatedAt    time.Time        `json:"created_at" format:"date-time"`
 	UpdatedAt    time.Time        `json:"updated_at" format:"date-time"`
@@ -1837,11 +1839,15 @@ type ChatDiffStatus struct {
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
 }
 
+// DiffStatusRef identifies one ref that a chat tracks. A chat has
+// one diff status for each ref.
 type DiffStatusRef struct {
 	RemoteOrigin string `json:"remote_origin"`
 	GitBranch    string `json:"git_branch"`
 }
 
+// ChangedDiffStatus is the diff status of one ref after a change.
+// When the ref has no stored status, Status has only chat_id.
 type ChangedDiffStatus struct {
 	Ref    DiffStatusRef   `json:"ref"`
 	Status *ChatDiffStatus `json:"status"`
@@ -2133,10 +2139,13 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind              ChatWatchEventKind   `json:"kind"`
-	Chat              Chat                 `json:"chat"`
-	ToolCalls         []ChatStreamToolCall `json:"tool_calls,omitempty"`
-	ChangedDiffStatus *ChangedDiffStatus   `json:"changed_diff_status,omitempty"`
+	Kind      ChatWatchEventKind   `json:"kind"`
+	Chat      Chat                 `json:"chat"`
+	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	// ChangedDiffStatus is set when Kind is
+	// ChatWatchEventKindDiffStatusChange. It identifies the ref that
+	// changed.
+	ChangedDiffStatus *ChangedDiffStatus `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.
@@ -3504,6 +3513,8 @@ func (c *Client) GetChatDiffContents(
 	return diff, ReadBodyAsJSON(res, &diff)
 }
 
+// WithChatDiffStatusRef selects the ref for GetChatDiffContents.
+// The ref must match a ref that the chat tracks.
 func WithChatDiffStatusRef(ref DiffStatusRef) RequestOption {
 	return func(r *http.Request) {
 		WithQueryParam("origin", ref.RemoteOrigin)(r)

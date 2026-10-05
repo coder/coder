@@ -9974,7 +9974,7 @@ FROM
 WHERE
     chat_id = $1::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
@@ -10034,7 +10034,7 @@ FROM
 WHERE
     chat_id = ANY($1::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
