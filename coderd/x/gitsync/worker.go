@@ -74,6 +74,9 @@ type Store interface {
 	GetChatsByWorkspaceIDs(
 		ctx context.Context, ids []uuid.UUID,
 	) ([]database.Chat, error)
+	GetChatDiffStatusesByChatIDs(
+		ctx context.Context, chatIDs []uuid.UUID,
+	) ([]database.ChatDiffStatus, error)
 }
 
 // PublishDiffStatusChangeFunc notifies the frontend that one ref's
@@ -288,15 +291,14 @@ type MarkStaleParams struct {
 	WorkspaceID uuid.UUID
 	Branch      string
 	Origin      string
-	// ChatID, when set, targets a single chat instead of
-	// broadcasting to every chat on the workspace.
+	// ChatID, when set, targets a single chat.
 	ChatID uuid.UUID
 }
 
-// MarkStale persists the git ref for a chat (or all chats on a
-// workspace when no ChatID is provided), setting stale_at to the
-// past so the next tick picks them up. Publishes a diff status
-// event for each affected chat.
+// MarkStale persists the git ref for a chat (or for each chat on a
+// workspace that already tracks the ref when no ChatID is provided),
+// setting stale_at to the past so the next tick picks them up.
+// Publishes a diff status event for each affected chat.
 // Called from workspaceagents handlers. No goroutines spawned.
 func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 	if p.Branch == "" || p.Origin == "" {
@@ -328,8 +330,32 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
+	if len(chats) == 0 {
+		return
+	}
+
+	chatIDs := make([]uuid.UUID, 0, len(chats))
 	for _, chat := range chats {
-		w.markStaleSingle(ctx, chat.ID, p.Branch, p.Origin)
+		chatIDs = append(chatIDs, chat.ID)
+	}
+
+	statuses, err := w.store.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
+	if err != nil {
+		w.logger.Warn(ctx, "list chat diff statuses for git ref storage",
+			slog.F("workspace_id", p.WorkspaceID),
+			slog.Error(err))
+		return
+	}
+
+	// Without a chat ID, the report cannot tell which chat pushed.
+	// Adding the ref to every chat would make it the primary of
+	// chats that never used it, so only refresh chats that track it.
+	for _, status := range statuses {
+		if status.GitRemoteOrigin != p.Origin || status.GitBranch != p.Branch {
+			continue
+		}
+
+		w.markStaleSingle(ctx, status.ChatID, p.Branch, p.Origin)
 	}
 }
 
