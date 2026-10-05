@@ -26,6 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -96,9 +97,9 @@ const AgentCreatePage: React.FC = () => {
 		return <Navigate to="/agents" replace />;
 	}
 	// Remount per project so the create mutation's pending and error state do
-	// not carry over. A create still in flight opens its chat when it
-	// finishes, as from /agents; one that fails after the page unmounted is
-	// dropped along with its message.
+	// not carry over. A create still in flight opens its chat on success, as
+	// from /agents; if it fails after the page unmounts, its error and the
+	// typed message are lost.
 	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
@@ -265,7 +266,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
-		projectId: chatProjectId,
+		projectId: formProjectId,
 		planMode,
 		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
@@ -293,7 +294,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-			...(chatProjectId ? { project_id: chatProjectId } : {}),
+			...(formProjectId ? { project_id: formProjectId } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
@@ -426,8 +427,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 						<Button
 							size="sm"
 							variant="outline"
+							disabled={projectQuery.isFetching}
 							onClick={() => void projectQuery.refetch()}
 						>
+							<Spinner loading={projectQuery.isFetching} />
 							Retry
 						</Button>
 					}

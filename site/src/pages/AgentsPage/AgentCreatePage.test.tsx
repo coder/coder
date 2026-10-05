@@ -92,7 +92,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 							message: "Create this chat",
 							organizationId:
 								project?.organization_id ?? MockDefaultOrganization.id,
-							projectId: project?.id,
 							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
@@ -209,33 +208,41 @@ afterEach(() => {
 });
 
 describe("AgentCreatePage project assignment", () => {
-	it("includes the project ID from the route when chat projects are enabled", async () => {
+	it("passes the route's project to the composer once it loads", async () => {
 		enableExperiments("chat-projects");
 		serveProjects({
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
 		});
-		let requestBody: unknown;
-		server.use(
-			http.post("/api/v2/chats", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json({ ...MockChat, id: "created-chat" });
-			}),
-		);
-		const user = userEvent.setup();
 
 		renderAgentsRoutes();
 
-		await user.click(
-			await screen.findByRole("button", { name: "Create chat" }),
-		);
+		await screen.findByRole("button", { name: "Create chat" });
 		expect(renderedProjects).not.toContain(undefined);
 		expect(renderedProjects.at(-1)).toMatchObject({
 			id: MockChatProject.id,
 			organization_id: MockOrganization2.id,
 		});
-		await waitFor(() => {
-			expect(requestBody).toMatchObject({ project_id: MockChatProject.id });
+	});
+
+	it("creates the chat in the route's project", async () => {
+		realForm.enabled = true;
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+		const { createChat } = mockPageQueries();
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+
+		await user.click(
+			await screen.findByRole("textbox", { name: "Chat message" }),
+		);
+		await user.paste("Plan the launch");
+		await user.click(await findEnabledSendButton());
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0]).toMatchObject({
+			project_id: MockChatProject.id,
 		});
 	});
 
@@ -373,6 +380,23 @@ describe("AgentCreatePage project assignment", () => {
 
 		await screen.findByText("Failed to load project");
 		expect(screen.queryByText("Project not found")).toBeNull();
+
+		const retry = Promise.withResolvers<void>();
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				await retry.promise;
+				return HttpResponse.json({ message: "List failed" }, { status: 500 });
+			}),
+		);
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled(),
+		);
+		retry.resolve();
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: /Retry/ })).toBeEnabled(),
+		);
 	});
 
 	it("redirects to the new chat page when chat projects are disabled", async () => {
