@@ -6,29 +6,15 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useIsMutating } from "react-query";
 import { NavLink, useLocation } from "react-router";
+import { archiveAndDeleteChatKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuSeparator,
-	ContextMenuTrigger,
-} from "#/components/ContextMenu/ContextMenu";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
-import { useArchiveAndDeleteChat } from "../../../hooks/useArchiveAndDeleteChat";
-import { ArchiveAndDeleteWorkspaceDialog } from "../../ArchiveAndDeleteWorkspaceDialog";
 import {
-	ChatActionsMenuItems,
+	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
@@ -154,8 +140,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		changedFiles === 1 ? "file" : "files"
 	}`;
 	const workspaceId = chat.workspace_id;
-	const { isDeleting, requestArchiveAndDelete, dialogProps } =
-		useArchiveAndDeleteChat(chat, navigateAfterArchive);
+	const isDeleting =
+		useIsMutating({ mutationKey: archiveAndDeleteChatKey(chat.id) }) > 0;
 	const isArchivingThisChat =
 		(isArchiving && archivingChatId === chat.id) || isDeleting;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
@@ -186,7 +172,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
-		onArchiveAndDeleteWorkspace: requestArchiveAndDelete,
+		onArchived: navigateAfterArchive,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
@@ -194,240 +180,218 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
-			<ContextMenu>
-				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
+			<ChatActionsMenu
+				{...sharedMenuItemProps}
+				variant="context"
+				disabled={!hasMenuActions}
+				contentClassName="[&_[role=menuitem]]:text-[13px]"
+			>
+				<div
+					data-testid={`agents-tree-node-${chat.id}`}
+					className={cn(
+						"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
+						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
+						// pl-[11px] is pl-3 minus the active border, so content does not shift.
+						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+					)}
+				>
 					<div
-						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
-							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
-							// pl-[11px] is pl-3 minus the active border, so content does not shift.
-							"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							"group/icon relative mt-1.5 size-5 shrink-0",
+							hasChildren && "cursor-pointer",
 						)}
+						style={
+							depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
+						}
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
-								hasChildren && "cursor-pointer",
+								"flex size-5 items-center justify-center rounded-md",
+								hasChildren &&
+									"[@media(hover:hover)]:group-hover/icon:invisible",
 							)}
-							style={
-								depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
-							}
 						>
-							<div
-								className={cn(
-									"flex size-5 items-center justify-center rounded-md",
-									hasChildren &&
-										"[@media(hover:hover)]:group-hover/icon:invisible",
-								)}
-							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									role="img"
-									aria-label={statusLabel}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
-							</div>
-							{hasChildren && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => toggleExpanded(chatID)}
-									className={cn(
-										"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-										"[@media(hover:hover)]:group-hover/icon:visible",
-									)}
-									data-testid={`agents-tree-toggle-${chat.id}`}
-									aria-label={isExpanded ? "Collapse" : "Expand"}
-									aria-expanded={isExpanded}
-								>
-									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-								</Button>
-							)}
+							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
+								role="img"
+								aria-label={statusLabel}
+								className={cn("size-3.5 shrink-0", statusClassName)}
+							/>
 						</div>
-						<NavLink
-							to={{
-								pathname: `/agents/${chat.id}`,
-								search: locationSearch,
-							}}
-							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-						>
-							{({ isActive }) => (
-								<div className="min-w-0 flex-1 overflow-hidden text-left">
-									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-										<span
-											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
-												!isActive &&
-													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
-											)}
-										>
-											{chat.title}
-										</span>
-										{chat.has_unread && !isActiveChat && (
-											<span className="sr-only">(unread)</span>
-										)}
-									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-													: "truncate text-content-secondary",
-											)}
-											title={subtitle}
-										>
-											{subtitle}
-										</div>
-									</div>
-								</div>
-							)}
-						</NavLink>
-						<div
-							className={cn(
-								"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
-								// Slot content can be wider than the age, so let the column grow.
-								trailing && "w-auto min-w-7",
-							)}
-						>
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : (
+						{hasChildren && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => toggleExpanded(chatID)}
+								className={cn(
+									"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+									"[@media(hover:hover)]:group-hover/icon:visible",
+								)}
+								data-testid={`agents-tree-toggle-${chat.id}`}
+								aria-label={isExpanded ? "Collapse" : "Expand"}
+								aria-expanded={isExpanded}
+							>
+								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+							</Button>
+						)}
+					</div>
+					<NavLink
+						to={{
+							pathname: `/agents/${chat.id}`,
+							search: locationSearch,
+						}}
+						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+					>
+						{({ isActive }) => (
+							<div className="min-w-0 flex-1 overflow-hidden text-left">
+								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 									<span
 										className={cn(
-											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
-											// The timestamp swaps out for the actions trigger on
-											// hover or while a menu is open. Without menu actions,
-											// there is no trigger, so keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
+											"block flex-1 truncate text-[13px] text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 										)}
 									>
-										{chat.has_unread && !isActiveChat ? (
-											<span className="flex w-3.5 shrink-0 justify-center">
-												<span
-													className="size-2 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											</span>
-										) : (
-											<>
-												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-												<span
-													data-pixel="ignore"
-													className="inline-block w-7 text-right"
-												>
-													{shortRelativeTime(chat.updated_at)}
-												</span>
-											</>
-										)}
+										{chat.title}
 									</span>
-								)}
-							</div>
-							{trailing}
-							{isSharedChat && (
-								<UsersIcon
-									className="mt-auto size-3.5 text-content-secondary"
-									aria-label="Shared chat"
-								/>
-							)}
-							{hasMenuActions && !isArchivingThisChat && (
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
-												// inset-0 pins both edges; in a wider column the fixed
-												// width wins from the left, so release that edge.
-												trailing && "left-auto",
-												isActiveChat && "opacity-100",
-											)}
-											aria-label={`Open actions for ${chat.title}`}
-											onContextMenuCapture={(e) => {
-												e.preventDefault();
-												e.stopPropagation();
-											}}
-											onMouseDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-											onPointerDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-										>
-											<EllipsisVerticalIcon className="size-3.5" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
-										// The dropdown is portaled to the body, but React
-										// portals bubble events through the React tree, so a
-										// right-click inside the menu would still reach the
-										// row's context-menu trigger and open a duplicate menu.
-										onContextMenu={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-										}}
-									>
-										<ChatActionsMenuItems
-											{...sharedMenuItemProps}
-											Item={DropdownMenuItem}
-											Separator={DropdownMenuSeparator}
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
+								</div>
+								<div className="flex min-w-0 items-center gap-1.5">
+									{PRIcon && prIcon && (
+										<PRIcon
+											role="img"
+											aria-label={prIcon.label}
+											className={cn("size-3.5 shrink-0", prIcon.className)}
 										/>
-									</DropdownMenuContent>
-								</DropdownMenu>
+									)}
+									{hasLinkedDiffStatus && hasLineStats && (
+										<span
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+											title={`${filesChangedLabel}, +${additions} -${deletions}`}
+										>
+											<span className="text-git-added-bright">
+												+{additions}
+											</span>
+											<span className="text-git-deleted-bright">
+												&minus;{deletions}
+											</span>
+										</span>
+									)}
+									<div
+										className={cn(
+											"min-w-0 overflow-hidden text-[13px] leading-4",
+											errorReason
+												? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+												: "truncate text-content-secondary",
+										)}
+										title={subtitle}
+									>
+										{subtitle}
+									</div>
+								</div>
+							</div>
+						)}
+					</NavLink>
+					<div
+						className={cn(
+							"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
+							// Slot content can be wider than the age, so let the column grow.
+							trailing && "w-auto min-w-7",
+						)}
+					>
+						<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<span
+									className={cn(
+										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
+										// The timestamp swaps out for the actions trigger on
+										// hover or while a menu is open. Without menu actions,
+										// there is no trigger, so keep the timestamp visible.
+										hasMenuActions &&
+											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										hasMenuActions && isActiveChat && "hidden",
+									)}
+								>
+									{chat.has_unread && !isActiveChat ? (
+										<span className="flex w-3.5 shrink-0 justify-center">
+											<span
+												className="size-2 rounded-full bg-content-link"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										</span>
+									) : (
+										<>
+											{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
+											<span
+												data-pixel="ignore"
+												className="inline-block w-7 text-right"
+											>
+												{shortRelativeTime(chat.updated_at)}
+											</span>
+										</>
+									)}
+								</span>
 							)}
 						</div>
+						{trailing}
+						{isSharedChat && (
+							<UsersIcon
+								className="mt-auto size-3.5 text-content-secondary"
+								aria-label="Shared chat"
+							/>
+						)}
+						{hasMenuActions && !isArchivingThisChat && (
+							<ChatActionsMenu
+								{...sharedMenuItemProps}
+								contentClassName="[&_[role=menuitem]]:text-[13px]"
+							>
+								<Button
+									size="icon"
+									variant="subtle"
+									className={cn(
+										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										// inset-0 pins both edges; in a wider column the fixed
+										// width wins from the left, so release that edge.
+										trailing && "left-auto",
+										isActiveChat && "opacity-100",
+									)}
+									aria-label={`Open actions for ${chat.title}`}
+									onContextMenuCapture={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+									}}
+									onMouseDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
+									onPointerDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
+								>
+									<EllipsisVerticalIcon className="size-3.5" />
+								</Button>
+							</ChatActionsMenu>
+						)}
 					</div>
-				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
-					<ChatActionsMenuItems
-						{...sharedMenuItemProps}
-						Item={ContextMenuItem}
-						Separator={ContextMenuSeparator}
-					/>
-				</ContextMenuContent>
-			</ContextMenu>
-			<ArchiveAndDeleteWorkspaceDialog {...dialogProps} />
+				</div>
+			</ChatActionsMenu>
 
 			{hasChildren && isExpanded && (
 				<div className="relative flex flex-col">
