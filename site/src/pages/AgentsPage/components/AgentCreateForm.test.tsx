@@ -24,6 +24,7 @@ import {
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -42,6 +43,7 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
+import { mcpSelectionStorageKey } from "../utils/mcpSelection";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -598,8 +600,69 @@ describe("AgentCreateForm organization lock", () => {
 		});
 	});
 
+	it("does not save an MCP choice made in a project", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(mcpServerConfigsKey(MockDefaultOrganization.id), [
+			{
+				...MockMCPServerConfig,
+				id: "mcp-notion",
+				display_name: "Notion",
+				availability: "default_off",
+			},
+		]);
+
+		renderForm(
+			{
+				project: {
+					id: "project-1",
+					organization_id: MockDefaultOrganization.id,
+				},
+			},
+			{ queryClient },
+		);
+		await user().click(screen.getByRole("button", { name: "More options" }));
+		await user().click(
+			await screen.findByRole("switch", { name: "Enable Notion" }),
+		);
+
+		await screen.findByRole("switch", { name: "Disable Notion" });
+		expect(
+			localStorage.getItem(mcpSelectionStorageKey(MockDefaultOrganization.id)),
+		).toBeNull();
+	});
+
+	it("starts a fresh draft when the project changes", async () => {
+		const { rerender } = renderForm({
+			project: { id: "project-a", organization_id: MockDefaultOrganization.id },
+		});
+		await typeMessage("draft for A");
+		await waitFor(() => {
+			expect(
+				localStorage.getItem(`${emptyInputStorageKey}:project-a`),
+			).toContain("draft for A");
+		});
+		const draftA = localStorage.getItem(`${emptyInputStorageKey}:project-a`);
+
+		rerender({
+			project: { id: "project-b", organization_id: MockDefaultOrganization.id },
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			).not.toHaveTextContent("draft for A");
+		});
+		expect(localStorage.getItem(`${emptyInputStorageKey}:project-a`)).toBe(
+			draftA,
+		);
+	});
+
 	it("keeps text and attachment drafts separate per project", async () => {
 		localStorage.setItem(emptyInputStorageKey, "plain composer draft");
+		localStorage.setItem(
+			`${emptyInputStorageKey}:project-2`,
+			"other project draft",
+		);
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
 
 		renderForm({
@@ -618,6 +681,7 @@ describe("AgentCreateForm organization lock", () => {
 			expect(screen.getByRole("button", { name: "Send" })).toBeEnabled(),
 		);
 		expect(screen.queryByText("plain composer draft")).toBeNull();
+		expect(screen.queryByText("other project draft")).toBeNull();
 		expect(
 			screen.queryByRole("button", { name: "Remove notes.txt" }),
 		).toBeNull();
@@ -638,6 +702,20 @@ describe("AgentCreateForm organization lock", () => {
 
 		await screen.findByText(
 			/create chats in the My Organization 2 organization, which this project belongs to\./,
+		);
+	});
+
+	it("names no organization when the dashboard does not list the project's", async () => {
+		server.use(
+			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
+		);
+
+		renderLockTest({
+			project: { id: "project-1", organization_id: "unlisted-org" },
+		});
+
+		await screen.findByText(
+			/create chats in the organization, which this project belongs to\./,
 		);
 	});
 

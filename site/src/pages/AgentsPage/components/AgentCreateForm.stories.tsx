@@ -56,6 +56,10 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import {
+	descriptionMaxChars,
+	nameMaxChars,
+} from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
@@ -331,10 +335,6 @@ const mockPermittedOrganizations = (
 
 export const Default: Story = {};
 
-// The chat_projects column limits from 000607_chat_projects.up.sql.
-const maxProjectNameLength = 64;
-const maxProjectDescriptionLength = 1024;
-
 export const ProjectComposer: Story = {
 	args: {
 		project: {
@@ -345,8 +345,8 @@ export const ProjectComposer: Story = {
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
-					name: "N".repeat(maxProjectNameLength),
-					description: "d".repeat(maxProjectDescriptionLength),
+					name: "N".repeat(nameMaxChars),
+					description: "d".repeat(descriptionMaxChars),
 				}}
 			/>
 		),
