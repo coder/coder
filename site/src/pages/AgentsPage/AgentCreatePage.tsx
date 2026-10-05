@@ -135,6 +135,13 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			: undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	// The server rejects attaching a workspace whose template is outside the
+	// project's templates, so the picker hides those workspaces.
+	const workspaceOptions = (workspacesQuery.data?.workspaces ?? []).filter(
+		(workspace) =>
+			!project ||
+			project.templates.template_ids.includes(workspace.template_id),
+	);
 	const createMutation = useMutation(createChat(queryClient));
 	const sendFirstMessageMutation = useMutation(
 		createChatMessageByChatId(queryClient),
@@ -415,7 +422,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			aiGatewayDisabled={aiGatewayDisabled}
 			workspaceCount={workspacesQuery.data?.count}
-			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspaceOptions={workspaceOptions}
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}

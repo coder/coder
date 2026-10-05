@@ -59,6 +59,12 @@ export const templates = (
 	};
 };
 
+/** Templates in the organization that agents may use. */
+export const agentTemplates = (organizationId: string) =>
+	templates({
+		q: `organization:${organizationId} agents-allowed:true deprecated:false`,
+	});
+
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({
 		queryKey: templateListsKey,
@@ -375,7 +381,7 @@ export const previousTemplateVersion = (
 	};
 };
 
-const templateVersionPresetsKey = (versionId: string) => [
+export const templateVersionPresetsKey = (versionId: string) => [
 	templateVersionRoot,
 	versionId,
 	"presets",

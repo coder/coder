@@ -1,21 +1,34 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import type { ChatProject, Preset, Template } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockTemplate,
+	MockTemplateVersionParameter1,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
 // The icon field renders external images, which read the active theme.
-const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
-	<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
-);
+const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
+	const [queryClient] = useState(createTestQueryClient);
+	return (
+		<QueryClientProvider client={queryClient}>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+		</QueryClientProvider>
+	);
+};
 
 type DialogProps = React.ComponentProps<typeof ChatProjectDialog>;
 
@@ -465,5 +478,195 @@ describe("ChatProjectDialog", () => {
 			description: `${MockChatProject.description}!`,
 			icon: MockChatProject.icon,
 		});
+	});
+});
+
+const firstTemplate: Template = {
+	...MockTemplate,
+	id: "template-1",
+	name: "docker",
+	display_name: "Docker",
+	active_version_id: "version-1",
+};
+const secondTemplate: Template = {
+	...MockTemplate,
+	id: "template-2",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+	active_version_id: "version-2",
+};
+const preset: Preset = {
+	ID: "preset-1",
+	Name: "Small",
+	Parameters: [],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Description: "",
+	Icon: "",
+};
+const projectWithTemplates: ChatProject = {
+	...MockChatProject,
+	templates: { template_ids: [firstTemplate.id, secondTemplate.id] },
+};
+
+describe("ChatProjectDialog templates", () => {
+	const useTemplateHandlers = () => {
+		server.use(
+			http.get("/api/v2/templates", () =>
+				HttpResponse.json([firstTemplate, secondTemplate]),
+			),
+			http.get("/api/v2/templateversions/:versionId/presets", () =>
+				HttpResponse.json([preset]),
+			),
+			http.get("/api/v2/templateversions/:versionId/rich-parameters", () =>
+				HttpResponse.json([MockTemplateVersionParameter1]),
+			),
+		);
+	};
+
+	it("creates a project with every eligible template", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(
+			screen.getByRole("textbox", { name: /project name/i }),
+			"New",
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockDefaultOrganization.id,
+					templates: { template_ids: [firstTemplate.id, secondTemplate.id] },
+				}),
+			);
+		});
+	});
+
+	it("submits a default template with a preset", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog({ project: projectWithTemplates });
+
+		await user.click(
+			await screen.findByRole("combobox", { name: "Default template" }),
+		);
+		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
+		await user.click(
+			await screen.findByRole("combobox", { name: "Default preset" }),
+		);
+		await user.click(screen.getByRole("option", { name: "Small" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					templates: {
+						template_ids: [firstTemplate.id, secondTemplate.id],
+						default_template_id: secondTemplate.id,
+						default_preset_id: preset.ID,
+					},
+				}),
+			);
+		});
+	});
+
+	it("submits default parameter values instead of a preset", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog({
+			project: {
+				...projectWithTemplates,
+				templates: {
+					...projectWithTemplates.templates,
+					default_template_id: firstTemplate.id,
+					default_preset_id: preset.ID,
+				},
+			},
+		});
+
+		await user.click(
+			await screen.findByRole("radio", { name: "Parameter values" }),
+		);
+		await user.type(
+			await screen.findByRole("textbox", {
+				name: MockTemplateVersionParameter1.name,
+			}),
+			"custom",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					templates: {
+						template_ids: [firstTemplate.id, secondTemplate.id],
+						default_template_id: firstTemplate.id,
+						default_parameters: {
+							[MockTemplateVersionParameter1.name]: "custom",
+						},
+					},
+				}),
+			);
+		});
+	});
+
+	it("clears the default when its template is removed", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog({
+			project: {
+				...projectWithTemplates,
+				templates: {
+					...projectWithTemplates.templates,
+					default_template_id: secondTemplate.id,
+				},
+			},
+		});
+
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					templates: { template_ids: [firstTemplate.id] },
+				}),
+			);
+		});
+	});
+
+	it("starts with no templates when the organization changes", async () => {
+		useTemplateHandlers();
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(
+			screen.getByRole("textbox", { name: /project name/i }),
+			"New",
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("combobox", { name: /^Organization/ }));
+		await user.click(
+			screen.getByRole("option", {
+				name: new RegExp(MockOrganization2.display_name),
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		await waitFor(() => {
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.not.objectContaining({ templates: expect.anything() }),
+			);
+		});
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ organizationId: MockOrganization2.id }),
+		);
 	});
 });

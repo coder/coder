@@ -1,9 +1,15 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
 import { useState } from "react";
+import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
-import type { ChatProject, Organization } from "#/api/typesGenerated";
+import { agentTemplates } from "#/api/queries/templates";
+import type {
+	ChatProject,
+	ChatProjectTemplates,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -22,6 +28,12 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
+import {
+	ChatProjectTemplatesFields,
+	type ChatProjectTemplatesValues,
+	chatProjectTemplatesRequest,
+	chatProjectTemplatesValues,
+} from "./ChatProjectTemplatesFields";
 
 /** @public */
 export type ChatProjectFormValues = {
@@ -30,6 +42,15 @@ export type ChatProjectFormValues = {
 	name: string;
 	description: string;
 	icon: string;
+	/**
+	 * Omitted when unchanged or when the organization's templates could not
+	 * be loaded.
+	 */
+	templates?: ChatProjectTemplates;
+};
+
+type ChatProjectFormState = Omit<ChatProjectFormValues, "templates"> & {
+	templates: ChatProjectTemplatesValues;
 };
 
 // Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
@@ -58,16 +79,21 @@ const validationSchema = Yup.object({
 	icon: maxCharacters("Icon", chatProjectIconMaxChars),
 });
 
-const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
+const trimValues = (values: ChatProjectFormState): ChatProjectFormValues => ({
 	name: values.name.trim(),
 	description: values.description.trim(),
 	icon: values.icon.trim(),
 });
 
+const isSameTemplates = (
+	a: ChatProjectTemplatesValues,
+	b: ChatProjectTemplatesValues,
+) => JSON.stringify(a) === JSON.stringify(b);
+
 const isUnchangedEdit = (
 	project: ChatProject | undefined,
-	values: ChatProjectFormValues,
-	initial: ChatProjectFormValues,
+	values: ChatProjectFormState,
+	initial: ChatProjectFormState,
 ) => {
 	if (project === undefined) {
 		return false;
@@ -77,7 +103,8 @@ const isUnchangedEdit = (
 	return (
 		trimmed.name === trimmedInitial.name &&
 		trimmed.description === trimmedInitial.description &&
-		trimmed.icon === trimmedInitial.icon
+		trimmed.icon === trimmedInitial.icon &&
+		isSameTemplates(values.templates, initial.templates)
 	);
 };
 
@@ -164,12 +191,14 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	onCancel,
 	onSubmit,
 }) => {
-	const form = useFormik<ChatProjectFormValues>({
+	const initialTemplates = chatProjectTemplatesValues(project?.templates);
+	const form = useFormik<ChatProjectFormState>({
 		initialValues: {
 			organizationId: project?.organization_id ?? initialOrganizationId ?? "",
 			name: project?.name ?? "",
 			description: project?.description ?? "",
 			icon: project?.icon ?? "",
+			templates: initialTemplates,
 		},
 		validateOnMount: true,
 		validationSchema: project
@@ -187,9 +216,22 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		onSubmit: async (values) => {
 			// Built outside the try block: the React Compiler cannot compile
 			// conditional expressions inside try/catch.
+			// Unchanged templates are left out so the server keeps them.
+			const eligibleTemplates = isSameTemplates(
+				values.templates,
+				initialTemplates,
+			)
+				? undefined
+				: eligibleTemplatesQuery.data;
 			const submitted = {
 				...(!project && { organizationId: values.organizationId }),
 				...trimValues(values),
+				...(eligibleTemplates && {
+					templates: chatProjectTemplatesRequest(
+						values.templates,
+						eligibleTemplates,
+					),
+				}),
 			};
 			try {
 				await onSubmit(submitted);
@@ -215,6 +257,12 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	const selectedOrganization = organizations.find(
 		(organization) => organization.id === form.values.organizationId,
 	);
+	const templatesOrganizationId =
+		project?.organization_id ?? selectedOrganization?.id;
+	const eligibleTemplatesQuery = useQuery({
+		...agentTemplates(templatesOrganizationId ?? ""),
+		enabled: templatesOrganizationId !== undefined,
+	});
 	const isUnchanged = isUnchangedEdit(project, form.values, form.initialValues);
 	const isSaving = isSubmitting || form.isSubmitting;
 	const canCreate = form.dirty && selectedOrganization !== undefined;
@@ -283,9 +331,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 								}
 								value={selectedOrganization ?? null}
 								options={organizations}
-								onChange={(organization) =>
-									form.setFieldValue("organizationId", organization?.id ?? "")
-								}
+								onChange={(organization) => {
+									// Templates belong to one organization, so a new
+									// organization starts with none selected.
+									void form.setValues({
+										...form.values,
+										organizationId: organization?.id ?? "",
+										templates: chatProjectTemplatesValues(undefined),
+									});
+								}}
 								required
 								disabled={isSubmitting}
 							/>
@@ -299,6 +353,17 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 						void form.setFieldValue("icon", value);
 					}}
 				/>
+				{templatesOrganizationId !== undefined && (
+					<ChatProjectTemplatesFields
+						templates={eligibleTemplatesQuery.data}
+						templatesError={eligibleTemplatesQuery.error}
+						value={form.values.templates}
+						onChange={(templates) => {
+							void form.setFieldValue("templates", templates);
+						}}
+						disabled={isSubmitting}
+					/>
+				)}
 				{Boolean(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} showDebugDetail={false} />
 				)}
