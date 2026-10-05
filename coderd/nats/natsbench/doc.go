@@ -1,5 +1,5 @@
 // Command natsbench benchmarks Coder's NATS-backed pubsub
-// (github.com/coder/coder/v2/coderd/x/nats) under high fan-out load.
+// (github.com/coder/coder/v2/coderd/nats) under high fan-out load.
 //
 // A run publishes a configurable total number of messages across a set
 // of publishers, subjects, subscribers, and replica nodes, then reports

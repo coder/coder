@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/x/nats"
+	"github.com/coder/coder/v2/coderd/nats"
 )
 
 // topology owns the embedded pubsub nodes for one benchmark run.
