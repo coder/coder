@@ -982,6 +982,11 @@ func processStepStream(
 	var startedToolInputIDs []string
 
 	for part := range stream {
+		// Counts Delta on every part type. This relies on providers keeping
+		// summary data, such as ToolCall input, out of Delta. Only
+		// TestGenerateAssistant_ResponseSizeBytesByPartType checks this, so
+		// update it when adding new part types.
+		result.responseBytes += len(part.Delta)
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			// OpenAI labels narration when the text starts, so every delta
@@ -992,7 +997,6 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeTextDelta:
-			result.responseBytes += len(part.Delta)
 			textPart := codersdk.ChatMessageText(part.Delta)
 			if active, exists := activeTextContent[part.ID]; exists {
 				active.text += part.Delta
@@ -1014,7 +1018,6 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeReasoningStart:
-			result.responseBytes += len(part.Delta)
 			activeReasoningContent[part.ID] = reasoningState{
 				text:      part.Delta,
 				options:   part.ProviderMetadata,
@@ -1022,7 +1025,6 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeReasoningDelta:
-			result.responseBytes += len(part.Delta)
 			reasoningPart := codersdk.ChatMessageReasoning(part.Delta)
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
@@ -1061,7 +1063,6 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
-			result.responseBytes += len(part.Delta)
 			providerExecuted := providerExecutedCalls[part.ID]
 			toolName := toolNames[part.ID]
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
