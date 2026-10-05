@@ -54,12 +54,6 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-/** Structural comparison: a row keeps its ID when its content or editing_since changes. */
-export const chatQueuedMessagesEqual = (
-	left: readonly TypesGen.ChatQueuedMessage[],
-	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean => isEqual(left, right);
-
 const retryStatesEqual = (
 	left: RetryState | null,
 	right: RetryState | null,
@@ -412,9 +406,7 @@ export const createChatStore = (): ChatStore => {
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
-				if (
-					chatQueuedMessagesEqual(current.queuedMessages, nextQueuedMessages)
-				) {
+				if (isEqual(current.queuedMessages, nextQueuedMessages)) {
 					return current;
 				}
 				return { ...current, queuedMessages: nextQueuedMessages };
@@ -457,10 +449,7 @@ export const createChatStore = (): ChatStore => {
 					nextSuppressed.size === 0
 						? incoming
 						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = chatQueuedMessagesEqual(
-					current.queuedMessages,
-					filtered,
-				);
+				const sameQueue = isEqual(current.queuedMessages, filtered);
 				const sameSuppressed =
 					nextSuppressed === current.suppressedQueuedMessageIDs;
 				const nextPromoted =
@@ -510,7 +499,7 @@ export const createChatStore = (): ChatStore => {
 					: incoming.filter((message) => !suppressed.has(message.id));
 			setState((current) => ({
 				...current,
-				queuedMessages: chatQueuedMessagesEqual(current.queuedMessages, applied)
+				queuedMessages: isEqual(current.queuedMessages, applied)
 					? current.queuedMessages
 					: applied,
 				suppressedQueuedMessageIDs: suppressed,
