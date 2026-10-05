@@ -49,12 +49,23 @@ func TestMigration000612QueuedMessagesConcurrentTraffic(t *testing.T) {
 		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
 		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
 
+		// Each lock attempt waits at most 100ms, so the reader gets through
+		// well within IntervalSlow. The bound is below the 5s lock_timeout
+		// startMigration sets, which would otherwise end a stall.
 		reader, _ := dedicatedConn(ctx, t, sqlDB)
-		requireNoDeadlock(ctx, t, "reader", async(func() error {
+		read := async(func() error {
 			var n int
 			return reader.QueryRowContext(ctx,
 				`SELECT count(*) FROM chat_queued_messages WHERE chat_id = $1`, chatID).Scan(&n)
-		}))
+		})
+		readCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+		defer cancel()
+		select {
+		case err := <-read:
+			require.NoError(t, err, "reader")
+		case <-readCtx.Done():
+			t.Fatalf("reader of chat_queued_messages did not finish within %s while the application transaction was open", testutil.IntervalSlow)
+		}
 		select {
 		case err := <-migrated:
 			t.Fatalf("migration ended before the application transaction ended: %v", err)
@@ -76,17 +87,7 @@ func TestMigration000612QueuedMessagesConcurrentTraffic(t *testing.T) {
 	// so it must not hold the queue while it waits for the chat row.
 	t.Run("DownLockChatThenTouchQueue", func(t *testing.T) {
 		t.Parallel()
-		sqlDB := testSQLDB(t)
-		stepTo(t, sqlDB, 612)
-		migrationSQL, err := os.ReadFile("000612_chat_queued_messages_editing_since.down.sql")
-		require.NoError(t, err)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		chatID, userID := seedChat(ctx, t, sqlDB, "paused")
-		_, err = sqlDB.ExecContext(ctx, `
-			INSERT INTO chat_queued_messages (chat_id, content, created_by)
-			VALUES ($1, '[]', $2)`, chatID, userID)
-		require.NoError(t, err)
+		ctx, sqlDB, migrationSQL, chatID, _ := setupDown(t)
 
 		conn, appPID := dedicatedConn(ctx, t, sqlDB)
 		tx, err := conn.BeginTx(ctx, nil)
@@ -120,6 +121,60 @@ func TestMigration000612QueuedMessagesConcurrentTraffic(t *testing.T) {
 		}))
 		requireNoDeadlock(ctx, t, "migration", migrated)
 	})
+
+	// An application transaction that has read the queue but holds no chats
+	// lock, then queues a message and updates the chat. The insert locks
+	// chats through its foreign key check and its queue_version trigger. If
+	// the migration takes chats and then waits for the queue, that insert
+	// closes a deadlock cycle.
+	t.Run("DownReadQueueThenQueueMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx, sqlDB, migrationSQL, chatID, userID := setupDown(t)
+
+		conn, appPID := dedicatedConn(ctx, t, sqlDB)
+		tx, err := conn.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		_, err = tx.ExecContext(ctx, `SELECT id FROM chat_queued_messages WHERE chat_id = $1`, chatID)
+		require.NoError(t, err)
+
+		pid, migrated := startMigration(ctx, t, sqlDB, migrationSQL)
+		requireBlockedBy(ctx, t, sqlDB, pid, appPID)
+
+		requireNoDeadlock(ctx, t, "application", async(func() error {
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO chat_queued_messages (chat_id, content, created_by)
+				VALUES ($1, '[]', $2)`, chatID, userID)
+			if err != nil {
+				return err
+			}
+			_, err = tx.ExecContext(ctx, `UPDATE chats SET status = 'running' WHERE id = $1`, chatID)
+			if err != nil {
+				return err
+			}
+			return tx.Commit()
+		}))
+		requireNoDeadlock(ctx, t, "migration", migrated)
+	})
+}
+
+// setupDown steps a new database to 000612, seeds a paused chat with one
+// queued message, and returns the down migration with the chat and owner
+// IDs.
+func setupDown(t *testing.T) (ctx context.Context, sqlDB *sql.DB, migrationSQL []byte, chatID, userID uuid.UUID) {
+	t.Helper()
+	sqlDB = testSQLDB(t)
+	stepTo(t, sqlDB, 612)
+	migrationSQL, err := os.ReadFile("000612_chat_queued_messages_editing_since.down.sql")
+	require.NoError(t, err)
+
+	ctx = testutil.Context(t, testutil.WaitLong)
+	chatID, userID = seedChat(ctx, t, sqlDB, "paused")
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_queued_messages (chat_id, content, created_by)
+		VALUES ($1, '[]', $2)`, chatID, userID)
+	require.NoError(t, err)
+	return ctx, sqlDB, migrationSQL, chatID, userID
 }
 
 // seedChat creates a chat with the given status, owned by a new user, and
