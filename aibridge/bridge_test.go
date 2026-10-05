@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
@@ -273,6 +274,16 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			expectPath: "/v1/conversations",
 		},
 		{
+			name:          "openAI_live_call_create",
+			baseURLPath:   "/v1",
+			requestMethod: http.MethodPost,
+			requestPath:   "/openai/v1/live",
+			provider: func(_ *testing.T, baseURL string) provider.Provider {
+				return aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: baseURL})
+			},
+			expectPath: "/v1/live",
+		},
+		{
 			name:        "anthropic_no_base_path",
 			requestPath: "/anthropic/v1/models",
 			provider: func(t *testing.T, baseURL string) provider.Provider {
@@ -343,6 +354,50 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
 		})
 	}
+}
+
+// TestOpenAILiveSidebandWebSocket asserts that the GPT-Live sideband WebSocket
+// upgrade is proxied to the upstream and that messages flow both ways.
+func TestOpenAILiveSidebandWebSocket(t *testing.T) {
+	t.Parallel()
+
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/live/rtc_test", r.URL.Path)
+		assert.Equal(t, "Bearer byok-key", r.Header.Get("Authorization"))
+		conn, err := websocket.Accept(w, r, nil)
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.CloseNow()
+		typ, msg, err := conn.Read(r.Context())
+		if !assert.NoError(t, err) {
+			return
+		}
+		_ = conn.Write(r.Context(), typ, append([]byte("echo:"), msg...))
+	}))
+	t.Cleanup(upstream.Close)
+
+	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL + "/v1"})
+	bridge, err := aibridge.NewRequestBridge(t.Context(), []provider.Provider{prov}, &testutil.MockRecorder{}, nil, slogtest.Make(t, nil), nil, bridgeTestTracer)
+	require.NoError(t, err)
+	gateway := httptest.NewServer(bridge)
+	t.Cleanup(gateway.Close)
+
+	conn, resp, err := websocket.Dial(ctx, gateway.URL+"/openai/v1/live/rtc_test", &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": []string{"Bearer byok-key"}},
+	})
+	require.NoError(t, err)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	defer conn.CloseNow()
+
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, []byte("hello")))
+	_, msg, err := conn.Read(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "echo:hello", string(msg))
 }
 
 func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {
