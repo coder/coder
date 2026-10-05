@@ -28,23 +28,14 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { useArchiveAndDeleteChat } from "../hooks/useArchiveAndDeleteChat";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
-import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import {
-	ChatActionsMenuItems,
+	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
@@ -107,11 +98,7 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: React.FC<ChatTopBarProps> = (props) => (
-	<ChatTopBarContent key={props.chat?.id} {...props} />
-);
-
-const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
@@ -180,10 +167,6 @@ const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
-	const { requestArchiveAndDelete, dialogProps } = useArchiveAndDeleteChat(
-		chat,
-		navigateAfterArchive,
-	);
 
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
@@ -288,70 +271,57 @@ const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
 				)}
 				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
 				{chat && showActionsMenu && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-								aria-label="Open agent actions"
-							>
-								<EllipsisVerticalIcon className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							align="start"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+					<ChatActionsMenu
+						key={chat.id}
+						align="start"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						onArchived={navigateAfterArchive}
+						chat={chat}
+						canManage={canManage}
+						hasWorkspace={hasWorkspace}
+						isArchiving={isArchivingThisChat}
+						isArchiveBlocked={isArchiveBlocked}
+						onPinAgent={
+							showPinAction && !isArchived
+								? () => {
+										requestPinAgent?.(chat.id);
+									}
+								: undefined
+						}
+						onUnpinAgent={
+							showPinAction && !isArchived
+								? () => {
+										requestUnpinAgent?.(chat.id);
+									}
+								: undefined
+						}
+						onArchiveAgent={() => {
+							if (isArchived) {
+								return;
+							}
+							archiveMutation.mutate(chat.id);
+						}}
+						onUnarchiveAgent={() => {
+							if (!isArchived) {
+								return;
+							}
+							unarchiveMutation.mutate(chat.id);
+						}}
+						onOpenRenameDialog={
+							!isArchived && onOpenRenameDialog
+								? () => onOpenRenameDialog(chat)
+								: undefined
+						}
+					>
+						<Button
+							size="icon"
+							variant="subtle"
+							className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+							aria-label="Open agent actions"
 						>
-							<ChatActionsMenuItems
-								chat={chat}
-								canManage={canManage}
-								hasWorkspace={hasWorkspace}
-								isArchiving={isArchivingThisChat}
-								isArchiveBlocked={isArchiveBlocked}
-								onPinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestPinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onUnpinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestUnpinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onArchiveAgent={() => {
-									if (isArchived) {
-										return;
-									}
-									archiveMutation.mutate(chat.id);
-								}}
-								onUnarchiveAgent={() => {
-									if (!isArchived) {
-										return;
-									}
-									unarchiveMutation.mutate(chat.id);
-								}}
-								onArchiveAndDeleteWorkspace={() => {
-									const workspaceId = chat.workspace_id;
-									if (isArchived || !workspaceId) {
-										return;
-									}
-									void requestArchiveAndDelete();
-								}}
-								onOpenRenameDialog={
-									!isArchived && onOpenRenameDialog
-										? () => onOpenRenameDialog(chat)
-										: undefined
-								}
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+							<EllipsisVerticalIcon className="size-4" />
+						</Button>
+					</ChatActionsMenu>
 				)}
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.
@@ -404,7 +374,6 @@ const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
 					</Button>
 				)}
 			</div>
-			<ArchiveAndDeleteWorkspaceDialog {...dialogProps} />
 		</div>
 	);
 };
