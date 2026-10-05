@@ -46,12 +46,6 @@ export const LongInstructions: Story = {
 	},
 };
 
-export const UpdatedByDeletedUser: Story = {
-	args: {
-		instructions: { ...MockChatProjectInstructions, updated_by: null },
-	},
-};
-
 export const Loading: Story = {
 	args: { instructions: undefined },
 };

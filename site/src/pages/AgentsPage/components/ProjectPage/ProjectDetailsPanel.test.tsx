@@ -112,7 +112,9 @@ describe("ProjectDetailsPanel", () => {
 				),
 			).toEqual({ ...MockChatProjectInstructions, instructions: text }),
 		);
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
 			text,
 		);
@@ -129,7 +131,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		expect(textbox).toHaveValue(MockChatProjectInstructions.instructions);
 		const saveButton = screen.getByRole("button", { name: "Save" });
@@ -169,7 +173,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const { user, rerenderWithProject } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			" Draft for the first project.",
@@ -180,7 +186,9 @@ describe("ProjectDetailsPanel", () => {
 		});
 
 		// The open editor would hide the panel's Edit button from queries.
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
 			MockChatProjectInstructions.instructions,
 		);
@@ -193,7 +201,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
 		expect(deleteInstructions).toHaveBeenCalledWith(
@@ -254,7 +264,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			" More.",
@@ -277,7 +289,9 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const { user } = renderPanel();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -311,12 +325,14 @@ describe("ProjectDetailsPanel", () => {
 	it("refetches the instructions when the window regains focus", async () => {
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
-		await screen.findByRole("button", { name: "Edit" });
+		await screen.findByRole("button", { name: "Edit instructions" });
 
 		// Another editor changed the instructions while this tab was hidden.
 		await refetchWith(getInstructions, queryClient, "Edited in another tab.");
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		await waitFor(() =>
 			expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
 				"Edited in another tab.",
@@ -330,7 +346,9 @@ describe("ProjectDetailsPanel", () => {
 			.mockResolvedValue(MockChatProjectInstructions);
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, " My edit.");
 
@@ -373,7 +391,9 @@ describe("ProjectDetailsPanel", () => {
 			).mockResolvedValue();
 			const getInstructions = mockInstructions(MockChatProjectInstructions);
 			const { user, queryClient } = renderPanel();
-			await user.click(await screen.findByRole("button", { name: "Edit" }));
+			await user.click(
+				await screen.findByRole("button", { name: "Edit instructions" }),
+			);
 			const textbox = screen.getByRole("textbox", { name: "Instructions" });
 			await user.clear(textbox);
 			await user.type(textbox, "Saved text.");
@@ -412,7 +432,9 @@ describe("ProjectDetailsPanel", () => {
 	it("replaces the draft with refetched instructions on request", async () => {
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
 		const { user, queryClient } = renderPanel();
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit instructions" }),
+		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		await user.type(textbox, " My edit.");
 
@@ -435,6 +457,6 @@ describe("ProjectDetailsPanel", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
-		await screen.findByRole("button", { name: "Edit" });
+		await screen.findByRole("button", { name: "Edit instructions" });
 	});
 });

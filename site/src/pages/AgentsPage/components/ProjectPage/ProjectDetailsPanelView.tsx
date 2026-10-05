@@ -1,9 +1,9 @@
+import { PenIcon } from "lucide-react";
 import { useId } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 
 type ProjectDetailsPanelViewProps = {
 	/** `undefined` until the instructions load. */
@@ -71,17 +71,18 @@ export const ProjectDetailsPanelView: React.FC<
 									</Button>
 								</div>
 							) : (
-								<div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-									<p className="m-0 line-clamp-3 whitespace-pre-wrap break-words text-sm text-content-primary">
+								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
+									<p className="m-0 line-clamp-3 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary">
 										{instructions.instructions}
 									</p>
 									<Button
-										size="sm"
-										variant="outline"
-										className="self-end"
+										size="icon"
+										variant="subtle"
+										aria-label="Edit instructions"
+										className="-mr-1.5 -mt-1.5 shrink-0"
 										onClick={onEditInstructions}
 									>
-										Edit
+										<PenIcon />
 									</Button>
 								</div>
 							)}
@@ -89,37 +90,7 @@ export const ProjectDetailsPanelView: React.FC<
 						</>
 					)}
 				</section>
-				{instructions?.updated_at && (
-					<InstructionsFooter
-						updatedAt={instructions.updated_at}
-						updatedBy={
-							instructions.updated_by?.name || instructions.updated_by?.username
-						}
-					/>
-				)}
 			</div>
 		</section>
 	);
 };
-
-type InstructionsFooterProps = {
-	readonly updatedAt: string;
-	/** Omitted when the editing user no longer exists. */
-	readonly updatedBy: string | undefined;
-};
-
-const InstructionsFooter: React.FC<InstructionsFooterProps> = ({
-	updatedAt,
-	updatedBy,
-}) => (
-	<p className="m-0 flex flex-col border-t border-border px-4 py-3 text-xs text-content-secondary">
-		<span>
-			{updatedBy
-				? `Instructions updated by ${updatedBy}`
-				: "Instructions updated"}
-		</span>
-		<time dateTime={updatedAt}>
-			{formatDateTime(updatedAt, DATE_FORMAT.MEDIUM_DATE)}
-		</time>
-	</p>
-);
