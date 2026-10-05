@@ -86,7 +86,7 @@ func setup(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (sou
 	}
 
 	// migration_cursor is a v1 migration table. If this exists, we're on v1.
-	// Do no run v2 migrations on a v1 database!
+	// Do not run v2 migrations on a v1 database!
 	row := db.QueryRowContext(context.Background(), "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
 	var v1Exists int
 	if row.Scan(&v1Exists) == nil {
