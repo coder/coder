@@ -32,6 +32,9 @@ const (
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
+	CheckChatProjectsDefaultPresetOrParameters               CheckConstraint = "chat_projects_default_preset_or_parameters"                // chat_projects
+	CheckChatProjectsDefaultTemplateInTemplates              CheckConstraint = "chat_projects_default_template_in_templates"               // chat_projects
+	CheckChatProjectsDefaultsRequireTemplate                 CheckConstraint = "chat_projects_defaults_require_template"                   // chat_projects
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
 	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects

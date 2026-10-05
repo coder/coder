@@ -2231,6 +2231,13 @@ CREATE TABLE chat_projects (
     icon text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    template_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    default_template_id uuid,
+    default_template_version_preset_id uuid,
+    default_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_default_preset_or_parameters CHECK (((default_template_version_preset_id IS NULL) OR (default_parameters = '{}'::jsonb))),
+    CONSTRAINT chat_projects_default_template_in_templates CHECK (((default_template_id IS NULL) OR (default_template_id = ANY (template_ids)))),
+    CONSTRAINT chat_projects_defaults_require_template CHECK (((default_template_id IS NOT NULL) OR ((default_template_version_preset_id IS NULL) AND (default_parameters = '{}'::jsonb)))),
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
     CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
@@ -2240,6 +2247,14 @@ CREATE TABLE chat_projects (
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
 
 COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
+
+COMMENT ON COLUMN chat_projects.template_ids IS 'Templates the project''s chats may use. Empty means the chats cannot create or attach workspaces.';
+
+COMMENT ON COLUMN chat_projects.default_template_id IS 'Template recommended to the project''s chats. Must be one of template_ids.';
+
+COMMENT ON COLUMN chat_projects.default_template_version_preset_id IS 'Preset applied when a chat creates a workspace from the default template without choosing one.';
+
+COMMENT ON COLUMN chat_projects.default_parameters IS 'Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -5414,6 +5429,12 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_id_fkey FOREIGN KEY (default_template_id) REFERENCES templates(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_projects
+    ADD CONSTRAINT chat_projects_default_template_version_preset_id_fkey FOREIGN KEY (default_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

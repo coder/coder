@@ -1356,8 +1356,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := uuid.NullUUID{}
+	var project *database.ChatProject
 	if req.ProjectID != nil {
-		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+		fetched, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
 		if err != nil {
 			if httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
@@ -1373,15 +1374,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		// and writes its memory, so the chat's owner must own the project.
 		// This matches the unreadable-project response so callers creating
 		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
+		if fetched.OwnerID != ownerID {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}
-		if project.OrganizationID != req.OrganizationID {
+		if fetched.OrganizationID != req.OrganizationID {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Chat project does not belong to this chat's organization."})
 			return
 		}
-		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+		project = &fetched
+		projectID = uuid.NullUUID{UUID: fetched.ID, Valid: true}
 	}
 
 	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1390,7 +1392,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req, project)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -2588,6 +2590,20 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				Message: "Workspace does not belong to this chat's organization.",
 			})
 			return
+		}
+		if chat.ProjectID.Valid {
+			project, err := api.Database.GetChatProjectByID(ctx, chat.ProjectID.UUID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get chat project.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, errChatProjectWorkspaceTemplate)
+				return
+			}
 		}
 	}
 
@@ -4597,6 +4613,7 @@ func (api *API) validateChatWorkspaceSelection(
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
+	project *database.ChatProject,
 ) (
 	createChatWorkspaceSelection,
 	int,
@@ -4616,8 +4633,18 @@ func (api *API) validateCreateChatWorkspaceSelection(
 			Message: "Workspace does not belong to the specified organization.",
 		}
 	}
+	if project != nil && !slices.Contains(project.TemplateIDs, workspace.TemplateID) {
+		return selection, http.StatusBadRequest, &errChatProjectWorkspaceTemplate
+	}
 
 	return selection, 0, nil
+}
+
+// errChatProjectWorkspaceTemplate rejects attaching a workspace whose
+// template is not one of the chat project's templates. Workspaces already
+// bound to a chat keep working after a template leaves the project.
+var errChatProjectWorkspaceTemplate = codersdk.Response{
+	Message: "This workspace's template is not allowed in the chat's project.",
 }
 
 func (api *API) resolveCreateChatModelConfigID(

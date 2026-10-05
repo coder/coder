@@ -5411,6 +5411,14 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Templates the project's chats may use. Empty means the chats cannot create or attach workspaces.
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	// Template recommended to the project's chats. Must be one of template_ids.
+	DefaultTemplateID uuid.NullUUID `db:"default_template_id" json:"default_template_id"`
+	// Preset applied when a chat creates a workspace from the default template without choosing one.
+	DefaultTemplateVersionPresetID uuid.NullUUID `db:"default_template_version_preset_id" json:"default_template_version_preset_id"`
+	// Parameter values, keyed by name, applied beneath the values a chat passes when it creates a workspace from the default template.
+	DefaultParameters json.RawMessage `db:"default_parameters" json:"default_parameters"`
 }
 
 // Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
