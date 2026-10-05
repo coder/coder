@@ -290,7 +290,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						/>
 					}
 					title={group.display_name || group.name}
-					subtitle={`${group.total_member_count.toLocaleString("en-US")} ${group.total_member_count === 1 ? "member" : "members"}`}
+					subtitle={`${group.total_member_count.toLocaleString()} ${group.total_member_count === 1 ? "member" : "members"}`}
 				/>
 			</TableCell>
 
@@ -314,7 +314,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						))}
 						{remainingAvatars > 0 && (
 							<Badge className="h-(--avatar-default)">
-								+{remainingAvatars.toLocaleString("en-US")}
+								+{remainingAvatars.toLocaleString()}
 							</Badge>
 						)}
 					</div>
