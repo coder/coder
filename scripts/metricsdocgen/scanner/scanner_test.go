@@ -161,7 +161,7 @@ var requests = prometheus.NewCounter(prometheus.CounterOpts{
 `)
 
 	metrics, err := scanDirectory(filepath.Join(root, "metrics"), prefixIndex{
-		filepath.Dir(path): {"coder_ai_gateway_"},
+		packageDir(path): {"coder_ai_gateway_"},
 	}, make(map[string]map[string]string))
 	if err != nil {
 		t.Fatalf("scanDirectory: %v", err)
@@ -243,6 +243,8 @@ func TestExcluded(t *testing.T) {
 		"enterprise/scaletest":                      false,
 		"enterprise/scaletestextra/metrics.go":      false,
 		"coderd/prometheusmetrics/metrics.go":       false,
+		// Paths from filepath.WalkDir use OS-native separators.
+		filepath.Join("aibridge", "keypool", "state_collector.go"): true,
 	}
 	for path, want := range cases {
 		if got := excluded(path); got != want {

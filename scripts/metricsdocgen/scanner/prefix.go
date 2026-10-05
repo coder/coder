@@ -81,7 +81,7 @@ func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 	for round := range maxRounds {
 		changed := false
 		for _, pf := range files {
-			dir := filepath.Dir(pf.path)
+			dir := packageDir(pf.path)
 			prefixes, ok := index[dir]
 			if !ok {
 				continue
@@ -172,6 +172,13 @@ func isPrometheusRegisterer(expr ast.Expr) bool {
 	return ok && pkg.Name == "prometheus"
 }
 
+// packageDir returns the slash-separated directory of a file path. Index keys
+// must use slashes because import paths, which are slash-separated on every
+// platform, are compared against directories derived from walked file paths.
+func packageDir(path string) string {
+	return filepath.ToSlash(filepath.Dir(path))
+}
+
 // parsedFile is a parsed Go file plus the import information needed to resolve
 // a selector back to a package directory.
 type parsedFile struct {
@@ -201,7 +208,7 @@ func collectPrefixInputs(roots []string) (map[string]string, []parsedFile, error
 				return xerrors.Errorf("parsing %s: %w", path, err)
 			}
 
-			dir := filepath.Dir(path)
+			dir := packageDir(path)
 			for name, value := range stringConsts(file, func(string) bool { return true }, decodedStringLiteral) {
 				consts[dir+"."+name] = value
 			}
@@ -348,7 +355,7 @@ func constString(expr ast.Expr, pf parsedFile, consts map[string]string) (string
 	return resolveStringReference(
 		expr,
 		func(name string) (string, bool) {
-			value, ok := consts[filepath.Dir(pf.path)+"."+name]
+			value, ok := consts[packageDir(pf.path)+"."+name]
 			return value, ok
 		},
 		func(pkg, name string) (string, bool) {
