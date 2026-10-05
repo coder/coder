@@ -772,7 +772,7 @@ describe("AgentCreateForm organization lock", () => {
 	});
 
 	it("does not deny access while permissions load", async () => {
-		const permissions = createDeferred<void>();
+		const permissions = createDeferred<undefined>();
 		server.use(
 			http.post("/api/v2/authcheck", async ({ request }) => {
 				await permissions.promise;
@@ -790,7 +790,7 @@ describe("AgentCreateForm organization lock", () => {
 		await screen.findByRole("textbox", { name: "Chat message" });
 		expect(screen.queryByText("Permission required")).toBeNull();
 
-		permissions.resolve();
+		permissions.resolve(undefined);
 		await waitFor(() => {
 			expect(mcpRequests).toContain(MockOrganization2.id);
 		});
