@@ -14,7 +14,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	countInvisibleCharacters,
-	removeInvisibleCharacters,
+	sanitizePromptText,
 } from "#/utils/invisibleUnicode";
 
 type ProjectInstructionsDialogProps = {
@@ -97,14 +97,14 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 		? "Failed to save instructions."
 		: "Failed to delete instructions.";
 	const errorDetail = getErrorDetail(error);
-	// Blank instructions are cleared with Delete rather than saved, and
-	// whitespace-only edits at either end are not a change worth saving.
-	// The server strips invisible characters, so they neither make text
-	// nonblank nor count as a change.
-	const visibleDraft = removeInvisibleCharacters(draft).trim();
+	// Blank instructions are cleared with Delete rather than saved. Compare
+	// drafts as the server will store them, so edits it would discard
+	// (invisible characters, trailing whitespace, extra blank lines) are
+	// neither nonblank nor a change.
+	const normalizedDraft = sanitizePromptText(draft);
 	const canSave =
-		visibleDraft !== "" &&
-		visibleDraft !== baseInstructions.trim() &&
+		normalizedDraft !== "" &&
+		normalizedDraft !== sanitizePromptText(baseInstructions) &&
 		!hasConflict &&
 		!isBusy;
 
