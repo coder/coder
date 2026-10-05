@@ -434,8 +434,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		setSelectedOrg(effectiveOrg);
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
-	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted.
+	// is cleared post-commit. A locked form clears only the in-memory selection,
+	// so the user's saved workspace is kept. An empty permission set has no
+	// selectable org, so preserve the workspace until its org is re-permitted.
 	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
 	if (
 		orgSelectionSettled &&
@@ -688,6 +689,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			...current,
 			[selectedModel]: value,
 		}));
+		// Saved even in a project: the effort is a per-model preference, not
+		// tied to an organization like the MCP selection.
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
