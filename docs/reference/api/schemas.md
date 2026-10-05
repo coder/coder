@@ -20684,13 +20684,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name        | Type    | Required | Restrictions | Description                                                                                                                                         |
-|-------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `env_name`  | string  | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when FilePath is empty and Value is non-empty. |
-| `ephemeral` | boolean | false    |              | Ephemeral secrets are delivered to this build only and are not carried forward to the next build.                                                   |
-| `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery.      |
-| `name`      | string  | false    |              |                                                                                                                                                     |
-| `value`     | string  | false    |              | Value is the plaintext secret. An empty Value removes the secret.                                                                                   |
+| Name        | Type    | Required | Restrictions | Description                                                                                                                                    |
+|-------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `env_name`  | string  | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when FilePath is empty and Value is set.  |
+| `ephemeral` | boolean | false    |              | Ephemeral secrets are delivered to this build only and are not carried forward to the next build.                                              |
+| `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery. |
+| `name`      | string  | false    |              |                                                                                                                                                |
+| `value`     | string  | false    |              | Value is the plaintext secret. A null Value removes the secret. An empty string sets an empty secret.                                          |
 
 ## codersdk.WorkspaceSharingSettings
 

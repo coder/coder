@@ -6682,9 +6682,9 @@ func TestWorkspaceSecrets(t *testing.T) {
 
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 			req.Secrets = []codersdk.WorkspaceSecretInput{
-				{Name: "api-key", Value: "first-value", EnvName: "API_KEY"},
-				{Name: "cert", Value: "cert-value", FilePath: "/home/coder/.cert"},
-				{Name: "one-shot", Value: "jwt", EnvName: "ONE_SHOT", Ephemeral: true},
+				{Name: "api-key", Value: ptr.Ref("first-value"), EnvName: "API_KEY"},
+				{Name: "cert", Value: ptr.Ref("cert-value"), FilePath: "/home/coder/.cert"},
+				{Name: "one-shot", Value: ptr.Ref("jwt"), EnvName: "ONE_SHOT", Ephemeral: true},
 			}
 		})
 		build1 := workspace.LatestBuild
@@ -6728,8 +6728,8 @@ func TestWorkspaceSecrets(t *testing.T) {
 		build3, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionStart,
 			Secrets: []codersdk.WorkspaceSecretInput{
-				{Name: "api-key", Value: "second-value", EnvName: "API_KEY"},
-				{Name: "cert", Value: ""},
+				{Name: "api-key", Value: ptr.Ref("second-value"), EnvName: "API_KEY"},
+				{Name: "cert", Value: nil},
 			},
 		})
 		require.NoError(t, err)
@@ -6742,6 +6742,42 @@ func TestWorkspaceSecrets(t *testing.T) {
 		cleared = clearedRows(ctx, t, workspace.ID)
 		require.Len(t, cleared, 2)
 		require.Len(t, cleared[build2.ID], 2)
+	})
+
+	t.Run("TargetTakeoverAndEmptyValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "old-env", Value: ptr.Ref("a"), EnvName: "TOKEN"},
+				{Name: "old-file", Value: ptr.Ref("b"), FilePath: "/home/coder/.token"},
+				{Name: "kept", Value: ptr.Ref("c"), EnvName: "KEPT"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// New secrets under different names take over the previous secrets'
+		// env var and file path, so those are not copied forward. An empty
+		// string is stored as a value, not treated as a removal.
+		build2, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+			Secrets: []codersdk.WorkspaceSecretInput{
+				{Name: "new-env", Value: ptr.Ref(""), EnvName: "TOKEN"},
+				{Name: "new-file", Value: ptr.Ref("d"), FilePath: "/home/coder/.token"},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+
+		secrets := listSecrets(ctx, t, build2.ID)
+		require.Len(t, secrets, 3)
+		require.Contains(t, secrets, "kept")
+		require.NotContains(t, secrets, "old-env")
+		require.NotContains(t, secrets, "old-file")
+		require.True(t, secrets["new-env"].Value.Valid)
+		require.Empty(t, secrets["new-env"].Value.String)
+		require.Equal(t, "d", secrets["new-file"].Value.String)
 	})
 
 	t.Run("Validation", func(t *testing.T) {
@@ -6757,19 +6793,19 @@ func TestWorkspaceSecrets(t *testing.T) {
 		}{
 			{
 				name:    "MissingTarget",
-				secrets: []codersdk.WorkspaceSecretInput{{Name: "no-target", Value: "v"}},
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "no-target", Value: ptr.Ref("v")}},
 				field:   "secrets[0].env_name",
 			},
 			{
 				name:    "InvalidEnvName",
-				secrets: []codersdk.WorkspaceSecretInput{{Name: "bad-env", Value: "v", EnvName: "1BAD"}},
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "bad-env", Value: ptr.Ref("v"), EnvName: "1BAD"}},
 				field:   "secrets[0].env_name",
 			},
 			{
 				name: "Duplicate",
 				secrets: []codersdk.WorkspaceSecretInput{
-					{Name: "dup", Value: "v", EnvName: "DUP_A"},
-					{Name: "dup", Value: "v", EnvName: "DUP_B"},
+					{Name: "dup", Value: ptr.Ref("v"), EnvName: "DUP_A"},
+					{Name: "dup", Value: ptr.Ref("v"), EnvName: "DUP_B"},
 				},
 				field: "secrets[1].name",
 			},
@@ -6796,8 +6832,8 @@ func TestWorkspaceSecrets(t *testing.T) {
 			_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 				Secrets: []codersdk.WorkspaceSecretInput{
-					{Name: "a", Value: "v", EnvName: "SHARED"},
-					{Name: "b", Value: "v", EnvName: "SHARED"},
+					{Name: "a", Value: ptr.Ref("v"), EnvName: "SHARED"},
+					{Name: "b", Value: ptr.Ref("v"), EnvName: "SHARED"},
 				},
 			})
 			var apiErr *codersdk.Error

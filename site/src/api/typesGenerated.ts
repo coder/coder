@@ -12906,19 +12906,20 @@ export const WorkspaceSecretInjectionTargetRequiredDetail =
  * parameters or Terraform state, and they cannot be read back through the
  * API. Each secret is linked to the build it was set on. Non-ephemeral
  * secrets are copied forward to every later build until a request replaces
- * them by Name or removes them with an empty Value; ephemeral secrets are
+ * them by Name or removes them with a null Value; ephemeral secrets are
  * delivered to that build only.
  */
 export interface WorkspaceSecretInput {
 	readonly name: string;
 	/**
-	 * Value is the plaintext secret. An empty Value removes the secret.
+	 * Value is the plaintext secret. A null Value removes the secret. An
+	 * empty string sets an empty secret.
 	 */
-	readonly value: string;
+	readonly value: string | null;
 	/**
 	 * EnvName is the environment variable to inject the secret as. Empty
 	 * means no env injection. Required when FilePath is empty and Value is
-	 * non-empty.
+	 * set.
 	 */
 	readonly env_name?: string;
 	/**

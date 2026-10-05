@@ -32333,7 +32333,7 @@
 			"type": "object",
 			"properties": {
 				"env_name": {
-					"description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nnon-empty.",
+					"description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nset.",
 					"type": "string"
 				},
 				"ephemeral": {
@@ -32348,7 +32348,7 @@
 					"type": "string"
 				},
 				"value": {
-					"description": "Value is the plaintext secret. An empty Value removes the secret.",
+					"description": "Value is the plaintext secret. A null Value removes the secret. An\nempty string sets an empty secret.",
 					"type": "string"
 				}
 			}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -20,7 +21,7 @@ func TestValidateWorkspaceSecretInput(t *testing.T) {
 			name: "Valid",
 			in: codersdk.WorkspaceSecretInput{
 				Name:     "api-key",
-				Value:    "secret",
+				Value:    ptr.Ref("secret"),
 				EnvName:  "API_KEY",
 				FilePath: "~/.api-key",
 			},
@@ -30,6 +31,18 @@ func TestValidateWorkspaceSecretInput(t *testing.T) {
 			in: codersdk.WorkspaceSecretInput{
 				Name: "api-key",
 			},
+		},
+		{
+			// Only a null value removes; an empty string is a value.
+			name: "EmptyValueNeedsTarget",
+			in: codersdk.WorkspaceSecretInput{
+				Name:  "api-key",
+				Value: ptr.Ref(""),
+			},
+			want: []codersdk.ValidationError{{
+				Field:  "env_name",
+				Detail: codersdk.WorkspaceSecretInjectionTargetRequiredDetail,
+			}},
 		},
 		{
 			name: "RemoveInvalidName",
@@ -45,7 +58,7 @@ func TestValidateWorkspaceSecretInput(t *testing.T) {
 			name: "MissingInjectionTarget",
 			in: codersdk.WorkspaceSecretInput{
 				Name:  "api-key",
-				Value: "secret",
+				Value: ptr.Ref("secret"),
 			},
 			want: []codersdk.ValidationError{{
 				Field:  "env_name",
@@ -55,7 +68,7 @@ func TestValidateWorkspaceSecretInput(t *testing.T) {
 		{
 			name: "MultiInvalid",
 			in: codersdk.WorkspaceSecretInput{
-				Value:    "secret",
+				Value:    ptr.Ref("secret"),
 				EnvName:  "1TOKEN",
 				FilePath: "relative/path",
 			},

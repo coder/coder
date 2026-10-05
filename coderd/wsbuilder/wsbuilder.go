@@ -625,18 +625,30 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 // persistSecrets links workspace secrets to the new build inside the build
 // transaction. The previous build's live, non-ephemeral secrets are copied
-// forward unless the request replaces or removes them by name, the request's
-// own entries are inserted, and the previous build's rows are then cleared
-// of their values so only the new build holds live secrets.
+// forward unless the request names them (to replace or remove them) or
+// claims their env_name or file_path. The request's own entries are inserted,
+// and the previous build's rows are then cleared of their values so only the
+// new build holds live secrets.
 //
 // Copying forward and clearing are bookkeeping, not a user writing secrets,
 // so they run as the workspace secret manager. This lets autostart, the build
 // orchestrator, and other non-user initiators rebuild workspaces that hold
 // secrets. Secrets in the request are authorized as the build's actor.
 func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUID) error {
-	requested := make(map[string]codersdk.WorkspaceSecretInput, len(b.secrets))
+	requestedNames := make(map[string]struct{}, len(b.secrets))
+	claimedEnvNames := make(map[string]struct{}, len(b.secrets))
+	claimedFilePaths := make(map[string]struct{}, len(b.secrets))
 	for _, secret := range b.secrets {
-		requested[secret.Name] = secret
+		requestedNames[secret.Name] = struct{}{}
+		if secret.Remove() {
+			continue
+		}
+		if secret.EnvName != "" {
+			claimedEnvNames[secret.EnvName] = struct{}{}
+		}
+		if secret.FilePath != "" {
+			claimedFilePaths[secret.FilePath] = struct{}{}
+		}
 	}
 
 	// nolint:gocritic // See the function comment.
@@ -664,12 +676,20 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		if prev.Ephemeral || !prev.Value.Valid {
 			continue
 		}
-		if _, replaced := requested[prev.Name]; replaced {
+		if _, named := requestedNames[prev.Name]; named {
+			continue
+		}
+		// A requested secret that takes over an injection target supersedes
+		// the previous secret using it.
+		if _, claimed := claimedEnvNames[prev.EnvName]; claimed && prev.EnvName != "" {
+			continue
+		}
+		if _, claimed := claimedFilePaths[prev.FilePath]; claimed && prev.FilePath != "" {
 			continue
 		}
 		if err := b.insertSecret(managerCtx, store, workspaceBuildID, codersdk.WorkspaceSecretInput{
 			Name:     prev.Name,
-			Value:    prev.Value.String,
+			Value:    &prev.Value.String,
 			EnvName:  prev.EnvName,
 			FilePath: prev.FilePath,
 		}); err != nil {
@@ -678,6 +698,8 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 	}
 
 	for _, secret := range b.secrets {
+		// Removals only stop the secret from being copied forward above;
+		// nothing is inserted for them.
 		if secret.Remove() {
 			continue
 		}
@@ -686,9 +708,6 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		}
 	}
 
-	if len(previous) == 0 {
-		return nil
-	}
 	err = store.ClearWorkspaceSecretsBeforeBuild(managerCtx, database.ClearWorkspaceSecretsBeforeBuildParams{
 		WorkspaceID:      b.workspace.ID,
 		WorkspaceBuildID: workspaceBuildID,
@@ -699,13 +718,15 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 	return nil
 }
 
+// insertSecret inserts a secret that sets a value. Callers must skip
+// removals.
 func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput) error {
 	_, err := store.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
 		ID:               uuid.New(),
 		WorkspaceID:      b.workspace.ID,
 		WorkspaceBuildID: workspaceBuildID,
 		Name:             secret.Name,
-		Value:            sql.NullString{String: secret.Value, Valid: true},
+		Value:            sql.NullString{String: *secret.Value, Valid: true},
 		ValueKeyID:       sql.NullString{}, // dbcrypt sets this when encryption is enabled.
 		EnvName:          secret.EnvName,
 		FilePath:         secret.FilePath,

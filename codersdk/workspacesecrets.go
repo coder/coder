@@ -9,15 +9,16 @@ package codersdk
 // parameters or Terraform state, and they cannot be read back through the
 // API. Each secret is linked to the build it was set on. Non-ephemeral
 // secrets are copied forward to every later build until a request replaces
-// them by Name or removes them with an empty Value; ephemeral secrets are
+// them by Name or removes them with a null Value; ephemeral secrets are
 // delivered to that build only.
 type WorkspaceSecretInput struct {
 	Name string `json:"name"`
-	// Value is the plaintext secret. An empty Value removes the secret.
-	Value string `json:"value"`
+	// Value is the plaintext secret. A null Value removes the secret. An
+	// empty string sets an empty secret.
+	Value *string `json:"value"`
 	// EnvName is the environment variable to inject the secret as. Empty
 	// means no env injection. Required when FilePath is empty and Value is
-	// non-empty.
+	// set.
 	EnvName string `json:"env_name,omitempty"`
 	// FilePath is the path to write the secret to inside the workspace.
 	// Empty means no file is written. Deployments may disable file path
@@ -31,7 +32,7 @@ type WorkspaceSecretInput struct {
 // Remove reports whether the input removes the secret instead of setting
 // it.
 func (s WorkspaceSecretInput) Remove() bool {
-	return s.Value == ""
+	return s.Value == nil
 }
 
 // ValidateWorkspaceSecretInput validates a single workspace secret input.
@@ -45,7 +46,7 @@ func ValidateWorkspaceSecretInput(in WorkspaceSecretInput) []ValidationError {
 		// Removal needs only a valid name.
 		return validations
 	}
-	if err := UserSecretValueValid(in.Value); err != nil {
+	if err := UserSecretValueValid(*in.Value); err != nil {
 		validations = append(validations, ValidationError{Field: UserSecretValueField, Detail: err.Error()})
 	}
 	if err := UserSecretEnvNameValid(in.EnvName); err != nil {
