@@ -93,7 +93,11 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: React.FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = (props) => (
+	<ChatTopBarContent key={props.chat?.id} {...props} />
+);
+
+const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,

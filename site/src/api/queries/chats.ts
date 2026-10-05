@@ -1479,12 +1479,12 @@ type ArchiveAndDeleteChatResult = {
 	deleteBuild: TypesGen.WorkspaceBuild | null;
 };
 
-export const archiveAndDeleteChatKey = ["chats", "archive-and-delete"] as const;
+export const archiveAndDeleteChatKey = (chatId: string) =>
+	["chats", "archive-and-delete", chatId] as const;
 
 // Archiving rejects active chat families before deletion. Keep the chat archived
 // on delete errors: the delete build may have committed despite a failed response.
 export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
-	mutationKey: archiveAndDeleteChatKey,
 	mutationFn: async ({
 		chatId,
 		workspaceId,

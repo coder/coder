@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-	type MutationFilters,
-	useIsMutating,
-	useMutation,
-	useQueryClient,
-} from "react-query";
+import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
@@ -23,15 +18,6 @@ import {
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 
-const chatMutationFilters = (chatId: string | undefined): MutationFilters => ({
-	mutationKey: archiveAndDeleteChatKey,
-	predicate: ({ state: { variables } }) =>
-		typeof variables === "object" &&
-		variables !== null &&
-		"chatId" in variables &&
-		variables.chatId === chatId,
-});
-
 /** Shares the archive-and-delete workflow between chat action menus. */
 export const useArchiveAndDeleteChat = (
 	chat: Chat | undefined,
@@ -43,11 +29,12 @@ export const useArchiveAndDeleteChat = (
 		chatId: string;
 		workspace: Workspace;
 	}>();
-	const filters = chatMutationFilters(chat?.id);
+	const filters = { mutationKey: archiveAndDeleteChatKey(chat?.id ?? "") };
 	const isDeleting = useIsMutating(filters) > 0;
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
+		mutationKey: filters.mutationKey,
 		onSuccess: (result, variables) => {
 			options.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
@@ -120,7 +107,9 @@ export const useArchiveAndDeleteChat = (
 			onConfirm: () => {
 				if (
 					confirmation &&
-					!queryClient.isMutating(chatMutationFilters(confirmation.chatId))
+					!queryClient.isMutating({
+						mutationKey: archiveAndDeleteChatKey(confirmation.chatId),
+					})
 				) {
 					mutation.mutate({
 						chatId: confirmation.chatId,

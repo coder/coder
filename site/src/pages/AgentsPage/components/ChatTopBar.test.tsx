@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Outlet } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { archiveAndDeleteChatKey } from "#/api/queries/chats";
+import type { WorkspaceBuild } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -101,9 +103,11 @@ describe("ChatTopBar archive and delete", () => {
 		});
 	});
 
-	it("confirms deletion for the chat that requested it after the top bar changes chat", async () => {
+	it("keeps an in-flight workspace lookup attached to its original chat", async () => {
 		const user = userEvent.setup();
-		mockArchiveAndDeleteApi("2000-01-01T00:00:00.000Z");
+		mockArchiveAndDeleteApi(chat.created_at);
+		const pendingDelete = createDeferred<WorkspaceBuild>();
+		vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
 		const pendingWorkspace = createDeferred<typeof MockWorkspace>();
 		vi.mocked(API.getWorkspace).mockReturnValue(pendingWorkspace.promise);
 		const otherChat = {
@@ -125,33 +129,43 @@ describe("ChatTopBar archive and delete", () => {
 				</>
 			);
 		};
-		renderWithAuth(<Outlet context={{ navigateAfterArchive }} />, {
-			route: `/agents/${chat.id}`,
-			path: "/agents",
-			children: [{ path: ":agentId", element: <SwitchingTopBar /> }],
-		});
+		const { queryClient } = renderWithAuth(
+			<Outlet context={{ navigateAfterArchive }} />,
+			{
+				route: `/agents/${chat.id}`,
+				path: "/agents",
+				children: [{ path: ":agentId", element: <SwitchingTopBar /> }],
+			},
+		);
 		await clickArchiveAndDelete(user);
 		await user.click(screen.getByRole("button", { name: "Switch chat" }));
-		await act(async () =>
-			pendingWorkspace.resolve({
-				...MockWorkspace,
-				id: chat.workspace_id,
-				created_at: "2000-01-01T00:00:00.000Z",
-			}),
-		);
-		await user.type(
-			await screen.findByLabelText("Name of the workspace to delete"),
-			MockWorkspace.name,
-		);
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		await waitFor(() =>
+		try {
+			await act(async () =>
+				pendingWorkspace.resolve({
+					...MockWorkspace,
+					id: chat.workspace_id,
+					created_at: chat.created_at,
+				}),
+			);
+			await waitFor(() =>
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
+			);
 			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
 				archived: true,
-			}),
-		);
-		expect(API.experimental.updateChat).not.toHaveBeenCalledWith(otherChat.id, {
-			archived: true,
-		});
-		expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id);
+			});
+			expect(
+				queryClient.isMutating({
+					mutationKey: archiveAndDeleteChatKey(chat.id),
+				}),
+			).toBe(1);
+			expect(
+				queryClient.isMutating({
+					mutationKey: archiveAndDeleteChatKey(otherChat.id),
+				}),
+			).toBe(0);
+		} finally {
+			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		}
 	});
 });
