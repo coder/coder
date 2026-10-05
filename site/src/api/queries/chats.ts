@@ -619,7 +619,6 @@ const diffStatusesEqual = (
 	if (!cached || !incoming || cached.length !== incoming.length) {
 		return false;
 	}
-	// Order is part of the contract: the first row is the primary.
 	return cached.every((status, index) =>
 		diffStatusEqual(status, incoming[index]),
 	);
@@ -652,15 +651,6 @@ const mergeDiffStatuses = (
 		merged.delete(diffStatusRefKey(removedRef));
 	}
 	const statuses = [...merged.values()];
-	if (primaryKey) {
-		const primaryIndex = statuses.findIndex(
-			(status) => diffStatusRefKey(status) === primaryKey,
-		);
-		if (primaryIndex > 0) {
-			const [primaryRow] = statuses.splice(primaryIndex, 1);
-			statuses.unshift(primaryRow);
-		}
-	}
 	return statuses.length > 0 ? statuses : undefined;
 };
 
@@ -732,10 +722,15 @@ export const mergeWatchedChatSummary = (
 			)
 		: cachedChat.diff_statuses;
 
-	// The first merged row is the primary. Consumers that have not
-	// migrated to diff_statuses still read diff_status.
+	// The merged row for the primary ref can be fresher than the
+	// embedded primary. A removed primary ref leaves no primary.
+	const primaryKey = watchedChat.diff_status
+		? diffStatusRefKey(watchedChat.diff_status)
+		: undefined;
 	const nextDiffStatus = isDiffStatusEvent
-		? nextDiffStatuses?.[0]
+		? nextDiffStatuses?.find(
+				(status) => diffStatusRefKey(status) === primaryKey,
+			)
 		: cachedChat.diff_status;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of

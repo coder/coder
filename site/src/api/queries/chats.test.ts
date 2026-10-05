@@ -3536,10 +3536,6 @@ describe("mergeWatchedChatSummary", () => {
 			deletions: 0,
 			changed_files: 1,
 		};
-		const refAUpdated = {
-			...refA,
-			additions: 7,
-		};
 		const refB = {
 			chat_id: "chat-1",
 			remote_origin: "https://github.com/o/r.git",
@@ -3553,13 +3549,16 @@ describe("mergeWatchedChatSummary", () => {
 			deletions: 1,
 			changed_files: 2,
 		};
+		const refBUpdated = {
+			...refB,
+			additions: 7,
+		};
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [refA, refB],
+			diff_status: refA,
 		});
-		// The event carries the changed row; the embedded primary
-		// keeps the server order.
 		const watchedChat = makeChat("chat-1", {
-			diff_status: refAUpdated,
+			diff_status: refBUpdated,
 		});
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
@@ -3567,19 +3566,14 @@ describe("mergeWatchedChatSummary", () => {
 			changedDiffStatus: {
 				ref: {
 					remote_origin: "https://github.com/o/r.git",
-					git_branch: "feature-a",
+					git_branch: "feature-b",
 				},
-				status: refAUpdated,
+				status: refBUpdated,
 			},
 		});
 
-		expect(merged.diff_statuses).toHaveLength(2);
-		const byBranch = new Map(
-			merged.diff_statuses?.map((s) => [s.git_branch, s]),
-		);
-		expect(byBranch.get("feature-a")?.additions).toBe(7);
-		expect(byBranch.get("feature-b")).toBe(refB);
-		expect(merged.diff_status).toEqual(refAUpdated);
+		expect(merged.diff_statuses).toEqual([refA, refBUpdated]);
+		expect(merged.diff_status).toEqual(refBUpdated);
 	});
 
 	it("adopts the embedded primary when the cache missed its row", () => {
@@ -3614,7 +3608,7 @@ describe("mergeWatchedChatSummary", () => {
 			},
 		});
 
-		expect(merged.diff_statuses).toEqual([primaryRef, cachedRef, refreshedRef]);
+		expect(merged.diff_statuses).toEqual([cachedRef, refreshedRef, primaryRef]);
 		expect(merged.diff_status).toEqual(primaryRef);
 	});
 
@@ -3689,7 +3683,8 @@ describe("mergeWatchedChatSummary", () => {
 			},
 		});
 
-		expect(merged.diff_statuses).toEqual([primaryRef, changedRef]);
+		expect(merged.diff_statuses).toEqual([changedRef, primaryRef]);
+		expect(merged.diff_status).toEqual(primaryRef);
 	});
 
 	it("removes the changed ref when the server sends a tombstone", () => {
@@ -3728,30 +3723,45 @@ describe("mergeWatchedChatSummary", () => {
 			diff_statuses: undefined,
 			diff_status: refB,
 		});
+		const refATombstone = {
+			ref: {
+				remote_origin: "https://github.com/o/r.git",
+				git_branch: "feature-a",
+			},
+			// The server sends a zero-valued status when the ref has no
+			// row: only the required fields survive serialization.
+			status: {
+				chat_id: "chat-1",
+				pull_request_title: "",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 0,
+				deletions: 0,
+				changed_files: 0,
+			},
+		};
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
-			changedDiffStatus: {
-				ref: {
-					remote_origin: "https://github.com/o/r.git",
-					git_branch: "feature-a",
-				},
-				// The server sends a zero-valued status when the ref has no
-				// row: only the required fields survive serialization.
-				status: {
-					chat_id: "chat-1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-				},
-			},
+			changedDiffStatus: refATombstone,
 		});
 
 		expect(merged.diff_statuses).toEqual([refB]);
 		expect(merged.diff_status).toEqual(refB);
+
+		// The embedded primary can name the removed ref when the
+		// tombstone races the report that moves the primary.
+		const primaryRemoved = mergeWatchedChatSummary(
+			cachedChat,
+			makeChat("chat-1", { diff_status: refA }),
+			{
+				eventKind: "diff_status_change",
+				changedDiffStatus: refATombstone,
+			},
+		);
+
+		expect(primaryRemoved.diff_statuses).toEqual([refB]);
+		expect(primaryRemoved.diff_status).toBeUndefined();
 	});
 
 	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
