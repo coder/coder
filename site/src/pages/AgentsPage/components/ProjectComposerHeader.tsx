@@ -5,7 +5,6 @@ type ProjectComposerHeaderProps = {
 	readonly project: ChatProject;
 };
 
-/** Project name and description shown above the new-chat composer. */
 export const ProjectComposerHeader: React.FC<ProjectComposerHeaderProps> = ({
 	project,
 }) => (

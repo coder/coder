@@ -9,7 +9,11 @@ export const buildAgentChatPath = ({
 	return `/agents/${encodeURIComponent(chatId)}`;
 };
 
-export const buildAgentProjectPath = (projectId: string): string => {
+export const buildAgentProjectPath = ({
+	projectId,
+}: Readonly<{
+	projectId: string;
+}>): string => {
 	return `/agents/projects/${encodeURIComponent(projectId)}`;
 };
 

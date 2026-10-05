@@ -1,7 +1,7 @@
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { getErrorMessage } from "#/api/errors";
 import type { ChatProject } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -14,7 +14,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { getFormHelpers } from "#/utils/formUtils";
+import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 
 export type ChatProjectFormValues = {
 	name: string;
@@ -22,34 +22,61 @@ export type ChatProjectFormValues = {
 	icon: string;
 };
 
-const nameMaxLength = 64;
-const descriptionMaxLength = 1024;
-const iconMaxLength = 256;
+// Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
+const nameMaxChars = 64;
+const descriptionMaxChars = 1024;
+const iconMaxChars = 256;
+
+// Counts code points, as the server does. Yup's max() and native maxLength
+// count UTF-16 units.
+const countCharacters = (value: unknown) => [...String(value ?? "")].length;
+
+const maxCharacters = (label: string, max: number) =>
+	Yup.string()
+		.trim()
+		.test(
+			"max-characters",
+			`${label} cannot be longer than ${max} characters.`,
+			(value) => countCharacters(value) <= max,
+		);
 
 const validationSchema = Yup.object({
-	name: Yup.string()
-		.trim()
-		.required("Name is required.")
-		.max(
-			nameMaxLength,
-			`Name cannot be longer than ${nameMaxLength} characters.`,
-		),
-	description: Yup.string().max(
-		descriptionMaxLength,
-		`Description cannot be longer than ${descriptionMaxLength} characters.`,
-	),
-	icon: Yup.string().max(
-		iconMaxLength,
-		`Icon cannot be longer than ${iconMaxLength} characters.`,
-	),
+	name: maxCharacters("Name", nameMaxChars).required("Name is required."),
+	description: maxCharacters("Description", descriptionMaxChars),
+	icon: maxCharacters("Icon", iconMaxChars),
 });
+
+const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
+	name: values.name.trim(),
+	description: values.description.trim(),
+	icon: values.icon.trim(),
+});
+
+// Mirrors the live counter getFormHelpers shows for maxLength, counting code
+// points, so an over-limit value is explained before the field loses focus.
+const withCharacterCount = (field: FormHelpers, max: number): FormHelpers => {
+	const count = countCharacters(field.value);
+	if (count <= max - 30) {
+		return field;
+	}
+	const message = `This cannot be longer than ${max} characters. (${count}/${max})`;
+	if (count > max) {
+		return { ...field, error: true, helperText: message };
+	}
+	return field.error ? field : { ...field, helperText: message };
+};
 
 type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSubmitting: boolean;
+	/**
+	 * The save error. The caller's mutation outlives the dialog, so reset it
+	 * (for example with `mutation.reset()`) before opening.
+	 */
 	readonly error: unknown;
+	/** Receives all three fields, trimmed, including unchanged ones on edit. */
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
@@ -107,20 +134,23 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		},
 		validateOnMount: true,
 		validationSchema,
-		onSubmit: (values) => {
-			onSubmit({
-				name: values.name.trim(),
-				description: values.description.trim(),
-				icon: values.icon.trim(),
-			});
-		},
+		onSubmit: (values) => onSubmit(trimValues(values)),
 	});
-	const getFieldHelpers = getFormHelpers(form);
-	const nameField = getFieldHelpers("name", { maxLength: nameMaxLength });
-	const descriptionField = getFieldHelpers("description", {
-		maxLength: descriptionMaxLength,
-	});
-	const iconField = getFieldHelpers("icon", { maxLength: iconMaxLength });
+	const getFieldHelpers = getFormHelpers(form, error);
+	const nameField = withCharacterCount(getFieldHelpers("name"), nameMaxChars);
+	const descriptionField = withCharacterCount(
+		getFieldHelpers("description"),
+		descriptionMaxChars,
+	);
+	const iconField = getFieldHelpers("icon");
+	const trimmed = trimValues(form.values);
+	// An unchanged edit would still bump updated_at and write an audit entry.
+	const isUnchanged =
+		project !== undefined &&
+		trimmed.name === project.name &&
+		trimmed.description === project.description &&
+		trimmed.icon === project.icon;
+	const canSave = form.isValid && !isUnchanged && !isSubmitting;
 
 	return (
 		<>
@@ -133,7 +163,6 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					label="Name"
 					required
 					disabled={isSubmitting}
-					maxLength={nameMaxLength}
 					autoFocus
 				/>
 				<FormField
@@ -147,21 +176,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 							onChange={descriptionField.onChange}
 							onBlur={descriptionField.onBlur}
 							disabled={isSubmitting}
-							maxLength={descriptionMaxLength}
 						/>
 					)}
 				/>
 				<IconField
 					{...iconField}
 					disabled={isSubmitting}
-					maxLength={iconMaxLength}
 					onPickEmoji={(value) => form.setFieldValue("icon", value)}
 				/>
-				{Boolean(error) && (
-					<p className="m-0 text-sm text-content-destructive">
-						{getErrorMessage(error, "Failed to save project.")}
-					</p>
-				)}
+				{Boolean(error) && <ErrorAlert error={error} />}
 				<DialogFooter>
 					<Button
 						type="button"
@@ -171,7 +194,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					>
 						Cancel
 					</Button>
-					<Button type="submit" disabled={!form.isValid || isSubmitting}>
+					<Button type="submit" disabled={!canSave}>
 						<Spinner loading={isSubmitting} />
 						Save
 					</Button>
