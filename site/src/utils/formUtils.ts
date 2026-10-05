@@ -101,6 +101,10 @@ export const nameValidator = (name: string): Yup.StringSchema =>
 		.matches(usernameRE, "Special characters (e.g.: !, @, #) are not supported")
 		.max(maxLenName, `${name} cannot be longer than ${maxLenName} characters`);
 
+/** Validates group names using the limit in codersdk.GroupNameValid. */
+export const groupNameValidator = (name: string): Yup.StringSchema =>
+	nameValidator(name).max(255, `${name} cannot be longer than 255 characters`);
+
 export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 	Yup.string()
 		.matches(

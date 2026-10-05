@@ -17,12 +17,12 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	getFormHelpers,
-	nameValidator,
+	groupNameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: groupNameValidator("Name"),
 });
 
 type CreateGroupPageViewProps = {
