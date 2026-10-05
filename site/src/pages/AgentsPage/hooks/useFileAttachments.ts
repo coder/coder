@@ -176,7 +176,8 @@ export function useFileAttachments(
 		// scoped to the organization either way.
 		persist?: boolean;
 		provider?: string;
-		// Separates drafts per destination, such as a project.
+		// Separates drafts per destination, such as a project. Read on mount;
+		// switching drafts needs a remount.
 		storageKey?: string;
 	},
 ): UseFileAttachmentsReturn {

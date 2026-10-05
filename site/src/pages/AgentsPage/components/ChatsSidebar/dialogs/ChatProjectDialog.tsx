@@ -23,8 +23,8 @@ export type ChatProjectFormValues = {
 };
 
 // Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
-const nameMaxChars = 64;
-const descriptionMaxChars = 1024;
+export const nameMaxChars = 64;
+export const descriptionMaxChars = 1024;
 const iconMaxChars = 256;
 
 // Counts code points of the value as submitted, as the server does. Yup's
