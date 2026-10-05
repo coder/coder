@@ -86,13 +86,12 @@ func propagateThroughForwarders(index prefixIndex, files []parsedFile) {
 	for round := range maxRounds {
 		changed := false
 		for _, pf := range files {
-			dir := pf.dir
-			prefixes, ok := index[dir]
+			prefixes, ok := index[pf.dir]
 			if !ok {
 				continue
 			}
 			for _, target := range forwardedPackages(pf) {
-				if target == dir {
+				if target == pf.dir {
 					continue
 				}
 				for _, prefix := range prefixes {
@@ -186,8 +185,7 @@ func packageDir(path string) string {
 // parsedFile is a parsed Go file plus the import information needed to resolve
 // a selector back to a package directory.
 type parsedFile struct {
-	path    string
-	dir     string // packageDir(path)
+	dir     string // packageDir of the file's path
 	file    *ast.File
 	imports map[string]string // local name -> package directory
 }
@@ -217,7 +215,7 @@ func collectPrefixInputs(roots []string) (map[string]string, []parsedFile, error
 			for name, value := range stringConsts(file, func(string) bool { return true }, decodedStringLiteral) {
 				consts[dir+"."+name] = value
 			}
-			files = append(files, parsedFile{path: path, dir: dir, file: file, imports: fileImports(file)})
+			files = append(files, parsedFile{dir: dir, file: file, imports: fileImports(file)})
 			return nil
 		})
 		if err != nil {

@@ -63,8 +63,8 @@ const PrometheusMetricPrefix = "coder_ai_gateway_"
 	writeGoFile(t, root, "server/costcontrol", "metrics.go", "package costcontrol\n")
 	writeGoFile(t, root, "gateway/keypool", "collector.go", "package keypool\n")
 	writeGoFile(t, root, "proxy", "metrics.go", "package proxy\n")
-	// A same-package constant prefix, declared in a nested directory so the
-	// lookup key contains a separator.
+	// A prefix resolved through a constant declared in the wrapping file's own
+	// package.
 	writeGoFile(t, root, "server/cmd", "run.go", `package cmd
 
 import (
