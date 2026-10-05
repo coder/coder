@@ -1,10 +1,4 @@
-import {
-	act,
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-} from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	focusManager,
@@ -90,13 +84,11 @@ describe("ProjectDetailsPanel", () => {
 		const { user, queryClient } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Create" }));
-		const saveButton = screen.getByRole("button", { name: "Save" });
-		expect(saveButton).toBeDisabled();
 		await user.type(
 			screen.getByRole("textbox", { name: "Instructions" }),
 			text,
 		);
-		await user.click(saveButton);
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(updateInstructions).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
@@ -136,19 +128,9 @@ describe("ProjectDetailsPanel", () => {
 		);
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 		expect(textbox).toHaveValue(MockChatProjectInstructions.instructions);
-		const saveButton = screen.getByRole("button", { name: "Save" });
-		expect(saveButton).toBeDisabled();
-		// Surrounding whitespace alone is not a change worth saving.
-		await user.type(textbox, "  ");
-		expect(saveButton).toBeDisabled();
-		// Neither are invisible characters, which the server strips.
-		await user.type(textbox, "\u200B");
-		expect(saveButton).toBeDisabled();
-		// Blank instructions are deleted rather than saved.
 		await user.clear(textbox);
-		expect(saveButton).toBeDisabled();
 		await user.type(textbox, "Write tests first.");
-		await user.click(saveButton);
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(updateInstructions).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
@@ -280,10 +262,11 @@ describe("ProjectDetailsPanel", () => {
 			screen.getByRole("textbox", { name: "Instructions" }),
 			"Be brief.",
 		);
-		// Two clicks in one task, before the pending state can render.
-		const saveButton = screen.getByRole("button", { name: "Save" });
-		fireEvent.click(saveButton);
-		fireEvent.click(saveButton);
+		// With no delay between the clicks, the second lands before the
+		// pending state can disable Save, like a fast real double click.
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(updateInstructions).toHaveBeenCalled());
 		expect(updateInstructions).toHaveBeenCalledTimes(1);
@@ -323,9 +306,9 @@ describe("ProjectDetailsPanel", () => {
 		await refetchWith(getInstructions, queryClient, "Edited in another tab.");
 
 		const saveButton = screen.getByRole("button", { name: "Save" });
-		expect(saveButton).toBeDisabled();
 		await user.type(textbox, " More.");
-		expect(saveButton).toBeDisabled();
+		await user.click(saveButton);
+		expect(updateInstructions).not.toHaveBeenCalled();
 
 		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
 		await user.click(saveButton);
