@@ -14248,9 +14248,9 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		// The agent runs execute with sh, where $$ is not the Windows
-		// process ID, and os.Process.Signal supports only Kill on Windows.
-		t.Skip("checks the process with a Unix process ID and signal 0")
+		// The process check sends signal 0, and os.Process.Signal
+		// supports only Kill on Windows.
+		t.Skip("checks the process with signal 0, which Windows does not support")
 	}
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
