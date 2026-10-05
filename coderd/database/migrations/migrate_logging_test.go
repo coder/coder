@@ -1,10 +1,12 @@
 package migrations_test
 
 import (
+	"io/fs"
 	"testing"
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -59,6 +61,8 @@ func TestUpLogging(t *testing.T) {
 			"committed database migrations",
 		}, messages(sink))
 		entries := sink.Entries()
+		require.Equal(t, true, field(entries[0], "fresh_database"))
+		require.Nil(t, field(entries[0], "current_version"))
 		require.Equal(t, "create_a", field(entries[1], "name"))
 		require.Equal(t, 2, field(entries[5], "count"))
 
@@ -93,11 +97,47 @@ func TestUpLogging(t *testing.T) {
 		rolledBack := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "rolled back database migrations" })
 		require.Len(t, rolledBack, 1)
 		require.Equal(t, 2, field(rolledBack[0], "count"))
-		require.Equal(t, -1, field(rolledBack[0], "schema_version"))
+		require.Equal(t, true, field(rolledBack[0], "fresh_database"))
 
 		// Nothing was committed, so the schema is still empty.
 		var exists bool
 		require.NoError(t, db.QueryRowContext(ctx, "SELECT to_regclass('a') IS NOT NULL").Scan(&exists))
 		require.False(t, exists)
 	})
+
+	// A failure that is not a SQL error leaves the transaction healthy, so the
+	// migrations applied before it are committed rather than rolled back.
+	t.Run("CommittedBeforeFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+
+		migs := openFailFS{MapFS: good, fail: "000002_create_b.up.sql"}
+		sink := testutil.NewFakeSink(t)
+		require.Error(t, migrations.UpWithFSAndLogger(ctx, db, migs, sink.Logger(slog.LevelInfo)))
+
+		require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "rolled back database migrations" }))
+		committed := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "committed database migrations before failure" })
+		require.Len(t, committed, 1)
+		require.Equal(t, 1, field(committed[0], "count"))
+		require.Equal(t, 1, field(committed[0], "to_version"))
+
+		var version int
+		require.NoError(t, db.QueryRowContext(ctx, "SELECT version FROM schema_migrations").Scan(&version))
+		require.Equal(t, 1, version)
+	})
+}
+
+// openFailFS fails to open one file, simulating a migration source error.
+type openFailFS struct {
+	fstest.MapFS
+	fail string
+}
+
+func (f openFailFS) Open(name string) (fs.File, error) {
+	if name == f.fail {
+		return nil, xerrors.New("open failed")
+	}
+	return f.MapFS.Open(name)
 }

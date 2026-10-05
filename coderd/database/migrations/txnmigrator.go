@@ -43,6 +43,8 @@ type pgTxnDriver struct {
 	// applied lists the versions applied in the current transaction. They are
 	// not durable until the transaction commits in Unlock.
 	applied []int
+	// commitErr is the result of the commit in the most recent Unlock.
+	commitErr error
 }
 
 func (*pgTxnDriver) Open(string) (database.Driver, error) {
@@ -62,6 +64,7 @@ func (d *pgTxnDriver) Lock() error {
 	}
 	d.inFlight = -1
 	d.applied = nil
+	d.commitErr = nil
 	const q = `
 SELECT pg_advisory_xact_lock($1)
 `
@@ -76,6 +79,7 @@ SELECT pg_advisory_xact_lock($1)
 func (d *pgTxnDriver) Unlock() error {
 	err := d.tx.Commit()
 	d.tx = nil
+	d.commitErr = err
 	if err != nil {
 		return xerrors.Errorf("commit tx on unlock: %w", err)
 	}

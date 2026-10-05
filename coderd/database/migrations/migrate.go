@@ -17,6 +17,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -162,11 +163,10 @@ func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (ret
 	if pending == 0 {
 		logger.Info(ctx, "database schema is up to date", slog.F("version", currentVersion))
 	} else {
-		logger.Info(ctx, "database migrations required",
-			slog.F("current_version", currentVersion),
+		logger.Info(ctx, "database migrations required", append(schemaVersionFields("current_version", currentVersion),
 			slog.F("target_version", targetVersion),
 			slog.F("pending", pending),
-		)
+		)...)
 	}
 
 	start := time.Now()
@@ -183,8 +183,6 @@ func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (ret
 		return nil
 	}
 
-	// All migrations share one transaction, so any failure discards every
-	// migration applied before it.
 	failFields := []slog.Field{slog.Error(err)}
 	if dbDriver.inFlight >= 0 {
 		failFields = append(failFields,
@@ -193,15 +191,47 @@ func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (ret
 		)
 	}
 	logger.Error(ctx, "database migration failed", failFields...)
+
+	// Nothing was written in the migration transaction, or the lock was never
+	// acquired, so there is no commit outcome to report.
+	if len(dbDriver.applied) == 0 && dbDriver.inFlight < 0 {
+		return xerrors.Errorf("up: %w", err)
+	}
+	// golang-migrate commits in Unlock even after a failure. A SQL error aborts
+	// the transaction, so Postgres rolls it back. Any other error, such as a
+	// failure to read the next migration, leaves the transaction healthy and
+	// the work done so far is committed.
+	outcomeFields := []slog.Field{slog.F("count", len(dbDriver.applied))}
 	if len(dbDriver.applied) > 0 {
-		logger.Warn(ctx, "rolled back database migrations",
-			slog.F("count", len(dbDriver.applied)),
+		outcomeFields = append(outcomeFields,
 			slog.F("from_version", dbDriver.applied[0]),
 			slog.F("to_version", dbDriver.applied[len(dbDriver.applied)-1]),
-			slog.F("schema_version", currentVersion),
 		)
 	}
+	switch {
+	case errors.Is(dbDriver.commitErr, pq.ErrInFailedTransaction):
+		logger.Warn(ctx, "rolled back database migrations",
+			append(outcomeFields, schemaVersionFields("schema_version", currentVersion)...)...)
+	case dbDriver.commitErr == nil:
+		if dbDriver.inFlight >= 0 {
+			// The failed migration's dirty marker was committed as well.
+			outcomeFields = append(outcomeFields, slog.F("dirty_version", dbDriver.inFlight))
+		}
+		logger.Warn(ctx, "committed database migrations before failure", outcomeFields...)
+	default:
+		logger.Warn(ctx, "database migration commit outcome unknown",
+			append(outcomeFields, slog.Error(dbDriver.commitErr))...)
+	}
 	return xerrors.Errorf("up: %w", err)
+}
+
+// schemaVersionFields returns log fields describing a schema version, where -1
+// means no migrations have been applied.
+func schemaVersionFields(name string, version int) []slog.Field {
+	if version < 0 {
+		return []slog.Field{slog.F("fresh_database", true)}
+	}
+	return []slog.Field{slog.F("fresh_database", false), slog.F(name, version)}
 }
 
 // pendingMigrations returns the latest migration version in sourceDriver and
