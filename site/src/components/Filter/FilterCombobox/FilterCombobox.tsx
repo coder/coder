@@ -72,8 +72,9 @@ const CLEAR_ALL_MIN_CHIPS = 3;
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
+// Flush with the main panel, like `DropdownMenuSubContent`.
 const flyoutPanelClassName =
-	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
+	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-full sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -685,7 +686,7 @@ function OptionRowContent({ icon, label, selected }: OptionRowContentProps) {
 	return (
 		<>
 			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
-			<span>{label}</span>
+			<span className="min-w-0 truncate">{label}</span>
 			{selected && (
 				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
 			)}
@@ -701,14 +702,14 @@ function ChipLabel({
 	value: string;
 }): React.ReactNode {
 	if (prefix.length === 0) {
-		return value;
+		return <span className="min-w-0 truncate">{value}</span>;
 	}
 	return (
 		<>
-			<span className="text-content-secondary group-hover/chip:text-content-primary">
+			<span className="shrink-0 text-content-secondary group-hover/chip:text-content-primary">
 				{prefix}:
 			</span>
-			<span className="text-content-primary">{value}</span>
+			<span className="min-w-0 truncate text-content-primary">{value}</span>
 		</>
 	);
 }

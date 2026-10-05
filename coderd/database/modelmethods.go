@@ -172,6 +172,10 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).
@@ -185,6 +189,13 @@ func (c Chat) RBACObject() rbac.Object {
 	return obj.
 		WithACLUserList(c.UserACL.RBACACL()).
 		WithGroupACL(c.GroupACL.RBACACL())
+}
+
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		InOrg(a.OrganizationID).
+		WithOwner(a.OwnerID.String())
 }
 
 func (m MCPServerConfig) RBACObject() rbac.Object {

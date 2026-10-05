@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -20,9 +22,7 @@ import (
 )
 
 // quotaLockTimeout bounds how long a quota commit waits for an earlier commit
-// for the same owner and organization. Holders keep the lock for a few quick
-// queries, so a wait this long means a holder is stuck or the database is
-// overloaded.
+// for the same owner and organization.
 const quotaLockTimeout = 30 * time.Second
 
 type committer struct {
@@ -50,37 +50,49 @@ func (c *committer) CommitQuota(
 		return nil, err
 	}
 
-	lockTimeout := quotaLockTimeout
-	if c.lockTimeout > 0 {
-		lockTimeout = c.lockTimeout
-	}
+	lockTimeout := cmp.Or(c.lockTimeout, quotaLockTimeout)
+	lockID := database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID)
 	var (
-		consumed     int64
-		budget       int64
-		permit       bool
-		lockTimedOut bool
+		consumed int64
+		budget   int64
+		permit   bool
 	)
 	err = c.Database.InTx(func(s database.Store) error {
 		// InTx only retries SERIALIZABLE transactions, but reset anyway so the
 		// response always comes from the attempt that committed.
-		consumed, budget, permit, lockTimedOut = 0, 0, false, false
+		consumed, budget, permit = 0, 0, false
 
 		// Quota commits for the same owner and organization take turns. The
 		// lock is held until commit, and READ COMMITTED gives each statement
 		// below a fresh snapshot, so the reads include every cost committed
-		// by the previous lock holder.
-		lockCtx, cancel := context.WithTimeout(ctx, lockTimeout)
-		err := s.AcquireLock(lockCtx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
-		cancel()
-		// Check the deadline even when AcquireLock succeeded. The driver can
-		// close the connection once the deadline passes, so a lock granted
-		// at that moment may not be usable.
-		if errors.Is(lockCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
-			lockTimedOut = true
-			return xerrors.New("workspace quota lock wait timed out")
-		}
+		// by the previous lock holder. Higher isolation levels keep the
+		// snapshot taken before the wait, so they can miss that cost;
+		// SERIALIZABLE also retains serialization conflicts and retries.
+		priorLockTimeout, err := s.GetTransactionLockTimeout(ctx)
 		if err != nil {
+			return xerrors.Errorf("get transaction lock timeout: %w", err)
+		}
+		if err := s.SetTransactionLockTimeout(ctx, max(1, lockTimeout.Milliseconds())); err != nil {
+			return xerrors.Errorf("set quota lock timeout: %w", err)
+		}
+		if err := s.AcquireLock(ctx, lockID); err != nil {
+			if pgErr, ok := errors.AsType[*pq.Error](err); ok && pgErr.Code == "55P03" {
+				c.Log.Warn(ctx, "workspace quota lock wait timed out; retry the build",
+					slog.F("job_id", jobID),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("owner_id", workspace.OwnerID),
+					slog.F("organization_id", workspace.OrganizationID),
+					slog.F("lock_id", lockID),
+					slog.F("timeout", lockTimeout),
+				)
+				return xerrors.Errorf("timed out after %s waiting for workspace quota lock; quota checks are taking too long, please retry the build: %w", lockTimeout, err)
+			}
 			return xerrors.Errorf("acquire workspace quota lock: %w", err)
+		}
+		// Keep the configured timeout for subsequent row-lock waits, including
+		// when CommitQuota is called within an existing transaction.
+		if err := s.SetTransactionLockTimeout(ctx, priorLockTimeout); err != nil {
+			return xerrors.Errorf("restore transaction lock timeout: %w", err)
 		}
 
 		consumed, err = s.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
@@ -143,11 +155,6 @@ func (c *committer) CommitQuota(
 		Isolation:    sql.LevelReadCommitted,
 		TxIdentifier: "commit_quota",
 	})
-	if lockTimedOut {
-		// InTx's error also reports the failed rollback on the closed
-		// connection, which reads like a database problem.
-		return nil, xerrors.Errorf("timed out after %s waiting for workspace quota lock", lockTimeout)
-	}
 	if err != nil {
 		return nil, err
 	}

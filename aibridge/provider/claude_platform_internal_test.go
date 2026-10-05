@@ -101,7 +101,7 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 	t.Run("ambient IAM signs when no key is present", func(t *testing.T) {
 		t.Parallel()
 		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
-		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
+		cred, err := p.ResolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
 		require.IsType(t, credential.AWSSigV4{}, cred)
 	})
@@ -114,7 +114,7 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 		require.NoError(t, err)
 		req := httptest.NewRequest(http.MethodPost, routeMessages, nil)
 		req.Header.Set(aibheaders.AuthHeaderXAPIKey, "user-key")
-		cred, err := p.resolveCredential(req)
+		cred, err := p.ResolveCredential(req)
 		require.NoError(t, err)
 		require.Equal(t, credential.BYOK{Secret: "user-key", Header: aibheaders.AuthHeaderXAPIKey}, cred)
 		inner := &captureTransport{}
@@ -129,7 +129,7 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 	t.Run("pool is selected before ambient IAM", func(t *testing.T) {
 		t.Parallel()
 		p := newTestClaudePlatform(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "workspace-key")}, claudePlatformIAMCfg())
-		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
+		cred, err := p.ResolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
 		require.IsType(t, &credential.CentralizedPool{}, cred)
 	})

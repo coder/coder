@@ -2089,11 +2089,22 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "actor_header_username",
 	}
+	aiGatewayActorHeaderEmail := serpent.Option{
+		Name:        "AI Gateway Actor Header Email",
+		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.",
+		Flag:        "ai-gateway-actor-header-email",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
+		Value:       &c.AI.BridgeConfig.ActorHeaderEmail,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_email",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
 		Description: "Add configured headers identifying the authenticated user to intercepted upstream requests. " +
 			"Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. " +
-			"When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.",
+			"When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. " +
+			"Client headers starting with X-AI-Bridge-Actor are always removed.",
 		Flag:    "ai-gateway-send-actor-headers",
 		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:   &c.AI.BridgeConfig.SendActorHeaders,
@@ -4532,6 +4543,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "maxConcurrentRecordingUploads",
 		},
 		{
+			Name:        "Chat: Max Automations Per Owner",
+			Description: "Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.",
+			Flag:        "chat-max-automations-per-owner",
+			Env:         "CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER",
+			Value:       &c.AI.Chat.MaxAutomationsPerOwner,
+			Default:     strconv.Itoa(DefaultChatMaxAutomationsPerOwner),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxAutomationsPerOwner",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4652,6 +4673,7 @@ Write out the current server config as YAML to stdout.`,
 		aiGatewaySendActorHeaders,
 		aiGatewayActorHeaderID,
 		aiGatewayActorHeaderUsername,
+		aiGatewayActorHeaderEmail,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -5007,6 +5029,7 @@ type AIBridgeConfig struct {
 	SendActorHeaders        serpent.Bool   `json:"send_actor_headers" typescript:",notnull"`
 	ActorHeaderID           serpent.String `json:"actor_header_id" typescript:",notnull"`
 	ActorHeaderUsername     serpent.String `json:"actor_header_username" typescript:",notnull"`
+	ActorHeaderEmail        serpent.String `json:"actor_header_email" typescript:",notnull"`
 	AllowBYOK               serpent.Bool   `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
@@ -5082,6 +5105,9 @@ type ChatConfig struct {
 	// MaxConcurrentRecordingUploads is the maximum number of virtual
 	// desktop recordings that each Coder server stores at the same time.
 	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
+	// MaxAutomationsPerOwner is the maximum number of chat automations
+	// one user can own across all organizations.
+	MaxAutomationsPerOwner serpent.Int64 `json:"max_automations_per_owner" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5147,6 +5173,7 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 	}{
 		{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
 		{"CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", c.ActorHeaderEmail.Value(), "X-AI-Bridge-Actor-Metadata-Email"},
 	}
 	seen := make(map[string]string, len(headers))
 	for _, header := range headers {
@@ -5257,6 +5284,7 @@ func (c *DeploymentValues) Validate() error {
 		{"chat-max-attachments-per-chat", c.AI.Chat.MaxAttachmentsPerChat.Value()},
 		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
 		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
+		{"chat-max-automations-per-owner", c.AI.Chat.MaxAutomationsPerOwner.Value()},
 	} {
 		if limit.value < 1 || limit.value > math.MaxInt32 {
 			return xerrors.Errorf("--%s (%d) must be between 1 and %d", limit.flag, limit.value, math.MaxInt32)
@@ -5495,12 +5523,15 @@ const (
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
+	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
+	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5515,6 +5546,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentMCPToolSearch:
+		return "MCP Tool Search"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNoNATSPubsub:
@@ -5525,6 +5558,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayReverseProxy:
 		return "AI Gateway Reverse Proxy"
+	case ExperimentChatProjects:
+		return "Chat Projects"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5537,6 +5572,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatBoard:
 		return "Chat Board"
+	case ExperimentChatAutomations:
+		return "Chat Automations"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5558,19 +5595,24 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
+	ExperimentChatProjects,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatBoard,
+	ExperimentChatStageMetrics,
+	ExperimentChatAutomations,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentChatStageMetrics,
+}
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules
 // evaluated per user. Experiments not listed here are read only from the
@@ -5578,6 +5620,7 @@ var ExperimentsSafe = Experiments{}
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
 	ExperimentMCPToolSearch,
+	ExperimentChatAutomations,
 }
 
 // Experiments is a list of experiments.

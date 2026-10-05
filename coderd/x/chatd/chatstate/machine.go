@@ -144,6 +144,15 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
+//
+// Lock order is the chat row first, then automations in ascending id
+// order (see [LockAutomations]). When an attempt that took automation
+// locks is aborted by a PostgreSQL deadlock, Update reruns the whole
+// transaction, including fn, up to [maxUpdateAttempts] times. fn must
+// therefore be safe to rerun: it may only do database work through the
+// transaction and assign results. Attempts that took no automation locks
+// are never retried, and neither is an Update nested inside another
+// Update, because the outer transaction is already aborted.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
@@ -154,7 +163,30 @@ func (m *ChatMachine) Update(
 	if m.publisher == nil {
 		return xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
+	if _, nested := updateAttemptFromContext(ctx); nested {
+		// The outer Update owns the transaction, its lock record, and
+		// any retry.
+		return m.updateOnce(ctx, fn)
+	}
+	for attempt := 1; ; attempt++ {
+		state := &updateAttempt{}
+		err := m.updateOnce(context.WithValue(ctx, updateAttemptKey{}, state), fn)
+		if err == nil || attempt >= maxUpdateAttempts ||
+			!state.automationLocks || !database.IsDeadlockError(err) {
+			return err
+		}
+	}
+}
 
+// maxUpdateAttempts bounds the deadlock retries of [ChatMachine.Update].
+const maxUpdateAttempts = 3
+
+// updateOnce runs one Update attempt with its own publish buffer, so an
+// aborted attempt publishes nothing.
+func (m *ChatMachine) updateOnce(
+	ctx context.Context,
+	fn func(*Tx, database.Store) error,
+) error {
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 

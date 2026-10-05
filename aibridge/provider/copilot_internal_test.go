@@ -138,7 +138,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		req.Header.Set("Editor-Version", "vscode/1.85.0")
 		req.Header.Set("Copilot-Integration-Id", "test-integration")
-		req = req.WithContext(aibcontext.AsActor(req.Context(), "actor-id", recorder.Metadata{"Username": "actor-username"}))
+		req = req.WithContext(aibcontext.AsActor(req.Context(), "actor-id", "", recorder.Metadata{"Username": "actor-username"}))
 		w := httptest.NewRecorder()
 
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)

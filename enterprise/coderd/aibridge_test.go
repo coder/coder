@@ -1708,6 +1708,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	const (
 		actorIDHeader       = "X-Downstream-User-Id"
 		actorUsernameHeader = "X-Downstream-Username"
+		actorEmailHeader    = "X-Downstream-Email"
+		defaultEmailHeader  = "X-AI-Bridge-Actor-Metadata-Email"
 	)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1770,6 +1772,7 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
 	dv.AI.BridgeConfig.ActorHeaderID = serpent.String(actorIDHeader)
 	dv.AI.BridgeConfig.ActorHeaderUsername = serpent.String(actorUsernameHeader)
+	dv.AI.BridgeConfig.ActorHeaderEmail = serpent.String(actorEmailHeader)
 
 	firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
@@ -1803,6 +1806,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 		req.Header.Set("X-Client-Arbitrary", "preserve-me")
 		req.Header.Set(actorIDHeader, "spoofed-id")
 		req.Header.Set(actorUsernameHeader, "spoofed-username")
+		req.Header.Set(actorEmailHeader, "spoofed-email")
+		req.Header.Set(defaultEmailHeader, "spoofed-default-email")
 
 		resp, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
@@ -1828,6 +1833,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 		require.Equal(t, "preserve-me", request.header.Get("X-Client-Arbitrary"))
 		require.Equal(t, expectedUsers[i].ID.String(), request.header.Get(actorIDHeader))
 		require.Equal(t, expectedUsers[i].Username, request.header.Get(actorUsernameHeader))
+		require.Equal(t, expectedUsers[i].Email, request.header.Get(actorEmailHeader))
+		require.Empty(t, request.header.Get(defaultEmailHeader))
 		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-ID"))
 		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-Metadata-Username"))
 	}
@@ -2786,6 +2793,47 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
 		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
 		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+	})
+
+	t.Run("TokenUsageBeyondFiftyThreads", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The session-wide token fetch previously fell back to a default of
+		// 50 threads, so the 51st thread is the first one it dropped. Only
+		// that thread records tokens, so any nonzero value must come from it.
+		const threadCount = 51
+		now := dbtime.Now()
+		var lastThreadID uuid.UUID
+		for i := range threadCount {
+			startedAt := now.Add(time.Duration(i) * time.Second)
+			endedAt := startedAt.Add(time.Millisecond)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-4",
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: "many-threads-session", Valid: true},
+			}, &endedAt)
+			lastThreadID = intc.ID
+		}
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: lastThreadID,
+			InputTokens:    100,
+			OutputTokens:   50,
+			Metadata:       json.RawMessage(`{"cache_read_input": 20}`),
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "many-threads-session", uuid.Nil, uuid.Nil, threadCount)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, threadCount)
+		last := res.Threads[threadCount-1]
+		require.Equal(t, lastThreadID, last.ID)
+
+		require.EqualValues(t, 100, last.TokenUsage.InputTokens)
+		require.EqualValues(t, 50, last.TokenUsage.OutputTokens)
+		require.EqualValues(t, int64(20), res.TokenUsageSummary.Metadata["cache_read_input"])
 	})
 
 	t.Run("InvalidCursor", func(t *testing.T) {

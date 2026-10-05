@@ -132,6 +132,11 @@ AI GATEWAY OPTIONS:
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
 
+      --ai-gateway-actor-header-email string, $CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL
+          Header name for the authenticated user's email address. Empty disables
+          this header. Requires AI Gateway actor headers to be enabled. Applies
+          to every configured provider; email is personal information.
+
       --ai-gateway-actor-header-id string, $CODER_AI_GATEWAY_ACTOR_HEADER_ID (default: X-AI-Bridge-Actor-ID)
           Header name for the authenticated user's ID. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
@@ -179,9 +184,9 @@ AI GATEWAY OPTIONS:
           Add configured headers identifying the authenticated user to
           intercepted upstream requests. Use this when a proxy between AI
           Gateway and an upstream AI provider needs user identity. When enabled,
-          removes client-supplied headers at the standard ID and username names
-          and any configured actor-header destinations before adding
-          authenticated values.
+          removes client-supplied headers at configured actor-header
+          destinations before adding authenticated values. Client headers
+          starting with X-AI-Bridge-Actor are always removed.
 
       --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
           Emit structured logs for AI Gateway interception records. Use this for
@@ -264,6 +269,11 @@ Configure the background chat processing daemon.
           earliest-uploaded files, and earlier messages show them as expired. A
           message that includes more files than the limit is rejected with HTTP
           400. Must be at least 1.
+
+      --chat-max-automations-per-owner int, $CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER (default: 50)
+          Maximum number of chat automations one user can own across all
+          organizations. Creating one more fails with HTTP 409. Must be at least
+          1.
 
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings that each Coder server

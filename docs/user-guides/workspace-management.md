@@ -106,6 +106,14 @@ Update a workspace through the command line:
 coder update <workspace-name>
 ```
 
+If the workspace is running, `coder update` asks for confirmation before it
+stops and updates the workspace. To skip the prompt in scripts and other
+non-interactive use, add `-y`:
+
+```sh
+coder update -y <workspace-name>
+```
+
 ### Automatic updates
 
 It can be tedious to manually update a workspace everytime an update is pushed

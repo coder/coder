@@ -1,4 +1,6 @@
-# Platform Controls
+---
+title: Platform controls
+---
 
 ## Design philosophy
 
@@ -172,7 +174,7 @@ The concurrent agent pools described above are licensing limits, not deployment 
 ### Git providers
 
 Coder Agents leverages your existing
-[external authentication](../../../admin/external-auth/index.md) configuration
+[external authentication](../../../admin/external-auth.md) configuration
 to power the in-chat diff viewer. Self-hosted GitHub Enterprise deployments
 require additional configuration for this feature.
 
@@ -197,6 +199,7 @@ runtime configuration for those features is available under **Admin settings** >
 See the following pages for experiment-gated features:
 
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
+- [Automations](../automations.md) (`--experiments=chat-automations`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 

@@ -3,8 +3,20 @@ package database
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+// TestWorkspaceQuotaLockID pins the namespace, UUID order, hash algorithm,
+// and signed result so replicas running different versions share one lock.
+func TestWorkspaceQuotaLockID(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	organizationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+	require.Equal(t, int64(-7417162456764879603), WorkspaceQuotaLockID(ownerID, organizationID))
+}
 
 // TestChatInstructionLockIDsDistinct proves the per-setting advisory lock IDs
 // for the chat instruction settings cannot collide with each other or with

@@ -219,6 +219,62 @@ export const SearchableHoverFlyout: Story = {
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
 };
 
+const longOptionCategory = (key: string, label: string): FilterCategory => ({
+	key,
+	label,
+	getOptions: async () => [
+		{
+			label: `A ${key} name long enough to overflow the flyout width`,
+			value: "long",
+		},
+		{ label: "short", value: "short" },
+	],
+});
+
+const LongOptionLabelsHarness = () => (
+	<FilterComboboxHarness
+		initialQuery=""
+		categories={[
+			longOptionCategory("template", "Template"),
+			longOptionCategory("organization", "Organization"),
+		]}
+	/>
+);
+
+const openOrganizationOptions = async (
+	canvasElement: HTMLElement,
+	open: (row: HTMLElement) => Promise<void>,
+) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		}),
+	);
+	await open(await body.findByRole("option", { name: "Organization" }));
+	await body.findByText(/A organization name/);
+};
+
+export const LongFlyoutOptionLabels: Story = {
+	render: () => <LongOptionLabelsHarness />,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.hover(row)),
+};
+
+export const LongOptionLabelsMobile: Story = {
+	render: () => <LongOptionLabelsHarness />,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () =>
+		setupMatchMedia({
+			[mobileViewportMediaQuery]: true,
+		}).restore,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.click(row)),
+};
+
 // The search field stays in the flyout when nothing matches.
 export const SearchableHoverFlyoutNoMatches: Story = {
 	...SearchableHoverFlyout,
@@ -280,6 +336,12 @@ export const WrappedChipsKeepIconsOnFirstRow: Story = {
 		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 		await expect(canvas.getByText(chip("outdated"))).toBeVisible();
 	},
+};
+
+export const LongChipValue: Story = {
+	render: () => (
+		<FilterComboboxHarness initialQuery="owner:me template:a-template-name-long-enough-to-overflow-the-search-field-width-on-desktop-viewports" />
+	),
 };
 
 // Backspace with an empty input removes the last committed chip.

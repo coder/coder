@@ -697,6 +697,9 @@ func TestWorkspaceQuota(t *testing.T) {
 	})
 }
 
+// TestWorkspaceSerialization exercises PostgreSQL READ COMMITTED query
+// interleavings through committer, rather than the production CommitQuota path.
+//
 // nolint:paralleltest,tparallel // Tests must run serially
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
@@ -1127,17 +1130,14 @@ func graphWithCost(cost int32) []*proto.Response {
 	}}
 }
 
-// committer does what the CommitQuota does, but allows
-// stepping through the actions in the tx and controlling the
-// timing.
-// This is a nice wrapper to make the tests more concise.
+// committer exposes quota queries in a READ COMMITTED transaction so tests
+// can control their interleaving with unrelated database updates.
 type committer struct {
 	DBTx *dbtestutil.DBTx
 	w    database.WorkspaceTable
 	b    database.WorkspaceBuild
 
-	doneOnce sync.Once
-	doneErr  error
+	done func() error
 }
 
 // newCommitter takes the quota lock, so a second committer for the same
@@ -1148,7 +1148,12 @@ func newCommitter(t *testing.T, db database.Store, workspace database.WorkspaceT
 		ReadOnly:  false,
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
-	c := &committer{DBTx: quotaTX, w: workspace, b: build}
+	c := &committer{
+		DBTx: quotaTX,
+		w:    workspace,
+		b:    build,
+		done: sync.OnceValue(quotaTX.Done),
+	}
 	// Release the lock if the subtest fails before Done, so later subtests
 	// for the same owner and organization don't block.
 	t.Cleanup(func() { _ = c.Done() })
@@ -1198,6 +1203,5 @@ func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing
 }
 
 func (c *committer) Done() error {
-	c.doneOnce.Do(func() { c.doneErr = c.DBTx.Done() })
-	return c.doneErr
+	return c.done()
 }

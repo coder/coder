@@ -30,7 +30,7 @@ export const DragGhost: React.FC<DragGhostProps> = ({ drag }) => {
 	return (
 		<div
 			className={cn(
-				"w-[300px] cursor-grabbing rounded-lg border border-content-link bg-surface-primary px-3 py-2 text-sm shadow-lg",
+				"w-[300px] cursor-grabbing overflow-hidden rounded-lg border border-content-link bg-surface-primary px-3 py-2 text-sm shadow-lg",
 				drag.type === "card" && cardAccent({ color: drag.card.color }),
 			)}
 		>

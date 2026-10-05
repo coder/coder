@@ -191,19 +191,23 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    `CODER_PROVISIONER_DAEMONS` sets the number of embedded provisioners, and its default is `3`.
    Embedded provisioners keep taking new builds until `coderd` stops, so go to the next step as soon as the list is empty.
 
-1. Stop every `coderd` replica, and wait for each process to exit.
+1. Stop every `coderd` replica.
 
-   - Kubernetes: run `kubectl scale deployment coder --replicas=0 -n <namespace>`, then wait until `kubectl get pods -n <namespace> -l app.kubernetes.io/name=coder` lists no pods, including pods that are `Terminating`.
+   - Kubernetes: run `kubectl scale deployment coder --replicas=0 -n <namespace>`.
    - systemd: run `sudo systemctl stop coder` on each host.
 
    On `SIGTERM`, `coderd` stops serving the API and then waits up to 30&nbsp;minutes for embedded provisioners to finish their active builds.
    The Coder Helm chart gives each pod 60&nbsp;seconds before Kubernetes stops it, and any build still running at that point is interrupted.
    The systemd unit in the Coder packages stops `coderd` with `SIGINT`, which cancels active embedded builds instead of waiting for them.
 
+1. Wait until every `coderd` process has exited.
+   On Kubernetes, `kubectl get pods -n <namespace> -l app.kubernetes.io/name=coder` must list no pods, including pods that are `Terminating`.
+
 ### Verify that the earlier release is gone
 
 1. Confirm that no `coderd` process from the earlier release runs on any host from your list.
-1. Check the database for sessions that `coderd` left open:
+1. Check the database for sessions that `coderd` left open.
+   The expected result is no rows.
 
    ```sql
    SELECT pid, usename, client_addr, state, backend_start, xact_start
@@ -213,7 +217,6 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
      AND pid <> pg_backend_pid();
    ```
 
-   The expected result is no rows.
    `coderd` doesn't set an `application_name` unless your `CODER_PG_CONNECTION_URL` sets one, so identify its sessions by `usename` and `client_addr`.
    If `coderd` connects through a connection pooler or proxy, sessions can remain after `coderd` stops and show the pooler's address, so rely on the `replicas` check below.
 
@@ -223,7 +226,8 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    > Ending a session rolls back its open transaction.
    > End only sessions from hosts where you confirmed that no `coderd` runs.
 
-1. Confirm that no `coderd` replica still reports to the database:
+1. Confirm that no `coderd` replica still reports to the database.
+   The expected result is no rows.
 
    ```sql
    SELECT hostname, version, updated_at
@@ -233,7 +237,7 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
      AND updated_at > now() - interval '1 minute';
    ```
 
-   The expected result is no rows, because a running `coderd` updates its row every 5&nbsp;seconds.
+   A running `coderd` updates its row every 5&nbsp;seconds.
    The `"primary"` filter leaves out workspace proxies, which report to the same table.
 
 1. Record the builds that the outage interrupted, replacing `<outage-start>` with the time you stopped the first provisioner or `coderd`:
@@ -253,8 +257,11 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 
 1. Turn off automatic rollback for this upgrade, such as the `--atomic` flag of `helm upgrade`.
    A rollback replaces new pods with pods of the earlier release while the new ones may still run.
-1. Upgrade and start `coderd` on every host or deployment from your list.
-   On Kubernetes, run `helm upgrade` with the new version, then confirm that the deployment runs the replica count you expect.
+1. Upgrade `coderd` on every host or deployment from your list.
+   On Kubernetes, run `helm upgrade` with the new version to deploy and start the new release.
+1. For deployments outside Kubernetes, start `coderd` on every upgraded host.
+   With systemd, run `sudo systemctl start coder` on each host.
+1. On Kubernetes, confirm that each deployment runs the replica count you expect.
 1. Confirm that every replica runs the new release by running the `replicas` query again.
    Each row shows the new version in the `version` column.
 1. Start the external provisioner daemons.

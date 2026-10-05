@@ -893,6 +893,10 @@ chat:
   # frees up within 90 seconds. Must be at least 1.
   # (default: 25, type: int)
   maxConcurrentRecordingUploads: 25
+  # Maximum number of chat automations one user can own across all organizations.
+  # Creating one more fails with HTTP 409. Must be at least 1.
+  # (default: 50, type: int)
+  maxAutomationsPerOwner: 50
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
@@ -1021,8 +1025,8 @@ ai_gateway:
   # Add configured headers identifying the authenticated user to intercepted
   # upstream requests. Use this when a proxy between AI Gateway and an upstream AI
   # provider needs user identity. When enabled, removes client-supplied headers at
-  # the standard ID and username names and any configured actor-header destinations
-  # before adding authenticated values.
+  # configured actor-header destinations before adding authenticated values. Client
+  # headers starting with X-AI-Bridge-Actor are always removed.
   # (default: false, type: bool)
   send_actor_headers: false
   # Header name for the authenticated user's ID. Empty disables this header.
@@ -1033,6 +1037,11 @@ ai_gateway:
   # Requires AI Gateway actor headers to be enabled.
   # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
   actor_header_username: X-AI-Bridge-Actor-Metadata-Username
+  # Header name for the authenticated user's email address. Empty disables this
+  # header. Requires AI Gateway actor headers to be enabled. Applies to every
+  # configured provider; email is personal information.
+  # (default: <unset>, type: string)
+  actor_header_email: ""
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
