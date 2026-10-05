@@ -7,6 +7,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import {
 	Collapsible,
@@ -93,6 +94,13 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							>
 								<AreaChart
 									accessibilityLayer
+									role="group"
+									aria-roledescription="chart"
+									title="User engagement"
+									desc={getDailyChartDescription(
+										"Daily engaged users",
+										data.map((d) => d.date),
+									)}
 									data={data}
 									margin={{
 										top: 10,
