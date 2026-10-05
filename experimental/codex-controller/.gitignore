@@ -1,0 +1,11 @@
+node_modules/
+state/
+.env
+.env.*
+credentials.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+__pycache__/
+*.pyc

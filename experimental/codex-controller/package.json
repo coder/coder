@@ -1,0 +1,20 @@
+{
+	"name": "coder-openai-webhook-poc",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@10.33.2",
+	"scripts": {
+		"test": "tsx --test src/*.test.ts",
+		"typecheck": "tsc --noEmit",
+		"start": "tsx src/server.ts",
+		"submit": "tsx src/submit.ts"
+	},
+	"dependencies": {
+		"openai": "7.23.0"
+	},
+	"devDependencies": {
+		"@types/node": "22.19.0",
+		"tsx": "4.20.6",
+		"typescript": "5.9.3"
+	}
+}
