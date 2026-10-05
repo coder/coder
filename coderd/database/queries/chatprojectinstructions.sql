@@ -12,18 +12,21 @@ LEFT JOIN users ON users.id = chat_project_instructions.updated_by
 WHERE chat_project_instructions.project_id = @project_id::uuid;
 
 -- name: UpsertChatProjectInstructions :one
+-- The organization comes from the project row, so the stored scope always
+-- matches the project's organization.
 INSERT INTO chat_project_instructions (
     project_id,
     organization_id,
     instructions,
     updated_by
 )
-VALUES (
-    @project_id::uuid,
-    @organization_id::uuid,
+SELECT
+    chat_projects.id,
+    chat_projects.organization_id,
     @instructions::text,
     @updated_by::uuid
-)
+FROM chat_projects
+WHERE chat_projects.id = @project_id::uuid
 ON CONFLICT (project_id) DO UPDATE SET
     instructions = EXCLUDED.instructions,
     updated_by = EXCLUDED.updated_by,
