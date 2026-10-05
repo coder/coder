@@ -1,0 +1,103 @@
+package migrations_test
+
+import (
+	"testing"
+	"testing/fstest"
+
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func TestUpLogging(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	good := fstest.MapFS{
+		"000001_create_a.up.sql":   {Data: []byte("CREATE TABLE a (id int);")},
+		"000001_create_a.down.sql": {Data: []byte("DROP TABLE a;")},
+		"000002_create_b.up.sql":   {Data: []byte("CREATE TABLE b (id int);")},
+		"000002_create_b.down.sql": {Data: []byte("DROP TABLE b;")},
+	}
+
+	messages := func(sink *testutil.FakeSink) []string {
+		var out []string
+		for _, e := range sink.Entries() {
+			out = append(out, e.Message)
+		}
+		return out
+	}
+	field := func(e slog.SinkEntry, name string) any {
+		for _, f := range e.Fields {
+			if f.Name == name {
+				return f.Value
+			}
+		}
+		return nil
+	}
+
+	t.Run("Committed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+
+		sink := testutil.NewFakeSink(t)
+		require.NoError(t, migrations.UpWithFSAndLogger(ctx, db, good, sink.Logger()))
+		require.Equal(t, []string{
+			"database migrations required",
+			"starting database migration",
+			"database migration applied, pending commit",
+			"starting database migration",
+			"database migration applied, pending commit",
+			"committed database migrations",
+		}, messages(sink))
+		entries := sink.Entries()
+		require.Equal(t, "create_a", field(entries[1], "name"))
+		require.Equal(t, 2, field(entries[5], "count"))
+
+		sink = testutil.NewFakeSink(t)
+		require.NoError(t, migrations.UpWithFSAndLogger(ctx, db, good, sink.Logger()))
+		require.Equal(t, []string{"database schema is up to date"}, messages(sink))
+	})
+
+	t.Run("RolledBack", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+
+		bad := fstest.MapFS{
+			"000003_broken.up.sql":   {Data: []byte("SELECT * FROM does_not_exist;")},
+			"000003_broken.down.sql": {Data: []byte("")},
+		}
+		for k, v := range good {
+			bad[k] = v
+		}
+
+		sink := testutil.NewFakeSink(t)
+		require.Error(t, migrations.UpWithFSAndLogger(ctx, db, bad, sink.Logger(slog.LevelInfo)))
+
+		failed := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "database migration failed" })
+		require.Len(t, failed, 1)
+		require.Equal(t, slog.LevelError, failed[0].Level)
+		require.Equal(t, 3, field(failed[0], "version"))
+		require.Equal(t, "broken", field(failed[0], "name"))
+
+		rolledBack := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "rolled back database migrations" })
+		require.Len(t, rolledBack, 1)
+		require.Equal(t, 2, field(rolledBack[0], "count"))
+		require.Equal(t, -1, field(rolledBack[0], "schema_version"))
+
+		// Nothing was committed, so the schema is still empty.
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx, "SELECT to_regclass('a') IS NOT NULL").Scan(&exists))
+		require.False(t, exists)
+	})
+}
