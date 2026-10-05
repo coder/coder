@@ -74,6 +74,10 @@ describe("ChatProjectDialog", () => {
 
 		await user.click(screen.getByLabelText(/Name/));
 		await user.paste("🚀".repeat(64));
+		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
@@ -94,11 +98,30 @@ describe("ChatProjectDialog", () => {
 		await user.type(screen.getByLabelText(/Name/), "Launch");
 		await user.click(screen.getByLabelText("Description"));
 		await user.paste(`${"d".repeat(1024)} `);
+		expect(screen.getByLabelText("Description")).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ description: "d".repeat(1024) }),
 		);
+	});
+
+	it("saves an edit that changes only the icon", async () => {
+		const user = userEvent.setup();
+		const project = { ...MockChatProject, icon: "" };
+		const { props } = renderDialog({ project });
+
+		await user.type(screen.getByLabelText("Icon"), "/emojis/1f680.png");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith({
+			name: project.name,
+			description: project.description,
+			icon: "/emojis/1f680.png",
+		});
 	});
 
 	it("does not save an edit when only stored whitespace differs", async () => {

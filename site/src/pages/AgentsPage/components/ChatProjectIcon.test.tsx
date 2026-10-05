@@ -9,7 +9,7 @@ const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
 );
 
 describe("ChatProjectIcon", () => {
-	it("falls back to the folder glyph when the icon fails to load", () => {
+	it("removes the image when it fails to load", () => {
 		render(<ChatProjectIcon project={{ icon: "/emojis/missing.png" }} />, {
 			wrapper: Wrapper,
 		});
