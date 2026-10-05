@@ -1,3 +1,28 @@
+-- Take the lock this migration needs before changing anything, retrying
+-- short waits so that a waiting migration does not stall chatd readers of
+-- chat_queued_messages. See 000609_chat_automations.up.sql for the
+-- reasoning. No statement below locks chats.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			PERFORM set_config('lock_timeout', '100ms', true);
+			LOCK TABLE chat_queued_messages IN ACCESS EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000612 could not lock chat_queued_messages within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
+
 -- 'paused': a turn finished at a queued message under edit.
 ALTER TYPE chat_status ADD VALUE IF NOT EXISTS 'paused';
 
