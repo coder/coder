@@ -143,7 +143,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	emptyMessage,
 }) => {
 	const projectPath: To = {
-		pathname: buildAgentProjectPath(project.id),
+		pathname: buildAgentProjectPath({ projectId: project.id }),
 		search: locationSearch,
 	};
 	return (
