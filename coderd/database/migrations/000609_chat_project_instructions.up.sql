@@ -1,5 +1,6 @@
 CREATE TABLE chat_project_instructions (
     project_id uuid PRIMARY KEY REFERENCES chat_projects(id) ON DELETE CASCADE,
+    organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     instructions text NOT NULL,
     updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now(),

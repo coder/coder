@@ -98,9 +98,10 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 	}
 
 	_, err := api.Database.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
-		ProjectID:    project.ID,
-		Instructions: instructions,
-		UpdatedBy:    apiKey.UserID,
+		ProjectID:      project.ID,
+		OrganizationID: project.OrganizationID,
+		Instructions:   instructions,
+		UpdatedBy:      apiKey.UserID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

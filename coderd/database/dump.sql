@@ -2143,6 +2143,7 @@ CREATE TABLE chat_organization_model_overrides (
 
 CREATE TABLE chat_project_instructions (
     project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
     instructions text NOT NULL,
     updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -5305,6 +5306,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_project_instructions
     ADD CONSTRAINT chat_project_instructions_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;

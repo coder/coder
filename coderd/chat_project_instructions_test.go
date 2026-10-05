@@ -114,6 +114,9 @@ func TestChatProjectInstructions(t *testing.T) {
 		Instructions: "Always reply in Spanish.",
 	})
 	require.NoError(t, err)
+	stored, err := db.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstUser.OrganizationID, stored.ChatProjectInstruction.OrganizationID)
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
 	_, err = db.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)

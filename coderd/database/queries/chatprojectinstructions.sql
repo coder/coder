@@ -14,11 +14,13 @@ WHERE chat_project_instructions.project_id = @project_id::uuid;
 -- name: UpsertChatProjectInstructions :one
 INSERT INTO chat_project_instructions (
     project_id,
+    organization_id,
     instructions,
     updated_by
 )
 VALUES (
     @project_id::uuid,
+    @organization_id::uuid,
     @instructions::text,
     @updated_by::uuid
 )
