@@ -921,7 +921,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "workspace-secret-manager"},
 				DisplayName: "Workspace Secret Manager",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspaceSecret.Type: {policy.ActionReadSecret, policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceWorkspaceSecret.Type: rbac.ResourceWorkspaceSecret.AvailableActions(),
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
