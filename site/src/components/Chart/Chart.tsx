@@ -98,7 +98,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
 	return (
 		<style
-			// oxlint-disable-next-line react/no-danger -- This renders generated chart CSS, not HTML.
+			// oxlint-disable-next-line react/no-danger -- This renders generated chart CSS, which is safe in this case because we control the inputs
 			dangerouslySetInnerHTML={{
 				__html: Object.entries(THEMES)
 					.map(
