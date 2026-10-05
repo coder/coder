@@ -176,7 +176,7 @@ export function useFileAttachments(
 		// scoped to the organization either way.
 		persist?: boolean;
 		provider?: string;
-		// Separates drafts kept for different destinations, such as projects.
+		// Separates drafts per destination, such as a project.
 		storageKey?: string;
 	},
 ): UseFileAttachmentsReturn {

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient } from "react-query";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
 import {
@@ -24,14 +24,13 @@ import {
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -41,7 +40,6 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import themes, { DEFAULT_THEME } from "#/theme";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
@@ -174,8 +172,10 @@ const createQueryClient = () => {
 
 type FormProps = React.ComponentProps<typeof AgentCreateForm>;
 
-const renderForm = (props: Partial<FormProps> = {}) => {
-	const queryClient = createQueryClient();
+const renderForm = (
+	props: Partial<FormProps> = {},
+	{ queryClient = createQueryClient() } = {},
+) => {
 	const onCreateChat = vi
 		.fn<FormProps["onCreateChat"]>()
 		.mockResolvedValue(undefined);
@@ -198,9 +198,10 @@ const renderForm = (props: Partial<FormProps> = {}) => {
 			</MemoryRouter>
 		</AppProviders>
 	);
-	const { rerender } = render(renderTree({}));
+	const { rerender, unmount } = render(renderTree({}));
 	return {
 		onCreateChat,
+		unmount,
 		rerender: (overrides: Partial<FormProps>) =>
 			rerender(renderTree(overrides)),
 	};
@@ -474,38 +475,6 @@ describe("AgentCreateForm workspace file uploads", () => {
 	});
 });
 
-type WrapperProps = React.PropsWithChildren<{
-	queryClient?: ReturnType<typeof createTestQueryClient>;
-}>;
-
-const Wrapper: React.FC<WrapperProps> = ({
-	children,
-	queryClient = createTestQueryClient(),
-}) => {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<TooltipProvider>
-					<MemoryRouter>{children}</MemoryRouter>
-				</TooltipProvider>
-			</ThemeOverride>
-		</QueryClientProvider>
-	);
-};
-
-const formProps = {
-	onCreateChat: vi.fn(),
-	isCreating: false,
-	createError: undefined,
-	canCreateChat: true,
-	canConfigureAgentSetup: false,
-	aiGatewayDisabled: false,
-	workspaceCount: 0,
-	workspaceOptions: [],
-	workspacesError: undefined,
-	isWorkspacesLoading: false,
-};
-
 const userDraftAttachments = JSON.stringify([
 	{
 		fileId: "user-draft-file",
@@ -544,19 +513,38 @@ describe("AgentCreateForm organization lock", () => {
 		);
 	});
 
-	it("does not save the locked organization or a workspace picked while locked", async () => {
-		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-default-org");
-		const mcpRequests: string[] = [];
+	const projectInOrg2 = {
+		id: "project-1",
+		organization_id: MockOrganization2.id,
+	};
+
+	// The default renderForm client pre-seeds permissions; these tests serve
+	// their own through MSW.
+	const renderLockTest = (props: Partial<FormProps>) =>
+		renderForm(props, { queryClient: createTestQueryClient() });
+
+	const recordMCPRequests = () => {
+		const requests: string[] = [];
 		server.use(
-			mockChatCreatePermissions(() => true),
 			http.get(
 				"/api/v2/organizations/:organization/mcp-servers",
 				({ params }) => {
-					mcpRequests.push(String(params.organization));
+					requests.push(String(params.organization));
 					return HttpResponse.json([]);
 				},
 			),
 		);
+		return requests;
+	};
+
+	it("does not save the user's defaults from choices made in a project", async () => {
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockDefaultOrganization.id,
+		);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-default-org");
+		server.use(mockChatCreatePermissions(() => true));
+		const mcpRequests = recordMCPRequests();
 		const projectWorkspace: TypesGen.Workspace = {
 			...mockWorkspace,
 			id: "ws-org2",
@@ -564,16 +552,10 @@ describe("AgentCreateForm organization lock", () => {
 			organization_id: MockOrganization2.id,
 		};
 
-		const { unmount } = render(
-			<Wrapper>
-				<AgentCreateForm
-					{...formProps}
-					workspaceCount={1}
-					workspaceOptions={[projectWorkspace]}
-					lockedOrganizationId={MockOrganization2.id}
-				/>
-			</Wrapper>,
-		);
+		const { unmount } = renderLockTest({
+			workspaceOptions: [projectWorkspace],
+			project: projectInOrg2,
+		});
 		await waitFor(() => {
 			expect(mcpRequests).toContain(MockOrganization2.id);
 		});
@@ -588,36 +570,41 @@ describe("AgentCreateForm organization lock", () => {
 			await screen.findByRole("option", { name: /project-workspace/ }),
 		);
 
-		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBeNull();
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			MockDefaultOrganization.id,
+		);
 		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
 			"ws-default-org",
 		);
-
 		unmount();
-		mcpRequests.length = 0;
-		render(
-			<Wrapper>
-				<AgentCreateForm {...formProps} />
-			</Wrapper>,
-		);
+	});
+
+	it("does not adopt the project's organization as the user's default", async () => {
+		server.use(mockChatCreatePermissions(() => true));
+		const mcpRequests = recordMCPRequests();
+
+		const { unmount } = renderLockTest({ project: projectInOrg2 });
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockOrganization2.id);
+		});
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBeNull();
+		unmount();
+
+		renderLockTest({});
 		await waitFor(() => {
 			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
 				MockDefaultOrganization.id,
 			);
 		});
-		expect(mcpRequests).toContain(MockDefaultOrganization.id);
 	});
 
-	it("keeps text and attachment drafts separate per draft scope", async () => {
+	it("keeps text and attachment drafts separate per project", async () => {
 		localStorage.setItem(emptyInputStorageKey, "plain composer draft");
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
-		server.use(mockChatCreatePermissions(() => true));
 
-		render(
-			<Wrapper>
-				<AgentCreateForm {...formProps} draftScope="project-1" />
-			</Wrapper>,
-		);
+		renderForm({
+			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
+		});
 		await typeMessage("project draft");
 
 		await waitFor(() => {
@@ -625,8 +612,15 @@ describe("AgentCreateForm organization lock", () => {
 				localStorage.getItem(`${emptyInputStorageKey}:project-1`),
 			).toContain("project draft");
 		});
-		expect(screen.queryByText("plain composer draft")).not.toBeInTheDocument();
-		expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+		// Send enables only after the attachment state is adopted, so a draft
+		// restored from the wrong key would be showing by now.
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Send" })).toBeEnabled(),
+		);
+		expect(screen.queryByText("plain composer draft")).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Remove notes.txt" }),
+		).toBeNull();
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"plain composer draft",
 		);
@@ -635,22 +629,15 @@ describe("AgentCreateForm organization lock", () => {
 		);
 	});
 
-	it("names the locked organization when the user cannot create chats in it", async () => {
+	it("names the project's organization when the user cannot create chats in it", async () => {
 		server.use(
 			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
 		);
 
-		render(
-			<Wrapper>
-				<AgentCreateForm
-					{...formProps}
-					lockedOrganizationId={MockOrganization2.id}
-				/>
-			</Wrapper>,
-		);
+		renderLockTest({ project: projectInOrg2 });
 
 		await screen.findByText(
-			/create chats in the My Organization 2 organization, which this project belongs to\. Ask your Coder administrator for access, then refresh this page\./,
+			/create chats in the My Organization 2 organization, which this project belongs to\./,
 		);
 	});
 
@@ -659,20 +646,45 @@ describe("AgentCreateForm organization lock", () => {
 			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
 		);
 
-		render(
-			<Wrapper>
-				<AgentCreateForm
-					{...formProps}
-					canCreateChat={false}
-					lockedOrganizationId={MockOrganization2.id}
-				/>
-			</Wrapper>,
-		);
+		renderLockTest({ canCreateChat: false, project: projectInOrg2 });
 
 		await screen.findByText(/You don't have permission to use Coder Agents\./);
-		expect(
-			screen.queryByText(/which this project belongs to/),
-		).not.toBeInTheDocument();
+		expect(screen.queryByText(/which this project belongs to/)).toBeNull();
+	});
+
+	it("shows the product-wide denial when no organization is permitted", async () => {
+		server.use(mockChatCreatePermissions(() => false));
+
+		renderLockTest({ project: projectInOrg2 });
+
+		await screen.findByText(/You don't have permission to use Coder Agents\./);
+		expect(screen.queryByText(/which this project belongs to/)).toBeNull();
+	});
+
+	it("does not deny access while permissions load", async () => {
+		const permissions = createDeferred<void>();
+		server.use(
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				await permissions.promise;
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+				);
+			}),
+		);
+		const mcpRequests = recordMCPRequests();
+
+		renderLockTest({ project: projectInOrg2 });
+		await screen.findByRole("textbox", { name: "Chat message" });
+		expect(screen.queryByText("Permission required")).toBeNull();
+
+		permissions.resolve();
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockOrganization2.id);
+		});
+		expect(screen.queryByText("Permission required")).toBeNull();
 	});
 });
 

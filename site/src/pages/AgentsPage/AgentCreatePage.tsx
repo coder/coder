@@ -455,8 +455,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 								? `prompt:${linkPrompt}`
 								: "draft"
 					}
-					lockedOrganizationId={selectedProject?.organization_id}
-					draftScope={selectedProject?.id}
+					project={selectedProject}
 					header={
 						selectedProject && (
 							<ProjectComposerHeader project={selectedProject} />

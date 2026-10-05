@@ -73,12 +73,12 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		onCreateChat,
 		isCreating,
 		createError,
-		lockedOrganizationId,
+		project,
 		header,
 		footer,
 		prefill,
 	}: MockAgentCreateFormProps) => {
-		renderedLockedOrganizationIds.push(lockedOrganizationId);
+		renderedLockedOrganizationIds.push(project?.organization_id);
 		return (
 			<div>
 				<span data-testid="prefill-message">{prefill?.message}</span>
@@ -91,7 +91,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 						onCreateChat({
 							message: "Create this chat",
 							organizationId:
-								lockedOrganizationId ?? MockDefaultOrganization.id,
+								project?.organization_id ?? MockDefaultOrganization.id,
 							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
