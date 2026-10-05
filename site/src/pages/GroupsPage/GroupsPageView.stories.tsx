@@ -159,6 +159,41 @@ export const WithMemberAvatars: Story = {
 	},
 };
 
+export const MemberCountBoundaries: Story = {
+	args: {
+		groups: [0, 1, 1284].map((count) => ({
+			...mockGroupWithSpend,
+			id: `members-${count}`,
+			name: `members-${count}`,
+			display_name: `Group ${count.toLocaleString("en-US")}`,
+			avatar_url: "",
+			total_member_count: count,
+		})),
+		groupsQuery: { ...mockSuccessResult, totalRecords: 3 },
+	},
+	parameters: {
+		queries: [1, 1284].map((count) => ({
+			key: getGroupMemberAvatarsQueryKey(
+				MockOrganization.name,
+				`members-${count}`,
+				GROUP_MEMBER_AVATAR_LIMIT,
+			),
+			data: {
+				users: Array.from(
+					{ length: Math.min(count, GROUP_MEMBER_AVATAR_LIMIT) },
+					(_, index) => ({
+						...MockUserMember,
+						id: `member-${index}`,
+						username: `member-${index}`,
+						avatar_url: "",
+					}),
+				),
+				count,
+			},
+		})),
+	},
+};
+
 export const WithMemberAvatarsLoading: Story = {
 	args: {
 		groups: [
