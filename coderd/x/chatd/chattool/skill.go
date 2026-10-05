@@ -36,6 +36,8 @@ const (
 type SkillMeta struct {
 	Name        string
 	Description string
+	// PluginName is empty for a plain workspace skill.
+	PluginName string
 	// Dir is the absolute path to the skill directory inside
 	// the workspace filesystem.
 	Dir string
@@ -48,6 +50,33 @@ type SkillMeta struct {
 	// empty on the legacy per-turn discovery path, where the body is
 	// read live.
 	Meta []byte
+}
+
+// MergePinnedSkills merges personal, organization, and pinned workspace and
+// plugin skills into resolved aliases.
+func MergePinnedSkills(personal, organization []skillspkg.Skill, pinned []SkillMeta) []skillspkg.ResolvedSkill {
+	workspace, plugin := splitPinnedSkills(pinned)
+	return skillspkg.MergeSkills(personal, organization, workspace, plugin)
+}
+
+func splitPinnedSkills(pinned []SkillMeta) (workspace, plugin []skillspkg.Skill) {
+	for _, skill := range pinned {
+		if skill.PluginName != "" {
+			plugin = append(plugin, skillspkg.Skill{
+				Name:        skill.Name,
+				Description: skill.Description,
+				Source:      skillspkg.SourcePlugin,
+				PluginName:  skill.PluginName,
+			})
+			continue
+		}
+		workspace = append(workspace, skillspkg.Skill{
+			Name:        skill.Name,
+			Description: skill.Description,
+			Source:      skillspkg.SourceWorkspace,
+		})
+	}
+	return workspace, plugin
 }
 
 // SkillContent is the full body of a skill, loaded on demand
@@ -71,22 +100,31 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 
 	entries := make([]skillIndexEntry, 0, len(resolved))
 	hasQualifiedAlias := false
-	hasWorkspaceSkill := false
+	hasQualifiedPluginAlias := false
+	hasFileBackedSkill := false
 	for _, s := range resolved {
-		entries = append(entries, skillIndexEntry{
+		entry := skillIndexEntry{
 			Alias:       s.Alias,
 			Description: truncateSkillIndexDescription(s.Description),
-		})
-		if s.Source == skillspkg.SourceWorkspace {
-			hasWorkspaceSkill = true
+		}
+		if s.Source == skillspkg.SourcePlugin {
+			entry.PluginName = s.PluginName
+		}
+		entries = append(entries, entry)
+		if s.Source == skillspkg.SourceWorkspace || s.Source == skillspkg.SourcePlugin {
+			hasFileBackedSkill = true
 		}
 		if s.Alias == s.QualifiedAlias() {
 			hasQualifiedAlias = true
+			if s.Source == skillspkg.SourcePlugin {
+				hasQualifiedPluginAlias = true
+			}
 		}
 	}
 	return renderSkillIndex(entries, skillIndexFormatOptions{
-		includeQualifiedAliasInstruction: hasQualifiedAlias,
-		includeReadSkillFileInstruction:  hasWorkspaceSkill,
+		includeQualifiedAliasInstruction:     hasQualifiedAlias,
+		qualifiedAliasInstructionListsPlugin: hasQualifiedPluginAlias,
+		includeReadSkillFileInstruction:      hasFileBackedSkill,
 	})
 }
 
@@ -108,11 +146,14 @@ func truncateSkillIndexDescription(description string) string {
 type skillIndexEntry struct {
 	Alias       string
 	Description string
+	// PluginName is rendered as a "(plugin: <name>)" label after the alias.
+	PluginName string
 }
 
 type skillIndexFormatOptions struct {
-	includeQualifiedAliasInstruction bool
-	includeReadSkillFileInstruction  bool
+	includeQualifiedAliasInstruction     bool
+	qualifiedAliasInstructionListsPlugin bool
+	includeReadSkillFileInstruction      bool
 }
 
 func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) string {
@@ -129,19 +170,28 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	if opts.includeReadSkillFileInstruction {
 		_, _ = b.WriteString(
 			"Use read_skill_file to read supporting files " +
-				"referenced by a workspace skill.\n",
+				"referenced by a workspace or plugin skill.\n",
 		)
 	}
 	if opts.includeQualifiedAliasInstruction {
+		aliasExamples := "personal/name"
+		if opts.qualifiedAliasInstructionListsPlugin {
+			aliasExamples = "personal/name or plugin/pluginname/name"
+		}
 		_, _ = b.WriteString(
 			"When a skill is listed with a source prefix, such as " +
-				"personal/name, pass that qualified alias to read_skill.\n",
+				aliasExamples + ", pass that qualified alias to read_skill.\n",
 		)
 	}
 	_, _ = b.WriteString("\n")
 	for _, s := range entries {
 		_, _ = b.WriteString("- ")
 		_, _ = b.WriteString(s.Alias)
+		if s.PluginName != "" {
+			_, _ = b.WriteString(" (plugin: ")
+			_, _ = b.WriteString(s.PluginName)
+			_, _ = b.WriteString(")")
+		}
 		if s.Description != "" {
 			_, _ = b.WriteString(": ")
 			_, _ = b.WriteString(s.Description)
@@ -311,7 +361,10 @@ const DefaultSkillMetaFile = "SKILL.md"
 type ReadSkillOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	GetSkills        func() []SkillMeta
-	ResolveAlias     func(string) (skillspkg.ResolvedSkill, error)
+	// PersonalSkills and OrganizationSkills are merged with GetSkills to
+	// resolve names and qualified aliases.
+	PersonalSkills     []skillspkg.Skill
+	OrganizationSkills []skillspkg.Skill
 	// LoadStoredSkillBody loads the current body of a personal or
 	// organization skill. It returns skillspkg.ErrSkillNotFound when the
 	// skill is gone, disabled, or no longer readable by the chat owner.
@@ -340,7 +393,7 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			resolved, err := resolveSkillAlias(options, args.Name)
+			resolved, skill, err := resolveSkillAlias(options, args.Name)
 			if err != nil {
 				return skillResolveErrorResponse(args.Name, err), nil
 			}
@@ -366,10 +419,11 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 					"body":  content.Body,
 					"files": []string{},
 				}), nil
-			case skillspkg.SourceWorkspace:
-				content, response, ok := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Name)
-				if ok {
-					return response, nil
+			case skillspkg.SourceWorkspace, skillspkg.SourcePlugin:
+				// The supporting file list is a best-effort live lookup.
+				content, err := loadPinnedWorkspaceSkillContent(ctx, options, skill)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 				// Include the absolute skill directory so the agent can
 				// reach supporting files with read_file and execute.
@@ -412,20 +466,15 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			resolved, err := resolveSkillAlias(options, args.Name)
+			resolved, skill, err := resolveSkillAlias(options, args.Name)
 			if err != nil {
 				return skillResolveErrorResponse(args.Name, err), nil
 			}
-			if resolved.Source != skillspkg.SourceWorkspace {
+			if resolved.Source != skillspkg.SourceWorkspace && resolved.Source != skillspkg.SourcePlugin {
 				return fantasy.NewTextErrorResponse(fmt.Sprintf(
 					"read_skill_file is not supported for %s skills (no supporting files)",
 					resolved.Source,
 				)), nil
-			}
-
-			skill, ok := findSkill(options.GetSkills, resolved.Name)
-			if !ok {
-				return skillNotFoundResponse(args.Name), nil
 			}
 
 			// Validate the path early so we reject bad
@@ -464,57 +513,31 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 	)
 }
 
-func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
-	if options.ResolveAlias != nil {
-		return options.ResolveAlias(name)
+// resolveSkillAlias resolves name against the merged skill set and, for a
+// workspace or plugin skill, returns its pinned metadata. Pinned duplicates
+// resolve to the first entry.
+func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, SkillMeta, error) {
+	var pinned []SkillMeta
+	if options.GetSkills != nil {
+		pinned = options.GetSkills()
 	}
-
-	skill, ok := findSkill(options.GetSkills, name)
-	if !ok {
-		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
+	resolved, err := skillspkg.Lookup(MergePinnedSkills(options.PersonalSkills, options.OrganizationSkills, pinned), name)
+	if err != nil || (resolved.Source != skillspkg.SourceWorkspace && resolved.Source != skillspkg.SourcePlugin) {
+		return resolved, SkillMeta{}, err
 	}
-	return skillspkg.ResolvedSkill{
-		Skill: skillspkg.Skill{
-			Name:        skill.Name,
-			Description: skill.Description,
-			Source:      skillspkg.SourceWorkspace,
-		},
-		Alias: skill.Name,
-	}, nil
-}
-
-func readWorkspaceSkillBody(
-	ctx context.Context,
-	options ReadSkillOptions,
-	requestedName string,
-	canonicalName string,
-) (SkillContent, fantasy.ToolResponse, bool) {
-	skill, ok := findSkill(options.GetSkills, canonicalName)
-	if !ok {
-		return SkillContent{}, skillNotFoundResponse(requestedName), true
+	for _, s := range pinned {
+		if s.Name == resolved.Name && s.PluginName == resolved.PluginName {
+			return resolved, s, nil
+		}
 	}
-
-	// The SKILL.md body travels in the workspace context snapshot, so it
-	// is served from the pin without dialing the workspace. The supporting
-	// file list is still a best-effort live lookup; see
-	// loadPinnedWorkspaceSkillContent.
-	content, err := loadPinnedWorkspaceSkillContent(ctx, options, skill)
-	if err != nil {
-		return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
-	}
-	return content, fantasy.ToolResponse{}, false
+	return resolved, SkillMeta{}, nil
 }
 
 func skillResolveErrorResponse(name string, err error) fantasy.ToolResponse {
 	if xerrors.Is(err, skillspkg.ErrSkillNotFound) {
 		return skillNotFoundResponse(name)
 	}
-	if xerrors.Is(err, skillspkg.ErrSkillAmbiguous) {
-		return fantasy.NewTextErrorResponse(err.Error())
-	}
-	return fantasy.NewTextErrorResponse(
-		fmt.Sprintf("failed to resolve skill %q", name),
-	)
+	return fantasy.NewTextErrorResponse(err.Error())
 }
 
 func skillNotFoundResponse(name string) fantasy.ToolResponse {
@@ -528,20 +551,4 @@ func nonNilFiles(files []string) []string {
 		return []string{}
 	}
 	return files
-}
-
-// findSkill looks up a skill by name in the current skill list.
-func findSkill(
-	getSkills func() []SkillMeta,
-	name string,
-) (SkillMeta, bool) {
-	if getSkills == nil {
-		return SkillMeta{}, false
-	}
-	for _, s := range getSkills() {
-		if s.Name == name {
-			return s, true
-		}
-	}
-	return SkillMeta{}, false
 }
