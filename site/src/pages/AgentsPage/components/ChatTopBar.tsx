@@ -11,23 +11,21 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import {
+	useIsMutating,
 	useMutation,
-	useMutationState,
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { Link, useLocation, useNavigate, useOutletContext } from "react-router";
+import { Link, useLocation, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import {
-	archiveAndDeleteChat,
 	archiveChat,
+	chatArchiveMutationKey,
 	chat as chatById,
-	pendingChatArchives,
 	unarchiveChat,
 } from "#/api/queries/chats";
-import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -40,12 +38,7 @@ import {
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import {
-	type ArchiveAndDeleteAction,
-	fetchArchiveAndDeleteAction,
-	notifyArchiveAndDeleteFailed,
-	notifyDeleteQueueState,
-} from "../utils/agentWorkspaceUtils";
+import { useArchiveAndDeleteChat } from "../hooks/useArchiveAndDeleteChat";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
@@ -114,7 +107,11 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: React.FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = (props) => (
+	<ChatTopBarContent key={props.chat?.id} {...props} />
+);
+
+const ChatTopBarContent: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
@@ -122,8 +119,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
 		...chatById(parentChatID ?? ""),
@@ -159,9 +154,12 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat?.id ?? "");
 	const archiveOptions = archiveChat(queryClient);
 	const archiveMutation = useMutation({
 		...archiveOptions,
+		mutationKey,
 		onSuccess: (data, chatId) => {
 			archiveOptions.onSuccess(data, chatId);
 			clearPersistedSidebarTabId(chatId);
@@ -176,80 +174,23 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const unarchiveOptions = unarchiveChat(queryClient);
 	const unarchiveMutation = useMutation({
 		...unarchiveOptions,
+		mutationKey,
 		onError: (error, chatId, context) => {
 			unarchiveOptions.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
-	const [confirmingWorkspace, setConfirmingWorkspace] =
-		useState<TypesGen.Workspace>();
-	const archiveAndDeleteOptions = archiveAndDeleteChat(queryClient);
-	const archiveAndDeleteMutation = useMutation({
-		...archiveAndDeleteOptions,
-		onSuccess: (result, variables) => {
-			archiveAndDeleteOptions.onSuccess(result, variables);
-			clearPersistedSidebarTabId(variables.chatId);
-			clearPersistedRightPanelState(variables.chatId);
-			if (variables.workspaceId) {
-				notifyDeleteQueueState(
-					queryClient.getQueryData<TypesGen.Workspace>(
-						workspaceByIdKey(variables.workspaceId),
-					),
-					result.deleteBuild,
-				);
-			}
-			navigateAfterArchive?.(variables.chatId);
-		},
-		onError: (error, variables) => {
-			notifyArchiveAndDeleteFailed(
-				variables.workspaceId
-					? queryClient.getQueryData<TypesGen.Workspace>(
-							workspaceByIdKey(variables.workspaceId),
-						)
-					: undefined,
-				error,
-				navigate,
-			);
-		},
-	});
-	const requestArchiveAndDelete = async (
-		chat: TypesGen.Chat,
-		workspaceId: string,
-	) => {
-		let action: ArchiveAndDeleteAction;
-		try {
-			action = await fetchArchiveAndDeleteAction(
-				queryClient,
-				workspaceId,
-				chat.created_at,
-			);
-		} catch (error) {
-			toast.error(
-				getErrorMessage(error, "Failed to look up workspace for deletion."),
-			);
-			return;
-		}
-		if (action === "confirm") {
-			setConfirmingWorkspace(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(workspaceId),
-				),
-			);
-		} else if (action === "archive-only") {
-			archiveAndDeleteMutation.mutate({ chatId: chat.id });
-		} else {
-			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
-		}
-	};
+	const { requestArchiveAndDelete, dialogProps } = useArchiveAndDeleteChat(
+		chat,
+		navigateAfterArchive,
+	);
 
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
-	const isArchivingThisChat = useMutationState(pendingChatArchives).includes(
-		chat?.id,
-	);
+	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
@@ -399,7 +340,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 									if (isArchived || !workspaceId) {
 										return;
 									}
-									void requestArchiveAndDelete(chat, workspaceId);
+									void requestArchiveAndDelete();
 								}}
 								onOpenRenameDialog={
 									!isArchived && onOpenRenameDialog
@@ -463,19 +404,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					</Button>
 				)}
 			</div>
-			<ArchiveAndDeleteWorkspaceDialog
-				workspace={confirmingWorkspace}
-				onConfirm={(workspace) => {
-					if (chat) {
-						archiveAndDeleteMutation.mutate({
-							chatId: chat.id,
-							workspaceId: workspace.id,
-						});
-					}
-					setConfirmingWorkspace(undefined);
-				}}
-				onCancel={() => setConfirmingWorkspace(undefined)}
-			/>
+			<ArchiveAndDeleteWorkspaceDialog {...dialogProps} />
 		</div>
 	);
 };

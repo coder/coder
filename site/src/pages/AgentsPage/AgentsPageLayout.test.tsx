@@ -344,6 +344,107 @@ describe("AgentsPageLayout archive and delete", () => {
 		);
 	});
 
+	it.each(["sidebar", "top bar"] as const)(
+		"keeps archive and delete pending for the same chat across surfaces when started in the %s",
+		async (surface) => {
+			const user = userEvent.setup({ delay: null });
+			const pendingDelete = createDeferred<WorkspaceBuild>();
+			vi.mocked(API.deleteWorkspace).mockImplementation((workspaceId) =>
+				workspaceId === chat.workspace_id
+					? pendingDelete.promise
+					: Promise.resolve(MockWorkspaceBuildDelete),
+			);
+			const { queryClient } = renderLayout(`/agents/${chat.id}`);
+			try {
+				await user.click(
+					await screen.findByRole("button", {
+						name:
+							surface === "sidebar"
+								? "Open actions for Alpha agent"
+								: "Open agent actions",
+					}),
+				);
+				await user.click(
+					await screen.findByRole("menuitem", {
+						name: "Archive & delete workspace",
+					}),
+				);
+				await waitFor(() =>
+					expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
+				);
+				if (surface === "sidebar") {
+					await user.click(
+						await screen.findByRole("button", { name: "Open agent actions" }),
+					);
+				} else {
+					await user.pointer({
+						target: await screen.findByRole("link", { name: /Alpha agent/ }),
+						keys: "[MouseRight]",
+					});
+				}
+				const duplicateAction = screen.queryByRole("menuitem", {
+					name: "Archive & delete workspace",
+				});
+				if (duplicateAction) await user.click(duplicateAction);
+				const archiveAction = screen.queryByRole("menuitem", {
+					name: "Archive",
+				});
+				if (archiveAction) await user.click(archiveAction);
+				expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
+				expect(API.deleteWorkspace).toHaveBeenCalledTimes(1);
+				await user.keyboard("{Escape}");
+
+				await user.click(
+					await screen.findByRole("button", {
+						name: "Open actions for Beta agent",
+					}),
+				);
+				await user.click(
+					await screen.findByRole("menuitem", {
+						name: "Archive & delete workspace",
+					}),
+				);
+				await waitFor(() =>
+					expect(API.deleteWorkspace).toHaveBeenCalledWith(
+						otherChat.workspace_id,
+					),
+				);
+				expect(API.experimental.updateChat).toHaveBeenCalledTimes(2);
+			} finally {
+				await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
+				await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+			}
+		},
+	);
+
+	it("does not redirect a remounted layout when a prior deletion completes", async () => {
+		const user = userEvent.setup();
+		const pendingDelete = createDeferred<WorkspaceBuild>();
+		vi.mocked(API.deleteWorkspace).mockReturnValue(pendingDelete.promise);
+		const { router, queryClient } = renderLayout(`/agents/${chat.id}`);
+		try {
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			await waitFor(() =>
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(chat.workspace_id),
+			);
+			await act(async () => router.navigate("/workspaces"));
+			await act(async () => router.navigate(`/agents/${chat.id}`));
+			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+			expect(router.state.location.pathname).toBe(`/agents/${chat.id}`);
+		} finally {
+			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		}
+	});
+
 	it("deletes two workspaces without waiting for the first", async () => {
 		const user = userEvent.setup({ delay: null });
 		const pendingDelete = createDeferred<WorkspaceBuild>();
