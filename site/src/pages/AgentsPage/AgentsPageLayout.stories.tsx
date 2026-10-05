@@ -1107,12 +1107,17 @@ const projectPageParameters = {
 	}),
 };
 
+// Each play waits for its state so the screenshot captures it.
 export const ProjectLoading: Story = {
 	parameters: projectPageParameters,
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
 			new Promise(() => {}),
 		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("status", { name: "Loading project" });
 	},
 };
 
@@ -1123,6 +1128,10 @@ export const ProjectLoadError: Story = {
 			mockApiError({ message: "Failed to list chat projects." }),
 		);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Failed to load project");
+	},
 };
 
 export const ProjectLoaded: Story = {
@@ -1132,12 +1141,20 @@ export const ProjectLoaded: Story = {
 			MockChatProject,
 		]);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Edit project" });
+	},
 };
 
 export const ProjectNotFound: Story = {
 	parameters: projectPageParameters,
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Project not found");
 	},
 };
 
