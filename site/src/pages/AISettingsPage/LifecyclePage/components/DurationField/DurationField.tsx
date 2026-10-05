@@ -53,13 +53,16 @@ export const DurationField: React.FC<DurationFieldProps> = ({
 }) => {
 	const [unit, setUnit] = useState<TimeUnit>(() => suggestedTimeUnit(valueMs));
 	const [text, setText] = useState(() => toDisplayValue(valueMs, unit));
+	const [prevValueMs, setPrevValueMs] = useState(valueMs);
 
-	// Adjust local state when the parent value diverges from ours.
-	const localMs = toMs(text, unit);
-	if (valueMs !== localMs) {
-		const newUnit = suggestedTimeUnit(valueMs);
-		setUnit(newUnit);
-		setText(toDisplayValue(valueMs, newUnit));
+	// Fractional units do not round-trip through toMs(), so only sync on prop changes.
+	if (valueMs !== prevValueMs) {
+		setPrevValueMs(valueMs);
+		if (valueMs !== toMs(text, unit)) {
+			const newUnit = suggestedTimeUnit(valueMs);
+			setUnit(newUnit);
+			setText(toDisplayValue(valueMs, newUnit));
+		}
 	}
 
 	const handleTextChange = (raw: string) => {
