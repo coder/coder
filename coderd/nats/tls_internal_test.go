@@ -462,7 +462,7 @@ func TestMintLeaf(t *testing.T) {
 // TestPubsub_ClusterTLS_RealCA stands up a three-node TLS mesh whose trust root
 // is a real CA served by the cryptokeys signing cache against a real DB, then
 // verifies a cross-route publish/subscribe round-trip. This exercises the
-// integration seam between the cryptokeys CA cache and the x/nats cluster TLS
+// integration seam between the cryptokeys CA cache and the nats cluster TLS
 // callbacks, including the real PEM/x509 round-trip that the synthetic
 // generateTestCA helper does not cover. Nodes form a direct full mesh to avoid
 // depending on multi-hop route gossip.
