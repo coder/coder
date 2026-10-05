@@ -28,8 +28,8 @@ import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
-	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -167,7 +167,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),

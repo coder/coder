@@ -430,7 +430,7 @@ describe("setQueuedMessages", () => {
 		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 
-	it("does not notify when queued message IDs are unchanged", () => {
+	it("does not notify when queued messages are unchanged", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
 		store.setQueuedMessages([qm]);
@@ -440,10 +440,27 @@ describe("setQueuedMessages", () => {
 			notified = true;
 		});
 
-		// Different object reference, same ID.
-		store.setQueuedMessages([{ ...qm }]);
+		// Different object reference, same row.
+		store.setQueuedMessages([{ ...qm, content: [...qm.content] }]);
 
 		expect(notified).toBe(false);
+	});
+
+	it("applies a snapshot that only changes editing_since or content", () => {
+		const store = createChatStore();
+		const qm = makeQueuedMessage(10, "queued");
+		store.setQueuedMessages([qm]);
+
+		const editing = { ...qm, editing_since: "2025-01-01T00:01:00Z" };
+		store.applyAuthoritativeQueuedMessages([editing]);
+		expect(store.getSnapshot().queuedMessages).toEqual([editing]);
+
+		const edited: TypesGen.ChatQueuedMessage = {
+			...editing,
+			content: [{ type: "text", text: "edited" }],
+		};
+		store.setQueuedMessages([edited]);
+		expect(store.getSnapshot().queuedMessages).toEqual([edited]);
 	});
 });
 
@@ -589,6 +606,29 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		).toEqual([a.id, b.id]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("applies a promote refetch that only changes a row's content", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		const editedB: TypesGen.ChatQueuedMessage = {
+			...b,
+			content: [{ type: "text", text: "edited" }],
+		};
+		store.applyPromoteRefetchQueuedMessages(
+			testChatID,
+			a.id,
+			[editedB],
+			baseline,
+		);
+		expect(store.getSnapshot().queuedMessages).toEqual([editedB]);
 	});
 
 	it("ignores a promote refetch that a newer snapshot already superseded", () => {

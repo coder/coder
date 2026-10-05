@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	ChatMessagesResponse,
+	ChatQueuedMessage,
+} from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
@@ -8,6 +12,7 @@ import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
+	runDeleteQueuedMessage,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
@@ -15,6 +20,27 @@ import {
 import { createChatStore } from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
+	it("keeps a queue update received after the baseline fence and restores the rest", () => {
+		const store = createChatStore();
+		const queued: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 9 };
+		store.setQueuedMessages([queued]);
+		store.setChatStatus("waiting");
+		const previousSnapshot = store.getSnapshot();
+		const baselineFence = store.getQueueConvergenceFence();
+
+		store.batch(() => {
+			store.setQueuedMessages([]);
+			store.setChatStatus("running");
+		});
+		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
+		store.applyAuthoritativeQueuedMessages(updated);
+
+		restoreOptimisticRequestSnapshot(store, previousSnapshot, baselineFence);
+
+		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+		expect(store.getSnapshot().chatStatus).toBe("waiting");
+	});
+
 	it("restores queued messages, stream output, status, and stream error", () => {
 		const store = createChatStore();
 		store.setQueuedMessages([
@@ -49,6 +75,58 @@ describe("restoreOptimisticRequestSnapshot", () => {
 	});
 });
 
+describe("runDeleteQueuedMessage", () => {
+	const a: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 1 };
+	const b: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 2 };
+
+	it("removes the row optimistically and keeps it removed on success", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const deleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+
+		await runDeleteQueuedMessage({ id: b.id, store, deleteQueuedMessage });
+
+		expect(deleteQueuedMessage).toHaveBeenCalledWith(b.id);
+		expect(store.getSnapshot().queuedMessages).toEqual([a]);
+	});
+
+	it("restores the queue and rethrows when the delete fails with no queue update", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const apiError = new Error("boom");
+
+		await expect(
+			runDeleteQueuedMessage({
+				id: b.id,
+				store,
+				deleteQueuedMessage: vi.fn().mockRejectedValue(apiError),
+			}),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().queuedMessages).toEqual([a, b]);
+	});
+
+	it("keeps a queue update received while the delete request fails", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const updated = [{ ...a, editing_since: "2024-01-01T00:00:01Z" }, b];
+		const apiError = new Error("boom");
+
+		await expect(
+			runDeleteQueuedMessage({
+				id: b.id,
+				store,
+				deleteQueuedMessage: vi.fn(async () => {
+					store.applyAuthoritativeQueuedMessages(updated);
+					throw apiError;
+				}),
+			}),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+	});
+});
+
 describe("runPromoteQueuedMessage", () => {
 	const buildQueuedMessage = (
 		id: number,
@@ -77,6 +155,8 @@ describe("runPromoteQueuedMessage", () => {
 			id: b.id,
 			store,
 			promoteQueuedMessage: promote,
+			fetchQueueConvergence: vi.fn(),
+			setCacheQueuedMessages: vi.fn(),
 			agentId: "chat-1",
 			clearChatErrorReason,
 			onError,
@@ -90,8 +170,9 @@ describe("runPromoteQueuedMessage", () => {
 		expect(snapshot.chatStatus).toBe("running");
 	});
 
-	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
+	it("rolls back queue and status, clears suppression, and rethrows on API error with no queue update", async () => {
 		const store = createChatStore();
+		store.setActiveChatID("chat-1");
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		store.setQueuedMessages([a, b]);
@@ -101,6 +182,8 @@ describe("runPromoteQueuedMessage", () => {
 		const promote = vi.fn(async (_id: number) => {
 			throw apiError;
 		});
+		const fetchQueueConvergence = vi.fn();
+		const setCacheQueuedMessages = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const onError = vi.fn();
 
@@ -109,6 +192,8 @@ describe("runPromoteQueuedMessage", () => {
 				id: b.id,
 				store,
 				promoteQueuedMessage: promote,
+				fetchQueueConvergence,
+				setCacheQueuedMessages,
 				agentId: "chat-1",
 				clearChatErrorReason,
 				onError,
@@ -116,11 +201,120 @@ describe("runPromoteQueuedMessage", () => {
 		).rejects.toBe(apiError);
 
 		expect(onError).toHaveBeenCalledWith(apiError);
+		expect(fetchQueueConvergence).not.toHaveBeenCalled();
+		expect(setCacheQueuedMessages).not.toHaveBeenCalled();
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(snapshot.chatStatus).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+
+	// The server still holds B after the failed promote. The queue update
+	// received during the request marks A and lists B, which the store
+	// filtered out while B was suppressed.
+	describe("when a queue update arrives during a failing promote", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const aMarked: ChatQueuedMessage = {
+			...a,
+			editing_since: "2024-01-01T00:00:01Z",
+		};
+		const apiError = new Error("boom");
+
+		type Store = ReturnType<typeof createChatStore>;
+		const run = (
+			fetchQueueConvergence: (
+				store: Store,
+			) => (chatID: string) => Promise<ChatMessagesResponse>,
+			duringRequest: (store: Store) => void = (store) =>
+				store.applyAuthoritativeQueuedMessages([aMarked, b]),
+		) => {
+			const store = createChatStore();
+			store.setActiveChatID("chat-1");
+			store.setQueuedMessages([a, b]);
+			store.setChatStatus("waiting");
+			const onError = vi.fn();
+			const setCacheQueuedMessages = vi.fn();
+			const promise = runPromoteQueuedMessage({
+				id: b.id,
+				store,
+				promoteQueuedMessage: async () => {
+					duringRequest(store);
+					throw apiError;
+				},
+				fetchQueueConvergence: fetchQueueConvergence(store),
+				setCacheQueuedMessages,
+				agentId: "chat-1",
+				clearChatErrorReason: vi.fn(),
+				onError,
+			});
+			return { store, onError, setCacheQueuedMessages, promise };
+		};
+
+		it("applies the refetched queue, so the row is back and the newer marker stays", async () => {
+			const fetchQueueConvergence = vi.fn(async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: [aMarked, b],
+			}));
+			const { store, onError, setCacheQueuedMessages, promise } = run(
+				() => fetchQueueConvergence,
+			);
+
+			await expect(promise).rejects.toBe(apiError);
+
+			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
+			expect(onError).toHaveBeenCalledWith(apiError);
+			const snapshot = store.getSnapshot();
+			expect(snapshot.queuedMessages).toEqual([aMarked, b]);
+			expect(snapshot.chatStatus).toBe("waiting");
+			expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+			expect(setCacheQueuedMessages).toHaveBeenCalledExactlyOnceWith([
+				aMarked,
+				b,
+			]);
+		});
+
+		it("restores the snapshot when the refetch fails", async () => {
+			const { store, setCacheQueuedMessages, promise } = run(() => async () => {
+				throw new Error("fetch failed");
+			});
+
+			await expect(promise).rejects.toBe(apiError);
+
+			expect(store.getSnapshot().queuedMessages).toEqual([a, b]);
+			expect(setCacheQueuedMessages).toHaveBeenCalledExactlyOnceWith([a, b]);
+		});
+
+		it("keeps a queue update received during the refetch over the refetched queue", async () => {
+			const c = buildQueuedMessage(3, "C");
+			const { store, setCacheQueuedMessages, promise } = run(
+				(store) => async () => {
+					store.applyAuthoritativeQueuedMessages([aMarked, b, c]);
+					return { messages: [], has_more: false, queued_messages: [a, b] };
+				},
+			);
+
+			await expect(promise).rejects.toBe(apiError);
+
+			expect(store.getSnapshot().queuedMessages).toEqual([aMarked, b, c]);
+			expect(setCacheQueuedMessages).not.toHaveBeenCalled();
+		});
+
+		it("neither refetches nor writes the queue after a switch to another chat", async () => {
+			const fetchQueueConvergence = vi.fn();
+			const { store, setCacheQueuedMessages, promise } = run(
+				() => fetchQueueConvergence,
+				(store) => store.setActiveChatID("chat-other"),
+			);
+
+			await expect(promise).rejects.toBe(apiError);
+
+			expect(fetchQueueConvergence).not.toHaveBeenCalled();
+			expect(store.getSnapshot().queuedMessages).toEqual([a]);
+			expect(setCacheQueuedMessages).not.toHaveBeenCalled();
+		});
 	});
 });
 
