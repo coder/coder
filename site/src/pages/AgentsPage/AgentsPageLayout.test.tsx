@@ -13,6 +13,8 @@ const renderLayout = (route = "/agents") =>
 		children: [
 			{ index: true, element: null },
 			{ path: "projects/:projectId", element: null },
+			{ path: "automations", element: null },
+			{ path: "board", element: null },
 		],
 	});
 
@@ -48,12 +50,16 @@ describe("AgentsPageLayout New chat", () => {
 		},
 	);
 
-	it("keeps the plain composer's draft when leaving a project composer", async () => {
+	it.each([
+		"/agents/projects/project-1",
+		"/agents/automations",
+		"/agents/board",
+	])("keeps the plain composer's draft when leaving %s", async (route) => {
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		const user = userEvent.setup();
 
-		const { router } = renderLayout("/agents/projects/project-1");
+		const { router } = renderLayout(route);
 		await user.click(await screen.findByRole("link", { name: "New chat" }));
 
 		await waitFor(() => expect(router.state.location.pathname).toBe("/agents"));

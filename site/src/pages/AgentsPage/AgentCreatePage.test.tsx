@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { onlineManager } from "react-query";
 import { toast } from "sonner";
 import {
 	afterEach,
@@ -345,6 +346,29 @@ describe("AgentCreatePage project assignment", () => {
 
 		expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
 		await screen.findByRole("heading", { name: MockChatProject.name });
+	});
+
+	it("keeps loading while the refetch of a cached list is paused offline", async () => {
+		enableExperiments("chat-projects");
+		serveProjects(MockChatProject);
+
+		const { router, queryClient } = renderAgentsRoutes("/agents");
+		await screen.findByRole("button", { name: "Create chat" });
+		// The test client's offlineFirst mode would fetch anyway; the app
+		// uses the default online mode, which pauses the fetch.
+		queryClient.setQueryDefaults(chatProjectsKey, { networkMode: "online" });
+		onlineManager.setOnline(false);
+		try {
+			act(() => {
+				queryClient.setQueryData(chatProjectsKey, []);
+				void router.navigate(projectPath(MockChatProject.id));
+			});
+
+			await screen.findByRole("status", { name: "Loading project" });
+			expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
+		} finally {
+			onlineManager.setOnline(true);
+		}
 	});
 
 	it("shows the plain composer on /agents after a project list is cached", async () => {
