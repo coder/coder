@@ -105,10 +105,9 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 	var row database.GetChatProjectInstructionsByProjectIDRow
 	err := api.Database.InTx(func(tx database.Store) error {
 		_, err := tx.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
-			ProjectID:      project.ID,
-			OrganizationID: project.OrganizationID,
-			Instructions:   instructions,
-			UpdatedBy:      apiKey.UserID,
+			ProjectID:    project.ID,
+			Instructions: instructions,
+			UpdatedBy:    apiKey.UserID,
 		})
 		if err != nil {
 			return xerrors.Errorf("upsert chat project instructions: %w", err)
