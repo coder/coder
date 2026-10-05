@@ -102,10 +102,19 @@ describe("ChatProjectDialog", () => {
 			"aria-invalid",
 			"false",
 		);
+		await user.click(screen.getByLabelText("Icon"));
+		await user.paste(`${"i".repeat(256)} `);
+		expect(screen.getByLabelText("Icon")).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
-			expect.objectContaining({ description: "d".repeat(1024) }),
+			expect.objectContaining({
+				description: "d".repeat(1024),
+				icon: "i".repeat(256),
+			}),
 		);
 	});
 

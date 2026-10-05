@@ -33,8 +33,8 @@ export type FormHelpers = {
 };
 
 /**
- * The length counter appears once the measured length is within this many
- * units of maxLength.
+ * The length counter appears once the measured length exceeds maxLength minus
+ * this margin.
  */
 const lengthCounterMargin = 30;
 
@@ -65,18 +65,15 @@ export const getFormHelpers =
 		const value = fieldProps.value;
 
 		let lengthError: React.ReactNode = null;
-		const length = typeof value === "string" ? measureLength(value) : 0;
 		// Show a message if the input is approaching or over the maximum length.
-		if (
-			maxLength &&
-			maxLength > 0 &&
-			typeof value === "string" &&
-			length > maxLength - lengthCounterMargin
-		) {
-			helperText = `This cannot be longer than ${maxLength} characters. (${length}/${maxLength})`;
-			// Show it as an error, rather than a hint
-			if (length > maxLength) {
-				lengthError = helperText;
+		if (maxLength && maxLength > 0 && typeof value === "string") {
+			const length = measureLength(value);
+			if (length > maxLength - lengthCounterMargin) {
+				helperText = `This cannot be longer than ${maxLength} characters. (${length}/${maxLength})`;
+				// Show it as an error, rather than a hint
+				if (length > maxLength) {
+					lengthError = helperText;
+				}
 			}
 		}
 
