@@ -106,7 +106,7 @@ export const displayWorkspaceBuildDuration = (
 	inProgressLabel = "In progress",
 ): string => {
 	const duration = getWorkspaceBuildDurationInSeconds(build);
-	return duration
+	return duration !== undefined
 		? `${duration} ${duration === 1 ? "second" : "seconds"}`
 		: inProgressLabel;
 };
