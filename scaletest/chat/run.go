@@ -109,8 +109,10 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	// Stagger runner starts so the initial turns do not all begin at once.
 	if delay := jitterDelay(r.cfg.StartJitter); delay > 0 {
 		logger.Info(ctx, "applying start jitter", slog.F("delay", delay))
-		if err := sleepWithContext(ctx, delay); err != nil {
-			return err
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
 		}
 	}
 
@@ -291,6 +293,15 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger
 		}
 
 		nextTurn := r.result.turnsCompleted + 1
+		// Apply message jitter before turnStartTime is reset so the
+		// client-side delay is excluded from follow-up latency metrics.
+		if delay := jitterDelay(r.cfg.MessageJitter); delay > 0 {
+			select {
+			case <-ctx.Done():
+				return false, xerrors.Errorf("wait message jitter for turn %d: %w", nextTurn, ctx.Err())
+			case <-time.After(delay):
+			}
+		}
 		r.currentPhase = phaseFollowUp
 		r.turnStartTime = time.Now()
 		r.lastStreamError = ""
@@ -328,13 +339,6 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger
 }
 
 func (r *Runner) sendNextTurn(ctx context.Context, chatID uuid.UUID, logger slog.Logger, nextTurn int, phase string) error {
-	// Spread follow-up turn sends so they do not release as a synchronized burst.
-	if delay := jitterDelay(r.cfg.MessageJitter); delay > 0 {
-		if err := sleepWithContext(ctx, delay); err != nil {
-			return xerrors.Errorf("wait message jitter for turn %d: %w", nextTurn, err)
-		}
-	}
-
 	messageStartedAt := time.Now()
 	modelConfigID := r.cfg.ModelConfigID
 	_, err := r.client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
@@ -403,21 +407,6 @@ func jitterDelay(maxDelay time.Duration) time.Duration {
 	}
 	//nolint:gosec // Load-shaping jitter, not used for crypto.
 	return time.Duration(rand.Int63n(int64(maxDelay)))
-}
-
-// sleepWithContext waits for d or until ctx is canceled.
-func sleepWithContext(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
