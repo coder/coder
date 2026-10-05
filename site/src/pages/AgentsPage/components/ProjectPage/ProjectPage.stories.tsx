@@ -1,18 +1,27 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockChatProjectInstructions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { ProjectPage } from "./ProjectPage";
 
-const chatQueries = (chats: Chat[]) => [
+const pageQueries = (chats: Chat[]) => [
 	{
 		key: projectChatsKey(MockChatProject.id),
 		data: { pages: [chats], pageParams: [0] },
+	},
+	{
+		key: chatProjectInstructionsKey(MockChatProject.id),
+		data: MockChatProjectInstructions,
 	},
 	...chats.map((chat) => ({
 		key: chatCostTreeKey(chat.id),
@@ -43,7 +52,7 @@ const meta: Meta<typeof ProjectPage> = {
 	parameters: {
 		user: MockUserOwner,
 		features: ["aibridge"],
-		queries: chatQueries([
+		queries: pageQueries([
 			{ ...MockChat, id: "chat-1", title: "Plan the launch" },
 			{
 				...MockChat,
@@ -65,7 +74,7 @@ export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
-		queries: chatQueries(
+		queries: pageQueries(
 			Array.from({ length: 12 }, (_, index) => ({
 				...MockChat,
 				id: `chat-${index}`,

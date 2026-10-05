@@ -66,3 +66,58 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 				invalidateChatListQueries(queryClient),
 			]),
 	});
+
+export const chatProjectInstructionsKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "instructions"] as const;
+
+export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectInstructionsKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+	});
+
+export const updateChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: (request: TypesGen.UpdateChatProjectInstructionsRequest) =>
+			API.experimental.updateChatProjectInstructions(
+				project.organization_id,
+				project.id,
+				request,
+			),
+		onSuccess: (instructions) => {
+			queryClient.setQueryData(
+				chatProjectInstructionsKey(project.id),
+				instructions,
+			);
+		},
+	});
+
+export const deleteChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: () =>
+			API.experimental.deleteChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+		onSuccess: () => {
+			queryClient.setQueryData<TypesGen.ChatProjectInstructions>(
+				chatProjectInstructionsKey(project.id),
+				{
+					project_id: project.id,
+					instructions: "",
+					updated_by: null,
+					updated_at: null,
+				},
+			);
+		},
+	});
