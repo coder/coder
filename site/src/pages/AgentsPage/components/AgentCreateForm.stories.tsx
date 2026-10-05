@@ -57,8 +57,8 @@ import {
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
 import {
-	descriptionMaxChars,
-	nameMaxChars,
+	chatProjectDescriptionMaxChars,
+	chatProjectNameMaxChars,
 } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
@@ -345,8 +345,8 @@ export const ProjectComposer: Story = {
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
-					name: "N".repeat(nameMaxChars),
-					description: "d".repeat(descriptionMaxChars),
+					name: "N".repeat(chatProjectNameMaxChars),
+					description: "d".repeat(chatProjectDescriptionMaxChars),
 				}}
 			/>
 		),
