@@ -52,7 +52,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 	renderedProjects: [] as Array<
 		Pick<TypesGen.ChatProject, "id" | "organization_id"> | undefined
 	>,
-	// Prefill and upload tests need the real form.
+	// Set by tests that need the real form's behavior; others get the stub.
 	realForm: { enabled: false },
 	formProps: {
 		onCreateChat: undefined as
@@ -247,25 +247,22 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("omits the project ID on the plain new-chat route", async () => {
+		realForm.enabled = true;
 		enableExperiments("chat-projects");
-		let requestBody: Record<string, unknown> | undefined;
-		server.use(
-			http.post("/api/v2/chats", async ({ request }) => {
-				requestBody = (await request.json()) as Record<string, unknown>;
-				return HttpResponse.json({ ...MockChat, id: "created-chat" });
-			}),
-		);
+		serveProjects(MockChatProject);
+		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
 
 		renderAgentsRoutes("/agents");
 
 		await user.click(
-			await screen.findByRole("button", { name: "Create chat" }),
+			await screen.findByRole("textbox", { name: "Chat message" }),
 		);
-		await waitFor(() => {
-			expect(requestBody).toBeDefined();
-		});
-		expect(requestBody).not.toHaveProperty("project_id");
+		await user.paste("Plan the launch");
+		await user.click(await findEnabledSendButton());
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0]).not.toHaveProperty("project_id");
 	});
 
 	it("retries a failed project lookup before offering the composer", async () => {
@@ -392,6 +389,9 @@ describe("AgentCreatePage project assignment", () => {
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled(),
+		);
+		within(screen.getByRole("button", { name: /Retry/ })).getByTitle(
+			"Loading spinner",
 		);
 		retry.resolve(undefined);
 		await waitFor(() =>

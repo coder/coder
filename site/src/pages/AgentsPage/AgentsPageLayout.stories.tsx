@@ -1107,7 +1107,7 @@ const projectPageParameters = {
 	}),
 };
 
-// Each play waits for its state so the screenshot captures it.
+// Each play waits for its state so the Chromatic snapshot captures it.
 export const ProjectLoading: Story = {
 	parameters: projectPageParameters,
 	beforeEach: () => {

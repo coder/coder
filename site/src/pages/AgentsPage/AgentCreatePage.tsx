@@ -126,7 +126,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const isProjectMissing =
 		projectId !== undefined &&
 		projectQuery.data === null &&
-		!projectQuery.isFetching &&
+		projectQuery.isFetchedAfterMount &&
 		!projectQuery.error;
 	// A failed background refetch keeps the cached project usable.
 	const projectLookupError =
