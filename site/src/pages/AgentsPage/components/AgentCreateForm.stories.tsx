@@ -337,8 +337,10 @@ const maxProjectDescriptionLength = 1024;
 
 export const ProjectComposer: Story = {
 	args: {
-		lockedOrganizationId: MockDefaultOrganization.id,
-		draftScope: MockChatProject.id,
+		project: {
+			...MockChatProject,
+			organization_id: MockDefaultOrganization.id,
+		},
 		header: (
 			<ProjectComposerHeader
 				project={{
@@ -358,8 +360,7 @@ export const ProjectComposerOrganizationDenied: Story = {
 		queries: [],
 	},
 	args: {
-		lockedOrganizationId: MockOrganization2.id,
-		draftScope: MockChatProject.id,
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
 		header: <ProjectComposerHeader project={MockChatProject} />,
 	},
 	beforeEach: () => {
