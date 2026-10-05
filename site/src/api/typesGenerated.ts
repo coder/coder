@@ -4541,7 +4541,7 @@ export interface CreateTemplateRequest {
 	readonly display_name?: string;
 	/**
 	 * Description is a description of what the template contains. It must be
-	 * less than 128 bytes.
+	 * no longer than 128 Unicode code points.
 	 */
 	readonly description?: string;
 	/**

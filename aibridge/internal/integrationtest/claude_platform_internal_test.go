@@ -84,7 +84,7 @@ func TestClaudePlatformLive(t *testing.T) {
 		WorkspaceID: workspaceID,
 	})
 	require.NoError(t, err)
-	bridgeServer := newBridgeTestServer(ctx, t, "", withCustomProvider(p), withActor(defaultActorID, nil))
+	bridgeServer := newBridgeTestServer(ctx, t, "", withCustomProvider(p), withActor(defaultActorUUID, ""))
 
 	body := []byte(fmt.Sprintf(`{"model":%q,"max_tokens":16,"messages":[{"role":"user","content":"Say OK"}]}`, model))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathAnthropicMessages, bytes.NewReader(body))

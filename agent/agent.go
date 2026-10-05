@@ -128,10 +128,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC211WithRole connects to the Agent API v2.11. The workspace
+	// ConnectRPC212WithRole connects to the Agent API v2.12. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC211WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC212WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1008,7 +1008,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC212WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1838,9 +1838,42 @@ func (a *agent) createTailnet(
 			_ = apiListener.Close()
 		}
 	}()
+
+	upgrader := &httpUpgrader{
+		logger: a.logger,
+		addr:   apiListener.Addr(),
+	}
+	sshUpgradeListener := upgrader.listen(workspacesdk.AgentStandardSSHPort)
+	ptyUpgradeListener := upgrader.listen(workspacesdk.AgentReconnectingPTYPort)
+	defer func() {
+		if err != nil {
+			_ = sshUpgradeListener.Close()
+			_ = ptyUpgradeListener.Close()
+		}
+	}()
+
+	if err = a.trackGoroutine(func() {
+		_ = a.sshServer.Serve(sshUpgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = a.trackGoroutine(func() {
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = ptyUpgradeListener.Close()
+		}()
+		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler := a.apiHandler()
+		apiHandler := a.apiHandler(upgrader)
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
