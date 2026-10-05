@@ -2263,14 +2263,18 @@ func (p *Server) EditQueuedMessage(
 		if chat.Archived {
 			return ErrChatArchived
 		}
-		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
+		queued, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
 			ID:     opts.QueuedMessageID,
 			ChatID: opts.ChatID,
-		}); err != nil {
+		})
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return chatstate.ErrQueuedMessageNotFound
 			}
 			return xerrors.Errorf("load queued message for user_prompt_submit: %w", err)
+		}
+		if queued.AutomationID.Valid {
+			return chatstate.ErrQueuedMessageFromAutomation
 		}
 		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
 			return err

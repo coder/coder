@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -726,6 +727,57 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 
 	require.Zero(t, dispatched.Load(), "invalid targets must not dispatch hooks")
+}
+
+// TestEditQueuedMessageFromAutomationSkipsHooks: a content edit of a row
+// queued by an automation is refused before user_prompt_submit runs.
+func TestEditQueuedMessageFromAutomationSkipsHooks(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusError,
+	})
+	automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Enabled:        true,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("from automation")})
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:          chat.ID,
+		Content:         content.RawMessage,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		CreatedBy:       user.ID,
+		AutomationID:    uuid.NullUUID{UUID: automation.ID, Valid: true},
+		InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		QueueGeneration: sql.NullInt64{Int64: automation.QueueGeneration, Valid: true},
+	})
+	require.NoError(t, err)
+	var dispatched atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched.Add(1)
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	err = server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queued.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")},
+	})
+	require.ErrorIs(t, err, chatstate.ErrQueuedMessageFromAutomation)
+	require.Zero(t, dispatched.Load(), "a refused edit must not dispatch hooks")
+	stored, err := db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("from automation")}, queuedMessageParts(t, stored))
 }
 
 func TestPromptHooksAdmissionPreflight(t *testing.T) {
