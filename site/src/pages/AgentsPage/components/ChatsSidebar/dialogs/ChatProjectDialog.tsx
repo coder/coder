@@ -16,7 +16,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
 
-type ChatProjectFormValues = {
+export type ChatProjectFormValues = {
 	name: string;
 	description: string;
 	icon: string;

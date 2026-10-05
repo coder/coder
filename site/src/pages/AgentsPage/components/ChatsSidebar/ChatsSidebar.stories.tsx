@@ -2518,7 +2518,7 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
-const projectChats = [
+const mockProjectChats = [
 	buildChat({ id: "loose-chat", title: "Loose chat" }),
 	buildChat({
 		id: "project-chat",
@@ -2529,7 +2529,7 @@ const projectChats = [
 ];
 
 export const ProjectFolderCollapsed: Story = {
-	args: { chats: projectChats },
+	args: { chats: mockProjectChats },
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [
@@ -2542,7 +2542,7 @@ export const ProjectFolderCollapsed: Story = {
 };
 
 export const ProjectFolderExpanded: Story = {
-	args: { chats: projectChats },
+	args: { chats: mockProjectChats },
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [
@@ -2599,9 +2599,9 @@ export const ProjectChatWithoutLoadedProject: Story = {
 	args: {
 		chats: [
 			buildChat({
-				id: "other-org-project-chat",
-				title: "Other org project chat",
-				project_id: "project-in-another-organization",
+				id: "unloaded-project-chat",
+				title: "Chat in an unloaded project",
+				project_id: "unloaded-project",
 			}),
 		],
 	},

@@ -1,5 +1,5 @@
 import { PencilIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
@@ -89,10 +89,6 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
-/**
- * New-chat page. When `projectId` is set, the composer is framed by the
- * project and the created chat joins it.
- */
 const AgentCreatePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -472,17 +468,12 @@ const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const [isEditing, setIsEditing] = useState(false);
-	const editButtonRef = useRef<HTMLButtonElement>(null);
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => {
-		setIsEditing(false);
-		requestAnimationFrame(() => editButtonRef.current?.focus());
-	};
+	const closeDialog = () => setIsEditing(false);
 
 	return (
 		<div className="flex justify-center pt-2">
 			<Button
-				ref={editButtonRef}
 				variant="subtle"
 				size="sm"
 				onClick={() => {

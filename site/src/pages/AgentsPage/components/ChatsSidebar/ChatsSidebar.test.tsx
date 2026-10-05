@@ -141,36 +141,33 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
-	it("does not show projects owned by another user", async () => {
-		const otherUsersProject = {
-			...MockChatProject,
-			id: "other-users-project",
-			owner_id: "other-user",
-			name: "Other user's project",
-		};
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, otherUsersProject]),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(
-			screen.queryByRole("link", { name: otherUsersProject.name }),
-		).toBeNull();
-	});
-
-	it("returns focus to the project controls after closing dialogs", async () => {
+	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
+		const otherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "Other",
+		};
+		let finishDelete: () => void = () => {};
+		const deleteFinished = new Promise<void>((resolve) => {
+			finishDelete = resolve;
+		});
+		const deletedProjectIds: string[] = [];
+		let projectListRequests = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
+			http.get("/api/experimental/chats/projects", () => {
+				projectListRequests += 1;
+				return HttpResponse.json([MockChatProject, otherProject]);
+			}),
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project",
+				async ({ params }) => {
+					deletedProjectIds.push(String(params.project));
+					if (params.project === MockChatProject.id) {
+						await deleteFinished;
+					}
+					return new HttpResponse(null, { status: 204 });
+				},
 			),
 		);
 		render(
@@ -179,30 +176,35 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		const newProjectButton = await screen.findByRole("button", {
-			name: "New project",
-		});
-		await user.click(newProjectButton);
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		await waitFor(() => expect(document.activeElement).toBe(newProjectButton));
+		const deleteProject = async (name: string) => {
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open project actions for ${name}`,
+				}),
+			);
+			await user.click(
+				screen.getByRole("menuitem", { name: "Delete project" }),
+			);
+			await user.type(await screen.findByRole("textbox"), name);
+		};
 
-		const projectActionsButton = screen.getByRole("button", {
-			name: `Open project actions for ${MockChatProject.name}`,
-		});
-		await user.click(projectActionsButton);
-		await user.click(screen.getByRole("menuitem", { name: "Edit project" }));
-		await screen.findByRole("dialog", { name: "Edit project" });
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await deleteProject(MockChatProject.name);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
 		await waitFor(() =>
-			expect(document.activeElement).toBe(projectActionsButton),
+			expect(deletedProjectIds).toEqual([MockChatProject.id]),
 		);
+		await user.keyboard("{Escape}");
+		await deleteProject(otherProject.name);
 
-		await user.click(projectActionsButton);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
-		await screen.findByRole("dialog", { name: "Delete project" });
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		const requestsBeforeFinish = projectListRequests;
+		finishDelete();
+		// The finished delete refetches the project list.
 		await waitFor(() =>
-			expect(document.activeElement).toBe(projectActionsButton),
+			expect(projectListRequests).toBeGreaterThan(requestsBeforeFinish),
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await waitFor(() =>
+			expect(deletedProjectIds).toEqual([MockChatProject.id, otherProject.id]),
 		);
 	});
 
@@ -222,6 +224,7 @@ describe("ChatsSidebar projects", () => {
 		const projectChat = buildChat({
 			id: "project-chat",
 			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
 			project_id: MockChatProject.id,
 		});
 		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });

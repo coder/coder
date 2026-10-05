@@ -287,7 +287,7 @@ afterEach(() => {
 describe("AgentCreatePage project assignment", () => {
 	it("includes the project ID from the route when chat projects are enabled", async () => {
 		const user = userEvent.setup();
-		const nonDefaultProject = {
+		const mockNonDefaultProject = {
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
 		};
@@ -296,7 +296,7 @@ describe("AgentCreatePage project assignment", () => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
 				projectRequested = true;
-				return HttpResponse.json([nonDefaultProject]);
+				return HttpResponse.json([mockNonDefaultProject]);
 			}),
 			http.post("/api/v2/chats", async ({ request }) => {
 				requestBody = await request.json();

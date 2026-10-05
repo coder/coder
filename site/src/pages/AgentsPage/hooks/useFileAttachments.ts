@@ -279,8 +279,7 @@ export function useFileAttachments(
 	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
 
 	// Permission refetches can change the org without user action. Replace state
-	// after commit so stale file IDs cannot cross orgs and an abandoned render
-	// cannot prune localStorage through restorePersistedAttachments.
+	// after commit so stale file IDs cannot cross orgs.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		adoptionEpochRef.current += 1;
 		for (const file of attachments) {

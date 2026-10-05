@@ -210,16 +210,21 @@ const resolveOrganization = ({
 		? (permittedOrgs.find((org) => org.id === lockedOrganizationId) ?? null)
 		: null;
 	const isLockedOrgUnavailable = isLocked && !lockedOrg;
+
 	const selectedOrgIsPermitted =
 		selectedOrg !== null &&
 		permittedOrgs.some((org) => org.id === selectedOrg.id);
-	const effectiveOrg = isLocked
-		? lockedOrg
-		: selectedOrg && selectedOrgIsPermitted
-			? selectedOrg
-			: (permittedOrgs.find((org) => org.is_default) ??
-				permittedOrgs[0] ??
-				null);
+
+	let effectiveOrg: TypesGen.Organization | null;
+	if (isLocked) {
+		effectiveOrg = lockedOrg;
+	} else if (selectedOrgIsPermitted) {
+		effectiveOrg = selectedOrg;
+	} else {
+		const defaultOrg = permittedOrgs.find((org) => org.is_default);
+		effectiveOrg = defaultOrg ?? permittedOrgs[0] ?? null;
+	}
+
 	return {
 		effectiveOrg,
 		selectedOrgIsPermitted,
@@ -828,7 +833,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					{isForbidden ? (
 						<ChatAccessDeniedAlert
 							description={
-								isLockedOrgUnavailable
+								isLockedOrgUnavailable &&
+								canCreateChat &&
+								permittedOrgs.length > 0
 									? "You don't have permission to create chats in this project's organization."
 									: undefined
 							}

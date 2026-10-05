@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { toast } from "sonner";
@@ -20,7 +20,10 @@ import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogMode } from "./chats/ProjectFolders";
-import { ChatProjectDialog } from "./dialogs/ChatProjectDialog";
+import {
+	ChatProjectDialog,
+	type ChatProjectFormValues,
+} from "./dialogs/ChatProjectDialog";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
@@ -130,34 +133,19 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
-	// The mode outlives the open state so a closing dialog keeps its content
-	// through the exit animation.
+
+	// Each dialog keeps its content after closing so the exit animation does
+	// not flash empty.
 	const [projectDialog, setProjectDialog] = useState<ProjectDialogMode>({
 		mode: "create",
 	});
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
-	const [projectPendingDelete, setProjectPendingDelete] =
-		useState<ChatProject | null>(null);
-	const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] =
-		useState(false);
-	// Both project dialogs return focus to the control that opened them. Menu
-	// items unmount on select, so menus pass their own trigger instead.
-	const projectDialogTriggerRef = useRef<HTMLElement | null>(null);
-	const captureProjectDialogTrigger = (trigger?: HTMLElement | null) => {
-		projectDialogTriggerRef.current =
-			trigger ??
-			(document.activeElement instanceof HTMLElement
-				? document.activeElement
-				: null);
-	};
-	const restoreProjectDialogFocus = () => {
-		requestAnimationFrame(() => projectDialogTriggerRef.current?.focus());
-	};
-	const openProjectDialog = (
-		dialog: ProjectDialogMode,
-		trigger?: HTMLElement | null,
-	) => {
-		captureProjectDialogTrigger(trigger);
+	const [deleteDialog, setDeleteDialog] = useState<{
+		project: ChatProject | null;
+		open: boolean;
+	}>({ project: null, open: false });
+
+	const openProjectDialog = (dialog: ProjectDialogMode) => {
 		if (dialog.mode === "create") {
 			createProjectMutation.reset();
 		} else {
@@ -166,52 +154,49 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		setProjectDialog(dialog);
 		setIsProjectDialogOpen(true);
 	};
-	const closeProjectDialog = () => {
-		setIsProjectDialogOpen(false);
-		restoreProjectDialogFocus();
-	};
-	const openDeleteProjectDialog = (
-		project: ChatProject,
-		trigger?: HTMLElement | null,
-	) => {
-		captureProjectDialogTrigger(trigger);
-		setProjectPendingDelete(project);
-		setIsDeleteProjectDialogOpen(true);
-	};
-	const closeDeleteProjectDialog = () => {
-		setIsDeleteProjectDialogOpen(false);
-		restoreProjectDialogFocus();
-	};
-	const handleProjectSubmit = (request: {
-		name: string;
-		description: string;
-		icon: string;
-	}) => {
+	const closeProjectDialog = () => setIsProjectDialogOpen(false);
+
+	const handleProjectSubmit = (values: ChatProjectFormValues) => {
 		if (projectDialog.mode === "edit") {
 			updateProjectMutation.mutate(
-				{ project: projectDialog.project, request },
+				{ project: projectDialog.project, request: values },
 				{ onSuccess: closeProjectDialog },
 			);
 			return;
 		}
 		if (organizationId) {
 			createProjectMutation.mutate(
-				{ organizationId, request },
+				{ organizationId, request: values },
 				{ onSuccess: closeProjectDialog },
 			);
 		}
 	};
+
+	const openDeleteProjectDialog = (project: ChatProject) =>
+		setDeleteDialog({ project, open: true });
+	const closeDeleteProjectDialog = () =>
+		setDeleteDialog((current) => ({ ...current, open: false }));
+
 	const handleDeleteProject = () => {
-		if (!projectPendingDelete) {
+		const project = deleteDialog.project;
+		if (!project) {
 			return;
 		}
-		deleteProjectMutation.mutate(projectPendingDelete, {
-			onSuccess: closeDeleteProjectDialog,
+		deleteProjectMutation.mutate(project, {
+			// The dialog can be dismissed while the delete is in flight and
+			// reopened for another project, which must stay open.
+			onSuccess: () =>
+				setDeleteDialog((current) =>
+					current.project?.id === project.id
+						? { ...current, open: false }
+						: current,
+				),
 			onError: (error) => {
 				toast.error(getErrorMessage(error, "Failed to delete project."));
 			},
 		});
 	};
+
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
 		chatId?: string;
@@ -246,9 +231,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
-				projects={(projectsQuery.data ?? []).filter(
-					(project) => project.owner_id === currentUserId,
-				)}
+				projects={projectsQuery.data ?? []}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
 				onRetryProjects={() => void projectsQuery.refetch()}
@@ -331,11 +314,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onSubmit={handleProjectSubmit}
 			/>
 			<DeleteDialog
-				isOpen={isDeleteProjectDialogOpen}
+				isOpen={deleteDialog.open}
 				onConfirm={handleDeleteProject}
 				onCancel={closeDeleteProjectDialog}
 				entity="project"
-				name={projectPendingDelete?.name ?? ""}
+				name={deleteDialog.project?.name ?? ""}
 				confirmLoading={deleteProjectMutation.isPending}
 				info="Chats in this project will be kept and move back to the Chats list."
 			/>
