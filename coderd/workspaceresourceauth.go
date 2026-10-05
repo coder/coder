@@ -105,8 +105,7 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 		return
 	}
 
-	// We leave the audience blank. It's not important we validate who made the token.
-	payload, err := api.GoogleTokenValidator.Validate(ctx, req.JSONWebToken, "")
+	payload, err := api.GoogleTokenValidator.Validate(ctx, req.JSONWebToken, "coder")
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Invalid GCP identity.",
