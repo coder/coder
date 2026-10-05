@@ -571,6 +571,14 @@ export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
 	updated_at: "2026-10-02T12:00:00Z",
 };
 
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
+
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
 	username: "TestUser2",
