@@ -101,6 +101,59 @@ func TestEditing_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort, "a content-only edit keeps the override")
 }
 
+// TestEditing_AutomationRowRefused: a row queued by an automation refuses
+// new content and beginning an edit, from a running chat and from P,
+// without touching the row or the queue. Ending an edit is allowed and,
+// from P, leaves paused.
+func TestEditing_AutomationRowRefused(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chatID := createTestChat(t, f).Chat.ID
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+	queued := queueAutomationMessage(t, f, m, "from automation", provenanceFor(f.newAutomation(t)))
+
+	editing := true
+	refused := []chatstate.EditQueuedMessageInput{
+		{QueuedMessageID: queued.ID, Content: userMessageContent(t, "rewritten")},
+		{QueuedMessageID: queued.ID, Editing: &editing},
+	}
+	requireRefused := func(wantEditing bool) {
+		t.Helper()
+		before := f.readChat(ctx, t, chatID)
+		for _, input := range refused {
+			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.EditQueuedMessage(input)
+				return err
+			})
+			require.ErrorIs(t, err, chatstate.ErrQueuedMessageFromAutomation)
+		}
+		row, err := f.DB.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chatID})
+		require.NoError(t, err)
+		assertQueuedMessageText(t, row, "from automation")
+		require.Equal(t, wantEditing, row.EditingSince.Valid)
+		after := f.readChat(ctx, t, chatID)
+		require.Equal(t, before.QueueVersion, after.QueueVersion, "a refused edit does not bump queue_version")
+		require.Equal(t, before.SnapshotVersion, after.SnapshotVersion, "a refused edit does not bump the snapshot")
+	}
+
+	requireRefused(false)
+	res := setEditing(t, m, queued.ID, false)
+	require.False(t, res.QueuedMessage.EditingSince.Valid)
+	assertQueuedMessageText(t, res.QueuedMessage, "from automation")
+	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
+
+	// A marker set directly in the store pauses the chat at the row, and
+	// ending the edit is the way out.
+	beginQueuedMessageEdit(ctx, t, f, chatID, queued.ID)
+	require.Nil(t, finishTurn(t, m).PromotedMessage)
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
+	requireRefused(true)
+	setEditing(t, m, queued.ID, false)
+	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, chatID), "ending the edit promotes the automation row")
+	require.Empty(t, queuedIDsByPosition(ctx, t, f, chatID))
+}
+
 // The listing follows position, which PromoteQueuedMessage on a later
 // row changes.
 func TestGetChatQueuedMessages_OrdersByPosition(t *testing.T) {

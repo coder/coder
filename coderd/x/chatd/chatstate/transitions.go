@@ -1051,7 +1051,9 @@ type EditQueuedMessageResult struct {
 // Beginning an edit on a row ends any other row's edit. From P, ending
 // the head's edit leaves paused once the head is ready (see
 // leavePaused); beginning an edit on a different row is refused with
-// [ErrPausedQueuedHeadUnderEdit].
+// [ErrPausedQueuedHeadUnderEdit]. A row queued by an automation refuses
+// content and beginning an edit with [ErrQueuedMessageFromAutomation];
+// ending its edit is allowed so a chat paused at it can resume.
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
 	if err != nil {
@@ -1072,6 +1074,9 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 	}
 	if err != nil {
 		return EditQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
+	}
+	if row.AutomationID.Valid && (input.Content != nil || (input.Editing != nil && *input.Editing)) {
+		return EditQueuedMessageResult{}, ErrQueuedMessageFromAutomation
 	}
 	if from == StateP && input.Editing != nil && *input.Editing && !row.EditingSince.Valid {
 		return EditQueuedMessageResult{}, ErrPausedQueuedHeadUnderEdit

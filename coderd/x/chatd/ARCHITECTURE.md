@@ -789,6 +789,8 @@ This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-onl
 
 TODO: document that ending the edit of a stale head from `P` deletes it through the queue promotion guard, so `P` reaches `W`, or `R0` or `R1` with the next passing message.
 
+TODO: document that a queued message with an `automation_id` refuses `content` and `{"editing": true}` with `409` and no state change, from every state, before any `user_prompt_submit` hook runs; `{"editing": false}` is still accepted so a chat paused at such a message can resume. Send now and remove are unchanged.
+
 Clients begin an edit with `{"editing": true}`, save with `{"content": ..., "editing": false}`, and cancel with `{"editing": false}`. A `404` means the queued message no longer exists: it was promoted into history or removed. `editing_since` is set on the head while it is under edit; once a turn ends at it, the chat status is `paused`.
 
 No other input states are supported.

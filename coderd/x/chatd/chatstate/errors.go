@@ -31,6 +31,12 @@ var (
 	// ID does not match a row on the chat.
 	ErrQueuedMessageNotFound = xerrors.New("queued message not found")
 
+	// ErrQueuedMessageFromAutomation is returned by EditQueuedMessage when
+	// a request sets content or begins an edit on a row queued by an
+	// automation. The row keeps its automation provenance, so its content
+	// must stay what the automation submitted.
+	ErrQueuedMessageFromAutomation = xerrors.New("queued messages from an automation cannot be edited")
+
 	// ErrMessageNotFound is returned by [Tx.EditMessage] when the
 	// target chat_messages row is missing or belongs to another chat.
 	ErrMessageNotFound = xerrors.New("chat message not found")
