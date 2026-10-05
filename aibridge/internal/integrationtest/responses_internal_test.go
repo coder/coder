@@ -587,56 +587,129 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
 	fix := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
-	events := bytes.SplitAfter(fix.Streaming(), []byte("\n\n"))
-	require.Greater(t, len(events), 2)
-	head := bytes.Join(events[:2], nil)
-	tail := bytes.Join(events[2:], nil)
+	lf := bytes.ReplaceAll(fix.Streaming(), []byte("\r\n"), []byte("\n"))
+	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
 
-	release := make(chan struct{})
-	var releaseOnce sync.Once
-	releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+	// Checkouts may rewrite the fixture's line endings (CRLF on Windows), so
+	// both forms are exercised regardless of the platform running the test.
+	for _, tc := range []struct {
+		name   string
+		stream []byte
+	}{
+		{name: "Fixture", stream: fix.Streaming()},
+		{name: "LF", stream: lf},
+		{name: "CRLF", stream: crlf},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(head)
-		w.(http.Flusher).Flush()
-		select {
-		case <-release:
-		case <-r.Context().Done():
-			return
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			events := splitSSEEvents(tc.stream)
+			require.Greater(t, len(events), 2)
+			head := bytes.Join(events[:2], nil)
+			tail := bytes.Join(events[2:], nil)
+
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(head)
+				w.(http.Flusher).Flush()
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+				_, _ = w.Write(tail)
+			}))
+			t.Cleanup(upstream.Close)
+			t.Cleanup(releaseUpstream)
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+			// Bound the wait with ctx: a buffered bridge never sends headers while
+			// upstream is held back.
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+			got := make([]byte, len(head))
+			_, err = io.ReadFull(resp.Body, got)
+			require.NoError(t, err)
+			require.Equal(t, string(head), string(got))
+
+			releaseUpstream()
+			rest, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, string(tc.stream), string(got)+string(rest))
+		})
+	}
+}
+
+// splitSSEEvents splits an SSE stream after each blank line, accepting LF and
+// CRLF line endings. Each event keeps its original bytes, so joining the
+// events reproduces the input exactly.
+func splitSSEEvents(stream []byte) [][]byte {
+	var events [][]byte
+	start, offset := 0, 0
+	for _, line := range bytes.SplitAfter(stream, []byte("\n")) {
+		offset += len(line)
+		if len(line) > 0 && len(bytes.TrimRight(line, "\r\n")) == 0 {
+			events = append(events, stream[start:offset])
+			start = offset
 		}
-		_, _ = w.Write(tail)
-	}))
-	t.Cleanup(upstream.Close)
-	t.Cleanup(releaseUpstream)
+	}
+	if start < len(stream) {
+		events = append(events, stream[start:])
+	}
+	return events
+}
 
-	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+func TestSplitSSEEvents(t *testing.T) {
+	t.Parallel()
 
-	// Bound the wait with ctx: a buffered bridge never sends headers while
-	// upstream is held back.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+	for _, tc := range []struct {
+		name   string
+		stream string
+		want   []string
+	}{
+		{
+			name:   "LF",
+			stream: "event: a\ndata: 1\n\nevent: b\ndata: 2\n\n",
+			want:   []string{"event: a\ndata: 1\n\n", "event: b\ndata: 2\n\n"},
+		},
+		{
+			name:   "CRLF",
+			stream: "event: a\r\ndata: 1\r\n\r\nevent: b\r\ndata: 2\r\n\r\n",
+			want:   []string{"event: a\r\ndata: 1\r\n\r\n", "event: b\r\ndata: 2\r\n\r\n"},
+		},
+		{
+			name:   "TrailingPartialEvent",
+			stream: "data: 1\n\ndata: 2",
+			want:   []string{"data: 1\n\n", "data: 2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	got := make([]byte, len(head))
-	_, err = io.ReadFull(resp.Body, got)
-	require.NoError(t, err)
-	require.Equal(t, string(head), string(got))
-
-	releaseUpstream()
-	rest, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, string(fix.Streaming()), string(got)+string(rest))
+			var got []string
+			for _, event := range splitSSEEvents([]byte(tc.stream)) {
+				got = append(got, string(event))
+			}
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 // Upstream accepts the stream but drops the connection before a complete
