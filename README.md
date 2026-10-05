@@ -64,7 +64,7 @@ Start the server and open [http://localhost:3000](http://localhost:3000) to crea
 coder server
 ```
 
-For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
+For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/install/plan/sizing) for sizing and infrastructure guidance:
 
 ```shell
 coder server --postgres-url <url> --access-url <url>
