@@ -47,6 +47,7 @@ import { mcpSelectionStorageKey } from "../utils/mcpSelection";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
+	draftStorageKeys,
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 	selectedWorkspaceIdStorageKey,
@@ -539,6 +540,37 @@ describe("AgentCreateForm organization lock", () => {
 		return requests;
 	};
 
+	it("saves a workspace picked in the plain composer", async () => {
+		renderForm();
+
+		await user().click(screen.getByRole("button", { name: "More options" }));
+		await user().click(
+			(await screen.findByText("Attach workspace")).closest("button")!,
+		);
+		await user().click(
+			await screen.findByRole("option", {
+				name: new RegExp(mockWorkspace.name),
+			}),
+		);
+
+		await waitFor(() => {
+			expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+				mockWorkspace.id,
+			);
+		});
+	});
+
+	it("submits the project's ID", async () => {
+		const { onCreateChat } = renderForm({
+			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
+		});
+
+		await submitMessage("hello project");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBe("project-1");
+	});
+
 	it("does not save the user's defaults from choices made in a project", async () => {
 		localStorage.setItem(
 			selectedOrganizationIdStorageKey,
@@ -638,10 +670,10 @@ describe("AgentCreateForm organization lock", () => {
 		await typeMessage("draft for A");
 		await waitFor(() => {
 			expect(
-				localStorage.getItem(`${emptyInputStorageKey}:project-a`),
+				localStorage.getItem(draftStorageKeys("project-a").text),
 			).toContain("draft for A");
 		});
-		const draftA = localStorage.getItem(`${emptyInputStorageKey}:project-a`);
+		const draftA = localStorage.getItem(draftStorageKeys("project-a").text);
 
 		rerender({
 			project: { id: "project-b", organization_id: MockDefaultOrganization.id },
@@ -652,7 +684,7 @@ describe("AgentCreateForm organization lock", () => {
 				screen.getByRole("textbox", { name: "Chat message" }),
 			).not.toHaveTextContent("draft for A");
 		});
-		expect(localStorage.getItem(`${emptyInputStorageKey}:project-a`)).toBe(
+		expect(localStorage.getItem(draftStorageKeys("project-a").text)).toBe(
 			draftA,
 		);
 	});
@@ -660,7 +692,7 @@ describe("AgentCreateForm organization lock", () => {
 	it("keeps text and attachment drafts separate per project", async () => {
 		localStorage.setItem(emptyInputStorageKey, "plain composer draft");
 		localStorage.setItem(
-			`${emptyInputStorageKey}:project-2`,
+			draftStorageKeys("project-2").text,
 			"other project draft",
 		);
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
@@ -672,7 +704,7 @@ describe("AgentCreateForm organization lock", () => {
 
 		await waitFor(() => {
 			expect(
-				localStorage.getItem(`${emptyInputStorageKey}:project-1`),
+				localStorage.getItem(draftStorageKeys("project-1").text),
 			).toContain("project draft");
 		});
 		// Send enables only after the attachment state is adopted, so a draft
