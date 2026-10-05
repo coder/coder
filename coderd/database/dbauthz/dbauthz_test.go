@@ -7053,11 +7053,14 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 	}))
 	s.Run("GetWorkspaceSecretsHistory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
-		row := testutil.Fake(s.T(), faker, database.GetWorkspaceSecretsHistoryRow{WorkspaceID: ws.ID})
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceSecretsHistoryRow{
+			WorkspaceID:             ws.ID,
+			WorkspaceOwnerID:        ws.OwnerID,
+			WorkspaceOrganizationID: ws.OrganizationID,
+		})
 		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), ws.ID).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
 		check.Args(ws.ID).
-			Asserts(secretObj(ws), policy.ActionRead).
+			Asserts(row, policy.ActionRead).
 			Returns([]database.GetWorkspaceSecretsHistoryRow{row})
 	}))
 	s.Run("UpdateEncryptedWorkspaceSecretValue", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

@@ -1173,7 +1173,8 @@ type sqlcQuerier interface {
 	GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error)
 	// Returns metadata for every workspace secret row of a workspace, including
 	// cleared rows, so the secrets each build received can be inspected. Values
-	// are never selected.
+	// are never selected. The workspace owner and organization are included for
+	// authorization.
 	GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error)
 	GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error)
 	// build_params is used to filter by build parameters if present.

@@ -79,10 +79,14 @@ RETURNING *;
 -- name: GetWorkspaceSecretsHistory :many
 -- Returns metadata for every workspace secret row of a workspace, including
 -- cleared rows, so the secrets each build received can be inspected. Values
--- are never selected.
+-- are never selected. The workspace owner and organization are included for
+-- authorization.
 SELECT
-    id, workspace_id, workspace_build_id, name,
-    env_name, file_path, ephemeral, created_at, cleared_at
-FROM workspace_secrets
-WHERE workspace_id = @workspace_id
-ORDER BY created_at ASC, name ASC;
+    ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
+    ws.env_name, ws.file_path, ws.ephemeral, ws.created_at, ws.cleared_at,
+    w.owner_id AS workspace_owner_id,
+    w.organization_id AS workspace_organization_id
+FROM workspace_secrets ws
+JOIN workspaces w ON w.id = ws.workspace_id
+WHERE ws.workspace_id = @workspace_id
+ORDER BY ws.created_at ASC, ws.name ASC;

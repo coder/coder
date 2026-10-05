@@ -35232,28 +35232,34 @@ func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret
 
 const getWorkspaceSecretsHistory = `-- name: GetWorkspaceSecretsHistory :many
 SELECT
-    id, workspace_id, workspace_build_id, name,
-    env_name, file_path, ephemeral, created_at, cleared_at
-FROM workspace_secrets
-WHERE workspace_id = $1
-ORDER BY created_at ASC, name ASC
+    ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
+    ws.env_name, ws.file_path, ws.ephemeral, ws.created_at, ws.cleared_at,
+    w.owner_id AS workspace_owner_id,
+    w.organization_id AS workspace_organization_id
+FROM workspace_secrets ws
+JOIN workspaces w ON w.id = ws.workspace_id
+WHERE ws.workspace_id = $1
+ORDER BY ws.created_at ASC, ws.name ASC
 `
 
 type GetWorkspaceSecretsHistoryRow struct {
-	ID               uuid.UUID    `db:"id" json:"id"`
-	WorkspaceID      uuid.UUID    `db:"workspace_id" json:"workspace_id"`
-	WorkspaceBuildID uuid.UUID    `db:"workspace_build_id" json:"workspace_build_id"`
-	Name             string       `db:"name" json:"name"`
-	EnvName          string       `db:"env_name" json:"env_name"`
-	FilePath         string       `db:"file_path" json:"file_path"`
-	Ephemeral        bool         `db:"ephemeral" json:"ephemeral"`
-	CreatedAt        time.Time    `db:"created_at" json:"created_at"`
-	ClearedAt        sql.NullTime `db:"cleared_at" json:"cleared_at"`
+	ID                      uuid.UUID    `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID    `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID        uuid.UUID    `db:"workspace_build_id" json:"workspace_build_id"`
+	Name                    string       `db:"name" json:"name"`
+	EnvName                 string       `db:"env_name" json:"env_name"`
+	FilePath                string       `db:"file_path" json:"file_path"`
+	Ephemeral               bool         `db:"ephemeral" json:"ephemeral"`
+	CreatedAt               time.Time    `db:"created_at" json:"created_at"`
+	ClearedAt               sql.NullTime `db:"cleared_at" json:"cleared_at"`
+	WorkspaceOwnerID        uuid.UUID    `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOrganizationID uuid.UUID    `db:"workspace_organization_id" json:"workspace_organization_id"`
 }
 
 // Returns metadata for every workspace secret row of a workspace, including
 // cleared rows, so the secrets each build received can be inspected. Values
-// are never selected.
+// are never selected. The workspace owner and organization are included for
+// authorization.
 func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, workspaceID)
 	if err != nil {
@@ -35273,6 +35279,8 @@ func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID
 			&i.Ephemeral,
 			&i.CreatedAt,
 			&i.ClearedAt,
+			&i.WorkspaceOwnerID,
+			&i.WorkspaceOrganizationID,
 		); err != nil {
 			return nil, err
 		}

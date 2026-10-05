@@ -6262,14 +6262,7 @@ func (q *querier) GetWorkspaceSecrets(ctx context.Context) ([]database.Workspace
 
 func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
 	// Metadata only; values are never selected.
-	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, workspaceSecretObject(workspace)); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkspaceSecretsHistory(ctx, workspaceID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, workspaceID)
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
