@@ -449,6 +449,7 @@ describe("setQueuedMessages", () => {
 	it("applies a snapshot that only changes editing_since or content", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
+		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([qm]);
 
 		const editing = { ...qm, editing_since: "2025-01-01T00:01:00Z" };
@@ -461,6 +462,18 @@ describe("setQueuedMessages", () => {
 		};
 		store.setQueuedMessages([edited]);
 		expect(store.getSnapshot().queuedMessages).toEqual([edited]);
+
+		const refetched: TypesGen.ChatQueuedMessage = {
+			...edited,
+			content: [{ type: "text", text: "refetched" }],
+		};
+		store.applyPromoteRefetchQueuedMessages(
+			testChatID,
+			9,
+			[refetched],
+			store.getQueueConvergenceFence(),
+		);
+		expect(store.getSnapshot().queuedMessages).toEqual([refetched]);
 	});
 });
 
