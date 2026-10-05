@@ -63,3 +63,17 @@ export function countInvisibleCharacters(text: string): number {
 	}
 	return count;
 }
+
+/**
+ * Removes the invisible characters that the backend strips from prompt
+ * text, so callers can tell whether text will be blank once saved.
+ */
+export function removeInvisibleCharacters(text: string): string {
+	let result = "";
+	for (let i = 0; i < text.length; i++) {
+		if (isVisible(text.charCodeAt(i))) {
+			result += text[i];
+		}
+	}
+	return result;
+}

@@ -12,7 +12,10 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
+import {
+	countInvisibleCharacters,
+	removeInvisibleCharacters,
+} from "#/utils/invisibleUnicode";
 
 type ProjectInstructionsDialogProps = {
 	readonly open: boolean;
@@ -77,8 +80,12 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	const errorDetail = getErrorDetail(error);
 	// Blank instructions are cleared with Delete rather than saved, and
 	// whitespace-only edits at either end are not a change worth saving.
+	// The server strips invisible characters, so text made only of them
+	// counts as blank.
 	const canSave =
-		draft.trim() !== "" && draft.trim() !== instructions.trim() && !isBusy;
+		removeInvisibleCharacters(draft).trim() !== "" &&
+		draft.trim() !== instructions.trim() &&
+		!isBusy;
 
 	return (
 		<form

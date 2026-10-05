@@ -9,7 +9,10 @@ import userEvent from "@testing-library/user-event";
 import { focusManager, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProjectInstructions } from "#/api/typesGenerated";
+import type {
+	ChatProject,
+	ChatProjectInstructions,
+} from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
@@ -26,15 +29,20 @@ const mockInstructions = (instructions: ChatProjectInstructions) =>
 		.spyOn(API.experimental, "getChatProjectInstructions")
 		.mockResolvedValue(instructions);
 
-const renderPanel = () => {
-	render(
+const renderPanel = (project: ChatProject = MockChatProject) => {
+	const queryClient = createTestQueryClient();
+	const panel = (project: ChatProject) => (
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
-			<QueryClientProvider client={createTestQueryClient()}>
-				<ProjectDetailsPanel project={MockChatProject} />
+			<QueryClientProvider client={queryClient}>
+				<ProjectDetailsPanel project={project} />
 			</QueryClientProvider>
-		</ThemeOverride>,
+		</ThemeOverride>
 	);
-	return userEvent.setup();
+	const { rerender } = render(panel(project));
+	return {
+		user: userEvent.setup(),
+		rerenderWithProject: (project: ChatProject) => rerender(panel(project)),
+	};
 };
 
 describe("ProjectDetailsPanel", () => {
@@ -52,7 +60,7 @@ describe("ProjectDetailsPanel", () => {
 				instructions: text,
 			});
 		const getInstructions = mockInstructions(MockUnsetChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Create" }));
 		const saveButton = screen.getByRole("button", { name: "Save" });
@@ -90,7 +98,7 @@ describe("ProjectDetailsPanel", () => {
 				instructions: "Write tests first.",
 			});
 		mockInstructions(MockChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
@@ -113,12 +121,50 @@ describe("ProjectDetailsPanel", () => {
 		);
 	});
 
+	it("does not save text that is blank once invisible characters are stripped", async () => {
+		mockInstructions(MockUnsetChatProjectInstructions);
+		const { user } = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Create" }));
+		fireEvent.change(screen.getByRole("textbox", { name: "Instructions" }), {
+			target: { value: "\u200B\u2060 \u200B" },
+		});
+
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+	});
+
+	it("closes the editor and discards the draft when the project changes", async () => {
+		const updateInstructions = vi.spyOn(
+			API.experimental,
+			"updateChatProjectInstructions",
+		);
+		mockInstructions(MockChatProjectInstructions);
+		const { user, rerenderWithProject } = renderPanel();
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Instructions" }),
+			" Draft for the first project.",
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			id: "00000000-0000-4000-8000-0000000000b2",
+		});
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("textbox", { name: "Instructions" }),
+			).not.toBeInTheDocument(),
+		);
+		expect(updateInstructions).not.toHaveBeenCalled();
+	});
+
 	it("deletes the instructions and returns to the empty state", async () => {
 		const deleteInstructions = vi
 			.spyOn(API.experimental, "deleteChatProjectInstructions")
 			.mockResolvedValue();
 		mockInstructions(MockChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -142,7 +188,7 @@ describe("ProjectDetailsPanel", () => {
 			}),
 		);
 		mockInstructions(MockUnsetChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Create" }));
 		const textbox = screen.getByRole("textbox", { name: "Instructions" });
@@ -173,7 +219,7 @@ describe("ProjectDetailsPanel", () => {
 			"deleteChatProjectInstructions",
 		).mockRejectedValue(mockApiError({ message: "Failed to delete." }));
 		mockInstructions(MockChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		await user.type(
@@ -193,7 +239,7 @@ describe("ProjectDetailsPanel", () => {
 			.spyOn(API.experimental, "updateChatProjectInstructions")
 			.mockReturnValue(new Promise(() => {}));
 		mockInstructions(MockUnsetChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Create" }));
 		await user.type(
@@ -211,7 +257,7 @@ describe("ProjectDetailsPanel", () => {
 
 	it("refetches the instructions when the window regains focus", async () => {
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 		await screen.findByRole("button", { name: "Edit" });
 
 		// Another editor changed the instructions while this tab was hidden.
@@ -238,7 +284,7 @@ describe("ProjectDetailsPanel", () => {
 			.spyOn(API.experimental, "getChatProjectInstructions")
 			.mockRejectedValueOnce(mockApiError({ message: "Failed to load." }))
 			.mockResolvedValue(MockChatProjectInstructions);
-		const user = renderPanel();
+		const { user } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 

@@ -16,6 +16,15 @@ type ProjectDetailsPanelProps = {
 /** Loads a project's details and edits its instructions. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
+}) => (
+	// Route changes between projects reuse this component, so remount it
+	// to drop an open editor and its draft instead of saving that draft
+	// to the next project.
+	<ProjectDetailsPanelContent key={project.id} project={project} />
+);
+
+const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
+	project,
 }) => {
 	const queryClient = useQueryClient();
 	const instructionsQuery = useQuery(chatProjectInstructions(project));
