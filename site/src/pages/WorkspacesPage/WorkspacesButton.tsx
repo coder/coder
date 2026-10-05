@@ -124,7 +124,7 @@ export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 				<div className="shrink-0 border-0 border-t border-solid border-border py-1">
 					<RouterLink
 						to="/templates"
-						className="flex items-center gap-3 rounded-sm px-4 py-2 text-sm text-content-link no-underline outline-hidden hover:bg-surface-secondary hover:no-underline focus:bg-surface-secondary"
+						className="flex items-center gap-3 rounded-sm px-4 py-2 text-sm text-content-link no-underline outline-hidden hover:bg-surface-secondary hover:no-underline focus:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<ExternalLinkIcon className="size-icon-xs" />
 						<span>See all templates</span>
