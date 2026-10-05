@@ -334,8 +334,8 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 			// Proxy mode validates bridged requests but does not forward them.
 			name:               "ProxyModeWithoutMCP",
 			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
-			wantStatus:         http.StatusNotFound,
-			wantBody:           "404 page not found",
+			wantStatus:         http.StatusNotImplemented,
+			wantBody:           "bridged routes are not yet implemented in proxy mode",
 			wantUpstreamHits:   0,
 			wantSessions:       0,
 		},

@@ -110,9 +110,9 @@ func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Creden
 	return r.Clone(r.Context())
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, r *http.Request) error {
+func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request) error {
 	// TODO: forward only when lifecycle recording is connected.
-	http.NotFound(w, r)
+	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
 	return nil
 }
 

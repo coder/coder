@@ -73,7 +73,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -104,16 +104,17 @@ func TestRouterRoutes(t *testing.T) {
 	enabled := &aibtestutil.MockProvider{
 		NameStr:     "openai",
 		URL:         upstream.URL,
-		Bridged:     []string{"/v1/chat/completions", "/v1/models/bridged"},
-		Passthrough: []string{"/v1/models", "/v1/models/", "/v1/tokens"},
+		Bridged:     []string{"/bridged/exact/path", "/bridged/whole/subtree/", "/passthrough/whole/subtree/bridged"},
+		Passthrough: []string{"/passthrough/exact/path", "/passthrough/whole/subtree/"},
 	}
 	m := metrics.NewMetrics(prometheus.NewRegistry())
 	router, err := proxy.NewRouter(
-		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
+		t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
 		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
 	)
 	require.NoError(t, err)
 
+	const bridgedBody = "bridged routes are not yet implemented in proxy mode\n"
 	const disabledBody = routing.ErrorCodeProviderDisabled + ": AI provider \"disabled-openai\" is disabled\n"
 	var passthroughPaths []string
 	for _, tc := range []struct {
@@ -123,64 +124,76 @@ func TestRouterRoutes(t *testing.T) {
 		wantBody   string
 	}{
 		{
-			name:       "DisabledProvider/BridgedRoute",
-			path:       "/disabled-openai/v1/chat/completions",
+			name:       "DisabledProvider_Bridged_ExactPath",
+			path:       "/disabled-openai/bridged/exact/path",
 			wantStatus: http.StatusServiceUnavailable,
 			wantBody:   disabledBody,
 		},
 		{
-			name:       "DisabledProvider/PassthroughRoute",
-			path:       "/disabled-openai/v1/models",
+			name:       "DisabledProvider_Bridged_SubtreePath",
+			path:       "/disabled-openai/bridged/whole/subtree/nested",
 			wantStatus: http.StatusServiceUnavailable,
 			wantBody:   disabledBody,
 		},
 		{
-			name:       "DisabledProvider/UnknownRoute",
-			path:       "/disabled-openai/anything/else",
+			name:       "DisabledProvider_Passthrough_ExactPath",
+			path:       "/disabled-openai/passthrough/exact/path",
 			wantStatus: http.StatusServiceUnavailable,
 			wantBody:   disabledBody,
 		},
 		{
-			name:       "BridgedRoute",
-			path:       "/openai/v1/chat/completions",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
+			name:       "DisabledProvider_Passthrough_SubtreePath",
+			path:       "/disabled-openai/passthrough/whole/subtree/nested",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
 		},
 		{
-			name:       "BridgedRouteOverridesPassthrough",
-			path:       "/openai/v1/models/bridged",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
+			name:       "DisabledProvider_UnknownPath",
+			path:       "/disabled-openai/unknown/path",
+			wantStatus: http.StatusServiceUnavailable,
+			wantBody:   disabledBody,
 		},
 		{
-			name:       "PassthroughRoute/Models",
-			path:       "/openai/v1/models",
+			name:       "EnabledProvider_Bridged_ExactPath",
+			path:       "/openai/bridged/exact/path",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "EnabledProvider_Bridged_SubtreePath",
+			path:       "/openai/bridged/whole/subtree/nested",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "EnabledProvider_Bridged_ExactPathOverridesPassthroughSubtree",
+			path:       "/openai/passthrough/whole/subtree/bridged",
+			wantStatus: http.StatusNotImplemented,
+			wantBody:   bridgedBody,
+		},
+		{
+			name:       "EnabledProvider_Passthrough_ExactPath",
+			path:       "/openai/passthrough/exact/path",
 			wantStatus: http.StatusOK,
-			wantBody:   "/v1/models",
+			wantBody:   "/passthrough/exact/path",
 		},
 		{
-			name:       "PassthroughRoute/Tokens",
-			path:       "/openai/v1/tokens",
+			name:       "EnabledProvider_Passthrough_SubtreePath",
+			path:       "/openai/passthrough/whole/subtree/nested",
 			wantStatus: http.StatusOK,
-			wantBody:   "/v1/tokens",
+			wantBody:   "/passthrough/whole/subtree/nested",
 		},
 		{
-			name:       "UnknownRoute/EnabledProvider",
-			path:       "/openai/admin",
+			name:       "EnabledProvider_UnknownPath",
+			path:       "/openai/unknown/path",
 			wantStatus: http.StatusNotFound,
-			wantBody:   "route not supported: GET /openai/admin\n",
+			wantBody:   "route not supported: GET /openai/unknown/path\n",
 		},
 		{
-			name:       "UnknownRoute/UnknownProvider",
-			path:       "/unknown/v1/models",
+			name:       "UnknownProvider",
+			path:       "/unknown/path",
 			wantStatus: http.StatusNotFound,
-			wantBody:   "route not supported: GET /unknown/v1/models\n",
-		},
-		{
-			name:       "UnknownRoute/Root",
-			path:       "/",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "route not supported: GET /\n",
+			wantBody:   "route not supported: GET /unknown/path\n",
 		},
 		{
 			name:       "EncodedTraversal",
@@ -225,7 +238,7 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	gate := newRouterGate(t)
 	router, err := proxy.NewRouter(
-		[]provider.Provider{
+		t.Context(), []provider.Provider{
 			&aibtestutil.MockProvider{
 				NameStr:     "openai",
 				URL:         upstream.URL,
@@ -282,7 +295,7 @@ func TestRouterSnapshotsProviders(t *testing.T) {
 		keyPoolProvider{Provider: provider.NewDisabledStub("disabled-openai", "openai"), pool: pool},
 	}
 
-	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	router, err := proxy.NewRouter(t.Context(), providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
@@ -310,7 +323,7 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 	t.Parallel()
 
 	router, err := proxy.NewRouter(
-		[]provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
+		t.Context(), []provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
 		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil,
 	)
 	require.NoError(t, err)

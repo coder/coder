@@ -44,7 +44,7 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 		status  int
 		message string
 	}{
-		{name: "UnparsedBody", status: http.StatusNotFound, message: "404 page not found"},
+		{name: "UnparsedBody", status: http.StatusNotImplemented, message: "bridged routes are not yet implemented in proxy mode"},
 		{name: "WebSocket", prepare: func(r *http.Request) {
 			r.Method = http.MethodGet
 			r.Header.Set("Connection", "Upgrade")

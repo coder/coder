@@ -2,6 +2,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -45,7 +46,7 @@ var _ http.Handler = (*Router)(nil)
 // after validation succeeds. All routes reuse the same inflight gate
 // across a server's snapshots. Shutdown drains all admitted requests.
 // rec is shared across requests and must read identity from the request context.
-func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
+func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -66,6 +67,10 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 				return nil, xerrors.Errorf("configure provider %q bridged route: %w", prov.Name(), err)
 			}
 			mux.Handle(pattern, bridged)
+			logger.Debug(ctx, "registered bridged route",
+				slog.F("provider", prov.Name()),
+				slog.F("path", pattern),
+			)
 		}
 
 		passthrough := inflight.Middleware(http.StripPrefix(prov.RoutePrefix(), aibridge.NewPassthroughHandler(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)))
@@ -75,6 +80,10 @@ func NewRouter(providers []provider.Provider, logger slog.Logger, m *metrics.Met
 				return nil, xerrors.Errorf("configure provider %q passthrough route: %w", prov.Name(), err)
 			}
 			mux.Handle(pattern, passthrough)
+			logger.Debug(ctx, "registered passthrough route",
+				slog.F("provider", prov.Name()),
+				slog.F("path", pattern),
+			)
 		}
 	}
 

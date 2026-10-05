@@ -174,6 +174,10 @@ func TestServerProxy_RecorderReusedAcrossReloads(t *testing.T) {
 
 	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{})}
 	for range 2 {
+		// Reloading providers must not replace the recorder
+		// pass 1 checks nil to router, and pass 2 checks router to a new router.
+		// 2 passes so it is clear that the ReplaceProviders is consistent if router
+		// is initialized or not.
 		previous := server.backend.Load().proxyRouter
 		require.NoError(t, server.ReplaceProviders(ctx, providers))
 		require.NotSame(t, previous, server.backend.Load().proxyRouter)
@@ -485,7 +489,7 @@ func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibrid
 	t.Helper()
 	upstream := httptest.NewServer(upstreamHandler)
 	t.Cleanup(upstream.Close)
-	router, err := proxy.NewRouter([]aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
+	router, err := proxy.NewRouter(t.Context(), []aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
 		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
 	require.NoError(t, err)
 	return router
