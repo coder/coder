@@ -7576,12 +7576,13 @@ INSERT INTO chat_project_instructions (
     instructions,
     updated_by
 )
-VALUES (
-    $1::uuid,
-    $2::uuid,
-    $3::text,
-    $4::uuid
-)
+SELECT
+    chat_projects.id,
+    chat_projects.organization_id,
+    $1::text,
+    $2::uuid
+FROM chat_projects
+WHERE chat_projects.id = $3::uuid
 ON CONFLICT (project_id) DO UPDATE SET
     instructions = EXCLUDED.instructions,
     updated_by = EXCLUDED.updated_by,
@@ -7590,19 +7591,15 @@ RETURNING project_id, organization_id, instructions, updated_by, created_at, upd
 `
 
 type UpsertChatProjectInstructionsParams struct {
-	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Instructions   string    `db:"instructions" json:"instructions"`
-	UpdatedBy      uuid.UUID `db:"updated_by" json:"updated_by"`
+	Instructions string    `db:"instructions" json:"instructions"`
+	UpdatedBy    uuid.UUID `db:"updated_by" json:"updated_by"`
+	ProjectID    uuid.UUID `db:"project_id" json:"project_id"`
 }
 
+// The organization comes from the project row, so the stored scope always
+// matches the project's organization.
 func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions,
-		arg.ProjectID,
-		arg.OrganizationID,
-		arg.Instructions,
-		arg.UpdatedBy,
-	)
+	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions, arg.Instructions, arg.UpdatedBy, arg.ProjectID)
 	var i ChatProjectInstruction
 	err := row.Scan(
 		&i.ProjectID,
