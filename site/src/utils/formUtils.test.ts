@@ -1,11 +1,6 @@
 import type { FormikContextType } from "formik/dist/types";
 import { mockApiError } from "#/testHelpers/entities";
-import {
-	getFormHelpers,
-	groupNameValidator,
-	nameValidator,
-	onChangeTrimmed,
-} from "./formUtils";
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
 
 type TestType = {
 	untouchedGoodField: string;
@@ -166,8 +161,8 @@ describe("form util functions", () => {
 		});
 	});
 
-	describe("groupNameValidator", () => {
-		const schema = groupNameValidator("Name");
+	describe("nameValidator with a custom limit", () => {
+		const schema = nameValidator("Name", 255);
 
 		it.each([1, 32, 33, 255])("allows a %i-character name", (length) => {
 			expect(schema.validateSync("a".repeat(length))).toBe("a".repeat(length));
