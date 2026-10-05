@@ -5534,7 +5534,9 @@ export interface EditChatMessageResponse {
 // From codersdk/chats.go
 /**
  * EditChatQueuedMessageRequest edits a queued message. Omitted fields
- * are left unchanged; a request with no fields is rejected.
+ * are left unchanged; a request with no fields is rejected. A message
+ * queued by an automation refuses Content and beginning an edit with
+ * 409; ending its edit is accepted.
  */
 export interface EditChatQueuedMessageRequest {
 	/**

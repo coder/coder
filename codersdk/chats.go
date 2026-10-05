@@ -1925,7 +1925,9 @@ type ChatQueuedMessage struct {
 }
 
 // EditChatQueuedMessageRequest edits a queued message. Omitted fields
-// are left unchanged; a request with no fields is rejected.
+// are left unchanged; a request with no fields is rejected. A message
+// queued by an automation refuses Content and beginning an edit with
+// 409; ending its edit is accepted.
 type EditChatQueuedMessageRequest struct {
 	// Content replaces the queued content. An empty array is rejected.
 	Content []ChatInputPart `json:"content,omitempty"`
