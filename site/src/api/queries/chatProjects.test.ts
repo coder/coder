@@ -8,7 +8,11 @@ import {
 	deleteChatProject,
 	updateChatProject,
 } from "./chatProjects";
-import { chatEntitiesFamilyKey, chatListFamilyKey } from "./chats";
+import {
+	chatEntitiesFamilyKey,
+	chatListFamilyKey,
+	chatSearchFamilyKey,
+} from "./chats";
 
 describe("chatProject", () => {
 	it("selects the project with the ID, or null when the list lacks it", () => {
@@ -24,7 +28,7 @@ describe("chat project mutations", () => {
 	const projectKeys = [chatProjectsKey];
 	const chatKeys = [
 		[...chatListFamilyKey, { q: "" }],
-		["chats", "collections", "search", { q: "x" }],
+		[...chatSearchFamilyKey, { q: "x" }],
 		[...chatEntitiesFamilyKey, "chat-1"],
 	];
 	const seed = () => {

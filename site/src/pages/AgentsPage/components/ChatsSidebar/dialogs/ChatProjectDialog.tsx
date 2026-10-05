@@ -14,7 +14,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
+import { getFormHelpers } from "#/utils/formUtils";
 
 export type ChatProjectFormValues = {
 	name: string;
@@ -27,23 +27,23 @@ const nameMaxChars = 64;
 const descriptionMaxChars = 1024;
 const iconMaxChars = 256;
 
-// Counts code points, as the server does. Yup's max() and native maxLength
-// count UTF-16 units.
-const countCharacters = (value: unknown) => [...String(value ?? "")].length;
+// Counts code points of the value as submitted, as the server does. Yup's
+// max() and native maxLength count UTF-16 units.
+const measureLength = (value: string) => [...value.trim()].length;
 
 const maxCharacters = (label: string, max: number) =>
-	Yup.string()
-		.trim()
-		.test(
-			"max-characters",
-			`${label} cannot be longer than ${max} characters.`,
-			(value) => countCharacters(value) <= max,
-		);
+	Yup.string().test(
+		"max-characters",
+		`${label} cannot be longer than ${max} characters.`,
+		(value = "") => measureLength(value) <= max,
+	);
 
 const validationSchema = Yup.object({
-	name: maxCharacters("Name", nameMaxChars).required("Name is required."),
-	description: maxCharacters("Description", descriptionMaxChars),
-	icon: maxCharacters("Icon", iconMaxChars),
+	name: maxCharacters("Name", nameMaxChars)
+		.trim()
+		.required("Name is required."),
+	description: maxCharacters("Description", descriptionMaxChars).trim(),
+	icon: maxCharacters("Icon", iconMaxChars).trim(),
 });
 
 const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
@@ -52,28 +52,14 @@ const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
 	icon: values.icon.trim(),
 });
 
-// Mirrors the live counter getFormHelpers shows for maxLength, counting code
-// points, so an over-limit value is explained before the field loses focus.
-const withCharacterCount = (field: FormHelpers, max: number): FormHelpers => {
-	const count = countCharacters(field.value);
-	if (count <= max - 30) {
-		return field;
-	}
-	const message = `This cannot be longer than ${max} characters. (${count}/${max})`;
-	if (count > max) {
-		return { ...field, error: true, helperText: message };
-	}
-	return field.error ? field : { ...field, helperText: message };
-};
-
 type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSubmitting: boolean;
 	/**
-	 * The save error. The caller's mutation outlives the dialog, so reset it
-	 * (for example with `mutation.reset()`) before opening.
+	 * The save error. Call `mutation.reset()` before opening; the mutation
+	 * outlives the dialog.
 	 */
 	readonly error: unknown;
 	/** Receives all three fields, trimmed, including unchanged ones on edit. */
@@ -137,19 +123,26 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		onSubmit: (values) => onSubmit(trimValues(values)),
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
-	const nameField = withCharacterCount(getFieldHelpers("name"), nameMaxChars);
-	const descriptionField = withCharacterCount(
-		getFieldHelpers("description"),
-		descriptionMaxChars,
-	);
-	const iconField = getFieldHelpers("icon");
+	const nameField = getFieldHelpers("name", {
+		maxLength: nameMaxChars,
+		measureLength,
+	});
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: descriptionMaxChars,
+		measureLength,
+	});
+	const iconField = getFieldHelpers("icon", {
+		maxLength: iconMaxChars,
+		measureLength,
+	});
 	const trimmed = trimValues(form.values);
+	const trimmedInitial = trimValues(form.initialValues);
 	// An unchanged edit would still bump updated_at and write an audit entry.
 	const isUnchanged =
 		project !== undefined &&
-		trimmed.name === project.name &&
-		trimmed.description === project.description &&
-		trimmed.icon === project.icon;
+		trimmed.name === trimmedInitial.name &&
+		trimmed.description === trimmedInitial.description &&
+		trimmed.icon === trimmedInitial.icon;
 	const canSave = form.isValid && !isUnchanged && !isSubmitting;
 
 	return (
