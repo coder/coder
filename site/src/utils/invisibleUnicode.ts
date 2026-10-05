@@ -80,8 +80,15 @@ export function sanitizePromptText(text: string): string {
 	}
 	return visible
 		.split("\n")
-		.map((line) => line.trimEnd())
+		.map((line) => line.replace(trailingGoSpace, ""))
 		.join("\n")
 		.replace(/\n{3,}/g, "\n\n")
-		.trim();
+		.replace(leadingGoSpace, "")
+		.replace(trailingGoSpace, "");
 }
+
+// Go's unicode.IsSpace set. JavaScript's \s matches the same characters
+// except that it lacks U+0085 (next line) and adds U+FEFF, which is
+// stripped above as invisible.
+const leadingGoSpace = /^[\s\u0085]+/;
+const trailingGoSpace = /[\s\u0085]+$/;

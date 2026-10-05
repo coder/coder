@@ -1345,7 +1345,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpsertChatProjectInstructions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		instructions := testutil.Fake(s.T(), faker, database.ChatProjectInstruction{ProjectID: project.ID})
-		arg := database.UpsertChatProjectInstructionsParams{ProjectID: project.ID, OrganizationID: project.OrganizationID, Instructions: instructions.Instructions, UpdatedBy: uuid.New()}
+		arg := database.UpsertChatProjectInstructionsParams{ProjectID: project.ID, Instructions: instructions.Instructions, UpdatedBy: uuid.New()}
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		dbm.EXPECT().UpsertChatProjectInstructions(gomock.Any(), arg).Return(instructions, nil).AnyTimes()
 		check.Args(arg).Asserts(project, policy.ActionUpdate).Returns(instructions)

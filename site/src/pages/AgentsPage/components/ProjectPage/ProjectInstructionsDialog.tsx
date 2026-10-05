@@ -187,7 +187,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				</Alert>
 			)}
 			{Boolean(error) && (
-				<div className="text-sm text-content-destructive">
+				<div role="alert" className="text-sm text-content-destructive">
 					<p className="m-0">{getErrorMessage(error, errorFallback)}</p>
 					{errorDetail && <p className="m-0 mt-1">{errorDetail}</p>}
 				</div>

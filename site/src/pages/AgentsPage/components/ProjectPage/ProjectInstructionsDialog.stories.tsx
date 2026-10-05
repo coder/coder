@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { fn } from "storybook/test";
 import {
 	MockChatProjectInstructions,
@@ -69,14 +69,42 @@ export const Deleting: Story = {
 	},
 };
 
+/**
+ * Stands in for the server's copy of the instructions, so the Conflict
+ * story's play function can save a change from "another user" while the
+ * dialog is open.
+ */
+const serverInstructions = (() => {
+	let value = MockChatProjectInstructions.instructions;
+	const listeners = new Set<() => void>();
+	return {
+		get: () => value,
+		set: (next: string) => {
+			value = next;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+})();
+
 /** Another user saved new instructions while this editor was open. */
 export const Conflict: Story = {
-	args: { instructions: MockChatProjectInstructions.instructions },
+	beforeEach: () => {
+		serverInstructions.set(MockChatProjectInstructions.instructions);
+	},
 	render: function ConflictStory(args) {
-		const [instructions, setInstructions] = useState(args.instructions);
-		useEffect(() => {
-			setInstructions("Edited in another tab.");
-		}, []);
+		const instructions = useSyncExternalStore(
+			serverInstructions.subscribe,
+			serverInstructions.get,
+		);
 		return <ProjectInstructionsDialog {...args} instructions={instructions} />;
+	},
+	play: () => {
+		serverInstructions.set("Edited in another tab.");
 	},
 };
