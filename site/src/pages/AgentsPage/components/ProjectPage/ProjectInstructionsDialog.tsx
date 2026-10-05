@@ -198,7 +198,7 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 						type="button"
 						variant="destructive"
 						className="sm:mr-auto"
-						disabled={isBusy}
+						disabled={isBusy || hasConflict}
 						onClick={onDelete}
 					>
 						<Spinner loading={isDeleting} />

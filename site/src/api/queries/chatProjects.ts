@@ -94,7 +94,12 @@ export const updateChatProjectInstructions = (
 				project.id,
 				request,
 			),
-		onSuccess: (instructions) => {
+		onSuccess: async (instructions) => {
+			// A refetch that started before the write would otherwise
+			// overwrite the saved value with the old one when it lands.
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
 			queryClient.setQueryData(
 				chatProjectInstructionsKey(project.id),
 				instructions,
@@ -112,7 +117,10 @@ export const deleteChatProjectInstructions = (
 				project.organization_id,
 				project.id,
 			),
-		onSuccess: () => {
+		onSuccess: async () => {
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
 			queryClient.setQueryData<TypesGen.ChatProjectInstructions>(
 				chatProjectInstructionsKey(project.id),
 				{

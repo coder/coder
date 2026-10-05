@@ -339,6 +339,7 @@ describe("ProjectDetailsPanel", () => {
 
 		const saveButton = screen.getByRole("button", { name: "Save" });
 		expect(saveButton).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 		await user.type(textbox, " More.");
 		expect(saveButton).toBeDisabled();
 
@@ -352,6 +353,61 @@ describe("ProjectDetailsPanel", () => {
 			},
 		);
 	});
+
+	it.each([
+		{
+			action: "Save",
+			result: { ...MockChatProjectInstructions, instructions: "Saved text." },
+		},
+		{ action: "Delete", result: MockUnsetChatProjectInstructions },
+	])(
+		"keeps the result of $action when a stale refetch finishes after it",
+		async ({ action, result }) => {
+			vi.spyOn(
+				API.experimental,
+				"updateChatProjectInstructions",
+			).mockResolvedValue(result);
+			vi.spyOn(
+				API.experimental,
+				"deleteChatProjectInstructions",
+			).mockResolvedValue();
+			const getInstructions = mockInstructions(MockChatProjectInstructions);
+			const { user, queryClient } = renderPanel();
+			await user.click(await screen.findByRole("button", { name: "Edit" }));
+			const textbox = screen.getByRole("textbox", { name: "Instructions" });
+			await user.clear(textbox);
+			await user.type(textbox, "Saved text.");
+
+			// A focus refetch reads the old instructions but answers late.
+			let resolveStaleFetch: (value: ChatProjectInstructions) => void =
+				() => {};
+			getInstructions.mockReturnValue(
+				new Promise((resolve) => {
+					resolveStaleFetch = resolve;
+				}),
+			);
+			act(() => {
+				focusManager.setFocused(false);
+				focusManager.setFocused(true);
+			});
+			await waitFor(() => expect(getInstructions).toHaveBeenCalledTimes(2));
+			await user.click(screen.getByRole("button", { name: action }));
+			await waitFor(() =>
+				expect(
+					queryClient.getQueryData(
+						chatProjectInstructionsKey(MockChatProject.id),
+					),
+				).toEqual(result),
+			);
+
+			await act(async () => resolveStaleFetch(MockChatProjectInstructions));
+			expect(
+				queryClient.getQueryData(
+					chatProjectInstructionsKey(MockChatProject.id),
+				),
+			).toEqual(result);
+		},
+	);
 
 	it("replaces the draft with refetched instructions on request", async () => {
 		const getInstructions = mockInstructions(MockChatProjectInstructions);
