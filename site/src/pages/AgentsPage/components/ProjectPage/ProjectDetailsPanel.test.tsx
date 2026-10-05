@@ -68,8 +68,14 @@ describe("ProjectDetailsPanel", () => {
 			MockChatProject.id,
 			{ instructions: text },
 		);
-		// The PUT response fills the cache, so reopening edits the saved text.
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		// The PUT response fills the cache, so the preview, the footer (which
+		// falls back to the username of a user without a name), and the
+		// reopened editor all reflect the saved instructions.
+		expect(await screen.findByText(text)).toBeInTheDocument();
+		expect(
+			screen.getByText("Instructions updated by TestUser"),
+		).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Edit" }));
 		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
 			text,
 		);
@@ -122,6 +128,7 @@ describe("ProjectDetailsPanel", () => {
 			MockChatProject.id,
 		);
 		await screen.findByRole("button", { name: "Create" });
+		expect(screen.queryByText(/Instructions updated/)).not.toBeInTheDocument();
 	});
 
 	it("keeps the editor open with the draft when saving fails", async () => {

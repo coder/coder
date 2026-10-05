@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -17,7 +19,7 @@ func TestChatProjectInstructions(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _ := newChatProjectClient(t)
+	client, db := newChatProjectClient(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	owner, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -106,4 +108,13 @@ func TestChatProjectInstructions(t *testing.T) {
 	require.Equal(t, codersdk.ChatProjectInstructions{ProjectID: project.ID}, instructions)
 	// Deleting unset instructions succeeds.
 	require.NoError(t, client.DeleteChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID))
+
+	// Deleting a project with instructions succeeds and removes them.
+	_, err = client.UpdateChatProjectInstructions(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{
+		Instructions: "Always reply in Spanish.",
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
+	_, err = db.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
