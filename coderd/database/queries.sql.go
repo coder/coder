@@ -7521,6 +7521,100 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const deleteChatProjectInstructionsByProjectID = `-- name: DeleteChatProjectInstructionsByProjectID :exec
+DELETE FROM chat_project_instructions
+WHERE project_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectInstructionsByProjectID, projectID)
+	return err
+}
+
+const getChatProjectInstructionsByProjectID = `-- name: GetChatProjectInstructionsByProjectID :one
+SELECT
+    chat_project_instructions.project_id, chat_project_instructions.organization_id, chat_project_instructions.instructions, chat_project_instructions.updated_by, chat_project_instructions.created_at, chat_project_instructions.updated_at,
+    users.username AS updated_by_username,
+    users.name AS updated_by_name,
+    users.avatar_url AS updated_by_avatar_url
+FROM chat_project_instructions
+LEFT JOIN users ON users.id = chat_project_instructions.updated_by
+    AND users.deleted = false
+WHERE chat_project_instructions.project_id = $1::uuid
+`
+
+type GetChatProjectInstructionsByProjectIDRow struct {
+	ChatProjectInstruction ChatProjectInstruction `db:"chat_project_instruction" json:"chat_project_instruction"`
+	UpdatedByUsername      sql.NullString         `db:"updated_by_username" json:"updated_by_username"`
+	UpdatedByName          sql.NullString         `db:"updated_by_name" json:"updated_by_name"`
+	UpdatedByAvatarUrl     sql.NullString         `db:"updated_by_avatar_url" json:"updated_by_avatar_url"`
+}
+
+// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
+// Excluding deleted users here reports their edits as anonymous.
+func (q *sqlQuerier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (GetChatProjectInstructionsByProjectIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectInstructionsByProjectID, projectID)
+	var i GetChatProjectInstructionsByProjectIDRow
+	err := row.Scan(
+		&i.ChatProjectInstruction.ProjectID,
+		&i.ChatProjectInstruction.OrganizationID,
+		&i.ChatProjectInstruction.Instructions,
+		&i.ChatProjectInstruction.UpdatedBy,
+		&i.ChatProjectInstruction.CreatedAt,
+		&i.ChatProjectInstruction.UpdatedAt,
+		&i.UpdatedByUsername,
+		&i.UpdatedByName,
+		&i.UpdatedByAvatarUrl,
+	)
+	return i, err
+}
+
+const upsertChatProjectInstructions = `-- name: UpsertChatProjectInstructions :one
+INSERT INTO chat_project_instructions (
+    project_id,
+    organization_id,
+    instructions,
+    updated_by
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::uuid
+)
+ON CONFLICT (project_id) DO UPDATE SET
+    instructions = EXCLUDED.instructions,
+    updated_by = EXCLUDED.updated_by,
+    updated_at = now()
+RETURNING project_id, organization_id, instructions, updated_by, created_at, updated_at
+`
+
+type UpsertChatProjectInstructionsParams struct {
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Instructions   string    `db:"instructions" json:"instructions"`
+	UpdatedBy      uuid.UUID `db:"updated_by" json:"updated_by"`
+}
+
+func (q *sqlQuerier) UpsertChatProjectInstructions(ctx context.Context, arg UpsertChatProjectInstructionsParams) (ChatProjectInstruction, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatProjectInstructions,
+		arg.ProjectID,
+		arg.OrganizationID,
+		arg.Instructions,
+		arg.UpdatedBy,
+	)
+	var i ChatProjectInstruction
+	err := row.Scan(
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Instructions,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories

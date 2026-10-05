@@ -5317,6 +5317,16 @@ type ChatProject struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.
+type ChatProjectInstruction struct {
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Instructions   string        `db:"instructions" json:"instructions"`
+	UpdatedBy      uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
 type ChatProjectMemory struct {
 	ID             uuid.UUID `db:"id" json:"id"`
