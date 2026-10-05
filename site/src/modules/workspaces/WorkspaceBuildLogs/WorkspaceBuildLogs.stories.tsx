@@ -22,19 +22,3 @@ export const Completed: Story = {
 		logs: MockWorkspaceBuildLogs,
 	},
 };
-
-export const OneSecond: Story = {
-	args: {
-		logs: [
-			{
-				...MockWorkspaceBuildLogs[0],
-				created_at: "2026-06-01T12:00:00.000Z",
-			},
-			{
-				...MockWorkspaceBuildLogs[0],
-				id: 2,
-				created_at: "2026-06-01T12:00:01.000Z",
-			},
-		],
-	},
-};

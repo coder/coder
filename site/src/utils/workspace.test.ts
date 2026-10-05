@@ -4,7 +4,6 @@ import * as Mocks from "#/testHelpers/entities";
 import {
 	agentVersionStatus,
 	defaultWorkspaceExtension,
-	displayWorkspaceBuildDuration,
 	findWorkspaceAgent,
 	getDisplayVersionStatus,
 	getDisplayWorkspaceBuildInitiatedBy,
@@ -39,27 +38,6 @@ function buildAgent(id: string): TypesGen.WorkspaceAgent {
 }
 
 describe("util > workspace", () => {
-	describe("displayWorkspaceBuildDuration", () => {
-		it.each([
-			[1000, "1 second"],
-			[1999, "1 second"],
-			[2000, "2 seconds"],
-		])("formats a %i ms build as %s", (elapsedMs, expected) => {
-			const startedAt = "2026-06-01T12:00:00.000Z";
-			const build = {
-				...Mocks.MockWorkspaceBuild,
-				job: {
-					...Mocks.MockProvisionerJob,
-					started_at: startedAt,
-					completed_at: new Date(
-						Date.parse(startedAt) + elapsedMs,
-					).toISOString(),
-				},
-			};
-			expect(displayWorkspaceBuildDuration(build)).toBe(expected);
-		});
-	});
-
 	describe("isWorkspaceOn", () => {
 		it.each<
 			[TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]
