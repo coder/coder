@@ -14,6 +14,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -14246,6 +14247,11 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 // the replacement turn calls the model.
 func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// The agent runs execute with sh, where $$ is not the Windows
+		// process ID, and os.Process.Signal supports only Kill on Windows.
+		t.Skip("checks the process with a Unix process ID and signal 0")
+	}
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues:         coderdtest.DeploymentValues(t),
