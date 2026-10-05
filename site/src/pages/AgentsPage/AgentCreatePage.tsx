@@ -265,6 +265,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
+		projectId: chatProjectId,
 		planMode,
 		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
@@ -292,7 +293,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-			...(project ? { project_id: project.id } : {}),
+			...(chatProjectId ? { project_id: chatProjectId } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
