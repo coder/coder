@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -112,8 +113,12 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("upsert chat project instructions: %w", err)
 		}
-		// Read the row back to include the updating user's profile.
-		row, err = tx.GetChatProjectInstructionsByProjectID(ctx, project.ID)
+		// Read the row back to include the updating user's profile. The
+		// ActionUpdate check above gates this endpoint, so read under a
+		// system context: a role that grants update without read can
+		// still save.
+		//nolint:gocritic // See above.
+		row, err = tx.GetChatProjectInstructionsByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat project instructions: %w", err)
 		}
