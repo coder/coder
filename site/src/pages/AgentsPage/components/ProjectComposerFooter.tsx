@@ -10,7 +10,7 @@ type ProjectComposerFooterProps = {
 	readonly project: TypesGen.ChatProject;
 };
 
-/** "Edit project" button shown below the new-chat composer on a project page. */
+/** "Edit project" button and the dialog that saves the edit. */
 export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 	project,
 }) => {

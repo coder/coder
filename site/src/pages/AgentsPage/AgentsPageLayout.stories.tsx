@@ -27,6 +27,7 @@ import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBu
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockNoPermissions,
@@ -168,6 +169,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -1096,6 +1098,39 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		},
 		routing: [agentsRouting, aiSettingsRouting],
 	});
+
+const projectPageParameters = {
+	experiments: ["chat-projects"],
+	reactRouter: reactRouterParameters({
+		location: { path: `/agents/projects/${MockChatProject.id}` },
+		routing: [agentsRouting, aiSettingsRouting],
+	}),
+};
+
+export const ProjectLoading: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const ProjectLoadError: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list chat projects." }),
+		);
+	},
+};
+
+export const ProjectNotFound: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+};
 
 export const PromptLink: Story = {
 	parameters: {
