@@ -238,8 +238,6 @@ describe("AgentCreatePage project assignment", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
 		);
-		// The form binds attachments and remembered choices to its organization
-		// on mount, so it must never render against a provisional one.
 		expect(renderedLockedOrganizationIds).not.toContain(undefined);
 		expect(renderedLockedOrganizationIds.at(-1)).toBe(MockOrganization2.id);
 		await waitFor(() => {
