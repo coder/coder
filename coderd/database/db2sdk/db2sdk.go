@@ -1864,6 +1864,25 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	}
 }
 
+// ChatProjectInstructions converts a project's stored instructions.
+func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDRow) codersdk.ChatProjectInstructions {
+	updatedAt := row.ChatProjectInstruction.UpdatedAt
+	instructions := codersdk.ChatProjectInstructions{
+		ProjectID:    row.ChatProjectInstruction.ProjectID,
+		Instructions: row.ChatProjectInstruction.Instructions,
+		UpdatedAt:    &updatedAt,
+	}
+	if row.ChatProjectInstruction.UpdatedBy.Valid && row.UpdatedByUsername.Valid {
+		instructions.UpdatedBy = &codersdk.MinimalUser{
+			ID:        row.ChatProjectInstruction.UpdatedBy.UUID,
+			Username:  row.UpdatedByUsername.String,
+			Name:      row.UpdatedByName.String,
+			AvatarURL: row.UpdatedByAvatarUrl.String,
+		}
+	}
+	return instructions
+}
+
 func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
 	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
 }

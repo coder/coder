@@ -224,6 +224,25 @@ type UpdateChatProjectRequest struct {
 	Icon        *string `json:"icon,omitempty"`
 }
 
+// ChatProjectInstructions are instructions added to the system prompt of
+// every chat in a project, for every user who chats there. A project without
+// instructions has an empty Instructions string and nil UpdatedBy and
+// UpdatedAt.
+type ChatProjectInstructions struct {
+	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
+	Instructions string    `json:"instructions"`
+	// UpdatedBy is the user who last changed the instructions. It is nil
+	// when the instructions are unset or the user was deleted.
+	UpdatedBy *MinimalUser `json:"updated_by"`
+	UpdatedAt *time.Time   `json:"updated_at" format:"date-time"`
+}
+
+// UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+// DeleteChatProjectInstructions to clear them.
+type UpdateChatProjectInstructionsRequest struct {
+	Instructions string `json:"instructions"`
+}
+
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
 	ID                uuid.UUID `json:"id" format:"uuid"`
@@ -2282,6 +2301,49 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 // DeleteChatProject deletes a chat project and detaches its chats.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectInstructions gets a chat project's instructions.
+func (c *ExperimentalClient) ChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/instructions", nil)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// UpdateChatProjectInstructions creates or replaces a chat project's
+// instructions.
+func (c *ExperimentalClient) UpdateChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectInstructionsRequest) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", req)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// DeleteChatProjectInstructions clears a chat project's instructions. It
+// succeeds when the project has no instructions.
+func (c *ExperimentalClient) DeleteChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
 	if err != nil {
 		return err
 	}
