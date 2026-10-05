@@ -1133,6 +1133,12 @@
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
+							"title": "Automations",
+							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
+							"path": "./ai-coder/agents/automations.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"
@@ -2328,6 +2334,28 @@
 							]
 						},
 						{
+							"title": "`sharing`",
+							"description": "Commands for managing shared workspaces",
+							"path": "reference/cli/sharing/index.md",
+							"children": [
+								{
+									"title": "`add`",
+									"description": "Share a workspace with a user or group.",
+									"path": "reference/cli/sharing/add.md"
+								},
+								{
+									"title": "`remove`",
+									"description": "Remove shared access for users or groups from a workspace.",
+									"path": "reference/cli/sharing/remove.md"
+								},
+								{
+									"title": "`status`",
+									"description": "List all users and groups the given Workspace is shared with.",
+									"path": "reference/cli/sharing/status.md"
+								}
+							]
+						},
+						{
 							"title": "`show`",
 							"description": "Display details of a workspace's resources and agents",
 							"path": "reference/cli/show.md"
@@ -2621,6 +2649,12 @@
 							]
 						}
 					]
+				},
+				{
+					"title": "API key scopes",
+					"description": "Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.",
+					"path": "./reference/api-key-scopes.md",
+					"icon_path": "./images/icons/api.svg"
 				},
 				{
 					"title": "Agent API",

@@ -440,7 +440,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceChatAutomation, ResourceAiSeat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -730,8 +730,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// ActionDelete is intentionally excluded because hard-deletion goes through
-		// ResourceSystem in dbpurge.
+		// Chat ActionDelete is intentionally excluded because hard-deletion goes
+		// through ResourceSystem in dbpurge. Members manage their own chat
+		// automations in full, including deletion.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -748,6 +749,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionShare,
 								policy.ActionUpdate,
 							},
+							ResourceChatAutomation.Type: {
+								policy.ActionCreate,
+								policy.ActionRead,
+								policy.ActionUpdate,
+								policy.ActionDelete,
+							},
+							// Projects group a member's own chats, so they follow chat
+							// access. ChatProject.RBACObject sets WithOwner(OwnerID),
+							// which keeps them private to their owner.
+							ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
 						}),
 					},
 				},
@@ -1257,9 +1268,9 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat permissions are intentionally omitted for service accounts, and
-	// GetAuthorizationUserRoles does not union agents-access from the org
-	// defaults for them, so chat requires an explicit agents-access grant.
+	// Chat and chat project permissions are intentionally omitted for service
+	// accounts, and GetAuthorizationUserRoles does not union agents-access from
+	// the org defaults for them, so chat requires an explicit agents-access grant.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},

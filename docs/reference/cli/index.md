@@ -43,6 +43,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>publickey</code>](./publickey.md)                           | Output your Coder public key used for Git operations                                                                         |
 | [<code>reset-password</code>](./reset-password.md)                 | Directly connect to the database to reset a user's password                                                                  |
 | [<code>secret</code>](./secret/index.md)                           | Manage secrets                                                                                                               |
+| [<code>sharing</code>](./sharing/index.md)                         | Commands for managing shared workspaces                                                                                      |
 | [<code>state</code>](./state/index.md)                             | Manually manage Terraform state to fix broken workspaces                                                                     |
 | [<code>templates</code>](./templates/index.md)                     | Manage templates                                                                                                             |
 | [<code>tokens</code>](./tokens/index.md)                           | Manage personal access tokens                                                                                                |

@@ -80,7 +80,10 @@ const ReasoningDisclosure = memo<{
 			streamKey: id,
 		});
 		const displayText = isStreaming ? visibleText : text;
-		const { title, body } = getThinkingDisclosureDisplay(displayText);
+		const { title, ariaLabel, body } = getThinkingDisclosureDisplay(
+			displayText,
+			{ isStreaming },
+		);
 		const hasText = body.trim().length > 0;
 
 		// Auto-scroll the preview container to the bottom as new
@@ -106,6 +109,7 @@ const ReasoningDisclosure = memo<{
 					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
+					ariaLabel={ariaLabel}
 				>
 					<ToolCall.Header
 						iconName="thinking"

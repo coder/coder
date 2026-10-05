@@ -38,6 +38,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
+      docs-gen: ${{ steps.filter.outputs.docs-gen }}
       go: ${{ steps.filter.outputs.go }}
       site: ${{ steps.filter.outputs.site }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -72,6 +73,19 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            # Docs paths that make gen reads or rewrites. The gen job skips
+            # docs-only PRs that touch none of them. lint/docs-gen-filter
+            # fails when a file make gen writes is missing here; it does not
+            # check inputs.
+            docs-gen:
+              - "docs/manifest.json"
+              - "docs/manifest/**"
+              - "docs/reference/api/**"
+              - "docs/reference/api-key-scopes.md"
+              - "docs/reference/cli/**"
+              - "docs/admin/integrations/prometheus.md"
+              - "docs/admin/security/audit-logs.md"
+              - "docs/admin/setup/configuration-reference.md"
             db:
               - "**.sql"
               - "coderd/database/**"
@@ -426,9 +440,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
+    needs: changes
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: ${{ !cancelled() }}
+    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1

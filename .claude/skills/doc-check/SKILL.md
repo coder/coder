@@ -258,8 +258,10 @@ only on the user-facing portion.
 
 ## Key Documentation Info
 
-- **`docs/manifest.json`** is the navigation structure; new pages MUST be
-  added here.
+- **`docs/manifest/**/*.yml`** is the navigation structure; new pages MUST be
+  added to the right source file there. Each file holds one route and its
+  direct children, and `include` pulls in a child's own file. `docs/manifest.json` is compiled
+  from it by `make gen/docs-manifest`; don't edit the JSON directly.
 - **`docs/reference/cli/*.md`** is auto-generated from Go code. Don't
   edit directly.
 - **`docs/.style/content-guidelines.md`** is the canonical source for
@@ -267,7 +269,7 @@ only on the user-facing portion.
 
 ### Premium feature signaling
 
-Pages documenting staged features must include the applicable `state` in their `docs/manifest.json` entry.
+Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
 Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
 The state is displayed in navigation metadata.
 
@@ -297,13 +299,13 @@ violations it generates or suggests.
 ### Renames and moves require redirects
 
 Redirects for [coder.com/docs](https://coder.com/docs) are configured in
-a separate repo, not in this one. When a doc page is renamed or moved:
+`docs/redirects.json` in this repo, and the website rebuilds when the file
+changes. When a doc page is renamed or moved:
 
 1. Update every link that relies on the old location.
-2. Add an entry to
-   [`coder/coder.com:redirects.json`](https://github.com/coder/coder.com/blob/master/redirects.json)
-   that maps the old path to the new one. Open that PR alongside the
-   `coder/coder` rename PR.
+2. Add a rule to `docs/redirects.json` that maps the old path to the new
+   one, in the same PR as the rename. For example:
+   `{"source": "/docs/old/path", "destination": "/docs/new/path"}`.
 
 Do not create a `docs/_redirects` file in this repo; that format isn't
 processed by coder.com.

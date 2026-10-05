@@ -932,7 +932,20 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
+	// Fail before prompt hooks run for a child that cannot be created.
+	// Spawn parents are always roots, so this is the family's archived
+	// flag. The locked check in chatstate.CreateChat stays authoritative.
+	if parent.Archived {
+		return database.Chat{}, errSpawnUnderArchivedParent(chatstate.ErrChatFamilyArchived)
+	}
 	return parent, nil
+}
+
+// errSpawnUnderArchivedParent wraps err, which must match
+// chatstate.ErrChatFamilyArchived, into the tool error spawn_agent
+// returns to the model.
+func errSpawnUnderArchivedParent(err error) error {
+	return xerrors.Errorf("cannot create a child agent because the parent chat is archived: %w", err)
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
@@ -1091,8 +1104,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 			prompt = override
 		}
 	}
+	titleSource := database.ChatTitleSourceUser
 	if title == "" {
 		title = subagentFallbackChatTitle(prompt)
+		titleSource = database.ChatTitleSourceFallback
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
@@ -1153,6 +1168,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
 		LastModelConfigID: modelConfigID,
 		Title:             title,
+		TitleSource:       titleSource,
 		Mode:              opts.chatMode,
 		PlanMode:          childPlanMode,
 		MCPServerIDs:      mcpServerIDs,
@@ -1166,6 +1182,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		InitialStatus:   database.ChatStatusRunning,
 	})
 	if err != nil {
+		if errors.Is(err, chatstate.ErrChatFamilyArchived) {
+			return database.Chat{}, errSpawnUnderArchivedParent(err)
+		}
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 

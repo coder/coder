@@ -85,6 +85,7 @@ func TestAppNameFamily(t *testing.T) {
 		{"CaseInsensitive", "JetBrains", codersdk.AppFamilyJetBrains},
 		{"SSHClientJoinsSSHFamily", "zed", codersdk.AppFamilySSH},
 		{"Alias", "reconnecting-pty", codersdk.AppFamilyReconnectingPTY},
+		{"PortForwarding", "port_forwarding", codersdk.AppFamilyPortForwarding},
 		{"Unknown", "SomeFutureIDE", codersdk.AppFamilyUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
