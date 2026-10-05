@@ -595,8 +595,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	// If password authentication is disabled and the user does not have the
-	// owner role, block the request.
+	// Password authentication is disabled for all users, including owners.
 	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
