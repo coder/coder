@@ -65,14 +65,25 @@ func (d *pgTxnDriver) Lock() error {
 	d.inFlight = -1
 	d.applied = nil
 	d.commitErr = nil
-	const q = `
-SELECT pg_advisory_xact_lock($1)
-`
 
-	_, err = d.tx.ExecContext(d.ctx, q, lockID)
+	// Try the lock first so that waiting on another instance, which holds it
+	// for the duration of its migrations, is visible in the logs.
+	var acquired bool
+	err = d.tx.QueryRowContext(d.ctx, `SELECT pg_try_advisory_xact_lock($1)`, lockID).Scan(&acquired)
+	if err != nil {
+		return xerrors.Errorf("try advisory lock: %w", err)
+	}
+	if acquired {
+		return nil
+	}
+
+	d.logger.Info(d.logCtx, "waiting for database migration lock held by another instance")
+	start := time.Now()
+	_, err = d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
 	if err != nil {
 		return xerrors.Errorf("exec select: %w", err)
 	}
+	d.logger.Info(d.logCtx, "acquired database migration lock", slog.F("waited", time.Since(start)))
 	return nil
 }
 

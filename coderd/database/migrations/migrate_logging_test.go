@@ -1,6 +1,7 @@
 package migrations_test
 
 import (
+	"context"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -103,6 +104,38 @@ func TestUpLogging(t *testing.T) {
 		var exists bool
 		require.NoError(t, db.QueryRowContext(ctx, "SELECT to_regclass('a') IS NOT NULL").Scan(&exists))
 		require.False(t, exists)
+	})
+
+	t.Run("WaitsForLock", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+
+		// Simulate another instance holding the migration lock.
+		holder, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		_, err = holder.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", migrations.LockID)
+		require.NoError(t, err)
+
+		sink := testutil.NewFakeSink(t)
+		done := make(chan error, 1)
+		go func() {
+			done <- migrations.UpWithFSAndLogger(ctx, db, good, sink.Logger())
+		}()
+
+		hasMessage := func(msg string) bool {
+			return len(sink.Entries(func(e slog.SinkEntry) bool { return e.Message == msg })) > 0
+		}
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return hasMessage("waiting for database migration lock held by another instance")
+		}, testutil.IntervalFast)
+		require.False(t, hasMessage("acquired database migration lock"))
+
+		require.NoError(t, holder.Rollback())
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+		require.True(t, hasMessage("acquired database migration lock"))
+		require.True(t, hasMessage("committed database migrations"))
 	})
 
 	// A failure that is not a SQL error leaves the transaction healthy, so the
