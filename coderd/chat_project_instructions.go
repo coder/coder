@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -97,24 +99,29 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	_, err := api.Database.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
-		ProjectID:      project.ID,
-		OrganizationID: project.OrganizationID,
-		Instructions:   instructions,
-		UpdatedBy:      apiKey.UserID,
-	})
+	// Write and read back in one transaction so a failed read rolls back
+	// the write instead of returning an error for a change that was saved.
+	var row database.GetChatProjectInstructionsByProjectIDRow
+	err := api.Database.InTx(func(tx database.Store) error {
+		_, err := tx.UpsertChatProjectInstructions(ctx, database.UpsertChatProjectInstructionsParams{
+			ProjectID:      project.ID,
+			OrganizationID: project.OrganizationID,
+			Instructions:   instructions,
+			UpdatedBy:      apiKey.UserID,
+		})
+		if err != nil {
+			return xerrors.Errorf("upsert chat project instructions: %w", err)
+		}
+		// Read the row back to include the updating user's profile.
+		row, err = tx.GetChatProjectInstructionsByProjectID(ctx, project.ID)
+		if err != nil {
+			return xerrors.Errorf("get chat project instructions: %w", err)
+		}
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project instructions.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Read the row back to include the updating user's profile.
-	row, err := api.Database.GetChatProjectInstructionsByProjectID(ctx, project.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat project instructions.",
 			Detail:  err.Error(),
 		})
 		return
