@@ -12,6 +12,7 @@ export const menuItemClass = `
 	px-2 py-1.5 text-sm text-content-secondary font-medium outline-hidden
 	no-underline
 	focus:bg-surface-secondary focus:text-content-primary
+	ring-inset ring-content-link [&:focus-visible:not(:hover)]:ring-2
 	data-disabled:pointer-events-none data-disabled:opacity-50
 	[&>svg]:size-icon-sm [&>svg]:shrink-0
 	[&>img]:size-icon-sm [&>img]:shrink-0
