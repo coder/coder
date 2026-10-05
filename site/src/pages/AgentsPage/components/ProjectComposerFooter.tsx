@@ -15,9 +15,9 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
-	const [isEditing, setIsEditing] = useState(false);
+	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => setIsEditing(false);
+	const closeDialog = () => setIsDialogOpen(false);
 
 	return (
 		<div className="flex justify-center pt-2">
@@ -26,7 +26,7 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 				size="sm"
 				onClick={() => {
 					updateProjectMutation.reset();
-					setIsEditing(true);
+					setIsDialogOpen(true);
 				}}
 			>
 				<PencilIcon />
@@ -34,7 +34,7 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 			</Button>
 			<ChatProjectDialog
 				project={project}
-				open={isEditing}
+				open={isDialogOpen}
 				onOpenChange={(open) => {
 					if (!open) closeDialog();
 				}}

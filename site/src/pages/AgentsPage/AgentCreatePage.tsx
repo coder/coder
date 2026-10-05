@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
+	Link as RouterLink,
 	useLocation,
 	useNavigate,
 	useParams,
@@ -22,8 +23,8 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -89,10 +90,27 @@ const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
 const AgentCreatePage: React.FC = () => {
+	const { projectId } = useParams<{ projectId?: string }>();
+	// Remount per project so no mutation, dialog, or form state carries over
+	// from the previous project.
+	return (
+		<AgentCreatePageContent
+			key={projectId ?? "default"}
+			projectId={projectId}
+		/>
+	);
+};
+
+type AgentCreatePageContentProps = {
+	readonly projectId: string | undefined;
+};
+
+const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
+	projectId,
+}) => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const { projectId } = useParams<{ projectId?: string }>();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
@@ -102,11 +120,11 @@ const AgentCreatePage: React.FC = () => {
 		enabled: chatProjectsEnabled && projectId !== undefined,
 	});
 	const selectedProject = projectQuery.data ?? undefined;
-	// The project comes from the user's project list, so a project that is
-	// absent once the list loads is missing or not the user's.
-	const isProjectMissing = projectQuery.data === null;
-	// A cached project stays usable when a background refetch fails; only a
-	// lookup with nothing to show blocks the composer.
+	// null also covers a project that exists but is not in this user's list.
+	// A cached list can predate the project, so wait for the refetch.
+	const isProjectMissing =
+		projectQuery.data === null && !projectQuery.isFetching;
+	// A failed background refetch keeps the cached project usable.
 	const projectLookupError =
 		projectId !== undefined && !selectedProject && projectQuery.error
 			? projectQuery.error
@@ -114,12 +132,6 @@ const AgentCreatePage: React.FC = () => {
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
-	// The mutation outlives project navigation, so only show its error under
-	// the project it was attempted for.
-	const attemptedProjectId = createMutation.variables?.project_id;
-	const selectedProjectId = selectedProject?.id;
-	const createError =
-		attemptedProjectId === selectedProjectId ? createMutation.error : undefined;
 	const sendFirstMessageMutation = useMutation(
 		createChatMessageByChatId(queryClient),
 	);
@@ -242,7 +254,7 @@ const AgentCreatePage: React.FC = () => {
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	if (projectId !== undefined && (!chatProjectsEnabled || isProjectMissing)) {
+	if (projectId !== undefined && !chatProjectsEnabled) {
 		return <Navigate to="/agents" replace />;
 	}
 
@@ -398,9 +410,17 @@ const AgentCreatePage: React.FC = () => {
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
-			{projectLookupError ? (
-				<ErrorAlert
-					error={projectLookupError}
+			{isProjectMissing ? (
+				<div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-content-secondary">
+					<p className="m-0">Project not found</p>
+					<Link asChild showExternalIcon={false}>
+						<RouterLink to="/agents">Start a new chat</RouterLink>
+					</Link>
+				</div>
+			) : projectLookupError ? (
+				<Alert
+					severity="error"
+					prominent
 					className="mx-auto mt-4 w-full max-w-3xl"
 					actions={
 						<Button
@@ -411,11 +431,19 @@ const AgentCreatePage: React.FC = () => {
 							Retry
 						</Button>
 					}
-				/>
+				>
+					<AlertTitle>Failed to load project</AlertTitle>
+					<AlertDescription>
+						{getErrorMessage(
+							projectLookupError,
+							"The project could not be loaded.",
+						)}
+					</AlertDescription>
+				</Alert>
 			) : projectId !== undefined && !selectedProject ? (
-				// The form must not mount until its organization is known because its
-				// attachments and remembered choices are organization-scoped.
-				<Loader label="Loading project" />
+				// AgentCreateForm binds attachments and remembered choices to its
+				// organization on mount.
+				<Loader className="flex-1" label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
@@ -428,6 +456,7 @@ const AgentCreatePage: React.FC = () => {
 								: "draft"
 					}
 					lockedOrganizationId={selectedProject?.organization_id}
+					draftScope={selectedProject?.id}
 					header={
 						selectedProject && (
 							<ProjectComposerHeader project={selectedProject} />
@@ -435,15 +464,12 @@ const AgentCreatePage: React.FC = () => {
 					}
 					footer={
 						selectedProject && (
-							<ProjectComposerFooter
-								key={selectedProject.id}
-								project={selectedProject}
-							/>
+							<ProjectComposerFooter project={selectedProject} />
 						)
 					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
-					createError={createError}
+					createError={createMutation.error}
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
