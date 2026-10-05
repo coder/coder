@@ -1,3 +1,4 @@
+import { autoUpdate } from "@floating-ui/dom";
 import { useLayoutEffect } from "react";
 
 /** @internal Computes viewport-fixed geometry above an anchor and viewport obstruction. */
@@ -124,6 +125,17 @@ export const usePositionOverlayAboveAnchor = ({
 		const observer = new ResizeObserver(scheduleUpdate);
 		observer.observe(anchorElement);
 
+		const stopTrackingLayoutShifts = autoUpdate(
+			anchorElement,
+			overlayElement,
+			scheduleUpdate,
+			{
+				ancestorScroll: false,
+				ancestorResize: false,
+				elementResize: false,
+			},
+		);
+
 		window.addEventListener("resize", scheduleUpdate);
 		window.addEventListener("scroll", handleScroll, {
 			passive: true,
@@ -132,9 +144,11 @@ export const usePositionOverlayAboveAnchor = ({
 
 		viewport?.addEventListener("resize", scheduleUpdate);
 		viewport?.addEventListener("scroll", scheduleUpdate);
+		viewport?.addEventListener("scrollend", scheduleUpdate);
 
 		return () => {
 			observer.disconnect();
+			stopTrackingLayoutShifts();
 
 			if (frame !== null) {
 				cancelAnimationFrame(frame);
@@ -145,6 +159,7 @@ export const usePositionOverlayAboveAnchor = ({
 
 			viewport?.removeEventListener("resize", scheduleUpdate);
 			viewport?.removeEventListener("scroll", scheduleUpdate);
+			viewport?.removeEventListener("scrollend", scheduleUpdate);
 
 			fixedProbe.remove();
 

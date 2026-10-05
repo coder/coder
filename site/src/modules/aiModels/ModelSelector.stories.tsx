@@ -506,6 +506,8 @@ export const MobileEffortRow: Story = {
 		return (
 			<div
 				ref={setAnchor}
+				role="group"
+				aria-label="Composer"
 				className="fixed left-4 right-4 top-[320px] rounded-xl bg-surface-secondary p-3"
 			>
 				<ModelSelector {...args} mobileAnchor={anchor} />
@@ -517,5 +519,23 @@ export const MobileEffortRow: Story = {
 		// effort row, and the scrollable list.
 		await userEvent.click(within(canvasElement).getByRole("combobox"));
 		await within(document.body).findByRole("listbox");
+	},
+};
+
+export const MobileComposerMovesWhileOpen: Story = {
+	...MobileEffortRow,
+	play: async (context) => {
+		await MobileEffortRow.play?.(context);
+		await new Promise<void>((resolve) => {
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+		});
+
+		within(context.canvasElement).getByRole("group", {
+			name: "Composer",
+		}).style.top = "381px";
+
+		await new Promise<void>((resolve) => {
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+		});
 	},
 };

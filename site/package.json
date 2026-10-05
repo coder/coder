@@ -45,6 +45,7 @@
 		"@dnd-kit/utilities": "3.2.2",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
+		"@floating-ui/dom": "1.7.5",
 		"@fontsource-variable/geist": "5.3.0",
 		"@fontsource-variable/geist-mono": "5.3.0",
 		"@fontsource/fira-code": "5.3.0",
