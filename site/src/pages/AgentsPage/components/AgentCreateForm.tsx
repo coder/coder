@@ -15,7 +15,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
-import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	persistedAttachmentsStorageKey,
+	useFileAttachments,
+} from "../hooks/useFileAttachments";
 import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
@@ -113,7 +116,10 @@ export type AgentCreatePrefill = {
  *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft(prefilledText?: string) {
+export function useEmptyStateDraft(
+	prefilledText?: string,
+	storageKey = emptyInputStorageKey,
+) {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
 		if (prefilledText !== undefined) {
 			return {
@@ -121,7 +127,7 @@ export function useEmptyStateDraft(prefilledText?: string) {
 				initialEditorState: undefined,
 			};
 		}
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		const draft = parseStoredDraft(localStorage.getItem(storageKey));
 		return {
 			initialInputValue: draft.text,
 			initialEditorState: draft.editorState,
@@ -141,12 +147,12 @@ export function useEmptyStateDraft(prefilledText?: string) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
 				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+					localStorage.setItem(storageKey, serializedEditorState);
 				} catch {
 					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+				localStorage.removeItem(storageKey);
 			}
 		}
 	};
@@ -156,7 +162,7 @@ export function useEmptyStateDraft(prefilledText?: string) {
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
 		if (persists) {
-			localStorage.removeItem(emptyInputStorageKey);
+			localStorage.removeItem(storageKey);
 		}
 	};
 
@@ -180,17 +186,23 @@ type OrganizationResolution = {
 	effectiveOrg: TypesGen.Organization | null;
 	selectedOrgIsPermitted: boolean;
 	isLocked: boolean;
-	/** The locked organization is not among the permitted ones. */
+	/**
+	 * The locked organization is not among the permitted ones. Also true while
+	 * permissions load; use `isOrgAccessDenied` for a settled denial.
+	 */
 	isLockedOrgUnavailable: boolean;
 	isOrgAccessDenied: boolean;
-	/** Whether the user's own organization choice may be adopted and saved. */
-	canPersistSelection: boolean;
+	/**
+	 * The user's own organization choice is in effect: permissions are settled
+	 * and no lock applies. Gates the selector, fallback adoption, and saving the
+	 * choice.
+	 */
+	isUserOrgSelectionActive: boolean;
 };
 
 /**
- * Resolves the organization the form acts in. A lock overrides the effective
- * organization without touching the user's own selection, so leaving the
- * lock restores their choice.
+ * Resolves the organization the form acts in. A lock replaces `effectiveOrg`
+ * but not `selectedOrg`, so the user's choice is unaffected by the lock.
  */
 const resolveOrganization = ({
 	lockedOrganizationId,
@@ -232,8 +244,17 @@ const resolveOrganization = ({
 		isLockedOrgUnavailable,
 		isOrgAccessDenied:
 			noPermittedOrgs || (orgSelectionSettled && isLockedOrgUnavailable),
-		canPersistSelection: orgSelectionSettled && !isLocked,
+		isUserOrgSelectionActive: orgSelectionSettled && !isLocked,
 	};
+};
+
+const lockedOrgDenialDescription = (
+	organization: TypesGen.Organization | undefined,
+) => {
+	const target = organization
+		? `the ${organization.display_name || organization.name} organization`
+		: "the organization";
+	return `You don't have permission to create chats in ${target}, which this project belongs to. Ask your Coder administrator for access, then refresh this page.`;
 };
 
 type AgentCreateFormProps = {
@@ -248,11 +269,19 @@ type AgentCreateFormProps = {
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
 	/**
-	 * Pins the form to one organization: the selector is hidden and every
-	 * organization-dependent choice (workspace, model, MCP servers,
-	 * attachments) resolves against it.
+	 * Pins the form to a project's organization: the selector is hidden and
+	 * every organization-dependent choice (workspace, model, MCP servers,
+	 * attachments) resolves against it. If the user cannot create chats in that
+	 * organization, the form shows a permission denial instead of falling back
+	 * to another one. Read once per mount, so key the form to change it.
+	 * Choices made while locked are not saved as the user's defaults.
 	 */
 	lockedOrganizationId?: string;
+	/**
+	 * Keeps the text and attachment drafts separate per destination, so a
+	 * project's draft never appears in another project's composer.
+	 */
+	draftScope?: string;
 	header?: React.ReactNode;
 	footer?: React.ReactNode;
 	prefill?: AgentCreatePrefill;
@@ -270,25 +299,33 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	workspacesError,
 	isWorkspacesLoading,
 	lockedOrganizationId,
+	draftScope,
 	header,
 	footer,
 	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const draftKeySuffix = draftScope ? `:${draftScope}` : "";
 	const {
 		initialInputValue,
 		initialEditorState,
 		handleContentChange,
 		submitDraft,
 		resetDraft,
-	} = useEmptyStateDraft(prefill?.message);
+	} = useEmptyStateDraft(
+		prefill?.message,
+		emptyInputStorageKey + draftKeySuffix,
+	);
 	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() =>
+			lockedOrganizationId
+				? null
+				: localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		() => {
@@ -325,20 +362,22 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
+	// Keep an authoritative empty permission set distinct from pending data.
+	const noPermittedOrgs =
+		showOrganizations && permittedOrgsQuery.data?.length === 0;
 	const {
 		effectiveOrg,
 		isLocked,
 		isLockedOrgUnavailable,
 		isOrgAccessDenied,
-		canPersistSelection,
+		isUserOrgSelectionActive,
 		selectedOrgIsPermitted,
 	} = resolveOrganization({
 		lockedOrganizationId,
 		selectedOrg,
 		permittedOrgs,
 		orgSelectionSettled,
-		// Keep an authoritative empty permission set distinct from pending data.
-		noPermittedOrgs: showOrganizations && permittedOrgsQuery.data?.length === 0,
+		noPermittedOrgs,
 	});
 	// Clear invalid selections during render so re-permission cannot silently
 	// restore them and switch attachment state. effectiveOrg already ignores
@@ -369,7 +408,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
-		canPersistSelection &&
+		isUserOrgSelectionActive &&
 		!selectedOrg &&
 		effectiveOrg &&
 		permittedOrgs.some((org) => org.id === effectiveOrg.id)
@@ -378,31 +417,21 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
 	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted. A lock only hides
-	// the remembered workspace while active, so entering or leaving one must not
-	// discard it.
-	const [lastSettledOrg, setLastSettledOrg] = useState<{
-		id: string;
-		locked: boolean;
-	} | null>(null);
+	// preserve the workspace until its org is re-permitted.
+	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
 	if (
 		orgSelectionSettled &&
-		!isOrgAccessDenied &&
-		(organizationId !== lastSettledOrg?.id ||
-			isLocked !== lastSettledOrg?.locked)
+		!noPermittedOrgs &&
+		organizationId !== lastSettledOrgId
 	) {
-		setLastSettledOrg({ id: organizationId, locked: isLocked });
-		if (lastSettledOrg !== null && organizationId !== lastSettledOrg.id) {
+		setLastSettledOrgId(organizationId);
+		if (lastSettledOrgId !== null) {
+			setSelectedWorkspaceId(null);
 			setUserMCPServerIds(null);
-			if (!isLocked && !lastSettledOrg.locked) {
-				setSelectedWorkspaceId(null);
-			}
 		}
 	}
 	useEffect(() => {
-		// A locked organization is not the user's choice, so it must not
-		// replace their remembered default.
-		if (!canPersistSelection) {
+		if (!orgSelectionSettled) {
 			return;
 		}
 		if (selectedOrg) {
@@ -410,12 +439,12 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [canPersistSelection, selectedOrg]);
+	}, [orgSelectionSettled, selectedOrg]);
 	useEffect(() => {
-		if (selectedWorkspaceId === null) {
+		if (!isLocked && selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 		}
-	}, [selectedWorkspaceId]);
+	}, [isLocked, selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(organizationId),
@@ -571,13 +600,15 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 	const handleWorkspaceChange = (value: string | null) => {
-		if (value === null) {
-			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		setSelectedWorkspaceId(value);
+		if (isLocked) {
 			return;
 		}
-		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		if (value === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		} else {
+			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		}
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
@@ -626,15 +657,16 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		handleRemoveAttachment,
 		resetAttachments,
 	} = useFileAttachments(
-		// Leave attachments unowned until the organization is authorized, so
-		// restored drafts never bind to an organization the user cannot use.
-		orgSelectionSettled && !isOrgAccessDenied
+		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
+		// that would prune attachments persisted for other orgs.
+		orgSelectionSettled && !noPermittedOrgs
 			? organizationId || undefined
 			: undefined,
 		{
 			// persist also restores saved draft files into this send.
 			persist: prefill === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
+			storageKey: persistedAttachmentsStorageKey + draftKeySuffix,
 		},
 	);
 
@@ -833,10 +865,12 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					{isForbidden ? (
 						<ChatAccessDeniedAlert
 							description={
-								isLockedOrgUnavailable &&
-								canCreateChat &&
-								permittedOrgs.length > 0
-									? "You don't have permission to create chats in this project's organization."
+								isLockedOrgUnavailable && canCreateChat && !noPermittedOrgs
+									? lockedOrgDenialDescription(
+											organizations.find(
+												(org) => org.id === lockedOrganizationId,
+											),
+										)
 									: undefined
 							}
 						/>
@@ -884,7 +918,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
 					{showOrganizations &&
-						canPersistSelection &&
+						isUserOrgSelectionActive &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}

@@ -331,17 +331,45 @@ const mockPermittedOrganizations = (
 
 export const Default: Story = {};
 
+// The chat_projects column limits from 000607_chat_projects.up.sql.
+const maxProjectNameLength = 64;
+const maxProjectDescriptionLength = 1024;
+
 export const ProjectComposer: Story = {
 	args: {
+		lockedOrganizationId: MockDefaultOrganization.id,
+		draftScope: MockChatProject.id,
 		header: (
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
-					name: "N".repeat(64),
-					description: "d".repeat(1024),
+					name: "N".repeat(maxProjectNameLength),
+					description: "d".repeat(maxProjectDescriptionLength),
 				}}
 			/>
 		),
+	},
+};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		lockedOrganizationId: MockOrganization2.id,
+		draftScope: MockChatProject.id,
+		header: <ProjectComposerHeader project={MockChatProject} />,
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(/which this project belongs to/);
 	},
 };
 
