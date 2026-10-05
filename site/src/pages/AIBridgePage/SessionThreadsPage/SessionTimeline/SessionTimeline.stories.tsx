@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import type { AIBridgeThread } from "#/api/typesGenerated";
+import type { AIBridgeThread, MinimalUser } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
 	MockAIBridgeThread,
@@ -140,12 +140,14 @@ type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
 
+const MockInitiatorWithLongUsername: MinimalUser = {
+	...MockSession.initiator,
+	username: "averylongusernamefortheinitiatorofthissession",
+};
+
 export const LongUsername: Story = {
 	args: {
-		initiator: {
-			...MockSession.initiator,
-			username: "averylongusernamefortheinitiatorofthissession",
-		},
+		initiator: MockInitiatorWithLongUsername,
 	},
 };
 
