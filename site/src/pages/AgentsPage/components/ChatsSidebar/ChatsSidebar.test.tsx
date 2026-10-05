@@ -28,6 +28,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -360,8 +361,11 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requestCount).toBe(2));
 	});
 
-	it("deletes the selected project after confirmation", async () => {
+	it("deletes the selected project and its drafts after confirmation", async () => {
 		const user = userEvent.setup();
+		const draftKeys = draftStorageKeys(MockChatProject.id);
+		localStorage.setItem(draftKeys.text, "project draft");
+		localStorage.setItem(draftKeys.attachments, "[]");
 		let deletedProjectID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
@@ -397,6 +401,10 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => {
 			expect(deletedProjectID).toBe(MockChatProject.id);
 		});
+		await waitFor(() => {
+			expect(localStorage.getItem(draftKeys.text)).toBeNull();
+		});
+		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
 
 	it("reports a failed project deletion", async () => {

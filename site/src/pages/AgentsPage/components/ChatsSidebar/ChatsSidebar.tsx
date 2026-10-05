@@ -17,6 +17,7 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogMode } from "./chats/ProjectFolders";
@@ -183,14 +184,19 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			return;
 		}
 		deleteProjectMutation.mutate(project, {
-			// The dialog can be dismissed while the delete is in flight and
-			// reopened for another project, which must stay open.
-			onSuccess: () =>
+			onSuccess: () => {
+				// Nothing can open the deleted project's composer again.
+				const draftKeys = draftStorageKeys(project.id);
+				localStorage.removeItem(draftKeys.text);
+				localStorage.removeItem(draftKeys.attachments);
+				// The dialog can be dismissed while the delete is in flight and
+				// reopened for another project, which must stay open.
 				setDeleteDialog((current) =>
 					current.project?.id === project.id
 						? { ...current, open: false }
 						: current,
-				),
+				);
+			},
 			onError: (error) => {
 				toast.error(getErrorMessage(error, "Failed to delete project."));
 			},
