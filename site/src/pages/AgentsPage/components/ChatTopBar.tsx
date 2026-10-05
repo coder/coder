@@ -10,13 +10,10 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link, useLocation, useNavigate, useOutletContext } from "react-router";
-import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { useQuery } from "react-query";
+import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { archiveAndDeleteChat, chat as chatById } from "#/api/queries/chats";
-import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -29,15 +26,8 @@ import {
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import {
-	type ArchiveAndDeleteAction,
-	fetchArchiveAndDeleteAction,
-	notifyArchiveAndDeleteFailed,
-	notifyDeleteQueueState,
-} from "../utils/agentWorkspaceUtils";
+import { useArchiveAndDeleteChat } from "../hooks/useArchiveAndDeleteChat";
 import { parsePullRequestUrl } from "../utils/pullRequest";
-import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
-import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import {
 	ChatActionsMenuItems,
@@ -111,8 +101,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
 		...chatById(parentChatID ?? ""),
@@ -151,66 +139,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
-	const [confirmingWorkspace, setConfirmingWorkspace] =
-		useState<TypesGen.Workspace>();
-	const archiveAndDeleteOptions = archiveAndDeleteChat(queryClient);
-	const archiveAndDeleteMutation = useMutation({
-		...archiveAndDeleteOptions,
-		onSuccess: (result, variables) => {
-			archiveAndDeleteOptions.onSuccess(result, variables);
-			clearPersistedSidebarTabId(variables.chatId);
-			clearPersistedRightPanelState(variables.chatId);
-			if (variables.workspaceId) {
-				notifyDeleteQueueState(
-					queryClient.getQueryData<TypesGen.Workspace>(
-						workspaceByIdKey(variables.workspaceId),
-					),
-					result.deleteBuild,
-				);
-			}
-			navigateAfterArchive?.(variables.chatId);
-		},
-		onError: (error, variables) => {
-			notifyArchiveAndDeleteFailed(
-				variables.workspaceId
-					? queryClient.getQueryData<TypesGen.Workspace>(
-							workspaceByIdKey(variables.workspaceId),
-						)
-					: undefined,
-				error,
-				navigate,
-			);
-		},
-	});
-	const requestArchiveAndDelete = async (
-		chat: TypesGen.Chat,
-		workspaceId: string,
-	) => {
-		let action: ArchiveAndDeleteAction;
-		try {
-			action = await fetchArchiveAndDeleteAction(
-				queryClient,
-				workspaceId,
-				chat.created_at,
-			);
-		} catch (error) {
-			toast.error(
-				getErrorMessage(error, "Failed to look up workspace for deletion."),
-			);
-			return;
-		}
-		if (action === "confirm") {
-			setConfirmingWorkspace(
-				queryClient.getQueryData<TypesGen.Workspace>(
-					workspaceByIdKey(workspaceId),
-				),
-			);
-		} else if (action === "archive-only") {
-			archiveAndDeleteMutation.mutate({ chatId: chat.id });
-		} else {
-			archiveAndDeleteMutation.mutate({ chatId: chat.id, workspaceId });
-		}
-	};
+	const { isDeleting, requestArchiveAndDelete, dialogProps } =
+		useArchiveAndDeleteChat(chat, navigateAfterArchive);
 
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
@@ -222,7 +152,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			isArchiving &&
 				chat &&
 				(archivingChatId === undefined || archivingChatId === chat.id),
-		) || archiveAndDeleteMutation.isPending;
+		) || isDeleting;
 	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
@@ -372,7 +302,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 									if (isArchived || !workspaceId) {
 										return;
 									}
-									void requestArchiveAndDelete(chat, workspaceId);
+									void requestArchiveAndDelete();
 								}}
 								onOpenRenameDialog={
 									!isArchived && onOpenRenameDialog
@@ -436,19 +366,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					</Button>
 				)}
 			</div>
-			<ArchiveAndDeleteWorkspaceDialog
-				workspace={confirmingWorkspace}
-				onConfirm={(workspace) => {
-					if (chat) {
-						archiveAndDeleteMutation.mutate({
-							chatId: chat.id,
-							workspaceId: workspace.id,
-						});
-					}
-					setConfirmingWorkspace(undefined);
-				}}
-				onCancel={() => setConfirmingWorkspace(undefined)}
-			/>
+			<ArchiveAndDeleteWorkspaceDialog {...dialogProps} />
 		</div>
 	);
 };

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -325,23 +325,28 @@ const AgentsPageLayout: React.FC = () => {
 		archiveAgentMutation.mutate(chatId);
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing
-	// on every navigation.
-	const activeChatIDRef = useRef(agentId);
-	const locationSearchRef = useRef(location.search);
-	// The initiating row or top bar can unmount before a deletion finishes.
+	const activeChatIdForWatch = useEffectEvent(() => agentId);
+	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
+	// Completion must outlive the initiating row, but not this layout.
 	const navigateAfterArchive = (chatId: string) => {
-		const activeChatId = activeChatIDRef.current;
-		const activeChat = activeChatId
-			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
+		setCompletedArchives((completed) => [...completed, chatId]);
+	};
+	useEffect(() => {
+		if (completedArchives.length === 0) return;
+		const activeChat = agentId
+			? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(agentId))
 			: undefined;
 		if (
-			shouldNavigateAfterArchive(activeChatId, chatId, activeChat?.root_chat_id)
+			completedArchives.some((chatId) =>
+				shouldNavigateAfterArchive(agentId, chatId, activeChat?.root_chat_id),
+			)
 		) {
-			navigate({ pathname: "/agents", search: locationSearchRef.current });
+			void navigate({ pathname: "/agents", search: location.search });
 		}
-	};
+		setCompletedArchives((completed) =>
+			completed.slice(completedArchives.length),
+		);
+	}, [agentId, completedArchives, location.search, navigate, queryClient]);
 	const requestUnarchiveAgent = (chatId: string) => {
 		unarchiveAgentMutation.mutate(chatId);
 	};
@@ -394,14 +399,6 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	useLayoutEffect(() => {
-		activeChatIDRef.current = agentId;
-		locationSearchRef.current = location.search;
-		return () => {
-			activeChatIDRef.current = undefined;
-		};
-	}, [agentId, location.search]);
-
 	// Optimistically clear the unread indicator for the active
 	// chat. The server marks chats as read on stream connect
 	// and disconnect, but the list cache is not refetched until
@@ -444,7 +441,7 @@ const AgentsPageLayout: React.FC = () => {
 							prevStatus,
 							updatedChat.status,
 							updatedChat.id,
-							activeChatIDRef.current,
+							activeChatIdForWatch(),
 						);
 					}
 
@@ -508,7 +505,7 @@ const AgentsPageLayout: React.FC = () => {
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
-							activeChatId: activeChatIDRef.current,
+							activeChatId: activeChatIdForWatch(),
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);

@@ -1479,18 +1479,12 @@ type ArchiveAndDeleteChatResult = {
 	deleteBuild: TypesGen.WorkspaceBuild | null;
 };
 
-// Archive-first, delete-second. The archive is the reversible step and
-// doubles as the eligibility check: the server rejects it with 409 while
-// any family member is active, before anything destructive happens, so a
-// chat that became active while a confirmation dialog was open can never
-// lose its workspace. 404/410 on delete mean the workspace is already
-// gone and the archive stands. There is deliberately no compensating
-// unarchive when the delete enqueue fails: the delete outcome can be
-// ambiguous client-side (a late 5xx can arrive after the build was
-// committed), so restoring the chat risks resurrecting it while its
-// workspace is being deleted. The chat stays archived and the failure
-// toast points at the archived filter, where Unarchive is one click.
+export const archiveAndDeleteChatKey = ["chats", "archive-and-delete"] as const;
+
+// Archiving rejects active chat families before deletion. Keep the chat archived
+// on delete errors: the delete build may have committed despite a failed response.
 export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
+	mutationKey: archiveAndDeleteChatKey,
 	mutationFn: async ({
 		chatId,
 		workspaceId,
