@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentChatPath, safeBuildAgentChatPath } from "./navigation";
+import {
+	buildAgentChatPath,
+	buildAgentProjectPath,
+	safeBuildAgentChatPath,
+} from "./navigation";
 
 describe("buildAgentChatPath", () => {
 	it("encodes chat IDs as a path segment", () => {
 		expect(buildAgentChatPath({ chatId: "chat/id" })).toBe("/agents/chat%2Fid");
+	});
+});
+
+describe("buildAgentProjectPath", () => {
+	it("encodes project IDs as a path segment", () => {
+		expect(buildAgentProjectPath("project/id")).toBe(
+			"/agents/projects/project%2Fid",
+		);
 	});
 });
 
