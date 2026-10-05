@@ -73,18 +73,23 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 	onCancel,
 }) => {
 	const textareaId = useId();
-	const [draft, setDraft] = useState(instructions);
-	const isEditing = instructions !== "";
+	// A refetch can change the saved instructions while the editor is open.
+	// Compare against the value the user started from, so an incoming
+	// update never looks like a local edit that Save would overwrite.
+	const [initialInstructions] = useState(instructions);
+	const [draft, setDraft] = useState(initialInstructions);
+	const isEditing = initialInstructions !== "";
 	const isBusy = isSaving || isDeleting;
 	const invisibleCharCount = countInvisibleCharacters(draft);
 	const errorDetail = getErrorDetail(error);
 	// Blank instructions are cleared with Delete rather than saved, and
 	// whitespace-only edits at either end are not a change worth saving.
-	// The server strips invisible characters, so text made only of them
-	// counts as blank.
+	// The server strips invisible characters, so they neither make text
+	// nonblank nor count as a change.
+	const visibleDraft = removeInvisibleCharacters(draft).trim();
 	const canSave =
-		removeInvisibleCharacters(draft).trim() !== "" &&
-		draft.trim() !== instructions.trim() &&
+		visibleDraft !== "" &&
+		visibleDraft !== initialInstructions.trim() &&
 		!isBusy;
 
 	return (

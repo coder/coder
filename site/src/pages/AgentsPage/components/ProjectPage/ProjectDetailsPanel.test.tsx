@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { focusManager, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
 	ChatProject,
 	ChatProjectInstructions,
@@ -41,6 +42,7 @@ const renderPanel = (project: ChatProject = MockChatProject) => {
 	const { rerender } = render(panel(project));
 	return {
 		user: userEvent.setup(),
+		queryClient,
 		rerenderWithProject: (project: ChatProject) => rerender(panel(project)),
 	};
 };
@@ -60,7 +62,7 @@ describe("ProjectDetailsPanel", () => {
 				instructions: text,
 			});
 		const getInstructions = mockInstructions(MockUnsetChatProjectInstructions);
-		const { user } = renderPanel();
+		const { user, queryClient } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Create" }));
 		const saveButton = screen.getByRole("button", { name: "Save" });
@@ -76,14 +78,16 @@ describe("ProjectDetailsPanel", () => {
 			MockChatProject.id,
 			{ instructions: text },
 		);
-		// The PUT response fills the cache, so the preview, the footer (which
-		// falls back to the username of a user without a name), and the
-		// reopened editor all reflect the saved instructions.
-		expect(await screen.findByText(text)).toBeInTheDocument();
-		expect(
-			screen.getByText("Instructions updated by TestUser"),
-		).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "Edit" }));
+		// The PUT response fills the cache, so the reopened editor reflects
+		// the saved instructions without another GET.
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryData(
+					chatProjectInstructionsKey(MockChatProject.id),
+				),
+			).toEqual({ ...MockChatProjectInstructions, instructions: text }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
 			text,
 		);
@@ -107,6 +111,9 @@ describe("ProjectDetailsPanel", () => {
 		expect(saveButton).toBeDisabled();
 		// Surrounding whitespace alone is not a change worth saving.
 		await user.type(textbox, "  ");
+		expect(saveButton).toBeDisabled();
+		// Neither are invisible characters, which the server strips.
+		await user.type(textbox, "\u200B");
 		expect(saveButton).toBeDisabled();
 		// Blank instructions are deleted rather than saved.
 		await user.clear(textbox);
@@ -134,10 +141,6 @@ describe("ProjectDetailsPanel", () => {
 	});
 
 	it("closes the editor and discards the draft when the project changes", async () => {
-		const updateInstructions = vi.spyOn(
-			API.experimental,
-			"updateChatProjectInstructions",
-		);
 		mockInstructions(MockChatProjectInstructions);
 		const { user, rerenderWithProject } = renderPanel();
 
@@ -151,12 +154,11 @@ describe("ProjectDetailsPanel", () => {
 			id: "00000000-0000-4000-8000-0000000000b2",
 		});
 
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("textbox", { name: "Instructions" }),
-			).not.toBeInTheDocument(),
+		// The open editor would hide the panel's Edit button from queries.
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
+			MockChatProjectInstructions.instructions,
 		);
-		expect(updateInstructions).not.toHaveBeenCalled();
 	});
 
 	it("deletes the instructions and returns to the empty state", async () => {
@@ -164,7 +166,7 @@ describe("ProjectDetailsPanel", () => {
 			.spyOn(API.experimental, "deleteChatProjectInstructions")
 			.mockResolvedValue();
 		mockInstructions(MockChatProjectInstructions);
-		const { user } = renderPanel();
+		const { user, queryClient } = renderPanel();
 
 		await user.click(await screen.findByRole("button", { name: "Edit" }));
 		await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -173,8 +175,13 @@ describe("ProjectDetailsPanel", () => {
 			MockChatProject.organization_id,
 			MockChatProject.id,
 		);
-		await screen.findByRole("button", { name: "Create" });
-		expect(screen.queryByText(/Instructions updated/)).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryData(
+					chatProjectInstructionsKey(MockChatProject.id),
+				),
+			).toEqual(MockUnsetChatProjectInstructions),
+		);
 	});
 
 	it("keeps the editor open with the draft when saving fails", async () => {
@@ -195,18 +202,19 @@ describe("ProjectDetailsPanel", () => {
 		await user.type(textbox, "Too long");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		await screen.findByText("Instructions exceed maximum length.");
+		const dialog = screen.getByRole("dialog");
 		// The detail names the limit the user has to stay under.
-		expect(
-			screen.getByText("Maximum length is 131072 bytes, got 140000."),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(dialog).toHaveTextContent("Instructions exceed maximum length."),
+		);
+		expect(dialog).toHaveTextContent(
+			"Maximum length is 131072 bytes, got 140000.",
+		);
 		expect(textbox).toHaveValue("Too long");
 
 		// Editing the draft dismisses the error about the old text.
 		await user.type(textbox, "!");
-		expect(
-			screen.queryByText("Instructions exceed maximum length."),
-		).not.toBeInTheDocument();
+		expect(dialog).not.toHaveTextContent("Instructions exceed maximum length.");
 	});
 
 	it("shows the error of the latest failed action", async () => {
@@ -226,12 +234,13 @@ describe("ProjectDetailsPanel", () => {
 			screen.getByRole("textbox", { name: "Instructions" }),
 			" More.",
 		);
+		const dialog = screen.getByRole("dialog");
 		await user.click(screen.getByRole("button", { name: "Save" }));
-		await screen.findByText("Failed to save.");
+		await waitFor(() => expect(dialog).toHaveTextContent("Failed to save."));
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
-		await screen.findByText("Failed to delete.");
-		expect(screen.queryByText("Failed to save.")).not.toBeInTheDocument();
+		await waitFor(() => expect(dialog).toHaveTextContent("Failed to delete."));
+		expect(dialog).not.toHaveTextContent("Failed to save.");
 	});
 
 	it("sends one update when Save is double clicked", async () => {
@@ -277,6 +286,33 @@ describe("ProjectDetailsPanel", () => {
 				"Edited in another tab.",
 			),
 		);
+	});
+
+	it("keeps Save disabled when a refetch changes the instructions under an unedited draft", async () => {
+		const getInstructions = mockInstructions(MockChatProjectInstructions);
+		const { user, queryClient } = renderPanel();
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+
+		getInstructions.mockResolvedValue({
+			...MockChatProjectInstructions,
+			instructions: "Edited in another tab.",
+		});
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await waitFor(() =>
+			expect(
+				queryClient.getQueryData(
+					chatProjectInstructionsKey(MockChatProject.id),
+				),
+			).toMatchObject({ instructions: "Edited in another tab." }),
+		);
+
+		expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
+			MockChatProjectInstructions.instructions,
+		);
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 	});
 
 	it("retries loading the instructions after an error", async () => {
