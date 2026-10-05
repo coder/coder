@@ -191,10 +191,8 @@ describe("mapSubagentStatusToToolStatus", () => {
 		);
 	});
 
-	it("maps waiting to completed", () => {
-		expect(mapSubagentStatusToToolStatus("waiting", "running")).toBe(
-			"completed",
-		);
+	it.each(["waiting", "paused"])("maps %s to completed", (status) => {
+		expect(mapSubagentStatusToToolStatus(status, "running")).toBe("completed");
 	});
 
 	it("maps terminated to completed", () => {
