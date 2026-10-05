@@ -15,6 +15,8 @@ type GetFormHelperOptions = {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
+	/** Measures the value against maxLength. Defaults to UTF-16 code units. */
+	measureLength?: (value: string) => number;
 };
 
 export type FormHelpers = {
@@ -34,6 +36,7 @@ export const getFormHelpers =
 			backendFieldName,
 			helperText: defaultHelperText,
 			maxLength,
+			measureLength = (value: string) => value.length,
 		} = options;
 		let helperText = defaultHelperText;
 		const apiValidationErrors = isApiValidationError(error)
@@ -53,16 +56,12 @@ export const getFormHelpers =
 		const value = fieldProps.value;
 
 		let lengthError: React.ReactNode = null;
+		const length = typeof value === "string" ? measureLength(value) : 0;
 		// Show a message if the input is approaching or over the maximum length.
-		if (
-			maxLength &&
-			maxLength > 0 &&
-			typeof value === "string" &&
-			value.length > maxLength - 30
-		) {
-			helperText = `This cannot be longer than ${maxLength} characters. (${value.length}/${maxLength})`;
+		if (maxLength && maxLength > 0 && length > maxLength - 30) {
+			helperText = `This cannot be longer than ${maxLength} characters. (${length}/${maxLength})`;
 			// Show it as an error, rather than a hint
-			if (value.length > maxLength) {
+			if (length > maxLength) {
 				lengthError = helperText;
 			}
 		}
