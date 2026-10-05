@@ -911,6 +911,37 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Equal(t, "vscode", res.Sessions[0].Metadata["editor"])
 	})
 
+	t.Run("NullMetadataCoalescesToEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		opts := aibridgeOpts(t)
+		opts.Database = db
+		opts.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "null-metadata-session", Valid: true},
+		}, &endedAt)
+
+		// The insert queries normalize metadata to '{}', so write NULL
+		// directly to simulate rows from migrations, imports, or manual SQL.
+		_, err := sqlDB.ExecContext(ctx, "UPDATE aibridge_interceptions SET metadata = NULL WHERE id = $1", interception.ID)
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is irrelevant; testing metadata.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, "null-metadata-session", res.Sessions[0].ID)
+		require.NotNil(t, res.Sessions[0].Metadata)
+		require.Empty(t, res.Sessions[0].Metadata)
+	})
+
 	t.Run("SessionTimestamps", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
