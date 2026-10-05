@@ -48,25 +48,25 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-const { renderedLockedOrganizationIds, realForm, formProps } = vi.hoisted(
-	() => ({
-		renderedLockedOrganizationIds: [] as Array<string | undefined>,
-		// Prefill and upload tests need the real form.
-		realForm: { enabled: false },
-		formProps: {
-			onCreateChat: undefined as
-				| ((options: CreateChatOptions) => Promise<void>)
-				| undefined,
-		},
-	}),
-);
+const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
+	renderedProjects: [] as Array<
+		Pick<TypesGen.ChatProject, "id" | "organization_id"> | undefined
+	>,
+	// Prefill and upload tests need the real form.
+	realForm: { enabled: false },
+	formProps: {
+		onCreateChat: undefined as
+			| ((options: CreateChatOptions) => Promise<void>)
+			| undefined,
+	},
+}));
 
 type MockAgentCreateFormProps = React.ComponentProps<
 	typeof AgentCreateFormModule.AgentCreateForm
 >;
 
-// Renders StubAgentCreateForm unless realForm.enabled is set, and captures
-// onCreateChat so upload tests can drive the page's submit path directly.
+// Upload tests call the captured onCreateChat to drive the page's submit path
+// directly.
 vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 	const actual = await importOriginal<typeof AgentCreateFormModule>();
 	const StubAgentCreateForm = ({
@@ -78,7 +78,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		footer,
 		prefill,
 	}: MockAgentCreateFormProps) => {
-		renderedLockedOrganizationIds.push(project?.organization_id);
+		renderedProjects.push(project);
 		return (
 			<div>
 				<span data-testid="prefill-message">{prefill?.message}</span>
@@ -138,7 +138,7 @@ const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	);
 };
 
-const renderProjectPage = (route = projectPath(MockChatProject.id)) =>
+const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 	renderWithAuth(<AgentCreatePage />, {
 		path: "/agents/projects/:projectId",
 		route,
@@ -211,7 +211,7 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-	renderedLockedOrganizationIds.length = 0;
+	renderedProjects.length = 0;
 	realForm.enabled = false;
 	vi.restoreAllMocks();
 	localStorage.clear();
@@ -233,13 +233,16 @@ describe("AgentCreatePage project assignment", () => {
 		);
 		const user = userEvent.setup();
 
-		renderProjectPage();
+		renderAgentsRoutes();
 
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
 		);
-		expect(renderedLockedOrganizationIds).not.toContain(undefined);
-		expect(renderedLockedOrganizationIds.at(-1)).toBe(MockOrganization2.id);
+		expect(renderedProjects).not.toContain(undefined);
+		expect(renderedProjects.at(-1)).toMatchObject({
+			id: MockChatProject.id,
+			organization_id: MockOrganization2.id,
+		});
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({ project_id: MockChatProject.id });
 		});
@@ -256,7 +259,7 @@ describe("AgentCreatePage project assignment", () => {
 		);
 		const user = userEvent.setup();
 
-		renderProjectPage("/agents");
+		renderAgentsRoutes("/agents");
 
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
@@ -280,14 +283,14 @@ describe("AgentCreatePage project assignment", () => {
 		);
 		const user = userEvent.setup();
 
-		renderProjectPage();
+		renderAgentsRoutes();
 
 		await screen.findByText("Failed to load project");
 		expect(screen.getByText("List failed")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await screen.findByRole("button", { name: "Create chat" });
 		expect(lookupCount).toBe(2);
-		expect(renderedLockedOrganizationIds).not.toContain(undefined);
+		expect(renderedProjects).not.toContain(undefined);
 	});
 
 	it("keeps a loaded project usable when a background refetch fails", async () => {
@@ -302,10 +305,13 @@ describe("AgentCreatePage project assignment", () => {
 			}),
 		);
 
-		const { queryClient } = renderProjectPage();
+		const { queryClient } = renderAgentsRoutes();
 		await screen.findByRole("button", { name: "Create chat" });
 		await act(() =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
+		);
+		await waitFor(() =>
+			expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe("error"),
 		);
 
 		expect(lookupCount).toBe(2);
@@ -319,7 +325,7 @@ describe("AgentCreatePage project assignment", () => {
 		enableChatProjects();
 		serveProjects();
 
-		const { router } = renderProjectPage();
+		const { router } = renderAgentsRoutes();
 
 		await screen.findByText("Project not found");
 		expect(
@@ -334,7 +340,7 @@ describe("AgentCreatePage project assignment", () => {
 		enableChatProjects();
 		serveProjects(MockChatProject);
 
-		const { router, queryClient } = renderProjectPage("/agents");
+		const { router, queryClient } = renderAgentsRoutes("/agents");
 		await screen.findByRole("button", { name: "Create chat" });
 		// A list cached before the project existed.
 		act(() => {
@@ -346,8 +352,40 @@ describe("AgentCreatePage project assignment", () => {
 		await screen.findByRole("heading", { name: MockChatProject.name });
 	});
 
+	it("shows the plain composer on /agents after a project list is cached", async () => {
+		enableChatProjects();
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await act(() => router.navigate("/agents"));
+
+		await screen.findByRole("button", { name: "Create chat" });
+		expect(screen.queryByText("Project not found")).toBeNull();
+		expect(renderedProjects.at(-1)).toBeUndefined();
+	});
+
+	it("offers a retry when refreshing a stale list fails", async () => {
+		enableChatProjects();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "List failed" }, { status: 500 }),
+			),
+		);
+
+		const { router, queryClient } = renderAgentsRoutes("/agents");
+		await screen.findByRole("button", { name: "Create chat" });
+		act(() => {
+			queryClient.setQueryData(chatProjectsKey, []);
+			void router.navigate(projectPath(MockChatProject.id));
+		});
+
+		await screen.findByText("Failed to load project");
+		expect(screen.queryByText("Project not found")).toBeNull();
+	});
+
 	it("redirects to the new chat page when chat projects are disabled", async () => {
-		const { router } = renderProjectPage();
+		const { router } = renderAgentsRoutes();
 
 		await waitFor(() => {
 			expect(router.state.location.pathname).toBe("/agents");
@@ -356,26 +394,26 @@ describe("AgentCreatePage project assignment", () => {
 });
 
 describe("AgentCreatePage project frame", () => {
-	it("holds the composer until both the project and the debug prefill load", async () => {
+	it("keeps the project route and organization after the debug prefill loads", async () => {
 		enableChatProjects("enable-ai-workspace-debug");
 		serveProjects(MockChatProject);
 		const logs = Promise.withResolvers<TypesGen.ProvisionerJobLog[]>();
 		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
 		vi.spyOn(API, "getWorkspaceBuildLogs").mockReturnValue(logs.promise);
 
-		const { router } = renderProjectPage(
+		const { router } = renderAgentsRoutes(
 			`${projectPath(MockChatProject.id)}?${debugWorkspaceBuildSearchParam}=${failedBuild.id}`,
 		);
 
 		await screen.findByRole("status", { name: "Loading workspace build logs" });
-		expect(renderedLockedOrganizationIds).toEqual([]);
+		expect(renderedProjects).toEqual([]);
 		act(() => logs.resolve(MockWorkspaceBuildLogs));
 
 		expect(await screen.findByTestId("prefill-message")).toHaveTextContent(
 			debugWorkspaceBuildPrompt(failedBuild),
 		);
-		expect(renderedLockedOrganizationIds).not.toContain(undefined);
-		expect(renderedLockedOrganizationIds.at(-1)).toBe(
+		expect(renderedProjects).not.toContain(undefined);
+		expect(renderedProjects.at(-1)?.organization_id).toBe(
 			MockChatProject.organization_id,
 		);
 		expect(router.state.location.pathname).toBe(
@@ -387,13 +425,13 @@ describe("AgentCreatePage project frame", () => {
 		enableChatProjects();
 		serveProjects(MockChatProject);
 
-		renderProjectPage(`${projectPath(MockChatProject.id)}?prompt=hi`);
+		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
 
 		expect(await screen.findByTestId("prefill-message")).toHaveTextContent(
 			"hi",
 		);
-		expect(renderedLockedOrganizationIds).not.toContain(undefined);
-		expect(renderedLockedOrganizationIds.at(-1)).toBe(
+		expect(renderedProjects).not.toContain(undefined);
+		expect(renderedProjects.at(-1)?.organization_id).toBe(
 			MockChatProject.organization_id,
 		);
 	});
@@ -409,7 +447,7 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		const { router } = renderProjectPage();
+		const { router } = renderAgentsRoutes();
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
 		);
@@ -447,7 +485,7 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		const { router } = renderProjectPage(projectPath(projectB.id));
+		const { router } = renderAgentsRoutes(projectPath(projectB.id));
 		await screen.findByRole("heading", { name: "Beta" });
 		await act(() => router.navigate(projectPath(projectA.id)));
 		await user.click(
@@ -488,7 +526,7 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		renderProjectPage();
+		renderAgentsRoutes();
 
 		await screen.findByRole("heading", { name: MockChatProject.name });
 		await user.click(screen.getByRole("button", { name: "Edit project" }));
@@ -516,7 +554,7 @@ describe("AgentCreatePage project frame", () => {
 		);
 		const user = userEvent.setup();
 
-		renderProjectPage();
+		renderAgentsRoutes();
 
 		await user.click(
 			await screen.findByRole("button", { name: "Edit project" }),

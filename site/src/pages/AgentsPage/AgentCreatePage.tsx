@@ -91,14 +91,10 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	// Remount per project so no mutation, dialog, or form state carries over
-	// from the previous project.
-	return (
-		<AgentCreatePageContent
-			key={projectId ?? "default"}
-			projectId={projectId}
-		/>
-	);
+	// Remount per project so the create mutation's pending and error state and
+	// the edit dialog do not carry over. A create still in flight opens its
+	// chat when it finishes, as it does from /agents.
+	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
 type AgentCreatePageContentProps = {
@@ -119,14 +115,17 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		...chatProject(projectId),
 		enabled: chatProjectsEnabled && projectId !== undefined,
 	});
-	const selectedProject = projectQuery.data ?? undefined;
+	const project = projectQuery.data ?? undefined;
 	// null also covers a project that exists but is not in this user's list.
 	// A cached list can predate the project, so wait for the refetch.
 	const isProjectMissing =
-		projectQuery.data === null && !projectQuery.isFetching;
+		projectId !== undefined &&
+		projectQuery.data === null &&
+		!projectQuery.isFetching &&
+		!projectQuery.error;
 	// A failed background refetch keeps the cached project usable.
 	const projectLookupError =
-		projectId !== undefined && !selectedProject && projectQuery.error
+		projectId !== undefined && !project && projectQuery.error
 			? projectQuery.error
 			: undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
@@ -293,7 +292,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-			...(selectedProject ? { project_id: selectedProject.id } : {}),
+			...(project ? { project_id: project.id } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
@@ -440,9 +439,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 						)}
 					</AlertDescription>
 				</Alert>
-			) : projectId !== undefined && !selectedProject ? (
-				// AgentCreateForm binds attachments and remembered choices to its
-				// organization on mount.
+			) : projectId !== undefined && !project ? (
+				// Without the project, the form would show the plain composer and
+				// the user's own organization.
 				<Loader className="flex-1" label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
@@ -455,17 +454,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 								? `prompt:${linkPrompt}`
 								: "draft"
 					}
-					project={selectedProject}
-					header={
-						selectedProject && (
-							<ProjectComposerHeader project={selectedProject} />
-						)
-					}
-					footer={
-						selectedProject && (
-							<ProjectComposerFooter project={selectedProject} />
-						)
-					}
+					project={project}
+					header={project && <ProjectComposerHeader project={project} />}
+					footer={project && <ProjectComposerFooter project={project} />}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
 					createError={createMutation.error}
