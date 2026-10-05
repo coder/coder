@@ -15,6 +15,7 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useKeyWithClickEvents": "off", // oxlint owns click-events-have-key-events
 				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
@@ -32,6 +33,9 @@
 						"ignoreRestSiblings": true
 					}
 				}
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off" // oxlint owns no-danger
 			},
 			"style": {
 				"noNonNullAssertion": "off",
@@ -70,6 +74,7 @@
 				}
 			},
 			"suspicious": {
+				"noFallthroughSwitchClause": "off", // oxlint owns no-fallthrough
 				"noConfusingVoidType": "off", // oxlint owns no-invalid-void-type
 				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",

@@ -150,6 +150,15 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Get("/", api.getChatProject)
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
+			r.Route("/memories", func(r chi.Router) {
+				r.Get("/", api.listChatProjectMemories)
+				r.Post("/", api.postChatProjectMemory)
+				r.Route("/{memory}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
+					r.Get("/", api.getChatProjectMemory)
+					r.Delete("/", api.deleteChatProjectMemory)
+				})
+			})
 		})
 	})
 }

@@ -773,6 +773,10 @@ export type APIKeyScope =
 	| "chat_project:*"
 	| "chat_project:create"
 	| "chat_project:delete"
+	| "chat_project_memory:*"
+	| "chat_project_memory:create"
+	| "chat_project_memory:delete"
+	| "chat_project_memory:read"
 	| "chat_project:read"
 	| "chat_project:update"
 	| "chat:read"
@@ -1030,6 +1034,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project:*",
 	"chat_project:create",
 	"chat_project:delete",
+	"chat_project_memory:*",
+	"chat_project_memory:create",
+	"chat_project_memory:delete",
+	"chat_project_memory:read",
 	"chat_project:read",
 	"chat_project:update",
 	"chat:read",
@@ -3558,6 +3566,22 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectMemory is a durable memory shared by chats in a project.
+ */
+export interface ChatProjectMemory {
+	readonly id: string;
+	readonly project_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
+	readonly created_by: string;
+	readonly created_by_username: string;
+	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
  * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
@@ -4316,6 +4340,13 @@ export interface CreateChatModelRequest {
 }
 
 // From codersdk/chats.go
+export interface CreateChatProjectMemoryRequest {
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
+}
+
+// From codersdk/chats.go
 /**
  * CreateChatProjectRequest creates a chat project in the organization named
  * by the route.
@@ -4510,7 +4541,7 @@ export interface CreateTemplateRequest {
 	readonly display_name?: string;
 	/**
 	 * Description is a description of what the template contains. It must be
-	 * less than 128 bytes.
+	 * no longer than 128 Unicode code points.
 	 */
 	readonly description?: string;
 	/**
@@ -8861,6 +8892,7 @@ export type RBACResource =
 	| "chat_automation"
 	| "chat_model_config"
 	| "chat_project"
+	| "chat_project_memory"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8917,6 +8949,7 @@ export const RBACResources: RBACResource[] = [
 	"chat_automation",
 	"chat_model_config",
 	"chat_project",
+	"chat_project_memory",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -9074,6 +9107,7 @@ export type ResourceType =
 	| "chat_model_config"
 	| "chat_operational_settings"
 	| "chat_project"
+	| "chat_project_memory"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9119,6 +9153,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_model_config",
 	"chat_operational_settings",
 	"chat_project",
+	"chat_project_memory",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",

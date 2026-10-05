@@ -28,10 +28,12 @@ We recommend keeping the default instance type (`e2-standard-4`, 4&nbsp;cores an
 Keep in mind this platforms is intended for proof-of-concept deployments and you should adjust your infrastructure when preparing for production use.
 See: [Scaling Coder](../../plan/index.md)
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="../../../images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows launching a Coder VM from the Google Cloud Marketplace.
 
 Be sure to add a keypair so that you can connect over SSH to further
 [configure Coder](../../../admin/setup/index.md).

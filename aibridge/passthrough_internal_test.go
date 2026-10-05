@@ -127,7 +127,7 @@ func TestPassthroughRoutes(t *testing.T) {
 				URL: upstream.URL + tc.baseURLPath,
 			}
 
-			handler := newPassthroughRouter(prov, logger, nil, testTracer)
+			handler := NewPassthroughHandler(prov, logger, nil, testTracer)
 
 			req := httptest.NewRequest("", tc.reqPath, nil)
 			maps.Copy(req.Header, tc.reqHeaders)
@@ -261,7 +261,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 	}
 }
 
-func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
+func TestPassthroughHandlerReusesProxyInstance(t *testing.T) {
 	t.Parallel()
 
 	var newConnections atomic.Int32
@@ -279,7 +279,7 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	prov := &testutil.MockProvider{URL: upstream.URL}
-	handler := newPassthroughRouter(prov, logger, nil, testTracer)
+	handler := NewPassthroughHandler(prov, logger, nil, testTracer)
 
 	for i := range 2 {
 		req := httptest.NewRequest(http.MethodGet, "http://proxy.example.test/v1/models", nil)
@@ -580,7 +580,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 					p := prov.newProvider(upstream.URL, pool)
 					logger := slogtest.Make(t, nil)
-					handler := newPassthroughRouter(p, logger, nil, testTracer)
+					handler := NewPassthroughHandler(p, logger, nil, testTracer)
 
 					req := httptest.NewRequest(route.method, route.path, bytes.NewReader(route.body))
 					if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
