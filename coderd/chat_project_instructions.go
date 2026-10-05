@@ -23,6 +23,8 @@ import (
 // @Success 200 {object} codersdk.ChatProjectInstructions
 // @Router /api/experimental/organizations/{organization}/chats/projects/{project}/instructions [get]
 // @x-apidocgen {"skip": true}
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatProjectInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
