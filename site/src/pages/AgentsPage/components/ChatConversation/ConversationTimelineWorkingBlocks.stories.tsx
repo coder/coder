@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -8,6 +9,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
+	buildLiveStatus,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockQuestionCallMessage,
@@ -27,7 +29,17 @@ const meta: Meta<typeof ConversationTimeline> = {
 	},
 	args: {
 		organizationId: "organization-id",
+		urlTransform: defaultUrlTransform,
+		mcpServers: [],
+		streamTools: [],
+		liveStatus: buildLiveStatus(),
+		subagentStatusOverrides: new Map(),
 		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		isChatCompleted: false,
+		showDesktopPreviews: false,
+		hasActiveStream: false,
+		isAwaitingFirstStreamChunk: false,
 		automationNames: { names: new Map(), status: "settled" },
 		chatStatus: null,
 		hasMoreMessages: false,

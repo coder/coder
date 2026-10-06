@@ -28,6 +28,7 @@ import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBu
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockNoPermissions,
@@ -170,6 +171,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -1099,6 +1101,65 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		},
 		routing: [agentsRouting, aiSettingsRouting],
 	});
+
+const projectPageParameters = {
+	experiments: ["chat-projects"],
+	reactRouter: reactRouterParameters({
+		location: { path: `/agents/projects/${MockChatProject.id}` },
+		routing: [agentsRouting, aiSettingsRouting],
+	}),
+};
+
+// Each play waits for its state so the Chromatic snapshot captures it.
+export const ProjectLoading: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("status", { name: "Loading project" });
+	},
+};
+
+export const ProjectLoadError: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list chat projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Failed to load project");
+	},
+};
+
+export const ProjectLoaded: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Edit project" });
+	},
+};
+
+export const ProjectNotFound: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Project not found");
+	},
+};
 
 export const PromptLink: Story = {
 	parameters: {

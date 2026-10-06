@@ -6,9 +6,9 @@ import { parseDiffString } from "../DiffViewer/parseDiff";
 
 type LocalDiffPanelProps = {
 	repo: WorkspaceAgentRepoChanges;
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	diffStyle: DiffStyle;
-	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 };
 
 export const LocalDiffPanel: React.FC<LocalDiffPanelProps> = ({

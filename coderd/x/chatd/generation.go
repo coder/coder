@@ -404,6 +404,44 @@ func applySessionStartResponse(
 	return applied, nil
 }
 
+// syncMemoryIndex commits the model-only memory index message the chat
+// needs, if any, and returns the reloaded chat when it committed one. See
+// memoryIndexMessage for when a message is due.
+func (s *taskStarter) syncMemoryIndex(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+) (sessionStartResult, error) {
+	message, ok, err := s.server.memoryIndexMessage(ctx, chat)
+	if err != nil {
+		// Memory is optional context; a lookup failure must not fail the turn.
+		s.server.logger.Warn(ctx, "failed to sync project memory index", slog.F("chat_id", chat.ID), slog.Error(err))
+		return sessionStartResult{}, nil
+	}
+	if !ok {
+		return sessionStartResult{}, nil
+	}
+	var applied sessionStartResult
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
+			return xerrors.Errorf("load chat for memory index: %w", err)
+		}
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{message}}); err != nil {
+			return xerrors.Errorf("insert memory index message: %w", err)
+		}
+		applied.Chat, err = store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after memory index: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return sessionStartResult{}, normalizeTaskTransitionError(err, "apply memory index")
+	}
+	return applied, nil
+}
+
 func (s *taskStarter) startGenerationSession(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -500,7 +538,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 		params.PreviousUserMessageID = messages[previous].ID
 	}
 	var deleted []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -546,6 +584,12 @@ func (s *taskStarter) runGenerationStep(
 			input.HistoryVersion = result.Chat.HistoryVersion
 			return input, true, nil
 		}
+	}
+	if synced, err := s.syncMemoryIndex(ctx, machine, input, chat); err != nil {
+		return input, false, err
+	} else if synced.Chat.ID != uuid.Nil {
+		input.HistoryVersion = synced.Chat.HistoryVersion
+		return input, true, nil
 	}
 	prepareInput := generationPrepareInput{
 		Chat:                      chat,
@@ -670,7 +714,7 @@ func loadGenerationState(
 ) (database.Chat, []database.ChatMessage, error) {
 	var chat database.Chat
 	var messages []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -1620,7 +1664,7 @@ func (s *taskStarter) finishGenerationTurn(
 	}
 	var chat database.Chat
 	var messages []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		loadedChat, err := loadChatForGeneration(ctx, store, input, fence)
 		if err != nil {
 			return xerrors.Errorf("load chat for stop hook: %w", err)

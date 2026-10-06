@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
+import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
@@ -16,6 +17,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildLiveStatus,
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
@@ -51,7 +53,13 @@ function renderTimeline(initial: TimelineStage = {}) {
 						<MessageScroller.Content>
 							<ConversationTimeline
 								organizationId="organization-id"
+								urlTransform={defaultUrlTransform}
+								mcpServers={[]}
+								streamTools={[]}
+								liveStatus={buildLiveStatus()}
+								subagentStatusOverrides={new Map()}
 								subagentTitles={new Map()}
+								subagentVariants={new Map()}
 								automationNames={{ names: new Map(), status: "settled" }}
 								parsedMessages={parseMessagesWithMergedTools(messages, {
 									pendingToolCallIDs,
@@ -59,6 +67,9 @@ function renderTimeline(initial: TimelineStage = {}) {
 								chatStatus={null}
 								hasMoreMessages={false}
 								isChatCompleted
+								showDesktopPreviews={false}
+								hasActiveStream={false}
+								isAwaitingFirstStreamChunk={false}
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
 							/>

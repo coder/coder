@@ -547,6 +547,17 @@ export const MockUserOwner: TypesGen.User = {
 	name: "",
 };
 
+export const MockChatProject: TypesGen.ChatProject = {
+	id: "chat-project-1",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockUserOwner.id,
+	name: "Launch",
+	description: "Chats for the launch work.",
+	icon: "",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
+};
+
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
 	username: "TestUser2",
