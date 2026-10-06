@@ -109,10 +109,11 @@ For an existing workspace, read its parameters:
 api "/api/v2/workspacebuilds/$build_id/parameters" | jq -r '.[] | "\(.name)=\(.value)"'
 ```
 
-Build one `--parameter name=value` flag for each of `mode`, `branch`, and
-`instance_type` that differs from what you chose. A frontend workspace that
-moves to `full` also moves from `c7i.large` to `c7i.xlarge`. Then run the
-first command that applies, with those flags:
+Build one `--parameter name=value` flag for each of `mode` and `branch` that
+differs from what you chose. Add an `instance_type` flag only when the user
+asked for a type, or when a `c7i.large` workspace moves to `full` (use
+`c7i.xlarge`); otherwise keep the current type. Then run the first command
+that applies, with those flags:
 
 - `outdated` is true: `coder update "$ws" -y`. It also starts a stopped
   workspace.
@@ -145,7 +146,7 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
 
    ```sh
    coder ssh "$ws" -- 'sudo install -d -m 0755 /var/lib/eph/seed && sudo tee /var/lib/eph/seed/seed.sh >/dev/null && sudo chmod 0755 /var/lib/eph/seed/seed.sh' \
-     <.agents/skills/deploy-ephemeral/seed.sh
+     <"$(git rev-parse --show-toplevel)/.agents/skills/deploy-ephemeral/seed.sh"
    ```
 
 2. Ask the workspace to check the branch now:
