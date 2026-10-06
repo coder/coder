@@ -217,6 +217,7 @@ export const buildReconnectState = (
 const MockLongTurn = Array.from({ length: 60 }, (_, index) =>
 	workingStepMessages(100 + index * 2, `step-${index}`, index, index),
 ).flat();
+
 /**
  * The loaded transcript of a 60-step turn after each of its three history
  * pages, newest first, so the prompt row only arrives with the final page.

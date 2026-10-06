@@ -79,6 +79,7 @@ export const Paginated: Story = {
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
+
 		// Placed after the rows, as on the real page, and fixed so clicking it
 		// never scrolls the viewport.
 		return (
@@ -105,6 +106,7 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Worked for at least/ }),
 		);
+
 		const viewport = canvas.getByRole("region", { name: "Messages" });
 		// History pages at the very top, and the scroller only stops following
 		// the bottom on user input, so wheel up first.
@@ -120,8 +122,10 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 				canvas.getByRole("button", { name: "Load older messages" }),
 			);
 		};
+
 		await loadOlderFromTop();
 		await canvas.findByText(/echo step-15$/);
+
 		await loadOlderFromTop();
 		await canvas.findByText("Run every step");
 	},
@@ -157,6 +161,7 @@ export const FailedStepCounted: Story = {
 			name: /^Worked for 12s \(2 steps\)\s?,\s?1 failed step$/,
 		});
 		await userEvent.click(summary);
+
 		const failedStep = canvas.getByTestId("chat-message-message:4");
 		await userEvent.click(
 			within(failedStep).getByRole("button", { name: /Expand command/ }),

@@ -483,6 +483,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
 		>(new Map());
+
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -501,6 +502,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			(liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput);
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
+
 		const workingBlocks = preferences.data?.collapse_assistant_steps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
@@ -636,12 +638,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					/>
 				);
 			}
+
 			const { message, parsed } = row.entry;
 			const isUser = message.role === "user";
 			const neighbors = userNeighborsByKey.get(row.key);
 			// A block's item dims and inerts its rows as a whole.
 			const isAfterEditingMessage =
 				!groupedRows.has(index) && afterEditingMessageIds.has(message.id);
+
 			return (
 				<ChatMessageItem
 					key={row.key}
@@ -685,6 +689,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				/>
 			);
 		});
+
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				{renderRows.map((row, index) => {
@@ -706,6 +711,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const isAfterEditingMessage =
 							row.type === "message" &&
 							afterEditingMessageIds.has(row.entry.message.id);
+
 						return (
 							<MessageScroller.Item
 								key={itemKey}
@@ -735,9 +741,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							</MessageScroller.Item>
 						);
 					}
+
 					if (groupedRows.has(index)) {
 						return null;
 					}
+
 					const suppressInitialAnchor =
 						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&

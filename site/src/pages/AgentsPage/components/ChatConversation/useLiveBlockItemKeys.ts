@@ -15,18 +15,22 @@ const continuesLiveBlock = (
 	if (identity === null) {
 		return false;
 	}
+
 	if (
 		identity.firstMemberId !== undefined &&
 		block.memberIds.includes(identity.firstMemberId)
 	) {
 		return true;
 	}
+
 	if (!block.isLive || identity.streamStartedAt === undefined) {
 		return false;
 	}
+
 	if (identity.streamStartedAt === streamStartedAt) {
 		return true;
 	}
+
 	// A live-only block's first persisted step keeps its streamed part
 	// timestamps, even when the stream clears in the same render.
 	return (
@@ -46,11 +50,13 @@ const reconcile = (
 	state: LiveBlockKeys,
 ): LiveBlockKeys => {
 	let { itemKeys: nextItemKeys, identity: nextIdentity } = state;
+
 	// Head ordinals shift when an older page reveals an earlier block of the
 	// turn, so a live key passes by name only once nothing continues the live block.
 	const liveBlockContinues = blocks.some((block) =>
 		continuesLiveBlock(block, state.identity, streamStartedAt),
 	);
+
 	for (const block of blocks) {
 		let itemKey = nextItemKeys.get(block.key);
 		if (itemKey === undefined) {
@@ -61,11 +67,14 @@ const reconcile = (
 			} else if (!liveBlockContinues) {
 				itemKey = nextItemKeys.get(block.liveKey);
 			}
+
 			if (itemKey === undefined) {
 				continue;
 			}
+
 			nextItemKeys = new Map(nextItemKeys).set(block.key, itemKey);
 		}
+
 		const firstMemberId = block.memberIds[0];
 		if (
 			block.isLive &&
@@ -76,6 +85,7 @@ const reconcile = (
 			nextIdentity = { itemKey, firstMemberId, streamStartedAt };
 		}
 	}
+
 	return nextItemKeys === state.itemKeys && nextIdentity === state.identity
 		? state
 		: { itemKeys: nextItemKeys, identity: nextIdentity };
@@ -93,9 +103,11 @@ export const useLiveBlockItemKeys = (
 		itemKeys: new Map(),
 		identity: null,
 	});
+
 	const next = reconcile(workingBlocks, streamStartedAt, state);
 	if (next !== state) {
 		setState(next);
 	}
+
 	return next.itemKeys;
 };
