@@ -357,6 +357,7 @@ func TestGetManifest(t *testing.T) {
 			ParentId:                 nil,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
@@ -427,6 +428,7 @@ func TestGetManifest(t *testing.T) {
 			ParentId:                 agent.ID[:],
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     nil,
@@ -622,6 +624,7 @@ func TestGetManifest(t *testing.T) {
 			AgentName:                agent.Name,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,

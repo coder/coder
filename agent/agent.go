@@ -1552,6 +1552,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
 	}
 
+	// Older servers do not send the build ID.
+	if manifest.WorkspaceBuildID != uuid.Nil {
+		envs["CODER_WORKSPACE_BUILD_ID"] = manifest.WorkspaceBuildID.String()
+	}
+
 	// Allow any of the current env to override what we defined above.
 	for _, env := range current {
 		parts := strings.SplitN(env, "=", 2)
