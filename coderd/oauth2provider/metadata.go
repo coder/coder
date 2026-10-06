@@ -56,7 +56,7 @@ func GetProtectedResourceMetadata(accessURL *url.URL) http.HandlerFunc {
 		suffix := strings.TrimPrefix(r.URL.Path, "/.well-known/oauth-protected-resource")
 		switch suffix {
 		case "", "/":
-		case "/api/experimental/mcp/http", "/api/experimental/mcp/http/":
+		case codersdk.MCPEndpoint, codersdk.MCPEndpoint + "/":
 			resource = accessURL.JoinPath(suffix).String()
 		default:
 			// Match before joining paths so malformed or unknown resources

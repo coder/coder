@@ -1417,7 +1417,7 @@ func New(options *Options) *API {
 					cfg.ResourceURI = options.AccessURL.JoinPath(mcp.MCPEndpoint).String()
 					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint).String()
 					canonical := httpmw.ExtractAPIKeyMW(cfg)(next)
-					cfg.ResourceMetadataURL += "/"
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint+"/").String()
 					trailingSlash := httpmw.ExtractAPIKeyMW(cfg)(next)
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						// Routing normalizes slashes, but OAuth resource identity
