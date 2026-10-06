@@ -49,7 +49,7 @@ envFrom:
 {{- end }}
 env:
 - name: CODER_HTTP_ADDRESS
-  value: "0.0.0.0:8080"
+  value: {{ if .Values.coder.singleStackIPv6 }}"[::]:8080"{{ else }}"0.0.0.0:8080"{{ end }}
 {{- $hasPrometheusAddress := false }}
 {{- $hasPprofAddress := false }}
 {{- range .Values.coder.env }}
@@ -62,11 +62,11 @@ env:
 {{- end }}
 {{- if not $hasPrometheusAddress }}
 - name: CODER_PROMETHEUS_ADDRESS
-  value: "0.0.0.0:2112"
+  value: {{ if .Values.coder.singleStackIPv6 }}"[::]:2112"{{ else }}"0.0.0.0:2112"{{ end }}
 {{- end }}
 {{- if not $hasPprofAddress }}
 - name: CODER_PPROF_ADDRESS
-  value: "0.0.0.0:6060"
+  value: {{ if .Values.coder.singleStackIPv6 }}"[::]:6060"{{ else }}"0.0.0.0:6060"{{ end }}
 {{- end }}
 {{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
@@ -93,7 +93,7 @@ env:
     fieldRef:
       fieldPath: status.podIP
 - name: CODER_DERP_SERVER_RELAY_URL
-  value: "http://$(KUBE_POD_IP):8080"
+  value: {{ if .Values.coder.singleStackIPv6 }}"http://[$(KUBE_POD_IP)]:8080"{{ else }}"http://$(KUBE_POD_IP):8080"{{ end }}
 - name: CODER_CLUSTER_HOST
   valueFrom:
     fieldRef:

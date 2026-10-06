@@ -3297,6 +3297,45 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
+	createChatProject = async (
+		organizationId: string,
+		req: TypesGen.CreateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProject = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.patch<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
@@ -3448,11 +3487,17 @@ class ExperimentalApiMethods {
 
 	getChatDiffContents = async (
 		chatId: string,
+		ref?: TypesGen.DiffStatusRef,
 		signal?: AbortSignal,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
-			{ signal },
+			{
+				params: ref
+					? { origin: ref.remote_origin, branch: ref.git_branch }
+					: {},
+				signal,
+			},
 		);
 		return response.data;
 	};
@@ -3595,6 +3640,26 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	getOrganizationChatSystemPrompt = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationChatSystemPromptResponse> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationChatSystemPromptResponse>(
+				`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			);
+		return response.data;
+	};
+
+	updateOrganizationChatSystemPrompt = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			req,
+		);
 	};
 
 	getChatPersonalModelOverridesAdminSettings =

@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 import type { WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import {
 	MockDeploymentConfig,
 	MockUserAppearanceSettings,
+	MockWorkspace,
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { withProxyProvider, withWebSocket } from "#/testHelpers/storybook";
@@ -34,6 +36,9 @@ const meta = {
 	args: {
 		chatId: "b5a8832c-72db-4679-8393-9a48dff20a20",
 		isHot: true,
+		autoFocus: true,
+		onReady: fn(),
+		workspace: MockWorkspace,
 		workspaceAgent: createAgent("ready"),
 	},
 	parameters: {
@@ -63,12 +68,6 @@ export const Connected: Story = {
 	decorators: [withWebSocket],
 	parameters: {
 		webSocket: [{ event: "message", data: promptMessage }],
-	},
-};
-
-export const AgentUnavailable: Story = {
-	args: {
-		workspaceAgent: undefined,
 	},
 };
 
