@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,36 +22,103 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
+	"github.com/coder/quartz"
 )
 
 type forwardingHandler struct {
 	provider provider.Provider
+	baseURL  *url.URL
 	logger   slog.Logger
 	tracer   trace.Tracer
-	inflight *aibridge.InflightGate
-	recorder recorder.Recorder
-	breaker  *circuitbreaker.ProviderCircuitBreakers
+	// connections holds the provider's upstream connections.
+	connections *http.Transport
+	// transport sends forwarded requests over connections.
+	transport http.RoundTripper
+	inflight  *aibridge.InflightGate
+	recorder  recorder.Recorder
+	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
 
-// newForwardingHandler constructs one bridged handler per provider snapshot.
+// newForwardingHandler constructs one forwarding engine per provider snapshot.
+// The handler owns its upstream connections. Call CloseIdleConnections when
+// the snapshot is retired.
 func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*forwardingHandler, error) {
 	if rec == nil {
 		return nil, xerrors.New("recorder is required")
 	}
-	return &forwardingHandler{
-		provider: prov,
-		logger:   logger.With(slog.F("provider", prov.Name())),
-		tracer:   tracer,
-		inflight: inflight,
-		recorder: rec,
-		breaker:  circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
-	}, nil
+	baseURL, err := url.Parse(prov.BaseURL())
+	if err != nil {
+		return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
+	}
+	connections := utils.NewStreamingTransport()
+	// Forwarding passes the client's Accept-Encoding and the response bytes
+	// through unchanged, so the transport must not negotiate or decode gzip.
+	connections.DisableCompression = true
+	h := &forwardingHandler{
+		provider:    prov,
+		baseURL:     baseURL,
+		logger:      logger.With(slog.F("provider", prov.Name())),
+		tracer:      tracer,
+		connections: connections,
+		transport:   apidump.NewPassthroughMiddleware(connections, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		inflight:    inflight,
+		recorder:    rec,
+		breaker:     circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
+	}
+	return h, nil
+}
+
+func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
+			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
+		},
+		Transport:     h.transport,
+		FlushInterval: -1,
+		ErrorLog:      slog.Stdlib(context.Background(), h.logger, slog.LevelWarn),
+	}
+}
+
+// CloseIdleConnections closes upstream connections that are not in use.
+// Requests in flight keep their connections until they finish.
+func (h *forwardingHandler) CloseIdleConnections() {
+	h.connections.CloseIdleConnections()
+}
+
+func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
+	pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, routePrefix)
+	if pr.In.URL.RawPath != "" {
+		pr.Out.URL.RawPath = strings.TrimPrefix(pr.In.URL.RawPath, routePrefix)
+	}
+	// ReverseProxy may sanitize query parameters; forwarding preserves the bytes.
+	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
+	pr.SetURL(baseURL)
+}
+
+func prepareForwardingHeaders(clientHeaders http.Header, cred credential.Credential) http.Header {
+	prepared := headers.PrepareClientHeaders(clientHeaders)
+	// Unlike SDK requests, forwarding preserves the client's encoding choice.
+	if values, ok := clientHeaders["Accept-Encoding"]; ok {
+		prepared["Accept-Encoding"] = values
+	}
+	if byok, ok := credential.AsBYOK(cred); ok {
+		value := byok.Secret
+		if byok.Header == headers.AuthHeaderAuthorization {
+			value = "Bearer " + value
+		}
+		prepared.Set(byok.Header, value)
+	}
+	return prepared
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +133,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, cred := h.checkRequest(w, r)
+	logger, record, _ := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -80,8 +149,8 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
 	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound := h.prepareForwarding(r, cred, logger)
-		return h.forward(rw, outbound, logger)
+		// Capture stays dormant until lifecycle recording activates forwarding.
+		return h.forward(rw, r.Clone(ctx), logger)
 	})
 }
 
@@ -173,10 +242,10 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	return logger, ir, cred
 }
 
-func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential, _ slog.Logger) *http.Request {
-	// TODO: prepare provider headers and a replayable request body.
-	// https://linear.app/codercom/issue/AIGOV-615
-	return r.Clone(r.Context())
+func (*forwardingHandler) prepareForwarding(w http.ResponseWriter, r *http.Request, _ slog.Logger) (http.ResponseWriter, *http.Request, *replaybody.TeeBuffer) {
+	r = r.Clone(r.Context())
+	body := replaybody.NewRequest(r)
+	return w, r, body
 }
 
 func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {

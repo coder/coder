@@ -34,6 +34,9 @@ type Router struct {
 
 	// providers is an owned copy of the provider list, fixed at construction.
 	providers []provider.Provider
+	// forwarders are the bridged handlers whose idle connections the router
+	// closes when it is retired.
+	forwarders []*forwardingHandler
 }
 
 var _ http.Handler = (*Router)(nil)
@@ -46,7 +49,7 @@ var _ http.Handler = (*Router)(nil)
 // after validation succeeds.
 // All routes reuse the same inflight gate across a server's snapshots.
 // Shutdown drains all admitted requests. Recorder is shared across requests.
-func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
+func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -55,6 +58,11 @@ func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.L
 	mux := http.NewServeMux()
 	mux.Handle("/", inflight.Middleware(routing.NewProviderMux(snapshot, logger)))
 	router := &Router{providers: snapshot, mux: mux}
+	defer func() {
+		if outErr != nil {
+			router.CloseIdleConnections()
+		}
+	}()
 	for _, prov := range snapshot {
 		if !prov.Enabled() {
 			continue
@@ -66,6 +74,7 @@ func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.L
 		if err != nil {
 			return nil, xerrors.Errorf("configure provider %q bridged handler: %w", prov.Name(), err)
 		}
+		router.forwarders = append(router.forwarders, bridged)
 		for _, path := range prov.BridgedRoutes() {
 			pattern, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
@@ -111,4 +120,12 @@ func (p *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // KeyPools returns the non-nil key pools from this router's provider snapshot.
 func (p *Router) KeyPools() []*keypool.Pool {
 	return provider.CollectKeyPools(p.providers)
+}
+
+// CloseIdleConnections releases idle connections owned by bridged forwarding.
+// Active requests retain their connections until they finish.
+func (p *Router) CloseIdleConnections() {
+	for _, forwarder := range p.forwarders {
+		forwarder.CloseIdleConnections()
+	}
 }
