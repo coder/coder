@@ -21,6 +21,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { ProjectActionsMenuItems } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
@@ -63,7 +64,11 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	// toast and navigation run on the mutation itself rather than per call.
 	const deleteMutation = useMutation({
 		...deleteChatProject(queryClient),
-		onSuccess: () => {
+		onSuccess: (_data, deletedProject) => {
+			// Nothing can open the deleted project's composer again.
+			const draftKeys = draftStorageKeys(deletedProject.id);
+			localStorage.removeItem(draftKeys.text);
+			localStorage.removeItem(draftKeys.attachments);
 			toast.success("Project deleted");
 			// Keeps the sidebar filters, which live in the query string.
 			navigate(

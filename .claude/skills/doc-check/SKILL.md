@@ -299,13 +299,13 @@ violations it generates or suggests.
 ### Renames and moves require redirects
 
 Redirects for [coder.com/docs](https://coder.com/docs) are configured in
-a separate repo, not in this one. When a doc page is renamed or moved:
+`docs/redirects.json` in this repo, and the website rebuilds when the file
+changes. When a doc page is renamed or moved:
 
 1. Update every link that relies on the old location.
-2. Add an entry to
-   [`coder/coder.com:redirects.json`](https://github.com/coder/coder.com/blob/master/redirects.json)
-   that maps the old path to the new one. Open that PR alongside the
-   `coder/coder` rename PR.
+2. Add a rule to `docs/redirects.json` that maps the old path to the new
+   one, in the same PR as the rename. For example:
+   `{"source": "/docs/old/path", "destination": "/docs/new/path"}`.
 
 Do not create a `docs/_redirects` file in this repo; that format isn't
 processed by coder.com.
