@@ -893,6 +893,7 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
+					<Route path="projects/:projectId" element={<AgentCreatePage />} />
 					<Route
 						path="automations"
 						element={
