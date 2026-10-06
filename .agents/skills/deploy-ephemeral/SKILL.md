@@ -65,14 +65,22 @@ gh pr view --json number,state,headRefName,headRefOid,isCrossRepository,url
   own PR and workspace.
 - `isCrossRepository` is true: refuse. Forks are not supported.
 - `state` is `MERGED` or `CLOSED`: go to [Teardown](#9-teardown).
-- `git rev-parse HEAD` differs from `headRefOid`: ask the user to push first.
-  The workspace only deploys pushed commits.
+
+The workspace deploys the PR head, `headRefOid`, not the local checkout.
+Fetch it with `git fetch origin "$headRefName"`, then compare it with `HEAD`:
+
+- `HEAD` equals `headRefOid`: continue.
+- `git merge-base --is-ancestor "$headRefOid" HEAD` succeeds: the checkout
+  has unpushed commits. Ask the user to push first.
+- `git merge-base --is-ancestor HEAD "$headRefOid"` succeeds: the checkout is
+  behind the PR. Continue with `headRefOid` and say so in the report.
+- Neither: the branches diverged. Ask the user to reconcile them first.
 
 ## 3. Choose the mode
 
 ```sh
-base=$(git merge-base HEAD origin/main)
-git diff --name-only "$base" HEAD
+base=$(git merge-base origin/main "$headRefOid")
+git diff --name-only "$base" "$headRefOid"
 ```
 
 1. Drop `docs/**`, `**/*.md`, `.github/**`, `.claude/**`, and `.agents/**`. If
@@ -90,11 +98,18 @@ unless the user asks for another. `c7i.2xlarge` builds faster.
 
 ```sh
 ws=eph-pr-$number
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Coder-Session-Token: $token" "$dogfood/api/v2/users/me/workspace/$ws"
+```
+
+`200` means the workspace exists; read its state:
+
+```sh
 api "/api/v2/users/me/workspace/$ws" |
   jq '{id, outdated, build_id: .latest_build.id, status: .latest_build.status, transition: .latest_build.transition}'
 ```
 
-If the request fails with HTTP 404, the workspace does not exist. Create it:
+Any other code but `404`: stop and report it. `404` means the workspace does
+not exist. Create it:
 
 ```sh
 coder create "$ws" -O coder --template coder-ephemeral -y \
@@ -260,8 +275,18 @@ For a merged or closed PR:
    "no OAuth client registered" for workspaces that never ran in frontend
    mode. For a stopped workspace, skip this and tell the user the client stays
    registered on dogfood until an admin deletes it.
-2. `coder delete "$ws" -y`. Its port shares go with it.
-3. List the user's other `eph-pr-*` workspaces whose PRs are merged or closed,
+2. Remove its port shares, which `coder delete` leaves in the database:
+
+   ```sh
+   ws_id=$(api "/api/v2/users/me/workspace/$ws" | jq -r .id)
+   for port in 3000 8080; do
+     api "/api/v2/workspaces/$ws_id/port-share" -X DELETE -o /dev/null \
+       -d "{\"agent_name\": \"dev\", \"port\": $port}" 2>/dev/null || true
+   done
+   ```
+
+3. `coder delete "$ws" -y`.
+4. List the user's other `eph-pr-*` workspaces whose PRs are merged or closed,
    and offer to tear them down. Do not delete them unasked.
 
 ```sh
