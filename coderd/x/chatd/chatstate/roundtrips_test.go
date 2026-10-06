@@ -177,6 +177,115 @@ func TestUpdateWritesChatRowOnce(t *testing.T) {
 	require.Equal(t, afterStep.HistoryVersion, afterTitle.HistoryVersion, "no history change recorded")
 }
 
+// TestUpdateRejectsStagingAfterCommitWrite runs real transition bundles
+// in one Update. Staging history or queue changes after a commit write
+// must fail and roll back, since recording them would need a second
+// chats UPDATE; staging before a commit write must keep working.
+func TestUpdateRejectsStagingAfterCommitWrite(t *testing.T) {
+	t.Parallel()
+
+	acquire := func(tx *chatstate.Tx) error {
+		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+		return err
+	}
+	commitStep := func(f *testFixture) func(*chatstate.Tx) error {
+		return func(tx *chatstate.Tx) error {
+			msg := userTextMessage("step", f.User.ID, f.Model.ID)
+			msg.Role = database.ChatMessageRoleAssistant
+			_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{msg}})
+			return err
+		}
+	}
+	deleteQueued := func(id int64) func(*chatstate.Tx) error {
+		return func(tx *chatstate.Tx) error {
+			_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{QueuedMessageID: id})
+			return err
+		}
+	}
+	finishTurn := func(tx *chatstate.Tx) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}
+
+	tests := []struct {
+		name string
+		// steps builds the bundle; queuedID is a message queued on the
+		// chat before the bundle runs.
+		steps      func(f *testFixture, queuedID int64) []func(*chatstate.Tx) error
+		wantErr    bool
+		wantWrites int
+	}{
+		{
+			name: "HistoryAfterCommit",
+			steps: func(f *testFixture, _ int64) []func(*chatstate.Tx) error {
+				return []func(*chatstate.Tx) error{acquire, commitStep(f)}
+			},
+			wantErr: true,
+		},
+		{
+			name: "QueueAfterCommit",
+			steps: func(_ *testFixture, queuedID int64) []func(*chatstate.Tx) error {
+				return []func(*chatstate.Tx) error{acquire, deleteQueued(queuedID)}
+			},
+			wantErr: true,
+		},
+		{
+			name: "StageThenCommit",
+			steps: func(f *testFixture, _ int64) []func(*chatstate.Tx) error {
+				return []func(*chatstate.Tx) error{commitStep(f), acquire}
+			},
+			wantWrites: 1,
+		},
+		{
+			name: "CommitStageCommit",
+			steps: func(f *testFixture, _ int64) []func(*chatstate.Tx) error {
+				return []func(*chatstate.Tx) error{acquire, commitStep(f), finishTurn}
+			},
+			wantWrites: 2,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			created := createTestChat(t, f)
+			setup := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+			queued := sendQueuedMessage(t, f, setup, "queued")
+			require.NotNil(t, queued.QueuedMessage)
+			before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+			require.NoError(t, err)
+
+			counts := &roundTripCounts{}
+			m := chatstate.NewChatMachine(&countingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
+			err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				for _, step := range tc.steps(f, queued.QueuedMessage.ID) {
+					if err := step(tx); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			after, getErr := f.DB.GetChatByID(ctx, created.Chat.ID)
+			require.NoError(t, getErr)
+			if tc.wantErr {
+				require.ErrorIs(t, err, chatstate.ErrStagedAfterCommitWrite)
+				require.Equal(t, before, after, "the bundle must roll back")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantWrites, counts.chatWrites)
+			require.Equal(t, after.SnapshotVersion, after.HistoryVersion, "the staged history change is recorded")
+			msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
+			require.NoError(t, err)
+			for _, msg := range msgs {
+				require.LessOrEqual(t, msg.Revision, after.SnapshotVersion, "no message carries an uncommitted version")
+			}
+		})
+	}
+}
+
 // TestUpdateBundleRereadsAfterLockedRowConsumed proves the locked row is
 // single-use: the first transition validates against it, and the second
 // transition in the same callback performs a real read so it observes the

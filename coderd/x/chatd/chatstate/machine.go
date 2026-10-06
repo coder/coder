@@ -303,6 +303,8 @@ func (m *ChatMachine) updateOnce(
 			}); err != nil {
 				return xerrors.Errorf("bump chat snapshot: %w", err)
 			}
+		} else if tx.historyChanged || tx.queueChanged {
+			return ErrStagedAfterCommitWrite
 		}
 		// The commit write changed the row, so publication must not use
 		// the locked row.

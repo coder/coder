@@ -39,6 +39,13 @@ var (
 	// supplied chat is not a root chat (its parent_chat_id is set).
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")
 
+	// ErrStagedAfterCommitWrite is returned by [ChatMachine.Update] when
+	// a callback stages a history or queue change after the transaction
+	// already made its commit write. Recording it would take a second
+	// chats UPDATE, which re-runs the row's foreign key checks (see
+	// LockChatForTransition), so the bundle must stage before it commits.
+	ErrStagedAfterCommitWrite = xerrors.New("chatstate: history or queue change staged after the commit write")
+
 	// ErrChatFamilyArchived is returned by [CreateChat] and
 	// [CreateChatWithID] when the new chat names an archived root
 	// chat. Every member of an archived family must be archived, so
