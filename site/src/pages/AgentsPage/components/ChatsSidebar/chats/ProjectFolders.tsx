@@ -6,7 +6,7 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { Link, NavLink, type To, useLocation } from "react-router";
-import type { Chat, ChatProject } from "#/api/typesGenerated";
+import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -27,6 +27,7 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
 export type ProjectDialogState =
@@ -38,6 +39,7 @@ export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
+	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
@@ -51,6 +53,7 @@ type ProjectFoldersProps = {
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	projects,
+	organizations,
 	chatsByProjectId,
 	expandedProjectIds,
 	onToggle,
@@ -62,6 +65,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	emptyMessage,
 }) => {
 	const location = useLocation();
+	const organizationLabels = getOrganizationLabels(projects, organizations);
 
 	return (
 		<div>
@@ -103,6 +107,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 							<ProjectFolder
 								key={project.id}
 								project={project}
+								organizationLabel={organizationLabels.get(project.id)}
 								chats={chatsByProjectId.get(project.id) ?? []}
 								expanded={Boolean(expandedProjectIds[project.id])}
 								locationSearch={location.search}
@@ -121,6 +126,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 
 type ProjectFolderProps = {
 	readonly project: ChatProject;
+	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
 	readonly expanded: boolean;
 	readonly locationSearch: string;
@@ -132,6 +138,7 @@ type ProjectFolderProps = {
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
+	organizationLabel,
 	chats,
 	expanded,
 	locationSearch,
@@ -144,6 +151,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		pathname: buildAgentProjectPath({ projectId: project.id }),
 		search: locationSearch,
 	};
+	const projectLabel = organizationLabel
+		? `${project.name} (${organizationLabel})`
+		: project.name;
 	return (
 		<div>
 			<ContextMenu>
@@ -154,7 +164,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							size="icon"
 							className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
 							aria-expanded={expanded}
-							aria-label={`${expanded ? "Collapse" : "Expand"} ${project.name}`}
+							aria-label={`${expanded ? "Collapse" : "Expand"} ${projectLabel}`}
 							onClick={onToggle}
 						>
 							<ChevronRightIcon
@@ -164,6 +174,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						</Button>
 						<NavLink
 							to={projectPath}
+							aria-label={projectLabel}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
 						>
 							<ChatProjectIcon
@@ -172,6 +183,11 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								className="size-4"
 							/>
 							<span className="flex-1 truncate">{project.name}</span>
+							{organizationLabel && (
+								<span className="max-w-[40%] shrink-0 truncate text-xs text-content-secondary">
+									{organizationLabel}
+								</span>
+							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -179,7 +195,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-									aria-label={`Open project actions for ${project.name}`}
+									aria-label={`Open project actions for ${projectLabel}`}
 									// Keeps a right-click on this button from also
 									// opening the row's context menu.
 									onContextMenuCapture={(e) => {

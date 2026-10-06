@@ -23,7 +23,12 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatModel,
+	ChatProject,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
@@ -84,6 +89,7 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	readonly projects: readonly ChatProject[];
+	readonly organizations: readonly Organization[];
 	readonly isProjectsLoading: boolean;
 	readonly projectsError: unknown;
 	readonly onRetryProjects: () => void;
@@ -130,6 +136,7 @@ type ChatsPanelProps = {
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
 	projects,
+	organizations,
 	isProjectsLoading,
 	projectsError,
 	onRetryProjects,
@@ -580,6 +587,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						<ChatTreeContext value={chatTreeCtx}>
 							<ProjectFolders
 								projects={projects}
+								organizations={organizations}
 								chatsByProjectId={chatsByProjectId}
 								expandedProjectIds={Object.fromEntries(
 									projects.map((project) => [

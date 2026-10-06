@@ -22,6 +22,7 @@ import { draftStorageKeys } from "../AgentCreateForm";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
+import { getOrganizationLabels } from "./chats/projectGrouping";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -145,6 +146,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
 	const [deleteDialog, setDeleteDialog] = useState<{
 		project: ChatProject | null;
+		organizationLabel?: string;
 		open: boolean;
 	}>({ project: null, open: false });
 
@@ -183,8 +185,17 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		}
 	};
 
+	// The label is captured on open because deleting the project can end the
+	// name collision before the dialog finishes closing.
 	const openDeleteProjectDialog = (project: ChatProject) =>
-		setDeleteDialog({ project, open: true });
+		setDeleteDialog({
+			project,
+			organizationLabel: getOrganizationLabels(
+				projectsQuery.data ?? [],
+				organizations,
+			).get(project.id),
+			open: true,
+		});
 	const closeDeleteProjectDialog = () =>
 		setDeleteDialog((current) => ({ ...current, open: false }));
 
@@ -248,6 +259,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				projects={projectsQuery.data ?? []}
+				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
 				onRetryProjects={() => void projectsQuery.refetch()}
@@ -335,6 +347,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onCancel={closeDeleteProjectDialog}
 				entity="project"
 				name={deleteDialog.project?.name ?? ""}
+				title={
+					deleteDialog.organizationLabel
+						? `Delete "${deleteDialog.project?.name}" from ${deleteDialog.organizationLabel}`
+						: undefined
+				}
 				confirmLoading={deleteProjectMutation.isPending}
 				info="Chats in this project will be kept and move back to the Chats list."
 			/>
