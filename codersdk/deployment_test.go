@@ -125,6 +125,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Chat: Hook Secret": {
 			yaml: true,
 		},
+		"Chat: AI Gateway Key": {
+			yaml: true,
+		},
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
@@ -785,6 +788,8 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
 			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
 			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number",
+			"X-Coder-AI-Gateway-Key", "X-Coder-AI-Gateway-Delegated-Key-ID",
+			"X-Coder-AI-Gateway-Source", "X-Coder-AI-Gateway-Workspace-ID", "X-Coder-AI-Gateway-Error",
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()

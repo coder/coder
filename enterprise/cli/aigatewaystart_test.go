@@ -30,6 +30,8 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -309,6 +311,54 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	// When: the command is canceled.
 	waiter.Cancel()
 	// Then: it exits cleanly.
+	require.NoError(t, waiter.Wait())
+}
+
+func TestAIGatewayStartE2E_Delegated(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayUpstream(func(w http.ResponseWriter, r *http.Request) {
+		for _, name := range []string{aibridge.HeaderGatewayKey, aibridge.HeaderDelegatedAPIKeyID, aibridge.HeaderDelegatedSource, aibridge.HeaderDelegatedWorkspace} {
+			if r.Header.Get(name) != "" {
+				t.Errorf("internal header %s reached the provider", name)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, aiGatewayUpstreamResponse)
+	}))
+	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key)
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+	target, err := url.Parse(baseURL)
+	require.NoError(t, err)
+	keyID, _, ok := strings.Cut(dep.userClient.SessionToken(), "-")
+	require.True(t, ok)
+	delegatedCtx := aibridge.WithDelegatedAPIKeyID(ctx, keyID)
+	for _, key := range []string{"wrong-key", dep.key} {
+		rt, err := aibridged.NewHTTPTransportFactory(target, key).TransportFor("openai", aibridge.SourceAgents)
+		require.NoError(t, err)
+		req, err := http.NewRequestWithContext(delegatedCtx, http.MethodPost, "http://coder-aibridge/v1/chat/completions", strings.NewReader(aiGatewayChatCompletionRequest))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := rt.RoundTrip(req)
+		if key == "wrong-key" {
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			require.ErrorIs(t, err, aibridge.ErrGatewayKeyMismatch)
+			require.Zero(t, dep.upstreamHits.Load())
+			continue
+		}
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, resp.Body.Close())
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", body)
+		require.Contains(t, string(body), "standalone gateway e2e response")
+	}
+	require.EqualValues(t, 1, dep.upstreamHits.Load())
+	sessions := requireAIGatewaySessions(ctx, t, dep, 1)
+	require.Equal(t, dep.user.Username, sessions[0].Initiator.Username)
+	waiter.Cancel()
 	require.NoError(t, waiter.Wait())
 }
 

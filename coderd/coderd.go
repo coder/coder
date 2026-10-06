@@ -2261,9 +2261,8 @@ type API struct {
 	// multiple components.
 	UsageInserter *atomic.Pointer[usage.Inserter]
 	// AIBridgeTransportFactory, when non-nil, lets chatd route LLM requests
-	// through an in-process aibridge transport instead of calling upstream
-	// providers directly. Registered by coderd at startup once aibridged is
-	// wired in-memory.
+	// through the configured standalone Gateway or the embedded daemon.
+	// Registered at startup by cli/server.go.
 	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
 	// aiGatewayHandler is the in-memory AI Gateway HTTP handler
 	// (no prefix stripping). Set by RegisterInMemoryAIBridgedHTTPHandler,

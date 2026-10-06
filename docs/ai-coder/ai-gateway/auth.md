@@ -10,11 +10,12 @@ AI Gateway uses different credentials for different kinds of connections:
 
 - AI clients use a Coder API token to authenticate with AI Gateway as a user.
 - Standalone gateway replicas use AI Gateway keys to connect to the Coder control plane.
+- With standalone routing, Coder Agents uses the same gateway key to authenticate inference requests from the control plane.
 - AI Gateway uses provider credentials configured by an administrator to authenticate to upstream AI providers.
 - In [Bring Your Own Key (BYOK)](#bring-your-own-key-byok) mode, a user also supplies a personal provider credential or subscription token.
 
 These credentials are not interchangeable.
-A gateway key does not authenticate an AI client, and a Coder API token does not authenticate a standalone replica.
+A gateway key doesn't replace an ordinary AI client's user token, and a Coder API token doesn't authenticate a standalone replica.
 
 ## Authenticate AI clients
 
@@ -102,6 +103,10 @@ A user login and `CODER_SESSION_TOKEN` are not used by `coder ai-gateway start`.
 The same gateway key can authenticate multiple replicas.
 Separate keys make it easier to rotate or revoke each deployment independently.
 
+For [Coder Agents standalone routing](./standalone.md#coder-agents), configure that same key as `CODER_CHAT_AI_GATEWAY_KEY` on every `coderd` replica.
+The gateway trusts authenticated control-plane requests to identify the user and workspace, then applies existing user validity and budget checks.
+Treat this key as an infrastructure credential: a holder can delegate requests on behalf of users.
+
 List keys and the most recent heartbeat for each:
 
 ```sh
@@ -117,13 +122,20 @@ For usage and flags, refer to the generated CLI reference for [creating](../../r
 ### Rotate a gateway key
 
 Rotate a key with a rolling restart.
-Run more than 1 replica behind a load balancer so client traffic continues during the rollout:
+Run more than one replica behind a load balancer so ordinary AI client traffic continues during the rollout.
+For Coder Agents standalone routing, plan for temporary inference failures while keys differ between the two deployments:
 
 1. Create a new gateway key.
 1. Update the Kubernetes Secret, environment variable, or key file used by every replica.
+1. If Coder Agents uses standalone routing, update `CODER_CHAT_AI_GATEWAY_KEY` on every `coderd` replica.
 1. Restart or roll out the standalone deployment so every replica uses the new key.
+1. If Coder Agents uses standalone routing, restart every `coderd` replica with the new key.
 1. Verify readiness and confirm that the new key has a recent heartbeat.
 1. Delete the old key.
+
+Each gateway process accepts one key, loaded at startup, for Coder Agents inference.
+Creating another key in Coder doesn't make a running gateway accept both keys.
+Coder Agents retries key mismatches with bounded backoff, then reports an error if the mismatch persists.
 
 Delete a key by name or ID:
 

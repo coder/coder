@@ -17,8 +17,8 @@ type Attribution struct {
 type attributionCtxKey struct{}
 
 // WithAttribution returns a copy of ctx carrying the trusted Attribution.
-// Attribution MUST ONLY set by authentication or delegated in-process code,
-// and NEVER by client-provided HTTP headers.
+// Attribution must only be set by authentication or trusted delegated code,
+// never from unauthenticated client headers.
 func WithAttribution(ctx context.Context, attr Attribution) context.Context {
 	return context.WithValue(ctx, attributionCtxKey{}, attr)
 }
@@ -60,8 +60,8 @@ type (
 )
 
 // WithDelegatedAPIKeyID returns a copy of ctx carrying an API key ID on whose
-// behalf the request is being made. The in-process aibridge transport requires
-// this on every RoundTrip and rejects calls whose context lacks it.
+// behalf the request is being made. Delegated aibridge transports require
+// this on every RoundTrip and reject calls whose context lacks it.
 //
 // The caller is responsible for having established that the user owning this
 // key authorized the request: aibridged validates only that the key exists,
@@ -94,11 +94,11 @@ func DelegatedAttributionFromContext(ctx context.Context) (Attribution, bool) {
 }
 
 // TransportFactory returns an [http.RoundTripper] that dispatches an aibridge
-// request in-process for a given provider instance name.
+// request for a given provider instance name.
 //
-// Implementations live in coderd/aibridged. coderd registers an in-process
-// factory on coderd.API.AIBridgeTransportFactory at startup so callers route
-// traffic through the daemon without going through the gated HTTP route.
+// Implementations live in coderd/aibridged. At startup, coderd registers an
+// in-process or HTTP factory on coderd.API.AIBridgeTransportFactory depending
+// on whether a standalone Gateway URL is configured.
 //
 // The returned RoundTripper is responsible for adapting the caller's request
 // to the aibridge daemon's mount path: callers hand it an upstream-shaped

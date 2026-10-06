@@ -2273,41 +2273,52 @@ func TestServer_InterruptShutdown(t *testing.T) {
 // package binaries and OOMed the runner.
 func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
 	t.Parallel()
+	for _, mode := range []string{"embedded", "standalone"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
 
-	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
-	defer cancel()
+			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+			defer cancel()
 
-	inv, cfg := clitest.New(t,
-		"server",
-		dbArg(t),
-		"--http-address", "127.0.0.1:0",
-		"--access-url", "http://example.com",
-		"--cache-dir", t.TempDir(),
-		// Explicit so the test catches the regression even if the
-		// default for ai-gateway-enabled is ever flipped back to false.
-		"--ai-gateway-enabled=true",
-	)
+			args := []string{
+				"server",
+				dbArg(t),
+				"--http-address", "127.0.0.1:0",
+				"--access-url", "http://example.com",
+				"--cache-dir", t.TempDir(),
+				// Explicit so the test catches the regression even if the
+				// default for ai-gateway-enabled is ever flipped back to false.
+				"--ai-gateway-enabled=true",
+			}
+			if mode == "standalone" {
+				// Endpoint availability is a request-time concern, not a startup gate.
+				args = append(args, "--ai-gateway-embedded-enabled=false",
+					"--chat-ai-gateway-url=http://127.0.0.1:1", "--chat-ai-gateway-key=test-key")
+			}
+			inv, cfg := clitest.New(t, args...)
 
-	serverErr := make(chan error, 1)
-	go func() {
-		serverErr <- inv.WithContext(ctx).Run()
-	}()
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- inv.WithContext(ctx).Run()
+			}()
 
-	// Wait for the server to come up so the in-memory AI Gateway daemon
-	// is registered with the API and the WebsocketWaitGroup is nonzero.
-	_ = waitAccessURL(t, cfg)
+			// Wait for the server to come up so the in-memory AI Gateway daemon
+			// is registered with the API and the WebsocketWaitGroup is nonzero.
+			_ = waitAccessURL(t, cfg)
 
-	// The WebsocketWaitGroup timeout in coderd.API.Close() is hard coded
-	// to 10s, so any value comfortably below 10s catches the regression
-	// while leaving headroom for slow CI runners.
-	shutdownStart := time.Now()
-	cancel()
-	if err := <-serverErr; err != nil {
-		require.ErrorIs(t, err, context.Canceled)
+			// The WebsocketWaitGroup timeout in coderd.API.Close() is hard coded
+			// to 10s, so any value comfortably below 10s catches the regression
+			// while leaving headroom for slow CI runners.
+			shutdownStart := time.Now()
+			cancel()
+			if err := <-serverErr; err != nil {
+				require.ErrorIs(t, err, context.Canceled)
+			}
+			require.Less(t, time.Since(shutdownStart), 8*time.Second,
+				"graceful shutdown took too long; the in-memory AI Gateway daemon is "+
+					"likely not being closed before coderAPICloser.Close()")
+		})
 	}
-	require.Less(t, time.Since(shutdownStart), 8*time.Second,
-		"graceful shutdown took too long; the in-memory AI Gateway daemon is "+
-			"likely not being closed before coderAPICloser.Close()")
 }
 
 func TestServer_GracefulShutdown(t *testing.T) {

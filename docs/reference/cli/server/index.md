@@ -1789,6 +1789,25 @@ The upper limit of attempts to send a notification.
 
 How often to reconcile workspace prebuilds state.
 
+### --chat-ai-gateway-url
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>url</code>                        |
+| Environment | <code>$CODER_CHAT_AI_GATEWAY_URL</code> |
+| YAML        | <code>chat.aiGatewayURL</code>          |
+
+Origin URL of the standalone AI Gateway for Coder Agents, optionally including a deployment path prefix. Requires --chat-ai-gateway-key. When set, Agents use this Gateway exclusively; otherwise they use the embedded Gateway.
+
+### --chat-ai-gateway-key
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_CHAT_AI_GATEWAY_KEY</code> |
+
+Shared Gateway key for Coder Agents inference. Must match the key configured on every standalone Gateway replica behind --chat-ai-gateway-url. Loaded at startup; rotate by updating both deployments together.
+
 ### --chat-debug-logging-enabled
 
 |             |                                                |
@@ -1897,7 +1916,18 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Whether to start an in-memory AI Gateway instance.
+Enable AI Gateway functionality, including Coder Agents and standalone Gateway connections.
+
+### --ai-gateway-embedded-enabled
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_EMBEDDED_ENABLED</code> |
+| YAML        | <code>ai_gateway.embedded_enabled</code>        |
+| Default     | <code>true</code>                               |
+
+Start the embedded AI Gateway when AI Gateway functionality is enabled. Disable when serving inference exclusively through standalone Gateways.
 
 ### --ai-gateway-retention
 

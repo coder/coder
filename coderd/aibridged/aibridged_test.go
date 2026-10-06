@@ -565,55 +565,75 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 // the caller, must be stripped.
 func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 	t.Parallel()
+	for _, transport := range []string{"in-memory", "http"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
 
-	const (
-		testKeyID = "abcdef1234"
-		// nolint:gosec // Fake LLM credential for assertion comparison.
-		userLLMToken = "Bearer sk-ant-oat01-user-byok-token"
-	)
+			const (
+				testKeyID = "abcdef1234"
+				// nolint:gosec // Fake LLM credential for assertion comparison.
+				userLLMToken = "Bearer sk-ant-oat01-user-byok-token"
+			)
 
-	srv, client, pool := newTestServer(t)
-	conn := &mockDRPCConn{}
-	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-	mockH := &mockHandler{}
+			srv, client, pool := newTestServer(t)
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			mockH := &mockHandler{}
 
-	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
-			assert.Equal(t, testKeyID, in.GetKeyId(), "delegated identity must be carried in KeyId")
-			assert.Empty(t, in.GetKey(), "Key must not be set on delegated requests")
-			return &proto.IsAuthorizedResponse{
-				OwnerId:  uuid.NewString(),
-				ApiKeyId: testKeyID,
-				Username: "u",
-			}, nil
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+					assert.Equal(t, testKeyID, in.GetKeyId(), "delegated identity must be carried in KeyId")
+					assert.Empty(t, in.GetKey(), "Key must not be set on delegated requests")
+					return &proto.IsAuthorizedResponse{
+						OwnerId:  uuid.NewString(),
+						ApiKeyId: testKeyID,
+						Username: "u",
+					}, nil
+				})
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+
+			factory := delegatedTransportFactory(t, srv, transport)
+			rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
+			require.NoError(t, err)
+
+			ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/anthropic/v1/messages", nil)
+			require.NoError(t, err)
+			// HeaderCoderToken marks the request as BYOK. Its value is irrelevant on
+			// the delegated path (identity comes from context) and it must be
+			// stripped before forwarding upstream.
+			req.Header.Set(agplaibridge.HeaderCoderToken, "ignored-on-delegated-path")
+			// The user's own LLM credential; must reach the downstream handler.
+			req.Header.Set("Authorization", userLLMToken)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			require.NotNil(t, mockH.headersReceived, "downstream handler must be invoked")
+			require.Equal(t, userLLMToken, mockH.headersReceived.Get("Authorization"),
+				"user's BYOK credential must be preserved end-to-end")
+			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderToken),
+				"Coder governance token must be stripped before forwarding upstream")
+			for _, name := range []string{agplaibridge.HeaderGatewayKey, agplaibridge.HeaderDelegatedAPIKeyID, agplaibridge.HeaderDelegatedSource, agplaibridge.HeaderDelegatedWorkspace} {
+				require.Empty(t, mockH.headersReceived.Get(name))
+			}
 		})
-	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+	}
+}
 
-	factory := aibridged.NewTransportFactory(srv)
-	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
+func delegatedTransportFactory(t *testing.T, handler http.Handler, transport string) agplaibridge.TransportFactory {
+	t.Helper()
+	if transport == "in-memory" {
+		return aibridged.NewTransportFactory(handler)
+	}
+	gateway := httptest.NewServer(aibridged.DelegationMiddleware("shared-key")(handler))
+	t.Cleanup(gateway.Close)
+	u, err := url.Parse(gateway.URL)
 	require.NoError(t, err)
-
-	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/anthropic/v1/messages", nil)
-	require.NoError(t, err)
-	// HeaderCoderToken marks the request as BYOK. Its value is irrelevant on
-	// the delegated path (identity comes from context) and it must be
-	// stripped before forwarding upstream.
-	req.Header.Set(agplaibridge.HeaderCoderToken, "ignored-on-delegated-path")
-	// The user's own LLM credential; must reach the downstream handler.
-	req.Header.Set("Authorization", userLLMToken)
-
-	resp, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	require.NotNil(t, mockH.headersReceived, "downstream handler must be invoked")
-	require.Equal(t, userLLMToken, mockH.headersReceived.Get("Authorization"),
-		"user's BYOK credential must be preserved end-to-end")
-	require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderToken),
-		"Coder governance token must be stripped before forwarding upstream")
+	return aibridged.NewHTTPTransportFactory(u, "shared-key")
 }
 
 // End-to-end: a real transport factory wired to a real server. Verifies the
@@ -622,41 +642,46 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 // extraction.
 func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 	t.Parallel()
+	for _, transport := range []string{"in-memory", "http"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
 
-	const testKeyID = "abcdef1234"
+			const testKeyID = "abcdef1234"
 
-	srv, client, pool := newTestServer(t)
-	conn := &mockDRPCConn{}
-	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-	mockH := &mockHandler{}
+			srv, client, pool := newTestServer(t)
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			mockH := &mockHandler{}
 
-	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
-			assert.Equal(t, testKeyID, in.GetKeyId())
-			assert.Empty(t, in.GetKey())
-			return &proto.IsAuthorizedResponse{
-				OwnerId:  uuid.NewString(),
-				ApiKeyId: testKeyID,
-				Username: "u",
-			}, nil
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+					assert.Equal(t, testKeyID, in.GetKeyId())
+					assert.Empty(t, in.GetKey())
+					return &proto.IsAuthorizedResponse{
+						OwnerId:  uuid.NewString(),
+						ApiKeyId: testKeyID,
+						Username: "u",
+					}, nil
+				})
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+
+			factory := delegatedTransportFactory(t, srv, transport)
+			rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
+			require.NoError(t, err)
+
+			ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/openai/v1/chat/completions", nil)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.NotNil(t, mockH.headersReceived, "downstream handler must observe the delegated request")
 		})
-	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
-
-	factory := aibridged.NewTransportFactory(srv)
-	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
-	require.NoError(t, err)
-
-	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/openai/v1/chat/completions", nil)
-	require.NoError(t, err)
-
-	resp, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.NotNil(t, mockH.headersReceived, "downstream handler must observe the delegated request")
+	}
 }
 
 func TestServeHTTP_StripCoderToken(t *testing.T) {

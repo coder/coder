@@ -1,9 +1,16 @@
 package chatd_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -23,6 +32,100 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestActiveServer_StandaloneGatewayRetries(t *testing.T) {
+	t.Parallel()
+	for _, recover := range []bool{true, false} {
+		t.Run(fmt.Sprintf("recover=%t", recover), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+			trap := clock.Trap().NewTimer("chatworker", "generation-retry")
+			defer trap.Close()
+			var providerCalls atomic.Int32
+			upstream := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				providerCalls.Add(1)
+				return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("recovered")...)
+			})
+			target, err := url.Parse(upstream)
+			require.NoError(t, err)
+			proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
+				// The mock provider serves upstream-shaped paths.
+				r.Out.URL.Path = "/" + strings.SplitN(r.In.URL.Path, "/v1/", 2)[1]
+				r.SetURL(target)
+			}}
+			valid := aibridged.DelegationMiddleware("shared-key")(proxy)
+			mismatched := aibridged.DelegationMiddleware("other-key")(proxy)
+			var attempts atomic.Int32
+			gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				r.Body.Close()
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				var call struct {
+					Stream bool `json:"stream"`
+				}
+				if err := json.Unmarshal(body, &call); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				if call.Stream {
+					attempt := attempts.Add(1)
+					if !recover || attempt == 1 {
+						mismatched.ServeHTTP(w, r)
+						return
+					}
+				}
+				valid.ServeHTTP(w, r)
+			}))
+			t.Cleanup(gateway.Close)
+			gatewayURL, err := url.Parse(gateway.URL)
+			require.NoError(t, err)
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai", upstream)
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.Clock = clock
+				cfg.Limits.MaxGenerationRetries = 2
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(aibridged.NewHTTPTransportFactory(gatewayURL, "shared-key"))
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+			first := waitForChatRetryState(ctx, t, db, chat.ID)
+			var payload codersdk.ChatStreamRetry
+			require.NoError(t, json.Unmarshal(first.RetryState.RawMessage, &payload))
+			require.Equal(t, http.StatusUnauthorized, payload.StatusCode)
+			require.Equal(t, codersdk.ChatErrorKindConfig, payload.Kind)
+			require.Zero(t, providerCalls.Load())
+			retries := 2
+			if recover {
+				retries = 1
+			}
+			for attempt := range retries {
+				timer := trap.MustWait(ctx)
+				require.Equal(t, time.Second*time.Duration(1<<attempt), timer.Duration)
+				timer.MustRelease(ctx)
+				advanceMockClockBy(ctx, t, clock, timer.Duration)
+			}
+			if recover {
+				waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+				require.EqualValues(t, 2, attempts.Load())
+				require.EqualValues(t, 1, providerCalls.Load())
+			} else {
+				waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+				require.EqualValues(t, 3, attempts.Load())
+				require.Zero(t, providerCalls.Load())
+				failed, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Contains(t, string(failed.LastError.RawMessage), aibridge.ErrGatewayKeyMismatch.Error())
+			}
+		})
+	}
+}
 
 func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	t.Parallel()

@@ -30,9 +30,9 @@ func (api *API) AIGatewayHandler() http.Handler {
 // [API]'s router, so that requests to aibridged will be relayed from Coder's API server
 // to the in-memory aibridged.
 //
-// This also registers an in-process [agplaibridge.TransportFactory] so that
-// chatd can route coder-agent LLM traffic through aibridge without crossing
-// the HTTP route. No license entitlement gate is applied at the factory layer:
+// Unless a standalone Gateway URL is configured, this also registers an
+// in-process [agplaibridge.TransportFactory] so chatd can route LLM traffic
+// without crossing the HTTP route. No license gate is applied at the factory layer:
 // the entitlement check stays on the HTTP route for external callers, while
 // in-process coder-agent traffic is the explicit carve-out.
 func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
@@ -41,6 +41,11 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 	}
 
 	api.aiGatewayHandler = srv
+	// A configured standalone endpoint is exclusive, even when this replica
+	// also serves the embedded Gateway for ordinary clients.
+	if api.DeploymentValues.AI.Chat.AIGatewayURL.String() != "" {
+		return
+	}
 
 	factory := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv))
 	asInterface := factory

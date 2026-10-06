@@ -403,9 +403,20 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 - YAML key: `ai_gateway.disable_content_recording`
 - Default value: `false`
 
+### Embedded enabled
+
+Start the embedded AI Gateway when AI Gateway functionality is enabled.
+Disable when serving inference exclusively through standalone Gateways.
+
+- Type: `bool`
+- Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
+- CLI flag: [`--ai-gateway-embedded-enabled`](../../reference/cli/server/index.md#--ai-gateway-embedded-enabled)
+- YAML key: `ai_gateway.embedded_enabled`
+- Default value: `true`
+
 ### Enabled
 
-Whether to start an in-memory AI Gateway instance.
+Enable AI Gateway functionality, including Coder Agents and standalone Gateway connections.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
@@ -590,6 +601,29 @@ If not provided, the system certificate pool is used.
 ## Chat
 
 Configure the background chat processing daemon.
+
+### AI Gateway key
+
+Shared Gateway key for Coder Agents inference.
+Must match the key configured on every standalone Gateway replica behind --chat-ai-gateway-url.
+Loaded at startup; rotate by updating both deployments together.
+
+- Type: `string`
+- Environment variable: `CODER_CHAT_AI_GATEWAY_KEY`
+- CLI flag: [`--chat-ai-gateway-key`](../../reference/cli/server/index.md#--chat-ai-gateway-key)
+- Holds a secret: Coder never writes this option to a YAML configuration file.
+  Set it through the environment variable above.
+
+### AI Gateway URL
+
+Origin URL of the standalone AI Gateway for Coder Agents, optionally including a deployment path prefix.
+Requires --chat-ai-gateway-key.
+When set, Agents use this Gateway exclusively; otherwise they use the embedded Gateway.
+
+- Type: `url`
+- Environment variable: `CODER_CHAT_AI_GATEWAY_URL`
+- CLI flag: [`--chat-ai-gateway-url`](../../reference/cli/server/index.md#--chat-ai-gateway-url)
+- YAML key: `chat.aiGatewayURL`
 
 ### Debug logging enabled
 

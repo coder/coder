@@ -181,7 +181,35 @@ Check `/readyz` on each replica to verify individual health.
 ## Route traffic to the standalone gateway
 
 The standalone deployment does not move traffic automatically.
-Configure AI Gateway Proxy and direct AI clients to send requests to the standalone endpoint.
+Configure Coder Agents, AI Gateway Proxy, and direct AI clients to send requests to the standalone endpoint.
+
+### Coder Agents
+
+To route Coder Agents through the standalone gateway, set these environment variables on every `coderd` replica:
+
+```dotenv
+CODER_AI_GATEWAY_ENABLED=true
+CODER_CHAT_AI_GATEWAY_URL=https://ai-gateway.example.com
+CODER_CHAT_AI_GATEWAY_KEY=<gateway-key>
+```
+
+Use the same gateway key configured on every standalone replica behind that URL.
+Supply the key from your secret manager.
+Use the gateway's origin URL, optionally with a deployment path prefix, without the provider name or `/api/v2/ai-gateway` suffix.
+Every `coderd` replica must be able to reach this endpoint.
+Use HTTPS to encrypt the key and inference traffic when they cross an untrusted network.
+
+Restart the Coder deployment to apply the settings.
+Coder Agents then sends inference requests to the standalone gateway and keeps user attribution, budget enforcement, and AI session recording.
+The endpoint can balance requests across replicas without connection affinity.
+
+When `CODER_CHAT_AI_GATEWAY_URL` is set, Coder Agents uses that endpoint exclusively, even if the embedded gateway is running.
+An unavailable endpoint causes request failures rather than a fallback to the embedded gateway.
+The URL and key must be configured together.
+
+After you move all traffic away from the embedded gateway, set `CODER_AI_GATEWAY_EMBEDDED_ENABLED=false` on `coderd` and restart the deployment.
+This setting stops embedded gateway startup while preserving Coder Agents and standalone control connections.
+Keep `CODER_AI_GATEWAY_ENABLED=true`.
 
 ### AI Gateway Proxy
 
@@ -278,14 +306,18 @@ Use a gradual cutover so that you can validate the standalone data plane before 
 1. Set `CODER_AI_GATEWAY_PROXY_TARGET` to the standalone endpoint.
 1. Update direct client base URLs that should use the standalone endpoint.
 1. Scale the standalone deployment after the canary path is stable.
+1. To move Coder Agents, upgrade every gateway replica to this Coder release before applying the [Coder Agents routing settings](#coder-agents).
+1. After moving all embedded traffic, set `CODER_AI_GATEWAY_EMBEDDED_ENABLED=false` and restart the Coder deployment.
 
 Keep `CODER_AI_GATEWAY_ENABLED=true` on `coderd` after the cutover.
-The setting is required for standalone control connections and Coder features that use the in-process gateway.
+The setting is required for standalone control connections and Coder Agents.
 
 ## Roll back to the embedded gateway
 
 To return traffic to the embedded gateway:
 
+1. Set `CODER_AI_GATEWAY_EMBEDDED_ENABLED=true` on `coderd`.
+1. Remove `CODER_CHAT_AI_GATEWAY_URL` and `CODER_CHAT_AI_GATEWAY_KEY` if Coder Agents uses standalone routing.
 1. Remove `CODER_AI_GATEWAY_PROXY_TARGET`, or set it to `<Coder access URL>/api/v2/ai-gateway`.
 1. Restart or upgrade `coderd` so the proxy target change takes effect.
 1. Restore direct client base URLs to `<Coder access URL>/api/v2/ai-gateway/<provider-name>/`.

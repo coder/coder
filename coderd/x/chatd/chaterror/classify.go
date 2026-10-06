@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/x/googleopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -130,6 +131,15 @@ func Classify(err error) ClassifiedError {
 	var wrapped *classifiedError
 	if errors.As(err, &wrapped) {
 		return normalizeClassification(wrapped.classified)
+	}
+	if errors.Is(err, aibridge.ErrGatewayKeyMismatch) {
+		return normalizeClassification(ClassifiedError{
+			Message:    aibridge.ErrGatewayKeyMismatch.Error(),
+			Detail:     aibridge.ErrGatewayKeyMismatch.Error(),
+			Kind:       codersdk.ChatErrorKindConfig,
+			Retryable:  true,
+			StatusCode: 401,
+		})
 	}
 
 	structured := extractProviderErrorDetails(err)

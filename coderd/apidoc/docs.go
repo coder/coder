@@ -19012,6 +19012,9 @@ const docTemplate = `{
                     "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
                     "type": "boolean"
                 },
+                "embedded_enabled": {
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -21436,6 +21439,12 @@ const docTemplate = `{
             "properties": {
                 "acquire_batch_size": {
                     "type": "integer"
+                },
+                "ai_gateway_key": {
+                    "type": "string"
+                },
+                "ai_gateway_url": {
+                    "type": "string"
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"

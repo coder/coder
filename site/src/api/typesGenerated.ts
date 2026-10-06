@@ -39,6 +39,7 @@ export type AIBridgeAttribution = Record<string, string>;
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
+	readonly embedded_enabled: boolean;
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -2340,6 +2341,8 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
  * ChatConfig configures Coder Agents chats.
  */
 export interface ChatConfig {
+	readonly ai_gateway_url: string;
+	readonly ai_gateway_key: string;
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
 	readonly hook_url: string;

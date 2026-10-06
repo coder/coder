@@ -57,7 +57,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		authMode = "byok"
 	}
 
-	// When the request arrived via the in-process transport, the caller
+	// When the request arrived via an authenticated delegated transport, the caller
 	// has placed a delegated API key ID on the context. We trust that the
 	// caller already established the user's identity and only validate
 	// liveness; the caller does not have (and cannot send) the key secret.
@@ -120,8 +120,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attach auth attributes used by all log lines below. "source" is the
-	// transport origin (e.g., "agents" for in-process callers, empty for
-	// network callers); "auth_delegated" distinguishes header-based from
+	// transport origin (e.g., "agents" for delegated callers, empty for
+	// ordinary clients); "auth_delegated" distinguishes header-based from
 	// context-delegated authentication.
 	logger = logger.With(
 		slog.F("source", string(agplaibridge.SourceFromContext(ctx))),
@@ -145,7 +145,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	logger = logger.With(slog.F("user_id", id))
 
 	// Direct and delegated carriers are mutually exclusive and request-scoped.
-	// Delegated requests carry attribution stamped by the in-process caller
+	// Delegated requests carry attribution stamped by the trusted caller
 	// (chatd); direct requests carry workspace attribution parsed from the
 	// server-minted token name by IsAuthorized.
 	var attribution agplaibridge.Attribution

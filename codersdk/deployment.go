@@ -1979,7 +1979,7 @@ communicating directly.`,
 	// AI Gateway options
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
-		Description: "Whether to start an in-memory AI Gateway instance.",
+		Description: "Enable AI Gateway functionality, including Coder Agents and standalone Gateway connections.",
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
@@ -4406,6 +4406,24 @@ Write out the current server config as YAML to stdout.`,
 		},
 		// Chat Options
 		{
+			Name:        "Chat: AI Gateway URL",
+			Description: "Origin URL of the standalone AI Gateway for Coder Agents, optionally including a deployment path prefix. Requires --chat-ai-gateway-key. When set, Agents use this Gateway exclusively; otherwise they use the embedded Gateway.",
+			Flag:        "chat-ai-gateway-url",
+			Env:         "CODER_CHAT_AI_GATEWAY_URL",
+			Value:       &c.AI.Chat.AIGatewayURL,
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayURL",
+		},
+		{
+			Name:        "Chat: AI Gateway Key",
+			Description: "Shared Gateway key for Coder Agents inference. Must match the key configured on every standalone Gateway replica behind --chat-ai-gateway-url. Loaded at startup; rotate by updating both deployments together.",
+			Flag:        "chat-ai-gateway-key",
+			Env:         "CODER_CHAT_AI_GATEWAY_KEY",
+			Value:       &c.AI.Chat.AIGatewayKey,
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
 			Name:        "Chat: Acquire Batch Size",
 			Description: "How many pending chats a worker should acquire per polling cycle.",
 			Flag:        "chat-acquire-batch-size",
@@ -4588,6 +4606,16 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
 		aiGatewayEnabled,
+		{
+			Name:        "AI Gateway Embedded Enabled",
+			Description: "Start the embedded AI Gateway when AI Gateway functionality is enabled. Disable when serving inference exclusively through standalone Gateways.",
+			Flag:        "ai-gateway-embedded-enabled",
+			Env:         "CODER_AI_GATEWAY_EMBEDDED_ENABLED",
+			Value:       &c.AI.BridgeConfig.EmbeddedEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupAIGateway,
+			YAML:        "embedded_enabled",
+		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
@@ -5016,7 +5044,8 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	Enabled         serpent.Bool `json:"enabled" typescript:",notnull"`
+	EmbeddedEnabled serpent.Bool `json:"embedded_enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -5080,6 +5109,8 @@ type AIBridgeProxyConfig struct {
 
 // ChatConfig configures Coder Agents chats.
 type ChatConfig struct {
+	AIGatewayURL         serpent.URL      `json:"ai_gateway_url" typescript:",notnull" swaggertype:"string"`
+	AIGatewayKey         serpent.String   `json:"ai_gateway_key" typescript:",notnull"`
 	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
 	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
@@ -5200,7 +5231,7 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number":
 			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
 		}
-		if strings.HasPrefix(canonical, "X-Ai-Bridge-Actor") {
+		if strings.HasPrefix(canonical, "X-Ai-Bridge-Actor") || strings.HasPrefix(canonical, "X-Coder-Ai-Gateway-") {
 			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
 		}
 	}
@@ -5211,6 +5242,9 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 // It must be called after all values are loaded from flags/env/YAML.
 func (c *DeploymentValues) Validate() error {
 	if err := c.AI.BridgeConfig.ValidateActorHeaderNames(); err != nil {
+		return err
+	}
+	if err := c.AI.Chat.ValidateAIGateway(); err != nil {
 		return err
 	}
 	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows

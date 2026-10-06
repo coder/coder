@@ -403,6 +403,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -431,6 +432,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1054,6 +1056,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -1065,6 +1068,8 @@ title: Schemas
   },
   "chat": {
     "acquire_batch_size": 0,
+    "ai_gateway_key": "string",
+    "ai_gateway_url": "string",
     "debug_logging_enabled": true,
     "hook_allow_insecure": true,
     "hook_enabled": true,
@@ -2908,6 +2913,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "acquire_batch_size": 0,
+  "ai_gateway_key": "string",
+  "ai_gateway_url": "string",
   "debug_logging_enabled": true,
   "hook_allow_insecure": true,
   "hook_enabled": true,
@@ -2942,6 +2949,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                               | Type                       | Required | Restrictions | Description                                                                                                                               |
 |------------------------------------|----------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                           |
+| `ai_gateway_key`                   | string                     | false    |              |                                                                                                                                           |
+| `ai_gateway_url`                   | string                     | false    |              |                                                                                                                                           |
 | `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                           |
 | `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                           |
 | `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                           |
@@ -8169,6 +8178,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8180,6 +8190,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "acquire_batch_size": 0,
+        "ai_gateway_key": "string",
+        "ai_gateway_url": "string",
         "debug_logging_enabled": true,
         "hook_allow_insecure": true,
         "hook_enabled": true,
@@ -8808,6 +8820,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -8819,6 +8832,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "acquire_batch_size": 0,
+      "ai_gateway_key": "string",
+      "ai_gateway_url": "string",
       "debug_logging_enabled": true,
       "hook_allow_insecure": true,
       "hook_enabled": true,

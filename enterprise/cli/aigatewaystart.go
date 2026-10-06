@@ -192,6 +192,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			return runStandaloneGateway(signalCtx, standaloneGatewayParams{
 				bridgeConfig: vals.AI.BridgeConfig,
 				coderURL:     serverURL.String(),
+				key:          resolvedKey,
 				httpAddress:  httpAddress,
 				tlsCertFile:  tlsCertFile,
 				tlsKeyFile:   tlsKeyFile,
@@ -257,6 +258,7 @@ type standaloneGatewayParams struct {
 	experiments  codersdk.Experiments
 	registerer   prometheus.Registerer
 	coderURL     string
+	key          string
 	httpAddress  string
 	tlsCertFile  string
 	tlsKeyFile   string
@@ -347,7 +349,7 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 		listenerReady: make(chan struct{}),
 	}
 	gateway.httpServer = &http.Server{
-		Handler:           newGatewayMux(gateway.daemon, gateway.ready, gatewayMiddleware(params.bridgeConfig, params.tracer)),
+		Handler:           newGatewayMux(gateway.daemon, gateway.ready, gatewayMiddleware(params.bridgeConfig, params.tracer, params.key)),
 		ReadHeaderTimeout: time.Minute,
 	}
 	return gateway, nil
@@ -489,12 +491,13 @@ func (s *standaloneGateway) ready() bool {
 	return s.daemon.Ready() && s.providersLoaded.Load()
 }
 
-func gatewayMiddleware(cfg codersdk.AIBridgeConfig, tracer trace.Tracer) func(http.Handler) http.Handler {
+func gatewayMiddleware(cfg codersdk.AIBridgeConfig, tracer trace.Tracer, key string) func(http.Handler) http.Handler {
 	mw := coderd.AIGatewayDataPlaneMiddleware(cfg)
+	delegation := aibridged.DelegationMiddleware(key)
 	// Tracing wraps outermost so rejected requests are still traced.
 	traced := tracingMiddleware(tracer)
 	return func(next http.Handler) http.Handler {
-		return traced(mw(next))
+		return traced(delegation(mw(next)))
 	}
 }
 

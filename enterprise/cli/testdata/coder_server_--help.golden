@@ -170,8 +170,14 @@ AI GATEWAY OPTIONS:
           --ai-gateway-structured-logging-source=gateway to keep exporting these
           records to a SIEM instead.
 
+      --ai-gateway-embedded-enabled bool, $CODER_AI_GATEWAY_EMBEDDED_ENABLED (default: true)
+          Start the embedded AI Gateway when AI Gateway functionality is
+          enabled. Disable when serving inference exclusively through standalone
+          Gateways.
+
       --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
-          Whether to start an in-memory AI Gateway instance.
+          Enable AI Gateway functionality, including Coder Agents and standalone
+          Gateway connections.
 
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
           Maximum number of concurrent AI Gateway requests per replica. Set to 0
@@ -258,6 +264,18 @@ AI GATEWAY PROXY OPTIONS:
 
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
+
+      --chat-ai-gateway-key string, $CODER_CHAT_AI_GATEWAY_KEY
+          Shared Gateway key for Coder Agents inference. Must match the key
+          configured on every standalone Gateway replica behind
+          --chat-ai-gateway-url. Loaded at startup; rotate by updating both
+          deployments together.
+
+      --chat-ai-gateway-url url, $CODER_CHAT_AI_GATEWAY_URL
+          Origin URL of the standalone AI Gateway for Coder Agents, optionally
+          including a deployment path prefix. Requires --chat-ai-gateway-key.
+          When set, Agents use this Gateway exclusively; otherwise they use the
+          embedded Gateway.
 
       --chat-debug-logging-enabled bool, $CODER_CHAT_DEBUG_LOGGING_ENABLED (default: false)
           Force chat debug logging on for every chat, bypassing the runtime
