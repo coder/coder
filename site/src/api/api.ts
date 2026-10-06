@@ -3297,6 +3297,45 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
+	createChatProject = async (
+		organizationId: string,
+		req: TypesGen.CreateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProject = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.patch<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,
