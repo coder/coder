@@ -366,8 +366,7 @@ func TestRotateUserSecrets(t *testing.T) {
 	})
 }
 
-// TestRotateWorkspaceSecrets covers the workspace_secrets table
-// (build-scoped secrets delivered through the agent manifest).
+// TestRotateWorkspaceSecrets covers the workspace_secrets table.
 func TestRotateWorkspaceSecrets(t *testing.T) {
 	t.Parallel()
 
@@ -377,12 +376,27 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 
 		ws := seedWorkspaceBuild(t, f.rawDB)
 		const wantValue = "super-secret-value"
-		dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
+		seeded := dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
 			WorkspaceID:      ws.Workspace.ID,
 			WorkspaceBuildID: ws.Build.ID,
 			Name:             "my-secret",
 			Value:            sql.NullString{String: wantValue, Valid: true},
 		})
+		require.Equal(t, f.cipherA.HexDigest(), seeded.ValueKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+		// A row already under the primary cipher is skipped, so its
+		// ciphertext is unchanged.
+		currentWS := seedWorkspaceBuild(t, f.rawDB)
+		dbgen.WorkspaceSecret(t, f.registerCipher(t, f.cipherB), database.WorkspaceSecret{
+			WorkspaceID:      currentWS.Workspace.ID,
+			WorkspaceBuildID: currentWS.Build.ID,
+			Name:             "current-secret",
+			Value:            sql.NullString{String: wantValue, Valid: true},
+		})
+		currentBefore, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, currentWS.Build.ID)
+		require.NoError(t, err)
+		require.Len(t, currentBefore, 1)
+		require.Equal(t, f.cipherB.HexDigest(), currentBefore[0].ValueKeyID.String, "sanity check: seed must be encrypted under cipher B")
 
 		f.rotate(t)
 
@@ -391,6 +405,10 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 		require.Len(t, secrets, 1)
 		require.Equal(t, f.cipherB.HexDigest(), secrets[0].ValueKeyID.String)
 		require.Equal(t, wantValue, decryptRawString(t, f.cipherB, secrets[0].Value.String))
+
+		currentAfter, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, currentWS.Build.ID)
+		require.NoError(t, err)
+		require.Equal(t, currentBefore, currentAfter, "row under the primary cipher must not be rewritten")
 	})
 
 	t.Run("DecryptErr", func(t *testing.T) {
@@ -420,9 +438,9 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 	})
 }
 
-// TestUpdateEncryptedWorkspaceSecretValueSkipsCleared covers the race where a
-// build clears a row after rotation listed it: the update must not write a
-// value back into the cleared row.
+// TestUpdateEncryptedWorkspaceSecretValueSkipsCleared checks that a cleared
+// row stays cleared. Rotate lists rows before updating them, and a build can
+// clear a row in between.
 func TestUpdateEncryptedWorkspaceSecretValueSkipsCleared(t *testing.T) {
 	t.Parallel()
 	f := newRotateFixture(t)
@@ -1601,11 +1619,21 @@ func TestDecryptWorkspaceSecrets(t *testing.T) {
 
 	ws := seedWorkspaceBuild(t, f.rawDB)
 	const wantValue = "super-secret-value"
-	dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
+	seeded := dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
 		WorkspaceID:      ws.Workspace.ID,
 		WorkspaceBuildID: ws.Build.ID,
 		Name:             "my-secret",
 		Value:            sql.NullString{String: wantValue, Valid: true},
+	})
+	require.Equal(t, f.cipherA.HexDigest(), seeded.ValueKeyID.String, "sanity check: seed must be encrypted under cipher A")
+
+	// A plaintext row is skipped and left as-is.
+	plainWS := seedWorkspaceBuild(t, f.rawDB)
+	dbgen.WorkspaceSecret(t, f.rawDB, database.WorkspaceSecret{
+		WorkspaceID:      plainWS.Workspace.ID,
+		WorkspaceBuildID: plainWS.Build.ID,
+		Name:             "plain-secret",
+		Value:            sql.NullString{String: "plain-secret-value", Valid: true},
 	})
 
 	f.decrypt(t)
@@ -1615,9 +1643,17 @@ func TestDecryptWorkspaceSecrets(t *testing.T) {
 	require.Len(t, secrets, 1)
 	require.False(t, secrets[0].ValueKeyID.Valid)
 	require.Equal(t, wantValue, secrets[0].Value.String)
+
+	plainSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, plainWS.Build.ID)
+	require.NoError(t, err)
+	require.Len(t, plainSecrets, 1)
+	require.False(t, plainSecrets[0].ValueKeyID.Valid)
+	require.Equal(t, "plain-secret-value", plainSecrets[0].Value.String)
 }
 
-// TestDeleteWorkspaceSecrets covers the workspace_secrets table.
+// TestDeleteWorkspaceSecrets covers the workspace_secrets table. Like
+// gitsshkeys, Delete clears the value in place and keeps the row as build
+// history.
 func TestDeleteWorkspaceSecrets(t *testing.T) {
 	t.Parallel()
 	f := newDeleteFixture(t)
@@ -1642,13 +1678,12 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 
 	encSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, encWS.Build.ID)
 	require.NoError(t, err)
-	// Rows are kept as history; only the value is dropped.
 	require.Empty(t, encSecrets, "encrypted workspace_secrets row should have been cleared")
-	allSecrets, err := f.rawDB.GetWorkspaceSecrets(f.ctx)
+	// Rows are kept as history; only the value is dropped.
+	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, encWS.Workspace.ID)
 	require.NoError(t, err)
-	for _, s := range allSecrets {
-		require.NotEqual(t, encWS.Workspace.ID, s.WorkspaceID, "cleared row must no longer hold a value")
-	}
+	require.Len(t, history, 1, "cleared row must be kept as history")
+	require.True(t, history[0].ClearedAt.Valid, "kept row must be marked cleared")
 
 	plainSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, plainWS.Build.ID)
 	require.NoError(t, err)
