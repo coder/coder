@@ -21,7 +21,7 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -30,13 +30,24 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
+	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import {
+	AutomationsMobileLink,
+	AutomationsNavItem,
+} from "../../Automations/AutomationsNavItem";
+import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -51,19 +62,19 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getChatStatusDisplay } from "../tree/statusConfig";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
-const UNREAD_SECTION_KEY = "Unread";
-const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
-interface ChatsPanelProps {
+type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -76,6 +87,8 @@ interface ChatsPanelProps {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
@@ -97,9 +110,9 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
-}
+};
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -109,6 +122,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkChatRead,
+	onMarkChatUnread,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
@@ -148,22 +163,26 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs.has(chatID),
 	);
 
-	const pinnedChats = visibleRootIDs
+	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.filter((chat): chat is Chat => chat !== undefined);
+	// Pin order is the owner's sidebar preference and the server ranks it
+	// per owner, so another user's chat stays out of the sortable Pinned
+	// section regardless of its pin_order.
+	const ownedChats = visibleRootChats.filter((chat) =>
+		canManageChat(chat, currentUserId),
+	);
+	const pinnedChats = ownedChats
+		.filter((chat) => chat.pin_order > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
-	const unpinnedChats = visibleRootIDs
-		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
-	const sharedWithYouChats = unpinnedChats.filter(
-		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	const sharedWithYouChats = visibleRootChats.filter(
+		(chat) => !canManageChat(chat, currentUserId),
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
-	);
+	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.unread ||
 		sidebarFilters.sources.length !==
 			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
 		sidebarFilters.sources.some(
@@ -299,6 +318,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -307,23 +327,21 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	};
 
 	const chatSections = (
 		sidebarFilters.groupBy === "chat_status"
-			? [
-					{
-						key: UNREAD_SECTION_KEY,
-						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
-					},
-					{
-						key: READ_SECTION_KEY,
-						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
-					},
-				]
+			? AGENT_CHAT_STATUS_GROUP_ORDER.map((status) => {
+					const label = getChatStatusDisplay(status).label;
+					return {
+						key: label,
+						label,
+						chats: unpinnedOwnedChats.filter((chat) => chat.status === status),
+					};
+				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
@@ -345,6 +363,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			unread: false,
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
@@ -367,25 +386,37 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
-						<Button
-							asChild
-							variant="subtle"
-							size="icon"
-							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
-						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
-								<SettingsIcon />
-							</Link>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									asChild
+									variant="subtle"
+									size="icon"
+									aria-label="Settings"
+									className={cn(
+										"size-7 min-w-0 text-content-secondary hover:text-content-primary",
+										isSettingsPanel && "text-content-primary",
+									)}
+								>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname + locationSearch }}
+									>
+										<SettingsIcon />
+									</Link>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="flex items-center gap-2">
+								Settings
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>,</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 						{onCollapse && (
 							<Button
 								variant="subtle"
@@ -423,10 +454,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+					<div className="ml-2.5 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
 							{chatsHeadingLabel}
 						</h2>
@@ -442,6 +474,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									<SearchIcon />
 								</Button>
 							)}
+							<AutomationsMobileLink />
 							<FilterPopover
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}

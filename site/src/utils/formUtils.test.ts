@@ -2,7 +2,7 @@ import type { FormikContextType } from "formik/dist/types";
 import { mockApiError } from "#/testHelpers/entities";
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
 
-interface TestType {
+type TestType = {
 	untouchedGoodField: string;
 	untouchedBadField: string;
 	touchedGoodField: string;
@@ -10,7 +10,7 @@ interface TestType {
 	maxLengthOk: string;
 	maxLengthClose: string;
 	maxLengthOver: string;
-}
+};
 
 const mockHandleChange = vi.fn();
 
@@ -105,6 +105,16 @@ describe("form util functions", () => {
 			it("reports an error for entries that are too long", () => {
 				expect(maxLengthOver.error).toBe(true);
 				expect(maxLengthOver.helperText).toBeDefined();
+			});
+			it("measures the length with measureLength when given", () => {
+				const measured = getFieldHelpers("maxLengthOver", {
+					maxLength: 32,
+					measureLength: (value) => value.length - 1,
+				});
+				expect(measured.error).toBe(false);
+				expect(measured.helperText).toBe(
+					"This cannot be longer than 32 characters. (32/32)",
+				);
 			});
 		});
 		describe("with API errors", () => {

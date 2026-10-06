@@ -1,13 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -53,7 +46,7 @@ import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-interface CreateWorkspacePageViewProps {
+type CreateWorkspacePageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
@@ -85,9 +78,11 @@ interface CreateWorkspacePageViewProps {
 	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
-}
+};
 
-export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+export const CreateWorkspacePageView: React.FC<
+	CreateWorkspacePageViewProps
+> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,

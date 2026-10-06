@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -80,7 +80,10 @@ const ReasoningDisclosure = memo<{
 			streamKey: id,
 		});
 		const displayText = isStreaming ? visibleText : text;
-		const { title, body } = getThinkingDisclosureDisplay(displayText);
+		const { title, ariaLabel, body } = getThinkingDisclosureDisplay(
+			displayText,
+			{ isStreaming },
+		);
 		const hasText = body.trim().length > 0;
 
 		// Auto-scroll the preview container to the bottom as new
@@ -106,6 +109,7 @@ const ReasoningDisclosure = memo<{
 					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
+					ariaLabel={ariaLabel}
 				>
 					<ToolCall.Header
 						iconName="thinking"
@@ -213,7 +217,7 @@ export type BlockListProps = {
 // Encapsulates the response / thinking / tool / file / sources switch so both
 // consumers stay in sync. PascalCase so the React Compiler auto-memoizes every
 // element inside.
-export const BlockList: FC<BlockListProps> = ({
+export const BlockList: React.FC<BlockListProps> = ({
 	organizationId,
 	blocks,
 	tools,
@@ -358,6 +362,7 @@ export const BlockList: FC<BlockListProps> = ({
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
+								reasoning={tool.reasoning}
 								status={tool.status}
 								isError={tool.isError}
 								isMedia={tool.isMedia}
@@ -409,6 +414,10 @@ export const BlockList: FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
+					// Workspace file references render through the user
+					// message display state, not as timeline blocks.
+					case "workspace-file-reference":
+						return null;
 					default: {
 						const _exhaustive: never = block;
 						return _exhaustive;
@@ -422,6 +431,7 @@ export const BlockList: FC<BlockListProps> = ({
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
+					reasoning={tool.reasoning}
 					status={tool.status}
 					isError={tool.isError}
 					isMedia={tool.isMedia}

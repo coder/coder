@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "#/api/queries/groups";
 import {
@@ -12,7 +11,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
-const AccountPage: FC = () => {
+const AccountPage: React.FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { updateProfile, updateProfileError, isUpdatingProfile } =
 		useAuthContext();

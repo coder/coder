@@ -6,7 +6,6 @@ import {
 	ShieldIcon,
 	TrashIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -30,7 +29,7 @@ import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { useOrganizationModelsPath } from "../organizationModels";
 
-export const ModelFormBackLink: FC = () => {
+export const ModelFormBackLink: React.FC = () => {
 	const modelsPath = useOrganizationModelsPath();
 	return (
 		<Link to={modelsPath} className="-ml-3">
@@ -42,7 +41,7 @@ export const ModelFormBackLink: FC = () => {
 	);
 };
 
-export const ModelFormHeader: FC<{
+export const ModelFormHeader: React.FC<{
 	title: string;
 	selectedProviderState: ProviderState;
 	isEditing: boolean;

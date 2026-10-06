@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, spyOn, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
@@ -22,7 +21,7 @@ import {
 } from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
-type FilterProps = ComponentProps<typeof UsersFilter>;
+type FilterProps = React.ComponentProps<typeof UsersFilter>;
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",

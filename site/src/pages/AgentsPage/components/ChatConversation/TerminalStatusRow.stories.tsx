@@ -1,5 +1,5 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { TerminalStatusRow } from "./LiveStreamTail";
 import { buildLiveStatus, pinFixtureClock } from "./storyFixtures";

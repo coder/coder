@@ -9,7 +9,7 @@ guide to
 
 Use this guide to configure how templates make secrets available to Coder
 workspaces. To authenticate workspace provisioners with Coder, see the
-<a href="../provisioners/index.md#authentication">provisioners documentation</a>.
+<a href="../../install/operate/provisioners/index.md#authentication">provisioners documentation</a>.
 For secret values that developers manage themselves, see
 [User secrets](../../user-guides/user-secrets.md).
 
@@ -89,7 +89,9 @@ service account (e.g
 for each workspace and then making the relevant secrets available via the
 cloud's secret management system.
 
-## Displaying Secrets
+<a id="displaying-secrets"></a>
+
+## Display secrets
 
 While you can inject secrets into the workspace via environment variables, you
 can also show them in the Workspace UI with

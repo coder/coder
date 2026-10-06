@@ -1,4 +1,3 @@
-import { type FC, type FormEvent, useId, useState } from "react";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -9,11 +8,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	DeleteConfirmationField,
+	useDeleteConfirmation,
+} from "./DeleteConfirmationField";
 
-interface DeleteDialogProps {
+type DeleteDialogProps = {
 	isOpen: boolean;
 	onConfirm: () => void;
 	onCancel: () => void;
@@ -25,9 +26,9 @@ interface DeleteDialogProps {
 	title?: string;
 	label?: string;
 	confirmText?: string;
-}
+};
 
-export const DeleteDialog: FC<DeleteDialogProps> = ({
+export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
@@ -41,31 +42,17 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	label,
 	confirmText = "Delete",
 }) => {
-	const confirmId = useId();
-	const errorId = `${confirmId}-error`;
-
-	const [userConfirmationText, setUserConfirmationText] = useState("");
-	const [isFocused, setIsFocused] = useState(false);
-
-	const deletionConfirmed = name === userConfirmationText;
-	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
-
-	const resetConfirmation = () => {
-		setUserConfirmationText("");
-		setIsFocused(false);
-	};
+	const confirmation = useDeleteConfirmation(name, isOpen);
 
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			resetConfirmation();
 			onCancel();
 		}
 	};
 
-	const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		if (deletionConfirmed && !confirmLoading) {
+		if (confirmation.confirmed && !confirmLoading) {
 			onConfirm();
 		}
 	};
@@ -93,30 +80,11 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 				</div>
 
 				<form className="flex flex-col gap-6" onSubmit={onSubmit}>
-					<div className="flex flex-col gap-2">
-						<Label htmlFor={confirmId}>
-							{label ?? `Name of the ${entity} to delete`}
-						</Label>
-						<Input
-							id={confirmId}
-							name="confirmation"
-							autoComplete="off"
-							autoFocus
-							placeholder={name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
-							aria-invalid={displayErrorMessage}
-							aria-describedby={displayErrorMessage ? errorId : undefined}
-							data-testid="delete-dialog-name-confirmation"
-						/>
-						{displayErrorMessage && (
-							<span id={errorId} className="text-xs text-content-destructive">
-								{userConfirmationText} does not match the name of this {entity}
-							</span>
-						)}
-					</div>
+					<DeleteConfirmationField
+						confirmation={confirmation}
+						label={label ?? `Name of the ${entity} to delete`}
+						entity={entity}
+					/>
 
 					<DialogFooter>
 						<Button
@@ -130,7 +98,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 						<Button
 							type="submit"
 							variant="destructive"
-							disabled={!deletionConfirmed || confirmLoading}
+							disabled={!confirmation.confirmed || confirmLoading}
 							data-testid="confirm-button"
 						>
 							<Spinner loading={confirmLoading} />

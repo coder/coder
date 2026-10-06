@@ -1,7 +1,3 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
 import { cn } from "cn";
 import {
 	ChevronLeftIcon,
@@ -9,7 +5,7 @@ import {
 	InfoIcon,
 	PencilIcon,
 } from "lucide-react";
-import { type FC, memo, type ReactNode, useState } from "react";
+import { memo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
@@ -20,7 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -29,6 +25,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	type LiveStatusModel,
@@ -68,7 +65,9 @@ const getChatMessageTextContent = (
 };
 
 // Avoid announcing historical hook notices as live alerts.
-const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
+const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
+	children,
+}) => (
 	<div
 		role="note"
 		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
@@ -80,7 +79,7 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 	</div>
 );
 
-const LifecycleHookNotice: FC<{
+const LifecycleHookNotice: React.FC<{
 	children: string;
 	urlTransform?: UrlTransform;
 }> = ({ children, urlTransform }) => (
@@ -97,6 +96,8 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
+	automationName?: string;
+	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -139,6 +140,8 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
+		automationName,
+		automationNameStatus,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -182,6 +185,12 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
+		const canEditUserMessage =
+			isUser && messageId !== undefined && Boolean(onEditUserMessage);
+		const canJumpBetweenUserMessages =
+			isUser &&
+			Boolean(onJumpToUserMessage) &&
+			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -226,6 +235,16 @@ const ChatMessageItem = memo<{
 				)}
 				inert={isAfterEditingMessage ? true : undefined}
 			>
+				{message?.automation_id && (
+					<div className={cn("mb-1 flex", isUser && "justify-end")}>
+						<AutomationLabel
+							automationId={message.automation_id}
+							inputId={message.input_id}
+							automationName={automationName}
+							nameStatus={automationNameStatus}
+						/>
+					</div>
+				)}
 				<ConversationItem {...conversationItemProps}>
 					{isUser && displayState && parsed ? (
 						<UserMessageContent
@@ -281,7 +300,8 @@ const ChatMessageItem = memo<{
 				{displayState &&
 					!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						canEditUserMessage ||
+						canJumpBetweenUserMessages) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -297,7 +317,7 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{isUser && messageId !== undefined && onEditUserMessage && (
+							{canEditUserMessage && messageId !== undefined && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -308,7 +328,7 @@ const ChatMessageItem = memo<{
 											onClick={() => {
 												const { text, fileBlocks } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage(messageId, text, fileBlocks);
+												onEditUserMessage?.(messageId, text, fileBlocks);
 											}}
 										>
 											<PencilIcon />
@@ -397,9 +417,10 @@ const ChatMessageItem = memo<{
 	},
 );
 
-interface ConversationTimelineProps {
+type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
+	automationNames: ChatAutomationNames;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
@@ -422,12 +443,13 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-}
+};
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		organizationId,
 		parsedMessages,
+		automationNames,
 		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
@@ -564,6 +586,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								<ChatMessageItem
 									organizationId={organizationId}
 									renderKey={row.key}
+									automationNameStatus="settled"
 									liveStatus={liveStatus}
 									liveBlocks={liveBlocks}
 									liveTools={liveTools}
@@ -597,6 +620,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								organizationId={organizationId}
 								renderKey={row.key}
 								message={message}
+								automationName={
+									message.automation_id
+										? automationNames.names.get(message.automation_id)
+										: undefined
+								}
+								automationNameStatus={
+									// A fixed status keeps rows without an automation from
+									// re-rendering when the automations list status changes.
+									message.automation_id ? automationNames.status : "settled"
+								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}
 								editingMessageId={editingMessageId}

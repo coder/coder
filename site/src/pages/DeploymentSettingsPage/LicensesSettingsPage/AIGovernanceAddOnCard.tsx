@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +13,7 @@ type AIGovernanceAddOnCardProps = {
 	isExceeded: boolean;
 };
 
-export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
+export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 	title,
 	unit,
 	actual,

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 func TestWorkspaceFilterAsRequestOption(t *testing.T) {
@@ -85,4 +87,18 @@ func TestWorkspaceFilterAsRequestOption(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWorkspaceOptionsAsRequestOption verifies that WorkspaceOptions sets the
+// include_related query parameter from its IncludeRelated selection.
+func TestWorkspaceOptionsAsRequestOption(t *testing.T) {
+	t.Parallel()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	require.NoError(t, err)
+
+	config := wsrelated.Config{Template: true}
+	WorkspaceOptions{IncludeRelated: &config}.asRequestOption()(req)
+
+	require.Equal(t, config.QueryParam(), req.URL.Query().Get("include_related"))
 }

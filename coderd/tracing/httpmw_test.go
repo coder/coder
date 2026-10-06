@@ -575,7 +575,7 @@ func Test_Middleware(t *testing.T) {
 		)
 
 		rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
-		r := httptest.NewRequest("GET", "/api/experimental/chats/files/abc/download?token="+token, nil)
+		r := httptest.NewRequest("GET", "/api/v2/chats/files/abc/download?token="+token, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 
@@ -6,7 +5,7 @@ import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 // render the same two non-numeric states for a session's network requests but
 // differ in how they present a live count.
 
-export const NetworkMonitoringDisabled: FC = () => (
+export const NetworkMonitoringDisabled: React.FC = () => (
 	<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
 		Disabled
 		<InfoTooltip size="small">
@@ -17,6 +16,6 @@ export const NetworkMonitoringDisabled: FC = () => (
 	</span>
 );
 
-export const NetworkNoActivity: FC = () => (
+export const NetworkNoActivity: React.FC = () => (
 	<span className="whitespace-nowrap text-content-secondary">No activity</span>
 );

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
 import {
 	formatSpendPeriodLabel,
@@ -7,15 +6,15 @@ import {
 } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
-interface UserDropdownAISpendProps {
+type UserDropdownAISpendProps = {
 	currentSpend: number;
 	/** A null limit means unlimited. */
 	spendLimit: number | null;
 	periodStart: string;
 	periodEnd: string;
-}
+};
 
-export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
+export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
 	currentSpend,
 	spendLimit,
 	periodStart,

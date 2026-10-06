@@ -1,5 +1,4 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import {
 	Area,
@@ -43,7 +42,7 @@ type LicenseSeatConsumptionChartProps = {
 		| undefined;
 };
 
-export const LicenseSeatConsumptionChart: FC<
+export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (

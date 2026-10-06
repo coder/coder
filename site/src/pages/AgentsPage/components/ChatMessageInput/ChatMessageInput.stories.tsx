@@ -1,17 +1,13 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type PropsWithChildren, useEffect } from "react";
+import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockSkill, MockSkills } from "#/testHelpers/skills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
 import type { SkillMetadata } from "./SkillsTriggerMenu";
-import {
-	expectNoVisibleText,
-	findVisibleText,
-	MockSkill,
-	MockSkills,
-} from "./storyHelpers";
+import { expectNoVisibleText, findVisibleText } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
 const mockWorkspaceSkills: SkillMetadata[] = [
@@ -533,7 +529,7 @@ const clearMobileDropdownGeometry = () => {
 	}
 };
 
-const MobileFrame = ({ children }: PropsWithChildren) => {
+const MobileFrame = ({ children }: React.PropsWithChildren) => {
 	useEffect(() => {
 		setMobileDropdownGeometry();
 		return clearMobileDropdownGeometry;

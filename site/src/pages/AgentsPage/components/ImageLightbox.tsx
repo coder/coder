@@ -1,12 +1,14 @@
-import type { FC } from "react";
 import { Lightbox } from "./Lightbox";
 
-interface ImageLightboxProps {
+type ImageLightboxProps = {
 	src: string;
 	onClose: () => void;
-}
+};
 
-export const ImageLightbox: FC<ImageLightboxProps> = ({ src, onClose }) => {
+export const ImageLightbox: React.FC<ImageLightboxProps> = ({
+	src,
+	onClose,
+}) => {
 	return (
 		<Lightbox title="Image preview" onClose={onClose}>
 			<img

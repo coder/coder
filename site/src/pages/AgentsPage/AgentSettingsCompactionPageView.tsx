@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
-export interface AgentSettingsCompactionPageViewProps {
+export type AgentSettingsCompactionPageViewProps = {
 	models: readonly TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
@@ -18,9 +17,9 @@ export interface AgentSettingsCompactionPageViewProps {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-}
+};
 
-export const AgentSettingsCompactionPageView: FC<
+export const AgentSettingsCompactionPageView: React.FC<
 	AgentSettingsCompactionPageViewProps
 > = ({
 	models,

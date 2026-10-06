@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
@@ -19,7 +18,7 @@ import GroupSettingsPageView from "./GroupSettingsPageView";
 const budgetFromInput = (dollars: string): number | null =>
 	dollars.trim() === "" ? null : dollarsToMicros(dollars);
 
-const GroupSettingsPage: FC = () => {
+const GroupSettingsPage: React.FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;

@@ -1,6 +1,5 @@
 import { isAxiosError } from "axios";
 import dayjs from "dayjs";
-import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router";
 import { API } from "#/api/api";
@@ -11,7 +10,7 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
-const WorkspaceBuildPage: FC = () => {
+const WorkspaceBuildPage: React.FC = () => {
 	const params = useParams() as {
 		username: string;
 		workspace: string;

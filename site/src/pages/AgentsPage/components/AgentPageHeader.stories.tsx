@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Outlet } from "react-router";
 import { userEvent, within } from "storybook/test";
 import { pixelWithPhone } from "#/testHelpers/pixel";
@@ -106,7 +106,7 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 	};
 };
 
-const HeaderStateHarness: FC = () => {
+const HeaderStateHarness: React.FC = () => {
 	const [chimeEnabled, setChimeEnabled] = useState(true);
 	const [webpushSubscribed, setWebpushSubscribed] = useState(false);
 	const [webpushLoading, setWebpushLoading] = useState(false);

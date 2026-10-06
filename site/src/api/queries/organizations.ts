@@ -43,10 +43,10 @@ export const createOrganization = (queryClient: QueryClient) => {
 	};
 };
 
-interface UpdateOrganizationVariables {
+type UpdateOrganizationVariables = {
 	organizationId: string;
 	req: UpdateOrganizationRequest;
-}
+};
 
 export const updateOrganization = (queryClient: QueryClient) => {
 	return {

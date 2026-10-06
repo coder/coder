@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/scaletest/agentconn"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -97,7 +98,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
 	}
-	workspace, err := client.Workspace(ctx, slimWorkspace.ID)
+	workspace, err := client.Workspace(ctx, slimWorkspace.ID, codersdk.WorkspaceOptions{
+		IncludeRelated: &wsrelated.Config{
+			LatestBuild: &wsrelated.LatestBuild{
+				Resources: &wsrelated.Resources{
+					Agents: &wsrelated.Agents{},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return xerrors.Errorf("get full workspace info: %w", err)
 	}

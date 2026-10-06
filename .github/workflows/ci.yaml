@@ -38,6 +38,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
+      docs-gen: ${{ steps.filter.outputs.docs-gen }}
       go: ${{ steps.filter.outputs.go }}
       site: ${{ steps.filter.outputs.site }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -72,6 +73,19 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            # Docs paths that make gen reads or rewrites. The gen job skips
+            # docs-only PRs that touch none of them. lint/docs-gen-filter
+            # fails when a file make gen writes is missing here; it does not
+            # check inputs.
+            docs-gen:
+              - "docs/manifest.json"
+              - "docs/manifest/**"
+              - "docs/reference/api/**"
+              - "docs/reference/api-key-scopes.md"
+              - "docs/reference/cli/**"
+              - "docs/admin/integrations/prometheus.md"
+              - "docs/admin/security/audit-logs.md"
+              - "docs/admin/setup/configuration-reference.md"
             db:
               - "**.sql"
               - "coderd/database/**"
@@ -426,9 +440,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
+    needs: changes
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: ${{ !cancelled() }}
+    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -444,7 +459,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm terraform protoc protoc-gen-go"
+          install-args: "go node pnpm protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -457,6 +472,10 @@ jobs:
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
+
+      # Reject an outdated input record before make gen could invoke Terraform.
+      - name: Check Terraform fixture record
+        run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
         timeout-minutes: 8
@@ -531,8 +550,9 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test` to ensure we receive a trace of running goroutines.
-    # Setting this to the timeout +5m should work quite well even if
-    # some of the preceding steps are slow.
+    # Leave at least 5 minutes after the Go timeout fires, counting the
+    # slowest setup steps, for the dump and the artifact uploads. The
+    # macOS lane shortens its Go timeout below because its setup is slow.
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -681,6 +701,13 @@ jobs:
           # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          # Setup and compile take 3 to 10 minutes on macOS, which leaves
+          # too little of the 30 minute job for a goroutine dump when the
+          # default 25 minute Go timeout fires. 15 minutes keeps at least a
+          # 5 minute margin for the dump and artifact uploads even after a
+          # 10 minute setup. A healthy run of these packages takes about 4
+          # minutes.
+          test-timeout: "15m"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -1271,7 +1298,7 @@ jobs:
           set -euxo pipefail
           ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
-          make build
+          make -j build
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit

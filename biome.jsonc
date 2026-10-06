@@ -15,6 +15,7 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useKeyWithClickEvents": "off", // oxlint owns click-events-have-key-events
 				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
@@ -33,6 +34,9 @@
 					}
 				}
 			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off" // oxlint owns no-danger
+			},
 			"style": {
 				"noNonNullAssertion": "off",
 				"noParameterAssign": "off",
@@ -41,10 +45,10 @@
 				"useAsConstAssertion": "error",
 				"useEnumInitializers": "error",
 				"useSingleVarDeclarator": "error",
-				"useConsistentCurlyBraces": "error",
+				"useConsistentCurlyBraces": "off", // oxlint owns jsx-curly-brace-presence
 				"noUnusedTemplateLiteral": "error",
 				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
+				"noInferrableTypes": "off", // oxlint owns no-inferrable-types
 				"noUselessElse": "error",
 				"noRestrictedImports": {
 					"level": "error",
@@ -70,12 +74,15 @@
 				}
 			},
 			"suspicious": {
+				"noFallthroughSwitchClause": "off", // oxlint owns no-fallthrough
+				"noConfusingVoidType": "off", // oxlint owns no-invalid-void-type
 				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",
 				"noThenProperty": "off",
 				"noTemplateCurlyInString": "off",
 				"useIterableCallbackReturn": "off",
 				"noUnknownAtRules": "off", // Allow Tailwind directives
+				"noEmptyInterface": "off", // oxlint owns no-empty-interface
 				"noConsole": {
 					"level": "error",
 					"options": {
@@ -98,18 +105,6 @@
 		}
 	},
 	"overrides": [
-		{
-			// Generated Go types can produce empty interfaces; the
-			// safe fix conflicts with noBannedTypes.
-			"includes": ["**/typesGenerated.ts"],
-			"linter": {
-				"rules": {
-					"suspicious": {
-						"noEmptyInterface": "off"
-					}
-				}
-			}
-		},
 		{
 			// parseDiff.ts is the single choke point allowed to import
 			// the raw @pierre/diffs parsers.

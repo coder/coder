@@ -76,9 +76,9 @@ export const OrganizationMembersPageView: React.FC<
 	);
 };
 
-interface AddUsersDialogProps {
+type AddUsersDialogProps = {
 	onSubmit: (users: User[]) => Promise<void>;
-}
+};
 
 const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);

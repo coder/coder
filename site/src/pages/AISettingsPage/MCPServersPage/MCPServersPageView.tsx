@@ -1,5 +1,5 @@
 import { PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -30,7 +30,7 @@ import { MCPServerRow } from "./components/MCPServerRow";
 import { OrganizationPicker } from "./components/OrganizationPicker";
 import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
-interface MCPServersPageViewProps {
+type MCPServersPageViewProps = {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
@@ -40,9 +40,9 @@ interface MCPServersPageViewProps {
 	addOrganizations: readonly TypesGen.Organization[];
 	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
-}
+};
 
-const MCPServersPageView: FC<MCPServersPageViewProps> = ({
+const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,

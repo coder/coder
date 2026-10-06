@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -32,7 +32,7 @@ import {
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
-interface ExpandableTextProps {
+type ExpandableTextProps = {
 	maxHeight: number;
 	text: string;
 	className?: string;
@@ -43,9 +43,9 @@ interface ExpandableTextProps {
 	 * the reason it surfaced is visible. Explicit user toggles still win.
 	 */
 	expandToMatch?: boolean;
-}
+};
 
-const ExpandableText: FC<ExpandableTextProps> = ({
+const ExpandableText: React.FC<ExpandableTextProps> = ({
 	maxHeight,
 	text,
 	className,
@@ -111,14 +111,14 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	);
 };
 
-interface CollapseButtonProps {
+type CollapseButtonProps = {
 	isOpen: boolean;
 	onClick: () => void;
 	children: React.ReactNode;
 	className?: string;
-}
+};
 
-const CollapseButton: FC<CollapseButtonProps> = ({
+const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
 	onClick,
 	children,
@@ -143,14 +143,14 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 
 // Wraps content with a visual left-bracket connector: two rounded corner lines
 // that flank the content row, creating an indented visual grouping.
-interface BracketConnectorProps {
+type BracketConnectorProps = {
 	children: React.ReactNode;
 	contentClassName?: string;
 	firstRowHeight?: "2rem" | "60px";
 	hideBottomLine?: boolean;
-}
+};
 
-const BracketConnector: FC<BracketConnectorProps> = ({
+const BracketConnector: React.FC<BracketConnectorProps> = ({
 	children,
 	contentClassName,
 	firstRowHeight = "2rem",
@@ -178,11 +178,11 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 	</div>
 );
 
-interface ThinkingBlockProps {
+type ThinkingBlockProps = {
 	text: string;
-}
+};
 
-const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
+const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
 			<LoaderIcon className="size-icon-xs text-content-secondary" />
@@ -196,7 +196,7 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	</BracketConnector>
 );
 
-interface ToolCallBlockProps {
+type ToolCallBlockProps = {
 	tool: string;
 	serverURL: string;
 	input: string;
@@ -207,9 +207,9 @@ interface ToolCallBlockProps {
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
-}
+};
 
-const ToolCallBlock: FC<ToolCallBlockProps> = ({
+const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
@@ -261,7 +261,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	);
 };
 
-interface AgenticActionItemProps {
+type AgenticActionItemProps = {
 	action: AIBridgeAgenticAction;
 	/**
 	 * When set with entries, only these tool calls render, and they start
@@ -272,9 +272,9 @@ interface AgenticActionItemProps {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
 	highlight: string;
-}
+};
 
-const AgenticActionItem: FC<AgenticActionItemProps> = ({
+const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
@@ -311,7 +311,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 	);
 };
 
-interface ThreadItemProps {
+type ThreadItemProps = {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
 	/**
@@ -329,9 +329,9 @@ interface ThreadItemProps {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matching prompt and tool text. */
 	highlight: string;
-}
+};
 
-const ThreadItem: FC<ThreadItemProps> = ({
+const ThreadItem: React.FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchPromptMatch,
@@ -490,7 +490,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	);
 };
 
-interface SessionTimelineProps {
+type SessionTimelineProps = {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
 	/**
@@ -507,9 +507,9 @@ interface SessionTimelineProps {
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
-}
+};
 
-export const SessionTimeline: FC<SessionTimelineProps> = ({
+export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
 	networkCallSummary,

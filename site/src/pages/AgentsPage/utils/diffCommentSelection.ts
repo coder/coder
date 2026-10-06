@@ -12,12 +12,12 @@ type AnnotationSide = "additions" | "deletions";
  * crosses from one side to the other (e.g. deletions -> additions in
  * a split diff).
  */
-interface LineSelectionRange {
+type LineSelectionRange = {
 	start: number;
 	end: number;
 	side?: AnnotationSide;
 	endSide?: AnnotationSide;
-}
+};
 
 /**
  * Internal state tracked for an active inline comment input.
@@ -27,13 +27,13 @@ interface LineSelectionRange {
  * equal; for cross-side selections they refer to line numbers in
  * different file versions and MUST NOT be compared with min/max.
  */
-export interface CommentBoxState {
+export type CommentBoxState = {
 	fileName: string;
 	start: number;
 	startSide: AnnotationSide;
 	end: number;
 	endSide: AnnotationSide;
-}
+};
 
 // -------------------------------------------------------------------
 // Pure helpers

@@ -1,7 +1,6 @@
-import type { FC, ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 
-interface LightboxProps {
+type LightboxProps = {
 	/** Screen-reader title for the dialog. */
 	title: string;
 	onClose: () => void;
@@ -9,8 +8,8 @@ interface LightboxProps {
 	 * the previously focused element by default, which is unreliable
 	 * when the trigger lives inside a re-rendering message tree. */
 	onCloseAutoFocus?: () => void;
-	children: ReactNode;
-}
+	children: React.ReactNode;
+};
 
 /**
  * Chat preview dialog for media that should be shown as large as the
@@ -18,7 +17,7 @@ interface LightboxProps {
  * capped at 90vw by 85vh. Children are responsible for their own
  * surface and for fitting within those bounds.
  */
-export const Lightbox: FC<LightboxProps> = ({
+export const Lightbox: React.FC<LightboxProps> = ({
 	title,
 	onClose,
 	onCloseAutoFocus,

@@ -1,4 +1,5 @@
 import { useQuery } from "react-query";
+import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { buildInfo } from "#/api/queries/buildInfo";
 import type { LinkConfig } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -10,14 +11,19 @@ import {
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
+import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: React.FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings, organizations } =
-		useDashboard();
+	const {
+		appearance,
+		canViewOrganizationSettings,
+		entitlements,
+		organizations,
+	} = useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
@@ -46,8 +52,15 @@ export const Navbar: React.FC = () => {
 		organizations,
 		{ enabled: !canViewSiteWideAISettings },
 	);
+	const spendOrganizationsQuery = useQuery({
+		...aiSpendOrganizations(),
+		enabled:
+			entitlements.features.aibridge.enabled && !canViewSiteWideAISettings,
+	});
 	const canViewAISettings =
-		canViewSiteWideAISettings || organizationMCPSharing.canShare;
+		canViewSiteWideAISettings ||
+		organizationMCPSharing.canShare ||
+		canViewAISpend(entitlements, spendOrganizationsQuery.data);
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();

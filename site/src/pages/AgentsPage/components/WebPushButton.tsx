@@ -1,5 +1,4 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
-import type { FC } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -11,12 +10,12 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
-interface WebPushButtonProps {
+type WebPushButtonProps = {
 	webPush?: ReturnType<typeof useWebpushNotifications>;
 	onToggle?: () => Promise<void> | void;
-}
+};
 
-export const WebPushButton: FC<WebPushButtonProps> = ({
+export const WebPushButton: React.FC<WebPushButtonProps> = ({
 	webPush,
 	onToggle,
 }) => {

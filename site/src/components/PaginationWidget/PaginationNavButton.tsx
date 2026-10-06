@@ -1,12 +1,11 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 
 type PaginationNavButtonProps = Omit<
-	ButtonHTMLAttributes<HTMLButtonElement>,
+	React.ComponentProps<"button">,
 	"aria-disabled"
 > & {
 	// Required/narrowed versions of default props
-	children: ReactNode;
+	children: React.ReactNode;
 	disabled: boolean;
 	onClick: () => void;
 	"aria-label": string;

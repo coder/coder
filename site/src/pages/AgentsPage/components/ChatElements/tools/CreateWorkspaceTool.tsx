@@ -3,6 +3,7 @@ import type React from "react";
 import { Link } from "react-router";
 import { ToolCall } from "./ToolCall";
 import { asString, parseArgs, type ToolStatus } from "./utils";
+import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
 /**
@@ -81,6 +82,7 @@ export const CreateWorkspaceTool: React.FC<{
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
 				<WorkspaceBuildLogSection status={status} buildId={buildId} />
+				<WorkspaceAgentLogSection status={status} buildId={buildId} />
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

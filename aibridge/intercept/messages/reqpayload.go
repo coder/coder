@@ -11,6 +11,8 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
+
+	aibconfig "github.com/coder/coder/v2/aibridge/config"
 )
 
 const (
@@ -28,6 +30,9 @@ const (
 	messagesReqPathContextManagement         = "context_management"
 	messagesReqPathStream                    = "stream"
 	messagesReqPathThinking                  = "thinking"
+	messagesReqPathThinkingBlockBinding      = "thinking.block_binding"
+	messagesReqPathBindingMismatch           = "thinking.block_binding.mismatch_behavior"
+	messagesReqPathBindingPrefixMismatch     = "thinking.block_binding.prefix_mismatch_behavior"
 	messagesReqPathThinkingBudgetTokens      = "thinking.budget_tokens"
 	messagesReqPathThinkingType              = "thinking.type"
 	messagesReqPathToolChoice                = "tool_choice"
@@ -113,6 +118,22 @@ func (p RequestPayload) Stream() bool {
 
 func (p RequestPayload) model() string {
 	return gjson.GetBytes(p, messagesReqPathModel).Str
+}
+
+// InvocationModel returns the exact upstream target before payload rewrites.
+// Call it on the original parsed request, before the interceptor rewrites its
+// model.
+// InvokeModel uses the configured primary or small/fast model, which may be an
+// inference profile ARN. Other protocols use the model from the request body.
+func (p RequestPayload) InvocationModel(bedrock *BedrockRuntime) string {
+	model := p.model()
+	if bedrock != nil && bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel {
+		if isSmallFastModel(model) {
+			return bedrock.ConfiguredSmallFastModel()
+		}
+		return bedrock.ConfiguredModel()
+	}
+	return model
 }
 
 func (p RequestPayload) correlatingToolCallID() *string {
@@ -392,10 +413,10 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 	// https://platform.claude.com/docs/en/build-with-claude/extended-thinking#how-to-use-extended-thinking
 	budgetTokens := int64(float64(maxTokens) * ratio)
 	if budgetTokens < 1024 {
-		return p.set(messagesReqPathThinking, map[string]string{"type": constDisabled})
+		return p.replaceThinking(map[string]any{"type": constDisabled})
 	}
 
-	return p.set(messagesReqPathThinking, map[string]any{
+	return p.replaceThinking(map[string]any{
 		"type":          constEnabled,
 		"budget_tokens": budgetTokens,
 	})
@@ -417,7 +438,47 @@ func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, erro
 	if gjson.GetBytes(p, messagesReqPathThinkingType).String() != constEnabled {
 		return p, nil
 	}
-	return p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
+	return p.replaceThinking(map[string]any{"type": constAdaptive})
+}
+
+// replaceThinking sets the thinking object and keeps any
+// thinking.block_binding the caller sent.
+func (p RequestPayload) replaceThinking(thinking map[string]any) (RequestPayload, error) {
+	if binding := gjson.GetBytes(p, messagesReqPathThinkingBlockBinding); binding.Exists() {
+		thinking["block_binding"] = json.RawMessage(binding.Raw)
+	}
+	return p.set(messagesReqPathThinking, thinking)
+}
+
+// convertThinkingBlockBindingForBedrock drops thinking.block_binding when the
+// already-filtered Anthropic-Beta header lacks the flag that enables it,
+// because Bedrock rejects the field without the flag. Otherwise it renames
+// prefix_mismatch_behavior to mismatch_behavior, the Bedrock name. Only some
+// Bedrock regions accept the Anthropic name as an alias.
+func (p RequestPayload) convertThinkingBlockBindingForBedrock(headers http.Header) (RequestPayload, error) {
+	if !gjson.GetBytes(p, messagesReqPathThinkingBlockBinding).Exists() {
+		return p, nil
+	}
+	if !slices.Contains(headers.Values("Anthropic-Beta"), bedrockBetaThinkingBinding) {
+		out, err := sjson.DeleteBytes(p, messagesReqPathThinkingBlockBinding)
+		if err != nil {
+			return p, xerrors.Errorf("delete %s: %w", messagesReqPathThinkingBlockBinding, err)
+		}
+		return RequestPayload(out), nil
+	}
+	behavior := gjson.GetBytes(p, messagesReqPathBindingPrefixMismatch)
+	if !behavior.Exists() {
+		return p, nil
+	}
+	out, err := sjson.SetRawBytes(p, messagesReqPathBindingMismatch, []byte(behavior.Raw))
+	if err != nil {
+		return p, xerrors.Errorf("set %s: %w", messagesReqPathBindingMismatch, err)
+	}
+	out, err = sjson.DeleteBytes(out, messagesReqPathBindingPrefixMismatch)
+	if err != nil {
+		return p, xerrors.Errorf("delete %s: %w", messagesReqPathBindingPrefixMismatch, err)
+	}
+	return RequestPayload(out), nil
 }
 
 // removeBedrockUnsupportedOutputConfigSubFields drops sub-fields of

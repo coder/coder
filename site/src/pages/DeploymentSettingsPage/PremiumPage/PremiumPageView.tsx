@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { PaywallGuidance } from "#/components/Paywall/Paywall";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
@@ -17,7 +16,7 @@ type PremiumPageViewProps = {
 	error?: unknown;
 };
 
-export const PremiumPageView: FC<PremiumPageViewProps> = ({
+export const PremiumPageView: React.FC<PremiumPageViewProps> = ({
 	hasLicense,
 	isTrial,
 	canRequestTrial,

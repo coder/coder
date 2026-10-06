@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 # timed-shell.sh wraps bash with per-target wall-clock timing.
 #
-# Recipe invocation:    timed-shell.sh <target> -ceu <recipe>
-# $(shell ...) calls:   timed-shell.sh -c <command>
+# Recipe invocation:    timed-shell.sh target:<target> -ceu <recipe>
+# $(shell ...) calls:   timed-shell.sh target: -ceu <command>
 #
 # Enable via Makefile:
 #   SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
-#   .SHELLFLAGS = $@ -ceu
+#   .SHELLFLAGS = target:$@ -ceu
 #
 # When MAKE_LOGDIR is set, recipe output is captured to a log file.
 # Otherwise output goes to stdout/stderr as normal.
 #
-# $(shell ...) uses SHELL but passes -c directly, not .SHELLFLAGS.
-# Detect this and delegate to bash without timing output.
-if [[ $1 == -* ]]; then
+# $(shell ...) calls outside a recipe also go through SHELL, with an
+# empty target name. Those are not recipes, so delegate to bash without
+# timing output.
+if [[ ${1:-} != target:?* ]]; then
+	[[ ${1:-} == target: ]] && shift
 	exec bash "$@"
 fi
 
 set -eu
 
-target=$1
+target=${1#target:}
 shift
 
 dim=$(tput dim 2>/dev/null) || dim=$(tput setaf 8 2>/dev/null) || true

@@ -3,10 +3,13 @@ package workspacestats
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -19,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -146,6 +150,46 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
+// TestBatchStatsSessionCountFold asserts that a report over the session count
+// cap folds the excess into the overflow counter and logs it at debug, never
+// at warn, so one misbehaving agent cannot flood the logs.
+func TestBatchStatsSessionCountFold(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	store, ps := dbtestutil.NewDB(t)
+	deps := setupDeps(t, store, ps)
+
+	b, closer, err := NewBatcher(ctx,
+		BatcherWithStore(store),
+		BatcherWithLogger(sink.Logger(slog.LevelDebug)),
+		func(b *DBBatcher) {
+			// Take control of flushes so they do not interleave with the
+			// assertions below.
+			b.tickCh = make(chan time.Time)
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	const extra = 6
+	st := randStats(t, func(s *agentproto.Stats) {
+		s.SessionCounts = make(map[string]int64, maxSessionCountEntries+extra)
+		for i := range maxSessionCountEntries + extra {
+			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+	})
+	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
+
+	overcap := sink.Entries(func(e slog.SinkEntry) bool {
+		return strings.Contains(e.Message, "too many distinct session types")
+	})
+	require.Len(t, overcap, 1)
+	require.Equal(t, slog.LevelDebug, overcap[0].Level)
+	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsOverflowTotal))
+}
+
 // randStats returns a random agentproto.Stats
 func randStats(t *testing.T, opts ...func(*agentproto.Stats)) *agentproto.Stats {
 	t.Helper()
@@ -246,7 +290,7 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	counts, err := codersdk.DecodeAppMap[int64](data)
 	require.NoError(t, err)
-	return counts
+	return codersdk.SumByFamily(counts)
 }

@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { PauseIcon } from "lucide-react";
-import type { FC } from "react";
 import { Shimmer } from "../ChatElements/Shimmer";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -8,7 +7,7 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
 import { shouldShowGenericThinking } from "./streamingActivity";
 
-const LiveActivitySlot: FC<{ interrupting?: boolean }> = ({
+const LiveActivitySlot: React.FC<{ interrupting?: boolean }> = ({
 	interrupting = false,
 }) => (
 	<div
@@ -36,7 +35,7 @@ type AssistantOutputProps = BlockListProps & {
  * Renders assistant output from already-normalized blocks and tools, so a live
  * turn and the durable message that replaces it render through the same path.
  */
-export const AssistantOutput: FC<AssistantOutputProps> = ({
+export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 	liveStatus,
 	...blockProps
 }) => {

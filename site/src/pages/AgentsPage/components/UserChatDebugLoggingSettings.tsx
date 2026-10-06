@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
 
-interface UserChatDebugLoggingSettingsProps {
+type UserChatDebugLoggingSettingsProps = {
 	userSettings: TypesGen.UserChatDebugLoggingSettings | undefined;
 	onSaveUserSetting: UseMutateFunction<
 		void,
@@ -13,9 +12,9 @@ interface UserChatDebugLoggingSettingsProps {
 	>;
 	isSavingUserSetting: boolean;
 	isSaveUserSettingError: boolean;
-}
+};
 
-export const UserChatDebugLoggingSettings: FC<
+export const UserChatDebugLoggingSettings: React.FC<
 	UserChatDebugLoggingSettingsProps
 > = ({
 	userSettings,

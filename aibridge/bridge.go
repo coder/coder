@@ -6,57 +6,29 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/net/http/httpguts"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/quartz"
-)
-
-const (
-	// The duration after which an async recording will be aborted.
-	recordingTimeout = time.Second * 5
-
-	// maxRequestBodyBytes caps the request body size for AI Gateway
-	// provider endpoints to prevent denial-of-service via memory exhaustion.
-	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
-	// and 20 MB on Amazon Bedrock.
-	// See https://docs.anthropic.com/en/api/overview#request-size-limits
-	// OpenAI and GitHub Copilot do not document an equivalent HTTP body size limit.
-	// Using highest documented provider limit (32 MiB).
-	//
-	// NOTE: aibridge does not currently proxy file-upload endpoints
-	// (e.g. /v1/files). Those endpoints accept much larger bodies
-	// (up to 500 MB for Anthropic, 50 MB for OpenAI). If file-upload
-	// routes are added, they will need a per-route limit instead of
-	// this single global cap.
-	maxRequestBodyBytes = 32 << 20 // 32 MiB
-
-	// ErrorCodeProviderDisabled is the code written in the response
-	// body when a request targets a configured-but-disabled provider.
-	// Paired with HTTP 503.
-	ErrorCodeProviderDisabled = "provider_disabled"
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -83,66 +55,33 @@ type RequestBridge struct {
 
 var _ http.Handler = &RequestBridge{}
 
-// validProviderName matches names containing only lowercase alphanumeric characters and hyphens.
-var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-// validateProviders checks that provider names are valid and unique.
-func validateProviders(providers []provider.Provider) error {
-	names := make(map[string]bool, len(providers))
-	for _, prov := range providers {
-		name := prov.Name()
-		if !validProviderName.MatchString(name) {
-			return xerrors.Errorf("invalid provider name %q: must contain only lowercase alphanumeric characters and hyphens", name)
-		}
-		if names[name] {
-			return xerrors.Errorf("duplicate provider name: %q", name)
-		}
-		names[name] = true
-	}
-	return nil
-}
-
 // NewRequestBridge creates a new *[RequestBridge] and registers the HTTP routes defined by the given providers.
 // Any routes which are requested but not registered will be reverse-proxied to the upstream service.
 //
-// A [intercept.Recorder] is also required to record prompt, tool, and token use.
+// A [recorder.Recorder] is also required to record prompt, tool, and token use.
 //
 // mcpProxy will be closed when the [RequestBridge] is closed.
 //
 // Circuit breaker configuration is obtained from each provider's CircuitBreakerConfig() method.
 // Providers returning nil will not have circuit breaker protection.
 func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, opts ...RequestBridgeOption) (*RequestBridge, error) {
-	if err := validateProviders(providers); err != nil {
+	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
 
-	mux := newProviderMux(providers, logger)
+	mux := routing.NewProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers have 503 sentinel registered by newProviderMux
+		// The shared mux already returns 503 for disabled providers.
 		if !prov.Enabled() {
 			continue
 		}
 
 		// Create per-provider circuit breaker if configured
-		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
-		onChange := func(endpoint, model string, from, to gobreaker.State) {
-			logger.Info(context.Background(), "circuit breaker state change",
-				slog.F("provider", providerName),
-				slog.F("endpoint", endpoint),
-				slog.F("model", model),
-				slog.F("from", from.String()),
-				slog.F("to", to.String()),
-			)
-			if m != nil {
-				m.CircuitBreakerState.WithLabelValues(providerName, endpoint, model).Set(circuitbreaker.StateToGaugeValue(to))
-				if to == gobreaker.StateOpen {
-					m.CircuitBreakerTrips.WithLabelValues(providerName, endpoint, model).Inc()
-				}
-			}
-		}
-		cbs := circuitbreaker.NewProviderCircuitBreakers(providerName, cfg, onChange, m)
+		cbs := circuitbreaker.NewProviderCircuitBreakers(
+			providerName, prov.CircuitBreakerConfig(), logger, m,
+		)
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
@@ -164,7 +103,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		//
 		// We have to whitelist the known-safe routes because an API key with elevated privileges (i.e. admin) might be
 		// configured, so we should just reverse-proxy known-safe routes.
-		ftr := newPassthroughRouter(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
+		ftr := NewPassthroughHandler(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
 		for _, path := range prov.PassthroughRoutes() {
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
@@ -188,7 +127,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, maxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(routing.RejectInvalidForwardPath(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes)))
 	return b, nil
 }
 
@@ -196,20 +135,6 @@ type RequestBridgeOption func(*RequestBridge)
 
 func WithClock(clock quartz.Clock) RequestBridgeOption {
 	return func(b *RequestBridge) { b.inflight.clock = clock }
-}
-
-// disabledProviderHandler returns 503 with a body containing
-// [ErrorCodeProviderDisabled] and the provider name for every request
-// targeting name.
-func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug(r.Context(), "refusing request for disabled ai provider",
-			slog.F("provider", name),
-			slog.F("path", r.URL.Path),
-			slog.F("method", r.Method),
-		)
-		http.Error(w, fmt.Sprintf("%s: AI provider %q is disabled", ErrorCodeProviderDisabled, name), http.StatusServiceUnavailable)
-	}
 }
 
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
@@ -222,10 +147,10 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 
 		// We execute this before CreateInterceptor since the interceptors
 		// read the request body and don't reset them.
-		client := GuessClient(r)
-		sessionID := GuessSessionID(client, r)
+		client := aibclient.GuessClient(r)
+		sessionID := aibclient.GuessSessionID(client, r)
 
-		if isWebSocketUpgrade(r) {
+		if aibheaders.IsWebSocketUpgrade(r) {
 			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),
@@ -242,7 +167,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// themselves are stripped from the upstream request by
 		// PrepareClientHeaders. Fail closed: reject the request if the
 		// headers are partial or malformed.
-		agentFirewallSessionID, agentFirewallSeqNumber, err := extractAgentFirewallHeaders(r)
+		agentFirewallSessionID, agentFirewallSeqNumber, err := aibheaders.ExtractAgentFirewallHeaders(r)
 		if err != nil {
 			logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 			http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
@@ -253,7 +178,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-				writeRequestBodyTooLarge(ctx, w)
+				routing.WriteRequestBodyTooLarge(ctx, w)
 			} else {
 				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
 				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
@@ -275,6 +200,11 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		actorID := actor.ID.String()
+		var metadata recorder.Metadata
+		if actor.Username != "" {
+			metadata = recorder.Metadata{"Username": actor.Username}
+		}
 		cred := interceptor.Credential()
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
@@ -288,18 +218,19 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
-		asyncRecorder := recorder.NewAsyncRecorder(rec, recordingTimeout)
+		asyncRecorder := recorder.NewAsyncRecorder(rec, recorder.DefaultAsyncTimeout)
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())
-		asyncRecorder.WithInitiatorID(actor.ID)
+		asyncRecorder.WithInitiatorID(actorID)
 		asyncRecorder.WithClient(string(client))
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
+			StartedAt:                   time.Now().UTC(),
 			ID:                          interceptor.ID().String(),
-			InitiatorID:                 actor.ID,
-			Metadata:                    actor.Metadata,
+			InitiatorID:                 actorID,
+			Metadata:                    metadata,
 			Model:                       interceptor.Model(),
 			Provider:                    p.Type(),
 			ProviderName:                p.Name(),
@@ -309,7 +240,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			CorrelatingToolCallID:       interceptor.CorrelatingToolCallID(),
 			AgentFirewallSessionID:      agentFirewallSessionID,
 			AgentFirewallSequenceNumber: agentFirewallSeqNumber,
-			CredentialKind:              string(cred.Kind()),
+			CredentialKind:              cred.Kind(),
 			CredentialHint:              cred.Hint(),
 		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
@@ -343,22 +274,23 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		})
 		// For a centralized pool, the hint now reflects the last key the
 		// failover loop attempted.
-		credCtx := intercept.WithCredentialInfo(ctx, cred)
-		errType, errMsg := categorizeInterceptionError(p, execErr)
+		credCtx := credential.WithCredentialInfo(ctx, cred)
+		errType, errMsg := interceptionerror.Categorize(p, execErr)
 		if execErr != nil {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actorID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
 			log.Warn(credCtx, "interception failed", slog.Error(execErr), slog.F("error_type", string(errType)))
 		} else {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actorID, string(client)).Add(1)
 			}
 			log.Debug(credCtx, "interception ended")
 		}
 
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+			EndedAt:        time.Now().UTC(),
 			ID:             interceptor.ID().String(),
 			CredentialHint: cred.Hint(),
 			ErrorType:      errType,
@@ -368,29 +300,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// Ensure all recording have completed before completing request.
 		asyncRecorder.Wait()
 	}
-}
-
-// isWebSocketUpgrade reports whether r is a WebSocket opening handshake.
-func isWebSocketUpgrade(r *http.Request) bool {
-	return r.Method == http.MethodGet &&
-		httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade") &&
-		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
-}
-
-// writeRequestBodyTooLarge writes a human-readable 413 response indicating that
-// the request body exceeded maxRequestBodyBytes.
-//
-// It records the limit before writing, so the request log names the limit that
-// tripped and the too-large metric attributes the rejection to body size rather
-// than to the other reasons coderd answers 413. Recording here rather than at
-// each call site keeps the two inseparable: this helper is the only path to a
-// body-too-large response from aibridge.
-func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
-	httpapi.RecordRequestBodyLimit(ctx, maxRequestBodyBytes)
-	http.Error(w, fmt.Sprintf(
-		"Request body too large. The maximum allowed request body size is %dMiB.",
-		maxRequestBodyBytes>>20,
-	), http.StatusRequestEntityTooLarge)
 }
 
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
@@ -420,46 +329,4 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	})
 
 	return err
-}
-
-// extractAgentFirewallHeaders reads and parses the Agent Firewall
-// correlation headers from the request. Both headers must be present
-// together with a valid UUID session ID and a non-negative int32
-// sequence number, or both must be absent. Partial or malformed headers
-// return an error so the caller can reject the request (fail closed).
-func extractAgentFirewallHeaders(r *http.Request) (sessionID *string, seqNumber *int32, err error) {
-	rawSessionID := r.Header.Get(agplaibridge.HeaderAgentFirewallSessionID)
-	rawSeqNumber := r.Header.Get(agplaibridge.HeaderAgentFirewallSequenceNumber)
-
-	hasSessionID := rawSessionID != ""
-	hasSeqNumber := rawSeqNumber != ""
-
-	switch {
-	case !hasSessionID && !hasSeqNumber:
-		// Neither header present; request did not traverse Agent Firewall.
-		return nil, nil, nil
-	case hasSessionID && !hasSeqNumber:
-		return nil, nil, xerrors.Errorf("agent firewall session ID header present without sequence number")
-	case !hasSessionID && hasSeqNumber:
-		return nil, nil, xerrors.Errorf("agent firewall sequence number header present without session ID")
-	}
-
-	// Both headers present; validate the session ID is a UUID. Storing an
-	// invalid value would silently drop the firewall correlation to NULL
-	// downstream, so reject it here instead.
-	if _, parseErr := uuid.Parse(rawSessionID); parseErr != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall session ID %q: %w", rawSessionID, parseErr)
-	}
-
-	// Parse the sequence number.
-	n, err := strconv.ParseInt(rawSeqNumber, 10, 32)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: %w", rawSeqNumber, err)
-	}
-	if n < 0 {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: must be non-negative", rawSeqNumber)
-	}
-
-	n32 := int32(n)
-	return &rawSessionID, &n32, nil
 }

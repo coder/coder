@@ -38,14 +38,19 @@ type Auditable interface {
 		database.AIProviderKey |
 		database.AIGatewayKey |
 		database.Chat |
+		database.ChatProject |
+		database.ChatProjectMemory |
 		database.ChatModelConfig |
+		database.ChatAutomation |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
 		database.UserSkill |
 		database.ChatInstructionSettings |
-		database.ChatOperationalSettings
+		database.ChatOperationalSettings |
+		database.ChatOrganizationSystemPrompt |
+		database.ExperimentRule
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

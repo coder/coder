@@ -572,6 +572,7 @@ export const buildModelConfigFromForm = (
 			// Skip fields hidden by an unsatisfied `visible_when` gate so
 			// stale values left in form state are not serialized.
 			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;
+			if (!isFieldVisibleForProvider(field, rawProvider)) continue;
 
 			// Read the form value from the nested camelCase structure.
 			const camelSegments = field.json_name.split(".").map(snakeToCamel);

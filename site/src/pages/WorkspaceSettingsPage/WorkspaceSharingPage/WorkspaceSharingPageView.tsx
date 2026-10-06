@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	Group,
 	Workspace,
@@ -18,7 +17,7 @@ import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingFo
 import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 import { docs } from "#/utils/docs";
 
-interface WorkspaceSharingPageViewProps {
+type WorkspaceSharingPageViewProps = {
 	workspace: Workspace;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
@@ -38,9 +37,11 @@ interface WorkspaceSharingPageViewProps {
 	updatingGroupId?: WorkspaceGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
 	hasRemovedMember?: boolean;
-}
+};
 
-export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
+export const WorkspaceSharingPageView: React.FC<
+	WorkspaceSharingPageViewProps
+> = ({
 	workspace,
 	workspaceACL,
 	canUpdatePermissions,

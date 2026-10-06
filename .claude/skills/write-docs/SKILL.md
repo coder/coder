@@ -21,6 +21,9 @@ needs docs; this skill covers writing them well.
 >   [`docs/.style/style-guide/`](../../../docs/.style/style-guide/README.md).
 >   Open it and apply it as a checklist. Do not write from memory; most style
 >   churn in review comes from rules that already exist but were not applied.
+>   Automated tooling checks a small subset of that guide, and Vale runs
+>   advisory, so a clean lint run is not evidence that you applied it. Refer to
+>   [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > - **Agent-facing structure and research notes:**
 >   [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../docs/DOCS_STYLE_GUIDE.md).
 >
@@ -66,15 +69,18 @@ style.
 3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
-   One outcome per page. New pages MUST be added to `docs/manifest.json` under
-   the right section, and the documentation lands in the same change as the
-   feature. If the change introduces, renames, or deprecates a Coder product
+   One outcome per page. New pages MUST be added to the right source file in
+   `docs/manifest/` (then run `make gen/docs-manifest`), and the documentation
+   lands in the same change as the feature. If the change introduces,
+   renames, or deprecates a Coder product
    or feature name, update the [glossary](../../../docs/reference/glossary.md)
    in the same change (add, edit, or mark the entry) per the
    [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
-   Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
+   Most of the guide is unenforced, so this reading pass is the only thing
+   that catches those rules. Then run `make lint/emdash`, markdownlint, and
+   Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
    rename (see [Structural rules to apply](#structural-rules-to-apply)).
 6. **Open the PR.** Write the title and description per the
@@ -140,8 +146,8 @@ application notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
-- Keep the redirect PR in `coder/coder.com` in sync with the rename PR so the
-  old public path never 404s between merges.
+- Add the redirect to `docs/redirects.json` in the same PR as the rename so
+  the old public path never 404s between merges.
 
 ## Keep PRs reviewable
 
@@ -171,6 +177,8 @@ the whole series as a single review.
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
   and apply.
+- Reading a clean Vale run as conformance with the style guide. It checks a
+  small, mechanical subset and runs advisory.
 
 ## Pre-handoff checklist
 
@@ -180,13 +188,17 @@ the whole series as a single review.
       unverified for the reviewer.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
 - [ ] One outcome per page, correct Diátaxis mode, added to
-      `docs/manifest.json`.
+      `docs/manifest/`, and `docs/manifest.json` rebuilt.
 - [ ] New, renamed, or deprecated product or feature names have a matching
       `docs/reference/glossary.md` entry (a rename keeps the former name; a
       deprecation names the replacement).
-- [ ] Prose style guide applied with it open; `make lint/emdash`,
-      markdownlint, and Vale pass.
-- [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
+- [ ] Prose style guide opened and applied section by section, including the
+      rules no linter checks.
+- [ ] `make lint/emdash`, markdownlint, and Vale pass. Treat this as a floor,
+      not as conformance: tooling covers a small subset of the guide, and Vale
+      never fails a build. The count lives in
+      [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
+- [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into

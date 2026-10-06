@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
@@ -9,7 +9,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { CopyButton } from "../CopyButton/CopyButton";
 
-interface CodeExampleProps {
+type CodeExampleProps = {
 	code: string;
 	/** Defaulting to true to be on the safe side; you should have to opt out of the secure option, not remember to opt in */
 	secret?: boolean;
@@ -19,19 +19,22 @@ interface CodeExampleProps {
 	redactReplacement?: string;
 	/** Show a button to reveal the redacted parts of the code */
 	showRevealButton?: boolean;
+	/** Accessible name of the copy button. */
+	copyLabel?: string;
 	className?: string;
-}
+};
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({
+export const CodeExample: React.FC<CodeExampleProps> = ({
 	code,
 	className,
 	secret = true,
 	redactPattern,
 	redactReplacement = "********",
 	showRevealButton,
+	copyLabel = "Copy code",
 }) => {
 	const [showFullValue, setShowFullValue] = useState(false);
 
@@ -102,7 +105,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 						<TooltipContent>{showButtonLabel}</TooltipContent>
 					</Tooltip>
 				)}
-				<CopyButton text={code} label="Copy code" />
+				<CopyButton text={code} label={copyLabel} />
 			</div>
 		</div>
 	);
