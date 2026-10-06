@@ -122,21 +122,21 @@ type AgentChatPageViewProps = {
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -161,8 +161,8 @@ type AgentChatPageViewProps = {
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
 
-	onImplementPlan?: () => Promise<void> | void;
-	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onImplementPlan: () => Promise<void> | void;
+	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -171,7 +171,7 @@ type AgentChatPageViewProps = {
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -292,14 +292,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	onPlanModeToggle,
 	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
@@ -445,9 +445,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// needs a workspace to render; the agent arrives once the build runs.
 	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
-	const availableBrowserApp = workspace
-		? getAgentBrowserApp(workspaceAgent)
-		: undefined;
+	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		browser: availableBrowserApp !== undefined,
@@ -1052,9 +1050,9 @@ type AgentChatPageLoadingViewProps = {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	showRightPanel: boolean;
 };
 
@@ -1072,7 +1070,7 @@ export const AgentChatPageLoadingView: React.FC<
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,

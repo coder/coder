@@ -566,7 +566,7 @@ export const SwitchOrganizations: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		);

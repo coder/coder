@@ -146,11 +146,9 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				}}
 				isSubmitting={updateMutation.isPending}
 				error={updateMutation.error}
-				onSubmit={(request) => {
-					updateMutation.mutate(
-						{ project, request },
-						{ onSuccess: closeEditDialog },
-					);
+				onSubmit={async (request) => {
+					await updateMutation.mutateAsync({ project, request });
+					closeEditDialog();
 				}}
 			/>
 			<DeleteDialog

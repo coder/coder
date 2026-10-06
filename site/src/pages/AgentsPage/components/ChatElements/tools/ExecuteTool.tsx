@@ -31,14 +31,14 @@ type ExecuteToolProps = {
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
-	errorText?: string;
+	errorText: string;
 	durationMs?: number;
-	isBackgrounded?: boolean;
+	isBackgrounded: boolean;
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = ({
@@ -48,7 +48,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	isError,
 	errorText,
 	durationMs,
-	isBackgrounded = false,
+	isBackgrounded,
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
@@ -81,7 +81,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 
 	return (
 		<ToolCall.Root
-			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
+			key={`${shellToolDisplayMode}:${autoDisplayState}`}
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}

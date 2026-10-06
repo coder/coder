@@ -15,11 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -14163,17 +14161,14 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
-	dir := t.TempDir()
-	writtenPath := filepath.Join(dir, "written.txt")
-	startedPath := filepath.Join(dir, "started")
+	writtenPath := filepath.Join(t.TempDir(), "written.txt")
 	writeArgs, err := json.Marshal(map[string]string{"path": writtenPath, "content": "hello"})
 	require.NoError(t, err)
 	// The default timeout would end execute's wait before the interrupt.
 	executeArgs, err := json.Marshal(map[string]string{
-		"command": "touch started && sleep 300",
-		"workdir": dir,
+		"command": "sleep 300",
 		"timeout": "10m",
 	})
 	require.NoError(t, err)
@@ -14206,13 +14201,11 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		for _, path := range []string{writtenPath, startedPath} {
-			if _, err := os.Stat(path); err != nil {
-				return false
-			}
-		}
-		return true
-	}, testutil.IntervalFast, "write_file and execute should act on the agent")
+		_, err := os.Stat(writtenPath)
+		return err == nil
+	}, testutil.IntervalFast, "write_file should act on the agent")
+	conn := dialAgentForChat(ctx, t, client, resources[0].Agents[0].ID, chat.ID)
+	_ = awaitRunningChatProcess(ctx, t, conn)
 
 	_, err = expClient.InterruptChat(ctx, chat.ID)
 	require.NoError(t, err)
@@ -14242,8 +14235,8 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 }
 
 // TestEditMessageCancelsToolCallsOnAgent checks that editing a user message
-// kills the agent process of the running execute call the edit deletes, before
-// the replacement turn calls the model.
+// cancels the running execute call the edit deletes on the agent, before the
+// replacement turn calls the model.
 func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 
@@ -14267,10 +14260,16 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, agentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	agentID := resources[0].Agents[0].ID
 
+	type agentProcess struct {
+		conn workspacesdk.AgentConn
+		id   string
+	}
 	type modelRequest struct {
 		body       string
+		process    workspacesdk.ProcessOutputResponse
 		processErr error
 	}
 	// The fake model routes each request to the case whose prompt it
@@ -14282,9 +14281,11 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 		dynamicTools      []string
 		prompt            string
 		editedPrompt      string
-		pidPath           string
 		executeChunk      chattest.OpenAIChunk
 		editedTurnRequest chan modelRequest
+		// deletedProcess is the agent process of the execute call the edit
+		// deletes. The subtest stores it before the edit.
+		deletedProcess atomic.Pointer[agentProcess]
 	}
 	cases := []*editCase{
 		{name: "Baseline"},
@@ -14293,38 +14294,14 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 	for _, tc := range cases {
 		tc.prompt = "Run the command for " + tc.name + "."
 		tc.editedPrompt = "Say done for " + tc.name + "."
-		dir := t.TempDir()
-		tc.pidPath = filepath.Join(dir, "pid")
-		// exec keeps the PID the shell wrote. The default timeout would end
-		// execute's wait before the edit.
+		// The default timeout would end execute's wait before the edit.
 		executeArgs, err := json.Marshal(map[string]string{
-			"command": "echo $$ > pid && exec sleep 300",
-			"workdir": dir,
+			"command": "sleep 300",
 			"timeout": "10m",
 		})
 		require.NoError(t, err)
 		tc.executeChunk = chattest.OpenAIToolCallChunk("execute", string(executeArgs))
 		tc.editedTurnRequest = make(chan modelRequest, 1)
-	}
-
-	// probeProcess sends signal 0 to the PID in pidPath. It returns
-	// os.ErrProcessDone once the process is gone. The agent reaps the
-	// process before it reports the exit, so a gone process is not a zombie.
-	probeProcess := func(pidPath string) error {
-		data, err := os.ReadFile(pidPath)
-		if err != nil {
-			return err
-		}
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err != nil {
-			return err
-		}
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-		defer proc.Release()
-		return proc.Signal(syscall.Signal(0))
 	}
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -14337,8 +14314,11 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 			case strings.Contains(body, tc.editedPrompt):
 				// The edited turn cancels deleted tool calls before it calls
 				// the model, and the cancel waits for the process to exit.
+				got := modelRequest{body: body}
+				proc := tc.deletedProcess.Load()
+				got.process, got.processErr = proc.conn.ProcessOutput(req.Context(), proc.id, nil)
 				select {
-				case tc.editedTurnRequest <- modelRequest{body: body, processErr: probeProcess(tc.pidPath)}:
+				case tc.editedTurnRequest <- got:
 				default:
 				}
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
@@ -14375,20 +14355,29 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			testutil.Eventually(ctx, t, func(context.Context) bool {
-				return probeProcess(tc.pidPath) == nil
-			}, testutil.IntervalFast, "execute should start the process on the agent")
+			conn := dialAgentForChat(ctx, t, client, agentID, chat.ID)
+			proc := awaitRunningChatProcess(ctx, t, conn)
 
+			providerToolCallID := tc.executeChunk.Choices[0].ToolCalls[0].ID
 			messages, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 			require.NoError(t, err)
-			var userMessageID int64
+			var userMessageID, assistantMessageID int64
 			for _, message := range messages.Messages {
-				if message.Role == codersdk.ChatMessageRoleUser {
+				if message.Role == codersdk.ChatMessageRoleUser && userMessageID == 0 {
 					userMessageID = message.ID
-					break
+				}
+				for _, part := range message.Content {
+					if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID == providerToolCallID {
+						assistantMessageID = message.ID
+					}
 				}
 			}
 			require.NotZero(t, userMessageID)
+			require.NotZero(t, assistantMessageID)
+			require.Equal(t, chattool.ToolCallID(chat.ID, assistantMessageID, providerToolCallID).String(), proc.ID,
+				"the agent should run the execute call under its tool call ID")
+			tc.deletedProcess.Store(&agentProcess{conn: conn, id: proc.ID})
+
 			_, err = expClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
@@ -14403,13 +14392,43 @@ func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
 				return err == nil && got.Status == codersdk.ChatStatusWaiting
 			}, testutil.IntervalFast, "chat should wait after the edited turn")
 
-			require.ErrorIs(t, edited.processErr, os.ErrProcessDone,
-				"the deleted execute call's process should be gone when the edited turn calls the model")
+			require.NoError(t, edited.processErr)
+			require.False(t, edited.process.Running,
+				"the deleted execute call's process should have exited when the edited turn calls the model")
+			require.True(t, edited.process.Canceled,
+				"the agent should have received a cancel for the deleted execute call's tool call ID")
 			require.NotContains(t, edited.body, tc.prompt)
-			require.NotContains(t, edited.body, tc.executeChunk.Choices[0].ToolCalls[0].ID,
+			require.NotContains(t, edited.body, providerToolCallID,
 				"the edited turn's history should not contain the deleted execute call")
 		})
 	}
+}
+
+// dialAgentForChat dials the workspace agent and sends the chat ID header
+// that chatd sends, so the agent scopes process requests to chatID.
+func dialAgentForChat(ctx context.Context, t *testing.T, client *codersdk.Client, agentID, chatID uuid.UUID) workspacesdk.AgentConn {
+	t.Helper()
+	conn, err := workspacesdk.New(client).DialAgent(ctx, agentID, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	return conn
+}
+
+// awaitRunningChatProcess waits until the agent lists exactly one process
+// for conn's chat and that process is running, and returns it.
+func awaitRunningChatProcess(ctx context.Context, t *testing.T, conn workspacesdk.AgentConn) workspacesdk.ProcessInfo {
+	t.Helper()
+	var proc workspacesdk.ProcessInfo
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		list, err := conn.ListProcesses(ctx)
+		if err != nil || len(list.Processes) != 1 || !list.Processes[0].Running {
+			return false
+		}
+		proc = list.Processes[0]
+		return true
+	}, testutil.IntervalFast, "execute should start a process on the agent")
+	return proc
 }
 
 // TestEditMessageWithModelConfigOverride verifies that callers can
