@@ -141,7 +141,7 @@ direction.
 ### File attachments
 
 Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
-Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, SVG, and PDF files.
+Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, SVG, and PDF files.
 Each upload can be up to 10&nbsp;MiB.
 By default, a chat can have up to 50 attachments.
 Adding more permanently deletes the earliest uploads, which then show as expired.
@@ -152,6 +152,10 @@ This is useful for sharing screenshots of errors, UI mockups, terminal output, l
 Messages can contain attachments alone or combined with text.
 Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
 Providers differ in which types they accept as native file content; a part the provider rejects is downgraded to text instead of being dropped.
+
+JSON files, identified by the `application/json` type or a `.json` extension in any letter case, are uploaded to the chat's workspace instead of being sent as attachments.
+JSON uploads require a running workspace.
+The file contents stay in the workspace, and the model receives only a reference to the file path.
 
 ## Security benefits of the control plane architecture
 

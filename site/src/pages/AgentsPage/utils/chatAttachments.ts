@@ -206,12 +206,17 @@ export const chatAttachmentAcceptAttribute = [
 
 /**
  * Returns true for files whose declared MIME type is on the server
- * allowlist. Files whose type is unknown, either as an empty string or
- * as application/octet-stream, also pass so dropped or pasted files can
- * still reach the server, which remains the authority on attachment
- * bytes.
+ * allowlist, except JSON files, which require workspace uploads to keep
+ * their contents out of the prompt. Other files with unknown types (empty
+ * or application/octet-stream) pass so the server can classify their bytes.
  */
 export const isChatAttachmentFile = (file: File): boolean => {
+	if (
+		file.type === "application/json" ||
+		file.name.toLowerCase().endsWith(".json")
+	) {
+		return false;
+	}
 	if (!file.type || file.type === "application/octet-stream") {
 		return true;
 	}
@@ -228,9 +233,9 @@ export const isRasterImageMediaType = (mediaType: string): boolean =>
 
 /**
  * Returns true for files that should stream into the chat's workspace
- * filesystem instead of the attachment pipeline: any file whose
- * declared MIME type is not on the attachment allowlist. Files with an
- * unknown type (empty or application/octet-stream) stay on the
+ * filesystem instead of the attachment pipeline: JSON files and files
+ * whose declared MIME type is not on the attachment allowlist. Other files
+ * with an unknown type (empty or application/octet-stream) stay on the
  * attachment path where the server classifies the bytes.
  */
 export const shouldRouteFileToWorkspace = (file: File): boolean =>
