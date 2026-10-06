@@ -82,7 +82,9 @@ export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({
 						<LogsHeader
 							title={stage}
 							detail={
-								duration === undefined ? undefined : `${duration} seconds`
+								duration === undefined
+									? undefined
+									: `${duration} ${duration === 1 ? "second" : "seconds"}`
 							}
 						/>
 						{!isEmpty && (

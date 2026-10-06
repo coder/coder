@@ -535,12 +535,18 @@ func (server *Server) prepareGeneration(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
+	memoryIndex := ""
+	if hasMemory {
+		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
+	}
 
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
 		initialResolvedSkills,
+		memoryIndex,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -651,6 +657,9 @@ func (server *Server) prepareGeneration(
 		return updated, changed
 	}
 	tools, _ = appendCurrentSkillTools(tools)
+	if hasMemory {
+		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,

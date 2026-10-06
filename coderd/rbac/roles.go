@@ -759,6 +759,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// access. ChatProject.RBACObject sets WithOwner(OwnerID),
 							// which keeps them private to their owner.
 							ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
+							// Memory objects carry the owning project's owner, so this
+							// grant reaches only the member's own projects.
+							ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
 						}),
 					},
 				},
@@ -1268,8 +1271,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat and chat project permissions are intentionally omitted for service
-	// accounts, and GetAuthorizationUserRoles does not union agents-access from
+	// Chat, chat project, and chat project memory permissions are intentionally
+	// omitted for service accounts, and GetAuthorizationUserRoles does not union agents-access from
 	// the org defaults for them, so chat requires an explicit agents-access grant.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.

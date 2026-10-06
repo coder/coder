@@ -773,6 +773,10 @@ export type APIKeyScope =
 	| "chat_project:*"
 	| "chat_project:create"
 	| "chat_project:delete"
+	| "chat_project_memory:*"
+	| "chat_project_memory:create"
+	| "chat_project_memory:delete"
+	| "chat_project_memory:read"
 	| "chat_project:read"
 	| "chat_project:update"
 	| "chat:read"
@@ -1030,6 +1034,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project:*",
 	"chat_project:create",
 	"chat_project:delete",
+	"chat_project_memory:*",
+	"chat_project_memory:create",
+	"chat_project_memory:delete",
+	"chat_project_memory:read",
 	"chat_project:read",
 	"chat_project:update",
 	"chat:read",
@@ -2035,6 +2043,16 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 
 // From codersdk/chats.go
 /**
+ * ChangedDiffStatus is the diff status of one ref after a change.
+ * When the ref has no stored status, Status has only chat_id.
+ */
+export interface ChangedDiffStatus {
+	readonly ref: DiffStatusRef;
+	readonly status: ChatDiffStatus | null;
+}
+
+// From codersdk/chats.go
+/**
  * Chat represents a chat session with an AI agent.
  */
 export interface Chat {
@@ -2072,7 +2090,17 @@ export interface Chat {
 	 * It is nil until the first summary has been produced.
 	 */
 	readonly summary: string | null;
+	/**
+	 * DiffStatus is the primary pull request. It is the ref with the
+	 * most recent git report.
+	 */
 	readonly diff_status?: ChatDiffStatus;
+	/**
+	 * DiffStatuses lists every ref the chat tracks. The order is
+	 * stable and follows the first report of each ref. DiffStatus
+	 * marks the primary.
+	 */
+	readonly diff_statuses?: readonly ChatDiffStatus[];
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -2669,6 +2697,8 @@ export interface ChatDiffContents {
  */
 export interface ChatDiffStatus {
 	readonly chat_id: string;
+	readonly remote_origin?: string;
+	readonly git_branch?: string;
 	readonly url?: string;
 	readonly pull_request_state?: string;
 	readonly pull_request_title: string;
@@ -3558,6 +3588,22 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectMemory is a durable memory shared by chats in a project.
+ */
+export interface ChatProjectMemory {
+	readonly id: string;
+	readonly project_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
+	readonly created_by: string;
+	readonly created_by_username: string;
+	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
  * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
@@ -3956,6 +4002,12 @@ export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
+	/**
+	 * ChangedDiffStatus is set when Kind is
+	 * ChatWatchEventKindDiffStatusChange. It identifies the ref that
+	 * changed.
+	 */
+	readonly changed_diff_status?: ChangedDiffStatus;
 }
 
 // From codersdk/chats.go
@@ -4316,6 +4368,13 @@ export interface CreateChatModelRequest {
 }
 
 // From codersdk/chats.go
+export interface CreateChatProjectMemoryRequest {
+	readonly name: string;
+	readonly description: string;
+	readonly body: string;
+}
+
+// From codersdk/chats.go
 /**
  * CreateChatProjectRequest creates a chat project in the organization named
  * by the route.
@@ -4510,7 +4569,7 @@ export interface CreateTemplateRequest {
 	readonly display_name?: string;
 	/**
 	 * Description is a description of what the template contains. It must be
-	 * less than 128 bytes.
+	 * no longer than 128 Unicode code points.
 	 */
 	readonly description?: string;
 	/**
@@ -5360,6 +5419,16 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"warning",
 ];
 
+// From codersdk/chats.go
+/**
+ * DiffStatusRef identifies one ref that a chat tracks. A chat has
+ * one diff status for each ref.
+ */
+export interface DiffStatusRef {
+	readonly remote_origin: string;
+	readonly git_branch: string;
+}
+
 // From codersdk/disconnect.go
 export type DisconnectInitiator =
 	| "agent"
@@ -5570,7 +5639,6 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-automations"
-	| "chat-board"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
@@ -5653,7 +5721,6 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-automations",
-	"chat-board",
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
@@ -7913,6 +7980,15 @@ export interface OrganizationChatModelsResponse {
 	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
+// From codersdk/chats.go
+/**
+ * OrganizationChatSystemPromptResponse is the response body for the
+ * organization chat system prompt endpoint.
+ */
+export interface OrganizationChatSystemPromptResponse {
+	readonly system_prompt: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationGroupAISpend is the current AI spend snapshot for a group
@@ -8861,6 +8937,7 @@ export type RBACResource =
 	| "chat_automation"
 	| "chat_model_config"
 	| "chat_project"
+	| "chat_project_memory"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8917,6 +8994,7 @@ export const RBACResources: RBACResource[] = [
 	"chat_automation",
 	"chat_model_config",
 	"chat_project",
+	"chat_project_memory",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -9073,7 +9151,9 @@ export type ResourceType =
 	| "chat_instruction_settings"
 	| "chat_model_config"
 	| "chat_operational_settings"
+	| "chat_organization_system_prompt"
 	| "chat_project"
+	| "chat_project_memory"
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
@@ -9118,7 +9198,9 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_instruction_settings",
 	"chat_model_config",
 	"chat_operational_settings",
+	"chat_organization_system_prompt",
 	"chat_project",
+	"chat_project_memory",
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
@@ -10934,6 +11016,15 @@ export interface UpdateMCPServerConfigRequest {
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
 	readonly method?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateOrganizationChatSystemPromptRequest is the request body for updating
+ * an organization's chat system prompt.
+ */
+export interface UpdateOrganizationChatSystemPromptRequest {
+	readonly system_prompt: string;
 }
 
 // From codersdk/organizations.go

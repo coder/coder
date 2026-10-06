@@ -152,6 +152,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
+			hasContent
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
 		>
