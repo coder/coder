@@ -112,6 +112,10 @@ type Manager struct {
 	runStartedCh chan struct{}
 
 	watcher *Watcher
+
+	// watchSyncMu serializes watcher syncs. It is acquired before mu,
+	// never while mu is held.
+	watchSyncMu sync.Mutex
 }
 
 // NewManager validates options and canonicalizes initial sources. The
@@ -129,7 +133,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 	resolver := opts.Resolver
 	if resolver == nil {
-		resolver = &Resolver{}
+		resolver = &Resolver{Logger: opts.Logger.Named("resolver")}
 	}
 
 	m := &Manager{
@@ -215,9 +219,8 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 	m.mu.Lock()
 	m.watcher = watcher
-	roots := m.scanRootsLocked()
 	m.mu.Unlock()
-	watcher.Sync(ctx, roots)
+	m.syncWatcher(ctx, watcher)
 
 	defer watcher.Close()
 
@@ -228,13 +231,22 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-m.closedCh:
 			return nil
 		case <-m.trigger:
-			m.mu.Lock()
-			roots := m.scanRootsLocked()
-			m.mu.Unlock()
-			watcher.Sync(ctx, roots)
+			m.syncWatcher(ctx, watcher)
 			m.resolveAndBroadcast(ctx)
 		}
 	}
+}
+
+// syncWatcher applies the current scan roots to watcher. Captures
+// and syncs are serialized, so the last sync to run always applies
+// the newest roots. m.mu must not be held.
+func (m *Manager) syncWatcher(ctx context.Context, watcher *Watcher) {
+	m.watchSyncMu.Lock()
+	defer m.watchSyncMu.Unlock()
+	m.mu.Lock()
+	roots := m.scanRootsLocked()
+	m.mu.Unlock()
+	watcher.Sync(ctx, roots)
 }
 
 // started returns a channel that is closed once Run has
@@ -506,7 +518,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	m.mu.Unlock()
 
 	if watcher != nil {
-		watcher.Sync(ctx, roots)
+		m.syncWatcher(ctx, watcher)
 	}
 
 	// The broadcast is unconditional: Resync waiters that

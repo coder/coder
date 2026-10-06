@@ -351,6 +351,8 @@ type agent struct {
 	contextManager   *agentcontext.Manager
 	contextAPI       *agentcontext.API
 
+	missingDirNoticeLogged atomic.Bool
+
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
@@ -1114,9 +1116,11 @@ func (a *agent) run() (retErr error) {
 	// so the goroutine exits cleanly on older coderd deployments.
 	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+			logger := a.logger.Named("agentcontext-push")
 			pusher := agentcontext.NewDRPCPusher(aAPI)
+			pusher.Logger = logger
 			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
-				Logger: a.logger.Named("agentcontext-push"),
+				Logger: logger,
 			})
 		})
 
@@ -1266,6 +1270,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+		if strings.TrimSpace(manifest.Directory) == "" && !a.missingDirNoticeLogged.Swap(true) {
+			a.logger.Info(ctx, "agent directory is not set; skipping working-directory context",
+				slog.F("not_scanned", agentcontext.ScanRootEntries()),
+				slog.F("hint", "set coder_agent.dir in the template, or place plugins under ~/.coder/.agents/plugins"),
+			)
+		}
 
 		// Manifest just landed; the agentcontext manager now has
 		// a working directory to scan and a known set of scan

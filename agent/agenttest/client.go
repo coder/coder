@@ -274,9 +274,15 @@ func (c *Client) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequ
 }
 
 // ContextStatePushes returns every PushContextState request the
-// agent has issued to the fake server so far.
+// fake server has accepted so far.
 func (c *Client) ContextStatePushes() []*agentproto.PushContextStateRequest {
 	return c.fakeAgentAPI.ContextStatePushes()
+}
+
+// SetPushContextStateFunc sets a check run on every PushContextState
+// request. A non-nil error rejects the request.
+func (c *Client) SetPushContextStateFunc(fn func(*agentproto.PushContextStateRequest) error) {
+	c.fakeAgentAPI.SetPushContextStateFunc(fn)
 }
 
 type FakeAgentAPI struct {
@@ -307,7 +313,8 @@ type FakeAgentAPI struct {
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
 
-	contextStatePushes []*agentproto.PushContextStateRequest
+	pushContextStateFunc func(*agentproto.PushContextStateRequest) error
+	contextStatePushes   []*agentproto.PushContextStateRequest
 }
 
 func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
@@ -315,23 +322,37 @@ func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatu
 }
 
 // PushContextState records the incoming snapshot and returns
-// Accepted=true. Tests that need to assert against the captured
+// Accepted=true, unless the function set by SetPushContextStateFunc
+// rejects it. Tests that need to assert against the captured
 // pushes can read them via ContextStatePushes.
 func (f *FakeAgentAPI) PushContextState(_ context.Context, req *agentproto.PushContextStateRequest) (*agentproto.PushContextStateResponse, error) {
 	f.Lock()
 	defer f.Unlock()
+	if f.pushContextStateFunc != nil {
+		if err := f.pushContextStateFunc(req); err != nil {
+			return nil, err
+		}
+	}
 	f.contextStatePushes = append(f.contextStatePushes, req)
 	return &agentproto.PushContextStateResponse{Accepted: true}, nil
 }
 
 // ContextStatePushes returns a snapshot of every
-// PushContextState request received so far.
+// PushContextState request accepted so far.
 func (f *FakeAgentAPI) ContextStatePushes() []*agentproto.PushContextStateRequest {
 	f.Lock()
 	defer f.Unlock()
 	out := make([]*agentproto.PushContextStateRequest, len(f.contextStatePushes))
 	copy(out, f.contextStatePushes)
 	return out
+}
+
+// SetPushContextStateFunc sets a check run on every PushContextState
+// request. A non-nil error rejects the request.
+func (f *FakeAgentAPI) SetPushContextStateFunc(fn func(*agentproto.PushContextStateRequest) error) {
+	f.Lock()
+	defer f.Unlock()
+	f.pushContextStateFunc = fn
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
