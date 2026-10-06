@@ -152,28 +152,6 @@ func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
 	return tx.loadState()
 }
 
-// takeVersionFlags returns and clears the pending history and queue
-// change flags and counts the commit write that consumes them. Every
-// statement that advances snapshot_version must go through this so the
-// version fields it writes reflect everything the transaction changed.
-func (tx *Tx) takeVersionFlags() (historyChanged, queueChanged bool) {
-	historyChanged, queueChanged = tx.historyChanged, tx.queueChanged
-	tx.historyChanged, tx.queueChanged = false, false
-	tx.commits++
-	return historyChanged, queueChanged
-}
-
-// requireNoVersionFlags is takeVersionFlags for commit writes that
-// cannot record history or queue changes. Pending flags would be lost,
-// so they are a programming error in the transition bundle.
-func (tx *Tx) requireNoVersionFlags(t Transition) error {
-	if tx.historyChanged || tx.queueChanged {
-		return xerrors.Errorf("chatstate: %s cannot commit pending history or queue changes", t)
-	}
-	tx.commits++
-	return nil
-}
-
 // requireFromAllowed loads the current state and validates t against
 // the transition matrix. Returns the loaded chat and execution state
 // on success, [ErrInvalidState] when the chat is in an invalid state

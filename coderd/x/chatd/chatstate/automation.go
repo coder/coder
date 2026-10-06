@@ -139,10 +139,10 @@ func queuedRowPromotable(row database.ChatQueuedMessage, locked map[uuid.UUID]da
 	return row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration
 }
 
-// dropUnpromotable deletes the rows that fail the promotion guard and
+// stageDropUnpromotable deletes the rows that fail the promotion guard and
 // returns the passing rows in their original order. The automations of
 // the automation rows must already be locked and present in locked.
-func (tx *Tx) dropUnpromotable(
+func (tx *Tx) stageDropUnpromotable(
 	rows []database.ChatQueuedMessage,
 	locked map[uuid.UUID]database.ChatAutomation,
 ) ([]database.ChatQueuedMessage, error) {
@@ -167,13 +167,13 @@ func (tx *Tx) dropUnpromotable(
 	return passing, nil
 }
 
-// guardQueuedRows applies the queue promotion guard to rows. Rows
+// stageGuardQueuedRows applies the queue promotion guard to rows. Rows
 // without an automation pass without any database access. The
 // automations of the remaining rows are locked in ascending id order;
 // rows whose automation is missing, disabled, or on another queue
 // generation are deleted and left out of the result. Passing rows keep
 // their order.
-func (tx *Tx) guardQueuedRows(rows []database.ChatQueuedMessage) ([]database.ChatQueuedMessage, error) {
+func (tx *Tx) stageGuardQueuedRows(rows []database.ChatQueuedMessage) ([]database.ChatQueuedMessage, error) {
 	ids := queuedAutomationIDs(rows)
 	if len(ids) == 0 {
 		return rows, nil
@@ -182,10 +182,10 @@ func (tx *Tx) guardQueuedRows(rows []database.ChatQueuedMessage) ([]database.Cha
 	if err != nil {
 		return nil, err
 	}
-	return tx.dropUnpromotable(rows, locked)
+	return tx.stageDropUnpromotable(rows, locked)
 }
 
-// nextPromotableQueueHead returns the queue head that the next
+// stageNextPromotableQueueHead returns the queue head that the next
 // head-promoting transition should promote, or false when no queued row
 // can be promoted. Heads that fail the promotion guard are deleted until
 // a passing head is found; rows behind it are untouched.
@@ -194,7 +194,7 @@ func (tx *Tx) guardQueuedRows(rows []database.ChatQueuedMessage) ([]database.Cha
 // the head has an automation, the automations of every row in the queue
 // are locked up front, so a loop over several stale heads never takes
 // automation locks out of ascending order.
-func (tx *Tx) nextPromotableQueueHead() (database.ChatQueuedMessage, bool, error) {
+func (tx *Tx) stageNextPromotableQueueHead() (database.ChatQueuedMessage, bool, error) {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return database.ChatQueuedMessage{}, false, nil
@@ -214,7 +214,7 @@ func (tx *Tx) nextPromotableQueueHead() (database.ChatQueuedMessage, bool, error
 		return database.ChatQueuedMessage{}, false, err
 	}
 	for _, row := range queue {
-		passing, err := tx.dropUnpromotable([]database.ChatQueuedMessage{row}, locked)
+		passing, err := tx.stageDropUnpromotable([]database.ChatQueuedMessage{row}, locked)
 		if err != nil {
 			return database.ChatQueuedMessage{}, false, err
 		}
