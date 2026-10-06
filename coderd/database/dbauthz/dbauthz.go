@@ -908,10 +908,6 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// subjectWorkspaceSecretManager is the only subject that can read
-	// decrypted workspace secret values. It delivers them in the agent
-	// manifest and copies them forward onto each new workspace build,
-	// clearing the superseded build's rows.
 	subjectWorkspaceSecretManager = rbac.Subject{
 		Type:         rbac.SubjectTypeWorkspaceSecretManager,
 		FriendlyName: "Workspace Secret Manager",
