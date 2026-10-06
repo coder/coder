@@ -41,6 +41,23 @@ export const InvalidName: Story = {
 	},
 };
 
+export const NameFieldError: Story = {
+	args: {
+		project: MockChatProject,
+		error: mockApiError({
+			message: "Name must be at most 64 characters.",
+			validations: [
+				{ field: "name", detail: "Name must be at most 64 characters." },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByLabelText(/Name/));
+		await userEvent.tab();
+	},
+};
+
 export const Submitting: Story = {
 	args: {
 		project: MockChatProject,

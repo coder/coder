@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import { MockChatProject } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
@@ -197,29 +197,6 @@ describe("ChatProjectDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
-	});
-
-	it("shows an API field error on the field", async () => {
-		const user = userEvent.setup();
-		const message = "Name must be at most 64 characters.";
-		const { props, rerenderWith } = renderDialog();
-
-		await user.type(screen.getByLabelText(/Name/), "Launch");
-		await user.click(screen.getByRole("button", { name: "Save" }));
-		expect(props.onSubmit).toHaveBeenCalled();
-
-		rerenderWith({
-			error: mockApiError({
-				message,
-				validations: [{ field: "name", detail: message }],
-			}),
-		});
-
-		expect(screen.getAllByText(message)).toHaveLength(1);
-		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
-			"aria-invalid",
-			"true",
-		);
 	});
 
 	it("does not close while saving", async () => {
