@@ -405,6 +405,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
+		{"Migration000614DiscoveredRowsRemovedOnDown", 614, testMigration000614DiscoveredRowsRemovedOnDown},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1630,15 +1631,16 @@ func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next 
 	assertMigrated()
 }
 
-// TestMigration000596DiscoveredRowsRemovedOnDown checks that the down
+// testMigration000614DiscoveredRowsRemovedOnDown checks that the down
 // migration deletes the rows chatd pinned from tool-touched directories along
 // with the column that marks them, since the previous release would read them
 // as snapshot copies.
-func TestMigration000596DiscoveredRowsRemovedOnDown(t *testing.T) {
-	t.Parallel()
+func testMigration000614DiscoveredRowsRemovedOnDown(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 614
 
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -1672,7 +1674,7 @@ func TestMigration000596DiscoveredRowsRemovedOnDown(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	downSQL, err := os.ReadFile("000596_chat_context_resources_discovered.down.sql")
+	downSQL, err := os.ReadFile("000614_chat_context_resources_discovered.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -1681,6 +1683,11 @@ func TestMigration000596DiscoveredRowsRemovedOnDown(t *testing.T) {
 	err = sqlDB.QueryRowContext(ctx, "SELECT array_agg(source ORDER BY source) FROM chat_context_resources WHERE chat_id = $1", chatID).Scan(&sources)
 	require.NoError(t, err)
 	require.Equal(t, pq.StringArray{"/home/coder/AGENTS.md"}, sources, "only the snapshot copy survives the downgrade")
+
+	upSQL, err := os.ReadFile("000614_chat_context_resources_discovered.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
 }
 
 func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
