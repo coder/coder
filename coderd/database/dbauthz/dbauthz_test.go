@@ -7046,8 +7046,9 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 	}))
 	s.Run("GetWorkspaceSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{})
-		dbm.EXPECT().GetWorkspaceSecrets(gomock.Any()).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
-		check.Args().
+		arg := database.GetWorkspaceSecretsParams{AfterID: uuid.New(), LimitCount: 1000}
+		dbm.EXPECT().GetWorkspaceSecrets(gomock.Any(), arg).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
+		check.Args(arg).
 			Asserts(rbac.ResourceWorkspaceSecret, policy.ActionReadSecret).
 			Returns([]database.WorkspaceSecret{secret})
 	}))

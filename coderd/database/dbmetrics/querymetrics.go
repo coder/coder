@@ -4200,9 +4200,9 @@ func (m queryMetricsStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceSecrets(ctx context.Context) ([]database.WorkspaceSecret, error) {
+func (m queryMetricsStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceSecrets(ctx)
+	r0, r1 := m.s.GetWorkspaceSecrets(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceSecrets").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSecrets").Inc()
 	return r0, r1

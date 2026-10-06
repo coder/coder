@@ -35190,13 +35190,21 @@ const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
 SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
 FROM workspace_secrets
 WHERE value IS NOT NULL
-ORDER BY workspace_id, workspace_build_id, name
+  AND id > $1::uuid
+ORDER BY id
+LIMIT $2::int
 `
 
-// Returns every workspace secret that still holds a value across the
-// deployment. Used only by the dbcrypt key rotation utility.
-func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceSecrets)
+type GetWorkspaceSecretsParams struct {
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Returns a page of workspace secrets that still hold a value across the
+// deployment, ordered by id. Pass the last returned id as after_id to fetch
+// the next page. Used only by the dbcrypt key rotation utility.
+func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context, arg GetWorkspaceSecretsParams) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecrets, arg.AfterID, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}

@@ -6247,13 +6247,13 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceSecrets(ctx context.Context) ([]database.WorkspaceSecret, error) {
+func (q *querier) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
 	// Deployment-wide listing of decrypted values exists only for the
 	// dbcrypt key rotation utility.
 	if err := q.authorizeContext(ctx, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret); err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceSecrets(ctx)
+	return q.db.GetWorkspaceSecrets(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {

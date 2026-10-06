@@ -7901,18 +7901,18 @@ func (mr *MockStoreMockRecorder) GetWorkspaceResourcesCreatedAfter(ctx, createdA
 }
 
 // GetWorkspaceSecrets mocks base method.
-func (m *MockStore) GetWorkspaceSecrets(ctx context.Context) ([]database.WorkspaceSecret, error) {
+func (m *MockStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceSecrets", ctx)
+	ret := m.ctrl.Call(m, "GetWorkspaceSecrets", ctx, arg)
 	ret0, _ := ret[0].([]database.WorkspaceSecret)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceSecrets indicates an expected call of GetWorkspaceSecrets.
-func (mr *MockStoreMockRecorder) GetWorkspaceSecrets(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceSecrets(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecrets), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecrets), ctx, arg)
 }
 
 // GetWorkspaceSecretsHistory mocks base method.

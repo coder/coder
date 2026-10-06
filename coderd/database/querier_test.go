@@ -20197,3 +20197,60 @@ func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
 			"only build 1's row is cleared")
 	}
 }
+
+func TestGetWorkspaceSecretsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+		OwnerID:        dbgen.User(t, db, database.User{}).ID,
+	}).Do()
+	ws := first.Workspace
+	second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+
+	// Build 1's secret is cleared below and must not be listed.
+	dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: first.Build.ID,
+		Name:             "cleared",
+	})
+	var want []uuid.UUID
+	for i := range 5 {
+		secret := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: second.ID,
+			Name:             fmt.Sprintf("secret-%d", i),
+			EnvName:          fmt.Sprintf("SECRET_%d", i),
+		})
+		want = append(want, secret.ID)
+	}
+	require.NoError(t, db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: second.ID,
+	}))
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, secret := range page {
+			got = append(got, secret.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every live secret is listed once, in id order")
+	require.Equal(t, 3, pages)
+}

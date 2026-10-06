@@ -1168,9 +1168,10 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
-	// Returns every workspace secret that still holds a value across the
-	// deployment. Used only by the dbcrypt key rotation utility.
-	GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error)
+	// Returns a page of workspace secrets that still hold a value across the
+	// deployment, ordered by id. Pass the last returned id as after_id to fetch
+	// the next page. Used only by the dbcrypt key rotation utility.
+	GetWorkspaceSecrets(ctx context.Context, arg GetWorkspaceSecretsParams) ([]WorkspaceSecret, error)
 	// Returns metadata for every workspace secret row of a workspace, including
 	// cleared rows, so the secrets each build received can be inspected. Values
 	// are never selected. The workspace owner and organization are included for

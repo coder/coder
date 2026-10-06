@@ -56,12 +56,15 @@ WHERE workspace_secrets.workspace_build_id = workspace_builds.id
   );
 
 -- name: GetWorkspaceSecrets :many
--- Returns every workspace secret that still holds a value across the
--- deployment. Used only by the dbcrypt key rotation utility.
+-- Returns a page of workspace secrets that still hold a value across the
+-- deployment, ordered by id. Pass the last returned id as after_id to fetch
+-- the next page. Used only by the dbcrypt key rotation utility.
 SELECT *
 FROM workspace_secrets
 WHERE value IS NOT NULL
-ORDER BY workspace_id, workspace_build_id, name;
+  AND id > @after_id::uuid
+ORDER BY id
+LIMIT @limit_count::int;
 
 -- name: UpdateEncryptedWorkspaceSecretValue :one
 -- Updates only the encrypted columns on a row. Used by the dbcrypt key
