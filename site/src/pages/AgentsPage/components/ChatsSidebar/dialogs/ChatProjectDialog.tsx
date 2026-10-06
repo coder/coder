@@ -185,11 +185,14 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		// Formik keeps isSubmitting set until this settles, so a second click
 		// cannot submit again before the caller's isSubmitting turns on.
 		onSubmit: async (values) => {
+			// Built outside the try block: the React Compiler cannot compile
+			// conditional expressions inside try/catch.
+			const submitted = {
+				...(!project && { organizationId: values.organizationId }),
+				...trimValues(values),
+			};
 			try {
-				await onSubmit({
-					...(!project && { organizationId: values.organizationId }),
-					...trimValues(values),
-				});
+				await onSubmit(submitted);
 			} catch {
 				// The caller shows the failure through the error prop.
 			}
