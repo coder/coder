@@ -4,7 +4,8 @@ title: Deploy Coder on Azure with an Application Gateway
 
 In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) is required.
 
-These steps serve as a proof-of-concept example so that you can get Coder running with Kubernetes on Azure. Your deployment might require a separate Postgres server or signed certificates.
+These steps serve as a proof-of-concept example so that you can get Coder running with Kubernetes on Azure.
+Your deployment might require a separate Postgres server or signed certificates.
 
 The Application Gateway supports:
 

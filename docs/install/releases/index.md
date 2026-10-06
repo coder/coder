@@ -2,12 +2,9 @@
 title: Releases
 ---
 
-Coder releases are cut directly from main in our
-[GitHub](https://github.com/coder/coder) on the first Tuesday of each month.
+Coder releases are cut directly from main in our [GitHub](https://github.com/coder/coder) on the first Tuesday of each month.
 
-We recommend enterprise customers test the compatibility of new releases with
-their infrastructure on a staging environment before upgrading a production
-deployment.
+We recommend enterprise customers test the compatibility of new releases with their infrastructure on a staging environment before upgrading a production deployment.
 
 ## Release channels
 
@@ -19,8 +16,8 @@ We support four primary release channels, as well as ad-hoc release candidates:
 - **Extended Support Release:** Biannually released version of Coder
 - **Release Candidates:** Ad-hoc builds to validate in-development features
 
-We field our mainline releases publicly for one month before promoting them to stable. The security support version, so n-2 from mainline, receives patches
-only for security issues or CVEs.
+We field our mainline releases publicly for one month before promoting them to stable.
+The security support version, so n-2 from mainline, receives patches only for security issues or CVEs.
 
 ### Mainline releases
 
@@ -39,8 +36,7 @@ only for security issues or CVEs.
 
 - In-product security vulnerabilities and CVEs are supported
 
-For more information on feature rollout, see our
-[feature stages documentation](../releases/feature-stages.md).
+For more information on feature rollout, see our [feature stages documentation](../releases/feature-stages.md).
 
 ### Extended Support Release
 
@@ -48,7 +44,10 @@ For more information on feature rollout, see our
 - Receives only critical bugfixes and security patches
 - Ideal for regulated environments or large deployments with strict upgrade cycles
 
-ESR releases will be updated with critical bugfixes and security patches that are available to paying customers. This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability. Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints. The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.5).
+ESR releases will be updated with critical bugfixes and security patches that are available to paying customers.
+This extended support model provides predictable, long-term maintenance for organizations that require enhanced stability.
+Because ESR forgoes new features in favor of maintenance and stability, it is best suited for teams with strict upgrade constraints.
+The latest ESR version is [Coder 2.34](https://github.com/coder/coder/releases/tag/v2.34.5).
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or the [2.29 to 2.34 ESR Upgrade Guide](./esr-2.29-2.34-upgrade.md).
 
@@ -59,22 +58,21 @@ For more information, see the [Coder ESR announcement](https://coder.com/blog/es
 - Features introduced in an RC are not guaranteed to be included in a mainline or stable release
 - Not intended for production use
 
-Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version. Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support. They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.
+Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version.
+Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support.
+They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.
 
 ## Installing stable
 
-When installing Coder, we generally advise specifying the desired version from
-our GitHub [releases page](https://github.com/coder/coder/releases).
+When installing Coder, we generally advise specifying the desired version from our GitHub [releases page](https://github.com/coder/coder/releases).
 
-You can also use our `install.sh` script with the `stable` flag to install the
-latest stable release:
+You can also use our `install.sh` script with the `stable` flag to install the latest stable release:
 
 ```sh
 curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 
-Best practices for installing Coder can be found on our [install](../index.md)
-pages.
+Best practices for installing Coder can be found on our [install](../index.md) pages.
 
 ## Release schedule
 <!-- Autogenerated release calendar from scripts/update-release-calendar.sh -->
@@ -92,14 +90,13 @@ pages.
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]
-> We publish a
-> [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
-> `ghcr.io/coder/coder-preview` on each commit to the `main` branch. This can be
-> used to test under-development features and bug fixes that have not yet been
-> released to [`mainline`](#mainline-releases) or [`stable`](#stable-releases).
+> We publish a [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image `ghcr.io/coder/coder-preview` on each commit to the `main` branch.
+> This can be used to test under-development features and bug fixes that have not yet been released to [`mainline`](#mainline-releases) or [`stable`](#stable-releases).
 >
 > The `preview` image is not intended for production use.
 
 ### January Releases
 
-Releases on the first Tuesday of January **are not guaranteed to occur** because most of our team is out for the December holiday period. That being said, an ad-hoc release might still occur. We advise not relying on a January release, or reaching out to Coder directly to determine if one will be occurring closer to the release date.
+Releases on the first Tuesday of January **are not guaranteed to occur** because most of our team is out for the December holiday period.
+That being said, an ad-hoc release might still occur.
+We advise not relying on a January release, or reaching out to Coder directly to determine if one will be occurring closer to the release date.

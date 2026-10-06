@@ -4,8 +4,7 @@ title: Install the Coder CLI
 
 A single CLI (`coder`) is used for both the control plane and the client.
 
-We support two release channels: mainline and stable - read the
-[Releases](./releases/index.md) page to learn more about which best suits your team.
+We support two release channels: mainline and stable - read the [Releases](./releases/index.md) page to learn more about which best suits your team.
 
 ## Download the latest release from GitHub
 
@@ -19,23 +18,17 @@ Our install script is the fastest way to install Coder on Linux/macOS:
 curl -L https://coder.com/install.sh | sh
 ```
 
-Refer to [GitHub releases](https://github.com/coder/coder/releases) for
-alternate installation methods (e.g. standalone binaries, system packages).
+Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
 
 ## Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
+If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
-Use [GitHub releases](https://github.com/coder/coder/releases) to download the
-Windows installer (`.msi`) or standalone binary (`.exe`).
+Use [GitHub releases](https://github.com/coder/coder/releases) to download the Windows installer (`.msi`) or standalone binary (`.exe`).
 
 ![Windows setup wizard](../images/install/windows-installer.png)
 
-Alternatively, you can use the
-[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-package manager to install Coder:
+Alternatively, you can use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 
 ```ps1
 winget install Coder.Coder
@@ -62,14 +55,12 @@ coder login https://coder.example.com
 > [!NOTE]
 > Available in Coder 2.19 and newer on macOS and Linux clients only.
 
-Every control plane hosts CLI binaries for all supported platforms. You can run a
-script to download the appropriate CLI for your machine from your Coder
-deployment.
+Every control plane hosts CLI binaries for all supported platforms.
+You can run a script to download the appropriate CLI for your machine from your Coder deployment.
 
 ![Install Coder binary from your deployment](../images/install/install_from_deployment.png)
 
-This script works within air-gapped deployments and ensures that the version of
-the CLI you have installed on your machine matches the version of the control plane.
+This script works within air-gapped deployments and ensures that the version of the CLI you have installed on your machine matches the version of the control plane.
 
 This script can be useful when authoring a template for installing the CLI.
 

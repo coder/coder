@@ -27,16 +27,12 @@ oc new-project coder
 
 ### 2. Configure SecurityContext values
 
-Depending upon your configured Security Context Constraints (SCC), you'll need
-to modify some or all of the following `securityContext` values from the default
-values:
+Depending upon your configured Security Context Constraints (SCC), you'll need to modify some or all of the following `securityContext` values from the default values:
 
-The below values are modified from Coder defaults and allow the Coder deployment
-to run under the SCC `restricted-v2`.
+The below values are modified from Coder defaults and allow the Coder deployment to run under the SCC `restricted-v2`.
 
 > [!NOTE]
-> `readOnlyRootFilesystem: true` is not technically required under
-> `restricted-v2`, but is often mandated in OpenShift environments.
+> `readOnlyRootFilesystem: true` is not technically required under `restricted-v2`, but is often mandated in OpenShift environments.
 
 ```yaml
 coder:
@@ -48,8 +44,7 @@ coder:
     seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for
-  project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -59,12 +54,10 @@ coder:
     }
     ```
 
-  Alternatively, you can set these values to `null` to allow OpenShift to
-  automatically select the correct value for the project.
+  Alternatively, you can set these values to `null` to allow OpenShift to automatically select the correct value for the project.
 
 - For `readOnlyRootFilesystem`, consult the SCC under which Coder needs to run.
-  In the below example, the `restricted-v2` SCC does not require a read-only
-  root filesystem, while `restricted-custom` does:
+  In the below example, the `restricted-v2` SCC does not require a read-only root filesystem, while `restricted-custom` does:
 
   ```console
   oc get scc -o wide
@@ -73,35 +66,28 @@ coder:
   restricted-v2       false   ["NET_BIND_SERVICE"]   MustRunAs   MustRunAsRange     MustRunAs   RunAsAny    <no value>   false            ["configMap","downwardAPI","emptyDir","ephemeral","persistentVolumeClaim","projected","secret"]
   ```
 
-  If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in
-  an OpenShift environment.
+  If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in an OpenShift environment.
 
-- For `seccompProfile`: in some environments, you may need to set this to `null`
-  to allow OpenShift to pick its preferred value.
+- For `seccompProfile`: in some environments, you may need to set this to `null` to allow OpenShift to pick its preferred value.
 
 ### 3. Configure the Coder service, connection URLs, and cache values
 
-To establish a connection to PostgreSQL, set the `CODER_PG_CONNECTION_URL`
-value. [See our Helm documentation](./kubernetes.md) on configuring the
-PostgreSQL connection URL as a secret. Additionally, if accessing Coder over a
-hostname, set the `CODER_ACCESS_URL` value.
+To establish a connection to PostgreSQL, set the `CODER_PG_CONNECTION_URL` value.
+[See our Helm documentation](./kubernetes.md) on configuring the PostgreSQL connection URL as a secret.
+Additionally, if accessing Coder over a hostname, set the `CODER_ACCESS_URL` value.
 
-By default, Coder creates the cache directory in `/home/coder/.cache`. Given the
-OpenShift-provided UID and `readOnlyRootFS` security context constraint, the
-Coder container does not have permission to write to this directory.
+By default, Coder creates the cache directory in `/home/coder/.cache`.
+Given the OpenShift-provided UID and `readOnlyRootFS` security context constraint, the Coder container does not have permission to write to this directory.
 
-To fix this, you can mount a temporary volume in the pod and set the
-`CODER_CACHE_DIRECTORY` environment variable to that location. In the below
-example, we mount this under `/tmp` and set the cache location to `/tmp/coder`.
+To fix this, you can mount a temporary volume in the pod and set the `CODER_CACHE_DIRECTORY` environment variable to that location.
+In the below example, we mount this under `/tmp` and set the cache location to `/tmp/coder`.
 This enables Coder to run with `readOnlyRootFilesystem: true`.
 
 > [!NOTE]
-> Depending on the number of templates and provisioners you use, you may
-> need to increase the size of the volume, as the `coder` pod will be
-> automatically restarted when this volume fills up.
+> Depending on the number of templates and provisioners you use, you may need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
 
-Additionally, create the Coder service as a `ClusterIP`. In the next step, you
-will create an OpenShift route that points to the service HTTP target port.
+Additionally, create the Coder service as a `ClusterIP`.
+In the next step, you will create an OpenShift route that points to the service HTTP target port.
 
 ```yaml
 coder:
@@ -133,13 +119,11 @@ coder:
 ```
 
 > [!NOTE]
-> OpenShift provides a Developer Catalog offering you can use to install
-> PostgreSQL into your cluster.
+> OpenShift provides a Developer Catalog offering you can use to install PostgreSQL into your cluster.
 
 ### 4. Create the OpenShift route
 
-Below is the YAML spec for creating an OpenShift route that sends traffic to the
-HTTP port of the Coder service:
+Below is the YAML spec for creating an OpenShift route that sends traffic to the HTTP port of the Coder service:
 
 ```yaml
 kind: Route
@@ -170,8 +154,8 @@ oc apply -f route.yaml
 
 ### 5. Install Coder
 
-You can now install Coder using the values you've set from the above steps. To
-do so, run the series of `helm` commands below:
+You can now install Coder using the values you've set from the above steps.
+To do so, run the series of `helm` commands below:
 
 ```sh
 helm repo add coder-v2 https://helm.coder.com/v2
@@ -182,8 +166,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the
-> permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -218,9 +201,8 @@ helm install coder coder-v2/coder \
 
 ### 6. Create an OpenShift-compatible image
 
-While the deployment is spinning up, we will need to create some images that are
-compatible with OpenShift. These images can then be run without modifying the
-Security Context Constraints (SCCs) in OpenShift.
+While the deployment is spinning up, we will need to create some images that are compatible with OpenShift.
+These images can then be run without modifying the Security Context Constraints (SCCs) in OpenShift.
 
 1. Determine the UID range for the project:
 
@@ -236,18 +218,15 @@ Security Context Constraints (SCCs) in OpenShift.
    }
    ```
 
-   Note the `uid-range` and `supplemental-groups`. In this case, the project
-   `coder` has been allocated 10,000 UIDs and GIDs, both starting at
-   `1000680000`.
+   Note the `uid-range` and `supplemental-groups`.
+   In this case, the project `coder` has been allocated 10,000 UIDs and GIDs, both starting at `1000680000`.
 
    In this example, we will pick both UID and GID `1000680000`.
 
 1. Create a `BuildConfig` referencing the source image you want to customize.
-   This will automatically kick off a `Build` that will remain pending until
-   step 3.
+   This will automatically kick off a `Build` that will remain pending until step 3.
 
-   > For more information, please consult the
-   > [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).
+   > For more information, please consult the [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).
 
    ```sh
    oc create -f - <<EOF
@@ -298,8 +277,8 @@ Security Context Constraints (SCCs) in OpenShift.
    oc create imagestream enterprise-base
    ```
 
-   The `Build` created in the previous step should now begin. Once completed,
-   you should see output similar to the following:
+   The `Build` created in the previous step should now begin.
+   Once completed, you should see output similar to the following:
 
    ```console
    oc get imagestreamtag
@@ -319,8 +298,7 @@ cd ./openshift-k8s
 Edit `main.tf` and update the following fields of the Kubernetes pod resource:
 
 - `spec.security_context`: remove this field.
-- `spec.container.image`: update this field to the newly built image hosted on
-  the OpenShift image registry from the previous step.
+- `spec.container.image`: update this field to the newly built image hosted on the OpenShift image registry from the previous step.
 - `spec.container.security_context`: remove this field.
 
 Finally, create the template:
