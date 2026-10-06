@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import type { PreviewParameter } from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
 import { DynamicParameter } from "./DynamicParameter";
@@ -416,24 +417,52 @@ describe("DynamicParameter", () => {
 			expect(screen.getByRole("textbox")).toBeInTheDocument();
 		});
 
-		it("handles tag additions", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockTagsParameter}
-					value='["tag1"]'
-					onChange={mockOnChange}
-				/>,
-			);
+		it.each([",", "{Enter}"])(
+			"adds a tag with %s without submitting the form",
+			async (separator) => {
+				const user = userEvent.setup();
+				const onSubmit = vi.fn();
+				function ParameterForm() {
+					const [value, setValue] = useState('["engineering"]');
+					return (
+						<form
+							onSubmit={(event) => {
+								event.preventDefault();
+								onSubmit(value);
+							}}
+						>
+							<DynamicParameter
+								parameter={mockTagsParameter}
+								value={value}
+								onChange={(nextValue) => {
+									setValue(nextValue);
+									mockOnChange(nextValue);
+								}}
+							/>
+							<button type="submit">Save</button>
+						</form>
+					);
+				}
 
-			const input = screen.getByRole("textbox");
-			await waitFor(async () => {
-				await userEvent.type(input, "newtag,");
-			});
+				render(<ParameterForm />);
+				const input = screen.getByRole("textbox", { name: "Tags Parameter" });
+				await user.type(input, `production${separator}`);
 
-			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenCalledWith('["tag1","newtag"]');
-			});
-		});
+				expect(onSubmit).not.toHaveBeenCalled();
+				expect(mockOnChange).toHaveBeenCalledExactlyOnceWith(
+					'["engineering","production"]',
+				);
+
+				await user.keyboard("{Enter}");
+				expect(onSubmit).not.toHaveBeenCalled();
+				expect(mockOnChange).toHaveBeenCalledTimes(1);
+
+				await user.click(screen.getByRole("button", { name: "Save" }));
+				expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
+					'["engineering","production"]',
+				);
+			},
+		);
 
 		it("handles tag removals", async () => {
 			render(
