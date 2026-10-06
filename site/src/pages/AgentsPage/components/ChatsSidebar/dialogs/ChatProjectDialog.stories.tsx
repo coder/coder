@@ -5,6 +5,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
@@ -56,6 +57,14 @@ export const UnavailableSelection: Story = {
 	},
 };
 
+export const NameRequired: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByLabelText(/Project name/));
+		await userEvent.tab();
+	},
+};
+
 export const InvalidName: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -63,6 +72,23 @@ export const InvalidName: Story = {
 			await body.findByRole("textbox", { name: /Project name/ }),
 			"x".repeat(65),
 		);
+	},
+};
+
+export const NameFieldError: Story = {
+	args: {
+		project: MockChatProject,
+		error: mockApiError({
+			message: "Name must be at most 64 characters.",
+			validations: [
+				{ field: "name", detail: "Name must be at most 64 characters." },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByLabelText(/Name/));
+		await userEvent.tab();
 	},
 };
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -17,10 +17,12 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import type { ProjectDialogMode } from "./chats/ProjectFolders";
+import type { ProjectDialogState } from "./chats/ProjectFolders";
+import { getOrganizationLabels } from "./chats/projectGrouping";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -127,26 +129,45 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		experiments.includes("chat-projects") &&
 		initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const location = useLocation();
+	const sidebarView = sidebarViewFromPath(location.pathname);
+	const viewedProjectId =
+		sidebarView.panel === "chats" ? sidebarView.projectId : undefined;
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
+	const deleteProjectMutation = useMutation({
+		...deleteChatProject(queryClient),
+		// Leaves the deleted project's page before the project list refetches,
+		// so the page never shows "Project not found". A pending mutation picks
+		// up each render's options, so this reads the current location.
+		onSuccess: (_, project) => {
+			if (viewedProjectId === project.id) {
+				navigate(
+					{ pathname: "/agents", search: location.search },
+					{ replace: true },
+				);
+			}
+		},
+	});
 
 	// Each dialog keeps its content after closing so the exit animation does
 	// not flash empty.
-	const [projectDialog, setProjectDialog] = useState<ProjectDialogMode>({
+	const [projectDialog, setProjectDialog] = useState<ProjectDialogState>({
 		mode: "create",
 	});
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
 	const [deleteDialog, setDeleteDialog] = useState<{
 		project: ChatProject | null;
+		organizationLabel?: string;
 		open: boolean;
 	}>({ project: null, open: false });
 
-	const openProjectDialog = (dialog: ProjectDialogMode) => {
+	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
 			createProjectMutation.reset();
 		} else {
@@ -171,13 +192,30 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		if (organizationId) {
 			createProjectMutation.mutate(
 				{ organizationId, request },
-				{ onSuccess: closeProjectDialog },
+				{
+					onSuccess: (project) => {
+						closeProjectDialog();
+						navigate({
+							pathname: buildAgentProjectPath({ projectId: project.id }),
+							search: location.search,
+						});
+					},
+				},
 			);
 		}
 	};
 
+	// The label is captured on open because deleting the project can end the
+	// name collision before the dialog finishes closing.
 	const openDeleteProjectDialog = (project: ChatProject) =>
-		setDeleteDialog({ project, open: true });
+		setDeleteDialog({
+			project,
+			organizationLabel: getOrganizationLabels(
+				projectsQuery.data ?? [],
+				organizations,
+			).get(project.id),
+			open: true,
+		});
 	const closeDeleteProjectDialog = () =>
 		setDeleteDialog((current) => ({ ...current, open: false }));
 
@@ -211,8 +249,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
@@ -241,6 +277,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				projects={projectsQuery.data ?? []}
+				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
 				onRetryProjects={() => void projectsQuery.refetch()}
@@ -274,9 +311,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
-				viewedProjectId={
-					sidebarView.panel === "chats" ? sidebarView.projectId : undefined
-				}
+				viewedProjectId={viewedProjectId}
 				isSettingsPanel={isSettingsPanel}
 				isChatsActive={
 					!activeChatId &&
@@ -330,6 +365,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onCancel={closeDeleteProjectDialog}
 				entity="project"
 				name={deleteDialog.project?.name ?? ""}
+				title={
+					deleteDialog.organizationLabel
+						? `Delete "${deleteDialog.project?.name}" from ${deleteDialog.organizationLabel}`
+						: undefined
+				}
 				confirmLoading={deleteProjectMutation.isPending}
 				info="Chats in this project will be kept and move back to the Chats list."
 			/>

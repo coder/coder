@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -111,6 +111,11 @@ const Wrapper: React.FC<WrapperProps> = ({
 	);
 };
 
+const ProjectLocationProbe: React.FC = () => {
+	const location = useLocation();
+	return <div data-testid="location-pathname">{location.pathname}</div>;
+};
+
 const defaultSidebarFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
@@ -144,7 +149,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 describe("ChatsSidebar projects", () => {
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
-		const otherProject = {
+		const mockOtherProject = {
 			...MockChatProject,
 			id: "other-project",
 			name: "Other",
@@ -158,7 +163,7 @@ describe("ChatsSidebar projects", () => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
 				projectListRequests += 1;
-				return HttpResponse.json([MockChatProject, otherProject]);
+				return HttpResponse.json([MockChatProject, mockOtherProject]);
 			}),
 			http.delete(
 				"/api/experimental/organizations/:organization/chats/projects/:project",
@@ -195,7 +200,9 @@ describe("ChatsSidebar projects", () => {
 			expect(deletedProjectIds).toEqual([MockChatProject.id]),
 		);
 		await user.keyboard("{Escape}");
-		await deleteProject(otherProject.name);
+		await deleteProject(mockOtherProject.name);
+		// One delete runs at a time, so the earlier one keeps its callbacks.
+		expect(screen.getByRole("button", { name: /Delete$/ })).toBeDisabled();
 
 		const requestsBeforeFinish = projectListRequests;
 		finishDelete();
@@ -205,8 +212,47 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 		await waitFor(() =>
-			expect(deletedProjectIds).toEqual([MockChatProject.id, otherProject.id]),
+			expect(deletedProjectIds).toEqual([
+				MockChatProject.id,
+				mockOtherProject.id,
+			]),
 		);
+	});
+
+	it("shows the Chats empty state once every chat is known to be in a project", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const mockProjectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
+			</Wrapper>,
+		);
+
+		// The chat's project is still loading, so its chat may yet be unfiled.
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		expect(screen.queryByText("No agents yet")).toBeNull();
+
+		resolveProjects();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
 	it("keeps project chats out of the chat sections while projects load", async () => {
@@ -222,17 +268,20 @@ describe("ChatsSidebar projects", () => {
 				return HttpResponse.json([MockChatProject]);
 			}),
 		);
-		const projectChat = buildChat({
+		const mockProjectChat = buildChat({
 			id: "project-chat",
 			title: "Project chat",
 			organization_id: MockChatProject.organization_id,
 			project_id: MockChatProject.id,
 		});
-		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
+		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
 
 		render(
 			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} chats={[projectChat, looseChat]} />
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[mockProjectChat, mockLooseChat]}
+				/>
 			</Wrapper>,
 		);
 
@@ -251,15 +300,17 @@ describe("ChatsSidebar projects", () => {
 			const user = userEvent.setup();
 			let requestBody: unknown;
 			let requestOrganizationID: string | undefined;
+			let isProjectCreated = false;
 			server.use(
 				http.get("/api/experimental/chats/projects", () =>
-					HttpResponse.json([]),
+					HttpResponse.json(isProjectCreated ? [MockChatProject] : []),
 				),
 				http.post(
 					"/api/experimental/organizations/:organizationId/chats/projects",
 					async ({ request, params }) => {
 						requestOrganizationID = String(params.organizationId);
 						requestBody = await request.json();
+						isProjectCreated = true;
 						return HttpResponse.json(MockChatProject);
 					},
 				),
@@ -271,6 +322,7 @@ describe("ChatsSidebar projects", () => {
 					organizations={[MockOrganization2, MockDefaultOrganization]}
 				>
 					<ChatsSidebar {...defaultProps} chats={[]} />
+					<ProjectLocationProbe />
 				</Wrapper>,
 			);
 
@@ -312,6 +364,14 @@ describe("ChatsSidebar projects", () => {
 					icon: "",
 				});
 			});
+			await waitFor(() =>
+				expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+					`/agents/projects/${MockChatProject.id}`,
+				),
+			);
+			expect(
+				await screen.findByRole("link", { name: MockChatProject.name }),
+			).toHaveAttribute("aria-current", "page");
 		},
 	);
 
@@ -387,7 +447,7 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requestCount).toBe(2));
 	});
 
-	it("deletes the selected project and its drafts after confirmation", async () => {
+	it("deletes the viewed project and its drafts, then leaves its page", async () => {
 		const user = userEvent.setup();
 		const draftKeys = draftStorageKeys(MockChatProject.id);
 		localStorage.setItem(draftKeys.text, "project draft");
@@ -407,8 +467,12 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
 				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
 			</Wrapper>,
 		);
 
@@ -431,6 +495,11 @@ describe("ChatsSidebar projects", () => {
 			expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		});
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				/^\/agents$/,
+			),
+		);
 	});
 
 	it("reports a failed project deletion", async () => {
@@ -470,6 +539,42 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
+	it("names the organization when deleting a project whose name is shared", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockDefaultOrganization, MockOrganization2]}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+		expect(
+			await screen.findByRole("dialog", {
+				name: `Delete "${MockChatProject.name}" from ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
@@ -501,6 +606,70 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
 			"aria-current",
 		);
+	});
+
+	it("keeps other folders open when opening a chat in another project", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "chat-project-2",
+			name: "Research",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+		const mockFirstProjectChat = buildChat({
+			id: "first-project-chat",
+			title: "First project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+		const mockOtherProjectChat = buildChat({
+			id: "other-project-chat",
+			title: "Other project chat",
+			organization_id: mockOtherProject.organization_id,
+			project_id: mockOtherProject.id,
+		});
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${mockFirstProjectChat.id}`}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={
+							<ChatsSidebar
+								{...defaultProps}
+								chats={[mockFirstProjectChat, mockOtherProjectChat]}
+							/>
+						}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Expand ${mockOtherProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("link", { name: /Other project chat/ }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("link", { name: /Other project chat/ }),
+			).toHaveAttribute("aria-current", "page"),
+		);
+		expect(
+			screen.getByRole("button", { name: `Collapse ${MockChatProject.name}` }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
+		).toBeInTheDocument();
 	});
 });
 
