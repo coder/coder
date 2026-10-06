@@ -185,6 +185,8 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	);
 };
 
+// CSS dashed borders cannot set dash length, so draw a 4px dash,
+// 4px gap pattern under a transparent border instead.
 const dashedDivider =
 	"border-transparent bg-origin-border bg-repeat-y bg-left-top bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
 
@@ -194,8 +196,6 @@ const stepDividerVariants = cva(
 		variants: {
 			variant: {
 				complete: "border-border-success",
-				// CSS dashed borders cannot set dash length, so draw a 4px dash,
-				// 4px gap pattern under a transparent border instead.
 				current: dashedDivider,
 				upcoming: dashedDivider,
 			},
