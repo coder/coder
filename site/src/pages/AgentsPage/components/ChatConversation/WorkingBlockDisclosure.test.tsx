@@ -39,6 +39,7 @@ describe("WorkingBlockDisclosure", () => {
 
 		await user.tab();
 		expect(summary).toHaveFocus();
+
 		await user.keyboard("{Enter}");
 		expect(onExpandedChange).toHaveBeenLastCalledWith(true);
 
@@ -50,6 +51,7 @@ describe("WorkingBlockDisclosure", () => {
 	it("advances the live label with the clock", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(FIXTURE_NOW);
+
 		try {
 			render(
 				<ControlledDisclosure
@@ -57,6 +59,7 @@ describe("WorkingBlockDisclosure", () => {
 				/>,
 			);
 			screen.getByRole("button", { name: "Working for 12s" });
+
 			act(() => {
 				vi.advanceTimersByTime(1000);
 			});
