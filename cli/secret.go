@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -599,44 +601,63 @@ func secretNameOrID(names map[uuid.UUID]string, id uuid.UUID) string {
 
 // secretListBuildID picks the workspace build whose secrets to include.
 // Explicit flags win; otherwise the current workspace is used when the
-// command runs inside one. uuid.Nil means list user secrets only.
-func secretListBuildID(inv *serpent.Invocation, client *codersdk.Client, workspace, buildID string) (uuid.UUID, error) {
+// command runs inside one. uuid.Nil means list user secrets only. fromEnv
+// reports that the build came from the workspace environment rather than a
+// flag.
+func secretListBuildID(inv *serpent.Invocation, client *codersdk.Client, workspace, buildID string) (id uuid.UUID, fromEnv bool, err error) {
 	if buildID != "" {
 		id, err := uuid.Parse(buildID)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("parse --build-id: %w", err)
+			return uuid.Nil, false, xerrors.Errorf("parse --build-id: %w", err)
 		}
-		return id, nil
+		return id, false, nil
 	}
 	if workspace != "" {
 		ws, err := client.ResolveWorkspace(inv.Context(), workspace)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("get workspace %q: %w", workspace, err)
+			return uuid.Nil, false, xerrors.Errorf("get workspace %q: %w", workspace, err)
 		}
-		return ws.LatestBuild.ID, nil
+		return ws.LatestBuild.ID, false, nil
 	}
 	// Set by the agent inside a workspace.
 	if v := inv.Environ.Get("CODER_WORKSPACE_BUILD_ID"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("parse CODER_WORKSPACE_BUILD_ID: %w", err)
+			return uuid.Nil, false, xerrors.Errorf("parse CODER_WORKSPACE_BUILD_ID: %w", err)
 		}
-		return id, nil
+		return id, true, nil
 	}
 	// Older servers do not send the build ID, so fall back to the
 	// workspace's latest build.
 	if v := inv.Environ.Get("CODER_WORKSPACE_ID"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("parse CODER_WORKSPACE_ID: %w", err)
+			return uuid.Nil, false, xerrors.Errorf("parse CODER_WORKSPACE_ID: %w", err)
 		}
 		ws, err := client.Workspace(inv.Context(), id)
-		if err != nil {
-			return uuid.Nil, xerrors.Errorf("get current workspace: %w", err)
+		if isNotFoundError(err) {
+			warnCurrentWorkspaceNotFound(inv)
+			return uuid.Nil, false, nil
 		}
-		return ws.LatestBuild.ID, nil
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("get current workspace: %w", err)
+		}
+		return ws.LatestBuild.ID, true, nil
 	}
-	return uuid.Nil, nil
+	return uuid.Nil, false, nil
+}
+
+// warnCurrentWorkspaceNotFound explains why only user secrets are listed
+// when the CLI is logged in to a deployment or user that cannot see the
+// workspace it runs in.
+func warnCurrentWorkspaceNotFound(inv *serpent.Invocation) {
+	cliui.Warn(inv.Stderr, "The current workspace was not found on this deployment, so only user secrets are listed.",
+		"Use --workspace or --build-id to list a workspace's secrets.")
+}
+
+func isNotFoundError(err error) bool {
+	var sdkErr *codersdk.Error
+	return errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
 }
 
 func (r *RootCmd) secretList() *serpent.Command {
@@ -703,15 +724,20 @@ func (r *RootCmd) secretList() *serpent.Command {
 				}
 				data = secretListRowFromSecret(secret, nil)
 			} else {
-				id, err := secretListBuildID(inv, client, workspace, buildID)
+				id, fromEnv, err := secretListBuildID(inv, client, workspace, buildID)
 				if err != nil {
 					return err
 				}
 				var secrets []codersdk.WorkspaceSecret
+				if id != uuid.Nil {
+					secrets, err = client.UserSecretsForWorkspaceBuild(inv.Context(), codersdk.Me, id)
+					if fromEnv && isNotFoundError(err) {
+						warnCurrentWorkspaceNotFound(inv)
+						id = uuid.Nil
+					}
+				}
 				if id == uuid.Nil {
 					secrets, err = client.UserSecrets(inv.Context(), codersdk.Me)
-				} else {
-					secrets, err = client.UserSecretsForWorkspaceBuild(inv.Context(), codersdk.Me, id)
 				}
 				if err != nil {
 					return xerrors.Errorf("list secrets: %w", err)
