@@ -84,21 +84,22 @@ describe("ChatProjectDialog", () => {
 
 		await user.click(screen.getByLabelText(/Name/));
 		await user.paste("🚀".repeat(64));
-		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "🚀".repeat(64) }),
 		);
+	});
+
+	it("does not save a name over the limit", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
 
 		await user.click(screen.getByLabelText(/Name/));
-		await user.paste("🚀");
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
-		);
+		await user.paste("🚀".repeat(65));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("measures the length limit after trimming", async () => {
@@ -108,16 +109,8 @@ describe("ChatProjectDialog", () => {
 		await user.type(screen.getByLabelText(/Name/), "Launch");
 		await user.click(screen.getByLabelText("Description"));
 		await user.paste(`${"d".repeat(1024)} `);
-		expect(screen.getByLabelText("Description")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByLabelText("Icon"));
 		await user.paste(`${"i".repeat(256)} `);
-		expect(screen.getByLabelText("Icon")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
@@ -170,8 +163,9 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog({ project: MockChatProject });
 
 		await user.type(screen.getByLabelText(/Name/), " ");
+		submitForm(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
@@ -180,7 +174,6 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog({ project: MockChatProject });
 		const save = screen.getByRole("button", { name: "Save" });
 
-		expect(save).toBeDisabled();
 		submitForm(save);
 		await user.click(save);
 		await user.click(screen.getByLabelText(/Name/));
