@@ -106,6 +106,16 @@ describe("form util functions", () => {
 				expect(maxLengthOver.error).toBe(true);
 				expect(maxLengthOver.helperText).toBeDefined();
 			});
+			it("measures the length with measureLength when given", () => {
+				const measured = getFieldHelpers("maxLengthOver", {
+					maxLength: 32,
+					measureLength: (value) => value.length - 1,
+				});
+				expect(measured.error).toBe(false);
+				expect(measured.helperText).toBe(
+					"This cannot be longer than 32 characters. (32/32)",
+				);
+			});
 		});
 		describe("with API errors", () => {
 			it("shows an error if there is only an API error", () => {
