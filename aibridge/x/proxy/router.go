@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/coderd/util/xurl"
 )
 
@@ -33,7 +34,8 @@ type Router struct {
 	mux *http.ServeMux
 
 	// providers is an owned copy of the provider list, fixed at construction.
-	providers []provider.Provider
+	providers  []provider.Provider
+	transports []*http.Transport
 }
 
 var _ http.Handler = (*Router)(nil)
@@ -46,7 +48,7 @@ var _ http.Handler = (*Router)(nil)
 // after validation succeeds.
 // All routes reuse the same inflight gate across a server's snapshots.
 // Shutdown drains all admitted requests. Recorder is shared across requests.
-func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
+func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -55,14 +57,22 @@ func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.L
 	mux := http.NewServeMux()
 	mux.Handle("/", inflight.Middleware(routing.NewProviderMux(snapshot, logger)))
 	router := &Router{providers: snapshot, mux: mux}
+	defer func() {
+		if outErr != nil {
+			router.CloseIdleConnections()
+		}
+	}()
 	for _, prov := range snapshot {
 		if !prov.Enabled() {
 			continue
 		}
 
+		transport := utils.NewStreamingTransport()
+		transport.DisableCompression = true
+		router.transports = append(router.transports, transport)
 		// The bridged handler admits requests itself because only it knows
 		// when post-processing (for which DRPC connection needs to be up) finishes.
-		bridged, err := newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+		bridged, err := newForwardingHandler(prov, logger, m, tracer, inflight, rec, transport)
 		if err != nil {
 			return nil, xerrors.Errorf("configure provider %q bridged handler: %w", prov.Name(), err)
 		}
@@ -111,4 +121,12 @@ func (p *Router) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // KeyPools returns the non-nil key pools from this router's provider snapshot.
 func (p *Router) KeyPools() []*keypool.Pool {
 	return provider.CollectKeyPools(p.providers)
+}
+
+// CloseIdleConnections releases idle connections owned by bridged forwarding.
+// Active requests retain their connections until they finish.
+func (p *Router) CloseIdleConnections() {
+	for _, transport := range p.transports {
+		transport.CloseIdleConnections()
+	}
 }
