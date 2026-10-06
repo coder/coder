@@ -1,6 +1,7 @@
 -- Restore chat_automation scopes in the api_key_scope enum, in their
 -- original position. Revoked keys and grants, stripped scopes, and removed
--- custom role permissions are not recoverable.
+-- custom role permissions are not recoverable, and neither is a deleted
+-- chat-automations experiment rule.
 ALTER TYPE api_key_scope RENAME TO api_key_scope_old;
 
 CREATE TYPE api_key_scope AS ENUM (

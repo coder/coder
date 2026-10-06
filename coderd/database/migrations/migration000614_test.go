@@ -68,6 +68,9 @@ func TestMigration000614RemoveChatAutomations(t *testing.T) {
 	// Later transitions advance snapshot_version without touching the
 	// queue, so queue_version falls behind it.
 	exec(`UPDATE chats SET snapshot_version = snapshot_version + 5`)
+	// A stored runtime rule for the removed experiment is deleted. Rules for
+	// other experiments stay.
+	exec(`INSERT INTO site_configs (key, value) VALUES ('experiment_rule:chat-automations', '{}'), ('experiment_rule:example', '{}')`)
 
 	// The custom roles keep their other permissions.
 	exec(`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
@@ -163,6 +166,8 @@ func TestMigration000614RemoveChatAutomations(t *testing.T) {
 		require.Equal(t, snapshotVersion, queueVersion, "the deleted queued message must advance queue_version")
 		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT queue_version, snapshot_version FROM chats WHERE id = $1`, otherChatID).Scan(&queueVersion, &snapshotVersion))
 		require.Less(t, queueVersion, snapshotVersion, "a chat without automation-queued messages keeps its queue_version")
+
+		require.Equal(t, []string{"experiment_rule:example"}, queryStrings(`SELECT key FROM site_configs WHERE starts_with(key, 'experiment_rule:')`))
 
 		for column, want := range map[string]string{
 			"site_permissions":   "[" + userPermission + "]",

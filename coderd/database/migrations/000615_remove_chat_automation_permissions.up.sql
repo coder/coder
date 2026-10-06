@@ -1,8 +1,8 @@
 -- Removes chat_automation credentials and permissions left by the chat
 -- automations experiment, following 000595_remove_task_permissions. This
--- migration touches api_keys, custom_roles and the oauth2_provider_* tables
--- only. It does not touch chat tables, so it does not need the lock retry
--- block from 000614.
+-- migration touches api_keys, custom_roles, site_configs and the
+-- oauth2_provider_* tables only. It does not touch chat tables, so it does
+-- not need the lock retry block from 000614.
 
 -- LIKE treats an unescaped underscore as a wildcard, so the patterns below
 -- escape it to match the chat_automation prefix exactly.
@@ -91,6 +91,10 @@ WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(scope, ' ')) w WHERE w LIKE '
 UPDATE oauth2_provider_apps
 SET scope = array_to_string(ARRAY(SELECT w FROM unnest(string_to_array(scope, ' ')) w WHERE w NOT LIKE 'chat\_automation:%' AND w <> ''), ' ')
 WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(scope, ' ')) w WHERE w LIKE 'chat\_automation:%');
+
+-- Delete the stored runtime rule for the removed chat-automations
+-- experiment. The server would otherwise keep listing it as ignored.
+DELETE FROM site_configs WHERE key = 'experiment_rule:chat-automations';
 
 -- Remove chat_automation scopes from the api_key_scope enum. Recreating the
 -- type, instead of altering it, keeps every remaining value usable in the
