@@ -384,7 +384,10 @@ func TestTokenLifetimeCeiling(t *testing.T) {
 	require.NoError(t, err)
 	session, err := scoped.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
-	for _, child := range []string{token.Key, session.Key} {
+	// Unnamed token keys would collide on the per-user name index.
+	second, err := scoped.CreateAPIKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	for _, child := range []string{token.Key, session.Key, second.Key} {
 		key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(child, "-")[0])
 		require.NoError(t, err)
 		require.False(t, key.ExpiresAt.After(parentKey.ExpiresAt), "child outlives its creator")

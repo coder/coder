@@ -311,6 +311,8 @@ func TestWorkspaceApplicationAuthScoped(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, authRedirect(codersdk.APIKeyScopeApiKeyCreate))
 	require.Equal(t, http.StatusSeeOther, authRedirect(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeApiKeyCreate))
+	// Unnamed token keys would collide on the per-user name index.
+	require.Equal(t, http.StatusSeeOther, authRedirect(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeApiKeyCreate))
 
 	//nolint:gocritic // Reading the minted key back.
 	keys, err := api.Database.GetAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeysByUserIDParams{

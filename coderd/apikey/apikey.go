@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -173,7 +174,8 @@ var (
 // InheritWithinCaller fills omitted scopes and allow list from the caller, and
 // refuses rather than narrows anything the caller lacks. A caller short of
 // coder:all with `*:*` also caps the expiry at its own and gets a token, which
-// never slides past it.
+// never slides past it. Token names are unique per user, so an unnamed token
+// gets a generated name.
 func InheritWithinCaller(caller database.APIKey, params CreateParams) (CreateParams, error) {
 	if len(params.Scopes) == 0 && params.Scope != "" {
 		params.Scopes = database.APIKeyScopes{params.Scope}
@@ -204,6 +206,9 @@ func InheritWithinCaller(caller database.APIKey, params CreateParams) (CreatePar
 			params.LifetimeSeconds = int64(time.Until(caller.ExpiresAt).Seconds())
 		}
 		params.LoginType = database.LoginTypeToken
+		if params.TokenName == "" {
+			params.TokenName = namesgenerator.NameDigitWith("_")
+		}
 	}
 	return params, nil
 }
