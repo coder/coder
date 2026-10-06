@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole] interface {
+type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.ChatProjectRole | codersdk.MCPServerConfigRole] interface {
 	// Users should return a map from user UUIDs (as strings) to the role they
 	// are being assigned. Additionally, it should return a string that will be
 	// used as the field name for the ValidationErrors returned from Validate.
@@ -25,7 +25,7 @@ type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole | coder
 	ValidateRole(role Role) error
 }
 
-func Validate[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole](
+func Validate[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.ChatProjectRole | codersdk.MCPServerConfigRole](
 	ctx context.Context,
 	db database.Store,
 	v UpdateValidator[Role],

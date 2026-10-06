@@ -184,8 +184,9 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 
 	// The owner may create chats for other users, but binding one to the
 	// owner's project would expose its memory to someone who cannot read
-	// the project, so the chat owner must own the project. The response
-	// matches an unknown project so the check does not reveal existence.
+	// the project, so the chat owner must own it or have it shared. The
+	// response matches an unknown project so the check does not reveal
+	// existence.
 	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,

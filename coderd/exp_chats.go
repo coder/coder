@@ -1394,11 +1394,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// Projects are private to their owner, and a chat in a project reads
-		// and writes its memory, so the chat's owner must own the project.
-		// This matches the unreadable-project response so callers creating
-		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
+		// A chat in a project reads and writes its memory under the chat
+		// owner's permissions, so the chat's owner, not only the caller, must
+		// own the project or have it shared with them. This matches the
+		// unreadable-project response so callers creating chats for other
+		// users cannot probe for project IDs.
+		if !api.HTTPAuth.AuthorizeContext(ownerCtx, policy.ActionRead, project.RBACObject()) ||
+			!api.HTTPAuth.AuthorizeContext(ownerCtx, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}

@@ -257,6 +257,48 @@ type UpdateChatProjectRequest struct {
 	Icon        *string `json:"icon,omitempty"`
 }
 
+// ChatProjectRole is the access a project's ACL grants a user or group.
+// Sharing a project shares its details and memories, and lets sharees
+// start their own chats in it. It does not share the chats themselves.
+type ChatProjectRole string
+
+const (
+	// ChatProjectRoleUse can view the project and its memories and start
+	// chats in it, whose agents read and write the project's memories.
+	ChatProjectRoleUse ChatProjectRole = "use"
+	// ChatProjectRoleAdmin can also edit the project and change who it is
+	// shared with. Only the owner can delete it.
+	ChatProjectRoleAdmin ChatProjectRole = "admin"
+	// ChatProjectRoleDeleted removes an ACL entry in an update.
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+type ChatProjectUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+type ChatProjectGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+// ChatProjectACL lists who a chat project is shared with. Sharing with the
+// whole organization is a group entry for the organization's Everyone
+// group, whose ID is the organization ID.
+type ChatProjectACL struct {
+	Users  []ChatProjectUser  `json:"users"`
+	Groups []ChatProjectGroup `json:"groups"`
+}
+
+// UpdateChatProjectACL changes only the listed principals.
+// ChatProjectRoleDeleted removes an entry. Use the organization ID as the
+// group ID to share with the whole organization.
+type UpdateChatProjectACL struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
+}
+
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
 	ID                uuid.UUID `json:"id" format:"uuid"`
@@ -2337,8 +2379,8 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists the authenticated user's chat projects across all
-// organizations.
+// ListChatProjects lists the chat projects the authenticated user owns or
+// that are shared with them, across all organizations.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
@@ -2397,6 +2439,33 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 // DeleteChatProject deletes a chat project and detaches its chats.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectACL returns who a chat project is shared with.
+func (c *ExperimentalClient) ChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl", nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatProjectACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateChatProjectACL changes who a chat project is shared with.
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID)+"/acl", req)
 	if err != nil {
 		return err
 	}

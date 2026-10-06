@@ -995,6 +995,19 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatProjectRoleActions returns the chat project actions a role grants.
+// Memory access follows from project read; see ChatProjectMemoryRBACObject.
+func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
+	switch role {
+	case codersdk.ChatProjectRoleAdmin:
+		// Deletion stays with the owner, matching workspace sharing.
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
+	case codersdk.ChatProjectRoleUse:
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
