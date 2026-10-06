@@ -51,11 +51,6 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
-const parseTimestamp = (value: string | undefined): number | undefined => {
-	const time = Date.parse(value ?? "");
-	return Number.isFinite(time) ? time : undefined;
-};
-
 type RowContent = ReturnType<typeof getVisibleContent>;
 
 /**
@@ -76,9 +71,6 @@ const getStepRowContent = (
 		}
 
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
-		if (content.visibleBlocks.length === 0) {
-			return content;
-		}
 	} else {
 		const { message, parsed } = row.entry;
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
@@ -90,7 +82,7 @@ const getStepRowContent = (
 
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
-		return undefined;
+		return row.type === "live" ? content : undefined;
 	}
 
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
@@ -119,16 +111,18 @@ const getStepRowContent = (
  * across an insert batch, so it marks when a step was persisted, not when its
  * work started.
  */
-const getPartTimestamps = (entry: ParsedMessageEntry) =>
-	(entry.message.content ?? []).flatMap((part) => {
-		if (part.type === "reasoning") {
-			return [part.created_at, part.completed_at];
-		}
+const getPartTimestamps = (entry: ParsedMessageEntry): string[] =>
+	(entry.message.content ?? [])
+		.flatMap((part) => {
+			if (part.type === "reasoning") {
+				return [part.created_at, part.completed_at];
+			}
 
-		return part.type === "tool-call" || part.type === "tool-result"
-			? [part.created_at]
-			: [];
-	});
+			return part.type === "tool-call" || part.type === "tool-result"
+				? [part.created_at]
+				: [];
+		})
+		.filter((timestamp) => timestamp !== undefined);
 
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
@@ -239,7 +233,7 @@ export const groupWorkingBlocks = (
 			entryIndex++;
 		}
 
-		const spanTimestamps: Array<string | undefined> = [];
+		const spanTimestamps: string[] = [];
 		while (
 			entryIndex < entries.length &&
 			entries[entryIndex].message.id < toId
@@ -248,13 +242,12 @@ export const groupWorkingBlocks = (
 			entryIndex++;
 		}
 
-		if (draft.containsLiveRow) {
-			spanTimestamps.push(options.streamState?.startedAt);
+		const streamStartedAt = options.streamState?.startedAt;
+		if (draft.containsLiveRow && streamStartedAt !== undefined) {
+			spanTimestamps.push(streamStartedAt);
 		}
 
-		const times = spanTimestamps
-			.map(parseTimestamp)
-			.filter((time) => time !== undefined);
+		const times = spanTimestamps.map((timestamp) => Date.parse(timestamp));
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
