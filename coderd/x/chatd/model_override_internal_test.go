@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -26,46 +27,39 @@ func TestResolveModelOverride(t *testing.T) {
 	}{
 		{
 			name: "Title",
-			spec: modelOverrideSpec{
-				context:         titleGenerationOverrideContext,
-				queryFailure:    modelOverrideFailureModeHard,
-				configFailure:   modelOverrideFailureModeHard,
-				providerFailure: modelOverrideFailureModeHard,
-			},
+			spec: modelOverrideSpec{context: titleGenerationOverrideContext},
 		},
 		{
 			name: "Compaction",
 			spec: modelOverrideSpec{
-				context:         compactionOverrideContext,
-				queryFailure:    modelOverrideFailureModeHard,
-				configFailure:   modelOverrideFailureModeSoft,
-				providerFailure: modelOverrideFailureModeSoft,
+				context:                  compactionOverrideContext,
+				ignoreUnavailable:        true,
+				ignoreMissingCredentials: true,
 			},
 		},
 		{
 			name: "Subagent",
 			spec: modelOverrideSpec{
-				context:         string(codersdk.ChatModelOverrideContextGeneral),
-				queryFailure:    modelOverrideFailureModeHard,
-				configFailure:   modelOverrideFailureModeSoft,
-				providerFailure: modelOverrideFailureModeSoft,
+				context:                  string(codersdk.ChatModelOverrideContextGeneral),
+				ignoreUnavailable:        true,
+				ignoreMissingCredentials: true,
 			},
 		},
 		{
 			name: "Advisor",
 			spec: modelOverrideSpec{
-				context:         advisorOverrideContext,
-				queryFailure:    modelOverrideFailureModeSoft,
-				configFailure:   modelOverrideFailureModeSoft,
-				providerFailure: modelOverrideFailureModeHard,
+				context:           advisorOverrideContext,
+				ignoreUnavailable: true,
 			},
 		},
 	}
 
+	always := func(modelOverrideSpec) bool { return true }
+	unlessIgnoreUnavailable := func(spec modelOverrideSpec) bool { return !spec.ignoreUnavailable }
 	tests := []struct {
 		name      string
 		setup     func(*dbmock.MockStore, database.Chat, database.ChatModelConfig, uuid.UUID, modelOverrideSpec)
-		failure   func(modelOverrideSpec) modelOverrideFailureMode
+		wantErr   func(modelOverrideSpec) bool
 		wantSet   bool
 		wantModel bool
 	}{
@@ -80,7 +74,7 @@ func TestResolveModelOverride(t *testing.T) {
 			setup: func(db *dbmock.MockStore, chat database.Chat, _ database.ChatModelConfig, _ uuid.UUID, spec modelOverrideSpec) {
 				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.queryFailure },
+			wantErr: always,
 		},
 		{
 			name: "MissingConfig",
@@ -88,7 +82,25 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(database.ChatModelConfig{}, sql.ErrNoRows)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.configFailure },
+			wantErr: unlessIgnoreUnavailable,
+			wantSet: true,
+		},
+		{
+			name: "NotAuthorizedConfig",
+			setup: func(db *dbmock.MockStore, chat database.Chat, config database.ChatModelConfig, _ uuid.UUID, spec modelOverrideSpec) {
+				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
+				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(database.ChatModelConfig{}, dbauthz.NotAuthorizedError{})
+			},
+			wantErr: unlessIgnoreUnavailable,
+			wantSet: true,
+		},
+		{
+			name: "ConfigError",
+			setup: func(db *dbmock.MockStore, chat database.Chat, config database.ChatModelConfig, _ uuid.UUID, spec modelOverrideSpec) {
+				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
+				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(database.ChatModelConfig{}, sql.ErrConnDone)
+			},
+			wantErr: always,
 			wantSet: true,
 		},
 		{
@@ -98,7 +110,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{ID: providerID, Type: database.AIProviderTypeOpenai}, nil)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.configFailure },
+			wantErr: unlessIgnoreUnavailable,
 			wantSet: true,
 		},
 		{
@@ -108,7 +120,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{ID: providerID, Type: database.AIProviderType("invalid"), Enabled: true}, nil)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.configFailure },
+			wantErr: unlessIgnoreUnavailable,
 			wantSet: true,
 		},
 		{
@@ -118,7 +130,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{}, sql.ErrConnDone)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.providerFailure },
+			wantErr: always,
 			wantSet: true,
 		},
 		{
@@ -129,7 +141,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 				db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.providerFailure },
+			wantErr: func(spec modelOverrideSpec) bool { return !spec.ignoreMissingCredentials },
 			wantSet: true,
 		},
 		{
@@ -165,7 +177,7 @@ func TestResolveModelOverride(t *testing.T) {
 
 				server := titleOverrideTestServer(db, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}))
 				resolved, err := server.resolveModelOverride(ctx, spec)
-				wantErr := test.failure != nil && test.failure(spec) == modelOverrideFailureModeHard
+				wantErr := test.wantErr != nil && test.wantErr(spec)
 				if wantErr {
 					require.Error(t, err)
 				} else {

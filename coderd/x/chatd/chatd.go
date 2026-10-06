@@ -260,12 +260,10 @@ func (p *Server) resolveAdvisorModelOverride(
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         advisorOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeSoft,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeHard,
+		context:           advisorOverrideContext,
+		ownerID:           chat.OwnerID,
+		organizationID:    chat.OrganizationID,
+		ignoreUnavailable: true,
 	})
 	if err != nil {
 		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -1330,8 +1328,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
-	organizationPrompt := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
+	deploymentPrompt, err := p.resolveDeploymentSystemPrompt(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	organizationPrompt, err := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -4390,13 +4394,10 @@ func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid
 // resolveDeploymentSystemPrompt builds the deployment-level system
 // prompt from the built-in default and the admin-configured custom
 // prompt stored in site_configs.
-func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
+func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) (string, error) {
 	config, err := p.db.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		// Fail open: use the built-in default so chats always have
-		// some system guidance.
-		p.logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
-		return DefaultSystemPrompt
+		return "", xerrors.Errorf("get chat system prompt config: %w", err)
 	}
 
 	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
@@ -4415,23 +4416,21 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 	if result == "" {
 		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
 	}
-	return result
+	return result, nil
 }
 
 // resolveOrganizationSystemPrompt returns the sanitized system prompt
 // configured for the organization, or an empty string when none is set.
-func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) string {
+func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	//nolint:gocritic // Chat creators cannot read organization config, so chatd reads it.
 	row, err := p.db.GetChatOrganizationSystemPrompt(dbauthz.AsChatd(ctx), organizationID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			// Fail open: the deployment prompt still applies.
-			p.logger.Warn(ctx, "failed to fetch organization chat system prompt, omitting it",
-				slog.F("organization_id", organizationID), slog.Error(err))
-		}
-		return ""
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
 	}
-	return codersdk.SanitizePromptText(row.SystemPrompt)
+	if err != nil {
+		return "", xerrors.Errorf("get organization chat system prompt: %w", err)
+	}
+	return codersdk.SanitizePromptText(row.SystemPrompt), nil
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the

@@ -12756,7 +12756,7 @@ type overrideReadFailStore struct {
 }
 
 func (s *overrideReadFailStore) GetChatOrganizationModelOverride(ctx context.Context, arg database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
-	if s.fail.Load() {
+	if s.fail.Load() && arg.Context == "compaction" {
 		return database.ChatOrganizationModelOverride{}, xerrors.New("injected compaction override read failure")
 	}
 	return s.Store.GetChatOrganizationModelOverride(ctx, arg)
