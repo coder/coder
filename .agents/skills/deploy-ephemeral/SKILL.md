@@ -129,7 +129,7 @@ ws_id=$(api "/api/v2/users/me/workspace/$ws" | jq -r .id)
 share() { api "/api/v2/workspaces/$ws_id/port-share" -X POST -o /dev/null \
   -d "{\"agent_name\": \"dev\", \"port\": $1, \"share_level\": \"organization\", \"protocol\": \"http\"}"; }
 unshare() { api "/api/v2/workspaces/$ws_id/port-share" -X DELETE -o /dev/null \
-  -d "{\"agent_name\": \"dev\", \"port\": $1}" || true; }
+  -d "{\"agent_name\": \"dev\", \"port\": $1}" 2>/dev/null || true; } # 404 when absent
 share 8080
 if [ "$mode" = full ]; then share 3000; else unshare 3000; fi
 api "/api/v2/workspaces/$ws_id/port-share" | jq -c '[.shares[] | {port, share_level}]'
@@ -161,10 +161,20 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
    coder ssh "$ws" -- cat /var/lib/eph/status/status.json
    ```
 
-   A missing file means the VM is still being set up. The first deployment
-   takes 30 to 45 minutes on `c7i.xlarge` (VM setup, image pull, and the first
-   build); later ones take 5 to 15 minutes, and site-only changes take seconds.
-   Give up after 60 minutes for a first deployment and 25 minutes otherwise.
+   A missing file means the VM is still being set up. If the agent's
+   lifecycle is `start_error`, the setup script failed: report the tail of
+   `coder ssh "$ws" -- 'sudo tail -n 40 /tmp/coder-script-*.log'` and offer
+   `coder restart "$ws" -y`.
+
+   ```sh
+   api "/api/v2/users/me/workspace/$ws" | jq -r '.latest_build.resources[].agents[]? | .lifecycle_state'
+   ```
+
+   The first deployment takes about 15 minutes in full mode on `c7i.xlarge`
+   (VM setup, image pulls, and the first build) and about 5 minutes in
+   frontend mode. Later rebuilds take a few minutes, and site-only changes
+   take seconds. Give up after 45 minutes for a first deployment and 25
+   minutes otherwise.
 
 4. On `failed`, report `message` and the tail of the log it names, for example
    `coder ssh "$ws" -- tail -n 60 /var/lib/eph/status/build.log`. A later sync
