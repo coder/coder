@@ -511,8 +511,7 @@ func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStar
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	mismatch := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		// The lock already returned the row; verify against it instead of
-		// re-reading while the lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, _, err := tx.Current()
 		if err != nil {
 			if errors.Is(err, chatstate.ErrChatNotFound) {
@@ -652,16 +651,12 @@ func loadChatForTask(
 	return chat, nil
 }
 
-// loadLockedChatForTask is loadChatForTask for Update callbacks. The
-// transition lock already returned the row, and nothing else can change it
-// while the lock is held, so the fence is verified against that row instead
-// of re-reading it under the lock.
-func loadLockedChatForTask(
-	tx *chatstate.Tx,
-	input chatWorkerTaskStartInput,
-	status database.ChatStatus,
-	opts taskFenceOptions,
-) (database.Chat, error) {
+// loadLockedChatForTask verifies the task fence inside a
+// [chatstate.ChatMachine.Update] callback. It must only be called there:
+// the row comes from tx.Current, which returns the row Update's
+// LockChatForTransition already locked, so the fence check adds no round
+// trip while the lock is held.
+func loadLockedChatForTask(tx *chatstate.Tx, input chatWorkerTaskStartInput, status database.ChatStatus, opts taskFenceOptions) (database.Chat, error) {
 	chat, _, err := tx.Current()
 	if err != nil {
 		if errors.Is(err, chatstate.ErrChatNotFound) {

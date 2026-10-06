@@ -109,6 +109,8 @@ TODO: the transition lock no longer writes the row. Each transition ends with a 
 
 Each transaction that applies one or more transitions advances the `snapshot_version` field on the `chats` table by 1 immediately after locking the chat row and before mutating any tables. This lets us version the chat's execution state. The chat worker and the stream loop rely on it to ensure they do not process outdated or out of order notifications.
 
+TODO: `snapshot_version` now advances once per commit write, not once per transaction, and at the end of the transition rather than right after the lock. A transaction with two commit writes (for example `SendMessage` with interrupt on an unowned running chat, which runs `FinishInterruption` after its own commit write) advances it by 2, and a transaction with none advances it by 1 through `Update`'s bump-only write. Rows read inside an `Update` callback before that bump carry the pre-commit versions. Rewrite the paragraph above.
+
 Chat-message changes update `history_version` on the `chats` table and the `revision` fields on the `chat_messages` table automatically via Postgres triggers described in [Message revisions and history version](#message-revisions-and-history-version). `history_version` stores the latest `snapshot_version` in which chat message history changed. The chat runner and the stream loop rely on it to ensure they are fully aware of the chat's history changes. See [Event processing](#event-processing) for how the runner uses `history_version` differently from `snapshot_version`.
 
 Queue changes update `queue_version` automatically via Postgres triggers described in [Queue version](#queue-version).

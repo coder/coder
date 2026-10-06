@@ -881,14 +881,17 @@ func captureBaseline(ctx context.Context, t *testing.T, f *testFixture, seeded s
 	return base
 }
 
-// assertSnapshotBumpedOnce asserts that one Update committed; that is,
-// snapshot_version advanced by exactly one and the publisher saw at
-// least one chat:update on the per-chat channel after the baseline.
+// assertSnapshotBumpedOnce asserts that one Update committed with exactly
+// one commit write: every commit write advances snapshot_version by one
+// and transitions write the chats row only through commit writes, so a
+// single bump also pins the one-chats-UPDATE-per-transition contract.
+// It also asserts the publisher saw at least one chat:update on the
+// per-chat channel after the baseline.
 func assertSnapshotBumpedOnce(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, base snapshotBaseline) {
 	t.Helper()
 	after, err := f.DB.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
-	require.Equal(t, base.snapshot+1, after.SnapshotVersion, "snapshot_version must bump exactly once")
+	require.Equal(t, base.snapshot+1, after.SnapshotVersion, "snapshot_version must bump exactly once (one commit write)")
 	channel := coderdpubsub.ChatStateUpdateChannel(chatID)
 	found := false
 	for _, c := range f.Pub.channels[base.channels:] {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -78,11 +77,11 @@ func (s *lockAttemptStore) LockChatForTransition(ctx context.Context, id uuid.UU
 	return s.Store.LockChatForTransition(ctx, id)
 }
 
-// TestLockLocksChatRow verifies that ChatMachine.Lock holds the chat
-// row's FOR UPDATE lock until the callback returns, so a concurrent
-// ChatMachine.Update cannot enter its callback until the Lock
-// callback releases.
-func TestLockLocksChatRow(t *testing.T) {
+// TestReadLockBlocksUpdate verifies that Update waits for a ReadLock
+// holder: FOR SHARE must still conflict with the transition lock's FOR
+// NO KEY UPDATE, or callers reading related rows under ReadLock could
+// observe a transition mid-flight.
+func TestReadLockBlocksUpdate(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -106,11 +105,11 @@ func TestLockLocksChatRow(t *testing.T) {
 	})
 	updateEntered := make(chan struct{})
 
-	// Goroutine A: hold a Lock and block.
+	// Goroutine A: hold a ReadLock and block.
 	var lockErr error
 	var lockWG sync.WaitGroup
 	lockWG.Go(func() {
-		lockErr = m.Lock(ctx, func(_ database.Store) error {
+		lockErr = m.ReadLock(ctx, func(_ database.Store) error {
 			close(lockEntered)
 			select {
 			case <-releaseLock:
@@ -121,9 +120,9 @@ func TestLockLocksChatRow(t *testing.T) {
 		})
 	})
 
-	// Wait until A is inside its Lock callback (and therefore holds
-	// the FOR UPDATE lock).
-	require.True(t, waitForChan(ctx, lockEntered), "Lock callback never started")
+	// Wait until A is inside its ReadLock callback (and therefore holds
+	// the FOR SHARE lock).
+	require.True(t, waitForChan(ctx, lockEntered), "ReadLock callback never started")
 
 	// Goroutine B: try to Update the same chat. It must block on
 	// LockChatForTransition until A releases.
@@ -144,45 +143,16 @@ func TestLockLocksChatRow(t *testing.T) {
 	// implementation is incorrect and doesn't block. But in most cases, this wait should be enough.
 	time.Sleep(50 * time.Millisecond)
 	require.True(t, stillBlocked(updateEntered),
-		"Update entered while Lock was still held")
+		"Update entered while ReadLock was still held")
 
-	// Release Lock and confirm Update completes successfully.
+	// Release ReadLock and confirm Update completes successfully.
 	close(releaseLock)
 	require.True(t, waitForChan(ctx, updateEntered),
-		"Update callback never started after Lock released")
+		"Update callback never started after ReadLock released")
 	require.True(t, waitForWaitGroup(ctx, &updateWG), "Update did not finish")
-	require.True(t, waitForWaitGroup(ctx, &lockWG), "Lock did not finish")
+	require.True(t, waitForWaitGroup(ctx, &lockWG), "ReadLock did not finish")
 	require.NoError(t, lockErr)
 	require.NoError(t, updateErr)
-}
-
-// TestLockRollsBackCallbackError verifies that a Lock callback
-// returning an error rolls back the surrounding transaction.
-func TestLockRollsBackCallbackError(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	before := f.readChat(ctx, t, created.Chat.ID)
-	publishedBefore := len(f.Pub.channels)
-
-	sentinel := xerrors.New("lock callback error")
-	err := m.Lock(ctx, func(store database.Store) error {
-		// Try a write that should be rolled back.
-		_, werr := store.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-			ID:    created.Chat.ID,
-			Title: "rollback-me",
-		})
-		require.NoError(t, werr)
-		return sentinel
-	})
-	require.ErrorIs(t, err, sentinel)
-
-	after := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, before.Title, after.Title, "Lock callback error rolls back writes")
-	require.Equal(t, publishedBefore, len(f.Pub.channels), "Lock publishes nothing on error")
 }
 
 // TestConcurrentUpdatesSerializeOnChatRow verifies that two
