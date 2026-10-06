@@ -857,6 +857,7 @@ func TestTemplateEdit(t *testing.T) {
 				template.Name,
 				"--allow-user-autostart=false",
 				"--allow-user-autostop=false",
+				"-y",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)

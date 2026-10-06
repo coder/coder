@@ -17,6 +17,11 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 			TimeTilDormantMillis:           new(int64),
 			TimeTilDormantAutoDeleteMillis: new(int64),
 			RequireActiveVersion:           new(bool),
+			DefaultTTLMillis:               new(int64),
+			AllowUserAutostop:              new(true),
+			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+				DaysOfWeek: []string{"monday", "tuesday"},
+			},
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{},
 				Weeks:      1,
@@ -29,6 +34,10 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 	}
 
 	template := codersdk.Template{
+		AllowUserAutostop: true,
+		AutostartRequirement: codersdk.TemplateAutostartRequirement{
+			DaysOfWeek: []string{"tuesday", "monday"},
+		},
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: []string{},
 			Weeks:      1,
@@ -78,5 +87,78 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 		changes := templateEditWorkspaceImpactingChanges(template, req)
 		assert.Len(t, changes, 1)
 		assert.Contains(t, changes[0], "Autostop requirement weeks")
+	})
+
+	t.Run("AutostartDaysChanged", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AutostartRequirement.DaysOfWeek = []string{"monday"}
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Len(t, changes, 1)
+		assert.Contains(t, changes[0], "Autostart requirement days")
+	})
+
+	t.Run("AllowUserAutostopDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AllowUserAutostop = new(false)
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Len(t, changes, 1)
+		assert.Contains(t, changes[0], "Allow user autostop")
+	})
+
+	t.Run("AllowUserAutostopEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := template
+		disabled.AllowUserAutostop = false
+
+		changes := templateEditWorkspaceImpactingChanges(disabled, newReq(nil))
+		assert.Empty(t, changes)
+	})
+
+	t.Run("DefaultTTLChangedWithAutostopAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.DefaultTTLMillis = new(int64(3600000))
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Empty(t, changes)
+	})
+
+	t.Run("DefaultTTLChangedWithAutostopDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := template
+		disabled.AllowUserAutostop = false
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AllowUserAutostop = new(false)
+			r.DefaultTTLMillis = new(int64(3600000))
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(disabled, req)
+		assert.Len(t, changes, 1)
+		assert.Contains(t, changes[0], "Default TTL")
+	})
+
+	t.Run("DisablingAutostopAndChangingTTL", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AllowUserAutostop = new(false)
+			r.DefaultTTLMillis = new(int64(3600000))
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Len(t, changes, 2)
 	})
 }
