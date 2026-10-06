@@ -335,6 +335,11 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 
 	// it should not send the peer to the netmap yet
 
+	uut.L.Lock()
+	preHandshake := uut.peers[p1ID].node
+	uut.L.Unlock()
+	require.False(t, preHandshake.KeepAlive)
+
 	go func() {
 		<-fEng.status
 		fEng.statusDone <- struct{}{}
@@ -358,6 +363,15 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	require.Equal(t, "127.3.3.40:1", n1.DERP)
 	require.Equal(t, p1Node.Endpoints, n1.Endpoints)
 	require.True(t, n1.KeepAlive)
+
+	// The stored node is replaced, not mutated, because it may be shared
+	// outside c.L (log entries, peer diagnostics).
+	require.False(t, preHandshake.KeepAlive, "stored node must not be mutated in place")
+	uut.L.Lock()
+	postHandshake := uut.peers[p1ID].node
+	uut.L.Unlock()
+	require.NotSame(t, preHandshake, postHandshake)
+	require.True(t, postHandshake.KeepAlive)
 
 	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
 	// require the right number of peers.

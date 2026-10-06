@@ -29,6 +29,43 @@ type exclusion struct {
 	yaml bool
 }
 
+// TestExperimentDisplayNames pins the display name of every known experiment.
+// DisplayName falls back to a title-cased key, so an experiment missing its
+// case renders a guess in the product UI instead of failing loudly. The length
+// assertion forces a new experiment to be named here as well.
+func TestExperimentDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	expected := map[codersdk.Experiment]string{
+		codersdk.ExperimentExample:                   "Example Experiment",
+		codersdk.ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
+		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
+		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
+		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",
+		codersdk.ExperimentMCPToolSearch:             "MCP Tool Search",
+		codersdk.ExperimentNoNATSPubsub:              "No NATS Pubsub",
+		codersdk.ExperimentWorkspaceBuildUpdates:     "Workspace Build Updates Channel",
+		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
+		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
+		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
+		codersdk.ExperimentChatProjects:              "Chat Projects",
+		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
+		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
+		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
+		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
+		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
+		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentChatAutomations:           "Chat Automations",
+	}
+
+	require.Len(t, expected, len(codersdk.ExperimentsKnown))
+	for _, experiment := range codersdk.ExperimentsKnown {
+		displayName, ok := expected[experiment]
+		require.Truef(t, ok, "experiment %q has no expected display name", experiment)
+		require.Equal(t, displayName, experiment.DisplayName())
+	}
+}
+
 func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	t.Parallel()
 
@@ -984,6 +1021,7 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
 		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
 		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+		{"chat-max-automations-per-owner", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAutomationsPerOwner }},
 	}
 	values := []struct {
 		value int64

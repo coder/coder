@@ -205,6 +205,7 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
+	authorizer               rbac.Authorizer
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -1090,20 +1091,25 @@ type CreateOptions struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
 	// CreatedBy attributes the initial user message; defaults to OwnerID.
-	CreatedBy               uuid.UUID
-	WorkspaceID             uuid.NullUUID
-	BuildID                 uuid.NullUUID
-	AgentID                 uuid.NullUUID
-	ParentChatID            uuid.NullUUID
-	RootChatID              uuid.NullUUID
-	Title                   string
-	TitleDerivedFromContent bool
-	ModelConfigID           uuid.UUID
-	ReasoningEffort         *string
-	ChatMode                database.NullChatMode
-	PlanMode                database.NullChatPlanMode
-	ClientType              database.ChatClientType
-	SystemPrompt            string
+	CreatedBy    uuid.UUID
+	ProjectID    uuid.NullUUID
+	WorkspaceID  uuid.NullUUID
+	BuildID      uuid.NullUUID
+	AgentID      uuid.NullUUID
+	ParentChatID uuid.NullUUID
+	RootChatID   uuid.NullUUID
+	Title        string
+	// TitleSource defaults to fallback.
+	TitleSource     database.ChatTitleSource
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	ChatMode        database.NullChatMode
+	PlanMode        database.NullChatPlanMode
+	ClientType      database.ChatClientType
+	SystemPrompt    string
+	// ManageAutomationsEnabled offers the manage_automations tool. Callers
+	// check the chat-automations experiment before setting it.
+	ManageAutomationsEnabled bool
 	// InitialUserContent is the first user message. When empty, the
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
@@ -1112,6 +1118,10 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// AdmitInTx, when set, admits InitialUserContent as an automation
+	// message inside the creation transaction. See
+	// [chatstate.CreateChatInput.AdmitInTx].
+	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1139,6 +1149,10 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
+	// AdmitInTx, when set, admits Content as an automation message
+	// inside the send transaction. See
+	// [chatstate.SendMessageInput.AdmitInTx].
+	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1287,6 +1301,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
+	opts.TitleSource = cmp.Or(opts.TitleSource, database.ChatTitleSourceFallback)
 	initialStatus := database.ChatStatusWaiting
 	if len(opts.InitialUserContent) > 0 {
 		initialStatus = database.ChatStatusRunning
@@ -1316,6 +1331,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	organizationPrompt := p.resolveOrganizationSystemPrompt(ctx, opts.OrganizationID)
 
 	if opts.ModelConfigID != uuid.Nil {
 		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1357,7 +1373,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		contentParts = composed
 		// Avoid deriving titles from the prompt that policy replaced.
-		if overridden && opts.TitleDerivedFromContent {
+		if overridden && opts.TitleSource == database.ChatTitleSourceFallback {
 			opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 		}
 	}
@@ -1383,6 +1399,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		initialMessages = append(initialMessages, systemMessage(deploymentContent, opts.ModelConfigID))
 	}
+	if organizationPrompt != "" {
+		organizationContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(organizationPrompt),
+		})
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal organization system prompt: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, systemMessage(organizationContent, opts.ModelConfigID))
+	}
 	if userPrompt != "" {
 		userPromptContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(userPrompt),
@@ -1404,6 +1429,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
+		ProjectID:         opts.ProjectID,
 		WorkspaceID:       opts.WorkspaceID,
 		BuildID:           opts.BuildID,
 		AgentID:           opts.AgentID,
@@ -1411,6 +1437,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		RootChatID:        opts.RootChatID,
 		LastModelConfigID: opts.ModelConfigID,
 		Title:             opts.Title,
+		TitleSource:       opts.TitleSource,
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
@@ -1428,6 +1455,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		AdmitInTx:       opts.AdmitInTx,
+
+		ManageAutomationsEnabled: opts.ManageAutomationsEnabled,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1521,11 +1551,14 @@ func (p *Server) SendMessage(
 	requestedMCPServerIDs := opts.MCPServerIDs
 
 	var (
-		result           SendMessageResult
-		promotedQueuedAt time.Time
+		result               SendMessageResult
+		promotedQueuedAt     time.Time
+		finishedInterruption bool
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// Update may rerun this callback after a deadlock abort.
+		result = SendMessageResult{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1590,6 +1623,7 @@ func (p *Server) SendMessage(
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			AdmitInTx:    opts.AdmitInTx,
 		})
 		if err != nil {
 			return err
@@ -1609,6 +1643,7 @@ func (p *Server) SendMessage(
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 		promotedQueuedAt = sendResult.PromotedQueuedAt
+		finishedInterruption = sendResult.FinishedInterruption
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -1625,8 +1660,9 @@ func (p *Server) SendMessage(
 			}
 			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
 				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-					ID:    opts.ChatID,
-					Title: chatprompt.FallbackTitle(titleText),
+					ID:          opts.ChatID,
+					Title:       chatprompt.FallbackTitle(titleText),
+					TitleSource: database.ChatTitleSourceFallback,
 				}); err != nil {
 					return xerrors.Errorf("update fallback chat title: %w", err)
 				}
@@ -1654,6 +1690,9 @@ func (p *Server) SendMessage(
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
 	}
 	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
+	if finishedInterruption {
+		p.afterInlineInterruption(ctx, result.Chat)
+	}
 	return result, nil
 }
 
@@ -2184,8 +2223,13 @@ func (p *Server) PromoteQueued(
 		refreshChat      database.Chat
 		promotedQueuedAt time.Time
 	)
+	rejected := false
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// Update may rerun this callback after a deadlock abort.
+		result = PromoteQueuedResult{}
+		rejected = false
+		promotedQueuedAt = time.Time{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2199,6 +2243,12 @@ func (p *Server) PromoteQueued(
 		})
 		if err != nil {
 			return err
+		}
+		if promoteResult.Rejected {
+			// Commit the guard's delete of the stale row, then
+			// report it as not found. The status is unchanged.
+			rejected = true
+			return nil
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
@@ -2216,6 +2266,9 @@ func (p *Server) PromoteQueued(
 	})
 	if updateErr != nil {
 		return PromoteQueuedResult{}, updateErr
+	}
+	if rejected {
+		return PromoteQueuedResult{}, chatstate.ErrQueuedMessageNotFound
 	}
 
 	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
@@ -2400,12 +2453,17 @@ func (p *Server) InterruptChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	var refreshed database.Chat
+	var (
+		refreshed database.Chat
+		result    chatstate.InterruptResult
+	)
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.Interrupt(chatstate.InterruptInput{
+		var err error
+		result, err = tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 		// Capture the post-interrupt chat inside the transaction so
@@ -2423,7 +2481,25 @@ func (p *Server) InterruptChat(
 	}
 
 	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.recordQueueWait(ctx, refreshed, result.PromotedQueuedAt)
+	if result.FinishedInterruption {
+		p.afterInlineInterruption(ctx, refreshed)
+	}
 	return refreshed, nil
+}
+
+// afterInlineInterruption applies the side effects a worker applies
+// after it finishes an interruption, for an interruption that a
+// transition finished inline because no worker owned the chat. The
+// transition already committed, so a failure is logged.
+func (p *Server) afterInlineInterruption(ctx context.Context, chat database.Chat) {
+	if err := p.afterInterruptionOutcome(ctx, interruptionOutcome{
+		Chat: chat,
+		Kind: runnerActionKindFinishInterruption,
+	}); err != nil {
+		p.logger.Warn(ctx, "interruption post-outcome side effects failed",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
 }
 
 // CompactChat records a manual compaction request through the
@@ -2631,23 +2707,25 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RenameChatTitle persists a user-supplied chat title.
+// RenameChatTitle persists a user-supplied chat title. An unchanged
+// title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
-	chat database.Chat,
+	chatID uuid.UUID,
 	newTitle string,
 ) (updated database.Chat, wrote bool, err error) {
-	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+	currentChat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
 	}
-	if newTitle == currentChat.Title {
+	if newTitle == currentChat.Title && currentChat.TitleSource == database.ChatTitleSourceUser {
 		return currentChat, false, nil
 	}
 
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: newTitle,
+		ID:          chatID,
+		Title:       newTitle,
+		TitleSource: database.ChatTitleSourceUser,
 	})
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("update chat title: %w", err)
@@ -2930,6 +3008,9 @@ type Config struct {
 	ExperimentEvaluator *experiments.Evaluator
 	PrometheusRegistry  prometheus.Registerer
 	TracerProvider      trace.TracerProvider
+	// Authorizer checks the permissions of an automation owner when an
+	// automation publishes. Publishing fails closed when it is nil.
+	Authorizer rbac.Authorizer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3052,6 +3133,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		experimentEvaluator:      cfg.ExperimentEvaluator,
+		authorizer:               cfg.Authorizer,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -3217,18 +3299,23 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
 	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
+}
+
+// publishChatEvent publishes one chat watch event.
+func (p *Server) publishChatEvent(ownerID, chatID uuid.UUID, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
+			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(ownerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("chat_id", chatID),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
@@ -3256,22 +3343,47 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for
-// the given chat so that watching clients know to re-fetch the diff
-// status. This is called from the HTTP layer after the diff status
-// is updated in the database.
-func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
+// the given chat. changed_diff_status names the one ref that changed.
+// The embedded chat's diff_status carries the primary.
+func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, ref codersdk.DiffStatusRef) error {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	dbStatus, err := p.db.GetChatDiffStatusByChatID(ctx, chatID)
+	dbStatuses, err := p.db.GetChatDiffStatusesByChatID(ctx, chatID)
 	if err != nil {
 		return xerrors.Errorf("get chat diff status: %w", err)
 	}
 
-	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
+	var changed *codersdk.ChatDiffStatus
+	var primary *codersdk.ChatDiffStatus
+	for i := range dbStatuses {
+		row := &dbStatuses[i]
+		if row.GitRemoteOrigin == ref.RemoteOrigin && row.GitBranch == ref.GitBranch {
+			sdk := db2sdk.ChatDiffStatus(chatID, row)
+			changed = &sdk
+			break
+		}
+	}
+	if primaryRow := db2sdk.PrimaryChatDiffStatus(dbStatuses); primaryRow != nil {
+		sdk := db2sdk.ChatDiffStatus(chatID, primaryRow)
+		primary = &sdk
+	}
+	if changed == nil {
+		// The ref has no row (its PR was cleared). The event still
+		// tells clients to re-fetch the chat.
+		changed = &codersdk.ChatDiffStatus{ChatID: chatID}
+	}
+	event := codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
+		Chat: chatWatchEventSDKChat(chat, primary),
+		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
+			Ref:    ref,
+			Status: changed,
+		},
+	}
+	p.publishChatEvent(chat.OwnerID, chat.ID, event)
 	return nil
 }
 
@@ -3445,7 +3557,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
-		"ask_user_question", "attach_file":
+		"ask_user_question", "attach_file",
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3631,13 +3744,14 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, user prompt,
-// then mode overlay prompts.
+// order: subagent instruction, chat instruction, skill index, memory index,
+// user prompt, then mode overlay prompts.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
 	resolvedSkills []skillspkg.ResolvedSkill,
+	memoryIndex string,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -3649,6 +3763,9 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if memoryIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
@@ -4299,6 +4416,22 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 		p.logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
 	}
 	return result
+}
+
+// resolveOrganizationSystemPrompt returns the sanitized system prompt
+// configured for the organization, or an empty string when none is set.
+func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) string {
+	//nolint:gocritic // Chat creators cannot read organization config, so chatd reads it.
+	row, err := p.db.GetChatOrganizationSystemPrompt(dbauthz.AsChatd(ctx), organizationID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			// Fail open: the deployment prompt still applies.
+			p.logger.Warn(ctx, "failed to fetch organization chat system prompt, omitting it",
+				slog.F("organization_id", organizationID), slog.Error(err))
+		}
+		return ""
+	}
+	return codersdk.SanitizePromptText(row.SystemPrompt)
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the

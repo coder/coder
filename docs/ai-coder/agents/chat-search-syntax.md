@@ -12,7 +12,7 @@ full-text search.
 | Key          | Values                                                           | Description                                                                                                           |
 |--------------|------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `title`      | substring                                                        | Case-insensitive substring match. Quote multi-word values.                                                            |
-| `archived`   | `true`, `false`                                                  | Filter by archived state. Default: `false`.                                                                           |
+| `archived`   | `true`, `false`, `any`                                           | Filter by archived state. `any` matches archived and active conversations. Default: `false` hides archived ones.      |
 | `has_unread` | `true`, `false`                                                  | Conversations with unread assistant messages.                                                                         |
 | `status`     | `waiting`, `running`, `error`, `requires_action`, `interrupting` | Conversation state. Comma-separated or repeated values match any of them.                                             |
 | `pr_status`  | `draft`, `open`, `merged`, `closed`, `none`                      | Linked pull request state. Comma-separated for OR. `none` matches conversations with no linked pull request.          |

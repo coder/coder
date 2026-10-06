@@ -86,22 +86,7 @@ func NewServerTailnet(
 	// instead of needing to hit the external access URL. Don't use the ctx
 	// given in this callback, it's only valid while connecting.
 	if derpServer != nil {
-		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-			// Don't set up the embedded relay if we're shutting down
-			if !region.EmbeddedRelay || ctx.Err() != nil {
-				return nil
-			}
-			derpConnects.Inc()
-			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
-			left, right := net.Pipe()
-			go func() {
-				defer left.Close()
-				defer right.Close()
-				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-				derpServer.Accept(ctx, right, brw, "internal")
-			}()
-			return left
-		})
+		conn.SetDERPRegionDialer(embeddedDERPRegionDialer(ctx, logger, derpServer, derpConnects))
 	}
 
 	tracer := traceProvider.Tracer(tracing.TracerName)
@@ -661,6 +646,31 @@ func unreachableReason(d tailnet.PeerDiagnostics, now time.Time) string {
 
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	s.conn.MagicsockServeHTTPDebug(w, r)
+}
+
+// embeddedDERPRegionDialer serves the embedded DERP region over an in-memory
+// pipe. A nil conn makes the DERP client dial the access URL, so after ctx is
+// done it returns a closed conn: the handshake fails and magicsock backs off.
+func embeddedDERPRegionDialer(ctx context.Context, logger slog.Logger, derpServer *derp.Server, derpConnects prometheus.Counter) func(context.Context, *tailcfg.DERPRegion) net.Conn {
+	return func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+		if !region.EmbeddedRelay {
+			return nil
+		}
+		left, right := net.Pipe()
+		if ctx.Err() != nil {
+			_ = right.Close()
+			return left
+		}
+		derpConnects.Inc()
+		logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
+		go func() {
+			defer left.Close()
+			defer right.Close()
+			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+			derpServer.Accept(ctx, right, brw, "internal")
+		}()
+		return left
+	}
 }
 
 type netConnCloser struct {

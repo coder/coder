@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import { roleDescriptions } from "#/modules/roles";
 import { MockUserMember, mockApiError } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
 import { UserActionDialogs } from "./UserActionDialogs";
@@ -50,7 +51,7 @@ export const EditRolesLoading: Story = {
 		await within(dialog).findByRole("heading", { name: "Edit roles" });
 		// The implied roles still render while the assignable roles load, but no
 		// selectable role is available yet.
-		await within(dialog).findByText("Member");
+		await within(dialog).findByText(roleDescriptions.member);
 		await expect(within(dialog).queryAllByRole("checkbox")).toHaveLength(0);
 		await expect(
 			within(dialog).getByRole("button", { name: "Confirm" }),
@@ -74,7 +75,9 @@ export const EditRolesError: Story = {
 		await expect(
 			within(dialog).getByRole("button", { name: "Confirm" }),
 		).toBeDisabled();
-		await expect(within(dialog).queryByText("Member")).not.toBeInTheDocument();
+		await expect(
+			within(dialog).queryByText(roleDescriptions.member),
+		).not.toBeInTheDocument();
 	},
 };
 

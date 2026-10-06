@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { defaultUrlTransform } from "streamdown";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import { MockChatAutomation } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -36,9 +38,15 @@ const meta: Meta<typeof Tool> = {
 	component: Tool,
 	args: {
 		organizationId: MockChatModel.organization_id,
+		mcpServers: [],
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2060,6 +2068,44 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// manage_automations stories
+// ---------------------------------------------------------------------------
+
+export const ManageAutomationsCreated: Story = {
+	args: {
+		name: "manage_automations",
+		status: "completed",
+		args: {
+			action: "create",
+			name: MockChatAutomation.name,
+			kind: MockChatAutomation.kind,
+			target_mode: MockChatAutomation.target_mode,
+		},
+		result: { automation: MockChatAutomation },
+	},
+};
+
+export const ManageAutomationsFailed: Story = {
+	args: {
+		name: "manage_automations",
+		status: "error",
+		isError: true,
+		args: { action: "run_now", automation_id: MockChatAutomation.id },
+		result: {
+			error: "the automation is disabled: enable it before running it",
+		},
+	},
+};
+
+export const ManageAutomationsRunning: Story = {
+	args: {
+		name: "manage_automations",
+		status: "running",
+		args: { action: "list" },
+	},
+};
+
+// ---------------------------------------------------------------------------
 // Tool failure display stories
 // ---------------------------------------------------------------------------
 
@@ -2938,19 +2984,31 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						organizationId="organization-id"
+						mcpServers={[]}
+						urlTransform={defaultUrlTransform}
+						isStreaming={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						hasUserResponseAfterAskQuestion={false}
+						onImageClick={fn()}
+						onTextFileClick={fn()}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
 							name={tool.name}
+							organizationId="organization-id"
+							mcpServers={[]}
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
+							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
 							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
-							subagentVariants={tool.subagentVariants}
+							subagentTitles={new Map()}
+							subagentVariants={tool.subagentVariants ?? new Map()}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -3016,14 +3074,17 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 						>
 							<Tool
 								name={tool.name}
+								organizationId="organization-id"
+								mcpServers={[]}
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}
-								isError={tool.isError}
+								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
-								subagentVariants={tool.subagentVariants}
+								subagentTitles={new Map()}
+								subagentVariants={tool.subagentVariants ?? new Map()}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

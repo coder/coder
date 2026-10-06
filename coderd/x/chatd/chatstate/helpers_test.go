@@ -47,13 +47,17 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 }
 
 // sendInterruptMessage seeds one queued user message via SendMessage
-// with BusyBehaviorInterrupt. From R0/R1 this transitions the chat to
-// `interrupting` and appends the new user message to the queue tail.
-func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
+// with BusyBehaviorInterrupt on an owned chat. From R0/R1 this
+// transitions the chat to `interrupting` and appends the new user
+// message to the queue tail.
+func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID, body string) chatstate.SendMessageResult {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if err := ownChat(ctx, tx, store, chatID); err != nil {
+			return err
+		}
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -92,4 +96,20 @@ func historyMessageIDs(ctx context.Context, t *testing.T, f *testFixture, chatID
 		out[i] = m.ID
 	}
 	return out
+}
+
+// ownChat gives an unowned chat a worker and runner inside tx, as an
+// acquired chat has. Interrupting an unowned running chat finishes the
+// interruption inline, so tests of the interrupting states need an
+// owner.
+func ownChat(ctx context.Context, tx *chatstate.Tx, store database.Store, chatID uuid.UUID) error {
+	chat, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if chat.WorkerID.Valid {
+		return nil
+	}
+	_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+	return err
 }
