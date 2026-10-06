@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -194,6 +195,7 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 		WSWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 	})
 	r := chi.NewRouter()
+	r.Use(tracing.StatusWriterMiddleware, tracing.Middleware(nil, tracing.DefaultRoutePatterns, "coderd"))
 	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
