@@ -149,29 +149,7 @@ export const groupWorkingBlocks = (
 	let anchorKey: string | undefined;
 	let ordinal = 0;
 
-	// A user message made only of context files or skills has no row but
-	// still ends the turn before it.
-	const userMessageIds = entries
-		.filter((entry) => entry.message.role === "user")
-		.map((entry) => entry.message.id);
-
-	let lastMessageId = Number.NEGATIVE_INFINITY;
-
 	for (const [index, row] of rows.entries()) {
-		const ids = rowMessageIds(row);
-		const hiddenUserId = userMessageIds.find(
-			(id) => id > lastMessageId && ids.every((rowId) => id < rowId),
-		);
-		if (hiddenUserId !== undefined) {
-			current = undefined;
-			anchorKey = `message:${hiddenUserId}`;
-			ordinal = 0;
-		}
-
-		if (ids.length > 0) {
-			lastMessageId = Math.max(...ids);
-		}
-
 		const content = getStepRowContent(row, options);
 		if (!content) {
 			current = undefined;
@@ -220,7 +198,6 @@ export const groupWorkingBlocks = (
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
 	);
-	const lastUserMessageId = Math.max(...userMessageIds);
 
 	const messageIdAfter = (lastRowIndex: number): number => {
 		for (let i = lastRowIndex + 1; i < rows.length; i++) {
@@ -238,23 +215,13 @@ export const groupWorkingBlocks = (
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
-		// The newest block is still working unless a prompt, visible or hidden,
-		// follows its last step.
-		const lastMemberId = Math.max(...memberIds);
 		const isLive =
 			options.isTurnActive &&
-			(draft.containsLiveRow ||
-				(lastRowIndex >= lastMessageRowIndex &&
-					lastMemberId > lastUserMessageId));
+			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
-		// The span covers hidden tool-result messages up to the next row but
-		// never passes the next prompt, whose provider-executed parts can
-		// carry timestamps.
+		// The span covers hidden tool-result messages up to the next row.
 		const fromId = Math.min(...memberIds);
-		const toId = Math.min(
-			messageIdAfter(lastRowIndex),
-			...userMessageIds.filter((id) => id > lastMemberId),
-		);
+		const toId = messageIdAfter(lastRowIndex);
 		const times = [
 			...entries
 				.filter(({ message }) => message.id >= fromId && message.id < toId)
@@ -277,12 +244,7 @@ export const groupWorkingBlocks = (
 				(tool) => tool.isError || tool.status === "error",
 			).length,
 			isLive,
-			// A loaded prompt, visible or hidden, bounds the block even when the
-			// block's first row is the page's first row.
-			isPartial:
-				options.hasMoreMessages &&
-				firstRowIndex === 0 &&
-				draft.anchorKey === undefined,
+			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,
 			endedAt: isLive || times.length === 0 ? undefined : Math.max(...times),
 		};
