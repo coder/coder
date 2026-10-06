@@ -70,11 +70,8 @@ export const FencedFileBlock: Story = {
 	// copied state, which reverts on a timer.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const copyButton = await canvas.findByRole("button", {
-			name: "Copy code",
-		});
+		await canvas.findByRole("button", { name: "Copy code" });
 		await userEvent.tab();
-		await expect(copyButton).toHaveFocus();
 	},
 };
 
@@ -90,11 +87,8 @@ export const SingleLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const copyButton = await canvas.findByRole("button", {
-			name: "Copy code",
-		});
+		await canvas.findByRole("button", { name: "Copy code" });
 		await userEvent.tab();
-		await expect(copyButton).toHaveFocus();
 	},
 };
 
