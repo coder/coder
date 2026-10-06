@@ -253,6 +253,37 @@ describe("ChatProjectDialog", () => {
 		expect(props.onOpenChange).not.toHaveBeenCalled();
 	});
 
+	it("submits once when Save is double-clicked before the save settles", async () => {
+		const user = userEvent.setup();
+		// The caller's isSubmitting has not caught up yet, so only the dialog's
+		// own pending submit can stop the second click.
+		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
+		renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("can save again after a save fails", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi
+			.fn<DialogProps["onSubmit"]>()
+			.mockRejectedValueOnce(new Error("Save failed"))
+			.mockResolvedValueOnce(undefined);
+		renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		const save = screen.getByRole("button", { name: "Save" });
+		await user.click(save);
+		// Wait for the failed submit to release the form before retrying.
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+	});
+
 	it("discards unsaved edits when it is closed and reopened", async () => {
 		const user = userEvent.setup();
 		const { props, rerenderWith } = renderDialog({ project: MockChatProject });

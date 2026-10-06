@@ -72,6 +72,13 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
-				queryClient.invalidateQueries({ queryKey: chatEntitiesFamilyKey }),
+				// Only the chats themselves carry project_id. Their nested
+				// queries (messages, ACL, diffs, ...) would refetch every loaded
+				// page for nothing.
+				queryClient.invalidateQueries({
+					queryKey: chatEntitiesFamilyKey,
+					predicate: ({ queryKey }) =>
+						queryKey.length === chatEntitiesFamilyKey.length + 1,
+				}),
 			]),
 	});
