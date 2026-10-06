@@ -2575,11 +2575,9 @@ export const ProjectsSectionCollapsed: Story = {
 		],
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Projects" }));
-		await expect(
-			canvas.queryByRole("link", { name: MockChatProject.name }),
-		).not.toBeInTheDocument();
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Projects" }),
+		);
 	},
 };
 

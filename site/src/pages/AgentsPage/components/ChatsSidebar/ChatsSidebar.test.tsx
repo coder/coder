@@ -201,6 +201,8 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.keyboard("{Escape}");
 		await deleteProject(mockOtherProject.name);
+		// One delete runs at a time, so the earlier one keeps its callbacks.
+		expect(screen.getByRole("button", { name: /Delete$/ })).toBeDisabled();
 
 		const requestsBeforeFinish = projectListRequests;
 		finishDelete();
