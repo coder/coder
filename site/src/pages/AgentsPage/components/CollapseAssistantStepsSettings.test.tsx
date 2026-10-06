@@ -31,16 +31,19 @@ describe("CollapseAssistantStepsSettings", () => {
 					collapse_assistant_steps: collapseAssistantSteps,
 				};
 			});
+
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(preferenceSettingsKey, {
 			...MockUserPreferenceSettings,
 			collapse_assistant_steps: false,
 		});
+
 		renderComponent(
 			<QueryClientProvider client={queryClient}>
 				<CollapseAssistantStepsSettings />
 			</QueryClientProvider>,
 		);
+
 		const toggle = screen.getByRole("switch", {
 			name: "Collapse assistant steps",
 		});
