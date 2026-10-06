@@ -15,7 +15,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
-import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	persistedAttachmentsStorageKey,
+	useFileAttachments,
+} from "../hooks/useFileAttachments";
 import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
@@ -55,7 +58,8 @@ export const emptyInputStorageKey = "agents.empty-input";
 /** @internal Exported for testing. */
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+/** @internal Exported for testing. */
+export const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 // Deferred uploads need a selected workspace with a connected agent;
 // the same copy covers attaching without one and submitting after a
 // same-workspace status flap.
@@ -72,6 +76,8 @@ export type CreateChatOptions = {
 	reasoningEffort?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	/** The project the chat joins, when the form composes for one. */
+	projectId?: string;
 	planMode?: TypesGen.ChatPlanMode;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
@@ -108,9 +114,14 @@ export type AgentCreatePrefill = {
  * When `prefilledText` is given, it is the initial value and the stored
  * draft is neither read nor modified.
  *
+ * `storageKey` is read on mount; switching drafts needs a remount.
+ *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft(prefilledText?: string) {
+export function useEmptyStateDraft(
+	prefilledText?: string,
+	storageKey = emptyInputStorageKey,
+) {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
 		if (prefilledText !== undefined) {
 			return {
@@ -118,7 +129,7 @@ export function useEmptyStateDraft(prefilledText?: string) {
 				initialEditorState: undefined,
 			};
 		}
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		const draft = parseStoredDraft(localStorage.getItem(storageKey));
 		return {
 			initialInputValue: draft.text,
 			initialEditorState: draft.editorState,
@@ -138,12 +149,12 @@ export function useEmptyStateDraft(prefilledText?: string) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
 				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+					localStorage.setItem(storageKey, serializedEditorState);
 				} catch {
 					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+				localStorage.removeItem(storageKey);
 			}
 		}
 	};
@@ -153,7 +164,7 @@ export function useEmptyStateDraft(prefilledText?: string) {
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
 		if (persists) {
-			localStorage.removeItem(emptyInputStorageKey);
+			localStorage.removeItem(storageKey);
 		}
 	};
 
@@ -173,6 +184,98 @@ export function useEmptyStateDraft(prefilledText?: string) {
 	};
 }
 
+type OrganizationResolution = {
+	effectiveOrg: TypesGen.Organization | null;
+	selectedOrgIsPermitted: boolean;
+	isLocked: boolean;
+	/**
+	 * Which permission denial to show: the product-wide one, or the one naming
+	 * the project's organization.
+	 */
+	denial: "product" | "locked-organization" | null;
+	/**
+	 * The user's own organization choice is in effect: permissions are settled
+	 * and no lock applies. Gates the selector, fallback adoption, and writes to
+	 * `selectedOrganizationIdStorageKey`, so a lock never changes the user's
+	 * saved organization.
+	 */
+	isUserOrgSelectionActive: boolean;
+};
+
+/**
+ * Resolves the organization the form acts in. A lock replaces `effectiveOrg`
+ * but not `selectedOrg`, so the user's choice is unaffected by the lock.
+ */
+const resolveOrganization = ({
+	lockedOrganizationId,
+	selectedOrg,
+	permittedOrgs,
+	orgSelectionSettled,
+	noPermittedOrgs,
+	canCreateChat,
+}: {
+	lockedOrganizationId: string | undefined;
+	selectedOrg: TypesGen.Organization | null;
+	permittedOrgs: readonly TypesGen.Organization[];
+	orgSelectionSettled: boolean;
+	noPermittedOrgs: boolean;
+	canCreateChat: boolean;
+}): OrganizationResolution => {
+	const isLocked = Boolean(lockedOrganizationId);
+	const lockedOrg = isLocked
+		? (permittedOrgs.find((org) => org.id === lockedOrganizationId) ?? null)
+		: null;
+	// Also true while permissions load, before the denial is settled.
+	const isLockedOrgUnavailable = isLocked && !lockedOrg;
+
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+
+	let effectiveOrg: TypesGen.Organization | null;
+	if (isLocked) {
+		effectiveOrg = lockedOrg;
+	} else if (selectedOrgIsPermitted) {
+		effectiveOrg = selectedOrg;
+	} else {
+		const defaultOrg = permittedOrgs.find((org) => org.is_default);
+		effectiveOrg = defaultOrg ?? permittedOrgs[0] ?? null;
+	}
+
+	let denial: OrganizationResolution["denial"] = null;
+	if (!canCreateChat || noPermittedOrgs) {
+		denial = "product";
+	} else if (orgSelectionSettled && isLockedOrgUnavailable) {
+		denial = "locked-organization";
+	}
+
+	return {
+		effectiveOrg,
+		selectedOrgIsPermitted,
+		isLocked,
+		denial,
+		isUserOrgSelectionActive: orgSelectionSettled && !isLocked,
+	};
+};
+
+/** The localStorage keys of the composer's drafts, per project when given. */
+export const draftStorageKeys = (projectId: string | undefined) => {
+	const suffix = projectId ? `:${projectId}` : "";
+	return {
+		text: emptyInputStorageKey + suffix,
+		attachments: persistedAttachmentsStorageKey + suffix,
+	};
+};
+
+const lockedOrgDenialDescription = (
+	organization: TypesGen.Organization | undefined,
+) => {
+	const target = organization
+		? `the ${organization.display_name || organization.name} organization`
+		: "the organization";
+	return `You don't have permission to create chats in ${target}, which this project belongs to. Ask your Coder administrator for access, then refresh this page.`;
+};
+
 type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
@@ -184,10 +287,29 @@ type AgentCreateFormProps = {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	/**
+	 * Composes a chat for this project. The form is locked to the project's
+	 * organization: the selector is hidden and every organization-dependent
+	 * choice (workspace, model, MCP servers, attachments) resolves against it.
+	 * If the user cannot create chats there, the form shows a permission denial
+	 * instead of falling back to another organization. The text and attachment
+	 * drafts are kept per project, and the organization, workspace, and MCP
+	 * servers chosen here are not saved as the user's defaults. The form
+	 * remounts when the project changes.
+	 */
+	project?: Pick<TypesGen.ChatProject, "id" | "organization_id">;
+	header?: React.ReactNode;
+	footer?: React.ReactNode;
 	prefill?: AgentCreatePrefill;
 };
 
-export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = (props) => (
+	// Organization and draft state is read on mount, so a new project needs a
+	// fresh instance.
+	<AgentCreateFormContent key={props.project?.id ?? "default"} {...props} />
+);
+
+const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
@@ -198,16 +320,21 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	project,
+	header,
+	footer,
 	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const lockedOrganizationId = project?.organization_id;
+	const draftKeys = draftStorageKeys(project?.id);
 	const {
 		initialInputValue,
 		initialEditorState,
 		handleContentChange,
 		submitDraft,
 		resetDraft,
-	} = useEmptyStateDraft(prefill?.message);
+	} = useEmptyStateDraft(prefill?.message, draftKeys.text);
 	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
@@ -254,9 +381,20 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// Keep an authoritative empty permission set distinct from pending data.
 	const noPermittedOrgs =
 		showOrganizations && permittedOrgsQuery.data?.length === 0;
-	const selectedOrgIsPermitted =
-		selectedOrg !== null &&
-		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	const {
+		effectiveOrg,
+		isLocked,
+		denial,
+		isUserOrgSelectionActive,
+		selectedOrgIsPermitted,
+	} = resolveOrganization({
+		lockedOrganizationId,
+		selectedOrg,
+		permittedOrgs,
+		orgSelectionSettled,
+		noPermittedOrgs,
+		canCreateChat,
+	});
 	// Clear invalid selections during render so re-permission cannot silently
 	// restore them and switch attachment state. effectiveOrg already ignores
 	// the invalid selection in this render.
@@ -272,12 +410,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
-	const effectiveOrg =
-		selectedOrg && selectedOrgIsPermitted
-			? selectedOrg
-			: (permittedOrgs.find((org) => org.is_default) ??
-				permittedOrgs[0] ??
-				null);
 	const organizationId = effectiveOrg?.id ?? "";
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(organizationId),
@@ -292,7 +424,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
-		orgSelectionSettled &&
+		isUserOrgSelectionActive &&
 		!selectedOrg &&
 		effectiveOrg &&
 		permittedOrgs.some((org) => org.id === effectiveOrg.id)
@@ -300,8 +432,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		setSelectedOrg(effectiveOrg);
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
-	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted.
+	// is cleared post-commit. A locked form clears only the in-memory selection,
+	// so the user's saved workspace is kept. An empty permission set has no
+	// selectable org, so preserve the workspace until its org is re-permitted.
 	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
 	if (
 		orgSelectionSettled &&
@@ -315,7 +448,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		}
 	}
 	useEffect(() => {
-		if (!orgSelectionSettled) {
+		// A locked form neither saves nor clears the user's organization, even
+		// when the saved one has since been revoked.
+		if (!isUserOrgSelectionActive) {
 			return;
 		}
 		if (selectedOrg) {
@@ -323,12 +458,18 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, selectedOrg]);
+	}, [isUserOrgSelectionActive, selectedOrg]);
 	useEffect(() => {
+		// A project's workspace is not the user's default.
+		if (isLocked) {
+			return;
+		}
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		} else {
+			localStorage.setItem(selectedWorkspaceIdStorageKey, selectedWorkspaceId);
 		}
-	}, [selectedWorkspaceId]);
+	}, [isLocked, selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(organizationId),
@@ -437,7 +578,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	// keeps its loading state instead of flashing the provisional organization's
 	// catalog before permissions resolve.
 	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
-	const isForbidden = !canCreateChat || noPermittedOrgs;
+	const isForbidden = denial !== null;
 	// A forbidden user may have no organization to read models from, and the
 	// catalog-based placeholder would then wrongly report that none exist.
 	const modelSelectorPlaceholder = isForbidden
@@ -480,15 +621,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers);
 	})();
-	const handleWorkspaceChange = (value: string | null) => {
-		if (value === null) {
-			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
-			return;
-		}
-		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
-	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
 		setUserMCPServerIds(null);
@@ -545,6 +677,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			// persist also restores saved draft files into this send.
 			persist: prefill === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
+			storageKey: draftKeys.attachments,
 		},
 	);
 
@@ -553,6 +686,8 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			...current,
 			[selectedModel]: value,
 		}));
+		// Saved even in a project: the effort is a per-model preference, not
+		// tied to an organization like the MCP selection.
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
@@ -585,6 +720,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
+			projectId: project?.id,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -735,8 +871,19 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+					{header}
 					{isForbidden ? (
-						<ChatAccessDeniedAlert />
+						<ChatAccessDeniedAlert
+							description={
+								denial === "locked-organization"
+									? lockedOrgDenialDescription(
+											organizations.find(
+												(org) => org.id === lockedOrganizationId,
+											),
+										)
+									: undefined
+							}
+						/>
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response.status === 502 &&
@@ -781,7 +928,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
 					{showOrganizations &&
-						orgSelectionSettled &&
+						isUserOrgSelectionActive &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}
@@ -801,7 +948,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 										return;
 									}
 									if (orgChanged) {
-										handleWorkspaceChange(null);
+										setSelectedWorkspaceId(null);
 										selectOrganization(newOrg);
 										return;
 									}
@@ -867,7 +1014,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(organizationId, ids);
+							if (!isLocked) {
+								saveMCPSelection(organizationId, ids);
+							}
 						}}
 						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
@@ -875,7 +1024,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
 							orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
-								? handleWorkspaceChange
+								? setSelectedWorkspaceId
 								: undefined
 						}
 						isWorkspaceLoading={isWorkspacesLoading}
@@ -890,6 +1039,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
+					{footer}
 				</div>
 			</div>
 			<ConfirmDialog
@@ -910,7 +1060,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						return;
 					}
 					resetAttachments();
-					handleWorkspaceChange(null);
+					setSelectedWorkspaceId(null);
 					selectOrganization(pendingOrgChange);
 				}}
 				onClose={() => setPendingOrgChange(null)}

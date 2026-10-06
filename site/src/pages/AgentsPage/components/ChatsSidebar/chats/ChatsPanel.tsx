@@ -37,13 +37,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
-	BoardColumnTag,
-	BoardGroupEntry,
-} from "../../../exp/chatBoard/BoardGroupEntry";
-import { boardSidebarChats } from "../../../exp/chatBoard/boardGroups";
-import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
-import { useChatBoardEnabled } from "../../../exp/chatBoard/chatBoardFlag";
-import {
 	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
@@ -181,14 +174,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const sharedWithYouChats = visibleRootChats.filter(
 		(chat) => !canManageChat(chat, currentUserId),
 	);
-	// The board experiment may regroup this list; off, it passes through.
-	const boardEnabled = useChatBoardEnabled();
-	const board = boardSidebarChats(
-		ownedChats.filter((chat) => chat.pin_order === 0),
-		boardEnabled,
-	);
-	const boardGroups = board.groups;
-	const unpinnedOwnedChats = board.chats;
+	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -340,9 +326,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		onMarkChatRead,
 		onMarkChatUnread,
 		onOpenRenameDialog,
-		renderTrailing: boardGroups
-			? (chat) => <BoardColumnTag chat={chat} groups={boardGroups} />
-			: undefined,
 	};
 
 	const chatSections = (
@@ -467,7 +450,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
-				<ChatBoardNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
@@ -643,17 +625,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 														/>
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) =>
-																	boardGroups ? (
-																		<BoardGroupEntry
-																			key={chat.id}
-																			chat={chat}
-																			groups={boardGroups}
-																		/>
-																	) : (
-																		<ChatTreeNode key={chat.id} chat={chat} />
-																	),
-																)}
+																{section.chats.map((chat) => (
+																	<ChatTreeNode key={chat.id} chat={chat} />
+																))}
 															</div>
 														)}
 													</div>
