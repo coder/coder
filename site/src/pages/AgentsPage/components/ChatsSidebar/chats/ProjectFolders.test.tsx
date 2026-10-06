@@ -42,6 +42,42 @@ describe("ProjectFolders", () => {
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
+	it("collapses and expands the whole Projects section", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<MemoryRouter>
+				<ProjectFolders
+					projects={[MockChatProject]}
+					organizations={[MockDefaultOrganization]}
+					chatsByProjectId={new Map()}
+					expandedProjectIds={{}}
+					onToggle={vi.fn()}
+					onOpenProjectDialog={vi.fn()}
+					onDelete={vi.fn()}
+					emptyMessage="No agents yet"
+					isLoading={false}
+					error={undefined}
+					onRetry={vi.fn()}
+				/>
+			</MemoryRouter>,
+		);
+
+		const sectionToggle = screen.getByRole("button", { name: "Projects" });
+		await user.click(sectionToggle);
+		expect(sectionToggle).toHaveAttribute("aria-expanded", "false");
+		expect(
+			screen.queryByRole("link", { name: MockChatProject.name }),
+		).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
+
+		await user.click(sectionToggle);
+		expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
+		expect(
+			screen.getByRole("link", { name: MockChatProject.name }),
+		).toBeVisible();
+	});
+
 	it("names same-named projects by their organization", async () => {
 		const user = userEvent.setup();
 		const onToggle = vi.fn();

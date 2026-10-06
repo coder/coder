@@ -5,6 +5,7 @@ import {
 	PlusIcon,
 	SquarePenIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { Link, NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -66,11 +67,16 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(projects, organizations);
+	const [isExpanded, setIsExpanded] = useState(true);
 
 	return (
 		<div>
 			<SidebarSectionHeader
 				title="Projects"
+				collapsible={{
+					expanded: isExpanded,
+					onToggle: () => setIsExpanded((expanded) => !expanded),
+				}}
 				actions={
 					<Button
 						variant="subtle"
@@ -83,43 +89,45 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					</Button>
 				}
 			/>
-			<div className="px-2">
-				{Boolean(error) && (
-					<ErrorAlert
-						error={error}
-						className="mb-1"
-						actions={
-							<Button size="sm" variant="outline" onClick={onRetry}>
-								Retry
-							</Button>
-						}
-					/>
-				)}
-				{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-				{!isLoading && !error && projects.length === 0 && (
-					<p className="m-0 px-2.5 py-1 text-xs text-content-secondary">
-						No projects yet
-					</p>
-				)}
-				{projects.length > 0 && (
-					<div className="flex flex-col gap-0.5">
-						{projects.map((project) => (
-							<ProjectFolder
-								key={project.id}
-								project={project}
-								organizationLabel={organizationLabels.get(project.id)}
-								chats={chatsByProjectId.get(project.id) ?? []}
-								expanded={Boolean(expandedProjectIds[project.id])}
-								locationSearch={location.search}
-								onToggle={() => onToggle(project.id)}
-								onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
-								onDelete={() => onDelete(project)}
-								emptyMessage={emptyMessage}
-							/>
-						))}
-					</div>
-				)}
-			</div>
+			{isExpanded && (
+				<div className="px-2">
+					{Boolean(error) && (
+						<ErrorAlert
+							error={error}
+							className="mb-1"
+							actions={
+								<Button size="sm" variant="outline" onClick={onRetry}>
+									Retry
+								</Button>
+							}
+						/>
+					)}
+					{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
+					{!isLoading && !error && projects.length === 0 && (
+						<p className="m-0 px-2.5 py-1 text-xs text-content-secondary">
+							No projects yet
+						</p>
+					)}
+					{projects.length > 0 && (
+						<div className="flex flex-col gap-0.5">
+							{projects.map((project) => (
+								<ProjectFolder
+									key={project.id}
+									project={project}
+									organizationLabel={organizationLabels.get(project.id)}
+									chats={chatsByProjectId.get(project.id) ?? []}
+									expanded={Boolean(expandedProjectIds[project.id])}
+									locationSearch={location.search}
+									onToggle={() => onToggle(project.id)}
+									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
+									onDelete={() => onDelete(project)}
+									emptyMessage={emptyMessage}
+								/>
+							))}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };

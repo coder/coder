@@ -2563,6 +2563,26 @@ export const ProjectFolderExpanded: Story = {
 	},
 };
 
+export const ProjectsSectionCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Projects" }));
+		await expect(
+			canvas.queryByRole("link", { name: MockChatProject.name }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const MobileWithAutomations: Story = {
 	args: {
 		chats: sectionHeaderChats,
