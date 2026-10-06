@@ -158,6 +158,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
+	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
