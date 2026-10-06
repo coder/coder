@@ -98,13 +98,21 @@ func (o Outcome) Terminal() bool {
 	}
 }
 
-// Decision is the manager's answer about one unit.
+// Decision is the manager's answer about one unit. It describes what the
+// caller should do next. The manager never records an outcome on its own.
 type Decision string
 
 const (
-	DecisionWaiting  Decision = "waiting"
+	// DecisionWaiting means some prerequisite is neither satisfied nor
+	// impossible yet.
+	DecisionWaiting Decision = "waiting"
+	// DecisionRunnable means every prerequisite is satisfied.
 	DecisionRunnable Decision = "runnable"
-	DecisionSkipped  Decision = "skipped"
+	// DecisionSkip means a success prerequisite can no longer succeed. The
+	// caller must record OutcomeSkipped for the unit. Until it does, the
+	// unit's outcome stays as it was and the unit's own dependents keep
+	// waiting.
+	DecisionSkip Decision = "skip"
 )
 
 // ConditionalDependency is one unmet conditional dependency as seen at
@@ -197,7 +205,8 @@ func (m *Manager) UpdateOutcome(unit ID, outcome Outcome) error {
 
 // Evaluate returns the current decision for a unit. The decision describes the
 // unit's prerequisites, not the unit itself: a unit whose own outcome is
-// terminal still answers from its edges.
+// terminal still answers from its edges. Evaluate never changes the unit's
+// outcome. On DecisionSkip the caller records OutcomeSkipped itself.
 func (m *Manager) Evaluate(id ID) (Evaluation, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -260,8 +269,8 @@ func (m *Manager) evaluateUnsafe(id ID) (Evaluation, error) {
 		// prerequisites are still running.
 		switch {
 		case edge.Edge.impossible(outcome):
-			evaluation.Decision = DecisionSkipped
-		case evaluation.Decision != DecisionSkipped:
+			evaluation.Decision = DecisionSkip
+		case evaluation.Decision != DecisionSkip:
 			evaluation.Decision = DecisionWaiting
 		}
 	}

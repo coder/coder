@@ -68,7 +68,7 @@ func TestManager_ConditionalDependencyValidation(t *testing.T) {
 		require.NoError(t, manager.UpdateOutcome(unitB, unit.OutcomeFailed))
 		evaluation, err := manager.Evaluate(unitA)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 		require.Equal(t, unit.RequirementSuccess, evaluation.UnmetDependencies[0].Requirement)
 	})
 }
@@ -247,9 +247,9 @@ func TestManager_EvaluateRequirementByOutcome(t *testing.T) {
 			unit.OutcomePending:       unit.DecisionWaiting,
 			unit.OutcomeRunning:       unit.DecisionWaiting,
 			unit.OutcomeSucceeded:     unit.DecisionRunnable,
-			unit.OutcomeFailed:        unit.DecisionSkipped,
-			unit.OutcomeTimedOut:      unit.DecisionSkipped,
-			unit.OutcomeSkipped:       unit.DecisionSkipped,
+			unit.OutcomeFailed:        unit.DecisionSkip,
+			unit.OutcomeTimedOut:      unit.DecisionSkip,
+			unit.OutcomeSkipped:       unit.DecisionSkip,
 			unit.OutcomeCanceled:      unit.DecisionWaiting,
 		},
 		unit.RequirementCompletion: {
@@ -408,7 +408,7 @@ func TestManager_Evaluate(t *testing.T) {
 
 		evaluation, err := manager.Evaluate(unitA)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 		require.Equal(t, []unit.ConditionalDependency{
 			{Unit: unitA, DependsOn: unitB, Requirement: unit.RequirementSuccess, CurrentOutcome: unit.OutcomeRunning},
 			{Unit: unitA, DependsOn: unitC, Requirement: unit.RequirementSuccess, CurrentOutcome: unit.OutcomeFailed},
@@ -418,7 +418,7 @@ func TestManager_Evaluate(t *testing.T) {
 		require.NoError(t, manager.UpdateOutcome(unitB, unit.OutcomeSucceeded))
 		evaluation, err = manager.Evaluate(unitA)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 		require.Equal(t, []unit.ID{unitC}, conditionalDependencyIDs(evaluation.UnmetDependencies))
 	})
 
@@ -436,7 +436,7 @@ func TestManager_Evaluate(t *testing.T) {
 
 		evaluation, err := manager.Evaluate(unitA)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 		require.Equal(t, []unit.ID{unitB, unitC, unitD}, conditionalDependencyIDs(evaluation.UnmetDependencies))
 	})
 
@@ -454,7 +454,7 @@ func TestManager_Evaluate(t *testing.T) {
 
 		evaluation, err := manager.Evaluate(unitB)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 
 		// The manager does not record the skip itself. Until the caller does,
 		// units downstream of B keep waiting.
@@ -470,7 +470,7 @@ func TestManager_Evaluate(t *testing.T) {
 		require.Equal(t, unit.DecisionRunnable, evaluation.Decision)
 		evaluation, err = manager.Evaluate(unitD)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionSkipped, evaluation.Decision)
+		require.Equal(t, unit.DecisionSkip, evaluation.Decision)
 	})
 
 	t.Run("Validation", func(t *testing.T) {
@@ -536,7 +536,7 @@ func TestManager_WaitForDecision(t *testing.T) {
 		}()
 
 		require.NoError(t, manager.UpdateOutcome(unitB, unit.OutcomeFailed))
-		require.Equal(t, unit.DecisionSkipped, testutil.RequireReceive(ctx, t, result).Decision)
+		require.Equal(t, unit.DecisionSkip, testutil.RequireReceive(ctx, t, result).Decision)
 		require.NoError(t, testutil.RequireReceive(ctx, t, errCh))
 	})
 
@@ -555,7 +555,7 @@ func TestManager_WaitForDecision(t *testing.T) {
 
 		// A new success edge to an already failed unit makes A skipped.
 		require.NoError(t, manager.AddConditionalDependency(unitA, unitC, unit.RequirementSuccess))
-		require.Equal(t, unit.DecisionSkipped, testutil.RequireReceive(ctx, t, result).Decision)
+		require.Equal(t, unit.DecisionSkip, testutil.RequireReceive(ctx, t, result).Decision)
 	})
 
 	t.Run("ContextCanceled", func(t *testing.T) {
@@ -641,7 +641,7 @@ func TestManager_WaitForDecision_ManyWaiters(t *testing.T) {
 	for i := 1; i < count; i++ {
 		got := testutil.RequireReceive(ctx, t, results)
 		require.NoError(t, got.err)
-		require.Equal(t, unit.DecisionSkipped, got.evaluation.Decision, "unit %s", got.id)
+		require.Equal(t, unit.DecisionSkip, got.evaluation.Decision, "unit %s", got.id)
 		require.False(t, released[got.id], "unit %s released twice", got.id)
 		released[got.id] = true
 	}
