@@ -39,6 +39,7 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 			</PopoverTrigger>
 
 			<PopoverContent
+				onOpenAutoFocus={(event) => event.preventDefault()}
 				align="end"
 				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
 			>

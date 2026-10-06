@@ -28,6 +28,7 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
+import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -141,36 +142,33 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
-	it("does not show projects owned by another user", async () => {
-		const otherUsersProject = {
-			...MockChatProject,
-			id: "other-users-project",
-			owner_id: "other-user",
-			name: "Other user's project",
-		};
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, otherUsersProject]),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(
-			screen.queryByRole("link", { name: otherUsersProject.name }),
-		).toBeNull();
-	});
-
-	it("returns focus to the project controls after closing dialogs", async () => {
+	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
+		const otherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "Other",
+		};
+		let finishDelete: () => void = () => {};
+		const deleteFinished = new Promise<void>((resolve) => {
+			finishDelete = resolve;
+		});
+		const deletedProjectIds: string[] = [];
+		let projectListRequests = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
+			http.get("/api/experimental/chats/projects", () => {
+				projectListRequests += 1;
+				return HttpResponse.json([MockChatProject, otherProject]);
+			}),
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project",
+				async ({ params }) => {
+					deletedProjectIds.push(String(params.project));
+					if (params.project === MockChatProject.id) {
+						await deleteFinished;
+					}
+					return new HttpResponse(null, { status: 204 });
+				},
 			),
 		);
 		render(
@@ -179,30 +177,35 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		const newProjectButton = await screen.findByRole("button", {
-			name: "New project",
-		});
-		await user.click(newProjectButton);
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		await waitFor(() => expect(document.activeElement).toBe(newProjectButton));
+		const deleteProject = async (name: string) => {
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open project actions for ${name}`,
+				}),
+			);
+			await user.click(
+				screen.getByRole("menuitem", { name: "Delete project" }),
+			);
+			await user.type(await screen.findByRole("textbox"), name);
+		};
 
-		const projectActionsButton = screen.getByRole("button", {
-			name: `Open project actions for ${MockChatProject.name}`,
-		});
-		await user.click(projectActionsButton);
-		await user.click(screen.getByRole("menuitem", { name: "Edit project" }));
-		await screen.findByRole("dialog", { name: "Edit project" });
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await deleteProject(MockChatProject.name);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
 		await waitFor(() =>
-			expect(document.activeElement).toBe(projectActionsButton),
+			expect(deletedProjectIds).toEqual([MockChatProject.id]),
 		);
+		await user.keyboard("{Escape}");
+		await deleteProject(otherProject.name);
 
-		await user.click(projectActionsButton);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
-		await screen.findByRole("dialog", { name: "Delete project" });
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		const requestsBeforeFinish = projectListRequests;
+		finishDelete();
+		// The finished delete refetches the project list.
 		await waitFor(() =>
-			expect(document.activeElement).toBe(projectActionsButton),
+			expect(projectListRequests).toBeGreaterThan(requestsBeforeFinish),
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await waitFor(() =>
+			expect(deletedProjectIds).toEqual([MockChatProject.id, otherProject.id]),
 		);
 	});
 
@@ -222,6 +225,7 @@ describe("ChatsSidebar projects", () => {
 		const projectChat = buildChat({
 			id: "project-chat",
 			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
 			project_id: MockChatProject.id,
 		});
 		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
@@ -383,8 +387,11 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requestCount).toBe(2));
 	});
 
-	it("deletes the selected project after confirmation", async () => {
+	it("deletes the selected project and its drafts after confirmation", async () => {
 		const user = userEvent.setup();
+		const draftKeys = draftStorageKeys(MockChatProject.id);
+		localStorage.setItem(draftKeys.text, "project draft");
+		localStorage.setItem(draftKeys.attachments, "[]");
 		let deletedProjectID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
@@ -420,6 +427,10 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => {
 			expect(deletedProjectID).toBe(MockChatProject.id);
 		});
+		await waitFor(() => {
+			expect(localStorage.getItem(draftKeys.text)).toBeNull();
+		});
+		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
 
 	it("reports a failed project deletion", async () => {
@@ -525,7 +536,7 @@ describe("ChatsSidebar section switcher", () => {
 });
 
 describe("ChatsSidebar sections", () => {
-	it("renders unpinned shared chats in Shared with you before date sections", () => {
+	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar
@@ -542,6 +553,13 @@ describe("ChatsSidebar sections", () => {
 							title: "Shared chat",
 							owner_id: "sharing-user-id",
 							shared: true,
+						}),
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
 						}),
 						buildChat({
 							id: "owned-shared-chat",
@@ -571,7 +589,7 @@ describe("ChatsSidebar sections", () => {
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
 
 		expect(pinnedSection).toHaveTextContent("Pinned (1)");
-		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (2)");
 		expect(todaySection).toHaveTextContent("Today (2)");
 		expect(
 			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
@@ -593,6 +611,79 @@ describe("ChatsSidebar sections", () => {
 			todaySection.compareDocumentPosition(ownedNode) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+});
+
+describe("ChatsSidebar pinned reordering", () => {
+	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
+	const ROW_HEIGHT = 40;
+
+	// dnd-kit's keyboard sensor picks the drop target from measured
+	// rects, which jsdom reports as all zeros. Lay the sortable rows out
+	// vertically in document order so ArrowDown resolves to the next row.
+	const layoutSortableRows = () => {
+		const rows = screen.getAllByRole("button", {
+			description: SORTABLE_INSTRUCTIONS,
+		});
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				const index = rows.findIndex((row) => row.contains(this));
+				const top = index === -1 ? 0 : index * ROW_HEIGHT;
+				const height = index === -1 ? 0 : ROW_HEIGHT;
+				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+			},
+		);
+		return rows;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("reorders only the viewer's own pinned chats", async () => {
+		const user = userEvent.setup();
+		const onReorderPinnedAgent = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					onReorderPinnedAgent={onReorderPinnedAgent}
+					chats={[
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-first",
+							title: "Own first pinned chat",
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-second",
+							title: "Own second pinned chat",
+							pin_order: 2,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const sortableRows = layoutSortableRows();
+		expect(sortableRows.map((row) => row.textContent)).toEqual([
+			expect.stringContaining("Own first pinned chat"),
+			expect.stringContaining("Own second pinned chat"),
+		]);
+
+		sortableRows[0].focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await user.keyboard("[Space]");
+
+		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
+		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
 	});
 });
 

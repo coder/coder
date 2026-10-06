@@ -1,7 +1,7 @@
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { getErrorMessage } from "#/api/errors";
 import type { ChatProject, Organization } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -20,33 +20,46 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
 
-type ChatProjectFormValues = {
+/** @public */
+export type ChatProjectFormValues = {
+	/** Set only when creating a project. */
 	organizationId?: Organization["id"];
 	name: string;
 	description: string;
 	icon: string;
 };
 
-const nameMaxLength = 64;
-const descriptionMaxLength = 1024;
-const iconMaxLength = 256;
+// Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
+export const chatProjectNameMaxChars = 64;
+export const chatProjectDescriptionMaxChars = 1024;
+const chatProjectIconMaxChars = 256;
+
+// Counts code points of the value as submitted, as the server does. Yup's
+// max() and native maxLength count UTF-16 units.
+const measureLength = (value: string) => [...value.trim()].length;
+
+const maxCharacters = (label: string, max: number) =>
+	Yup.string().test(
+		"max-characters",
+		`${label} cannot be longer than ${max} characters.`,
+		(value = "") => measureLength(value) <= max,
+	);
 
 const validationSchema = Yup.object({
-	name: Yup.string()
+	name: maxCharacters("Name", chatProjectNameMaxChars)
 		.trim()
-		.required("Name is required.")
-		.max(
-			nameMaxLength,
-			`Name cannot be longer than ${nameMaxLength} characters.`,
-		),
-	description: Yup.string().max(
-		descriptionMaxLength,
-		`Description cannot be longer than ${descriptionMaxLength} characters.`,
-	),
-	icon: Yup.string().max(
-		iconMaxLength,
-		`Icon cannot be longer than ${iconMaxLength} characters.`,
-	),
+		.required("Name is required."),
+	description: maxCharacters(
+		"Description",
+		chatProjectDescriptionMaxChars,
+	).trim(),
+	icon: maxCharacters("Icon", chatProjectIconMaxChars).trim(),
+});
+
+const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
+	name: values.name.trim(),
+	description: values.description.trim(),
+	icon: values.icon.trim(),
 });
 
 type ChatProjectDialogProps = {
@@ -56,7 +69,15 @@ type ChatProjectDialogProps = {
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly isSubmitting: boolean;
+	/**
+	 * The save error. Call `mutation.reset()` before opening; the mutation
+	 * outlives the dialog.
+	 */
 	readonly error: unknown;
+	/**
+	 * Receives the name, description, and icon, trimmed, including unchanged
+	 * ones on edit. Also receives the selected organization when creating.
+	 */
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
@@ -135,22 +156,37 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		onSubmit: (values) => {
 			onSubmit({
 				...(!project && { organizationId: values.organizationId }),
-				name: values.name.trim(),
-				description: values.description.trim(),
-				icon: values.icon.trim(),
+				...trimValues(values),
 			});
 		},
 	});
-	const getFieldHelpers = getFormHelpers(form);
-	const nameField = getFieldHelpers("name", { maxLength: nameMaxLength });
-	const descriptionField = getFieldHelpers("description", {
-		maxLength: descriptionMaxLength,
+	const getFieldHelpers = getFormHelpers(form, error);
+	const nameField = getFieldHelpers("name", {
+		maxLength: chatProjectNameMaxChars,
+		measureLength,
 	});
-	const iconField = getFieldHelpers("icon", { maxLength: iconMaxLength });
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: chatProjectDescriptionMaxChars,
+		measureLength,
+	});
+	const iconField = getFieldHelpers("icon", {
+		maxLength: chatProjectIconMaxChars,
+		measureLength,
+	});
+	const organizationField = getFieldHelpers("organizationId");
 	const selectedOrganization = organizations.find(
 		(organization) => organization.id === form.values.organizationId,
 	);
-	const organizationField = getFieldHelpers("organizationId");
+	const trimmed = trimValues(form.values);
+	const trimmedInitial = trimValues(form.initialValues);
+	// An unchanged edit would still bump updated_at and write an audit entry.
+	const isUnchanged =
+		project !== undefined &&
+		trimmed.name === trimmedInitial.name &&
+		trimmed.description === trimmedInitial.description &&
+		trimmed.icon === trimmedInitial.icon;
+	const canSave = form.isValid && !isUnchanged && !isSubmitting;
+	const canCreate = form.dirty && selectedOrganization !== undefined;
 
 	return (
 		<>
@@ -165,7 +201,6 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					label={project ? "Name" : "Project name"}
 					required
 					disabled={isSubmitting}
-					maxLength={nameMaxLength}
 					autoFocus
 				/>
 				<FormField
@@ -179,7 +214,6 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 							onChange={descriptionField.onChange}
 							onBlur={descriptionField.onBlur}
 							disabled={isSubmitting}
-							maxLength={descriptionMaxLength}
 						/>
 					)}
 				/>
@@ -217,14 +251,9 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 				<IconField
 					{...iconField}
 					disabled={isSubmitting}
-					maxLength={iconMaxLength}
 					onPickEmoji={(value) => form.setFieldValue("icon", value)}
 				/>
-				{Boolean(error) && (
-					<p className="m-0 text-sm text-content-destructive">
-						{getErrorMessage(error, "Failed to save project.")}
-					</p>
-				)}
+				{Boolean(error) && <ErrorAlert error={error} />}
 				<DialogFooter>
 					<Button
 						type="button"
@@ -234,15 +263,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					>
 						Cancel
 					</Button>
-					<Button
-						type="submit"
-						disabled={
-							isSubmitting ||
-							!form.isValid ||
-							(!project && !form.dirty) ||
-							(!project && !selectedOrganization)
-						}
-					>
+					<Button type="submit" disabled={!canSave || (!project && !canCreate)}>
 						<Spinner loading={isSubmitting} />
 						{project ? "Save" : "Create project"}
 					</Button>

@@ -9,6 +9,7 @@ import {
 import {
 	Outlet,
 	useLocation,
+	useMatch,
 	useNavigate,
 	useParams,
 	useSearchParams,
@@ -66,6 +67,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -143,6 +145,12 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
+// The status in other event kinds may be older than the cached status.
+export const shouldEvaluateChime = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => eventKind === "status_change" && !chat.parent_chat_id;
+
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -171,6 +179,7 @@ const AgentsPageLayout: React.FC = () => {
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
+	const isPlainComposerRoute = useMatch("/agents") !== null;
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
@@ -528,7 +537,11 @@ const AgentsPageLayout: React.FC = () => {
 		// A composer prefilled from a prompt link shows the link's text,
 		// not the draft, so the draft is preserved there too. A debug link
 		// can fall back to the draft-backed composer, so it is not exempt.
-		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
+		// Other routes, such as a project composer, keep this draft too.
+		if (
+			isPlainComposerRoute &&
+			readDeepLinkState(location.state).prompt === undefined
+		) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
@@ -586,8 +599,7 @@ const AgentsPageLayout: React.FC = () => {
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(chat) => chat.id === updatedChat.id,
 					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (shouldEvaluateChime(updatedChat, chatEvent.kind)) {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -723,6 +735,10 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isBoardRoute =
 		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
+	// On mobile the automations page replaces the sidebar, like a settings
+	// detail page.
+	const isFullPageRoute =
+		isSettingsDetail || location.pathname.startsWith(AUTOMATIONS_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -770,7 +786,7 @@ const AgentsPageLayout: React.FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail
+							: isFullPageRoute
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
@@ -825,7 +841,7 @@ const AgentsPageLayout: React.FC = () => {
 						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
 						isSettingsIndex ? "hidden sm:flex" : "flex",
 						!agentId &&
-							!isSettingsDetail &&
+							!isFullPageRoute &&
 							sidebarView.panel === "chats" &&
 							"contents sm:flex sm:flex-1 sm:flex-col",
 					)}

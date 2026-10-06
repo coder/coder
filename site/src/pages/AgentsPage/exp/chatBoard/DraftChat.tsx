@@ -47,6 +47,7 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 		mcpServerIds,
 		organizationId,
 		planMode,
+		manageAutomationsEnabled,
 	}: CreateChatOptions) => {
 		const text = [message.trim() ? message : "", context ?? ""]
 			.filter(Boolean)
@@ -67,6 +68,7 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			labels,
+			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		});

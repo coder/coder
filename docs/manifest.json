@@ -562,7 +562,7 @@
 							"state": ["premium"]
 						},
 						{
-							"title": "API \u0026 session tokens",
+							"title": "API & session tokens",
 							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
@@ -775,7 +775,7 @@
 				{
 					"title": "External authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
-					"path": "./admin/external-auth/index.md",
+					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -1125,7 +1125,7 @@
 						{
 							"title": "Tools",
 							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
+							"path": "./ai-coder/agents/tools.md"
 						},
 						{
 							"title": "Chat sharing",
@@ -1133,12 +1133,18 @@
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
+							"title": "Automations",
+							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
+							"path": "./ai-coder/agents/automations.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"
 						},
 						{
-							"title": "Licensing \u0026 usage",
+							"title": "Licensing & usage",
 							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
@@ -2328,6 +2334,28 @@
 							]
 						},
 						{
+							"title": "`sharing`",
+							"description": "Commands for managing shared workspaces",
+							"path": "reference/cli/sharing/index.md",
+							"children": [
+								{
+									"title": "`add`",
+									"description": "Share a workspace with a user or group.",
+									"path": "reference/cli/sharing/add.md"
+								},
+								{
+									"title": "`remove`",
+									"description": "Remove shared access for users or groups from a workspace.",
+									"path": "reference/cli/sharing/remove.md"
+								},
+								{
+									"title": "`status`",
+									"description": "List all users and groups the given Workspace is shared with.",
+									"path": "reference/cli/sharing/status.md"
+								}
+							]
+						},
+						{
 							"title": "`show`",
 							"description": "Display details of a workspace's resources and agents",
 							"path": "reference/cli/show.md"
@@ -2621,6 +2649,12 @@
 							]
 						}
 					]
+				},
+				{
+					"title": "API key scopes",
+					"description": "Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.",
+					"path": "./reference/api-key-scopes.md",
+					"icon_path": "./images/icons/api.svg"
 				},
 				{
 					"title": "Agent API",

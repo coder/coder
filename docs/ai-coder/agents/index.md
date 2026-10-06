@@ -9,10 +9,12 @@ agent that runs the agent loop directly within the Coder control plane.
 
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows the Coder Agents chat interface, where a developer describes work for an agent to carry out.
 
 ## What Coder Agents is and isn't
 
@@ -273,6 +275,7 @@ tasks:
 | `read_skill_file`                           | Read a supporting file from a skill's directory                                                                                                                       |
 | `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                   |
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer |
+| `manage_automations`                        | Create and manage [automations](./automations.md). Only available when the `chat-automations` experiment is enabled and **Manage automations** is on for the chat     |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in

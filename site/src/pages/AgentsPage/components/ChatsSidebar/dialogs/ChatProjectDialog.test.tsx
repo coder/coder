@@ -17,6 +17,8 @@ const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
 	<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
 );
 
+type DialogProps = React.ComponentProps<typeof ChatProjectDialog>;
+
 const defaultProps = {
 	open: true,
 	organizations: [MockDefaultOrganization, MockOrganization2],
@@ -25,10 +27,28 @@ const defaultProps = {
 	isSubmitting: false,
 	error: undefined,
 	onSubmit: vi.fn(),
-} satisfies React.ComponentProps<typeof ChatProjectDialog>;
+} satisfies DialogProps;
+
+const renderDialog = (props: Partial<DialogProps> = {}) => {
+	const allProps: DialogProps = {
+		...defaultProps,
+		onOpenChange: vi.fn(),
+		onSubmit: vi.fn(),
+		...props,
+	};
+	const view = render(<ChatProjectDialog {...allProps} />, {
+		wrapper: Wrapper,
+	});
+	return {
+		...view,
+		props: allProps,
+		rerenderWith: (next: Partial<DialogProps>) =>
+			view.rerender(<ChatProjectDialog {...allProps} {...next} />),
+	};
+};
 
 describe("ChatProjectDialog", () => {
-	it("submits an unchanged project when Save is activated before async validation resolves", async () => {
+	it("does not submit an unchanged project when Save is activated before async validation resolves", async () => {
 		const onSubmit = vi.fn();
 		const container = document.createElement("div");
 		document.body.appendChild(container);
@@ -49,13 +69,10 @@ describe("ChatProjectDialog", () => {
 			});
 			screen.getByRole("button", { name: "Save" }).click();
 
-			await waitFor(() =>
-				expect(onSubmit).toHaveBeenCalledWith({
-					name: MockChatProject.name,
-					description: MockChatProject.description,
-					icon: MockChatProject.icon,
-				}),
-			);
+			// Validation and Formik's submit only chain promises, so they
+			// settle before the next macrotask.
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(onSubmit).not.toHaveBeenCalled();
 		} finally {
 			flushSync(() => {
 				root.unmount();
@@ -220,38 +237,180 @@ describe("ChatProjectDialog", () => {
 		);
 	});
 
-	it("submits the selected project's name, description, and icon", async () => {
+	it("fills the form from the project passed when the dialog opens and submits it", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn();
 		const project = { ...MockChatProject, icon: "/emojis/1f4c1.png" };
-		const { rerender } = render(
-			<ChatProjectDialog
-				open={false}
-				onOpenChange={vi.fn()}
-				isSubmitting={false}
-				error={undefined}
-				onSubmit={onSubmit}
-			/>,
-			{ wrapper: Wrapper },
+		// Callers mount the dialog closed and pass the project when opening it.
+		const { props, rerenderWith } = renderDialog({ open: false });
+		rerenderWith({ open: true, project });
+
+		await user.clear(screen.getByLabelText(/Name/));
+		await user.type(screen.getByLabelText(/Name/), "Renamed");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith({
+			name: "Renamed",
+			description: project.description,
+			icon: project.icon,
+		});
+	});
+
+	it("trims the values it submits when creating a project", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Project name/), "  Launch  ");
+		await user.type(screen.getByLabelText("Description"), " Notes ");
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith({
+			name: "Launch",
+			description: "Notes",
+			icon: "",
+			organizationId: MockDefaultOrganization.id,
+		});
+	});
+
+	it("counts an emoji as one character toward the name limit", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.click(screen.getByLabelText(/Project name/));
+		await user.paste("🚀".repeat(64));
+		expect(screen.getByLabelText(/Project name/)).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "🚀".repeat(64) }),
 		);
 
-		rerender(
-			<ChatProjectDialog
-				project={project}
-				open
-				onOpenChange={vi.fn()}
-				isSubmitting={false}
-				error={undefined}
-				onSubmit={onSubmit}
-			/>,
+		await user.click(screen.getByLabelText(/Project name/));
+		await user.paste("🚀");
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Create project" }),
+			).toBeDisabled(),
 		);
+	});
+
+	it("measures the length limit after trimming", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Project name/), "Launch");
+		await user.click(screen.getByLabelText("Description"));
+		await user.paste(`${"d".repeat(1024)} `);
+		expect(screen.getByLabelText("Description")).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
+		await user.click(screen.getByLabelText("Icon"));
+		await user.paste(`${"i".repeat(256)} `);
+		expect(screen.getByLabelText("Icon")).toHaveAttribute(
+			"aria-invalid",
+			"false",
+		);
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				description: "d".repeat(1024),
+				icon: "i".repeat(256),
+			}),
+		);
+	});
+
+	it("saves an edit that changes only the icon", async () => {
+		const user = userEvent.setup();
+		const project = { ...MockChatProject, icon: "" };
+		const { props } = renderDialog({ project });
+
+		await user.type(screen.getByLabelText("Icon"), "/emojis/1f680.png");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith({
+			name: project.name,
+			description: project.description,
+			icon: "/emojis/1f680.png",
+		});
+	});
+
+	it("does not save an edit when only stored whitespace differs", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({
+			project: { ...MockChatProject, description: "notes\n" },
+		});
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(onSubmit).toHaveBeenCalledWith({
-			name: project.name,
-			description: project.description,
-			icon: project.icon,
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not save a name made only of spaces", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Project name/), "   ");
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not save an edit that only adds whitespace", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({ project: MockChatProject });
+
+		await user.type(screen.getByLabelText(/Name/), " ");
+
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not save an edit that changes nothing", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({ project: MockChatProject });
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not save without a name", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
+
+		await user.type(screen.getByLabelText("Description"), "Notes");
+		await user.click(screen.getByRole("button", { name: "Create project" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not close while saving", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog({ isSubmitting: true });
+
+		await user.keyboard("{Escape}");
+
+		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("discards unsaved edits when it is closed and reopened", async () => {
+		const user = userEvent.setup();
+		const { props, rerenderWith } = renderDialog({ project: MockChatProject });
+
+		await user.type(screen.getByLabelText(/Name/), "xyz");
+		rerenderWith({ open: false });
+		rerenderWith({ open: true });
+		await user.type(screen.getByLabelText("Description"), "!");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).toHaveBeenCalledWith({
+			name: MockChatProject.name,
+			description: `${MockChatProject.description}!`,
+			icon: MockChatProject.icon,
 		});
 	});
 });

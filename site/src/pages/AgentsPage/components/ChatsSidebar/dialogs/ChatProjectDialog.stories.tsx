@@ -9,7 +9,7 @@ import {
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
 const meta = {
-	title: "pages/AgentsPage/ChatsSidebar/ChatProjectDialog",
+	title: "pages/AgentsPage/ChatProjectDialog",
 	component: ChatProjectDialog,
 	args: {
 		open: true,
@@ -53,6 +53,16 @@ export const UnavailableOrganizations: Story = {
 export const UnavailableSelection: Story = {
 	args: {
 		organizations: [MockOrganization2],
+	},
+};
+
+export const InvalidName: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await body.findByRole("textbox", { name: /Project name/ }),
+			"x".repeat(65),
+		);
 	},
 };
 

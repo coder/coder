@@ -1,8 +1,8 @@
-import { PencilIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
+	Link as RouterLink,
 	useLocation,
 	useNavigate,
 	useParams,
@@ -10,7 +10,7 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
+import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -23,9 +23,10 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -38,8 +39,8 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
+import { ProjectComposerFooter } from "./components/ProjectComposerFooter";
 import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
 import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
@@ -89,42 +90,52 @@ const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
-/**
- * New-chat page. When `projectId` is set, the composer is framed by the
- * project and the created chat joins it.
- */
 const AgentCreatePage: React.FC = () => {
+	const { projectId } = useParams<{ projectId?: string }>();
+	const { experiments } = useDashboard();
+	if (projectId !== undefined && !experiments.includes("chat-projects")) {
+		return <Navigate to="/agents" replace />;
+	}
+	// Remount per project so the create mutation's pending and error state do
+	// not carry over. A create still in flight opens its chat on success, as
+	// from /agents; if it fails after the page unmounts, its error and the
+	// typed message are lost.
+	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
+};
+
+type AgentCreatePageContentProps = {
+	readonly projectId: string | undefined;
+};
+
+const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
+	projectId,
+}) => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const { projectId } = useParams<{ projectId?: string }>();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: chatProjectsEnabled && projectId !== undefined,
+		enabled: projectId !== undefined,
 	});
-	const selectedProject = projectQuery.data ?? undefined;
-	// The project comes from the user's project list, so a project that is
-	// absent once the list loads is missing or not the user's.
-	const isProjectMissing = projectQuery.data === null;
-	// A cached project stays usable when a background refetch fails; only a
-	// lookup with nothing to show blocks the composer.
+	const project = projectQuery.data ?? undefined;
+	// null also covers a project that exists but is not in this user's list.
+	// A cached list can predate the project, so wait for the refetch.
+	const isProjectMissing =
+		projectId !== undefined &&
+		projectQuery.data === null &&
+		projectQuery.isFetchedAfterMount &&
+		!projectQuery.error;
+	// A failed background refetch keeps the cached project usable.
 	const projectLookupError =
-		projectId !== undefined && !selectedProject && projectQuery.error
+		projectId !== undefined && !project && projectQuery.error
 			? projectQuery.error
 			: undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
-	// The mutation outlives project navigation, so only show its error under
-	// the project it was attempted for.
-	const attemptedProjectId = createMutation.variables?.project_id;
-	const selectedProjectId = selectedProject?.id;
-	const createError =
-		attemptedProjectId === selectedProjectId ? createMutation.error : undefined;
 	const sendFirstMessageMutation = useMutation(
 		createChatMessageByChatId(queryClient),
 	);
@@ -247,10 +258,6 @@ const AgentCreatePage: React.FC = () => {
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	if (projectId !== undefined && (!chatProjectsEnabled || isProjectMissing)) {
-		return <Navigate to="/agents" replace />;
-	}
-
 	const handleCreateChat = async ({
 		message,
 		fileIDs,
@@ -259,7 +266,9 @@ const AgentCreatePage: React.FC = () => {
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
+		projectId: formProjectId,
 		planMode,
+		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -282,9 +291,10 @@ const AgentCreatePage: React.FC = () => {
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
+			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-			...(selectedProject ? { project_id: selectedProject.id } : {}),
+			...(formProjectId ? { project_id: formProjectId } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
@@ -401,24 +411,42 @@ const AgentCreatePage: React.FC = () => {
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
-			{projectLookupError ? (
-				<ErrorAlert
-					error={projectLookupError}
+			{isProjectMissing ? (
+				<div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-content-secondary">
+					<p className="m-0">Project not found</p>
+					<Link asChild showExternalIcon={false}>
+						<RouterLink to="/agents">Start a new chat</RouterLink>
+					</Link>
+				</div>
+			) : projectLookupError ? (
+				<Alert
+					severity="error"
+					prominent
 					className="mx-auto mt-4 w-full max-w-3xl"
 					actions={
 						<Button
 							size="sm"
 							variant="outline"
+							disabled={projectQuery.isFetching}
 							onClick={() => void projectQuery.refetch()}
 						>
+							<Spinner loading={projectQuery.isFetching} />
 							Retry
 						</Button>
 					}
-				/>
-			) : projectId !== undefined && !selectedProject ? (
-				// The form must not mount until its organization is known because its
-				// attachments and remembered choices are organization-scoped.
-				<Loader label="Loading project" />
+				>
+					<AlertTitle>Failed to load project</AlertTitle>
+					<AlertDescription>
+						{getErrorMessage(
+							projectLookupError,
+							"The project could not be loaded.",
+						)}
+					</AlertDescription>
+				</Alert>
+			) : projectId !== undefined && !project ? (
+				// Without the project, the form would show the plain composer and
+				// the user's own organization.
+				<Loader className="flex-1" label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
@@ -430,23 +458,12 @@ const AgentCreatePage: React.FC = () => {
 								? `prompt:${linkPrompt}`
 								: "draft"
 					}
-					lockedOrganizationId={selectedProject?.organization_id}
-					header={
-						selectedProject && (
-							<ProjectComposerHeader project={selectedProject} />
-						)
-					}
-					footer={
-						selectedProject && (
-							<ProjectComposerFooter
-								key={selectedProject.id}
-								project={selectedProject}
-							/>
-						)
-					}
+					project={project}
+					header={project && <ProjectComposerHeader project={project} />}
+					footer={project && <ProjectComposerFooter project={project} />}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
-					createError={createError}
+					createError={createMutation.error}
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
@@ -458,55 +475,6 @@ const AgentCreatePage: React.FC = () => {
 				/>
 			)}
 		</>
-	);
-};
-
-type ProjectComposerFooterProps = {
-	readonly project: TypesGen.ChatProject;
-};
-
-const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
-	project,
-}) => {
-	const queryClient = useQueryClient();
-	const [isEditing, setIsEditing] = useState(false);
-	const editButtonRef = useRef<HTMLButtonElement>(null);
-	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const closeDialog = () => {
-		setIsEditing(false);
-		requestAnimationFrame(() => editButtonRef.current?.focus());
-	};
-
-	return (
-		<div className="flex justify-center pt-2">
-			<Button
-				ref={editButtonRef}
-				variant="subtle"
-				size="sm"
-				onClick={() => {
-					updateProjectMutation.reset();
-					setIsEditing(true);
-				}}
-			>
-				<PencilIcon />
-				Edit project
-			</Button>
-			<ChatProjectDialog
-				project={project}
-				open={isEditing}
-				onOpenChange={(open) => {
-					if (!open) closeDialog();
-				}}
-				isSubmitting={updateProjectMutation.isPending}
-				error={updateProjectMutation.error}
-				onSubmit={(request) => {
-					updateProjectMutation.mutate(
-						{ project, request },
-						{ onSuccess: closeDialog },
-					);
-				}}
-			/>
-		</div>
 	);
 };
 

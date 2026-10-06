@@ -56,6 +56,10 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import {
+	chatProjectDescriptionMaxChars,
+	chatProjectNameMaxChars,
+} from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
@@ -333,15 +337,40 @@ export const Default: Story = {};
 
 export const ProjectComposer: Story = {
 	args: {
+		project: {
+			...MockChatProject,
+			organization_id: MockDefaultOrganization.id,
+		},
 		header: (
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
-					name: "N".repeat(64),
-					description: "d".repeat(1024),
+					name: "N".repeat(chatProjectNameMaxChars),
+					description: "d".repeat(chatProjectDescriptionMaxChars),
 				}}
 			/>
 		),
+	},
+};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
+		header: <ProjectComposerHeader project={MockChatProject} />,
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(/which this project belongs to/);
 	},
 };
 
