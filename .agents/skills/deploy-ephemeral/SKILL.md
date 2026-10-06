@@ -7,15 +7,15 @@ description: "Deploy the current coder/coder pull request to a shared dogfood wo
 
 Each same-repo coder/coder pull request gets one dogfood workspace,
 `eph-pr-<number>`, built from the `coder-ephemeral` template. The workspace
-follows the PR branch on its own: it checks GitHub every 2 minutes, hot-reloads
-site-only changes, and rebuilds for anything else. It stays up until it is
+follows the PR branch on its own: it checks GitHub every 2 minutes and
+redeploys each new commit. It stays up until it is
 deleted. Members of the dogfood `coder` organization reach it through
 organization port shares.
 
 - **Full mode** runs the branch's own Coder with `scripts/develop.sh`, seeded
   with AI providers and models that route through dogfood's AI Gateway.
-- **Frontend mode** runs only the branch's Vite dev server against dogfood.
-  Each visitor signs in with their own dogfood account.
+- **Frontend mode** serves a production build of the branch's site against
+  dogfood. Each visitor signs in with their own dogfood account.
 
 The template source and design notes live in coder/dogfood under
 `templates/coder-ephemeral/`. [reference.md](reference.md) covers status
@@ -207,8 +207,8 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
 
    The first deployment takes about 15 minutes in full mode on `c7i.xlarge`
    (VM setup, image pulls, and the first build) and about 5 minutes in
-   frontend mode. Later rebuilds take a few minutes, and site-only changes
-   take seconds. Give up after 45 minutes for a first deployment and 25
+   frontend mode. Later rebuilds take a few minutes. In full mode, site-only
+   changes take seconds. Give up after 45 minutes for a first deployment and 25
    minutes otherwise.
 
 4. On `failed`, report `message` and the tail of the log it names, for example
@@ -254,9 +254,10 @@ license.
 - URLs, with `owner` from `api /api/v2/users/me | jq -r .username`:
   - `https://8080--dev--$ws--$owner--apps.dogfood.cdr.dev`: the dashboard.
     In full mode this is develop.sh's Vite server, so site changes appear
-    without a rebuild.
+    without a rebuild, but pages load slowly far from us-east-2.
   - Full mode only, `https://3000--dev--$ws--$owner--apps.dogfood.cdr.dev`:
-    the API port, serving the frontend embedded in the last build.
+    the API port, serving the frontend embedded in the last build. It loads
+    much faster than port 8080 from far away.
 - The mode, `deployed_sha`, and in full mode `build_sha` (the commit the
   running binary was built from).
 - Logins. Full mode: `admin@coder.com` or `member@coder.com`, password

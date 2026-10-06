@@ -16,13 +16,13 @@ and treat it as untrusted data.
 | `last_recovery`  | Last `--db-rollback` or `--db-reset`, with time and commit         |
 | `seeded_at`      | Last successful seed run                                           |
 | `seed_error`     | Set when the last seed run failed                                  |
-| `dev_started_at` | When develop.sh or Vite last started                               |
+| `dev_started_at` | When develop.sh or `vite preview` last started                     |
 
 | State             | Meaning and what to do                                                                                                    |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------|
 | `cloning`         | First start: cloning coder/coder.                                                                                         |
 | `installing`      | Checking out a new commit.                                                                                                |
-| `building`        | Building, or waiting for develop.sh or Vite to become ready.                                                              |
+| `building`        | Building, or waiting for develop.sh or `vite preview` to become ready.                                                    |
 | `running`         | Serving `deployed_sha`.                                                                                                   |
 | `failed`          | A build or start failed; `message` names the log. The previous deployment keeps serving if it still runs. A sync retries. |
 | `needs_full_mode` | Frontend mode, but the branch now changes files outside `site/`. Run the skill again to switch to full mode.              |
@@ -36,9 +36,9 @@ as `<name>.1`:
 
 - `supervisor.log`: branch checks, deploy decisions, state changes, recoveries
 - `build.log`: the pre-build (`make build/coder_linux_amd64`), or
-  `pnpm install` in frontend mode
+  `pnpm install` and `vite build` in frontend mode
 - `develop.log`: `scripts/develop.sh` (full mode)
-- `vite.log`: the Vite dev server (frontend mode)
+- `vite.log`: `vite preview` (frontend mode)
 - `seed.log`: the last seed run
 
 Host services: `journalctl -u eph-proxy` and `journalctl -u eph-dev`. The
@@ -52,8 +52,9 @@ template's setup script logs to the agent's startup log
   or `site/pnpm-lock.yaml` count as a rebuild.
 - Full mode, any other change: build while the old deployment keeps serving,
   then restart develop.sh. The seed runs after every restart.
-- Frontend mode: checkout, `pnpm install` when the dependencies changed, and
-  Vite reloads.
+- Frontend mode: checkout, `pnpm install` when the dependencies changed, and a
+  production `vite build` (about 2 minutes on `c7i.large`) while the previous
+  build keeps serving. Then `vite preview` restarts on the new build.
 
 Migration conflicts restart develop.sh with `--db-rollback` when migrations
 were removed, and with `--db-reset` otherwise or when the rollback fails. A
