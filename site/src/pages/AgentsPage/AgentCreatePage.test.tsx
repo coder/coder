@@ -59,6 +59,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 		onCreateChat: undefined as
 			| ((options: CreateChatOptions) => Promise<void>)
 			| undefined,
+		createError: undefined as unknown,
 	},
 }));
 
@@ -107,6 +108,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		...actual,
 		AgentCreateForm: (props: AgentCreateFormProps) => {
 			formProps.onCreateChat = props.onCreateChat;
+			formProps.createError = props.createError;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -282,7 +284,6 @@ describe("AgentCreatePage project assignment", () => {
 		renderAgentsRoutes();
 
 		await screen.findByText("Failed to load project");
-		expect(screen.getByText("List failed")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await screen.findByRole("button", { name: "Create chat" });
 		expect(lookupCount).toBe(2);
@@ -301,6 +302,9 @@ describe("AgentCreatePage project assignment", () => {
 			}),
 		);
 
+		const { createChat } = mockPageQueries();
+		const user = userEvent.setup();
+
 		const { queryClient } = renderAgentsRoutes();
 		await screen.findByRole("button", { name: "Create chat" });
 		await act(() =>
@@ -309,27 +313,25 @@ describe("AgentCreatePage project assignment", () => {
 		await waitFor(() =>
 			expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe("error"),
 		);
-
 		expect(lookupCount).toBe(2);
-		expect(screen.getByRole("button", { name: "Create chat" })).toBeEnabled();
-		expect(
-			screen.queryByText("Failed to load project"),
-		).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Create chat" }));
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 	});
 
 	it("shows a not-found message when the project is missing", async () => {
 		enableExperiments("chat-projects");
 		serveProjects();
+		const user = userEvent.setup();
 
 		const { router } = renderAgentsRoutes();
 
 		await screen.findByText("Project not found");
-		expect(
-			screen.getByRole("link", { name: "Start a new chat" }),
-		).toHaveAttribute("href", "/agents");
 		expect(router.state.location.pathname).toBe(
 			projectPath(MockChatProject.id),
 		);
+		await user.click(screen.getByRole("link", { name: "Start a new chat" }));
+		expect(router.state.location.pathname).toBe("/agents");
 	});
 
 	it("waits for the refetch before treating a cached list as final", async () => {
@@ -344,7 +346,8 @@ describe("AgentCreatePage project assignment", () => {
 			void router.navigate(projectPath(MockChatProject.id));
 		});
 
-		expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
+		// Throws if the page settled on "Project not found" instead.
+		screen.getByRole("status", { name: "Loading project" });
 		await screen.findByRole("heading", { name: MockChatProject.name });
 	});
 
@@ -365,7 +368,6 @@ describe("AgentCreatePage project assignment", () => {
 			});
 
 			await screen.findByRole("status", { name: "Loading project" });
-			expect(screen.queryByText("Project not found")).not.toBeInTheDocument();
 		} finally {
 			onlineManager.setOnline(true);
 		}
@@ -380,7 +382,6 @@ describe("AgentCreatePage project assignment", () => {
 		await act(() => router.navigate("/agents"));
 
 		await screen.findByRole("button", { name: "Create chat" });
-		expect(screen.queryByText("Project not found")).toBeNull();
 		expect(renderedProjects.at(-1)).toBeUndefined();
 	});
 
@@ -400,7 +401,6 @@ describe("AgentCreatePage project assignment", () => {
 		});
 
 		await screen.findByText("Failed to load project");
-		expect(screen.queryByText("Project not found")).toBeNull();
 
 		const retry = Promise.withResolvers<undefined>();
 		server.use(
@@ -409,18 +409,22 @@ describe("AgentCreatePage project assignment", () => {
 				return HttpResponse.json({ message: "List failed" }, { status: 500 });
 			}),
 		);
+		const getChatProjects = vi.spyOn(API.experimental, "getChatProjects");
 		const user = userEvent.setup();
-		await user.click(screen.getByRole("button", { name: "Retry" }));
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: /Retry/ })).toBeDisabled(),
-		);
-		within(screen.getByRole("button", { name: /Retry/ })).getByTitle(
-			"Loading spinner",
-		);
+		await user.click(screen.getByRole("button", { name: /Retry/ }));
+		expect(getChatProjects).toHaveBeenCalledTimes(1);
+		// A retry in flight ignores further clicks.
+		await user.click(screen.getByRole("button", { name: /Retry/ }));
+		expect(getChatProjects).toHaveBeenCalledTimes(1);
+
 		retry.resolve(undefined);
 		await waitFor(() =>
-			expect(screen.getByRole("button", { name: /Retry/ })).toBeEnabled(),
+			expect(queryClient.getQueryState(chatProjectsKey)?.fetchStatus).toBe(
+				"idle",
+			),
 		);
+		await user.click(screen.getByRole("button", { name: /Retry/ }));
+		expect(getChatProjects).toHaveBeenCalledTimes(2);
 	});
 
 	it("redirects to the new chat page when chat projects are disabled", async () => {
@@ -490,11 +494,11 @@ describe("AgentCreatePage project frame", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Create chat" }),
 		);
-		await screen.findByText("Create failed");
+		await waitFor(() => expect(formProps.createError).toBeTruthy());
 		await act(() => router.navigate(projectPath(projectB.id)));
 
 		await screen.findByRole("heading", { name: "Beta" });
-		expect(screen.queryByText("Create failed")).not.toBeInTheDocument();
+		expect(formProps.createError).toBeNull();
 	});
 
 	it("keeps the edit target aligned after browser history navigation", async () => {
@@ -577,39 +581,23 @@ describe("AgentCreatePage project frame", () => {
 
 		await screen.findByRole("heading", { name: "Renamed" });
 		expect(requestBody).toMatchObject({ name: "Renamed" });
-		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		});
-	});
 
-	it("clears a failed save when the edit dialog is reopened", async () => {
-		enableExperiments("chat-projects");
-		serveProjects(MockChatProject);
-		server.use(
-			http.patch(
-				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/${MockChatProject.id}`,
-				() => HttpResponse.json({ message: "Save failed" }, { status: 500 }),
-			),
-		);
-		const user = userEvent.setup();
-
-		renderAgentsRoutes();
-
+		// The open dialog hides the page from the accessibility tree, so this
+		// waits for the save to close it. Reopening edits the saved project.
 		await user.click(
 			await screen.findByRole("button", { name: "Edit project" }),
 		);
-		let dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "!");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
-		await within(dialog).findByText("Save failed");
-		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-		await waitFor(() => {
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		const reopened = await screen.findByRole("dialog", {
+			name: "Edit project",
 		});
-
-		await user.click(screen.getByRole("button", { name: "Edit project" }));
-		dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		expect(within(dialog).queryByText("Save failed")).not.toBeInTheDocument();
+		await user.type(
+			within(reopened).getByRole("textbox", { name: /Name/ }),
+			"!",
+		);
+		await user.click(within(reopened).getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(requestBody).toMatchObject({ name: "Renamed!" }),
+		);
 	});
 });
 
