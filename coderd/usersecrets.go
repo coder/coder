@@ -459,6 +459,7 @@ func applySecretReplacements(secrets []codersdk.WorkspaceSecret, blocked bool) {
 		policy = workspacesecrets.FilePathBlocked
 	}
 	candidates := make([]workspacesecrets.Secret, len(secrets))
+	replacements := make(map[uuid.UUID]workspacesecrets.Resolved, len(secrets))
 	for i, s := range secrets {
 		candidates[i] = workspacesecrets.Secret{
 			ID:       s.ID,
@@ -469,7 +470,14 @@ func applySecretReplacements(secrets []codersdk.WorkspaceSecret, blocked bool) {
 			Enabled:  s.Enabled,
 		}
 	}
-	for i, r := range workspacesecrets.Resolve(candidates, policy) {
+	for _, r := range workspacesecrets.Resolve(candidates, policy) {
+		replacements[r.ID] = r
+	}
+	for i := range secrets {
+		r, ok := replacements[secrets[i].ID]
+		if !ok {
+			continue
+		}
 		if r.EnvReplacedBy.Valid {
 			secrets[i].EnvReplacedBy = &r.EnvReplacedBy.UUID
 		}
