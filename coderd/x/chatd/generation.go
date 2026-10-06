@@ -538,7 +538,7 @@ func (s *taskStarter) cancelDeletedToolCalls(
 		params.PreviousUserMessageID = messages[previous].ID
 	}
 	var deleted []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -714,7 +714,7 @@ func loadGenerationState(
 ) (database.Chat, []database.ChatMessage, error) {
 	var chat database.Chat
 	var messages []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -1664,7 +1664,7 @@ func (s *taskStarter) finishGenerationTurn(
 	}
 	var chat database.Chat
 	var messages []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		loadedChat, err := loadChatForGeneration(ctx, store, input, fence)
 		if err != nil {
 			return xerrors.Errorf("load chat for stop hook: %w", err)
