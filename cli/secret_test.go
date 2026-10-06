@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -594,6 +595,35 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 			assert.Contains(t, out, "env: build-token")
 		})
 	}
+
+	// Inside a workspace that the logged-in deployment or user cannot see,
+	// only user secrets are listed.
+	for _, envName := range []string{"CODER_WORKSPACE_BUILD_ID", "CODER_WORKSPACE_ID"} {
+		t.Run("UnknownCurrentWorkspace/"+envName, func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, "secret", "list")
+			inv.Environ.Set(envName, uuid.NewString())
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, client, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run())
+			assert.Contains(t, output.Stderr(), "only user secrets are listed")
+			assert.Contains(t, output.Stdout(), "user-token")
+			assert.NotContains(t, output.Stdout(), "build-token")
+		})
+	}
+
+	t.Run("UnknownBuildIDFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", uuid.NewString())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.Error(t, inv.WithContext(ctx).Run())
+	})
 
 	t.Run("NameWithFlag", func(t *testing.T) {
 		t.Parallel()
