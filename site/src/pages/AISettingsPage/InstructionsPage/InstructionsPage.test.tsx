@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { organizationChatSystemPromptKey } from "#/api/queries/chats";
 import {
 	MockDefaultOrganization,
 	MockNoPermissions,
@@ -69,7 +68,7 @@ it("saves edits to the organization picked in the picker", async () => {
 	renderPage();
 
 	await user.type(
-		await screen.findByDisplayValue("Default organization guidance."),
+		await screen.findByRole("textbox", { name: "Organization instructions" }),
 		" Unsaved.",
 	);
 	await user.click(
@@ -80,8 +79,13 @@ it("saves edits to the organization picked in the picker", async () => {
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
+	await waitFor(() =>
+		expect(
+			screen.getByRole("textbox", { name: "Organization instructions" }),
+		).toHaveValue("Second organization guidance."),
+	);
 	await user.type(
-		await screen.findByDisplayValue("Second organization guidance."),
+		screen.getByRole("textbox", { name: "Organization instructions" }),
 		" Edited.",
 	);
 	await user.click(screen.getByRole("button", { name: "Save" }));
@@ -112,32 +116,32 @@ it("keeps the instructions read-only for viewers", async () => {
 	const user = userEvent.setup();
 	renderPage();
 
-	const field = await screen.findByDisplayValue(
-		"Default organization guidance.",
-	);
+	const field = await screen.findByRole("textbox", {
+		name: "Organization instructions",
+	});
 	await user.type(field, " Edited.");
 
 	expect(field).toHaveValue("Default organization guidance.");
 });
 
-it("keeps an unsaved edit when a background refetch fails", async () => {
+it("keeps an unsaved edit when background refetches fail", async () => {
 	const updateSystemPrompt = mockInstructionsApi();
 	const user = userEvent.setup();
 	const { queryClient } = renderPage();
 
 	await user.type(
-		await screen.findByDisplayValue("Default organization guidance."),
+		await screen.findByRole("textbox", { name: "Organization instructions" }),
 		" Edited.",
 	);
 	vi.mocked(API.experimental.getOrganizationChatSystemPrompt).mockRejectedValue(
 		new Error("prompt unavailable"),
 	);
-	await act(() =>
-		queryClient.invalidateQueries({
-			queryKey: organizationChatSystemPromptKey(MockDefaultOrganization.id),
-		}),
+	vi.mocked(API.checkAuthorization).mockRejectedValue(
+		new Error("permissions unavailable"),
 	);
+	await act(() => queryClient.invalidateQueries());
 	await screen.findByText("prompt unavailable");
+	await screen.findByText("permissions unavailable");
 
 	await user.click(screen.getByRole("button", { name: "Save" }));
 	await waitFor(() =>

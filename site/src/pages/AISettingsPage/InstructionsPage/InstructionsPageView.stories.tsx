@@ -584,3 +584,13 @@ export const OrganizationAccessError: Story = {
 	},
 	parameters: pixelCapture,
 };
+
+export const OrganizationAccessRefetchError: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		organizationAccessError: mockApiError({
+			message: "Failed to refresh organization permissions.",
+		}),
+	},
+	parameters: pixelCapture,
+};

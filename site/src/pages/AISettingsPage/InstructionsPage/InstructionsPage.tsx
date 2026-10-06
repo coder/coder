@@ -13,7 +13,6 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import {
 	modelOrganizationSearchParam,
 	selectModelOrganization,
-	splitModelQueryErrors,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { InstructionsPageView } from "./InstructionsPageView";
@@ -39,9 +38,6 @@ const InstructionsPage: React.FC = () => {
 		searchParams.get(modelOrganizationSearchParam),
 	);
 	const activeOrganization = organizationSelection.organization;
-	const organizationAccessError = splitModelQueryErrors(
-		organizationPermissionsQuery,
-	).loadError;
 
 	const systemPromptQuery = useQuery({
 		...chatSystemPrompt(),
@@ -64,7 +60,7 @@ const InstructionsPage: React.FC = () => {
 				permissions.editDeploymentConfig ||
 				readableOrganizations.length > 0 ||
 				organizationPermissionsQuery.isLoading ||
-				organizationAccessError != null
+				organizationPermissionsQuery.error != null
 			}
 		>
 			<title>{pageTitle("Instructions", "AI Settings")}</title>
@@ -101,7 +97,7 @@ const InstructionsPage: React.FC = () => {
 					organizationSelection.requestedOrganizationDenied
 				}
 				isOrganizationAccessLoading={organizationPermissionsQuery.isLoading}
-				organizationAccessError={organizationAccessError}
+				organizationAccessError={organizationPermissionsQuery.error}
 				organizationInstructions={
 					activeOrganization && (
 						<OrganizationInstructions
