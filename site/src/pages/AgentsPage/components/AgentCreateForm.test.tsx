@@ -610,6 +610,25 @@ describe("AgentCreateForm organization lock", () => {
 		unmount();
 	});
 
+	it("keeps the user's saved organization when a project loads after it was revoked", async () => {
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockDefaultOrganization.id,
+		);
+		server.use(mockChatCreatePermissions((id) => id === MockOrganization2.id));
+		const mcpRequests = recordMCPRequests();
+
+		const { unmount } = renderLockTest({ project: projectInOrg2 });
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockOrganization2.id);
+		});
+
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			MockDefaultOrganization.id,
+		);
+		unmount();
+	});
+
 	it("does not adopt the project's organization as the user's default", async () => {
 		server.use(mockChatCreatePermissions(() => true));
 		const mcpRequests = recordMCPRequests();
