@@ -17,7 +17,7 @@ type Story = StoryObj<typeof AgentStatus>;
 
 /**
  * Shared play helper that hovers the status icon, then asserts the
- * popover contains the expected title and detail text, plus a
+ * tooltip contains the expected title and detail text, plus a
  * troubleshoot link when the agent has a troubleshooting URL.
  */
 async function expectTooltip(

@@ -28,7 +28,7 @@ export const WorkspaceSharingIndicator: React.FC<
 		<Tooltip interactive>
 			<TooltipTrigger
 				aria-label="Workspace permissions"
-				className="m-0 flex items-center border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="text-content-secondary hover:text-content-primary"
 			>
 				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
@@ -60,6 +60,7 @@ export const WorkspaceSharingIndicator: React.FC<
 					<Link
 						href={settingsPath}
 						className="text-sm text-content-link font-medium"
+						onClick={(e) => e.stopPropagation()}
 						showExternalIcon={false}
 					>
 						Change permissions

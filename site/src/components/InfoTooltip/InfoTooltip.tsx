@@ -1,8 +1,10 @@
 import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import {
+	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -41,24 +43,25 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	const Icon = typeIcon[type];
 
 	return (
-		<Tooltip interactive>
-			<TooltipTrigger
-				type="button"
-				aria-label={ariaLabel}
-				className={cn(
-					"flex items-center justify-center p-0",
-					"border-0 border-none bg-transparent cursor-default",
-					"opacity-75 hover:opacity-100 transition-opacity",
-					"rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-					sizeClasses[size],
-					typeIconColor[type],
-				)}
-			>
-				<Icon />
-			</TooltipTrigger>
-			<TooltipContent side="right" align="center" className="max-w-xs">
-				{children}
-			</TooltipContent>
-		</Tooltip>
+		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+			<Tooltip interactive>
+				<TooltipTrigger
+					type="button"
+					aria-label={ariaLabel}
+					className={cn(
+						"flex items-center justify-center p-0",
+						"border-0 border-none bg-transparent cursor-default",
+						"opacity-75 hover:opacity-100 transition-opacity",
+						sizeClasses[size],
+						typeIconColor[type],
+					)}
+				>
+					<Icon />
+				</TooltipTrigger>
+				<TooltipContent side="right" align="center" className="max-w-xs">
+					{children}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
