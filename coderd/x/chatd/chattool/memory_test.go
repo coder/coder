@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -21,6 +23,8 @@ import (
 // cap semantics as the project store.
 type memoryStore struct {
 	memories map[string]chattool.Memory
+	// getErr, when set, is returned by Get.
+	getErr error
 }
 
 func newMemoryStore(n int) *memoryStore {
@@ -33,6 +37,9 @@ func newMemoryStore(n int) *memoryStore {
 }
 
 func (s *memoryStore) Get(_ context.Context, name string) (chattool.Memory, error) {
+	if s.getErr != nil {
+		return chattool.Memory{}, s.getErr
+	}
 	memory, ok := s.memories[name]
 	if !ok {
 		return chattool.Memory{}, chattool.ErrMemoryNotFound
@@ -126,6 +133,23 @@ func TestReadMemoryDescriptionIsFixed(t *testing.T) {
 	a := chattool.ReadMemory(newMemoryStore(0)).Info().Description
 	b := chattool.ReadMemory(newMemoryStore(chattool.MaxMemories)).Info().Description
 	require.Equal(t, a, b)
+}
+
+func TestReadMemory(t *testing.T) {
+	t.Parallel()
+	store := newMemoryStore(1)
+	_, result := runMemoryTool(t, chattool.ReadMemory(store), `{"name": "seeded-000"}`)
+	require.Equal(t, "seeded-000", result["name"])
+
+	response, _ := runMemoryTool(t, chattool.ReadMemory(store), `{"name": "missing"}`)
+	require.True(t, response.IsError)
+	require.Equal(t, "memory was not found", response.Content)
+
+	// Other failures must not tell the model the memory is gone.
+	store.getErr = xerrors.New("connection reset")
+	response, _ = runMemoryTool(t, chattool.ReadMemory(store), `{"name": "seeded-000"}`)
+	require.True(t, response.IsError)
+	require.Equal(t, "failed to read memory", response.Content)
 }
 
 func TestMemoryIndexReplay(t *testing.T) {
@@ -253,7 +277,8 @@ func TestConsolidateMemory(t *testing.T) {
 }
 
 // TestProjectMemoryStoreConsolidateIsAtomic runs against Postgres because the
-// guarantee under test is the transaction rollback.
+// guarantee under test is the transaction rollback. It also checks that only
+// committed changes are audited, one entry per memory created or deleted.
 func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -261,7 +286,24 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
-	store := chattool.NewProjectMemoryStore(db, project.ID, org.ID, user.ID)
+	var audited []string
+	store := chattool.NewProjectMemoryStore(db, project.ID, org.ID, user.ID, func(_ context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
+		switch action {
+		case database.AuditActionCreate:
+			require.Equal(t, uuid.Nil, oldMemory.ID)
+			audited = append(audited, "create "+newMemory.Name)
+		case database.AuditActionDelete:
+			require.Equal(t, uuid.Nil, newMemory.ID)
+			audited = append(audited, "delete "+oldMemory.Name)
+		default:
+			t.Fatalf("unexpected audit action %q", action)
+		}
+	})
+	takeAudited := func() []string {
+		out := audited
+		audited = nil
+		return out
+	}
 	names := func() []string {
 		entries, err := store.List(ctx)
 		require.NoError(t, err)
@@ -281,6 +323,7 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	}
 	_, err := store.Insert(ctx, input("alpha"))
 	require.ErrorIs(t, err, chattool.ErrMemoryExists)
+	require.Equal(t, []string{"create alpha", "create beta"}, takeAudited())
 
 	// A missing delete rolls back the deletes and saves before it.
 	_, err = store.Consolidate(ctx, []string{"alpha", "missing"}, []chattool.MemoryInput{input("gamma")})
@@ -291,12 +334,14 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	_, err = store.Consolidate(ctx, []string{"alpha"}, []chattool.MemoryInput{input("gamma"), input("gamma")})
 	require.ErrorIs(t, err, chattool.ErrMemoryExists)
 	require.Equal(t, []string{"alpha", "beta"}, names())
+	require.Empty(t, takeAudited(), "rolled-back consolidations are not audited")
 
 	// Deletes run first, so a save may reuse a deleted name.
 	count, err := store.Consolidate(ctx, []string{"alpha", "beta"}, []chattool.MemoryInput{input("alpha"), input("merged")})
 	require.NoError(t, err)
 	require.EqualValues(t, 2, count)
 	require.Equal(t, []string{"alpha", "merged"}, names())
+	require.Equal(t, []string{"delete alpha", "delete beta", "create alpha", "create merged"}, takeAudited())
 
 	// A result over the cap rolls back.
 	saves := make([]chattool.MemoryInput, chattool.MaxMemories-1)
@@ -306,10 +351,13 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	_, err = store.Consolidate(ctx, nil, saves)
 	require.ErrorIs(t, err, chattool.ErrMemoryLimit)
 	require.Equal(t, []string{"alpha", "merged"}, names())
+	require.Empty(t, takeAudited())
 	count, err = store.Consolidate(ctx, []string{"merged"}, saves)
 	require.NoError(t, err)
 	require.EqualValues(t, chattool.MaxMemories, count)
+	require.Len(t, takeAudited(), 1+len(saves))
 
 	require.NoError(t, store.Delete(ctx, "alpha"))
 	require.ErrorIs(t, store.Delete(ctx, "alpha"), chattool.ErrMemoryNotFound)
+	require.Equal(t, []string{"delete alpha"}, takeAudited())
 }

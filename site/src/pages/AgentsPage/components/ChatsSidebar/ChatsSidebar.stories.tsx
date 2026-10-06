@@ -324,6 +324,31 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 	},
 };
 
+/**
+ * Pin order belongs to the owner, so a chat another user pinned lists under
+ * Shared with you instead of joining the viewer's sortable Pinned section.
+ */
+export const SharedChatPinnedByOwnerStaysInSharedWithYou: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "own-pinned",
+				title: "Own pinned chat",
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "shared-pinned-by-owner",
+				title: "Shared chat pinned by its owner",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				pin_order: 1,
+			}),
+		],
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
@@ -2493,7 +2518,7 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
-const projectChats = [
+const mockProjectChats = [
 	buildChat({ id: "loose-chat", title: "Loose chat" }),
 	buildChat({
 		id: "project-chat",
@@ -2504,7 +2529,7 @@ const projectChats = [
 ];
 
 export const ProjectFolderCollapsed: Story = {
-	args: { chats: projectChats },
+	args: { chats: mockProjectChats },
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [
@@ -2517,7 +2542,7 @@ export const ProjectFolderCollapsed: Story = {
 };
 
 export const ProjectFolderExpanded: Story = {
-	args: { chats: projectChats },
+	args: { chats: mockProjectChats },
 	parameters: {
 		experiments: ["chat-projects"],
 		queries: [
@@ -2536,13 +2561,47 @@ export const ProjectFolderExpanded: Story = {
 	},
 };
 
+export const MobileWithAutomations: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div className="h-125 w-90">
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const AutomationsActive: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
 export const ProjectChatWithoutLoadedProject: Story = {
 	args: {
 		chats: [
 			buildChat({
-				id: "other-org-project-chat",
-				title: "Other org project chat",
-				project_id: "project-in-another-organization",
+				id: "unloaded-project-chat",
+				title: "Chat in an unloaded project",
+				project_id: "unloaded-project",
 			}),
 		],
 	},

@@ -127,15 +127,16 @@ const Note: React.FC<NoteProps> = ({
 		);
 	}
 
-	// Age on the right; hover swaps it for the actions without moving text.
-	// The actions hide by opacity, not display: a display:none button cannot
-	// take focus, so Tab could never reveal them.
+	// The actions float over the text instead of reserving a column; the age
+	// goes invisible, not hidden, so the text does not rewrap. They hide by
+	// opacity so Tab can reach them. A tap counts as hover, so without hover
+	// they stay visible rather than catching taps meant for the text.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
 			ref={setRefs}
 			className={cn(
-				"group/note flex items-start gap-2.5 py-[3px]",
+				"group/note relative flow-root py-[3px]",
 				isDragging && "opacity-40",
 				dropSide === "before" &&
 					"shadow-[inset_0_2px_0_0_var(--color-content-link)]",
@@ -143,37 +144,37 @@ const Note: React.FC<NoteProps> = ({
 					"shadow-[inset_0_-2px_0_0_var(--color-content-link)]",
 			)}
 		>
-			<CompactMarkdown className="min-w-0 flex-1 text-xs leading-[17px] text-content-primary/80">
+			{note.timestamp ? (
+				<span className="float-right ml-2.5 text-[11px] leading-[17px] tabular-nums text-content-secondary/70 group-hover/note:invisible group-focus-within/note:invisible group-has-[[data-state=open]]/note:invisible [@media(hover:none)]:invisible">
+					<RelativeAge date={note.timestamp} />
+				</span>
+			) : null}
+			<CompactMarkdown className="text-xs leading-[17px] text-content-primary/80">
 				{note.text}
 			</CompactMarkdown>
-			<span className="relative h-[17px] w-12 shrink-0">
-				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-focus-within/note:hidden group-has-[[data-state=open]]/note:hidden">
-					{note.timestamp ? <RelativeAge date={note.timestamp} /> : null}
-				</span>
-				<span className="-mr-1 absolute inset-0 flex items-center justify-end opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
-					<Button
-						variant="subtle"
-						size="icon"
-						ref={setActivatorNodeRef}
-						{...dragHandleListeners(listeners)}
-						{...attributes}
-						aria-label="Drag note"
-						title="Drag to reorder or move to another card"
-						className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
-					>
-						<GripVerticalIcon />
-					</Button>
-					<Button
-						variant="subtle"
-						size="icon"
-						aria-label="Edit note"
-						className="size-4 text-content-secondary [&>svg]:size-3! [&>svg]:p-0"
-						onClick={() => setEditing(true)}
-					>
-						<PencilIcon />
-					</Button>
-					<DeleteNoteButton onConfirm={onRemove} />
-				</span>
+			<span className="-mr-1 absolute top-[3px] right-0 flex h-[17px] items-center bg-[linear-gradient(to_right,transparent,var(--color-surface-primary)_20px)] pl-6 pointer-events-none opacity-0 group-hover/note:pointer-events-auto group-hover/note:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 group-has-[[data-state=open]]/note:pointer-events-auto group-has-[[data-state=open]]/note:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+				<Button
+					variant="subtle"
+					size="icon"
+					ref={setActivatorNodeRef}
+					{...dragHandleListeners(listeners)}
+					{...attributes}
+					aria-label="Drag note"
+					title="Drag to reorder or move to another card"
+					className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
+				>
+					<GripVerticalIcon />
+				</Button>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Edit note"
+					className="size-4 text-content-secondary [&>svg]:size-3! [&>svg]:p-0"
+					onClick={() => setEditing(true)}
+				>
+					<PencilIcon />
+				</Button>
+				<DeleteNoteButton onConfirm={onRemove} />
 			</span>
 		</div>
 	);
