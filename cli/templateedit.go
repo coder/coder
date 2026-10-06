@@ -21,8 +21,9 @@ const defaultAutostopRequirementWeeks = 1
 
 // templateEditWorkspaceImpactingChanges describes requested changes that act on
 // existing workspaces without a new build (dormancy, failure TTL, active
-// version, and autostop requirement), so they need confirmation. Settings that
-// only affect future builds or new workspaces are excluded.
+// version, autostop and autostart requirements, and TTL overrides when user
+// autostop is disabled), so they need confirmation. Settings that only affect
+// future builds or new workspaces are excluded.
 func templateEditWorkspaceImpactingChanges(template codersdk.Template, req codersdk.UpdateTemplateMeta) []string {
 	var (
 		changes                       []string
@@ -32,6 +33,9 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 		requireActiveVersion          = *req.RequireActiveVersion
 		autostopRequirementDaysOfWeek = req.AutostopRequirement.DaysOfWeek
 		autostopRequirementWeeks      = req.AutostopRequirement.Weeks
+		autostartDaysOfWeek           = req.AutostartRequirement.DaysOfWeek
+		defaultTTL                    = time.Duration(*req.DefaultTTLMillis) * time.Millisecond
+		allowUserAutostop             = *req.AllowUserAutostop
 	)
 
 	// The server normalizes a nonpositive value to defaultAutostopRequirementWeeks,
@@ -66,11 +70,32 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 	newAutostopDaysOfWeek := slices.Clone(autostopRequirementDaysOfWeek)
 	slices.Sort(newAutostopDaysOfWeek)
 	if !slices.Equal(currentAutostopDaysOfWeek, newAutostopDaysOfWeek) {
-		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", template.AutostopRequirement.DaysOfWeek, autostopRequirementDaysOfWeek))
+		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", currentAutostopDaysOfWeek, newAutostopDaysOfWeek))
 	}
 
 	if autostopRequirementWeeks != template.AutostopRequirement.Weeks {
 		changes = append(changes, fmt.Sprintf("Autostop requirement weeks: %d -> %d", template.AutostopRequirement.Weeks, autostopRequirementWeeks))
+	}
+
+	// Changing the allowed autostart days recomputes the next start time of
+	// every existing workspace.
+	currentAutostartDaysOfWeek := slices.Clone(template.AutostartRequirement.DaysOfWeek)
+	slices.Sort(currentAutostartDaysOfWeek)
+	newAutostartDaysOfWeek := slices.Clone(autostartDaysOfWeek)
+	slices.Sort(newAutostartDaysOfWeek)
+	if !slices.Equal(currentAutostartDaysOfWeek, newAutostartDaysOfWeek) {
+		changes = append(changes, fmt.Sprintf("Autostart requirement days: %v -> %v", currentAutostartDaysOfWeek, newAutostartDaysOfWeek))
+	}
+
+	// While user autostop is disabled, the server overwrites the TTL of every
+	// existing workspace. That happens when autostop is being disabled, or when
+	// the default TTL changes while it is disabled.
+	currentDefaultTTL := time.Duration(template.DefaultTTLMillis) * time.Millisecond
+	if !allowUserAutostop && template.AllowUserAutostop {
+		changes = append(changes, fmt.Sprintf("Allow user autostop: %t -> %t", template.AllowUserAutostop, allowUserAutostop))
+	}
+	if !allowUserAutostop && defaultTTL != currentDefaultTTL {
+		changes = append(changes, fmt.Sprintf("Default TTL (applied to existing workspaces while user autostop is disabled): %s -> %s", currentDefaultTTL, defaultTTL))
 	}
 
 	return changes
