@@ -8211,6 +8211,50 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const getChatOrganizationSystemPrompt = `-- name: GetChatOrganizationSystemPrompt :one
+SELECT organization_id, system_prompt, created_at, updated_at
+FROM chat_organization_system_prompts
+WHERE organization_id = $1
+`
+
+func (q *sqlQuerier) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, getChatOrganizationSystemPrompt, organizationID)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatOrganizationSystemPrompt = `-- name: UpsertChatOrganizationSystemPrompt :one
+INSERT INTO chat_organization_system_prompts (organization_id, system_prompt)
+VALUES ($1, $2)
+ON CONFLICT (organization_id) DO UPDATE
+SET system_prompt = EXCLUDED.system_prompt,
+    updated_at = now()
+RETURNING organization_id, system_prompt, created_at, updated_at
+`
+
+type UpsertChatOrganizationSystemPromptParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+}
+
+func (q *sqlQuerier) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatOrganizationSystemPrompt, arg.OrganizationID, arg.SystemPrompt)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories
