@@ -60,6 +60,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| ((options: CreateChatOptions) => Promise<void>)
 			| undefined,
 		createError: undefined as unknown,
+		prefill: undefined as AgentCreateFormProps["prefill"],
 	},
 }));
 
@@ -74,18 +75,14 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 	const StubAgentCreateForm = ({
 		onCreateChat,
 		isCreating,
-		createError,
 		project,
 		header,
 		footer,
-		prefill,
 	}: AgentCreateFormProps) => {
 		renderedProjects.push(project);
 		return (
 			<div>
-				<span data-testid="prefill-message">{prefill?.message}</span>
 				{header}
-				{createError ? <p>Create failed</p> : null}
 				<button
 					type="button"
 					disabled={isCreating}
@@ -109,6 +106,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		AgentCreateForm: (props: AgentCreateFormProps) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
+			formProps.prefill = props.prefill;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -206,6 +204,7 @@ beforeAll(() => {
 afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;
+	formProps.prefill = undefined;
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
@@ -452,8 +451,10 @@ describe("AgentCreatePage project frame", () => {
 		expect(renderedProjects).toEqual([]);
 		act(() => logs.resolve(MockWorkspaceBuildLogs));
 
-		expect(await screen.findByTestId("prefill-message")).toHaveTextContent(
-			debugWorkspaceBuildPrompt(failedBuild),
+		await waitFor(() =>
+			expect(formProps.prefill?.message).toBe(
+				debugWorkspaceBuildPrompt(failedBuild),
+			),
 		);
 		expect(renderedProjects).not.toContain(undefined);
 		expect(renderedProjects.at(-1)?.organization_id).toBe(
@@ -470,9 +471,7 @@ describe("AgentCreatePage project frame", () => {
 
 		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
 
-		expect(await screen.findByTestId("prefill-message")).toHaveTextContent(
-			"hi",
-		);
+		await waitFor(() => expect(formProps.prefill?.message).toBe("hi"));
 		expect(renderedProjects).not.toContain(undefined);
 		expect(renderedProjects.at(-1)?.organization_id).toBe(
 			MockChatProject.organization_id,
@@ -517,11 +516,13 @@ describe("AgentCreatePage project frame", () => {
 		};
 		serveProjects(projectA, projectB);
 		let patchedProjectId: string | undefined;
+		let requestBody: unknown;
 		server.use(
 			http.patch(
 				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
-				({ params }) => {
+				async ({ params, request }) => {
 					patchedProjectId = String(params.projectId);
+					requestBody = await request.json();
 					return HttpResponse.json(projectB);
 				},
 			),
@@ -538,9 +539,6 @@ describe("AgentCreatePage project frame", () => {
 		await screen.findByRole("heading", { name: "Beta" });
 		await user.click(screen.getByRole("button", { name: "Edit project" }));
 		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
-		expect(within(dialog).getByRole("textbox", { name: /Name/ })).toHaveValue(
-			"Beta",
-		);
 		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.type(nameInput, "!");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -548,6 +546,8 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(patchedProjectId).toBe(projectB.id);
 		});
+		// The dialog opened with project B's name, not project A's.
+		expect(requestBody).toMatchObject({ name: "Beta!" });
 	});
 
 	it("edits the project from the composer and shows the saved name", async () => {
