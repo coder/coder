@@ -64,9 +64,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	const location = useLocation();
 
 	return (
-		// Bounded so a long project list cannot push the Chats section off
-		// screen; the folders scroll on their own past that point.
-		<div className="flex max-h-[40vh] shrink-0 flex-col">
+		<div>
 			<SidebarSectionHeader
 				title="Projects"
 				actions={
@@ -81,7 +79,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					</Button>
 				}
 			/>
-			<div className="min-h-0 overflow-y-auto px-2">
+			<div className="px-2">
 				{Boolean(error) && (
 					<ErrorAlert
 						error={error}

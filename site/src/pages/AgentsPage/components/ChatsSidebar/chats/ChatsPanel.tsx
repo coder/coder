@@ -433,6 +433,34 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
+	// Without projects the header stays pinned above the scrolling list, as
+	// before; with projects it scrolls below the folders.
+	const chatsHeader = (
+		<SidebarSectionHeader
+			title={chatsHeadingLabel}
+			actions={
+				<>
+					{onOpenSearchDialog && (
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Search chats"
+							onClick={onOpenSearchDialog}
+							className="size-7 sm:hidden"
+						>
+							<SearchIcon />
+						</Button>
+					)}
+					<AutomationsMobileLink />
+					<FilterPopover
+						filters={sidebarFilters}
+						onFiltersChange={onSidebarFiltersChange}
+					/>
+				</>
+			}
+		/>
+	);
+
 	const clearResultFilters = () => {
 		onSidebarFiltersChange({
 			...sidebarFilters,
@@ -532,51 +560,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				{chatProjectsEnabled && (
-					<ChatTreeContext value={chatTreeCtx}>
-						<ProjectFolders
-							projects={projects}
-							chatsByProjectId={chatsByProjectId}
-							expandedProjectIds={Object.fromEntries(
-								projects.map((project) => [
-									project.id,
-									projectFolderOverrides[project.id] ??
-										project.id === activeProjectId,
-								]),
-							)}
-							onToggle={toggleProject}
-							onOpenProjectDialog={onOpenProjectDialog}
-							onDelete={onDeleteProject}
-							isLoading={isProjectsLoading}
-							error={projectsError}
-							onRetry={onRetryProjects}
-							emptyMessage={emptyStateMessage}
-						/>
-					</ChatTreeContext>
-				)}
-				<SidebarSectionHeader
-					title={chatsHeadingLabel}
-					actions={
-						<>
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
-							<AutomationsMobileLink />
-							<FilterPopover
-								filters={sidebarFilters}
-								onFiltersChange={onSidebarFiltersChange}
-							/>
-						</>
-					}
-				/>
+				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -590,6 +574,31 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
+					{/* Projects share the chat list's scroll area, so expanding a folder
+					    pushes the Chats section down instead of scrolling on its own. */}
+					{chatProjectsEnabled && (
+						<ChatTreeContext value={chatTreeCtx}>
+							<ProjectFolders
+								projects={projects}
+								chatsByProjectId={chatsByProjectId}
+								expandedProjectIds={Object.fromEntries(
+									projects.map((project) => [
+										project.id,
+										projectFolderOverrides[project.id] ??
+											project.id === activeProjectId,
+									]),
+								)}
+								onToggle={toggleProject}
+								onOpenProjectDialog={onOpenProjectDialog}
+								onDelete={onDeleteProject}
+								isLoading={isProjectsLoading}
+								error={projectsError}
+								onRetry={onRetryProjects}
+								emptyMessage={emptyStateMessage}
+							/>
+						</ChatTreeContext>
+					)}
+					{chatProjectsEnabled && chatsHeader}
 					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">
