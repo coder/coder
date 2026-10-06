@@ -832,6 +832,11 @@ workspace_prebuilds:
   failure_hard_limit: 3
 # Configure the background chat processing daemon.
 chat:
+  # Origin URL of the standalone AI Gateway for Coder Agents, optionally including a
+  # deployment path prefix. Requires --chat-ai-gateway-key. When set, Agents use
+  # this Gateway exclusively; otherwise they use the embedded Gateway.
+  # (default: <unset>, type: url)
+  aiGatewayURL:
   # How many pending chats a worker should acquire per polling cycle.
   # (default: 10, type: int)
   acquireBatchSize: 10
@@ -977,9 +982,14 @@ aibridge:
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
 ai_gateway:
-  # Whether to start an in-memory AI Gateway instance.
+  # Enable AI Gateway functionality, including Coder Agents and standalone Gateway
+  # connections.
   # (default: true, type: bool)
   enabled: true
+  # Start the embedded AI Gateway when AI Gateway functionality is enabled. Disable
+  # when serving inference exclusively through standalone Gateways.
+  # (default: true, type: bool)
+  embedded_enabled: true
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
   # requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the "mcp-server-http"
