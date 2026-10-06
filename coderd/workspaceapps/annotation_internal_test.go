@@ -21,7 +21,7 @@ func TestInjectAnnotationScript(t *testing.T) {
 	t.Parallel()
 
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
-	// Larger than the injector's read buffer so markers can straddle reads.
+	// Larger than the injector's read buffer.
 	longBody := "<html><head>" + strings.Repeat("<meta>", 20000) + "</head><body>x</body></html>"
 
 	for _, tc := range []struct {
@@ -83,7 +83,7 @@ func TestInjectAnnotationScript(t *testing.T) {
 			wantChanged: true,
 		},
 		{
-			name:        "MarkerAcrossReads",
+			name:        "LargeBody",
 			statusCode:  http.StatusOK,
 			contentType: "text/html",
 			body:        longBody,
@@ -157,6 +157,37 @@ func TestInjectAnnotationScript(t *testing.T) {
 				require.NotEmpty(t, resp.Header.Get("Last-Modified"))
 			}
 		})
+	}
+}
+
+func TestInjectAnnotationScriptMarkerAcrossReads(t *testing.T) {
+	t.Parallel()
+
+	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
+	for _, tag := range []string{"head", "body", "html"} {
+		prefix := "<" + tag + ">content"
+		marker := "</" + tag + ">"
+		for split := 1; split < len(marker); split++ {
+			t.Run(tag+"/"+strconv.Itoa(split), func(t *testing.T) {
+				t.Parallel()
+
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": {"text/html"}},
+					Body: io.NopCloser(io.MultiReader(
+						strings.NewReader(prefix+marker[:split]),
+						strings.NewReader(marker[split:]),
+					)),
+					ContentLength: -1,
+					Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+				}
+				require.NoError(t, injectAnnotationScript(resp, scriptTag))
+
+				got, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, prefix+scriptTag+marker, string(got))
+			})
+		}
 	}
 }
 
