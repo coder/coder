@@ -5160,7 +5160,7 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+func (m queryMetricsStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatForTransition(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatForTransition").Observe(time.Since(start).Seconds())

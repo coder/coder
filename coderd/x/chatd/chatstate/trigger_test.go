@@ -95,14 +95,14 @@ func TestMessageInsertStampsCommittedRevision(t *testing.T) {
 	require.NoError(t, err)
 	locked, err := f.DB.LockChatForTransition(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), locked.Chat.GenerationAttempt)
-	require.Equal(t, int64(2), locked.Chat.SnapshotVersion, "the attempt increment is a commit write")
+	require.Equal(t, int64(1), locked.GenerationAttempt)
+	require.Equal(t, int64(2), locked.SnapshotVersion, "the attempt increment is a commit write")
 
 	insertRawAssistantMessage(t, tf, created.Chat.ID, "hello-before-commit")
 
 	untouched, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, locked.Chat, untouched, "a message insert must not write the chats row")
+	require.Equal(t, locked, untouched, "a message insert must not write the chats row")
 
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID: created.Chat.ID,
@@ -111,7 +111,7 @@ func TestMessageInsertStampsCommittedRevision(t *testing.T) {
 	require.NotEmpty(t, msgs)
 	last := msgs[len(msgs)-1]
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
-	require.Equal(t, locked.Chat.SnapshotVersion+1, last.Revision,
+	require.Equal(t, locked.SnapshotVersion+1, last.Revision,
 		"revision is the version the transaction commits")
 
 	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
@@ -144,7 +144,7 @@ func TestMessageUpdateStampsCommittedRevision(t *testing.T) {
 
 	locked, err := f.DB.LockChatForTransition(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, target.Revision, locked.Chat.SnapshotVersion)
+	require.Equal(t, target.Revision, locked.SnapshotVersion)
 
 	newContent := userMessageContent(t, "edited content")
 	_, err = tf.sqlDB.ExecContext(ctx, `
@@ -154,12 +154,12 @@ func TestMessageUpdateStampsCommittedRevision(t *testing.T) {
 
 	reloaded, err := f.DB.GetChatMessageByID(ctx, target.ID)
 	require.NoError(t, err)
-	require.Equal(t, locked.Chat.SnapshotVersion+1, reloaded.Revision,
+	require.Equal(t, locked.SnapshotVersion+1, reloaded.Revision,
 		"updated message picks up the committed version")
 
 	untouched, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, locked.Chat, untouched, "a message update must not write the chats row")
+	require.Equal(t, locked, untouched, "a message update must not write the chats row")
 
 	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
 		ID:             created.Chat.ID,

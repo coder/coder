@@ -1435,7 +1435,11 @@ type sqlcQuerier interface {
 	// messages, queued messages) take on the chat row, so those writers do
 	// not convoy against transitions. Concurrent transitions still serialize
 	// because FOR NO KEY UPDATE conflicts with itself.
-	LockChatForTransition(ctx context.Context, id uuid.UUID) (LockChatForTransitionRow, error)
+	//
+	// The queue count is a separate statement: after a lock wait, Postgres
+	// re-reads only the locked row, and subqueries here would still see the
+	// queue as of before the wait.
+	LockChatForTransition(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as

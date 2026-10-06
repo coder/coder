@@ -45,7 +45,7 @@ func (s *countingStore) InTx(fn func(database.Store) error, opts *database.TxOpt
 	}, opts)
 }
 
-func (s *countingStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+func (s *countingStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	if s.inTx {
 		s.counts.inc(&s.counts.lock)
 	}
@@ -102,9 +102,10 @@ func (s *countingStore) IsChatHeartbeatStale(ctx context.Context, arg database.I
 }
 
 // TestUpdateSingleTransitionValidatesFromLockedRow pins the round-trip
-// budget of a transition: validation uses the row the lock returned, so
-// the only chat reads while the row lock is held are the publication
-// reads that run after the commit write. Reads creeping back in before
+// budget of a transition: validation uses the row the lock returned and
+// the queue count taken right after it, so the only other chat reads
+// while the row lock is held are the publication reads that run after
+// the commit write. Reads creeping back in before
 // the commit write directly lengthen lock hold time.
 func TestUpdateSingleTransitionValidatesFromLockedRow(t *testing.T) {
 	t.Parallel()
@@ -123,7 +124,7 @@ func TestUpdateSingleTransitionValidatesFromLockedRow(t *testing.T) {
 	require.Equal(t, 1, counts.lock)
 	require.Equal(t, 1, counts.chatWrites, "a transition updates the chats row exactly once")
 	require.Equal(t, 1, counts.getChatByID, "only the publication read runs under the transition lock")
-	require.Equal(t, 1, counts.countQueued, "only the publication read runs under the transition lock")
+	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
 	require.Zero(t, counts.heartbeatStale, "a non-runnable result publishes no ownership hint")
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -201,7 +202,7 @@ func TestUpdateBundleRereadsAfterLockedRowConsumed(t *testing.T) {
 
 	require.Equal(t, 1, counts.lock)
 	require.Equal(t, 2, counts.getChatByID, "second transition re-reads once the locked row is consumed, then publication reads")
-	require.Equal(t, 2, counts.countQueued)
+	require.Equal(t, 3, counts.countQueued, "post-lock count, second transition re-read, then publication read")
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -234,5 +235,5 @@ func TestCurrentDoesNotConsumeLockedRow(t *testing.T) {
 	}))
 
 	require.Equal(t, 1, counts.getChatByID, "only the publication read")
-	require.Equal(t, 1, counts.countQueued, "only the publication read")
+	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
 }

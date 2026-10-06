@@ -83,8 +83,8 @@ type Tx struct {
 	commits        int
 }
 
-// lockedRow carries has_queued alongside the chat so the first
-// execution-state classification needs no queue count.
+// lockedRow carries the queue state read right after the lock so the
+// first execution-state classification needs no further reads.
 type lockedRow struct {
 	chat      database.Chat
 	hasQueued bool
@@ -281,11 +281,15 @@ func (m *ChatMachine) updateOnce(
 			}
 			return xerrors.Errorf("lock chat: %w", err)
 		}
+		queued, err := store.CountChatQueuedMessages(ctx, m.chatID)
+		if err != nil {
+			return xerrors.Errorf("count queued messages: %w", err)
+		}
 		tx := &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
-			locked: &lockedRow{chat: locked.Chat, hasQueued: locked.HasQueued},
+			locked: &lockedRow{chat: locked, hasQueued: queued > 0},
 		}
 		if err := fn(tx, store); err != nil {
 			return err

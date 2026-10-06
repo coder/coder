@@ -2757,6 +2757,10 @@ WHERE
 -- messages, queued messages) take on the chat row, so those writers do
 -- not convoy against transitions. Concurrent transitions still serialize
 -- because FOR NO KEY UPDATE conflicts with itself.
+--
+-- The queue count is a separate statement: after a lock wait, Postgres
+-- re-reads only the locked row, and subqueries here would still see the
+-- queue as of before the wait.
 WITH locked_chat AS (
     SELECT *
     FROM chats
@@ -2821,14 +2825,7 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
-SELECT
-    sqlc.embed(chats_expanded),
-    -- Returned alongside the row so ChatMachine.Update can classify the
-    -- execution state without a second round trip under the lock.
-    EXISTS (
-        SELECT 1 FROM chat_queued_messages q
-        WHERE q.chat_id = chats_expanded.id
-    ) AS has_queued
+SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatExecutionState :one

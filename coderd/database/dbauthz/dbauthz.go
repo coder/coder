@@ -7327,15 +7327,15 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
-func (q *querier) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+func (q *querier) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	// The lock starts a transition, so it requires the same permission as
 	// the writes that follow it.
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return database.LockChatForTransitionRow{}, err
+		return database.Chat{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.LockChatForTransitionRow{}, err
+		return database.Chat{}, err
 	}
 	return q.db.LockChatForTransition(ctx, id)
 }

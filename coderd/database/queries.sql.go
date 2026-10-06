@@ -13534,21 +13534,9 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
-SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at, chats_expanded.title_source, chats_expanded.title_updated_at, chats_expanded.automation_id, chats_expanded.manage_automations_enabled,
-    -- Returned alongside the row so ChatMachine.Update can classify the
-    -- execution state without a second round trip under the lock.
-    EXISTS (
-        SELECT 1 FROM chat_queued_messages q
-        WHERE q.chat_id = chats_expanded.id
-    ) AS has_queued
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
 FROM chats_expanded
 `
-
-type LockChatForTransitionRow struct {
-	Chat      Chat `db:"chat" json:"chat"`
-	HasQueued bool `db:"has_queued" json:"has_queued"`
-}
 
 // Locks the chat row with FOR NO KEY UPDATE without writing it and returns
 // the current chat. ChatMachine.Update uses this to start a transition; the
@@ -13565,63 +13553,66 @@ type LockChatForTransitionRow struct {
 // messages, queued messages) take on the chat row, so those writers do
 // not convoy against transitions. Concurrent transitions still serialize
 // because FOR NO KEY UPDATE conflicts with itself.
-func (q *sqlQuerier) LockChatForTransition(ctx context.Context, id uuid.UUID) (LockChatForTransitionRow, error) {
+//
+// The queue count is a separate statement: after a lock wait, Postgres
+// re-reads only the locked row, and subqueries here would still see the
+// queue as of before the wait.
+func (q *sqlQuerier) LockChatForTransition(ctx context.Context, id uuid.UUID) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, lockChatForTransition, id)
-	var i LockChatForTransitionRow
+	var i Chat
 	err := row.Scan(
-		&i.Chat.ID,
-		&i.Chat.OwnerID,
-		&i.Chat.WorkspaceID,
-		&i.Chat.Title,
-		&i.Chat.Status,
-		&i.Chat.WorkerID,
-		&i.Chat.StartedAt,
-		&i.Chat.HeartbeatAt,
-		&i.Chat.CreatedAt,
-		&i.Chat.UpdatedAt,
-		&i.Chat.ParentChatID,
-		&i.Chat.RootChatID,
-		&i.Chat.LastModelConfigID,
-		&i.Chat.LastReasoningEffort,
-		&i.Chat.Archived,
-		&i.Chat.LastError,
-		&i.Chat.Mode,
-		pq.Array(&i.Chat.MCPServerIDs),
-		&i.Chat.Labels,
-		&i.Chat.BuildID,
-		&i.Chat.AgentID,
-		&i.Chat.PinOrder,
-		&i.Chat.LastReadMessageID,
-		&i.Chat.DynamicTools,
-		&i.Chat.OrganizationID,
-		&i.Chat.ProjectID,
-		&i.Chat.PlanMode,
-		&i.Chat.ClientType,
-		&i.Chat.LastTurnSummary,
-		&i.Chat.Summary,
-		&i.Chat.SummaryGeneratedAt,
-		&i.Chat.SnapshotVersion,
-		&i.Chat.HistoryVersion,
-		&i.Chat.QueueVersion,
-		&i.Chat.GenerationAttempt,
-		&i.Chat.RetryState,
-		&i.Chat.RetryStateVersion,
-		&i.Chat.RunnerID,
-		&i.Chat.RequiresActionDeadlineAt,
-		&i.Chat.UserACL,
-		&i.Chat.GroupACL,
-		&i.Chat.OwnerUsername,
-		&i.Chat.OwnerName,
-		&i.Chat.ContextAggregateHash,
-		&i.Chat.ContextDirtySince,
-		&i.Chat.ContextDirtyResources,
-		&i.Chat.ContextError,
-		&i.Chat.CompactionRequestedAt,
-		&i.Chat.TitleSource,
-		&i.Chat.TitleUpdatedAt,
-		&i.Chat.AutomationID,
-		&i.Chat.ManageAutomationsEnabled,
-		&i.HasQueued,
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.LastReasoningEffort,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.CompactionRequestedAt,
+		&i.TitleSource,
+		&i.TitleUpdatedAt,
+		&i.AutomationID,
+		&i.ManageAutomationsEnabled,
 	)
 	return i, err
 }

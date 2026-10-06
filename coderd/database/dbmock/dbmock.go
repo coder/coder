@@ -9777,10 +9777,10 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 }
 
 // LockChatForTransition mocks base method.
-func (m *MockStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+func (m *MockStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LockChatForTransition", ctx, id)
-	ret0, _ := ret[0].(database.LockChatForTransitionRow)
+	ret0, _ := ret[0].(database.Chat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
