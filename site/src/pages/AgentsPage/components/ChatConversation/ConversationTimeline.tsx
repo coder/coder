@@ -30,6 +30,10 @@ import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
+	emptyLiveBlockKeys,
+	reconcileLiveBlockKeys,
+} from "./liveBlockItemKeys";
+import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
 } from "./liveStatusModel";
@@ -48,7 +52,6 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
-import { useLiveBlockItemKeys } from "./useLiveBlockItemKeys";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import { groupWorkingBlocks } from "./workingBlockGrouping";
 
@@ -483,6 +486,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
 		>(new Map());
+		const [liveBlockKeys, setLiveBlockKeys] = useState(emptyLiveBlockKeys);
 
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
@@ -524,10 +528,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const groupedRows = new Set(
 			workingBlocks.flatMap((block) => block.rowIndices),
 		);
-		const liveItemKeys = useLiveBlockItemKeys(
+		const nextLiveBlockKeys = reconcileLiveBlockKeys(
 			workingBlocks,
 			streamState?.startedAt,
+			liveBlockKeys,
 		);
+		if (nextLiveBlockKeys !== liveBlockKeys) {
+			setLiveBlockKeys(nextLiveBlockKeys);
+		}
+		const liveItemKeys = nextLiveBlockKeys.itemKeys;
 
 		if (renderRows.length === 0) {
 			return null;

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { WorkingBlock } from "./workingBlockGrouping";
 
 type LiveBlockIdentity = {
@@ -9,13 +8,9 @@ type LiveBlockIdentity = {
 
 const continuesLiveBlock = (
 	block: WorkingBlock,
-	identity: LiveBlockIdentity | null,
+	identity: LiveBlockIdentity,
 	streamStartedAt: string | undefined,
-): identity is LiveBlockIdentity => {
-	if (identity === null) {
-		return false;
-	}
-
+): boolean => {
 	if (
 		identity.firstMemberId !== undefined &&
 		block.memberIds.includes(identity.firstMemberId)
@@ -44,23 +39,38 @@ type LiveBlockKeys = {
 	identity: LiveBlockIdentity | null;
 };
 
-const reconcile = (
+export const emptyLiveBlockKeys: LiveBlockKeys = {
+	itemKeys: new Map(),
+	identity: null,
+};
+
+/**
+ * Scroller item keys of blocks that rendered live, kept once they complete or
+ * paging re-keys them, so an open block does not remount.
+ */
+export const reconcileLiveBlockKeys = (
 	blocks: readonly WorkingBlock[],
 	streamStartedAt: string | undefined,
 	state: LiveBlockKeys,
 ): LiveBlockKeys => {
+	const { identity } = state;
 	let { itemKeys: nextItemKeys, identity: nextIdentity } = state;
 
 	// Head ordinals shift when an older page reveals an earlier block of the
 	// turn, so a live key passes by name only once nothing continues the live block.
-	const liveBlockContinues = blocks.some((block) =>
-		continuesLiveBlock(block, state.identity, streamStartedAt),
-	);
+	const liveBlockContinues =
+		identity !== null &&
+		blocks.some((block) =>
+			continuesLiveBlock(block, identity, streamStartedAt),
+		);
 
 	for (const block of blocks) {
 		let itemKey = nextItemKeys.get(block.key);
 		if (itemKey === undefined) {
-			if (continuesLiveBlock(block, nextIdentity, streamStartedAt)) {
+			if (
+				nextIdentity !== null &&
+				continuesLiveBlock(block, nextIdentity, streamStartedAt)
+			) {
 				itemKey = nextIdentity.itemKey;
 			} else if (block.isLive) {
 				itemKey = block.liveKey;
@@ -89,25 +99,4 @@ const reconcile = (
 	return nextItemKeys === state.itemKeys && nextIdentity === state.identity
 		? state
 		: { itemKeys: nextItemKeys, identity: nextIdentity };
-};
-
-/**
- * Scroller item keys of blocks that rendered live, kept once they complete or
- * paging re-keys them, so an open block does not remount.
- */
-export const useLiveBlockItemKeys = (
-	workingBlocks: readonly WorkingBlock[],
-	streamStartedAt: string | undefined,
-): ReadonlyMap<string, string> => {
-	const [state, setState] = useState<LiveBlockKeys>({
-		itemKeys: new Map(),
-		identity: null,
-	});
-
-	const next = reconcile(workingBlocks, streamStartedAt, state);
-	if (next !== state) {
-		setState(next);
-	}
-
-	return next.itemKeys;
 };
