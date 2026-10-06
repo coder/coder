@@ -41,6 +41,7 @@ replaced on their env_name or file_path by another secret.
     "enabled": true,
     "env_name": "string",
     "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+    "ephemeral": true,
     "file_path": "string",
     "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -69,6 +70,7 @@ Status Code **200**
 | `» enabled`          | boolean                                                                    | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
 | `» env_name`         | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
 | `» env_replaced_by`  | string(uuid)                                                               | false    |              | Env replaced by is the ID of the secret delivered on this secret's env_name instead of it. Only set when listing secrets for a workspace build.                                                                                      |
+| `» ephemeral`        | boolean                                                                    | false    |              | Ephemeral build secrets are delivered to their build only and not copied to the next one. User secrets are never ephemeral.                                                                                                          |
 | `» file_path`        | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
 | `» file_replaced_by` | string(uuid)                                                               | false    |              | File replaced by is the ID of the secret delivered on this secret's file_path instead of it. Only set when listing secrets for a workspace build.                                                                                    |
 | `» id`               | string(uuid)                                                               | false    |              |                                                                                                                                                                                                                                      |
@@ -129,6 +131,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
   "enabled": true,
   "env_name": "string",
   "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+  "ephemeral": true,
   "file_path": "string",
   "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -190,6 +193,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
     "enabled": true,
     "env_name": "string",
     "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+    "ephemeral": true,
     "file_path": "string",
     "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -221,6 +225,7 @@ Status Code **201**
 | `» enabled`          | boolean                                                                    | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
 | `» env_name`         | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
 | `» env_replaced_by`  | string(uuid)                                                               | false    |              | Env replaced by is the ID of the secret delivered on this secret's env_name instead of it. Only set when listing secrets for a workspace build.                                                                                      |
+| `» ephemeral`        | boolean                                                                    | false    |              | Ephemeral build secrets are delivered to their build only and not copied to the next one. User secrets are never ephemeral.                                                                                                          |
 | `» file_path`        | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
 | `» file_replaced_by` | string(uuid)                                                               | false    |              | File replaced by is the ID of the secret delivered on this secret's file_path instead of it. Only set when listing secrets for a workspace build.                                                                                    |
 | `» id`               | string(uuid)                                                               | false    |              |                                                                                                                                                                                                                                      |
@@ -267,6 +272,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   "enabled": true,
   "env_name": "string",
   "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+  "ephemeral": true,
   "file_path": "string",
   "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -356,6 +362,7 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   "enabled": true,
   "env_name": "string",
   "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+  "ephemeral": true,
   "file_path": "string",
   "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",

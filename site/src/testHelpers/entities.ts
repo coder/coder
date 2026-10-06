@@ -630,6 +630,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		created_at: "2026-04-28T16:30:00Z",
 		updated_at: "2026-04-30T16:30:00Z",
 		source: "user",
+		ephemeral: false,
 	},
 	{
 		id: "secret-file-only",
@@ -641,6 +642,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		created_at: "2026-04-29T16:30:00Z",
 		updated_at: "2026-05-01T16:30:00Z",
 		source: "user",
+		ephemeral: false,
 	},
 	{
 		id: "secret-env-and-file",
@@ -652,6 +654,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 		source: "user",
+		ephemeral: false,
 	},
 	{
 		// Mirrors a pre-migration secret that had both env_name and
@@ -666,6 +669,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		created_at: "2026-05-01T16:30:00Z",
 		updated_at: "2026-05-03T16:30:00Z",
 		source: "user",
+		ephemeral: false,
 	},
 	{
 		id: "secret-duplicate",
@@ -677,6 +681,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
 		source: "user",
+		ephemeral: false,
 	},
 ];
 
@@ -691,6 +696,7 @@ export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
 	created_at: "2026-04-27T16:30:00Z",
 	updated_at: "2026-05-03T20:30:00Z",
 	source: "user",
+	ephemeral: false,
 };
 
 export const MockImportedUserSecret: TypesGen.UserSecret = {
@@ -703,6 +709,7 @@ export const MockImportedUserSecret: TypesGen.UserSecret = {
 	created_at: "2026-05-04T00:00:00Z",
 	updated_at: "2026-05-04T00:00:00Z",
 	source: "user",
+	ephemeral: false,
 };
 
 export const MockImportedUserSecrets: TypesGen.UserSecret[] = [

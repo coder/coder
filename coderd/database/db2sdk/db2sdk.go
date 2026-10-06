@@ -2441,6 +2441,7 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 		CreatedAt: secret.CreatedAt,
 		UpdatedAt: secret.CreatedAt,
 		Source:    codersdk.WorkspaceSecretSourceBuild,
+		Ephemeral: secret.Ephemeral,
 	}
 }
 
