@@ -545,7 +545,7 @@ describe("AgentCreateForm organization lock", () => {
 
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			(await screen.findByText("Attach workspace")).closest("button")!,
+			await screen.findByRole("button", { name: /Attach workspace/ }),
 		);
 		await user().click(
 			await screen.findByRole("option", {
@@ -595,7 +595,7 @@ describe("AgentCreateForm organization lock", () => {
 		});
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			(await screen.findByText("Attach workspace")).closest("button")!,
+			await screen.findByRole("button", { name: /Attach workspace/ }),
 		);
 		await user().click(
 			await screen.findByRole("option", { name: /project-workspace/ }),
@@ -713,26 +713,17 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
 
-		renderForm({
+		const { onCreateChat } = renderForm({
 			project: { id: "project-1", organization_id: MockDefaultOrganization.id },
 		});
-		await typeMessage("project draft");
-
-		await waitFor(() => {
-			expect(
-				localStorage.getItem(draftStorageKeys("project-1").text),
-			).toContain("project draft");
-		});
 		// Send enables only after the attachment state is adopted, so a draft
-		// restored from the wrong key would be showing by now.
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Send" })).toBeEnabled(),
-		);
-		expect(screen.queryByText("plain composer draft")).toBeNull();
-		expect(screen.queryByText("other project draft")).toBeNull();
-		expect(
-			screen.queryByRole("button", { name: "Remove notes.txt" }),
-		).toBeNull();
+		// restored from the wrong key would be part of the submit.
+		await submitMessage("project draft");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.message).toBe("project draft");
+		expect(options.fileIDs ?? []).toEqual([]);
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"plain composer draft",
 		);
