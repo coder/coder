@@ -1,5 +1,7 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
 import type { ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -33,21 +35,20 @@ const chatProjectIconMaxChars = 256;
 const measureLength = (value: string) => [...value.trim()].length;
 
 const maxCharacters = (label: string, max: number) =>
-	Yup.string().test(
-		"max-characters",
-		`${label} cannot be longer than ${max} characters.`,
-		(value = "") => measureLength(value) <= max,
-	);
+	Yup.string()
+		.trim()
+		.test(
+			"max-characters",
+			`${label} cannot be longer than ${max} characters.`,
+			(value = "") => measureLength(value) <= max,
+		);
 
 const validationSchema = Yup.object({
-	name: maxCharacters("Name", chatProjectNameMaxChars)
-		.trim()
-		.required("Name is required."),
-	description: maxCharacters(
-		"Description",
-		chatProjectDescriptionMaxChars,
-	).trim(),
-	icon: maxCharacters("Icon", chatProjectIconMaxChars).trim(),
+	name: maxCharacters("Name", chatProjectNameMaxChars).required(
+		"Name is required.",
+	),
+	description: maxCharacters("Description", chatProjectDescriptionMaxChars),
+	icon: maxCharacters("Icon", chatProjectIconMaxChars),
 });
 
 const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
@@ -55,6 +56,23 @@ const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
 	description: values.description.trim(),
 	icon: values.icon.trim(),
 });
+
+const isUnchangedEdit = (
+	project: ChatProject | undefined,
+	values: ChatProjectFormValues,
+	initial: ChatProjectFormValues,
+) => {
+	if (project === undefined) {
+		return false;
+	}
+	const trimmed = trimValues(values);
+	const trimmedInitial = trimValues(initial);
+	return (
+		trimmed.name === trimmedInitial.name &&
+		trimmed.description === trimmedInitial.description &&
+		trimmed.icon === trimmedInitial.icon
+	);
+};
 
 type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
@@ -66,8 +84,13 @@ type ChatProjectDialogProps = {
 	 * outlives the dialog.
 	 */
 	readonly error: unknown;
-	/** Receives all three fields, trimmed, including unchanged ones on edit. */
-	readonly onSubmit: (values: ChatProjectFormValues) => void;
+	/**
+	 * Receives all three fields, trimmed, including unchanged ones on edit.
+	 * Return the save's promise (for example from `mutateAsync`) so Save stays
+	 * disabled until it settles. A rejection is ignored here; report it
+	 * through `error`.
+	 */
+	readonly onSubmit: (values: ChatProjectFormValues) => unknown;
 };
 
 export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
@@ -86,9 +109,7 @@ export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			{/* Radix unmounts the content on close, so the form state below
-			    resets on every open without remounting the dialog itself. */}
-			<DialogContent>
+			<DialogContent aria-describedby={undefined}>
 				<ChatProjectForm
 					project={project}
 					isSubmitting={isSubmitting}
@@ -106,7 +127,7 @@ type ChatProjectFormProps = {
 	readonly isSubmitting: boolean;
 	readonly error: unknown;
 	readonly onCancel: () => void;
-	readonly onSubmit: (values: ChatProjectFormValues) => void;
+	readonly onSubmit: ChatProjectDialogProps["onSubmit"];
 };
 
 const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
@@ -124,7 +145,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		},
 		validateOnMount: true,
 		validationSchema,
-		onSubmit: (values) => onSubmit(trimValues(values)),
+		// Formik keeps isSubmitting set until this settles, so a second click
+		// cannot submit again before the caller's isSubmitting turns on.
+		onSubmit: async (values) => {
+			try {
+				await onSubmit(trimValues(values));
+			} catch {
+				// The caller shows the failure through the error prop.
+			}
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
 	const nameField = getFieldHelpers("name", {
@@ -139,22 +168,23 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		maxLength: chatProjectIconMaxChars,
 		measureLength,
 	});
-	const trimmed = trimValues(form.values);
-	const trimmedInitial = trimValues(form.initialValues);
-	// An unchanged edit would still bump updated_at and write an audit entry.
-	const isUnchanged =
-		project !== undefined &&
-		trimmed.name === trimmedInitial.name &&
-		trimmed.description === trimmedInitial.description &&
-		trimmed.icon === trimmedInitial.icon;
-	const canSave = form.isValid && !isUnchanged && !isSubmitting;
+	const isUnchanged = isUnchangedEdit(project, form.values, form.initialValues);
+	const isSaving = isSubmitting || form.isSubmitting;
+	const canSave = form.isValid && !isUnchanged && !isSaving;
+	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		if (isSaving || isUnchanged) {
+			event.preventDefault();
+			return;
+		}
+		form.handleSubmit(event);
+	};
 
 	return (
 		<>
 			<DialogHeader>
 				<DialogTitle>{project ? "Edit project" : "New project"}</DialogTitle>
 			</DialogHeader>
-			<form className="flex flex-col gap-4" onSubmit={form.handleSubmit}>
+			<form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
 				<FormField
 					field={nameField}
 					label="Name"
@@ -168,20 +198,25 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					control={(props) => (
 						<Textarea
 							{...props}
-							name={descriptionField.name}
-							value={descriptionField.value}
-							onChange={descriptionField.onChange}
-							onBlur={descriptionField.onBlur}
+							{...form.getFieldProps("description")}
 							disabled={isSubmitting}
+							rows={3}
+							className={cn(
+								descriptionField.error && "border-border-destructive",
+							)}
 						/>
 					)}
 				/>
 				<IconField
 					{...iconField}
 					disabled={isSubmitting}
-					onPickEmoji={(value) => form.setFieldValue("icon", value)}
+					onPickEmoji={(value) => {
+						void form.setFieldValue("icon", value);
+					}}
 				/>
-				{Boolean(error) && <ErrorAlert error={error} />}
+				{Boolean(error) && !isApiValidationError(error) && (
+					<ErrorAlert error={error} showDebugDetail={false} />
+				)}
 				<DialogFooter>
 					<Button
 						type="button"
@@ -192,7 +227,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 						Cancel
 					</Button>
 					<Button type="submit" disabled={!canSave}>
-						<Spinner loading={isSubmitting} />
+						<Spinner loading={isSaving} />
 						Save
 					</Button>
 				</DialogFooter>
