@@ -116,7 +116,6 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			helpers={getFieldHelpers("apiKey")}
 			onBlur={() => onCredentialBlur("apiKey")}
 			onFocus={() => onCredentialFocus("apiKey")}
-			autoComplete="new-password"
 			placeholder="sk-ant-..."
 		/>
 		<p className="text-xs text-content-secondary m-0">
