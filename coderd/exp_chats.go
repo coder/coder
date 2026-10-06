@@ -3958,17 +3958,18 @@ func (api *API) chatRenderTemplateParameters(
 func (api *API) chatCreateWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	chatID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
-) (codersdk.Workspace, error) {
+) (codersdk.Workspace, database.Chat, error) {
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
 
 	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("get workspace owner: %w", err)
+		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("get workspace owner: %w", err)
 	}
 	owner := workspaceOwner{
 		ID:        ownerUser.ID,
@@ -3978,7 +3979,7 @@ func (api *API) chatCreateWorkspace(
 
 	auditor := api.Auditor.Load()
 	if auditor == nil {
-		return codersdk.Workspace{}, xerrors.New("auditor is not configured")
+		return codersdk.Workspace{}, database.Chat{}, xerrors.New("auditor is not configured")
 	}
 
 	// The audit system requires a ResponseWriter to capture the
@@ -3998,7 +3999,7 @@ func (api *API) chatCreateWorkspace(
 		nil,
 	)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("create audit request: %w", err)
+		return codersdk.Workspace{}, database.Chat{}, xerrors.Errorf("create audit request: %w", err)
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](sw, &audit.RequestParams{
@@ -4013,14 +4014,29 @@ func (api *API) chatCreateWorkspace(
 	aReq.UserID = ownerID
 	defer commitAudit()
 
-	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, nil)
+	var chat database.Chat
+	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, &createWorkspaceOptions{
+		postBuildInTX: func(ctx context.Context, tx database.Store, workspace database.Workspace, build database.WorkspaceBuild) error {
+			bound, err := tx.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          chatID,
+				WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
+				BuildID:     uuid.NullUUID{UUID: build.ID, Valid: true},
+				AgentID:     uuid.NullUUID{},
+			})
+			if err != nil {
+				return xerrors.Errorf("bind chat to workspace: %w", err)
+			}
+			chat = bound
+			return nil
+		},
+	})
 	if err != nil {
 		sw.WriteHeader(chatWorkspaceAuditStatus(err))
-		return codersdk.Workspace{}, err
+		return codersdk.Workspace{}, database.Chat{}, err
 	}
 
 	sw.WriteHeader(http.StatusCreated)
-	return workspace, nil
+	return workspace, chat, nil
 }
 
 // chatStartWorkspace starts a stopped workspace by creating a new

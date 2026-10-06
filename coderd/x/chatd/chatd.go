@@ -465,45 +465,48 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	buildID uuid.UUID,
 	agentID uuid.UUID,
 ) (database.Chat, error) {
-	updatedChat, err := c.server.db.UpdateChatBuildAgentBinding(
-		ctx,
-		database.UpdateChatBuildAgentBindingParams{
-			ID: chatSnapshot.ID,
-			BuildID: uuid.NullUUID{
-				UUID:  buildID,
-				Valid: true,
-			},
-			AgentID: uuid.NullUUID{
-				UUID:  agentID,
-				Valid: true,
-			},
-		},
-	)
-	if err != nil {
-		return chatSnapshot, xerrors.Errorf(
-			"update chat build/agent binding: %w", err,
-		)
-	}
-
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
-	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// requires a re-pin when pinned context exists. The binding and the re-pin
+	// commit together: a committed binding without its re-pin would never be
+	// retried, because the next turn sees no agent change. The pinned context
+	// fields on updatedChat are background state, reloaded on the next
+	// snapshot fetch.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
-		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
-		repinCtx := dbauthz.AsChatd(ctx)
-		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
-		}); repinErr != nil {
-			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
-				slog.F("chat_id", chatSnapshot.ID),
-				slog.F("agent_id", agentID),
-				slog.Error(repinErr))
+	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
+	var updatedChat database.Chat
+	err := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
+		var err error
+		updatedChat, err = tx.UpdateChatBuildAgentBinding(
+			ctx,
+			database.UpdateChatBuildAgentBindingParams{
+				ID: chatSnapshot.ID,
+				BuildID: uuid.NullUUID{
+					UUID:  buildID,
+					Valid: true,
+				},
+				AgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			},
+		)
+		if err != nil {
+			return xerrors.Errorf("update chat build/agent binding: %w", err)
 		}
+		if !needsRepin {
+			return nil
+		}
+		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
+		if err := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			return xerrors.Errorf("re-pin chat context after agent rebind: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return chatSnapshot, err
 	}
 
 	c.setCurrentChat(updatedChat)
