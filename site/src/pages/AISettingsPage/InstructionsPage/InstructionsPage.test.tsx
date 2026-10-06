@@ -83,7 +83,7 @@ it("saves edits to the organization picked in the picker", async () => {
 		" Unsaved.",
 	);
 	await user.click(
-		screen.getByRole("button", {
+		screen.getByRole("combobox", {
 			name: `Organization ${MockDefaultOrganization.display_name}`,
 		}),
 	);
