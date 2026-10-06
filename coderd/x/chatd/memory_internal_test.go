@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -70,6 +72,30 @@ func TestResolveProjectMemory(t *testing.T) {
 	})
 }
 
+func TestMemoryAuditor(t *testing.T) {
+	t.Parallel()
+	auditor := audit.NewMock()
+	server := &Server{logger: slogtest.Make(t, nil), chatWorker: &chatWorker{opts: chatWorkerOptions{Auditor: mockAuditorPtr(auditor)}}}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New()}
+	memory := database.ChatProjectMemory{ID: uuid.New(), OrganizationID: chat.OrganizationID, Name: "deploy-day"}
+	record := server.memoryAuditor(chat)
+
+	record(t.Context(), database.AuditActionCreate, database.ChatProjectMemory{}, memory)
+	record(t.Context(), database.AuditActionDelete, memory, database.ChatProjectMemory{})
+
+	logs := auditor.AuditLogs()
+	require.Len(t, logs, 2)
+	for i, action := range []database.AuditAction{database.AuditActionCreate, database.AuditActionDelete} {
+		require.Equal(t, action, logs[i].Action)
+		require.Equal(t, database.ResourceTypeChatProjectMemory, logs[i].ResourceType)
+		require.Equal(t, memory.ID, logs[i].ResourceID)
+		require.Equal(t, "deploy-day", logs[i].ResourceTarget)
+		require.Equal(t, chat.OwnerID, logs[i].UserID, "agent changes are attributed to the chat owner")
+		require.Equal(t, chat.OrganizationID, logs[i].OrganizationID)
+		require.Contains(t, string(logs[i].AdditionalFields), chat.ID.String())
+	}
+}
+
 func TestPlanModeKeepsMemoryTools(t *testing.T) {
 	t.Parallel()
 
@@ -94,8 +120,19 @@ func TestMemoryIndexMessage(t *testing.T) {
 	}
 	snapshot := chattool.FormatMemoryIndexSnapshot([]chattool.MemoryIndexEntry{{Name: "alpha", Description: "First"}})
 	prompt := row(database.ChatMessageVisibilityBoth, false, "hello")
-	assistant := database.ChatMessage{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth}
-	toolResult := database.ChatMessage{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityModel}
+	parts := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility, p ...codersdk.ChatMessagePart) database.ChatMessage {
+		content, err := chatprompt.MarshalParts(p)
+		require.NoError(t, err)
+		return database.ChatMessage{Role: role, Visibility: visibility, Content: content, ContentVersion: chatprompt.CurrentContentVersion}
+	}
+	toolCall := func(id string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessageToolCall(id, chattool.SaveMemoryToolName, json.RawMessage(`{}`))
+	}
+	result := func(id string) database.ChatMessage {
+		return parts(database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, codersdk.ChatMessageToolResult(id, chattool.SaveMemoryToolName, json.RawMessage(`{}`), false, false))
+	}
+	assistant := parts(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, toolCall("call-1"))
+	toolResult := result("call-1")
 	run := func(t *testing.T, memories []database.GetChatProjectMemoriesByProjectIDRow, history []database.ChatMessage) (string, bool) {
 		t.Helper()
 		db := dbmock.NewMockStore(gomock.NewController(t))
@@ -149,6 +186,20 @@ func TestMemoryIndexMessage(t *testing.T) {
 		t.Parallel()
 		_, ok := run(t, []database.GetChatProjectMemoriesByProjectIDRow{memory("alpha", "First")}, []database.ChatMessage{assistant})
 		require.False(t, ok)
+	})
+	t.Run("NothingWhileToolCallsArePending", func(t *testing.T) {
+		t.Parallel()
+		// The first memory is saved mid-turn while another call from the
+		// same step, such as a client tool, has no result yet.
+		pending := parts(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, toolCall("call-1"), toolCall("call-2"))
+		history := []database.ChatMessage{pending, result("call-1")}
+		_, ok := run(t, []database.GetChatProjectMemoriesByProjectIDRow{memory("alpha", "First")}, history)
+		require.False(t, ok)
+
+		history = append(history, result("call-2"))
+		text, ok := run(t, []database.GetChatProjectMemoriesByProjectIDRow{memory("alpha", "First")}, history)
+		require.True(t, ok, "the snapshot goes out once every call has a result")
+		require.Equal(t, snapshot, text)
 	})
 	t.Run("CompactedSnapshotIsResent", func(t *testing.T) {
 		t.Parallel()

@@ -1133,6 +1133,12 @@
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
+							"title": "Automations",
+							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
+							"path": "./ai-coder/agents/automations.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"
@@ -2643,6 +2649,12 @@
 							]
 						}
 					]
+				},
+				{
+					"title": "API key scopes",
+					"description": "Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.",
+					"path": "./reference/api-key-scopes.md",
+					"icon_path": "./images/icons/api.svg"
 				},
 				{
 					"title": "Agent API",
