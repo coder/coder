@@ -346,3 +346,30 @@ func TestCurrentDoesNotConsumeLockedRow(t *testing.T) {
 	require.Equal(t, 1, counts.getChatByID, "only the publication read")
 	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
 }
+
+// TestSetFamilyArchivedValidatesFromLockedRow pins the chat reads under
+// a member's transition lock: classifying the member must not consume
+// the locked row that SetArchived then validates against.
+func TestSetFamilyArchivedValidatesFromLockedRow(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	counts := &roundTripCounts{}
+	family, err := chatstate.SetFamilyArchived(ctx, &countingStore{Store: f.DB, counts: counts}, f.Pub, chatstate.SetFamilyArchivedInput{
+		RootID:   created.Chat.ID,
+		Archived: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, family, 1)
+	require.True(t, family[0].Archived)
+
+	require.Equal(t, 1, counts.lock)
+	require.Equal(t, 2, counts.getChatByID, "the archived row reload and the publication read")
+	require.Equal(t, 2, counts.countQueued, "the post-lock count and the publication read")
+}

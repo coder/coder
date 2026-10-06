@@ -267,9 +267,6 @@ func (w *chatWorker) acquireCandidate(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, state, err := tx.Current()
-		if errors.Is(err, chatstate.ErrChatNotFound) {
-			return errSkipAcquire
-		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -361,9 +358,6 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store) error {
 		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, _, err := tx.Current()
-		if errors.Is(err, chatstate.ErrChatNotFound) {
-			return errSkipAcquire
-		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}

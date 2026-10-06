@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -67,7 +68,8 @@ func TestConcurrentUpdatesSerializeOnChatRow(t *testing.T) {
 }
 
 // TestReadSnapshotNotBlockedByRowLock verifies that a ReadSnapshot
-// completes while an Update holds the chat row's transition lock. The former FOR SHARE read would have queued behind it.
+// completes while an Update holds the chat row's transition lock. The
+// former FOR SHARE read would have queued behind it.
 func TestReadSnapshotNotBlockedByRowLock(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -118,4 +120,78 @@ func TestReadSnapshotNotBlockedByRowLock(t *testing.T) {
 	close(releaseLock)
 	require.True(t, waitForWaitGroup(ctx, &lockWG), "Update did not finish")
 	require.NoError(t, lockErr)
+}
+
+// TestHeartbeatUpsertNotBlockedByRowLock verifies that the transition
+// lock admits foreign key child writes but still serializes transitions.
+// Inserting a heartbeat row takes FOR KEY SHARE on the chat row for its
+// foreign key check, which FOR UPDATE would block.
+func TestHeartbeatUpsertNotBlockedByRowLock(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	created := createTestChat(t, f)
+	locker := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	waiter := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	lockEntered := make(chan struct{})
+	releaseLock := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseLock:
+		default:
+			close(releaseLock)
+		}
+	})
+
+	var lockErr error
+	var lockWG sync.WaitGroup
+	lockWG.Go(func() {
+		lockErr = locker.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
+			close(lockEntered)
+			if !waitForChan(ctx, releaseLock) {
+				return ctx.Err()
+			}
+			return nil
+		})
+	})
+	require.True(t, waitForChan(ctx, lockEntered), "Update callback never started")
+
+	// A new runner ID makes the upsert an insert, which runs the foreign
+	// key check.
+	var heartbeatErr error
+	var heartbeatWG sync.WaitGroup
+	heartbeatWG.Go(func() {
+		heartbeatErr = f.DB.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams{
+			ChatID:   created.Chat.ID,
+			RunnerID: uuid.New(),
+		})
+	})
+	require.True(t, waitForWaitGroup(ctx, &heartbeatWG), "heartbeat upsert blocked behind the row lock")
+	require.NoError(t, heartbeatErr)
+
+	var waiterErr error
+	var waiterWG sync.WaitGroup
+	waiterWG.Go(func() {
+		waiterErr = waiter.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil })
+	})
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := f.SQLDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: LockChatForTransition%'
+`).Scan(&waiting)
+		return err == nil && waiting == 1
+	}, testutil.IntervalFast, "wait for the second Update to block on the row lock")
+	require.NoError(t, ctx.Err(), "waiting for the second Update to block")
+
+	close(releaseLock)
+	require.True(t, waitForWaitGroup(ctx, &lockWG), "first Update did not finish")
+	require.NoError(t, lockErr)
+	require.True(t, waitForWaitGroup(ctx, &waiterWG), "second Update did not finish")
+	require.NoError(t, waiterErr)
 }

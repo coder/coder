@@ -1637,9 +1637,9 @@ func clearContextCase(from chatstate.ExecutionState) transitionCaseSpec {
 			require.Greater(t, after.HistoryVersion, base.historyVersion,
 				"inserted boundary rows must advance history_version")
 			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
-				"insert trigger advances history_version to snapshot_version")
+				"the commit write advances history_version to snapshot_version")
 			require.Zero(t, after.GenerationAttempt,
-				"insert trigger grants a fresh retry budget")
+				"the commit write grants a fresh retry budget")
 			// activeHistoryIDs reads the user-visible query, which
 			// excludes the hidden model-only boundary anchor, so only
 			// the tool call/result pair appears.

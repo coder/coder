@@ -48,6 +48,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Sets revision to snapshot_version + 1, the version the transition''s commit write produces, when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
+
 DROP TRIGGER trigger_update_chat_history_after_message_insert ON chat_messages;
 DROP TRIGGER trigger_update_chat_history_after_message_update ON chat_messages;
 DROP FUNCTION update_chat_history_after_message_insert();
@@ -57,3 +59,6 @@ DROP TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert ON chat_qu
 DROP TRIGGER trigger_bump_chat_queue_version_on_queued_message_update ON chat_queued_messages;
 DROP TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete ON chat_queued_messages;
 DROP FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+COMMENT ON COLUMN chats.history_version IS 'Snapshot version of the latest durable history change. Starts at 0; the commit write of a transition that changes chat_messages sets it to the new snapshot_version.';
+COMMENT ON COLUMN chats.queue_version IS 'Snapshot version of the latest queued-message change. Starts at 0; the commit write of a transition that changes chat_queued_messages sets it to the new snapshot_version.';

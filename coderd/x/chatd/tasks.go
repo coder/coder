@@ -514,10 +514,6 @@ func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStar
 		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, _, err := tx.Current()
 		if err != nil {
-			if errors.Is(err, chatstate.ErrChatNotFound) {
-				mismatch = true
-				return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
-			}
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if !ownedByTask(chat, input) {
@@ -659,9 +655,6 @@ func loadChatForTask(
 func loadLockedChatForTask(tx *chatstate.Tx, input chatWorkerTaskStartInput, status database.ChatStatus, opts taskFenceOptions) (database.Chat, error) {
 	chat, _, err := tx.Current()
 	if err != nil {
-		if errors.Is(err, chatstate.ErrChatNotFound) {
-			return database.Chat{}, errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
-		}
 		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
 	}
 	if err := verifyTaskFence(chat, input, status, opts); err != nil {

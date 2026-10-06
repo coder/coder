@@ -160,10 +160,10 @@ func insertChat(
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also
 			// locks the root first and then writes the members. FOR
-			// SHARE conflicts with that FOR UPDATE lock and with the
-			// row lock of any plain UPDATE on the root, so the archived
-			// flag read here holds until commit. Concurrent child
-			// creations under the same root still run in parallel.
+			// SHARE conflicts with that FOR NO KEY UPDATE lock and with
+			// the row lock of any plain UPDATE on the root, so the
+			// archived flag read here holds until commit. Concurrent
+			// child creations under the same root still run in parallel.
 			root, err := store.GetChatByIDForShare(ctx, input.RootChatID.UUID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
@@ -804,7 +804,7 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 
 // ClearContextInput configures [Tx.ClearContext]. Messages carries
 // the boundary rows built by chatd; chatstate requires a non-empty
-// batch so the insert trigger grants the fresh history epoch.
+// batch so the commit write grants the fresh history epoch.
 type ClearContextInput struct {
 	Messages []Message
 }
@@ -818,8 +818,8 @@ type ClearContextResult struct {
 // ClearContext commits a synchronous context reset: it inserts the
 // caller-built boundary rows, clears any stored error and pending
 // compaction request, preserves ownership, and lands in waiting. No
-// worker turn is needed; the message insert trigger advances
-// history_version and resets the retry budget.
+// worker turn is needed; the commit write records the inserted rows,
+// which advances history_version and resets the retry budget.
 func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
 	if err != nil {

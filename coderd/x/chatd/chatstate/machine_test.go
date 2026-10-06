@@ -216,7 +216,7 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f) // snapshot 1, history_version 1 via trigger
+	created := createTestChat(t, f) // snapshot 1, history_version 1
 
 	// CommitStep an assistant message; it should land with revision = chat.snapshot_version after the bump.
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
@@ -232,14 +232,14 @@ func TestMessageRevisionTrigger_AssignsRevisionFromSnapshot(t *testing.T) {
 	}))
 	require.Len(t, step.InsertedMessages, 1)
 	after := f.readChat(ctx, t, created.Chat.ID)
-	// The Update call bumps snapshot_version once before the trigger
-	// runs, so the new revision should equal the bumped snapshot.
+	// The trigger stamps the version the commit write produces, so the
+	// new revision should equal the committed snapshot.
 	require.Equal(t, after.SnapshotVersion, step.InsertedMessages[0].Revision)
 	require.Equal(t, after.SnapshotVersion, after.HistoryVersion)
-	require.Equal(t, int64(0), after.GenerationAttempt, "trigger resets generation_attempt to 0")
+	require.Equal(t, int64(0), after.GenerationAttempt, "the commit write resets generation_attempt to 0")
 }
 
-func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
+func TestQueueVersion_AdvancesOnInsert(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -259,7 +259,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 	require.Greater(t, after.QueueVersion, int64(0))
 }
 
-func TestQueueVersionTrigger_StableForNonQueueMutations(t *testing.T) {
+func TestQueueVersion_StableForNonQueueMutations(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)

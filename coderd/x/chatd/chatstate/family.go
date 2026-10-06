@@ -116,7 +116,7 @@ func SetFamilyArchived(
 				// aborts and rolls back the whole family update, even
 				// when that member already has the requested archived
 				// value.
-				current, from, err := state.loadState()
+				current, from, err := state.Current()
 				if err != nil {
 					return err
 				}
