@@ -101,7 +101,7 @@ type API struct {
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
 	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
-	devcontainerUps          map[string]*devcontainerUp                     // By workspace folder.
+	devcontainerUpProcesses  map[string]*devcontainerUpProcess              // By workspace folder.
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
@@ -114,9 +114,8 @@ type subAgentProcess struct {
 	stop        context.CancelFunc
 }
 
-// devcontainerUp is a running devcontainer up. It can still run
-// lifecycle commands after the dev container is ready.
-type devcontainerUp struct {
+// devcontainerUpProcess tracks lifecycle commands that may outlive readiness.
+type devcontainerUpProcess struct {
 	cancel   context.CancelFunc
 	canceled bool // Protected by api.mu.
 	done     chan struct{}
@@ -351,7 +350,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 		injectedSubAgentProcs:       make(map[string]subAgentProcess),
-		devcontainerUps:             make(map[string]*devcontainerUp),
+		devcontainerUpProcesses:     make(map[string]*devcontainerUpProcess),
 		usingWorkspaceFolderName:    make(map[string]bool),
 	}
 	// The ctx and logger must be set before applying options to avoid
@@ -1313,7 +1312,7 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
-	waitDevcontainerUp(ctx, api.logger, upDone)
+	waitForDevcontainerUp(ctx, api.logger, upDone)
 
 	// Stop and remove the container if it exists.
 	if containerID != "" {
@@ -1435,8 +1434,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()
-	// Cancel lifecycle commands that still run from the last
-	// devcontainer up. CreateDevcontainer waits for it to exit.
+	// Prevent the previous process from changing state during recreation.
+	// CreateDevcontainer waits for it to exit.
 	_ = api.cancelDevcontainerUpLocked(dc.WorkspaceFolder)
 
 	go func() {
@@ -1451,17 +1450,11 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// createDevcontainer should run in its own goroutine and is responsible for
-// recreating a devcontainer based on the provided devcontainer configuration.
-// It updates the devcontainer status and logs the process. The configPath is
-// passed as a parameter for the odd chance that the container being recreated
-// has a different config file than the one stored in the devcontainer state.
-// The devcontainer state must be set to starting and the asyncWg must be
-// incremented before calling this function.
-//
-// It returns when the devcontainer is ready to use, as set by waitFor in
-// devcontainer.json. Lifecycle commands after waitFor keep running in the
-// background.
+// CreateDevcontainer creates or recreates a devcontainer using configPath,
+// which may differ from its stored config path. Its status must be starting.
+// It returns when the devcontainer is ready, as set by waitFor in
+// devcontainer.json, or when devcontainer up exits. Later lifecycle commands
+// keep running in the background.
 func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) error {
 	api.mu.Lock()
 	if api.closed {
@@ -1495,12 +1488,10 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	api.asyncWg.Add(1)
 	defer api.asyncWg.Done()
 
-	// Stop an earlier devcontainer up that still runs lifecycle
-	// commands in the background.
-	prevUpDone := api.cancelDevcontainerUpLocked(workspaceFolder)
-	upCtx, upCancel := context.WithCancel(ctx)
-	up := &devcontainerUp{cancel: upCancel, done: make(chan struct{})}
-	api.devcontainerUps[workspaceFolder] = up
+	previousUpDone := api.cancelDevcontainerUpLocked(workspaceFolder)
+	upCtx, cancelUp := context.WithCancel(ctx)
+	upProcess := &devcontainerUpProcess{cancel: cancelUp, done: make(chan struct{})}
+	api.devcontainerUpProcesses[workspaceFolder] = upProcess
 	api.mu.Unlock()
 
 	if dc.ConfigPath != configPath {
@@ -1509,7 +1500,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		)
 	}
 
-	waitDevcontainerUp(ctx, logger, prevUpDone)
+	waitForDevcontainerUp(ctx, logger, previousUpDone)
 
 	scriptLogger := api.scriptLogger(logSourceID)
 	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, logSourceID, codersdk.LogLevelInfo)
@@ -1517,13 +1508,12 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	readyC := make(chan struct{})
-	// readySetC tells the devcontainer up goroutine if the dev
-	// container was made ready before devcontainer up exited.
-	readySetC := make(chan bool, 1)
+	readyCh := make(chan struct{})
+	// The process must wait for the readiness decision before updating state.
+	readyResultCh := make(chan bool, 1)
 	upOptions := []DevcontainerCLIUpOptions{
 		WithUpOutput(infoW, errW),
-		WithUpReady(func() { close(readyC) }),
+		WithUpReady(func() { close(readyCh) }),
 	}
 	upOptions = append(upOptions, opts...)
 
@@ -1531,12 +1521,10 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		containerID string
 		err         error
 	}
-	upResultC := make(chan upResult, 1)
-	api.asyncWg.Add(1)
-	go func() {
-		defer api.asyncWg.Done()
-		defer close(up.done)
-		defer upCancel()
+	upResultCh := make(chan upResult, 1)
+	api.asyncWg.Go(func() {
+		defer close(upProcess.done)
+		defer cancelUp()
 
 		containerID, upErr := api.dccli.Up(upCtx, workspaceFolder, configPath, upOptions...)
 
@@ -1549,48 +1537,47 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		cancel()
 
 		select {
-		case <-readyC:
-			if <-readySetC {
-				api.finishDevcontainerUpAfterReady(logger, workspaceFolder, up, upErr)
+		case <-readyCh:
+			if <-readyResultCh {
+				api.finishDevcontainerUpAfterReady(logger, workspaceFolder, upProcess, upErr)
 				return
 			}
 		default:
 		}
 		api.mu.Lock()
-		if api.devcontainerUps[workspaceFolder] == up {
-			delete(api.devcontainerUps, workspaceFolder)
+		if api.devcontainerUpProcesses[workspaceFolder] == upProcess {
+			delete(api.devcontainerUpProcesses, workspaceFolder)
 		}
 		api.mu.Unlock()
-		upResultC <- upResult{containerID: containerID, err: upErr}
-	}()
+		upResultCh <- upResult{containerID: containerID, err: upErr}
+	})
 
-	var res upResult
+	var result upResult
 	select {
-	case <-readyC:
-		// Find the container before the status is Running, so a delete
-		// can stop and remove it.
+	case <-readyCh:
+		// Delete needs the container ID before the status allows it.
 		err := api.RefreshContainers(ctx)
 		if err != nil {
-			logger.Warn(ctx, "failed to refresh containers before devcontainer ready", slog.Error(err))
+			logger.Warn(ctx, "refresh containers before devcontainer readiness failed", slog.Error(err))
 		}
-		ready := api.setDevcontainerReady(workspaceFolder, up, err)
-		readySetC <- ready
+		ready := api.setDevcontainerReady(workspaceFolder, upProcess, err)
+		readyResultCh <- ready
 		if !ready {
-			logger.Warn(ctx, "devcontainer container not found, waiting for devcontainer up to exit")
-			res = <-upResultC
+			logger.Warn(ctx, "container unavailable, waiting for devcontainer up to exit")
+			result = <-upResultCh
 			break
 		}
 
 		logger.Info(ctx, "devcontainer ready, lifecycle commands after waitFor run in the background")
 		if err := api.RefreshContainers(ctx); err != nil {
-			logger.Error(ctx, "failed to trigger immediate refresh after devcontainer ready", slog.Error(err))
+			logger.Error(ctx, "refresh containers after devcontainer readiness failed", slog.Error(err))
 			return xerrors.Errorf("refresh containers: %w", err)
 		}
 		return nil
-	case res = <-upResultC:
+	case result = <-upResultCh:
 	}
 
-	containerID, upErr := res.containerID, res.err
+	containerID, upErr := result.containerID, result.err
 	if upErr != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
@@ -1660,17 +1647,13 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	return nil
 }
 
-// setDevcontainerReady marks a devcontainer as running while its
-// devcontainer up still runs lifecycle commands after waitFor. It
-// returns false if the refresh failed or the container is not known,
-// because a delete needs it. A canceled devcontainer up doesn't change
-// the state, and it returns true so the caller doesn't wait for
-// devcontainer up to exit.
-func (api *API) setDevcontainerReady(workspaceFolder string, up *devcontainerUp, refreshErr error) bool {
+// setDevcontainerReady returns false when the caller must wait for up to exit.
+// Canceled processes leave state unchanged and don't need that fallback.
+func (api *API) setDevcontainerReady(workspaceFolder string, upProcess *devcontainerUpProcess, refreshErr error) bool {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
-	if api.closed || up.canceled {
+	if api.closed || upProcess.canceled {
 		return true
 	}
 	dc := api.knownDevcontainers[workspaceFolder]
@@ -1686,17 +1669,14 @@ func (api *API) setDevcontainerReady(workspaceFolder string, up *devcontainerUp,
 	return true
 }
 
-// finishDevcontainerUpAfterReady handles the end of a devcontainer up
-// that already made the devcontainer ready. It shows a lifecycle command
-// error on the devcontainer, unless the devcontainer up was canceled.
-func (api *API) finishDevcontainerUpAfterReady(logger slog.Logger, workspaceFolder string, up *devcontainerUp, upErr error) {
+func (api *API) finishDevcontainerUpAfterReady(logger slog.Logger, workspaceFolder string, upProcess *devcontainerUpProcess, upErr error) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
-	if api.devcontainerUps[workspaceFolder] == up {
-		delete(api.devcontainerUps, workspaceFolder)
+	if api.devcontainerUpProcesses[workspaceFolder] == upProcess {
+		delete(api.devcontainerUpProcesses, workspaceFolder)
 	}
-	if api.closed || up.canceled {
+	if api.closed || upProcess.canceled {
 		return
 	}
 	if upErr == nil {
@@ -1711,24 +1691,20 @@ func (api *API) finishDevcontainerUpAfterReady(logger slog.Logger, workspaceFold
 	api.broadcastUpdatesLocked()
 }
 
-// cancelDevcontainerUpLocked cancels the running devcontainer up for the
-// workspace folder. A canceled devcontainer up doesn't change the
-// devcontainer state. It returns a channel that is closed when the
-// devcontainer up exits, or nil if none runs. The api.mu lock must be
-// held.
+// cancelDevcontainerUpLocked prevents further state updates from the process.
+// It returns a channel closed on exit, or nil if no process is running.
+// The caller must hold api.mu.
 func (api *API) cancelDevcontainerUpLocked(workspaceFolder string) <-chan struct{} {
-	up, ok := api.devcontainerUps[workspaceFolder]
+	upProcess, ok := api.devcontainerUpProcesses[workspaceFolder]
 	if !ok {
 		return nil
 	}
-	up.canceled = true
-	up.cancel()
-	return up.done
+	upProcess.canceled = true
+	upProcess.cancel()
+	return upProcess.done
 }
 
-// waitDevcontainerUp waits for a canceled devcontainer up to exit, see
-// cancelDevcontainerUpLocked.
-func waitDevcontainerUp(ctx context.Context, logger slog.Logger, done <-chan struct{}) {
+func waitForDevcontainerUp(ctx context.Context, logger slog.Logger, done <-chan struct{}) {
 	if done == nil {
 		return
 	}

@@ -12,23 +12,23 @@ import (
 func TestLifecycleReadyWriter_SplitWrites(t *testing.T) {
 	t.Parallel()
 
-	log, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up-waitfor.log"))
+	logOutput, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up-waitfor.log"))
 	require.NoError(t, err)
-	start := bytes.Index(log, []byte(`"name":"Running postCreateCommand...","status":"running"`))
-	require.Positive(t, start)
-	lineEnd := start + bytes.IndexByte(log[start:], '\n')
+	hookStartIndex := bytes.Index(logOutput, []byte(`"name":"Running postCreateCommand...","status":"running"`))
+	require.Positive(t, hookStartIndex)
+	hookLineEnd := hookStartIndex + bytes.IndexByte(logOutput[hookStartIndex:], '\n')
 
-	var calls, readyAt int
-	w := &lifecycleReadyWriter{names: lifecycleHooksAfter("updateContentCommand")}
-	for i := range log {
-		w.onReady = func() {
-			calls++
-			readyAt = i
+	var callbackCount, readyOffset int
+	writer := &lifecycleReadyWriter{progressNames: lifecycleProgressNamesAfter("updateContentCommand")}
+	for offset := range logOutput {
+		writer.onReady = func() {
+			callbackCount++
+			readyOffset = offset
 		}
-		n, err := w.Write(log[i : i+1])
+		n, err := writer.Write(logOutput[offset : offset+1])
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
 	}
-	require.Equal(t, 1, calls)
-	require.Equal(t, lineEnd, readyAt, "ready on the newline that ends the postCreateCommand start line")
+	require.Equal(t, 1, callbackCount)
+	require.Equal(t, hookLineEnd, readyOffset, "ready on the newline that ends the postCreateCommand start line")
 }

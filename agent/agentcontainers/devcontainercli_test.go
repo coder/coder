@@ -454,20 +454,20 @@ func TestDevcontainerCLI_UpReady(t *testing.T) {
 		return `{"configuration":{"waitFor":"` + hook + `"}}`
 	}
 	tests := []struct {
-		name       string
-		readConfig string // Output of read-configuration, empty makes it fail.
-		logFile    string
-		readyAt    string // Hook whose start makes the dev container ready, empty if none.
+		name             string
+		readConfigOutput string // Empty makes read-configuration fail.
+		logFile          string
+		readyHook        string // Up is ready when this hook starts, empty if never.
 	}{
-		{name: "Default", readConfig: `{"configuration":{}}`, logFile: "up-waitfor.log", readyAt: "postCreateCommand"},
-		{name: "InitializeCommand", readConfig: waitFor("initializeCommand"), logFile: "up-waitfor.log", readyAt: "onCreateCommand"},
-		{name: "OnCreateCommand", readConfig: waitFor("onCreateCommand"), logFile: "up-waitfor.log", readyAt: "updateContentCommand"},
-		{name: "UpdateContentCommand", readConfig: waitFor("updateContentCommand"), logFile: "up-waitfor.log", readyAt: "postCreateCommand"},
-		{name: "PostCreateCommand", readConfig: waitFor("postCreateCommand"), logFile: "up-waitfor.log", readyAt: "postStartCommand"},
-		{name: "PostStartCommand", readConfig: waitFor("postStartCommand"), logFile: "up-waitfor.log", readyAt: "postAttachCommand"},
-		{name: "UnknownWaitFor", readConfig: waitFor("postAttachCommand"), logFile: "up-waitfor.log", readyAt: "postCreateCommand"},
-		{name: "ReadConfigurationFails", logFile: "up-waitfor.log", readyAt: "postCreateCommand"},
-		{name: "NoHookAfterWaitFor", readConfig: waitFor("postCreateCommand"), logFile: "up.log"},
+		{name: "Default", readConfigOutput: `{"configuration":{}}`, logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "InitializeCommand", readConfigOutput: waitFor("initializeCommand"), logFile: "up-waitfor.log", readyHook: "onCreateCommand"},
+		{name: "OnCreateCommand", readConfigOutput: waitFor("onCreateCommand"), logFile: "up-waitfor.log", readyHook: "updateContentCommand"},
+		{name: "UpdateContentCommand", readConfigOutput: waitFor("updateContentCommand"), logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "PostCreateCommand", readConfigOutput: waitFor("postCreateCommand"), logFile: "up-waitfor.log", readyHook: "postStartCommand"},
+		{name: "PostStartCommand", readConfigOutput: waitFor("postStartCommand"), logFile: "up-waitfor.log", readyHook: "postAttachCommand"},
+		{name: "UnknownWaitFor", readConfigOutput: waitFor("postAttachCommand"), logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "ReadConfigurationFails", logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "NoHookAfterWaitFor", readConfigOutput: waitFor("postCreateCommand"), logFile: "up.log"},
 	}
 
 	for _, tt := range tests {
@@ -477,14 +477,14 @@ func TestDevcontainerCLI_UpReady(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-			readConfig := &testDevcontainerExecer{
+			readConfigExecer := &testDevcontainerExecer{
 				testExePath: testExePath,
 				wantArgs:    "read-configuration --workspace-folder /test/workspace",
-				wantError:   tt.readConfig == "",
+				wantError:   tt.readConfigOutput == "",
 			}
-			if tt.readConfig != "" {
-				readConfig.logFile = filepath.Join(t.TempDir(), "read-config.log")
-				require.NoError(t, os.WriteFile(readConfig.logFile, []byte(tt.readConfig+"\n"), 0o600))
+			if tt.readConfigOutput != "" {
+				readConfigExecer.logFile = filepath.Join(t.TempDir(), "read-config.log")
+				require.NoError(t, os.WriteFile(readConfigExecer.logFile, []byte(tt.readConfigOutput+"\n"), 0o600))
 			}
 
 			ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -492,35 +492,35 @@ func TestDevcontainerCLI_UpReady(t *testing.T) {
 			defer ln.Close()
 
 			execer := &testDevcontainerExecer{
-				testExePath: testExePath,
-				wantArgs:    "up --log-format json --workspace-folder /test/workspace",
-				logFile:     filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
-				readConfig:  readConfig,
-				releaseAddr: ln.Addr().String(),
+				testExePath:      testExePath,
+				wantArgs:         "up --log-format json --workspace-folder /test/workspace",
+				logFile:          filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
+				readConfigExecer: readConfigExecer,
+				releaseAddr:      ln.Addr().String(),
 			}
-			if tt.readyAt != "" {
+			if tt.readyHook != "" {
 				// Block right before and right after the hook starts.
-				execer.blockAfter = []string{
-					"Running the " + tt.readyAt + " from devcontainer.json",
-					`"name":"Running ` + tt.readyAt + `...","status":"running"`,
+				execer.blockAfterLines = []string{
+					"Running the " + tt.readyHook + " from devcontainer.json",
+					`"name":"Running ` + tt.readyHook + `...","status":"running"`,
 				}
 			}
 
 			readyC := make(chan struct{})
-			blockedC := make(chan struct{}, len(execer.blockAfter))
+			blockedC := make(chan struct{}, len(execer.blockAfterLines))
 			upErrC := make(chan error, 1)
 			dccli := agentcontainers.NewDevcontainerCLI(logger, execer)
 			go func() {
 				_, err := dccli.Up(ctx, "/test/workspace", "",
-					agentcontainers.WithUpOutput(notifyWriter{match: helperBlockedText, c: blockedC}, io.Discard),
+					agentcontainers.WithUpOutput(notifyWriter{match: helperBlockedText, matchedC: blockedC}, io.Discard),
 					agentcontainers.WithUpReady(func() { close(readyC) }),
 				)
 				upErrC <- err
 			}()
 
-			for i := range execer.blockAfter {
+			for i, line := range execer.blockAfterLines {
 				testutil.RequireReceive(ctx, t, blockedC)
-				require.Equal(t, i > 0, isClosed(readyC), "ready after %q", execer.blockAfter[i])
+				require.Equal(t, i > 0, isClosed(readyC), "ready after %q", line)
 
 				require.NoError(t, ln.(*net.TCPListener).SetDeadline(time.Now().Add(testutil.WaitShort)))
 				conn, err := ln.Accept()
@@ -529,7 +529,7 @@ func TestDevcontainerCLI_UpReady(t *testing.T) {
 			}
 
 			require.NoError(t, testutil.RequireReceive(ctx, t, upErrC))
-			require.Equal(t, tt.readyAt != "", isClosed(readyC), "ready when Up returns")
+			require.Equal(t, tt.readyHook != "", isClosed(readyC), "ready when Up returns")
 		})
 	}
 }
@@ -543,15 +543,15 @@ func isClosed(c <-chan struct{}) bool {
 	}
 }
 
-// notifyWriter sends on c for each write that contains match.
+// notifyWriter sends on matchedC for each write that contains match.
 type notifyWriter struct {
-	match string
-	c     chan<- struct{}
+	match    string
+	matchedC chan<- struct{}
 }
 
 func (w notifyWriter) Write(p []byte) (int, error) {
 	if bytes.Contains(p, []byte(w.match)) {
-		w.c <- struct{}{}
+		w.matchedC <- struct{}{}
 	}
 	return len(p), nil
 }
@@ -563,9 +563,10 @@ type testDevcontainerExecer struct {
 	wantError   bool
 	logFile     string
 
-	readConfig  *testDevcontainerExecer // If set, runs read-configuration commands.
-	blockAfter  []string                // Log lines to block after, see TestDevcontainerHelperProcess.
-	releaseAddr string
+	readConfigExecer *testDevcontainerExecer // If set, runs read-configuration.
+	// See TestDevcontainerHelperProcess.
+	blockAfterLines []string
+	releaseAddr     string
 }
 
 // CommandContext returns a test binary command that simulates devcontainer responses.
@@ -575,8 +576,8 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 		// For non-devcontainer commands, use a standard execer.
 		return agentexec.DefaultExecer.CommandContext(ctx, name, args...)
 	}
-	if e.readConfig != nil && len(args) > 0 && args[0] == "read-configuration" {
-		return e.readConfig.CommandContext(ctx, name, args...)
+	if e.readConfigExecer != nil && len(args) > 0 && args[0] == "read-configuration" {
+		return e.readConfigExecer.CommandContext(ctx, name, args...)
 	}
 
 	// Create a command that runs the test binary with special flags
@@ -596,7 +597,7 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 		"TEST_DEVCONTAINER_WANT_ARGS="+e.wantArgs,
 		"TEST_DEVCONTAINER_WANT_ERROR="+fmt.Sprintf("%v", e.wantError),
 		"TEST_DEVCONTAINER_LOG_FILE="+e.logFile,
-		"TEST_DEVCONTAINER_BLOCK_AFTER="+strings.Join(e.blockAfter, "\n"),
+		"TEST_DEVCONTAINER_BLOCK_AFTER="+strings.Join(e.blockAfterLines, "\n"),
 		"TEST_DEVCONTAINER_RELEASE_ADDR="+e.releaseAddr,
 	)
 
@@ -614,9 +615,9 @@ func (*testDevcontainerExecer) PTYCommandContext(_ context.Context, name string,
 const helperBlockedText = "helper blocked"
 
 // This is a special test helper that is executed as a subprocess.
-// It simulates the behavior of the devcontainer CLI. After it writes
-// a log line that contains the next TEST_DEVCONTAINER_BLOCK_AFTER
-// entry, it logs helperBlockedText and waits until the test closes a
+// It simulates the behavior of the devcontainer CLI. After it writes a
+// log line that contains the next TEST_DEVCONTAINER_BLOCK_AFTER entry,
+// it logs helperBlockedText and waits until the test closes a
 // connection to TEST_DEVCONTAINER_RELEASE_ADDR.
 //
 //nolint:revive,paralleltest // This is a test helper function.
@@ -655,20 +656,20 @@ func TestDevcontainerHelperProcess(t *testing.T) {
 			fmt.Fprintf(os.Stderr, "Reading log file %s failed: %v\n", logFilePath, err)
 			os.Exit(2)
 		}
-		var blockAfter []string
+		var blockAfterLines []string
 		if v := os.Getenv("TEST_DEVCONTAINER_BLOCK_AFTER"); v != "" {
-			blockAfter = strings.Split(v, "\n")
+			blockAfterLines = strings.Split(v, "\n")
 		}
 		for _, line := range strings.SplitAfter(string(output), "\n") {
 			_, _ = os.Stdout.WriteString(line)
-			if len(blockAfter) == 0 || !strings.Contains(line, blockAfter[0]) {
+			if len(blockAfterLines) == 0 || !strings.Contains(line, blockAfterLines[0]) {
 				continue
 			}
-			blockAfter = blockAfter[1:]
+			blockAfterLines = blockAfterLines[1:]
 			_, _ = fmt.Fprintf(os.Stdout, "{\"type\":\"text\",\"level\":3,\"timestamp\":0,\"text\":%q}\n", helperBlockedText)
 			conn, err := net.Dial("tcp", os.Getenv("TEST_DEVCONTAINER_RELEASE_ADDR"))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Dial release address failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "dial release address failed: %v\n", err)
 				os.Exit(2)
 			}
 			_, _ = io.Copy(io.Discard, conn)
@@ -789,7 +790,7 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 		testutil.RequireReceive(ctx, t, readyC)
 		select {
 		case err := <-upErrC:
-			t.Fatalf("Up returned before updateContentCommand finished: %v", err)
+			t.Fatalf("devcontainer up returned before updateContentCommand finished: %v", err)
 		default:
 		}
 

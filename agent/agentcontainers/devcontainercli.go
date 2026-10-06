@@ -135,14 +135,12 @@ func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
 	}
 }
 
-// WithUpReady sets a function to call when the dev container is ready
-// to use, as set by waitFor in devcontainer.json. Lifecycle commands
-// after waitFor can still be running. The function is called at most
-// once, before Up returns, and must not block. It is not called if no
-// lifecycle command after waitFor runs.
-func WithUpReady(fn func()) DevcontainerCLIUpOptions {
+// WithUpReady calls onReady when the first lifecycle hook after waitFor starts.
+// It is called at most once, before Up returns, and must not block. If no such
+// hook runs, it is not called.
+func WithUpReady(onReady func()) DevcontainerCLIUpOptions {
 	return func(o *DevcontainerCLIUpConfig) {
-		o.OnReady = fn
+		o.OnReady = onReady
 	}
 }
 
@@ -187,16 +185,16 @@ func WithRemoteEnv(env ...string) DevcontainerCLIExecOptions {
 type DevcontainerCLIReadConfigOptions func(*devcontainerCLIReadConfigConfig)
 
 type devcontainerCLIReadConfigConfig struct {
-	stdout     io.Writer
-	stderr     io.Writer
-	skipMerged bool
+	stdout                  io.Writer
+	stderr                  io.Writer
+	skipMergedConfiguration bool
 }
 
-// withoutMergedConfiguration reads only devcontainer.json. The merged
-// configuration can need an image pull if the container doesn't exist.
+// withoutMergedConfiguration avoids pulling an image before up creates the
+// container.
 func withoutMergedConfiguration() DevcontainerCLIReadConfigOptions {
 	return func(o *devcontainerCLIReadConfigConfig) {
-		o.skipMerged = true
+		o.skipMergedConfiguration = true
 	}
 }
 
@@ -258,12 +256,12 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	}
 	args = append(args, conf.Args...)
 
-	stdoutReady, stderrReady := io.Discard, io.Discard
+	stdoutReadyWriter, stderrReadyWriter := io.Discard, io.Discard
 	if conf.OnReady != nil {
-		names := lifecycleHooksAfter(d.readWaitFor(ctx, logger, workspaceFolder, configPath))
+		progressNames := lifecycleProgressNamesAfter(d.readWaitFor(ctx, logger, workspaceFolder, configPath))
 		onReady := sync.OnceFunc(conf.OnReady)
-		stdoutReady = &lifecycleReadyWriter{names: names, onReady: onReady}
-		stderrReady = &lifecycleReadyWriter{names: names, onReady: onReady}
+		stdoutReadyWriter = &lifecycleReadyWriter{progressNames: progressNames, onReady: onReady}
+		stderrReadyWriter = &lifecycleReadyWriter{progressNames: progressNames, onReady: onReady}
 	}
 
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
@@ -272,7 +270,7 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(
 		&stdoutBuf,
-		stdoutReady,
+		stdoutReadyWriter,
 		&devcontainerCLILogWriter{
 			ctx:    ctx,
 			logger: logger.With(slog.F("stdout", true)),
@@ -281,7 +279,7 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	)
 	// Stream stderr logs and provided writer if any.
 	cmd.Stderr = io.MultiWriter(
-		stderrReady,
+		stderrReadyWriter,
 		&devcontainerCLILogWriter{
 			ctx:    ctx,
 			logger: logger.With(slog.F("stderr", true)),
@@ -359,7 +357,7 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
 	args := []string{"read-configuration"}
-	if !conf.skipMerged {
+	if !conf.skipMergedConfiguration {
 		args = append(args, "--include-merged-configuration")
 	}
 	if workspaceFolder != "" {
@@ -410,68 +408,62 @@ var devcontainerLifecycleHooks = []string{
 	"postAttachCommand",
 }
 
-// defaultWaitFor is the spec default for waitFor in devcontainer.json.
-const defaultWaitFor = "updateContentCommand"
+// defaultWaitForHook is the spec default for waitFor in devcontainer.json.
+const defaultWaitForHook = "updateContentCommand"
 
-// readWaitFor reads waitFor from devcontainer.json. It uses the spec
-// default if the config can't be read or the value isn't valid.
 func (d *devcontainerCLI) readWaitFor(ctx context.Context, logger slog.Logger, workspaceFolder, configPath string) string {
 	config, err := d.ReadConfig(ctx, workspaceFolder, configPath, nil, withoutMergedConfiguration())
 	if err != nil {
-		logger.Warn(ctx, "read waitFor failed, using default", slog.F("default", defaultWaitFor), slog.Error(err))
-		return defaultWaitFor
+		logger.Warn(ctx, "read waitFor failed, using default", slog.F("default", defaultWaitForHook), slog.Error(err))
+		return defaultWaitForHook
 	}
 	waitFor := config.Configuration.WaitFor
 	if waitFor == "" {
-		return defaultWaitFor
+		return defaultWaitForHook
 	}
-	// postAttachCommand is the last hook, so it isn't a valid waitFor.
-	if i := slices.Index(devcontainerLifecycleHooks, waitFor); i < 0 || i == len(devcontainerLifecycleHooks)-1 {
-		logger.Warn(ctx, "unknown waitFor value, using default", slog.F("wait_for", waitFor), slog.F("default", defaultWaitFor))
-		return defaultWaitFor
+	// The spec excludes postAttachCommand from waitFor.
+	if hookIndex := slices.Index(devcontainerLifecycleHooks, waitFor); hookIndex < 0 || hookIndex == len(devcontainerLifecycleHooks)-1 {
+		logger.Warn(ctx, "unknown waitFor value, using default", slog.F("wait_for", waitFor), slog.F("default", defaultWaitForHook))
+		return defaultWaitForHook
 	}
 	return waitFor
 }
 
-// lifecycleHooksAfter returns the CLI progress names of the lifecycle
-// hooks that run after waitFor.
-func lifecycleHooksAfter(waitFor string) []string {
-	i := slices.Index(devcontainerLifecycleHooks, waitFor)
-	var names []string
-	for _, hook := range devcontainerLifecycleHooks[i+1:] {
-		names = append(names, "Running "+hook+"...")
+func lifecycleProgressNamesAfter(waitFor string) []string {
+	waitForIndex := slices.Index(devcontainerLifecycleHooks, waitFor)
+	var progressNames []string
+	for _, hook := range devcontainerLifecycleHooks[waitForIndex+1:] {
+		progressNames = append(progressNames, "Running "+hook+"...")
 	}
-	return names
+	return progressNames
 }
 
-// lifecycleReadyWriter calls onReady when the devcontainer CLI starts a
-// lifecycle hook that runs after waitFor. The CLI logs a "running"
-// progress event when a hook starts. Hooks that are empty or already
-// ran don't log it.
+// lifecycleReadyWriter detects the first hook after waitFor. Empty or skipped
+// hooks emit no events, so readiness depends on the next hook that starts.
 type lifecycleReadyWriter struct {
-	names   []string
-	onReady func()
-	ready   bool
-	line    []byte // Partial line from earlier writes.
+	progressNames []string
+	onReady       func()
+	ready         bool
+	partialLine   []byte
 }
 
 func (w *lifecycleReadyWriter) Write(p []byte) (int, error) {
 	n := len(p)
 	for !w.ready {
-		i := bytes.IndexByte(p, '\n')
-		if i < 0 {
-			w.line = append(w.line, p...)
+		newlineIndex := bytes.IndexByte(p, '\n')
+		if newlineIndex < 0 {
+			w.partialLine = append(w.partialLine, p...)
 			break
 		}
-		w.line = append(w.line, p[:i]...)
-		p = p[i+1:]
-		if w.startsHookAfterWaitFor(w.line) {
+		w.partialLine = append(w.partialLine, p[:newlineIndex]...)
+		p = p[newlineIndex+1:]
+		if w.startsHookAfterWaitFor(w.partialLine) {
 			w.ready = true
-			w.line = nil
+			w.partialLine = nil
 			w.onReady()
 			break
 		}
-		w.line = w.line[:0]
+		w.partialLine = w.partialLine[:0]
 	}
 	return n, nil
 }
@@ -485,7 +477,7 @@ func (w *lifecycleReadyWriter) startsHookAfterWaitFor(line []byte) bool {
 	if len(line) == 0 || line[0] != '{' || json.Unmarshal(line, &event) != nil {
 		return false
 	}
-	return event.Type == "progress" && event.Status == "running" && slices.Contains(w.names, event.Name)
+	return event.Type == "progress" && event.Status == "running" && slices.Contains(w.progressNames, event.Name)
 }
 
 // parseDevcontainerCLILastLine parses the last line of the devcontainer CLI output

@@ -2930,8 +2930,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	require.Equal(t, subAgentToken.String(), payload.Token, "sub-agent token should match")
 	require.Equal(t, "/workspaces/mywork", payload.Directory, "sub-agent directory should match")
 
-	// The sub-agent started while postCreateCommand still runs, as it
-	// runs after waitFor.
+	// The sub-agent connects while postCreateCommand is still running.
 	require.NoError(t, os.WriteFile(filepath.Join(tempWorkspaceFolder, "release"), nil, 0o600))
 
 	// Allow the subagent to exit.
