@@ -157,11 +157,12 @@ Running the CLI separately doesn't collect those local IDE files.
 Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
 Sign in to your Coder deployment in the extension before collecting a bundle.
 
-- Bundle generation requires Coder version 2.10.0 or later.
-- Remote editor server log collection requires Coder version 2.36.0 or later, including a reachable workspace agent on that version or later.
+- Bundle generation requires Coder CLI version 2.10.0 or later.
+- Remote editor server log collection requires Coder CLI and workspace agent version 2.36.0 or later.
+  The workspace agent must be reachable.
 
-By default, the extension downloads a CLI that matches your deployment.
-If you configure a custom CLI, it must also meet these version requirements.
+The extension normally manages the CLI for you.
+If you configure a custom CLI, ensure it meets these requirements.
 
 > [!WARNING]
 > Remote workspace logs are not redacted and can contain credentials or source code.
@@ -184,6 +185,8 @@ The extension runs `coder support bundle` and adds local diagnostics under `vsco
 - SSH proxy and Remote-SSH logs.
 - Selected VS Code settings.
 - Local telemetry files, when available.
+
+Local log and telemetry collection includes files modified within the last 3&nbsp;days, with at most the last 50&nbsp;MiB of each file.
 
 The extension masks configured values for `coder.globalFlags`, `coder.headerCommand`, and `coder.tlsCertRefreshCommand`.
 Other collected settings, including deployment URLs, TLS file paths, and SSH flags, are included unchanged.
