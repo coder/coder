@@ -125,6 +125,7 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Working for 12s" }),
 		);
+
 		// The reasoning text streams in through the smoothing buffer.
 		await canvas.findByText(/planning the inspection/i);
 	},

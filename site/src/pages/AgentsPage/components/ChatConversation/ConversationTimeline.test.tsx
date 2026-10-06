@@ -316,11 +316,13 @@ describe("ConversationTimeline live working blocks", () => {
 		const { rerenderStage } = renderTimeline(
 			streamingStage(MockWorkingMessages.slice(0, 1), "first", 1),
 		);
+
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
 		await user.click(summary);
 
 		rerenderStage(streamingStage(MockWorkingMessages.slice(0, 3), "second", 5));
 		expect(summary).toHaveFocus();
+
 		const copyCommand = focusCopyCommand(2);
 
 		rerenderStage({
@@ -342,6 +344,7 @@ describe("ConversationTimeline live working blocks", () => {
 			streamTools: [],
 			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 		});
+
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
 		summary.focus();
 
@@ -377,6 +380,7 @@ describe("ConversationTimeline live working blocks", () => {
 			chatStatus: "running",
 			liveStatus: idleLive,
 		});
+
 		await user.click(
 			screen.getByRole("button", { name: "Working for at least 12s" }),
 		);

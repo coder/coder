@@ -97,6 +97,7 @@ describe("SmoothTextEngine", () => {
 
 	it("resumes a disposed loop only while a reveal is pending", () => {
 		const raf = vi.spyOn(globalThis, "requestAnimationFrame");
+
 		try {
 			const engine = new SmoothTextEngine();
 			engine.update(makeText(80), true, false);
@@ -105,6 +106,7 @@ describe("SmoothTextEngine", () => {
 			engine.dispose();
 			engine.resume();
 			expect(raf).toHaveBeenCalledTimes(2);
+
 			engine.resume();
 			expect(raf).toHaveBeenCalledTimes(2);
 
