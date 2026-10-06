@@ -1,5 +1,5 @@
 import { CircleDotIcon, ShieldIcon, UsersIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useQueryClient } from "react-query";
 import {
 	getValidationErrorMessage,
@@ -44,6 +44,8 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
+	// A new categories identity makes the combobox reconcile its input with
+	// `value`, which would drop uncommitted typed text on every render.
 	const categories = useMemo(
 		(): FilterCategory[] => [
 			{
@@ -77,19 +79,16 @@ export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 	);
 
 	// Keep the last seen keys, which the combobox value omits.
-	const handleChange = useCallback(
-		(query: string) => {
-			const values = parseFilterQuery(filter.query);
-			const lastSeenQuery = stringifyFilter({
-				[LAST_SEEN_AFTER_KEY]: values[LAST_SEEN_AFTER_KEY],
-				[LAST_SEEN_BEFORE_KEY]: values[LAST_SEEN_BEFORE_KEY],
-			});
-			filter.update(
-				[query, lastSeenQuery].filter((part) => part.length > 0).join(" "),
-			);
-		},
-		[filter],
-	);
+	const handleChange = (query: string) => {
+		const values = parseFilterQuery(filter.query);
+		const lastSeenQuery = stringifyFilter({
+			[LAST_SEEN_AFTER_KEY]: values[LAST_SEEN_AFTER_KEY],
+			[LAST_SEEN_BEFORE_KEY]: values[LAST_SEEN_BEFORE_KEY],
+		});
+		filter.update(
+			[query, lastSeenQuery].filter((part) => part.length > 0).join(" "),
+		);
+	};
 
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
