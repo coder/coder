@@ -248,6 +248,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				projects={projectsQuery.data ?? []}
+				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
 				onRetryProjects={() => void projectsQuery.refetch()}
