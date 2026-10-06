@@ -119,6 +119,19 @@
 		},
 		{
 			"provider": "anthropic",
+			"modelIdentifier": "claude-sonnet-5-5",
+			"displayName": "Claude Sonnet 5.5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "high",
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
+		},
+		{
+			"provider": "anthropic",
 			"modelIdentifier": "claude-sonnet-5",
 			"displayName": "Claude Sonnet 5",
 			"aliases": [],
@@ -233,6 +246,18 @@
 		},
 		{
 			"provider": "azure",
+			"modelIdentifier": "claude-sonnet-5-5",
+			"displayName": "Claude Sonnet 5.5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
+		},
+		{
+			"provider": "azure",
 			"modelIdentifier": "claude-sonnet-5",
 			"displayName": "Claude Sonnet 5",
 			"aliases": [],
@@ -302,6 +327,18 @@
 			"outputCost": 50,
 			"cacheReadCost": 1,
 			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "azure",
+			"modelIdentifier": "gpt-6.1-sol",
+			"displayName": "GPT-6.1 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "azure",
@@ -430,6 +467,18 @@
 			"outputCost": 5,
 			"cacheReadCost": 0.1,
 			"cacheWriteCost": 1.25
+		},
+		{
+			"provider": "bedrock",
+			"modelIdentifier": "global.anthropic.claude-sonnet-5-5",
+			"displayName": "Claude Sonnet 5.5 (Global)",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "bedrock",
@@ -623,6 +672,19 @@
 		},
 		{
 			"provider": "openai",
+			"modelIdentifier": "gpt-6.1-sol",
+			"displayName": "GPT-6.1 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "medium",
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
+		},
+		{
+			"provider": "openai",
 			"modelIdentifier": "gpt-6-sol",
 			"displayName": "GPT-6 Sol",
 			"aliases": [],
@@ -771,6 +833,18 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-6.1-sol",
+			"displayName": "GPT-6.1 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "openai/gpt-6-sol",
 			"displayName": "GPT-6 Sol",
 			"aliases": [],
@@ -857,10 +931,9 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 65536,
-			"inputCost": 0.15,
-			"outputCost": 0.6,
-			"cacheReadCost": 0.075
+			"maxOutputTokens": 117964,
+			"inputCost": 0.037,
+			"outputCost": 0.17
 		},
 		{
 			"provider": "openrouter",
@@ -869,9 +942,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 3,
-			"outputCost": 15,
-			"cacheReadCost": 0.3
+			"inputCost": 0.6913,
+			"outputCost": 10,
+			"cacheReadCost": 0.6913
 		},
 		{
 			"provider": "openrouter",
@@ -880,8 +953,8 @@
 			"aliases": [],
 			"contextLimit": 262144,
 			"maxOutputTokens": 235929,
-			"inputCost": 0.6562,
-			"outputCost": 3.3,
+			"inputCost": 0.6712,
+			"outputCost": 3.35,
 			"cacheReadCost": 0.18
 		},
 		{
@@ -889,22 +962,22 @@
 			"modelIdentifier": "z-ai/glm-5.3",
 			"displayName": "GLM-5.3",
 			"aliases": [],
-			"contextLimit": 1310720,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.84,
-			"outputCost": 2.64,
-			"cacheReadCost": 0.156
+			"contextLimit": 1048576,
+			"maxOutputTokens": 943718,
+			"inputCost": 0.2219,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.1775
 		},
 		{
 			"provider": "openrouter",
 			"modelIdentifier": "z-ai/glm-5.3-flash",
 			"displayName": "GLM-5.3-Flash",
 			"aliases": [],
-			"contextLimit": 1310720,
-			"maxOutputTokens": 943718,
+			"contextLimit": 1048576,
+			"maxOutputTokens": 943717,
 			"inputCost": 0.15,
 			"outputCost": 0.5,
-			"cacheReadCost": 0.05
+			"cacheReadCost": 0.03
 		},
 		{
 			"provider": "openrouter",
@@ -912,10 +985,10 @@
 			"displayName": "GLM-5.2",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.6496,
-			"outputCost": 2.0416,
-			"cacheReadCost": 0.12064
+			"maxOutputTokens": 943718,
+			"inputCost": 1.4,
+			"outputCost": 4.4,
+			"cacheReadCost": 0.26
 		},
 		{
 			"provider": "openrouter",
@@ -964,6 +1037,18 @@
 			"outputCost": 25,
 			"cacheReadCost": 0.5,
 			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "anthropic/claude-sonnet-5.5",
+			"displayName": "Claude Sonnet 5.5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "openrouter",
@@ -1067,10 +1152,10 @@
 			"displayName": "DeepSeek V4.1 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.14,
-			"outputCost": 0.42,
-			"cacheReadCost": 0.0042
+			"maxOutputTokens": 943718,
+			"inputCost": 0.03,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.01
 		},
 		{
 			"provider": "openrouter",
@@ -1079,9 +1164,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.088606,
-			"outputCost": 0.177212,
-			"cacheReadCost": 0.017721
+			"inputCost": 0.042,
+			"outputCost": 0.084,
+			"cacheReadCost": 0.0084
 		},
 		{
 			"provider": "openrouter",
@@ -1090,9 +1175,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.9396,
-			"outputCost": 1.8792,
-			"cacheReadCost": 0.0783
+			"inputCost": 0.2088,
+			"outputCost": 0.4176,
+			"cacheReadCost": 0.0174
 		},
 		{
 			"provider": "openrouter",
@@ -1136,9 +1221,9 @@
 			"aliases": [],
 			"contextLimit": 500000,
 			"maxOutputTokens": 450000,
-			"inputCost": 1.6,
-			"outputCost": 4.8,
-			"cacheReadCost": 0.4
+			"inputCost": 2,
+			"outputCost": 6,
+			"cacheReadCost": 0.5
 		},
 		{
 			"provider": "openrouter",
@@ -1175,6 +1260,18 @@
 			"outputCost": 50,
 			"cacheReadCost": 1,
 			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-6.1-sol",
+			"displayName": "GPT-6.1 Sol",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.1,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "vercel",
@@ -1289,7 +1386,7 @@
 			"maxOutputTokens": 32768,
 			"inputCost": 0.95,
 			"outputCost": 4,
-			"cacheReadCost": 0.16
+			"cacheReadCost": 0.19
 		},
 		{
 			"provider": "vercel",
@@ -1371,6 +1468,18 @@
 			"outputCost": 25,
 			"cacheReadCost": 0.5,
 			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "anthropic/claude-sonnet-5.5",
+			"displayName": "Claude Sonnet 5.5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "vercel",
@@ -1529,9 +1638,9 @@
 			"aliases": [],
 			"contextLimit": 500000,
 			"maxOutputTokens": 500000,
-			"inputCost": 1.2,
-			"outputCost": 3.6,
-			"cacheReadCost": 0.3
+			"inputCost": 2,
+			"outputCost": 6,
+			"cacheReadCost": 0.5
 		},
 		{
 			"provider": "vercel",

@@ -31,6 +31,7 @@ export type AgentSettingsGeneralPageViewProps = {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
+	chatBoardAvailable: boolean;
 };
 
 export const AgentSettingsGeneralPageView: React.FC<
@@ -44,6 +45,7 @@ export const AgentSettingsGeneralPageView: React.FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
+	chatBoardAvailable,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -69,7 +71,7 @@ export const AgentSettingsGeneralPageView: React.FC<
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
-			<ChatBoardSettings />
+			{chatBoardAvailable && <ChatBoardSettings />}
 		</div>
 	);
 };

@@ -1373,6 +1373,85 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.APIKeyHeader)
 }
 
+func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	base := codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "API Key Server",
+		Slug:          "api-key-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/api-key",
+		AuthType:      "api_key",
+		APIKeyHeader:  "Authorization",
+		APIKeyValue:   "Bearer secret",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	}
+	requireBadRequest := func(t *testing.T, err error) {
+		t.Helper()
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	}
+
+	// Whitespace-only values are trimmed before saving, so they count as empty.
+	blankHeader := base
+	blankHeader.APIKeyHeader = "  "
+	_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, blankHeader)
+	requireBadRequest(t, err)
+	blankValue := base
+	blankValue.APIKeyValue = "  "
+	_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, blankValue)
+	requireBadRequest(t, err)
+
+	noAuth := base
+	noAuth.AuthType = "none"
+	noAuth.APIKeyHeader = ""
+	noAuth.APIKeyValue = ""
+	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, noAuth)
+	require.NoError(t, err)
+
+	apiKeyAuth := "api_key"
+	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		AuthType: &apiKeyAuth,
+	})
+	requireBadRequest(t, err)
+
+	header := "Authorization"
+	value := "Bearer secret"
+	updated, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		AuthType:     &apiKeyAuth,
+		APIKeyHeader: &header,
+		APIKeyValue:  &value,
+	})
+	require.NoError(t, err)
+	require.True(t, updated.HasAPIKey)
+
+	empty := ""
+	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		APIKeyHeader: &empty,
+	})
+	requireBadRequest(t, err)
+	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		APIKeyValue: &empty,
+	})
+	requireBadRequest(t, err)
+
+	disabled := false
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		Enabled: &disabled,
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Enabled)
+	require.True(t, updated.HasAPIKey)
+}
+
 func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 	t.Parallel()
 

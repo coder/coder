@@ -69,9 +69,10 @@ style.
 3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
-   One outcome per page. New pages MUST be added to `docs/manifest.json` under
-   the right section, and the documentation lands in the same change as the
-   feature. If the change introduces, renames, or deprecates a Coder product
+   One outcome per page. New pages MUST be added to the right source file in
+   `docs/manifest/` (then run `make gen/docs-manifest`), and the documentation
+   lands in the same change as the feature. If the change introduces,
+   renames, or deprecates a Coder product
    or feature name, update the [glossary](../../../docs/reference/glossary.md)
    in the same change (add, edit, or mark the entry) per the
    [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
@@ -145,8 +146,8 @@ application notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
-- Keep the redirect PR in `coder/coder.com` in sync with the rename PR so the
-  old public path never 404s between merges.
+- Add the redirect to `docs/redirects.json` in the same PR as the rename so
+  the old public path never 404s between merges.
 
 ## Keep PRs reviewable
 
@@ -187,7 +188,7 @@ the whole series as a single review.
       unverified for the reviewer.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
 - [ ] One outcome per page, correct Diátaxis mode, added to
-      `docs/manifest.json`.
+      `docs/manifest/`, and `docs/manifest.json` rebuilt.
 - [ ] New, renamed, or deprecated product or feature names have a matching
       `docs/reference/glossary.md` entry (a rename keeps the former name; a
       deprecation names the replacement).
@@ -197,7 +198,7 @@ the whole series as a single review.
       not as conformance: tooling covers a small subset of the guide, and Vale
       never fails a build. The count lives in
       [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
-- [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
+- [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into

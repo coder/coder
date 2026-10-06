@@ -1,8 +1,17 @@
 import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	type UseQueryResult,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import {
+	type ChatAutomationNameMap,
+	chatAutomationNameMap,
+} from "#/api/queries/chatAutomations";
 import {
 	chatPromptsQuery,
 	refreshChatContext,
@@ -12,6 +21,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -37,6 +47,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -107,6 +118,13 @@ export const workspaceSkillsFromChat = (
 	}
 	return [...skills.values()];
 };
+
+const toChatAutomationNames = (
+	query: UseQueryResult<ChatAutomationNameMap>,
+): ChatAutomationNames => ({
+	names: query.data ?? new Map(),
+	status: query.isFetching ? "loading" : query.isError ? "error" : "settled",
+});
 
 type ChatPageTimelineProps = {
 	organizationId: string | undefined;
@@ -206,6 +224,15 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const { experiments } = useDashboard();
+	const automationNamesQuery = useQuery(
+		chatAutomationNameMap(organizationId, {
+			enabled:
+				messages.some((message) => message.automation_id !== undefined) &&
+				experiments.includes("chat-automations"),
+		}),
+	);
+	const automationNames = toChatAutomationNames(automationNamesQuery);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -226,6 +253,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
+					automationNames={automationNames}
 					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={liveStreamState}
@@ -307,6 +335,7 @@ type ChatPageInputProps = {
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -364,6 +393,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
+	onManageAutomationsToggle,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -409,6 +439,15 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const { experiments } = useDashboard();
+	const automationNamesQuery = useQuery(
+		chatAutomationNameMap(organizationId, {
+			enabled:
+				queuedMessages.some((message) => message.automation_id !== undefined) &&
+				experiments.includes("chat-automations"),
+		}),
+	);
+	const automationNames = toChatAutomationNames(automationNamesQuery);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -808,6 +847,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
+			automationNames={automationNames}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}
@@ -831,6 +871,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			manageAutomationsEnabled={chat.manage_automations_enabled}
+			onManageAutomationsToggle={onManageAutomationsToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}

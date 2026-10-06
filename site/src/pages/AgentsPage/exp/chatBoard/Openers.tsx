@@ -15,7 +15,7 @@ type ChatOpeners = {
  * Hidden while the chat works: the spinner already marks the chat, and the
  * dot would flicker on each token.
  */
-const UnreadBadge: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
+export const UnreadBadge: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 	if (!chat.has_unread || isActiveChatStatus(chat.status)) return null;
 	return (
 		<span
