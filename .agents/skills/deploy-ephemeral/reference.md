@@ -68,8 +68,8 @@ the skill re-applies the license.
 | `c7i.xlarge`  | 4 / 8 GiB  | Full mode (default); builds run one job at a time  |
 | `c7i.2xlarge` | 8 / 16 GiB | Full mode with faster builds and nested workspaces |
 
-Change the type with `coder restart <ws> -y --parameter instance_type=<type>`.
-The disk keeps all state.
+Change the type with the API build in step 4 of the skill. `coder restart
+--parameter` keeps the previous value. The disk keeps all state.
 
 ## Manual recovery
 

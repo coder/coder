@@ -109,16 +109,35 @@ For an existing workspace, read its parameters:
 api "/api/v2/workspacebuilds/$build_id/parameters" | jq -r '.[] | "\(.name)=\(.value)"'
 ```
 
-Build one `--parameter name=value` flag for each of `mode` and `branch` that
-differs from what you chose. Add an `instance_type` flag only when the user
-asked for a type, or when a `c7i.large` workspace moves to `full` (use
-`c7i.xlarge`); otherwise keep the current type. Then run the first command
-that applies, with those flags:
+Collect the values to change: `mode` and `branch` when they differ from what
+you chose, and `instance_type` only when the user asked for a type or a
+`c7i.large` workspace moves to `full` (use `c7i.xlarge`).
 
-- `outdated` is true: `coder update "$ws" -y`. It also starts a stopped
-  workspace.
-- The workspace is stopped: `coder start "$ws" -y`.
-- Any flag was built: `coder restart "$ws" -y`.
+- Nothing to change: if `outdated` is true, run `coder update "$ws" -y`,
+  which also starts a stopped workspace. Otherwise, if it is stopped, run
+  `coder start "$ws" -y`.
+- Values to change: `coder start`, `restart`, and `update` replace
+  `--parameter` values of mutable parameters with the previous build's
+  values, so make this build through the API. Stop the workspace unless it is
+  already stopped, then start it on the active template version with only the
+  changed values:
+
+  ```sh
+  coder stop "$ws" -y
+  ws_id=$(api "/api/v2/users/me/workspace/$ws" | jq -r .id)
+  version=$(api "/api/v2/users/me/workspace/$ws" | jq -r .template_active_version_id)
+  body=$(jq -n --arg version "$version" \
+    --argjson values '[{"name": "mode", "value": "full"}, {"name": "instance_type", "value": "c7i.xlarge"}]' \
+    '{transition: "start", template_version_id: $version, rich_parameter_values: $values}')
+  build=$(api "/api/v2/workspaces/$ws_id/builds" -X POST -d "$body" | jq -r .id)
+  while status=$(api "/api/v2/workspacebuilds/$build" | jq -r .job.status) &&
+    { [ "$status" = pending ] || [ "$status" = running ]; }; do sleep 10; done
+  echo "build $status" # anything but succeeded is a failure
+  ```
+
+  Put the changed values in `values`; the example moves a frontend
+  workspace to full mode. Confirm the result with
+  `api "/api/v2/workspacebuilds/$build/parameters"`.
 
 ## 5. Share the ports
 
