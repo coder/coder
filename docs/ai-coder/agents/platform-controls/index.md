@@ -69,7 +69,7 @@ This setting is available under **Admin settings** > **AI** > **Coder Agents** >
 Organization administrators can also set organization instructions that apply only to chats in their organization.
 Coder adds them after the deployment system prompt and never uses them in place of it.
 Set them in the **Organization instructions** section of the same page.
-If you have access to more than 1 organization, select the organization first.
+If you have access to more than one organization, select the organization first.
 
 Coder stores both prompts when it creates a chat, in this order:
 
