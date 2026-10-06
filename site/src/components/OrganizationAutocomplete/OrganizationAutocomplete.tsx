@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -76,6 +76,7 @@ export const OrganizationAutocomplete: React.FC<
 	...ariaProps
 }) => {
 	const [open, setOpen] = useState(false);
+	const contentId = useId();
 	const labelContext = labelOrganizations ?? options;
 
 	// GetOrganizations has no ORDER BY, so the caller needs a stable order.
@@ -93,10 +94,12 @@ export const OrganizationAutocomplete: React.FC<
 				<Button
 					{...ariaProps}
 					id={id}
+					role="combobox"
 					aria-label={ariaLabel}
 					variant="outline"
 					disabled={disabled}
 					aria-expanded={open}
+					aria-controls={contentId}
 					aria-required={required}
 					data-testid="organization-autocomplete"
 					className={cn(
@@ -124,6 +127,7 @@ export const OrganizationAutocomplete: React.FC<
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
+				id={contentId}
 				align="start"
 				className="w-(--radix-popover-trigger-width) p-0"
 			>

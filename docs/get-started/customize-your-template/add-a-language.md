@@ -145,7 +145,7 @@ The template installs each selected language from `install-languages.sh.tftpl`, 
 Open that file and add a branch that installs Ruby when the reader selects it:
 
 ```sh
-if echo "$LANGUAGES" | grep -q "ruby"; then
+if has_language ruby; then
   if command -v ruby >/dev/null 2>&1; then
     echo "Ruby: $(ruby --version | head -1)"
   else
@@ -158,6 +158,11 @@ fi
 ```
 
 The script installs Ruby with `apt-get`, the package manager built into the workspace image.
+`has_language` is a helper already defined at the top of the file.
+It matches whole entries in the comma-separated list of selected languages.
+
+Because `apt-get` installs Ruby into the workspace container, not your home directory, and Coder recreates the container each time the workspace starts, the script reinstalls Ruby on every start.
+Tools installed under your home directory, such as with a version manager, persist across restarts.
 
 > [!WARNING]
 > Use the package manager the workspace image provides, not a personal one.
@@ -265,7 +270,7 @@ The selection travels through the template in four steps:
 4. Inside the rendered script, the `ruby` branch matches and installs the toolchain:
 
    ```sh
-   if echo "$LANGUAGES" | grep -q "ruby"; then
+   if has_language ruby; then
    ```
 
 The first three steps ran as soon as you added the option, which is why Ruby appeared in the form.
@@ -751,6 +756,9 @@ resource "docker_container" "workspace" {
 
 ### install-languages.sh.tftpl
 
+The file also has a branch for each of the other languages, which this guide doesn't change.
+The beginning of the file and your new Ruby branch look like this:
+
 ```sh
 #!/bin/bash
 set -e
@@ -765,81 +773,17 @@ apt_update() {
   fi
 }
 
-if echo "$LANGUAGES" | grep -q "python"; then
-  if command -v python3 >/dev/null 2>&1; then
-    echo "Python: $(python3 --version)"
-  else
-    echo "Installing Python..."
-    apt_update
-    sudo apt-get install -y -qq python3 python3-pip python3-venv
-    echo "Installed Python: $(python3 --version)"
-  fi
-fi
+# has_language reports whether NAME is one of the selected languages.
+has_language() {
+  case ",$LANGUAGES," in
+    *",$1,"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
-if echo "$LANGUAGES" | grep -q "nodejs"; then
-  if command -v node >/dev/null 2>&1; then
-    echo "Node.js: $(node --version)"
-  else
-    echo "Installing Node.js 22..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-    sudo apt-get install -y -qq nodejs
-    echo "Installed Node.js: $(node --version)"
-  fi
-fi
+# ...existing language branches...
 
-if echo "$LANGUAGES" | grep -q "go"; then
-  if command -v /usr/local/go/bin/go >/dev/null 2>&1; then
-    echo "Go: $(/usr/local/go/bin/go version)"
-  else
-    echo "Installing Go..."
-    ARCH=$(uname -m)
-    case $ARCH in
-      x86_64)  GOARCH="amd64" ;;
-      aarch64) GOARCH="arm64" ;;
-      *)       echo "Unsupported architecture: $ARCH"; exit 1 ;;
-    esac
-    GO_VERSION=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1)
-    curl -fsSL "https://go.dev/dl/$${GO_VERSION}.linux-$${GOARCH}.tar.gz" | sudo tar -C /usr/local -xz
-    echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' | sudo tee /etc/profile.d/go.sh >/dev/null
-    echo "Installed Go: $(/usr/local/go/bin/go version)"
-  fi
-fi
-
-if echo "$LANGUAGES" | grep -q "rust"; then
-  if command -v rustc >/dev/null 2>&1 || [ -f "$HOME/.cargo/bin/rustc" ]; then
-    RUSTC=$${HOME}/.cargo/bin/rustc
-    command -v rustc >/dev/null 2>&1 && RUSTC=rustc
-    echo "Rust: $($RUSTC --version)"
-  else
-    echo "Installing Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    echo "Installed Rust: $($HOME/.cargo/bin/rustc --version)"
-  fi
-fi
-
-if echo "$LANGUAGES" | grep -q "java"; then
-  if command -v java >/dev/null 2>&1; then
-    echo "Java: $(java --version 2>&1 | head -1)"
-  else
-    echo "Installing Java (OpenJDK 21)..."
-    apt_update
-    sudo apt-get install -y -qq openjdk-21-jdk
-    echo "Installed Java: $(java --version 2>&1 | head -1)"
-  fi
-fi
-
-if echo "$LANGUAGES" | grep -q "cpp"; then
-  if command -v gcc >/dev/null 2>&1; then
-    echo "C/C++: $(gcc --version | head -1)"
-  else
-    echo "Installing C/C++ toolchain..."
-    apt_update
-    sudo apt-get install -y -qq gcc g++ make cmake
-    echo "Installed C/C++: $(gcc --version | head -1)"
-  fi
-fi
-
-if echo "$LANGUAGES" | grep -q "ruby"; then
+if has_language ruby; then
   if command -v ruby >/dev/null 2>&1; then
     echo "Ruby: $(ruby --version | head -1)"
   else

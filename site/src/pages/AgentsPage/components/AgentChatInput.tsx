@@ -145,14 +145,14 @@ type AgentChatInputProps = {
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
-	initialValue?: string;
+	initialValue: string;
 	// Serialized Lexical editor state for restoring drafts with
 	// file-reference chips. Takes precedence over initialValue.
 	initialEditorState?: string;
 	// Monotonic counter to force editor remount.
 	remountKey?: number;
 	// Called on every content change inside the editor.
-	onContentChange?: (
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -165,11 +165,11 @@ type AgentChatInputProps = {
 	hasModelOptions: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	manageAutomationsEnabled?: boolean;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	isModelCatalogLoading: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -202,9 +202,9 @@ type AgentChatInputProps = {
 	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
+	contextUsage?: AgentContextUsage;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
@@ -220,7 +220,7 @@ type AgentChatInputProps = {
 	onTextPreview?: (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -324,8 +324,8 @@ const BadgeDismissButton: React.FC<{
 
 type MCPGroupBadgeProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
-	onRemoveMcp?: (serverId: string) => void;
-	isDisabled?: boolean;
+	onRemoveMcp: (serverId: string) => void;
+	isDisabled: boolean;
 	className: string;
 };
 
@@ -373,9 +373,9 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
-	onRemoveMcp?: (serverId: string) => void;
+	onRemoveMcp: (serverId: string) => void;
 	onRemovePlanning?: () => void;
-	isDisabled?: boolean;
+	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
 	disableTooltip?: boolean;
@@ -493,13 +493,11 @@ const ToolBadge: React.FC<{
 					<span className="sr-only">Always on</span>
 				</>
 			) : (
-				onRemoveMcp && (
-					<BadgeDismissButton
-						onClick={() => onRemoveMcp(badge.server.id)}
-						ariaLabel={`Remove ${badge.server.display_name}`}
-						isDisabled={isDisabled}
-					/>
-				)
+				<BadgeDismissButton
+					onClick={() => onRemoveMcp(badge.server.id)}
+					ariaLabel={`Remove ${badge.server.display_name}`}
+					isDisabled={isDisabled}
+				/>
 			)}
 		</span>
 	);
@@ -569,11 +567,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	hasModelOptions,
 	reasoningEffort,
 	onReasoningEffortChange,
-	planModeEnabled = false,
+	planModeEnabled,
 	onPlanModeToggle,
 	manageAutomationsEnabled = false,
 	onManageAutomationsToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -849,11 +847,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		handleMcpToggle(serverId, false);
 
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisablePlanMode = () => onPlanModeToggle(false);
 
 	const handleManageAutomationsToggle = () => {
 		onManageAutomationsToggle?.(!manageAutomationsEnabled);
@@ -1084,14 +1082,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleTextPreview = (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => {
 		if (onTextPreview) {
 			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
-			setPreviewTextMediaType(mediaType ?? null);
+			setPreviewTextMediaType(mediaType);
 		}
 	};
 
@@ -1121,11 +1119,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// Track whether the editor has content so we can gate the
 	// send button without a controlled value prop.
 	const [hasContent, setHasContent] = useState(() =>
-		Boolean(initialValue?.trim()),
+		Boolean(initialValue.trim()),
 	);
 
 	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
-		countInvisibleCharacters(initialValue ?? ""),
+		countInvisibleCharacters(initialValue),
 	);
 
 	const handleContentChange = (
@@ -1146,7 +1144,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content, serializedEditorState, hasRefs);
+		onContentChange(content, serializedEditorState, hasRefs);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -1401,9 +1399,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
-					{(aiGatewayDisabled ||
-						(providerCount !== undefined && modelCount !== undefined)) &&
-					canConfigureAgentSetup ? (
+					{canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
 							providerCount={providerCount ?? 0}
@@ -1505,7 +1501,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					disabled={isReadOnly || isLoading}
 					hasWorkspace={hasSkillsWorkspace}
 					workspaceSkills={workspaceSkills}
-					autoFocus
 					slashCommands={slashCommands}
 					skillsMenuAnchor={composerElement}
 				/>
@@ -1617,15 +1612,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										{onPlanModeToggle && (
-											<PlusMenuCheckboxItem
-												icon={PencilIcon}
-												label="Plan first"
-												checked={planModeEnabled}
-												onToggle={handlePlanModeToggle}
-												disabled={isDisabled}
-											/>
-										)}
+										<PlusMenuCheckboxItem
+											icon={PencilIcon}
+											label="Plan first"
+											checked={planModeEnabled}
+											onToggle={handlePlanModeToggle}
+											disabled={isDisabled}
+										/>
 										{onManageAutomationsToggle && (
 											<PlusMenuCheckboxItem
 												icon={ZapIcon}
@@ -1810,13 +1803,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							>
 								<PencilIcon className="size-3" />
 								Planning
-								{onPlanModeToggle && (
-									<BadgeDismissButton
-										onClick={handleDisablePlanMode}
-										ariaLabel="Disable plan mode"
-										isDisabled={isDisabled}
-									/>
-								)}
+								<BadgeDismissButton
+									onClick={handleDisablePlanMode}
+									ariaLabel="Disable plan mode"
+									isDisabled={isDisabled}
+								/>
 							</span>
 						)}
 						{/* Badges and the +N pill stay mounted for measurement:
@@ -1860,9 +1851,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
-										onRemovePlanning={
-											onPlanModeToggle ? handleDisablePlanMode : undefined
-										}
+										onRemovePlanning={handleDisablePlanMode}
 										isDisabled={isDisabled}
 										className={isOverflow ? "hidden" : undefined}
 									/>
@@ -1933,9 +1922,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
-												onRemovePlanning={
-													onPlanModeToggle ? handleDisablePlanMode : undefined
-												}
+												onRemovePlanning={handleDisablePlanMode}
 												isDisabled={isDisabled}
 												disableTooltip
 											/>
