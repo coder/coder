@@ -32,6 +32,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspace,
 	MockOrganization2,
@@ -336,6 +337,26 @@ const mockPermittedOrganizations = (
 };
 
 export const Default: Story = {};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(/which this project belongs to/);
+	},
+};
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const canvas = within(canvasElement);
