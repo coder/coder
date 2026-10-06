@@ -39,6 +39,9 @@ type seededChat struct {
 	dynamicToolName        string
 	pendingToolCallID      string
 	pendingToolCallIDs     []string
+	// staleQueuedMessageID is the stale automation row seeded at the
+	// queue head by staleHeadSeed.
+	staleQueuedMessageID int64
 }
 
 // dynamicToolJSON returns the canonical [{name,description,input_schema}]

@@ -128,6 +128,16 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat automation
+	//  - "ActionDelete" :: delete a chat automation
+	//  - "ActionRead" :: read chat automations
+	//  - "ActionUpdate" :: update a chat automation
+	ResourceChatAutomation = Object{
+		Type: "chat_automation",
+	}
+
 	// ResourceChatModelConfig
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat model config
@@ -147,6 +157,15 @@ var (
 	//  - "ActionUpdate" :: update a chat project
 	ResourceChatProject = Object{
 		Type: "chat_project",
+	}
+
+	// ResourceChatProjectMemory
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat project memory
+	//  - "ActionDelete" :: delete a chat project memory
+	//  - "ActionRead" :: read chat project memories
+	ResourceChatProjectMemory = Object{
+		Type: "chat_project_memory",
 	}
 
 	// ResourceConnectionLog
@@ -533,8 +552,10 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatAutomation,
 		ResourceChatModelConfig,
 		ResourceChatProject,
+		ResourceChatProjectMemory,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

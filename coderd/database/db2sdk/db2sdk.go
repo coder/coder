@@ -1667,6 +1667,8 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:       m.CreatedAt,
 		Role:            codersdk.ChatMessageRole(m.Role),
 		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
+		InputID:         nullUUIDPtr(m.InputID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1731,6 +1733,8 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		AutomationID:  nullUUIDPtr(message.AutomationID),
+		InputID:       nullUUIDPtr(message.InputID),
 	}
 }
 
@@ -1782,6 +1786,49 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
+}
+
+// ChatAutomation converts a chat automation row to its SDK form. The
+// webhook secret hash is never included. nextRuns are the upcoming schedule
+// runs the caller computed; a nil slice is returned as empty.
+func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.ChatAutomation {
+	automation := codersdk.ChatAutomation{
+		ID:                   row.ID,
+		OrganizationID:       row.OrganizationID,
+		OwnerID:              row.OwnerID,
+		Name:                 row.Name,
+		CreatedByChatID:      nullUUIDPtr(row.CreatedByChatID),
+		Kind:                 codersdk.ChatAutomationKind(row.Kind),
+		Enabled:              row.Enabled,
+		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
+		TargetChatID:         nullUUIDPtr(row.TargetChatID),
+		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		WebhookSecretVersion: row.WebhookSecretVersion,
+		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
+		Prompt:               row.Prompt,
+		ScheduleCron:         nullStringPtr(row.ScheduleCron),
+		ScheduleTimeZone:     nullStringPtr(row.ScheduleTimeZone),
+		ScheduleNextRunAt:    nullTimePtr(row.ScheduleNextRunAt),
+		NextRunTimes:         nextRuns,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+	if automation.NextRunTimes == nil {
+		automation.NextRunTimes = []time.Time{}
+	}
+	if row.ReasoningEffort.Valid {
+		effort := string(row.ReasoningEffort.ChatReasoningEffort)
+		automation.ReasoningEffort = &effort
+	}
+	if row.WhenBusy.Valid {
+		whenBusy := codersdk.ChatAutomationWhenBusy(row.WhenBusy.ChatAutomationWhenBusy)
+		automation.WhenBusy = &whenBusy
+	}
+	if row.WebhookUse.Valid {
+		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
+		automation.WebhookUse = &webhookUse
+	}
+	return automation
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1864,6 +1911,32 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	}
 }
 
+func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
+	memories := make([]codersdk.ChatProjectMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+	return codersdk.ChatProjectMemory{
+		ID:                memory.ID,
+		ProjectID:         memory.ProjectID,
+		OrganizationID:    memory.OrganizationID,
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedBy:         memory.CreatedBy,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+	}
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1888,6 +1961,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
+		TitleSource:       codersdk.ChatTitleSource(c.TitleSource),
+		TitleUpdatedAt:    c.TitleUpdatedAt,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
 		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
@@ -1898,6 +1973,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+
+		ManageAutomationsEnabled: c.ManageAutomationsEnabled,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
