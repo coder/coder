@@ -60,3 +60,5 @@ their Coder Workspaces and Templates.
 
 Coder administrators can monitor the health of their Coder deployment, including
 database latency, active provisioners, and more.
+
+These screenshots show a recent release.
