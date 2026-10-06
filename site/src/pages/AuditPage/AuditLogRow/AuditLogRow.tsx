@@ -118,9 +118,12 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 										{showOrgDetails ? (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<InfoIcon className="size-icon-sm text-content-secondary" />
+											<Tooltip interactive>
+												<TooltipTrigger
+													aria-label="Request details"
+													className="m-0 flex items-center border-0 bg-transparent p-0 text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+												>
+													<InfoIcon className="size-icon-sm" />
 												</TooltipTrigger>
 												<TooltipContent side="bottom">
 													<div className="flex flex-col gap-2">

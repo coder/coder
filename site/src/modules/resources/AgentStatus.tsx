@@ -51,11 +51,12 @@ const AgentWarningTooltip: React.FC<AgentWarningTooltipProps> = ({
 	variant = "warning",
 }) => {
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
+		<Tooltip interactive>
+			<TooltipTrigger
+				aria-label={ariaLabel}
+				className="m-0 flex items-center border-0 bg-transparent p-0 rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
 				<TriangleAlertIcon
-					role="status"
-					aria-label={ariaLabel}
 					className={cn(
 						"relative size-3.5",
 						variant === "warning"

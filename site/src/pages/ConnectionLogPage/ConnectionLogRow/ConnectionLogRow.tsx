@@ -69,9 +69,12 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<InfoIcon className="size-icon-sm text-content-secondary" />
+								<Tooltip interactive>
+									<TooltipTrigger
+										aria-label="Connection details"
+										className="m-0 flex items-center border-0 bg-transparent p-0 text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+									>
+										<InfoIcon className="size-icon-sm" />
 									</TooltipTrigger>
 									<TooltipContent side="bottom">
 										<div className="flex flex-col gap-2">

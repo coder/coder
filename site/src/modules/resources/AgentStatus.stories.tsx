@@ -17,7 +17,7 @@ type Story = StoryObj<typeof AgentStatus>;
 
 /**
  * Shared play helper that hovers the status icon, then asserts the
- * tooltip contains the expected title and detail text, plus a
+ * popover contains the expected title and detail text, plus a
  * troubleshoot link when the agent has a troubleshooting URL.
  */
 async function expectTooltip(
@@ -26,10 +26,10 @@ async function expectTooltip(
 	detail: string,
 	hasTroubleshootLink: boolean,
 ) {
-	const icon = screen.getByRole("status", { name: ariaLabel });
+	const icon = screen.getByRole("button", { name: ariaLabel });
 	await userEvent.hover(icon);
 	await waitFor(() => {
-		const tooltip = screen.getByRole("tooltip");
+		const tooltip = screen.getByRole("dialog");
 		expect(tooltip).toHaveTextContent(title);
 		expect(tooltip).toHaveTextContent(detail);
 		if (hasTroubleshootLink) {
