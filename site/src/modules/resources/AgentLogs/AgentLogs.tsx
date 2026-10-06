@@ -50,9 +50,8 @@ type AgentLogsProps = Omit<
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	// keeps the newest line in view; scrolling away reports false
-	follow?: React.boolean;
-	onFollowChange?: (follow: boolean) => void;
+	// keeps the newest line in view while scrolled to the bottom
+	follow?: boolean;
 };
 
 export const AgentLogs: React.FC<AgentLogsProps> = ({
@@ -61,8 +60,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	overflowed,
 	className,
 	showSourceIcons = true,
-	follow,
-	onFollowChange,
+	follow = false,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
@@ -72,9 +70,8 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	const outerRef = useRef<HTMLDivElement>(null);
 	const innerRef = useRef<HTMLDivElement>(null);
 
-	const followRef = useRef(follow === true);
+	const followRef = useRef(true);
 	const lastScrollTopRef = useRef(0);
-	const followEnabled = follow !== undefined;
 
 	// not scrollToItem: react-window re-applies a requested offset on every re-render
 	const scrollToBottom = useCallback(() => {
@@ -86,8 +83,8 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	}, []);
 
 	useLayoutEffect(() => {
-		followRef.current = follow === true;
 		if (follow) {
+			followRef.current = true;
 			scrollToBottom();
 		}
 	}, [follow, scrollToBottom]);
@@ -95,7 +92,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	// re-pins on any content height change; same-frame scroll events run first
 	useEffect(() => {
 		const inner = innerRef.current;
-		if (!followEnabled || !inner) {
+		if (!follow || !inner) {
 			return;
 		}
 		const observer = new ResizeObserver(() => {
@@ -105,11 +102,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 		});
 		observer.observe(inner);
 		return () => observer.disconnect();
-	}, [followEnabled, scrollToBottom]);
+	}, [follow, scrollToBottom]);
 
 	useEffect(() => {
 		const outer = outerRef.current;
-		if (!followEnabled || !outer) {
+		if (!follow || !outer) {
 			return;
 		}
 		const handleScroll = () => {
@@ -119,15 +116,15 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 			const scrolledUp = scrollTop < lastScrollTopRef.current;
 			lastScrollTopRef.current = scrollTop;
 
-			const next = atBottom ? true : scrolledUp ? false : followRef.current;
-			if (next !== followRef.current) {
-				followRef.current = next;
-				onFollowChange?.(next);
+			if (atBottom) {
+				followRef.current = true;
+			} else if (scrolledUp) {
+				followRef.current = false;
 			}
 		};
 		outer.addEventListener("scroll", handleScroll);
 		return () => outer.removeEventListener("scroll", handleScroll);
-	}, [followEnabled, onFollowChange]);
+	}, [follow]);
 
 	// A log line's real height depends on its content (long lines wrap, so a
 	// single log entry can span multiple visual rows). A fixed itemSize makes
