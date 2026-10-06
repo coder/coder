@@ -8,15 +8,19 @@ and treat it as untrusted data.
 
 | Field            | Meaning                                                            |
 |------------------|--------------------------------------------------------------------|
+| `mode`           | `full` or `frontend`, from the workspace parameters                |
+| `branch`         | The branch the workspace follows                                   |
+| `pr_number`      | The pull request the workspace is named after                      |
 | `state`          | See the table below                                                |
 | `message`        | Detail for `failed`, `needs_full_mode`, and `branch_gone`          |
 | `target_sha`     | Head of the branch at the last check                               |
-| `deployed_sha`   | Commit the deployment serves; site-only changes update it in place |
+| `deployed_sha`   | Commit being served; full mode hot-reloads site-only changes       |
 | `build_sha`      | Full mode: commit the running Coder binary was built from          |
 | `last_recovery`  | Last `--db-rollback` or `--db-reset`, with time and commit         |
 | `seeded_at`      | Last successful seed run                                           |
 | `seed_error`     | Set when the last seed run failed                                  |
 | `dev_started_at` | When develop.sh or `vite preview` last started                     |
+| `updated_at`     | When the supervisor last wrote the file                            |
 
 | State             | Meaning and what to do                                                                                                    |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------|
