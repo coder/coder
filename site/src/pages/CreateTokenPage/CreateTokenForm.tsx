@@ -97,9 +97,13 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 							The token will expire on{" "}
 							<span data-pixel="ignore">
 								{currentTime
-									.add(form.values.lifetime, "days")
+									.add(form.values.lifetime * 24, "hours")
 									.utc()
-									.format("MMMM DD, YYYY")}
+									.format(
+										form.values.lifetime < 1
+											? "MMMM DD, YYYY [at] HH:mm [UTC]"
+											: "MMMM DD, YYYY",
+									)}
 							</span>
 						</>
 					) : (
@@ -130,9 +134,12 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 											{lt.label}
 										</SelectItem>
 									))}
-									<SelectItem value={String(customLifetimeDay.value)}>
-										{customLifetimeDay.label}
-									</SelectItem>
+									{(!maxTokenLifetime ||
+										maxTokenLifetime >= 24 * NANO_HOUR) && (
+										<SelectItem value={String(customLifetimeDay.value)}>
+											{customLifetimeDay.label}
+										</SelectItem>
+									)}
 								</SelectContent>
 							</Select>
 						</div>

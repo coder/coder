@@ -1,3 +1,5 @@
+import { humanDuration } from "#/utils/time";
+
 export const NANO_HOUR = 3600000000000;
 
 export type CreateTokenData = {
@@ -40,6 +42,15 @@ export const filterByMaxTokenLifetime = (
 	// if maxTokenLifetime hasn't been set, return the full array of options
 	if (!maxTokenLifetime) {
 		return lifetimeDayPresets;
+	}
+
+	if (maxTokenLifetime > 0 && maxTokenLifetime < 24 * NANO_HOUR) {
+		return [
+			{
+				label: humanDuration(maxTokenLifetime / 1_000_000),
+				value: maxTokenLifetime / NANO_HOUR / 24,
+			},
+		];
 	}
 
 	// otherwise only return options that are less than or equal to the max lifetime

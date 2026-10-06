@@ -62,7 +62,10 @@ const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 		onSubmit: (values) => {
 			saveToken(
 				{
-					lifetime: values.lifetime * 24 * NANO_HOUR,
+					lifetime: Math.min(
+						Math.round(values.lifetime * 24 * NANO_HOUR),
+						tokenConfig?.max_token_lifetime || Number.POSITIVE_INFINITY,
+					),
 					token_name: values.name,
 					scope: "all", // tokens are currently unscoped
 				},
