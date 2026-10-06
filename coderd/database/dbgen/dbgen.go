@@ -181,7 +181,21 @@ func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomatio
 		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
 	}
 
-	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+	ctx := genCtx
+	if seed.TargetChatID.Valid {
+		chat, err := db.GetChatByID(genCtx, seed.TargetChatID.UUID)
+		require.NoError(t, err, "get target chat")
+		// Existing-chat automations require update permission on the target.
+		ctx = dbauthz.As(genCtx, rbac.Subject{
+			ID: chat.OwnerID.String(),
+			Roles: rbac.RoleIdentifiers{
+				rbac.RoleOwner(), rbac.ScopedRoleAgentsAccess(chat.OrganizationID),
+			},
+			Scope: rbac.ScopeAll,
+		})
+	}
+
+	automation, err := db.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
 		ID:                   takeFirst(seed.ID, uuid.New()),
 		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
@@ -530,7 +544,9 @@ func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer)
 		}).ID
 	}
 
-	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+	// Configuring an MCP server requires update permission on its chat.
+	//nolint:gocritic // Seed other users' chat configurations as the system actor.
+	server, err := db.UpsertChatMCPServer(dbauthz.AsSystemRestricted(genCtx), database.UpsertChatMCPServerParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		ChatID:              chatID,
 		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
