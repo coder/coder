@@ -868,7 +868,7 @@ describe("applyMessagePartToStreamState", () => {
 });
 
 describe("startedAt", () => {
-	it("records the earliest reasoning or tool part timestamp", () => {
+	it("keeps the first reasoning or tool part timestamp", () => {
 		const thinking = applyMessagePartToStreamState(null, {
 			type: "reasoning",
 			text: "Plan",

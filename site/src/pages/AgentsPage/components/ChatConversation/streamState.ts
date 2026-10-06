@@ -17,18 +17,7 @@ export const createEmptyStreamState = (): StreamState => ({
 	sources: [],
 });
 
-const earliestTimestamp = (
-	current: string | undefined,
-	candidate: string | undefined,
-): string | undefined => {
-	if (!current || !candidate) {
-		return current ?? candidate;
-	}
-
-	return Date.parse(candidate) < Date.parse(current) ? candidate : current;
-};
-
-const applyPart = (
+export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
 	part: TypesGen.ChatMessagePart,
 ): StreamState | null => {
@@ -53,6 +42,7 @@ const applyPart = (
 			}
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
 			};
 		}
@@ -87,6 +77,7 @@ const applyPart = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -130,6 +121,7 @@ const applyPart = (
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
@@ -137,6 +129,7 @@ const applyPart = (
 			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
@@ -160,6 +153,7 @@ const applyPart = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,
@@ -241,25 +235,6 @@ const applyPart = (
 			return prev;
 		}
 	}
-};
-
-export const applyMessagePartToStreamState = (
-	prev: StreamState | null,
-	part: TypesGen.ChatMessagePart,
-): StreamState | null => {
-	const next = applyPart(prev, part);
-	if (next === prev || !next) {
-		return next;
-	}
-
-	const startedAt =
-		part.type === "reasoning" ||
-		part.type === "tool-call" ||
-		part.type === "tool-result"
-			? earliestTimestamp(next.startedAt, part.created_at)
-			: next.startedAt;
-
-	return startedAt === next.startedAt ? next : { ...next, startedAt };
 };
 
 const getStreamToolStatus = (
