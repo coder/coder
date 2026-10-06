@@ -20,7 +20,7 @@ import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import type { ProjectDialogMode } from "./chats/ProjectFolders";
+import type { ProjectDialogState } from "./chats/ProjectFolders";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -137,7 +137,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 
 	// Each dialog keeps its content after closing so the exit animation does
 	// not flash empty.
-	const [projectDialog, setProjectDialog] = useState<ProjectDialogMode>({
+	const [projectDialog, setProjectDialog] = useState<ProjectDialogState>({
 		mode: "create",
 	});
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
@@ -146,7 +146,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		open: boolean;
 	}>({ project: null, open: false });
 
-	const openProjectDialog = (dialog: ProjectDialogMode) => {
+	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
 			createProjectMutation.reset();
 		} else {

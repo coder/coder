@@ -20,7 +20,8 @@ describe("ProjectFolders", () => {
 					onToggle={onToggle}
 					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
-					emptyMessage="No chats here"
+					emptyMessage="No agents yet"
+					isLoading={false}
 					error={new Error("Projects unavailable")}
 					onRetry={onRetry}
 				/>

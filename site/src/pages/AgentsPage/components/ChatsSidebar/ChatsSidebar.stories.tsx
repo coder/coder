@@ -5,11 +5,13 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -2613,5 +2615,49 @@ export const ProjectChatWithoutLoadedProject: Story = {
 				data: [MockChatProject],
 			},
 		],
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockEmojiProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	icon: "/emojis/1f680.png",
+};
+
+export const ProjectFolderEmptyWithEmojiIcon: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${mockEmojiProject.id}`,
+				pathParams: { projectId: mockEmojiProject.id },
+			},
+			routing: agentsRouting,
+		}),
 	},
 };

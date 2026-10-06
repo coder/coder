@@ -29,11 +29,11 @@ import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
-export type ProjectDialogMode =
+export type ProjectDialogState =
 	| { mode: "create" }
 	| { mode: "edit"; project: ChatProject };
 
-export type OpenProjectDialog = (mode: ProjectDialogMode) => void;
+export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
@@ -43,8 +43,8 @@ type ProjectFoldersProps = {
 	readonly onToggle: (projectId: string) => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDelete: DeleteProject;
-	readonly isLoading?: boolean;
-	readonly error?: unknown;
+	readonly isLoading: boolean;
+	readonly error: unknown;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 };
@@ -56,7 +56,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	onToggle,
 	onOpenProjectDialog,
 	onDelete,
-	isLoading = false,
+	isLoading,
 	error,
 	onRetry,
 	emptyMessage,

@@ -85,7 +85,7 @@ type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	readonly projects: readonly ChatProject[];
 	readonly isProjectsLoading: boolean;
-	readonly projectsError?: unknown;
+	readonly projectsError: unknown;
 	readonly onRetryProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDeleteProject: DeleteProject;
@@ -405,7 +405,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
-	const isShowingEmptyState = visibleRootIDs.length === 0;
+	// Project chats are held back while projects load, so they only count as
+	// filed once their folders can show them.
+	const areAllChatsFiled =
+		visibleRootIDs.length > 0 &&
+		pinnedChats.length === 0 &&
+		sharedWithYouChats.length === 0 &&
+		chatSections.length === 0 &&
+		!isProjectsLoading;
+	const isShowingEmptyState = visibleRootIDs.length === 0 || areAllChatsFiled;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -530,13 +538,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							isLoading={isProjectsLoading}
 							error={projectsError}
 							onRetry={onRetryProjects}
-							emptyMessage={
-								hasAppliedResultFilters
-									? "No chats match these filters"
-									: isViewingArchived
-										? "No archived chats"
-										: "No chats here"
-							}
+							emptyMessage={emptyStateMessage}
 						/>
 					</ChatTreeContext>
 				)}
@@ -612,7 +614,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								<div className="pb-2">
 									{isShowingEmptyState ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">{emptyStateMessage}</p>
+											<p className="m-0">
+												{areAllChatsFiled
+													? "All agents are in projects"
+													: emptyStateMessage}
+											</p>
 											{hasAppliedResultFilters && (
 												<button
 													type="button"

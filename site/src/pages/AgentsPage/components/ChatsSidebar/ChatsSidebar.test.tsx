@@ -144,7 +144,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 describe("ChatsSidebar projects", () => {
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
-		const otherProject = {
+		const mockOtherProject = {
 			...MockChatProject,
 			id: "other-project",
 			name: "Other",
@@ -158,7 +158,7 @@ describe("ChatsSidebar projects", () => {
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
 				projectListRequests += 1;
-				return HttpResponse.json([MockChatProject, otherProject]);
+				return HttpResponse.json([MockChatProject, mockOtherProject]);
 			}),
 			http.delete(
 				"/api/experimental/organizations/:organization/chats/projects/:project",
@@ -195,7 +195,7 @@ describe("ChatsSidebar projects", () => {
 			expect(deletedProjectIds).toEqual([MockChatProject.id]),
 		);
 		await user.keyboard("{Escape}");
-		await deleteProject(otherProject.name);
+		await deleteProject(mockOtherProject.name);
 
 		const requestsBeforeFinish = projectListRequests;
 		finishDelete();
@@ -205,8 +205,47 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 		await waitFor(() =>
-			expect(deletedProjectIds).toEqual([MockChatProject.id, otherProject.id]),
+			expect(deletedProjectIds).toEqual([
+				MockChatProject.id,
+				mockOtherProject.id,
+			]),
 		);
+	});
+
+	it("explains an empty chat list when every chat is in a project", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const mockProjectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		expect(screen.queryByText("All agents are in projects")).toBeNull();
+
+		resolveProjects();
+		expect(
+			await screen.findByText("All agents are in projects"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("No agents yet")).toBeNull();
 	});
 
 	it("keeps project chats out of the chat sections while projects load", async () => {
@@ -222,17 +261,20 @@ describe("ChatsSidebar projects", () => {
 				return HttpResponse.json([MockChatProject]);
 			}),
 		);
-		const projectChat = buildChat({
+		const mockProjectChat = buildChat({
 			id: "project-chat",
 			title: "Project chat",
 			organization_id: MockChatProject.organization_id,
 			project_id: MockChatProject.id,
 		});
-		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
+		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
 
 		render(
 			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} chats={[projectChat, looseChat]} />
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[mockProjectChat, mockLooseChat]}
+				/>
 			</Wrapper>,
 		);
 
