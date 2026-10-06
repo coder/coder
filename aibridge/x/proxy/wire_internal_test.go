@@ -58,7 +58,7 @@ func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, 
 	require.NotNil(t, record, "request must pass validation")
 	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
 	outbound, body := h.prepareForwarding(r.WithContext(context.WithValue(r.Context(), observationContextKey{}, state)), cred)
-	_ = h.forwardPrepared(w, outbound, body, state)
+	_ = h.forward(w, outbound, body, state)
 	return outbound, body
 }
 
