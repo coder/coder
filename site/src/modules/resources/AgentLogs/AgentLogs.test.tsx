@@ -136,83 +136,51 @@ describe("AgentLogs follow", () => {
 		return observer;
 	};
 
-	it("stops following when the user scrolls up", () => {
-		const onFollowChange = vi.fn();
-		const { container } = render(
-			<AgentLogs {...baseProps} follow onFollowChange={onFollowChange} />,
+	const growContent = (container: HTMLElement) => {
+		scrollHeight = GROWN_SCROLL_HEIGHT;
+		getContentObserver(getInnerSizer(container)).simulateResize(
+			600,
+			GROWN_SCROLL_HEIGHT,
 		);
+	};
+
+	it("keeps the newest line in view when content grows at the bottom", () => {
+		const { container } = render(<AgentLogs {...baseProps} follow />);
 		const outer = getScrollContainer(container);
 		expect(outer.scrollTop).toBe(INITIAL_SCROLL_HEIGHT);
 
-		outer.scrollTop = 500;
-		fireEvent.scroll(outer);
-
-		expect(onFollowChange).toHaveBeenCalledWith(false);
-	});
-
-	it("resumes following when the user scrolls back to the bottom", () => {
-		const onFollowChange = vi.fn();
-		const { container } = render(
-			<AgentLogs
-				{...baseProps}
-				follow={false}
-				onFollowChange={onFollowChange}
-			/>,
-		);
-		const outer = getScrollContainer(container);
-
-		outer.scrollTop = 500;
-		fireEvent.scroll(outer);
-		expect(onFollowChange).not.toHaveBeenCalled();
-
-		outer.scrollTop = INITIAL_SCROLL_HEIGHT - CLIENT_HEIGHT;
-		fireEvent.scroll(outer);
-		expect(onFollowChange).toHaveBeenCalledWith(true);
-	});
-
-	it("keeps the newest line in view when content grows while following", () => {
-		const { container } = render(
-			<AgentLogs {...baseProps} follow onFollowChange={vi.fn()} />,
-		);
-		const outer = getScrollContainer(container);
-		const observer = getContentObserver(getInnerSizer(container));
-
-		scrollHeight = GROWN_SCROLL_HEIGHT;
-		observer.simulateResize(600, GROWN_SCROLL_HEIGHT);
+		growContent(container);
 
 		expect(outer.scrollTop).toBe(GROWN_SCROLL_HEIGHT);
 	});
 
-	it("leaves the scroll position alone when content grows while not following", () => {
-		const { container } = render(
-			<AgentLogs {...baseProps} follow={false} onFollowChange={vi.fn()} />,
-		);
+	it("stays in place when content grows after the user scrolls up", () => {
+		const { container } = render(<AgentLogs {...baseProps} follow />);
 		const outer = getScrollContainer(container);
-		const observer = getContentObserver(getInnerSizer(container));
-		outer.scrollTop = 300;
 
-		scrollHeight = GROWN_SCROLL_HEIGHT;
-		observer.simulateResize(600, GROWN_SCROLL_HEIGHT);
+		outer.scrollTop = 500;
+		fireEvent.scroll(outer);
+		growContent(container);
 
-		expect(outer.scrollTop).toBe(300);
+		expect(outer.scrollTop).toBe(500);
 	});
 
-	it("scrolls to the bottom when follow is turned on", () => {
-		const onFollowChange = vi.fn();
-		const { container, rerender } = render(
-			<AgentLogs
-				{...baseProps}
-				follow={false}
-				onFollowChange={onFollowChange}
-			/>,
-		);
+	it("follows again once the user scrolls back to the bottom", () => {
+		const { container } = render(<AgentLogs {...baseProps} follow />);
 		const outer = getScrollContainer(container);
-		outer.scrollTop = 300;
 
-		rerender(
-			<AgentLogs {...baseProps} follow onFollowChange={onFollowChange} />,
-		);
+		outer.scrollTop = 500;
+		fireEvent.scroll(outer);
+		outer.scrollTop = INITIAL_SCROLL_HEIGHT - CLIENT_HEIGHT;
+		fireEvent.scroll(outer);
+		growContent(container);
 
-		expect(outer.scrollTop).toBe(INITIAL_SCROLL_HEIGHT);
+		expect(outer.scrollTop).toBe(GROWN_SCROLL_HEIGHT);
+	});
+
+	it("does not scroll to the bottom without follow", () => {
+		const { container } = render(<AgentLogs {...baseProps} />);
+
+		expect(getScrollContainer(container).scrollTop).toBe(0);
 	});
 });

@@ -7,7 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type {
 	AgentScriptTiming,
@@ -21,7 +21,6 @@ import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -35,7 +34,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Label } from "#/components/Label/Label";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -180,8 +178,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
-	const [followLogs, setFollowLogs] = useState(true);
-	const followLogsId = useId();
 
 	useEffect(() => {
 		setShowLogs(
@@ -670,21 +666,6 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 													"border-solid border-0 border-b border-l",
 												)}
 											>
-												<div className="flex items-center gap-1 pr-1">
-													<Checkbox
-														id={followLogsId}
-														checked={followLogs}
-														onCheckedChange={(checked) =>
-															setFollowLogs(checked === true)
-														}
-													/>
-													<Label
-														htmlFor={followLogsId}
-														className="text-xs text-content-secondary cursor-pointer whitespace-nowrap"
-													>
-														Follow
-													</Label>
-												</div>
 												<TooltipProvider>
 													<Tooltip>
 														<TooltipTrigger asChild>
@@ -729,8 +710,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 													<AgentLogs
 														height={256}
 														width={width}
-														follow={followLogs}
-														onFollowChange={setFollowLogs}
+														follow
 														logs={selectedLogLines}
 														sources={agent.log_sources}
 														overflowed={agent.logs_overflowed}
