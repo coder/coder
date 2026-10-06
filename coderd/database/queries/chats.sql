@@ -2881,10 +2881,9 @@ FROM chats_expanded;
 
 -- name: UpdateChatExecutionState :one
 -- The commit write of a transition that changes execution state. It
--- advances snapshot_version and atomically updates the execution-state
--- fields: status, archived, last_error, ownership identifiers, the
--- requires-action deadline, and the manual compaction request marker. It
--- must be the only UPDATE of the chats row in its transaction (see
+-- advances snapshot_version because the transition lock no longer does,
+-- and it must be the only UPDATE of the chats row in its transaction so
+-- Postgres does not re-run the chat's foreign key checks (see
 -- LockChatForTransition).
 --
 -- history_changed records that the transaction inserted or materially
@@ -3059,9 +3058,9 @@ SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatRetryState :one
--- The commit write of RecordRetryState: advances snapshot_version and
--- stores the client-visible retry payload. retry_state_version is assigned
--- by trigger from the committed snapshot_version.
+-- The commit write of RecordRetryState, so it also advances
+-- snapshot_version (see LockChatForTransition). retry_state_version is
+-- assigned by trigger from the committed snapshot_version.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -3133,8 +3132,8 @@ SELECT *
 FROM chats_expanded;
 
 -- name: IncrementChatGenerationAttempt :one
--- The commit write of RecordGenerationAttempt: advances snapshot_version,
--- increments generation_attempt, and returns the resulting attempt.
+-- The commit write of RecordGenerationAttempt, so it also advances
+-- snapshot_version (see LockChatForTransition).
 UPDATE chats
 SET
     snapshot_version = snapshot_version + 1,

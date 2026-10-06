@@ -1586,13 +1586,9 @@ func loadChatForGeneration(
 	return verifyGenerationFence(chat, fence)
 }
 
-// loadLockedChatForGeneration is loadChatForGeneration for Update callbacks;
-// see loadLockedChatForTask.
-func loadLockedChatForGeneration(
-	tx *chatstate.Tx,
-	input chatWorkerTaskStartInput,
-	fence generationAttemptFence,
-) (database.Chat, error) {
+// loadLockedChatForGeneration adds the generation-attempt fence to
+// loadLockedChatForTask and has the same Update-callback-only requirement.
+func loadLockedChatForGeneration(tx *chatstate.Tx, input chatWorkerTaskStartInput, fence generationAttemptFence) (database.Chat, error) {
 	chat, err := loadLockedChatForTask(tx, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 	if err != nil {
 		return database.Chat{}, err

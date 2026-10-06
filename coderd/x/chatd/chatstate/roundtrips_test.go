@@ -101,12 +101,12 @@ func (s *countingStore) IsChatHeartbeatStale(ctx context.Context, arg database.I
 	return s.Store.IsChatHeartbeatStale(ctx, arg)
 }
 
-// TestUpdateSingleTransitionValidatesFromLockSeed pins the round-trip
-// budget of a transition: the lock seeds validation, so the only chat
-// reads while the row lock is held are the publication reads that run
-// after the commit write. Reads creeping back in before the commit
-// write directly lengthen lock hold time.
-func TestUpdateSingleTransitionValidatesFromLockSeed(t *testing.T) {
+// TestUpdateSingleTransitionValidatesFromLockedRow pins the round-trip
+// budget of a transition: validation uses the row the lock returned, so
+// the only chat reads while the row lock is held are the publication
+// reads that run after the commit write. Reads creeping back in before
+// the commit write directly lengthen lock hold time.
+func TestUpdateSingleTransitionValidatesFromLockedRow(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -132,11 +132,12 @@ func TestUpdateSingleTransitionValidatesFromLockSeed(t *testing.T) {
 	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion)
 }
 
-// TestUpdateWritesChatRowOnce pins the single-write contract for the
+// TestUpdateWritesChatRowOnce pins the single-commit-write contract for
 // callback shapes that have no execution-state write of their own: a
-// history-only transition and a metadata-only callback each end in
-// exactly one chats UPDATE, issued by Update, which records the
-// history change and advances snapshot_version.
+// history-only transition ends in exactly one chats UPDATE, Update's
+// bump-only write. A metadata-only callback also gets exactly one commit
+// write, but its own raw metadata UPDATE is a second chats write that
+// Update does not fold in, so the counts here cover commit writes only.
 func TestUpdateWritesChatRowOnce(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -167,7 +168,7 @@ func TestUpdateWritesChatRowOnce(t *testing.T) {
 		_, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{ID: created.Chat.ID, Title: "renamed", TitleSource: database.ChatTitleSourceUser})
 		return err
 	}))
-	require.Equal(t, 1, counts.chatWrites, "a metadata-only callback still advances snapshot_version once")
+	require.Equal(t, 1, counts.chatWrites, "a metadata-only callback still gets exactly one commit write")
 
 	afterTitle, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -175,11 +176,11 @@ func TestUpdateWritesChatRowOnce(t *testing.T) {
 	require.Equal(t, afterStep.HistoryVersion, afterTitle.HistoryVersion, "no history change recorded")
 }
 
-// TestUpdateBundleRereadsAfterSeedConsumed proves the lock seed is
+// TestUpdateBundleRereadsAfterLockedRowConsumed proves the locked row is
 // single-use: the first transition validates against it, and the second
 // transition in the same callback performs a real read so it observes the
-// first transition's write rather than stale seeded state.
-func TestUpdateBundleRereadsAfterSeedConsumed(t *testing.T) {
+// first transition's write rather than the stale locked row.
+func TestUpdateBundleRereadsAfterLockedRowConsumed(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -199,7 +200,7 @@ func TestUpdateBundleRereadsAfterSeedConsumed(t *testing.T) {
 	}))
 
 	require.Equal(t, 1, counts.lock)
-	require.Equal(t, 2, counts.getChatByID, "second transition re-reads once the seed is consumed, then publication reads")
+	require.Equal(t, 2, counts.getChatByID, "second transition re-reads once the locked row is consumed, then publication reads")
 	require.Equal(t, 2, counts.countQueued)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -208,11 +209,11 @@ func TestUpdateBundleRereadsAfterSeedConsumed(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, after.Status)
 }
 
-// TestCurrentDoesNotConsumeSeed verifies a callback can inspect state via
-// Current and then run a transition without either step reading the chat
-// row again; only the publication read follows the commit write. This is
-// the worker acquisition pattern.
-func TestCurrentDoesNotConsumeSeed(t *testing.T) {
+// TestCurrentDoesNotConsumeLockedRow verifies a callback can inspect
+// state via Current and then run a transition without either step
+// reading the chat row again; only the publication read follows the
+// commit write. This is the worker acquisition pattern.
+func TestCurrentDoesNotConsumeLockedRow(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)

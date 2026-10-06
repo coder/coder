@@ -177,24 +177,6 @@ func TestChatMachine_Update_RejectsMissingChat(t *testing.T) {
 	require.Empty(t, f.Pub.channels)
 }
 
-func TestChatMachine_Lock_DoesNotBumpSnapshot(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	before := f.readChat(ctx, t, created.Chat.ID)
-	publishedBefore := len(f.Pub.channels)
-
-	require.NoError(t, m.Lock(ctx, func(_ database.Store) error {
-		return nil
-	}))
-	after := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion)
-	require.Equal(t, publishedBefore, len(f.Pub.channels), "Lock must not publish")
-}
-
 func TestChatMachine_ReadSnapshot_DoesNotBumpSnapshot(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)

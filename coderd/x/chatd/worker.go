@@ -265,8 +265,7 @@ func (w *chatWorker) acquireCandidate(
 	var takenOver bool
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The lock already returned the row; reading it again here would
-		// add two round trips while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, state, err := tx.Current()
 		if errors.Is(err, chatstate.ErrChatNotFound) {
 			return errSkipAcquire
@@ -360,8 +359,7 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store) error {
-		// The lock already returned the row; verify ownership against it
-		// instead of re-reading while the lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		chat, _, err := tx.Current()
 		if errors.Is(err, chatstate.ErrChatNotFound) {
 			return errSkipAcquire

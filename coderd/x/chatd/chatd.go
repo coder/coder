@@ -1559,8 +1559,7 @@ func (p *Server) SendMessage(
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// Update may rerun this callback after a deadlock abort.
 		result = SendMessageResult{}
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1960,8 +1959,7 @@ func (p *Server) EditMessage(
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2234,8 +2232,7 @@ func (p *Server) PromoteQueued(
 		result = PromoteQueuedResult{}
 		rejected = false
 		promotedQueuedAt = time.Time{}
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2351,8 +2348,7 @@ func (p *Server) SubmitToolResults(
 		refreshedOK    bool
 	)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		locked, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2535,8 +2531,7 @@ func (p *Server) CompactChat(
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2594,8 +2589,7 @@ func (p *Server) ClearChat(
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The lock already returned the row; re-reading it here would add
-		// a round trip while the transition lock is held.
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
 		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)

@@ -12798,8 +12798,8 @@ WHERE id = $1::uuid
 RETURNING generation_attempt
 `
 
-// The commit write of RecordGenerationAttempt: advances snapshot_version,
-// increments generation_attempt, and returns the resulting attempt.
+// The commit write of RecordGenerationAttempt, so it also advances
+// snapshot_version (see LockChatForTransition).
 func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, incrementChatGenerationAttempt, id)
 	var generation_attempt int64
@@ -14669,10 +14669,9 @@ type UpdateChatExecutionStateParams struct {
 }
 
 // The commit write of a transition that changes execution state. It
-// advances snapshot_version and atomically updates the execution-state
-// fields: status, archived, last_error, ownership identifiers, the
-// requires-action deadline, and the manual compaction request marker. It
-// must be the only UPDATE of the chats row in its transaction (see
+// advances snapshot_version because the transition lock no longer does,
+// and it must be the only UPDATE of the chats row in its transaction so
+// Postgres does not re-run the chat's foreign key checks (see
 // LockChatForTransition).
 //
 // history_changed records that the transaction inserted or materially
@@ -15694,9 +15693,9 @@ type UpdateChatRetryStateParams struct {
 	ID         uuid.UUID       `db:"id" json:"id"`
 }
 
-// The commit write of RecordRetryState: advances snapshot_version and
-// stores the client-visible retry payload. retry_state_version is assigned
-// by trigger from the committed snapshot_version.
+// The commit write of RecordRetryState, so it also advances
+// snapshot_version (see LockChatForTransition). retry_state_version is
+// assigned by trigger from the committed snapshot_version.
 func (q *sqlQuerier) UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatRetryState, arg.RetryState, arg.ID)
 	var i Chat

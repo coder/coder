@@ -210,9 +210,8 @@ func insertChat(
 			initialMessages = slices.Clone(initialMessages)
 			initialMessages[admittedIndex].Automation = &provenance
 		}
-		// Insert the initial history under the new chat row (created at
-		// snapshot_version 0) and commit the creation with the single
-		// write that lands the chat on version 1 with history_version 1.
+		// The chat was inserted at snapshot_version 0 so this transaction's
+		// single commit write below lands it on version 1.
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, initialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
@@ -303,7 +302,8 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 }
 
 // insertMessages inserts the given Message batch under the current
-// chat and marks the transaction as having changed history.
+// chat. It sets historyChanged because no trigger records the change;
+// the commit write must.
 func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error) {
 	if len(messages) == 0 {
 		return nil, nil
@@ -317,7 +317,8 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 }
 
 // softDeleteMessageAndSuffix soft-deletes the target message and every
-// message after it and marks the transaction as having changed history.
+// message after it. It sets historyChanged because no trigger records
+// the change; the commit write must.
 func (tx *Tx) softDeleteMessageAndSuffix(targetID int64) error {
 	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, targetID); err != nil {
 		return xerrors.Errorf("soft-delete target: %w", err)
@@ -332,8 +333,9 @@ func (tx *Tx) softDeleteMessageAndSuffix(targetID int64) error {
 	return nil
 }
 
-// removeQueuedMessage deletes one queued message and marks the
-// transaction as having changed the queue when a row was removed.
+// removeQueuedMessage deletes one queued message. It sets queueChanged
+// when a row was removed because no trigger records the change; the
+// commit write must.
 func (tx *Tx) removeQueuedMessage(id int64) (int64, error) {
 	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     id,

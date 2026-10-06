@@ -1199,8 +1199,8 @@ type sqlcQuerier interface {
 	// Returns the hydrated chat IDs so callers can notify watchers of every
 	// chat the statement pinned.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error)
-	// The commit write of RecordGenerationAttempt: advances snapshot_version,
-	// increments generation_attempt, and returns the resulting attempt.
+	// The commit write of RecordGenerationAttempt, so it also advances
+	// snapshot_version (see LockChatForTransition).
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
 	// The day parameter is normalized to its UTC calendar day before storage.
@@ -1619,10 +1619,9 @@ type sqlcQuerier interface {
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error
 	// The commit write of a transition that changes execution state. It
-	// advances snapshot_version and atomically updates the execution-state
-	// fields: status, archived, last_error, ownership identifiers, the
-	// requires-action deadline, and the manual compaction request marker. It
-	// must be the only UPDATE of the chats row in its transaction (see
+	// advances snapshot_version because the transition lock no longer does,
+	// and it must be the only UPDATE of the chats row in its transaction so
+	// Postgres does not re-run the chat's foreign key checks (see
 	// LockChatForTransition).
 	//
 	// history_changed records that the transaction inserted or materially
@@ -1661,9 +1660,9 @@ type sqlcQuerier interface {
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
-	// The commit write of RecordRetryState: advances snapshot_version and
-	// stores the client-visible retry payload. retry_state_version is assigned
-	// by trigger from the committed snapshot_version.
+	// The commit write of RecordRetryState, so it also advances
+	// snapshot_version (see LockChatForTransition). retry_state_version is
+	// assigned by trigger from the committed snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
