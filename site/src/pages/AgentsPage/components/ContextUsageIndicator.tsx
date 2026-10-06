@@ -18,6 +18,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
@@ -28,9 +29,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { formatKiB } from "#/utils/fileSize";
-import { isMobileViewport } from "#/utils/mobile";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
+import { composerMenuAnchor } from "./composerMenuAnchor";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 export type AgentContextUsage = {
@@ -223,9 +226,11 @@ const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 
 export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage;
+	composer?: HTMLElement | null;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
-}> = ({ usage, onRefreshContext, isRefreshingContext }) => {
+}> = ({ usage, composer, onRefreshContext, isRefreshingContext }) => {
+	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const [open, setOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -653,13 +658,27 @@ export const ContextUsageIndicator: React.FC<{
 	// On mobile, a tap toggles the popover. On desktop, hover opens
 	// it like a dropdown menu and skill descriptions appear as
 	// nested tooltips to the right.
-	if (isMobileViewport()) {
+	if (isMobile) {
 		return (
 			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+				{composer !== undefined && (
+					<PopoverAnchor
+						virtualRef={{
+							current: composer ? composerMenuAnchor(composer) : null,
+						}}
+					/>
+				)}
 				<PopoverContent
 					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
+					sideOffset={composer ? 0 : 4}
+					align="start"
+					avoidCollisions={!composer}
+					className={cn(
+						"w-auto max-w-72 px-3 py-2",
+						composer &&
+							"max-md:w-(--radix-popper-anchor-width) max-md:max-w-none",
+					)}
 				>
 					{panelContent}
 				</PopoverContent>

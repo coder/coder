@@ -315,108 +315,52 @@
 	}
 }
 
-@utility mobile-full-width-dropdown {
+@utility mobile-composer-menu {
 	@media (max-width: 767px) {
-		/*
-			Full-width mobile dropdowns. We set custom properties on
-			`document.documentElement` from the chat input container so
-			dropdown positions track the actual input box, not hardcoded
-			offsets. Radix popover wrappers are fixed-positioned, so
-			bottom offsets are measured from the layout viewport. The
-			above-composer max-height also accounts for the visual
-			viewport offset so soft-keyboard viewport panning on mobile
-			keeps dropdowns inside the visible area:
-
-			- `--mobile-dropdown-bottom`: distance from the layout
-			  viewport bottom to the composer's bottom edge. Used by the
-			  `-bottom` variant; the dropdown's bottom edge sits at the
-			  composer's bottom edge.
-			- `--mobile-dropdown-left` and `--mobile-dropdown-width`:
-			  composer-aligned horizontal geometry for full-width mobile
-			  dropdowns.
-			- `--mobile-dropdown-above-composer-bottom`: distance from
-			  the layout viewport bottom to a point just above the
-			  composer's top edge, clamped to stay above the software
-			  keyboard when the keyboard covers the composer.
-			- `--mobile-dropdown-above-composer-max-height`: maximum
-			  height the `-above-composer` variant can grow to without
-			  extending past the visible viewport top.
-		*/
+		/* Keyboard-sensitive menus keep geometry on their own positioning wrapper. */
 		[data-radix-popper-content-wrapper]:has(> &) {
 			position: fixed !important;
-			left: var(--mobile-dropdown-left, 1rem) !important;
-			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
+			left: var(--anchored-overlay-left) !important;
+			width: var(--anchored-overlay-width) !important;
 			min-width: 0 !important;
 			transform: none !important;
-			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			bottom: var(--anchored-overlay-bottom) !important;
 			top: auto !important;
+			max-height: var(--anchored-overlay-max-height) !important;
+			overflow: hidden !important;
 		}
+
 		width: 100% !important;
 		min-width: 0 !important;
 		max-width: none !important;
-	}
-}
-
-@utility mobile-full-width-dropdown-top {
-	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
-			bottom: auto !important;
-			top: var(--mobile-dropdown-top, 3.5rem) !important;
-		}
-	}
-}
-
-@utility mobile-full-width-dropdown-top-below-header {
-	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
-			bottom: auto !important;
-			top: 5rem !important;
-		}
-	}
-}
-
-@utility mobile-full-width-dropdown-above-composer {
-	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
-			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
-			top: auto !important;
-			max-height: var(
-				--mobile-dropdown-above-composer-max-height,
-				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
-			) !important;
-			overflow: hidden !important;
-		}
-		max-height: var(
-			--mobile-dropdown-above-composer-max-height,
-			calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
-		) !important;
+		max-height: var(--anchored-overlay-max-height) !important;
 		overflow: hidden !important;
 		display: flex !important;
 		flex-direction: column !important;
-		/* min-height: 0 on both flex children lets the list shrink below its
-			content and scroll inside the capped column instead of overflowing. */
+
+		/* Geometry is supplied only while open, so hide exit content before cleanup. */
+		&[data-state="closed"] {
+			animation: none !important;
+			visibility: hidden !important;
+		}
+
+		/* Both flex children shrink so the list scrolls above a pinned footer. */
 		& > [cmdk-root] {
 			flex: 1 1 0% !important;
 			min-height: 0 !important;
 		}
+
 		& > [cmdk-root] > [cmdk-list] {
 			flex: 1 1 0% !important;
 			min-height: 0 !important;
-		}
-		& > [cmdk-root] > [cmdk-list] {
 			max-height: none !important;
-		}
-		& .mobile-full-width-dropdown-scroll-area {
-			overflow-y: auto !important;
-			overscroll-behavior: contain;
-			-webkit-overflow-scrolling: touch;
 		}
 	}
 }
 
-@utility mobile-full-width-dropdown-scroll-area {
+@utility mobile-composer-menu-scroll-area {
 	@media (max-width: 767px) {
-		.mobile-full-width-dropdown-above-composer & {
+		.mobile-composer-menu & {
 			overflow-y: auto !important;
 			overscroll-behavior: contain;
 			-webkit-overflow-scrolling: touch;

@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { useState } from "react";
+import { fn, userEvent, within } from "storybook/test";
 import type { Organization } from "#/api/typesGenerated";
+import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { CompactOrgSelector } from "./CompactOrgSelector";
 
 const mockOrgs: Organization[] = [
@@ -53,6 +55,37 @@ export default meta;
 type Story = StoryObj<typeof CompactOrgSelector>;
 
 export const Default: Story = {};
+
+export const MobileComposerMenu: Story = {
+	args: {
+		options: [MockOrganization, MockOrganization2],
+		value: MockOrganization,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	render: function MobileOrganizationMenu(args) {
+		const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+
+		return (
+			<div className="fixed bottom-4 left-4 right-4 flex flex-col gap-2">
+				<CompactOrgSelector {...args} composer={composer} />
+				<div
+					ref={setComposer}
+					className="min-h-24 rounded-xl bg-surface-secondary p-3"
+				>
+					Composer
+				</div>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /^Organization:/ }),
+		);
+	},
+};
 
 export const Disabled: Story = {
 	args: {

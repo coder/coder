@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -12,6 +12,9 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 type SkillSource = "personal" | "workspace";
 
@@ -184,6 +187,21 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
+
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
+		);
+	};
+
+	usePositionOverlayAboveAnchor({
+		anchorElement: anchor,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && shouldRender,
+	});
+
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -230,10 +248,14 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
+				ref={handleMenuRef}
 				align="start"
 				side="top"
 				sideOffset={8}
-				className="w-(--radix-popper-anchor-width) overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+				className={cn(
+					"w-(--radix-popper-anchor-width) overflow-hidden p-1",
+					anchor && "mobile-composer-menu",
+				)}
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
@@ -245,7 +267,7 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+					<CommandList className="max-h-72 border-t-0 mobile-composer-menu-scroll-area">
 						{commands.length > 0 && (
 							<CommandGroup heading="Commands">
 								{commands.map((skill, index) => renderSkill(skill, index))}

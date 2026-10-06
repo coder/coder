@@ -22,9 +22,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { usePositionOverlayAboveAnchor } from "#/hooks/usePositionOverlayAboveAnchor";
 import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 export type ModelSelectorOption = {
 	id: string;
@@ -65,7 +68,8 @@ type ModelSelectorProps = {
 	dropdownAlign?: "start" | "center" | "end";
 	contentClassName?: string;
 	onTriggerTouchStart?: () => void;
-	enableMobileFullWidthDropdown?: boolean;
+	/** Docks the mobile picker to this composer instead of its trigger. */
+	mobileAnchor?: HTMLElement | null;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 };
@@ -112,12 +116,27 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	dropdownAlign = "start",
 	contentClassName,
 	onTriggerTouchStart,
-	enableMobileFullWidthDropdown = false,
+	mobileAnchor,
 	reasoningEffort,
 	onReasoningEffortChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
+
+	const handleMenuRef = (content: HTMLDivElement | null) => {
+		setMenuWrapper(
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
+		);
+	};
+
+	usePositionOverlayAboveAnchor({
+		anchorElement: mobileAnchor,
+		overlayElement: menuWrapper,
+		enabled: isBelowMd && open,
+	});
+
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
 			setSearch("");
@@ -195,11 +214,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
+				ref={handleMenuRef}
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
-					enableMobileFullWidthDropdown &&
-						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
+					mobileAnchor && "mobile-composer-menu",
 					"w-72 overflow-hidden border-border-default p-0",
 					contentClassName,
 				)}
@@ -215,6 +234,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				}}
 			>
 				<Command
+					label="Search models"
 					shouldFilter={false}
 					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
@@ -230,8 +250,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 						role="listbox"
 						className={cn(
 							"max-h-80 border-t-0",
-							enableMobileFullWidthDropdown &&
-								"mobile-full-width-dropdown-scroll-area",
+							mobileAnchor && "mobile-composer-menu-scroll-area",
 						)}
 					>
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">

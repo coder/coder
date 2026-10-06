@@ -257,7 +257,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="start"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+							collisionPadding={16}
+							className="max-md:w-[calc(100vw-2rem)] [&_[role=menuitem]]:text-[13px]"
 						>
 							<ChatActionsMenuItems
 								chat={chat}
