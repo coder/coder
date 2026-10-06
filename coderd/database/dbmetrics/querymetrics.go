@@ -512,14 +512,6 @@ func (m queryMetricsStore) DeleteAllChatHeartbeats(ctx context.Context, chatID u
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteAllChatQueuedMessages(ctx, chatID)
-	m.queryLatencies.WithLabelValues("DeleteAllChatQueuedMessages").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAllChatQueuedMessages").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteAllChatQueuedMessagesReturningCount(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteAllChatQueuedMessagesReturningCount(ctx, chatID)
@@ -630,14 +622,6 @@ func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("DeleteChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectMemoryByName").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatQueuedMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessage").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg database.DeleteChatQueuedMessageReturningCountParams) (int64, error) {
@@ -4464,14 +4448,6 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessage").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatQueuedMessageWithCreator(ctx, arg)
@@ -5264,14 +5240,6 @@ func (m queryMetricsStore) PinChatByID(ctx context.Context, id uuid.UUID) error 
 	return r0
 }
 
-func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.PopNextQueuedMessage(ctx, chatID)
-	m.queryLatencies.WithLabelValues("PopNextQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PopNextQueuedMessage").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -5317,14 +5285,6 @@ func (m queryMetricsStore) RenewChatHeartbeats(ctx context.Context, arg database
 	r0, r1 := m.s.RenewChatHeartbeats(ctx, arg)
 	m.queryLatencies.WithLabelValues("RenewChatHeartbeats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenewChatHeartbeats").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.ReorderChatQueuedMessageToFront(ctx, arg)
-	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToFront").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToFront").Inc()
 	return r0, r1
 }
 
@@ -5381,14 +5341,6 @@ func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, ar
 	r0 := m.s.SoftDeleteChatMessagesAfterID(ctx, arg)
 	m.queryLatencies.WithLabelValues("SoftDeleteChatMessagesAfterID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessagesAfterID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.SoftDeleteContextFileMessages(ctx, chatID)
-	m.queryLatencies.WithLabelValues("SoftDeleteContextFileMessages").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteContextFileMessages").Inc()
 	return r0
 }
 

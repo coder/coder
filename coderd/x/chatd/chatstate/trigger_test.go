@@ -410,21 +410,6 @@ func TestQueuedMessageCreatedByIsRequired(t *testing.T) {
 	require.Contains(t, err.Error(), "created_by")
 }
 
-func TestLegacyQueuedMessageInsertUsesChatOwnerAsCreator(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  created.Chat.ID,
-		Content: userMessageContent(t, "legacy-queued"),
-	})
-	require.NoError(t, err)
-	require.Equal(t, created.Chat.OwnerID, queued.CreatedBy)
-}
-
 // TestHistoryCommitDoesNotUpdateQueueVersion verifies that committing a
 // history change leaves queue_version untouched.
 func TestHistoryCommitDoesNotUpdateQueueVersion(t *testing.T) {

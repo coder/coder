@@ -2234,17 +2234,6 @@ func (q *querier) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID)
 	return q.db.DeleteAllChatHeartbeats(ctx, chatID)
 }
 
-func (q *querier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteAllChatQueuedMessages(ctx, chatID)
-}
-
 func (q *querier) DeleteAllChatQueuedMessagesReturningCount(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -2376,17 +2365,6 @@ func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg databas
 		return database.ChatProjectMemory{}, err
 	}
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
-}
-
-func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatQueuedMessage(ctx, arg)
 }
 
 func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg database.DeleteChatQueuedMessageReturningCountParams) (int64, error) {
@@ -6510,17 +6488,6 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
-func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	return q.db.InsertChatQueuedMessage(ctx, arg)
-}
-
 func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7458,17 +7425,6 @@ func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.PinChatByID(ctx, id)
 }
 
-func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	return q.db.PopNextQueuedMessage(ctx, chatID)
-}
-
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -7516,17 +7472,6 @@ func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewCha
 		return nil, err
 	}
 	return q.db.RenewChatHeartbeats(ctx, arg)
-}
-
-func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.ReorderChatQueuedMessageToFront(ctx, arg)
 }
 
 func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg database.ReorderChatQueuedMessageToHeadParams) (int64, error) {
@@ -7597,17 +7542,6 @@ func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg databas
 		return err
 	}
 	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
-}
-
-func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.SoftDeleteContextFileMessages(ctx, chatID)
 }
 
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {

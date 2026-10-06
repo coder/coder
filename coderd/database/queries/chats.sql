@@ -2206,21 +2206,6 @@ SET
 RETURNING
     *;
 
--- name: InsertChatQueuedMessage :one
--- Legacy queue insertion path. When no caller-supplied creator exists,
--- preserve the created_by invariant by attributing the queued row to the
--- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-SELECT
-    @chat_id::uuid,
-    @content::jsonb,
-    sqlc.narg('model_config_id')::uuid,
-    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    chats.owner_id
-FROM chats
-WHERE chats.id = @chat_id::uuid
-RETURNING *;
-
 -- name: GetChatQueuedMessages :many
 -- Returns the queue in promotion order (position ASC, id ASC), the same
 -- order chatstate uses to pick the head. Clients read the queue through
@@ -2230,33 +2215,6 @@ RETURNING *;
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY position ASC, id ASC;
-
--- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
-
--- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = @chat_id;
-
--- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.created_at ASC, cqm.id ASC
-    LIMIT 1
-)
-RETURNING *;
-
--- name: ReorderChatQueuedMessageToFront :execrows
--- Mutates only created_at on the target row; ids are unchanged so
--- consumers can keep tracking queued messages by id.
-UPDATE chat_queued_messages AS target
-SET created_at = (
-    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
-    FROM chat_queued_messages AS inner_cqm
-    WHERE inner_cqm.chat_id = @chat_id
-)
-WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 -- The returned id becomes both an AfterID cursor and last_read_message_id, so
@@ -2628,12 +2586,6 @@ WHERE agent_id = @agent_id::uuid
     -- Excludes error (terminal state) and interrupting.
     AND status IN ('waiting', 'running', 'requires_action')
 ORDER BY updated_at DESC;
-
--- name: SoftDeleteContextFileMessages :exec
-UPDATE chat_messages SET deleted = true
-WHERE chat_id = @chat_id::uuid
-    AND deleted = false
-    AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
