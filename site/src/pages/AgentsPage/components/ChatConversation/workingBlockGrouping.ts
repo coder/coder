@@ -210,6 +210,10 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
+	// Entries and blocks are both in ascending message ID order and block
+	// spans never overlap, so one cursor walks the entries once.
+	let entryIndex = 0;
+
 	return blockDrafts.map((draft) => {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
@@ -222,12 +226,27 @@ export const groupWorkingBlocks = (
 		// The span covers hidden tool-result messages up to the next row.
 		const fromId = Math.min(...memberIds);
 		const toId = messageIdAfter(lastRowIndex);
-		const times = [
-			...entries
-				.filter(({ message }) => message.id >= fromId && message.id < toId)
-				.flatMap(getPartTimestamps),
-			draft.containsLiveRow ? options.streamState?.startedAt : undefined,
-		]
+		while (
+			entryIndex < entries.length &&
+			entries[entryIndex].message.id < fromId
+		) {
+			entryIndex++;
+		}
+
+		const spanTimestamps: Array<string | undefined> = [];
+		while (
+			entryIndex < entries.length &&
+			entries[entryIndex].message.id < toId
+		) {
+			spanTimestamps.push(...getPartTimestamps(entries[entryIndex]));
+			entryIndex++;
+		}
+
+		if (draft.containsLiveRow) {
+			spanTimestamps.push(options.streamState?.startedAt);
+		}
+
+		const times = spanTimestamps
 			.map(parseTimestamp)
 			.filter((time) => time !== undefined);
 
