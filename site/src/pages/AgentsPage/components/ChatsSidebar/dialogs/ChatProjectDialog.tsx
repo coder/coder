@@ -27,9 +27,9 @@ export type ChatProjectFormValues = {
 };
 
 // Keep in sync with chatProject*MaxChars in coderd/chat_projects.go.
-const nameMaxChars = 64;
-const descriptionMaxChars = 1024;
-const iconMaxChars = 256;
+export const chatProjectNameMaxChars = 64;
+export const chatProjectDescriptionMaxChars = 1024;
+const chatProjectIconMaxChars = 256;
 
 // Counts code points of the value as submitted, as the server does. Yup's
 // max() and native maxLength count UTF-16 units.
@@ -45,9 +45,11 @@ const maxCharacters = (label: string, max: number) =>
 		);
 
 const validationSchema = Yup.object({
-	name: maxCharacters("Name", nameMaxChars).required("Name is required."),
-	description: maxCharacters("Description", descriptionMaxChars),
-	icon: maxCharacters("Icon", iconMaxChars),
+	name: maxCharacters("Name", chatProjectNameMaxChars).required(
+		"Name is required.",
+	),
+	description: maxCharacters("Description", chatProjectDescriptionMaxChars),
+	icon: maxCharacters("Icon", chatProjectIconMaxChars),
 });
 
 const trimValues = (values: ChatProjectFormValues): ChatProjectFormValues => ({
@@ -165,15 +167,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
 	const nameField = getFieldHelpers("name", {
-		maxLength: nameMaxChars,
+		maxLength: chatProjectNameMaxChars,
 		measureLength,
 	});
 	const descriptionField = getFieldHelpers("description", {
-		maxLength: descriptionMaxChars,
+		maxLength: chatProjectDescriptionMaxChars,
 		measureLength,
 	});
 	const iconField = getFieldHelpers("icon", {
-		maxLength: iconMaxChars,
+		maxLength: chatProjectIconMaxChars,
 		measureLength,
 	});
 	const isUnchanged = isUnchangedEdit(project, form.values, form.initialValues);
