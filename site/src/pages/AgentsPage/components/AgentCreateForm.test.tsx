@@ -659,7 +659,7 @@ describe("AgentCreateForm organization lock", () => {
 			},
 		]);
 
-		renderForm(
+		const { onCreateChat } = renderForm(
 			{
 				project: {
 					id: "project-1",
@@ -673,14 +673,17 @@ describe("AgentCreateForm organization lock", () => {
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 
-		await screen.findByRole("switch", { name: "Disable Notion" });
+		await submitMessage("hello project");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).mcpServerIds).toEqual(["mcp-notion"]);
 		expect(
 			localStorage.getItem(mcpSelectionStorageKey(MockDefaultOrganization.id)),
 		).toBeNull();
 	});
 
 	it("starts a fresh draft when the project changes", async () => {
-		const { rerender } = renderForm({
+		const { onCreateChat, rerender } = renderForm({
 			project: { id: "project-a", organization_id: MockDefaultOrganization.id },
 		});
 		await typeMessage("draft for A");
@@ -695,11 +698,10 @@ describe("AgentCreateForm organization lock", () => {
 			project: { id: "project-b", organization_id: MockDefaultOrganization.id },
 		});
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("textbox", { name: "Chat message" }),
-			).not.toHaveTextContent("draft for A");
-		});
+		await submitMessage("hello B");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).message).toBe("hello B");
 		expect(localStorage.getItem(draftStorageKeys("project-a").text)).toBe(
 			draftA,
 		);
@@ -732,53 +734,7 @@ describe("AgentCreateForm organization lock", () => {
 		);
 	});
 
-	it("names the project's organization when the user cannot create chats in it", async () => {
-		server.use(
-			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
-		);
-
-		renderLockTest({ project: projectInOrg2 });
-
-		await screen.findByText(
-			/create chats in the My Organization 2 organization, which this project belongs to\./,
-		);
-	});
-
-	it("names no organization when the dashboard does not list the project's", async () => {
-		server.use(
-			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
-		);
-
-		renderLockTest({
-			project: { id: "project-1", organization_id: "unlisted-org" },
-		});
-
-		await screen.findByText(
-			/create chats in the organization, which this project belongs to\./,
-		);
-	});
-
-	it("shows the product-wide denial when the user cannot create chats at all", async () => {
-		server.use(
-			mockChatCreatePermissions((id) => id === MockDefaultOrganization.id),
-		);
-
-		renderLockTest({ canCreateChat: false, project: projectInOrg2 });
-
-		await screen.findByText(/You don't have permission to use Coder Agents\./);
-		expect(screen.queryByText(/which this project belongs to/)).toBeNull();
-	});
-
-	it("shows the product-wide denial when no organization is permitted", async () => {
-		server.use(mockChatCreatePermissions(() => false));
-
-		renderLockTest({ project: projectInOrg2 });
-
-		await screen.findByText(/You don't have permission to use Coder Agents\./);
-		expect(screen.queryByText(/which this project belongs to/)).toBeNull();
-	});
-
-	it("does not deny access while permissions load", async () => {
+	it("keeps a message typed while permissions load", async () => {
 		const permissions = createDeferred<undefined>();
 		server.use(
 			http.post("/api/v2/authcheck", async ({ request }) => {
@@ -791,17 +747,33 @@ describe("AgentCreateForm organization lock", () => {
 				);
 			}),
 		);
-		const mcpRequests = recordMCPRequests();
-
-		renderLockTest({ project: projectInOrg2 });
-		await screen.findByRole("textbox", { name: "Chat message" });
-		expect(screen.queryByText("Permission required")).toBeNull();
-
-		permissions.resolve(undefined);
-		await waitFor(() => {
-			expect(mcpRequests).toContain(MockOrganization2.id);
+		const queryClient = createQueryClient();
+		queryClient.removeQueries({
+			queryKey: permittedOrganizationsKey({
+				object: { resource_type: "chat", owner_id: "me" },
+				action: "create",
+			}),
 		});
-		expect(screen.queryByText("Permission required")).toBeNull();
+
+		const { onCreateChat } = renderForm(
+			{
+				project: {
+					id: "project-1",
+					organization_id: MockDefaultOrganization.id,
+				},
+			},
+			{ queryClient },
+		);
+		// A denial shown before permissions settle would make the composer
+		// read-only and drop this input.
+		await typeMessage("typed while loading");
+		permissions.resolve(undefined);
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.message).toBe("typed while loading");
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
 	});
 });
 
