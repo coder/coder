@@ -68,43 +68,6 @@ do not appear in build parameters, Terraform state, template insights, or
 metrics. Coder delivers them only through the workspace agent, the same way as
 user secrets, and they cannot be read back through the API.
 
-To set them, include a `secrets` array on
-`POST /users/{user}/workspaces` or `POST /workspaces/{workspace}/builds`:
-
-```json
-{
-  "transition": "start",
-  "secrets": [
-    { "name": "cursor-api-key", "value": "<value>", "env_name": "CURSOR_API_KEY" },
-    { "name": "work-order", "value": "<value>", "env_name": "WORK_ORDER_TOKEN", "ephemeral": true },
-    { "name": "kubeconfig", "value": "<value>", "file_path": "~/.kube/config" }
-  ]
-}
-```
-
-- Each secret needs an `env_name`, a `file_path`, or both.
-- Each secret is linked to the build it was set on. When the next build is
-  created, non-ephemeral secrets are copied to it unless the request replaces
-  them by `name`, removes them by sending `"value": null`, or sets another
-  secret on the same `env_name` or `file_path`. An empty string is a valid
-  value, not a removal. Requests that omit `secrets` still carry the existing
-  set forward.
-- `ephemeral: true` delivers a secret to that build only. It is not copied to
-  the next build, whoever triggers it and whether or not the build succeeds.
-- After a build is created, the previous build's rows keep their name,
-  targets, and timestamps but their values are cleared. This leaves a record
-  of which secrets each build received without retaining the values.
-- A workspace secret that targets the same environment variable or file path as
-  a user secret takes precedence in that workspace.
-- The [user secrets limits](../../user-guides/user-secrets.md#limits) apply per
-  build, and the same file path delivery policy applies.
-- Values are covered by [Database Encryption](./database-encryption.md) when it
-  is enabled.
-
-Because the template does not declare workspace secrets, have a startup script
-verify that the environment variables it depends on are present and fail
-early with a clear message when they are not.
-
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically
