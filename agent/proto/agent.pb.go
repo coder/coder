@@ -1228,9 +1228,7 @@ type Manifest struct {
 	Metadata                 []*WorkspaceAgentMetadata_Description `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty"`
 	Devcontainers            []*WorkspaceAgentDevcontainer         `protobuf:"bytes,17,rep,name=devcontainers,proto3" json:"devcontainers,omitempty"`
 	Secrets                  []*WorkspaceSecret                    `protobuf:"bytes,19,rep,name=secrets,proto3" json:"secrets,omitempty"`
-	// The workspace build that created this agent. Empty when the server
-	// predates this field.
-	WorkspaceBuildId []byte `protobuf:"bytes,20,opt,name=workspace_build_id,json=workspaceBuildId,proto3" json:"workspace_build_id,omitempty"`
+	WorkspaceBuildId         []byte                                `protobuf:"bytes,20,opt,name=workspace_build_id,json=workspaceBuildId,proto3" json:"workspace_build_id,omitempty"`
 }
 
 func (x *Manifest) Reset() {
