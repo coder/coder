@@ -62,16 +62,16 @@ const TerminalPage: React.FC = () => {
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
 
-	// Resolve the ?app= slug to a command from the agent's app list.
-	// These commands are admin-configured in the template and trusted,
-	// so they skip the confirmation dialog.
-	const appCommand = useMemo(() => {
+	// Resolve the ?app= slug to an app from the agent's app list. Its
+	// command is admin-configured in the template and trusted, so it
+	// skips the confirmation dialog.
+	const app = useMemo(() => {
 		if (!appSlug || !workspaceAgent) {
 			return undefined;
 		}
-		const app = workspaceAgent.apps.find((a) => a.slug === appSlug);
-		return app?.command || undefined;
+		return workspaceAgent.apps.find((a) => a.slug === appSlug);
 	}, [appSlug, workspaceAgent]);
+	const appCommand = app?.command || undefined;
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
@@ -150,16 +150,42 @@ const TerminalPage: React.FC = () => {
 		);
 	}, [navigate, reconnectionToken, searchParams]);
 
+	// Chrome keeps using the static icons from index.html, which carry
+	// media queries, over an icon added later. Switch them off while the
+	// app's icon is shown and restore them when leaving the page.
+	const appIcon = app?.icon;
+	useEffect(() => {
+		if (!appIcon) {
+			return;
+		}
+		const staticIcons = Array.from(
+			document.head.querySelectorAll<HTMLLinkElement>(
+				'link[rel~="icon"][media]',
+			),
+		);
+		const media = staticIcons.map((link) => link.media);
+		for (const link of staticIcons) {
+			link.media = "not all";
+		}
+		return () => {
+			staticIcons.forEach((link, i) => {
+				link.media = media[i];
+			});
+		};
+	}, [appIcon]);
+
 	return (
 		<ThemeOverride theme={theme}>
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						"Terminal",
+						app?.display_name || "Terminal",
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>
 			)}
+			{/* Lets a PWA installed from an app's terminal page carry the app's icon. */}
+			{appIcon && <link rel="icon" href={appIcon} />}
 
 			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<WorkspaceTerminalAlerts
