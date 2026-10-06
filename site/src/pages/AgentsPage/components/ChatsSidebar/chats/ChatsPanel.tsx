@@ -89,22 +89,22 @@ type ChatsPanelProps = {
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onMarkChatRead: (chatId: string) => void;
 	readonly onMarkChatUnread: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	readonly onBeforeNewAgent?: () => void;
-	readonly onOpenSearchDialog?: () => void;
-	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly onReorderPinnedAgent: (chatId: string, pinOrder: number) => void;
+	readonly onBeforeNewAgent: () => void;
+	readonly onOpenSearchDialog: () => void;
+	readonly onOpenRenameDialog: (chat: Chat) => void;
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
-	readonly onRetryLoad?: () => void;
-	readonly hasNextPage?: boolean;
-	readonly onLoadMore?: () => void;
-	readonly isFetchingNextPage?: boolean;
+	readonly onRetryLoad: () => void;
+	readonly hasNextPage: boolean;
+	readonly onLoadMore: () => void;
+	readonly isFetchingNextPage: boolean;
 	readonly sidebarFilters: AgentSidebarFilters;
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
-	readonly onCollapse?: () => void;
+	readonly onCollapse: () => void;
 	readonly activeChatId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
@@ -261,7 +261,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		onReorderPinnedAgent(activeId, newIndex + 1);
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -417,17 +417,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								</KbdGroup>
 							</TooltipContent>
 						</Tooltip>
-						{onCollapse && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={onCollapse}
-								aria-label="Collapse sidebar"
-								className="size-7 min-w-0 text-content-secondary hover:text-content-primary"
-							>
-								<PanelLeftCloseIcon />
-							</Button>
-						)}
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onCollapse}
+							aria-label="Collapse sidebar"
+							className="size-7 min-w-0 text-content-secondary hover:text-content-primary"
+						>
+							<PanelLeftCloseIcon />
+						</Button>
 					</div>
 				</div>
 				<SettingsNavItem
@@ -438,22 +436,20 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
-				{onOpenSearchDialog && (
-					<SettingsNavItem
-						icon={SearchIcon}
-						label="Search"
-						active={false}
-						ariaLabel="Search chats"
-						onClick={onOpenSearchDialog}
-						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
-						trailing={
-							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-								<Kbd>{getOSKey()}</Kbd>
-								<Kbd>K</Kbd>
-							</KbdGroup>
-						}
-					/>
-				)}
+				<SettingsNavItem
+					icon={SearchIcon}
+					label="Search"
+					active={false}
+					ariaLabel="Search chats"
+					onClick={onOpenSearchDialog}
+					className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
+					trailing={
+						<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+							<Kbd>{getOSKey()}</Kbd>
+							<Kbd>K</Kbd>
+						</KbdGroup>
+					}
+				/>
 				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
@@ -463,17 +459,15 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="Search chats"
+								onClick={onOpenSearchDialog}
+								className="size-7 sm:hidden"
+							>
+								<SearchIcon />
+							</Button>
 							<AutomationsMobileLink />
 							<FilterPopover
 								filters={sidebarFilters}
@@ -499,11 +493,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						{loadError ? (
 							<div className="space-y-3 px-1">
 								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
+								<Button size="sm" variant="outline" onClick={onRetryLoad}>
+									Retry
+								</Button>
 							</div>
 						) : isLoading ? (
 							<>
