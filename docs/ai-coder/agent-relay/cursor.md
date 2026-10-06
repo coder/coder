@@ -3,7 +3,7 @@ title: Agent Relay for Cursor
 ---
 
 > [!NOTE]
-> Agent Relay for Cursor is in [early access](../../install/releases/feature-stages.md#early-access-features) and is currently in closed preview with select customers.
+> Agent Relay for Cursor is in [early access](../../reference/feature-stages.md#early-access-features) and is currently in closed preview with select customers.
 
 [Agent Relay](./index.md) connects [Cursor Cloud Agents](https://cursor.com/cloud) to self-hosted Coder workspaces.
 Cursor also refers to this self-hosted worker model as [self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted).
@@ -35,4 +35,4 @@ Talk to your [Coder account team](https://coder.com/contact) or email [sales@cod
 ## Learn more
 
 - [Agent Relay](./index.md)
-- [Architecture](../../admin/infrastructure/architecture.md)
+- [Architecture](../../install/plan/architecture.md)

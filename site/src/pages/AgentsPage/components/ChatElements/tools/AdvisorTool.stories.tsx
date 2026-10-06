@@ -62,7 +62,16 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	args: { name: "advisor" },
+	args: {
+		name: "advisor",
+		organizationId: "organization-id",
+		mcpServers: [],
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
+	},
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;
@@ -83,6 +92,14 @@ export const SuccessfulAdvice: Story = {
 		const toggle = canvas.getByRole("button");
 
 		await userEvent.click(toggle);
+	},
+};
+
+export const CompletedWithTransientReasoning: Story = {
+	...SuccessfulAdvice,
+	args: {
+		...SuccessfulAdvice.args,
+		reasoning: "This transient reasoning must not appear after completion.",
 	},
 };
 
@@ -120,11 +137,28 @@ export const WithModelIntent: Story = {
 	},
 };
 
+export const RunningWithReasoning: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I am comparing the risky paths before recommending one.",
+	},
+};
+
 export const RunningWithStreamedAdvice: Story = {
 	args: {
 		status: "running",
 		args: { question: sampleQuestion },
 		result: "Use the smaller diff while the advisor is still responding.",
+	},
+};
+
+export const RunningWithReasoningAndStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I found one low-risk path and one risky shortcut.",
+		result: "Use the low-risk path while the advisor is still responding.",
 	},
 };
 

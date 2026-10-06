@@ -172,6 +172,23 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+}
+
+// RBACObject scopes a memory to its project so the project owner owns it.
+// Memories carry no owner of their own, so the parent project must be
+// supplied.
+func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.WithID(m.ID).InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+}
+
+// ChatProjectMemoryRBACObject is the object to authorize when creating a
+// memory in the project, before an ID exists.
+func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).
@@ -185,6 +202,13 @@ func (c Chat) RBACObject() rbac.Object {
 	return obj.
 		WithACLUserList(c.UserACL.RBACACL()).
 		WithGroupACL(c.GroupACL.RBACACL())
+}
+
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		InOrg(a.OrganizationID).
+		WithOwner(a.OwnerID.String())
 }
 
 func (m MCPServerConfig) RBACObject() rbac.Object {
@@ -1024,6 +1048,7 @@ type UpsertConnectionLogParams struct {
 	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
 	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }

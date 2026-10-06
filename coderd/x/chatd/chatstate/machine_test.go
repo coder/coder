@@ -2,6 +2,7 @@ package chatstate_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"slices"
 	"sync"
@@ -25,7 +26,10 @@ import (
 // helper accessors. It is intentionally NOT a generic chatd test
 // fixture; tests outside this package should not depend on it.
 type testFixture struct {
-	DB    database.Store
+	DB database.Store
+	// SQLDB is the raw handle behind DB, for test-only writes that have
+	// no production query, such as disabling an automation.
+	SQLDB *sql.DB
 	Pub   *recordingPubsub
 	User  database.User
 	Org   database.Organization
@@ -34,7 +38,7 @@ type testFixture struct {
 
 func newTestFixture(t *testing.T) *testFixture {
 	t.Helper()
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -53,6 +57,7 @@ func newTestFixture(t *testing.T) *testFixture {
 	pub := newRecordingPubsub()
 	return &testFixture{
 		DB:    db,
+		SQLDB: sqlDB,
 		Pub:   pub,
 		User:  user,
 		Org:   org,
@@ -153,6 +158,7 @@ func createTestChat(t *testing.T, f *testFixture) chatstate.CreateChatResult {
 		LastModelConfigID: f.Model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("hello", f.User.ID, f.Model.ID),
 		},
@@ -189,7 +195,7 @@ func TestChatMachine_Lock_DoesNotBumpSnapshot(t *testing.T) {
 	require.Equal(t, publishedBefore, len(f.Pub.channels), "Lock must not publish")
 }
 
-func TestChatMachine_ReadLock_DoesNotBumpSnapshot(t *testing.T) {
+func TestChatMachine_ReadSnapshot_DoesNotBumpSnapshot(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -200,26 +206,27 @@ func TestChatMachine_ReadLock_DoesNotBumpSnapshot(t *testing.T) {
 	publishedBefore := len(f.Pub.channels)
 
 	var called bool
-	require.NoError(t, m.ReadLock(ctx, func(_ database.Store) error {
+	require.NoError(t, m.ReadSnapshot(func(_ database.Store) error {
 		called = true
 		return nil
 	}))
-	require.True(t, called, "ReadLock must invoke the callback")
+	require.True(t, called, "ReadSnapshot must invoke the callback")
 	after := f.readChat(ctx, t, created.Chat.ID)
 	require.Equal(t, before.SnapshotVersion, after.SnapshotVersion)
-	require.Equal(t, publishedBefore, len(f.Pub.channels), "ReadLock must not publish")
+	require.Equal(t, publishedBefore, len(f.Pub.channels), "ReadSnapshot must not publish")
 }
 
-func TestChatMachine_ReadLock_RejectsMissingChat(t *testing.T) {
+func TestChatMachine_ReadSnapshot_PropagatesMissingChat(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, uuid.New())
-	err := m.ReadLock(ctx, func(_ database.Store) error {
-		t.Fatal("callback must not run when the chat is missing")
-		return nil
+	chatID := uuid.New()
+	m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+	err := m.ReadSnapshot(func(store database.Store) error {
+		_, err := store.GetChatByID(ctx, chatID)
+		return err
 	})
-	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 	require.Empty(t, f.Pub.channels)
 }
 
@@ -261,6 +268,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

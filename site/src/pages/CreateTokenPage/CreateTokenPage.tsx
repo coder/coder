@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizo
 import { Loader } from "#/components/Loader/Loader";
 import { pageTitle } from "#/utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
-import { type CreateTokenData, NANO_HOUR } from "./utils";
+import { type CreateTokenData, NANO_DAY } from "./utils";
 
 const initialValues: CreateTokenData = {
 	name: "",
@@ -23,7 +23,7 @@ type CreateTokenPageProps = {
 	now?: Date;
 };
 
-const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
+const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 	const navigate = useNavigate();
 
 	const {
@@ -62,7 +62,10 @@ const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 		onSubmit: (values) => {
 			saveToken(
 				{
-					lifetime: values.lifetime * 24 * NANO_HOUR,
+					lifetime: Math.min(
+						Math.round(values.lifetime * NANO_DAY),
+						tokenConfig?.max_token_lifetime || Number.POSITIVE_INFINITY,
+					),
 					token_name: values.name,
 					scope: "all", // tokens are currently unscoped
 				},

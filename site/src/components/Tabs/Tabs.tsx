@@ -2,7 +2,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import {
-	type ComponentProps,
 	createContext,
 	useCallback,
 	useContext,
@@ -14,7 +13,7 @@ import { Link, type LinkProps } from "react-router";
 
 // --- Radix tabs (stateful panels) ---
 
-type TabsProps = ComponentProps<typeof TabsPrimitive.Root>;
+type TabsProps = React.ComponentProps<typeof TabsPrimitive.Root>;
 
 export const Tabs = ({ ...props }: TabsProps) => {
 	return <TabsPrimitive.Root data-slot="tabs" {...props} />;
@@ -46,7 +45,7 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 		variant: "outsideBox",
 	},
 });
-type TabsListProps = ComponentProps<typeof TabsPrimitive.List> &
+type TabsListProps = React.ComponentProps<typeof TabsPrimitive.List> &
 	VariantProps<typeof tabsListVariants> & {
 		overflowKebabMenu?: boolean;
 	};
@@ -72,7 +71,7 @@ export const TabsList = ({
 	);
 };
 
-type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
+type TabsTriggerProps = React.ComponentProps<typeof TabsPrimitive.Trigger>;
 
 export const TabsTrigger = ({
 	type: triggerType = "button",
@@ -97,7 +96,7 @@ export const TabsTrigger = ({
 	);
 };
 
-type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
+type TabsContentProps = React.ComponentProps<typeof TabsPrimitive.Content>;
 
 export const TabsContent = ({ ...props }: TabsContentProps) => {
 	return <TabsPrimitive.Content data-slot="tabs-content" {...props} />;
@@ -116,7 +115,7 @@ const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
 	undefined,
 );
 
-type LinkTabsProps = ComponentProps<"div"> & LinkTabsContextValue;
+type LinkTabsProps = React.ComponentProps<"div"> & LinkTabsContextValue;
 
 export const LinkTabs = ({
 	className,
@@ -139,7 +138,7 @@ export const LinkTabs = ({
 	);
 };
 
-type LinkTabsListProps = ComponentProps<"div">;
+type LinkTabsListProps = React.ComponentProps<"div">;
 
 export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 	const tabsContext = useContext(LinkTabsContext);

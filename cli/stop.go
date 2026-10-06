@@ -13,7 +13,7 @@ import (
 func (r *RootCmd) stop() *serpent.Command {
 	var bflags buildFlags
 	cmd := &serpent.Command{
-		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
 		Middleware: serpent.Chain(
@@ -27,6 +27,9 @@ func (r *RootCmd) stop() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			// The invocation logger records debug detail and emits it to stderr
+			// only if the command fails (see flightRecorderMiddleware).
+			client.SetLogger(inv.Logger)
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",

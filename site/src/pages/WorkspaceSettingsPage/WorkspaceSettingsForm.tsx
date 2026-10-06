@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
-import type { FC } from "react";
 import * as Yup from "yup";
 import {
 	type AutomaticUpdates,
@@ -43,7 +42,7 @@ type WorkspaceSettingsFormProps = {
 	onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
 };
 
-export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
+export const WorkspaceSettingsForm: React.FC<WorkspaceSettingsFormProps> = ({
 	onCancel,
 	onSubmit,
 	workspace,

@@ -114,7 +114,7 @@ Tier 2 file filters:
   - TypeScript: `*.ts` `*.tsx`: reference `.agents/skills/deep-review/references/typescript.md` before reviewing.
   - React: `*.tsx` `*.jsx`: reference `.agents/skills/deep-review/references/react.md` before reviewing.
 
-  `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes — TS covers language-level patterns; React covers component and hooks patterns. Before spawning, verify each instance's filter produces a non-empty diff. Skip instances whose filtered diff is empty.
+  `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes: TS covers language-level patterns; React covers component and hooks patterns. Before spawning, list the changed paths (`gh pr diff {number} --name-only` for a PR) and skip instances whose filter matches none of them.
 
 - **Style Reviewer**: `*.go` `*.ts` `*.tsx` `*.py` `*.sh`
 
@@ -260,7 +260,7 @@ Fresh review found one new issue: 1 P2 across 1 inline comment.
 
 Keep the review body to 2–4 sentences. Don't use markdown headers in the body — they render oversized in GitHub's review UI.
 
-**Inline comments.** Every finding is an inline comment, pinned to the most relevant file and line. For findings that span multiple files, pin to the primary file (GitHub supports file-level comments when `position` is omitted or set to 1).
+**Inline comments.** Every finding is an inline comment, pinned to the most relevant file and line. For findings that span multiple files, pin to the most relevant line in the primary file.
 
 Inline comment format:
 
@@ -297,13 +297,9 @@ For P0 or P1 findings, add a note in the review body: "This review contains find
 
 **Posting via GitHub API.**
 
-The `gh api` endpoint for posting reviews routes through GraphQL by default. Field names differ from the REST API docs:
+Post through the REST endpoint below. Each comment uses `path` and `position`. The review `comments` array has no file-level option, so pin cross-file findings to a line.
 
-- Use `position` (diff-relative line number), not `line` + `side`. `side` is not a valid field in the GraphQL schema.
-- `subject_type: "file"` is not recognized. Pin file-level comments to `position: 1` instead.
-- Use `-X POST` with `--input` to force REST API routing.
-
-To compute positions: save the PR diff to a file, then count lines from the first `@@` hunk header of each file's diff section. For new files, position = line number + 1 (the hunk header is position 1, first content line is position 2).
+To compute positions: save the PR diff to a file. In each file's diff section, the line immediately after the first `@@` hunk header is position 1. Positions keep increasing through later hunks in the same file, and each later `@@` header counts as one line. For a new file, position equals the file line number.
 
 ```sh
 gh pr diff {number} > /tmp/pr.diff
@@ -327,12 +323,12 @@ Where `review.json`:
         {
             "path": "file.go",
             "position": 42,
-            "body": "**P1** Finding... *(Reviewer Role)*\n\n> Evidence..."
+            "body": "**P2** Finding... *(Reviewer Role)*\n\n> Evidence..."
         },
         {
             "path": "other.go",
-            "position": 1,
-            "body": "**P2** Cross-file finding... *(Reviewer Role)*\n\n> Evidence..."
+            "position": 17,
+            "body": "**P3** Finding that spans files, pinned to the most relevant line in the primary file... *(Reviewer Role)*\n\n> Evidence..."
         }
     ]
 }

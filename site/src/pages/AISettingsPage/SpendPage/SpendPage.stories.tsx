@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
@@ -72,7 +79,7 @@ const meta = {
 			[MockOrganization.id]: true,
 			[MockOrganization2.id]: true,
 		});
-		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => ({
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
@@ -132,7 +139,7 @@ export const FilteredByProvider: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
 			count: 3,
 			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
@@ -144,7 +151,13 @@ export const FilteredByProvider: Story = {
 		});
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: "Select provider" }),
+			).toHaveTextContent("OpenAI"),
+		);
 	},
 };
 
@@ -153,7 +166,7 @@ export const FilteredByProvider: Story = {
 export const RetentionLimitedPicker: Story = {
 	beforeEach: () => {
 		const retentionStart = fixedNow.subtract(10, "day").toISOString();
-		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => ({
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? retentionStart,

@@ -19,7 +19,10 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "../../utils/slashCommands";
-import type { PendingAttachment } from "../ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+} from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -32,6 +35,7 @@ import type { ChatStore } from "./chatStore";
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	editedMessageID?: number;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
@@ -244,6 +248,7 @@ export async function submitChatTurn(
 	const {
 		message,
 		attachments,
+		workspaceUploads,
 		editedMessageID,
 		composerParts,
 		clearPlanMode = false,
@@ -278,6 +283,7 @@ export async function submitChatTurn(
 	const { content, hasContent } = buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		composerParts,
 	});
 	if (!hasContent || isSubmissionPending || !hasModelOptions) {

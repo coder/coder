@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
@@ -33,7 +32,7 @@ export type AgentSettingsGeneralPageViewProps = {
 	isSaveUserDebugLoggingError: boolean;
 };
 
-export const AgentSettingsGeneralPageView: FC<
+export const AgentSettingsGeneralPageView: React.FC<
 	AgentSettingsGeneralPageViewProps
 > = ({
 	userPromptData,

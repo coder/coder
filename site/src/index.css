@@ -160,6 +160,9 @@
 		}
 	}
 
+	/* Steep ease-out for overlay enter and exit. Named curves start too gently. */
+	--ease-out-strong: cubic-bezier(0.19, 1, 0.22, 1);
+
 	/* Spinner leaves fade in a staggered wave. Each leaf starts 0.1s further
 		into the cycle, and the cycle lasts one stagger per leaf so the wave wraps
 		seamlessly whatever the leaf count is. Spinner sets --spinner-leaf-index
@@ -435,7 +438,7 @@
 		--content-disabled: 240 5% 65%;
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
-		--content-destructive: 0 84% 60%;
+		--content-destructive: 0 72.2% 50.6%;
 		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
 		--surface-tertiary: 240 6% 90%;
@@ -461,7 +464,7 @@
 		--border-green: 138 82% 82%;
 		--border-magenta: 295, 68%, 46%;
 		--border-warning: 30.66, 97.16%, 72.35%;
-		--border-destructive: 0 84% 60%;
+		--border-destructive: 0 72.2% 50.6%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;

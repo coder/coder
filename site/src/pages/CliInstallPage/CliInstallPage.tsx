@@ -1,9 +1,8 @@
 import { isPixel } from "@coder/pixel-storybook/storyapi";
-import type { FC } from "react";
 import { pageTitle } from "#/utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
 
-const CliInstallPage: FC = () => {
+const CliInstallPage: React.FC = () => {
 	const origin = isPixel() ? "https://example.com" : location.origin;
 
 	return (

@@ -21,22 +21,38 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatModel,
+	ChatProject,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
+	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import {
+	AutomationsMobileLink,
+	AutomationsNavItem,
+} from "../../Automations/AutomationsNavItem";
+import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -51,20 +67,34 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getChatStatusDisplay } from "../tree/statusConfig";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import {
+	type DeleteProject,
+	type OpenProjectDialog,
+	ProjectFolders,
+} from "./ProjectFolders";
+import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
-const UNREAD_SECTION_KEY = "Unread";
-const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 type ChatsPanelProps = {
+	readonly chatProjectsEnabled: boolean;
+	readonly projects: readonly ChatProject[];
+	readonly organizations: readonly Organization[];
+	readonly isProjectsLoading: boolean;
+	readonly projectsError: unknown;
+	readonly onRetryProjects: () => void;
+	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -77,6 +107,8 @@ type ChatsPanelProps = {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
@@ -94,13 +126,22 @@ type ChatsPanelProps = {
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
+	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
 };
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
+	chatProjectsEnabled,
+	projects,
+	organizations,
+	isProjectsLoading,
+	projectsError,
+	onRetryProjects,
+	onOpenProjectDialog,
+	onDeleteProject,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -110,6 +151,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkChatRead,
+	onMarkChatUnread,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
@@ -127,6 +170,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
+	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
 	location,
@@ -135,6 +179,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
+	// Explicit folder toggles. Folders without an entry follow the active
+	// project, so navigation opens the right folder in the same render.
+	const [projectFolderOverrides, setProjectFolderOverrides] = useState<
 		Record<string, boolean>
 	>({});
 
@@ -149,22 +198,28 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs.has(chatID),
 	);
 
-	const pinnedChats = visibleRootIDs
+	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.filter((chat): chat is Chat => chat !== undefined);
+	// Pin order is the owner's sidebar preference and the server ranks it
+	// per owner, so another user's chat stays out of the sortable Pinned
+	// section regardless of its pin_order.
+	const ownedChats = visibleRootChats.filter((chat) =>
+		canManageChat(chat, currentUserId),
+	);
+	const pinnedChats = ownedChats
+		.filter((chat) => chat.pin_order > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
-	const unpinnedChats = visibleRootIDs
-		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
-	const sharedWithYouChats = unpinnedChats.filter(
-		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	const sharedWithYouChats = visibleRootChats.filter(
+		(chat) => !canManageChat(chat, currentUserId),
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
-	);
+	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
+	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
+		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.unread ||
 		sidebarFilters.sources.length !==
 			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
 		sidebarFilters.sources.some(
@@ -280,6 +335,46 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// Folders default open for the active chat's project or the project page.
+	const activeProjectId =
+		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
+		viewedProjectId;
+	const [seenActiveProjectId, setSeenActiveProjectId] =
+		useState(activeProjectId);
+	if (activeProjectId !== seenActiveProjectId) {
+		// Arriving at a project clears an earlier collapse. A collapse made while
+		// there remains until the next arrival. The folder being left keeps its
+		// state, so navigating never collapses a folder.
+		setSeenActiveProjectId(activeProjectId);
+		const keepsLeftFolderOpen =
+			seenActiveProjectId !== undefined &&
+			!(seenActiveProjectId in projectFolderOverrides);
+		const clearsArrivalOverride =
+			activeProjectId !== undefined &&
+			activeProjectId in projectFolderOverrides;
+		if (keepsLeftFolderOpen || clearsArrivalOverride) {
+			setProjectFolderOverrides((prev) => {
+				const next = { ...prev };
+				if (
+					seenActiveProjectId !== undefined &&
+					!(seenActiveProjectId in prev)
+				) {
+					next[seenActiveProjectId] = true;
+				}
+				if (activeProjectId !== undefined) {
+					delete next[activeProjectId];
+				}
+				return next;
+			});
+		}
+	}
+	const toggleProject = (projectId: string) => {
+		setProjectFolderOverrides((prev) => ({
+			...prev,
+			[projectId]: !(prev[projectId] ?? projectId === activeProjectId),
+		}));
+	};
+
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
@@ -309,32 +404,39 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	};
 
 	const chatSections = (
 		sidebarFilters.groupBy === "chat_status"
-			? [
-					{
-						key: UNREAD_SECTION_KEY,
-						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
-					},
-					{
-						key: READ_SECTION_KEY,
-						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
-					},
-				]
+			? AGENT_CHAT_STATUS_GROUP_ORDER.map((status) => {
+					const label = getChatStatusDisplay(status).label;
+					return {
+						key: label,
+						label,
+						chats: unfiledOwnedChats.filter((chat) => chat.status === status),
+					};
+				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedOwnedChats.filter(
+					chats: unfiledOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
-	const isShowingEmptyState = visibleRootIDs.length === 0;
+	// Project chats live only in their folders, so a Chats section whose
+	// chats are all filed is empty. While projects load, chats with a project
+	// are held back, so the section is not known to be empty yet.
+	const isWithholdingProjectChats =
+		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+	const isShowingEmptyState =
+		!isWithholdingProjectChats &&
+		pinnedChats.length === 0 &&
+		sharedWithYouChats.length === 0 &&
+		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -342,11 +444,40 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
+	// Without projects the header stays pinned above the scrolling list, as
+	// before; with projects it scrolls below the folders.
+	const chatsHeader = (
+		<SidebarSectionHeader
+			title={chatsHeadingLabel}
+			actions={
+				<>
+					{onOpenSearchDialog && (
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Search chats"
+							onClick={onOpenSearchDialog}
+							className="size-7 sm:hidden"
+						>
+							<SearchIcon />
+						</Button>
+					)}
+					<AutomationsMobileLink />
+					<FilterPopover
+						filters={sidebarFilters}
+						onFiltersChange={onSidebarFiltersChange}
+					/>
+				</>
+			}
+		/>
+	);
+
 	const clearResultFilters = () => {
 		onSidebarFiltersChange({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			unread: false,
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
@@ -372,23 +503,34 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
-						<Button
-							asChild
-							variant="subtle"
-							size="icon"
-							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
-						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
-								<SettingsIcon />
-							</Link>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									asChild
+									variant="subtle"
+									size="icon"
+									aria-label="Settings"
+									className={cn(
+										"size-7 min-w-0 text-content-secondary hover:text-content-primary",
+										isSettingsPanel && "text-content-primary",
+									)}
+								>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname + locationSearch }}
+									>
+										<SettingsIcon />
+									</Link>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="flex items-center gap-2">
+								Settings
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>,</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 						{onCollapse && (
 							<Button
 								variant="subtle"
@@ -426,32 +568,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							{chatsHeadingLabel}
-						</h2>
-						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
-							<FilterPopover
-								filters={sidebarFilters}
-								onFiltersChange={onSidebarFiltersChange}
-							/>
-						</div>
-					</div>
-				</div>
+				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -465,6 +585,32 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
+					{/* Projects share the chat list's scroll area, so expanding a folder
+					    pushes the Chats section down instead of scrolling on its own. */}
+					{chatProjectsEnabled && (
+						<ChatTreeContext value={chatTreeCtx}>
+							<ProjectFolders
+								projects={projects}
+								organizations={organizations}
+								chatsByProjectId={chatsByProjectId}
+								expandedProjectIds={Object.fromEntries(
+									projects.map((project) => [
+										project.id,
+										projectFolderOverrides[project.id] ??
+											project.id === activeProjectId,
+									]),
+								)}
+								onToggle={toggleProject}
+								onOpenProjectDialog={onOpenProjectDialog}
+								onDelete={onDeleteProject}
+								isLoading={isProjectsLoading}
+								error={projectsError}
+								onRetry={onRetryProjects}
+								emptyMessage={emptyStateMessage}
+							/>
+						</ChatTreeContext>
+					)}
+					{chatProjectsEnabled && chatsHeader}
 					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">

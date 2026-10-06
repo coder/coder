@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -64,6 +65,85 @@ const (
 	headerCoderSubchatID   = "X-Coder-Subchat-Id"
 	headerCoderWorkspaceID = "X-Coder-Workspace-Id"
 )
+
+// maxInlineHTTPResponseBytes caps one HTTP response body, or one
+// server-sent event, from an inline MCP server. Chat owners, not
+// org admins, choose these servers, so a hostile server must not be
+// able to exhaust memory with an unbounded tool list or tool result.
+const maxInlineHTTPResponseBytes = 1 << 20
+
+var errInlineResponseTooLarge = xerrors.New("inline MCP response body exceeds maximum size")
+
+// inlineHTTPClient wraps base so every response body is capped at
+// maxInlineHTTPResponseBytes. A nil or transport-less base falls
+// back to the default guarded client, matching httpClientWithHeaders.
+func inlineHTTPClient(base *http.Client) *http.Client {
+	if base == nil || base.Transport == nil {
+		base = NewHTTPClient(base)
+	}
+	client := *base
+	client.Transport = &maxResponseBodyRoundTripper{
+		base:     base.Transport,
+		maxBytes: maxInlineHTTPResponseBytes,
+	}
+	return &client
+}
+
+type maxResponseBodyRoundTripper struct {
+	base     http.RoundTripper
+	maxBytes int64
+}
+
+func (t *maxResponseBodyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	// An SSE stream lives for the whole session; the transport caps it
+	// per event through MaxEventSize instead.
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if resp.Body == nil || mediaType == "text/event-stream" {
+		return resp, nil
+	}
+	if resp.ContentLength > t.maxBytes {
+		_ = resp.Body.Close()
+		return nil, errInlineResponseTooLarge
+	}
+	resp.Body = &maxResponseReadCloser{
+		body:      resp.Body,
+		remaining: t.maxBytes,
+	}
+	return resp, nil
+}
+
+type maxResponseReadCloser struct {
+	body      io.ReadCloser
+	remaining int64
+}
+
+func (r *maxResponseReadCloser) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return r.body.Read(p)
+	}
+	// Read one byte past the cap so an exactly-at-cap body is not
+	// rejected while an over-cap body is detected on this read.
+	maxRead := r.remaining + 1
+	if int64(len(p)) > maxRead {
+		p = p[:maxRead]
+	}
+	n, err := r.body.Read(p)
+	if int64(n) > r.remaining {
+		n = int(r.remaining)
+		r.remaining = 0
+		return n, errInlineResponseTooLarge
+	}
+	r.remaining -= int64(n)
+	return n, err
+}
+
+func (r *maxResponseReadCloser) Close() error {
+	return r.body.Close()
+}
 
 func httpClientWithHeaders(base *http.Client, headers map[string]string, signingSecret string) *http.Client {
 	if base == nil || base.Transport == nil {

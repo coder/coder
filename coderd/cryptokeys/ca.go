@@ -49,7 +49,7 @@ type NATSCA struct {
 // active signer for that long. The certificate stays valid for NATSCAOverlap
 // past that window so that, once the next CA becomes the active signer, this CA
 // is still valid while replicas' key caches refresh onto the new one. Leaves
-// are separately clamped to expire before this NotAfter (see coderd/x/nats
+// are separately clamped to expire before this NotAfter (see coderd/nats
 // mintLeaf), so the overlap only needs to cover the cache-refresh transition.
 func generateCASecret(anchorTime time.Time, keyDuration time.Duration) (string, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

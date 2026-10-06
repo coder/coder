@@ -44,6 +44,19 @@ AI GATEWAY OPTIONS:
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
 
+      --ai-gateway-actor-header-email string, $CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL
+          Header name for the authenticated user's email address. Empty disables
+          this header. Requires AI Gateway actor headers to be enabled. Applies
+          to every configured provider; email is personal information.
+
+      --ai-gateway-actor-header-id string, $CODER_AI_GATEWAY_ACTOR_HEADER_ID (default: X-AI-Bridge-Actor-ID)
+          Header name for the authenticated user's ID. Empty disables this
+          header. Requires AI Gateway actor headers to be enabled.
+
+      --ai-gateway-actor-header-username string, $CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME (default: X-AI-Bridge-Actor-Metadata-Username)
+          Header name for the authenticated user's username. Empty disables this
+          header. Requires AI Gateway actor headers to be enabled.
+
       --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
           Allow users to provide their own LLM API keys or subscriptions. When
           disabled, only centralized key authentication is permitted.
@@ -51,6 +64,18 @@ AI GATEWAY OPTIONS:
       --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
           Enable the circuit breaker to protect against cascading failures from
           upstream AI provider overload (503, 529).
+
+      --ai-gateway-disable-content-recording bool, $CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING (default: false)
+          Stop recording the content of intercepted conversations. No user
+          prompt, tool call or model reasoning record is stored, including tool
+          names and the arguments they were called with. Interceptions and token
+          usage are still recorded, so cost controls, budget enforcement and
+          spend reporting are unaffected. Sessions show no conversation detail,
+          prompt and tool call telemetry report zero, and interceptions are no
+          longer grouped into threads for clients that do not send their own
+          session ID. Combine with
+          --ai-gateway-structured-logging-source=gateway to keep exporting these
+          records to a SIEM instead.
 
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
           Maximum number of concurrent AI Gateway requests per replica. Set to 0
@@ -61,12 +86,26 @@ AI GATEWAY OPTIONS:
           to disable (unlimited).
 
       --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
-          Once enabled, extra headers will be added to upstream requests to
-          identify the user (actor) making requests to AI Gateway. This is only
-          needed if you are using a proxy between AI Gateway and an upstream AI
-          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
-          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
-          username).
+          Add configured headers identifying the authenticated user to
+          intercepted upstream requests. Use this when a proxy between AI
+          Gateway and an upstream AI provider needs user identity. When enabled,
+          removes client-supplied headers at configured actor-header
+          destinations before adding authenticated values. Client headers
+          starting with X-AI-Bridge-Actor are always removed.
+
+      --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
+          Emit structured logs for AI Gateway interception records. Use this for
+          exporting these records to external SIEM or observability systems.
+
+      --ai-gateway-structured-logging-source coderd|gateway|both, $CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE (default: coderd)
+          Which process emits AI Gateway interception records when structured
+          logging is enabled: coderd, the gateway, or both. The gateway emits
+          records that are never persisted, such as those dropped by
+          --ai-gateway-disable-content-recording, but cannot report
+          thread_parent_id or thread_root_id. Use both to verify a move from one
+          to the other; records reaching coderd are then reported twice. A
+          standalone gateway must be configured to emit its own records, and its
+          logs shipped rather than coderd's.
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.

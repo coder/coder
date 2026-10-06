@@ -1,5 +1,4 @@
-import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
-import type { ReactNode } from "react";
+import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
@@ -34,12 +33,10 @@ export const getStatusFilterOptions = async (
 			label: display.text,
 			value: status,
 			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<StatusIndicatorDot
-						variant={variantByStatusType[display.type]}
-						size="md"
-					/>
-				</span>
+				<StatusIndicatorDot
+					variant={variantByStatusType[display.type]}
+					size="md"
+				/>
 			),
 		} satisfies FilterOption;
 	});
@@ -77,7 +74,7 @@ export const getTemplateFilterOptions = async (
 		value: template.name,
 		startIcon: (
 			<Avatar
-				size="md"
+				size="sm"
 				variant="icon"
 				src={template.icon}
 				fallback={template.display_name || template.name}
@@ -93,13 +90,13 @@ type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
 // rather than a static `<username>`.
 const selfUserOption = (me: UserIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
+	appliedLabel: "me",
 	value: "me",
-	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="md" />,
+	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// Users who cannot list other users still filter by themselves, so the User
-// and Owner categories stay available (and their keys stay recognized chip
-// keys) with just the "you" option.
+// Users who cannot list other users still filter by themselves, so the Owner
+// category stays available with just the "you" option.
 export const getSelfUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -116,7 +113,6 @@ export const getSelfUserFilterOptions = async (
 	return [];
 };
 
-// Shared by the User and Owner categories: both take a username value.
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -125,51 +121,44 @@ export const getUserFilterOptions = async (
 	const usersRes = await queryClient.fetchQuery(
 		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
 	);
+	// The users API also matches name and email, so a result for the current
+	// user keeps its option even when the query is not in its label.
+	const self = usersRes.users.some((user) => user.username === me.username)
+		? [selfUserOption(me)]
+		: await getSelfUserFilterOptions(query, me);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
 			label: user.username,
 			value: user.username,
 			startIcon: (
-				<Avatar fallback={user.username} src={user.avatar_url} size="md" />
+				<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
 			),
 		}));
 
-	return [selfUserOption(me), ...options];
+	return [...self, ...options];
 };
 
 type AttributeDefinition = {
 	label: string;
 	value: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 	/** Hidden when the deployment lacks the entitlement gating this attribute. */
 	requiresDormantEntitlement: boolean;
 };
-
-const attributeIcon = (icon: ReactNode): ReactNode => (
-	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-		{icon}
-	</span>
-);
 
 const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 	{
 		label: "Outdated",
 		value: "outdated",
-		icon: <RefreshCwOffIcon className="size-icon-sm" />,
+		icon: <RefreshCwOffIcon />,
 		requiresDormantEntitlement: false,
 	},
 	{
 		label: "Dormant",
 		value: "dormant",
-		icon: <MoonIcon className="size-icon-sm" />,
+		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
-	},
-	{
-		label: "Shared",
-		value: "shared",
-		icon: <Share2Icon className="size-icon-sm" />,
-		requiresDormantEntitlement: false,
 	},
 ];
 
@@ -184,7 +173,7 @@ export const ATTRIBUTE_CHIP_KEYS: readonly string[] = ATTRIBUTE_DEFINITIONS.map(
 /**
  * Boolean workspace attributes exposed as a single "Attributes" category. Each
  * option commits its own `key:true` chip (e.g. `outdated:true`) rather than a
- * shared `attributes:` key, matching the backend workspace search filters.
+ * shared `attribute:` key, matching the backend workspace search filters.
  */
 export const getAttributeFilterOptions = async (
 	query: string,
@@ -206,7 +195,7 @@ export const getAttributeFilterOptions = async (
 			label: attribute.label,
 			value: attribute.value,
 			token: `${attribute.value}:true`,
-			startIcon: attributeIcon(attribute.icon),
+			startIcon: attribute.icon,
 		}));
 };
 
@@ -235,7 +224,7 @@ export const getOrganizationFilterOptions = async (
 		startIcon: (
 			<Avatar
 				key={organization.id}
-				size="md"
+				size="sm"
 				fallback={organization.display_name || organization.name}
 				src={organization.icon}
 			/>

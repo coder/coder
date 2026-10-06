@@ -5,7 +5,7 @@ import {
 	EllipsisVerticalIcon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -32,6 +32,7 @@ import {
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { ChatDiffStats } from "../../ChatDiffStats";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
@@ -45,7 +46,10 @@ type ChatTreeNodeProps = {
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
+export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
+	chat,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -67,6 +71,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -133,18 +139,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
-		prIcon,
-		diffStatus,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
-	const filesChangedLabel = `${changedFiles} ${
-		changedFiles === 1 ? "file" : "files"
-	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
@@ -155,10 +150,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		hasSubagentsToggle: hasChildren,
 	});
 
-	const hoverLayout =
-		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
-	const activeLayout =
-		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		chat,
 		canManage,
@@ -170,6 +161,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
+		// Opening a chat marks it read, so the read toggle would be undone
+		// immediately for the chat the user is already viewing.
+		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
+		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
 		onArchiveAndDeleteWorkspace: () => {
@@ -189,11 +184,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
-							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-							hoverLayout,
-							activeLayout,
+							"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
+							// pl-[11px] is pl-3 minus the active border, so content does not shift.
+							"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 						)}
 					>
 						<div
@@ -254,7 +248,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											className={cn(
 												"block flex-1 truncate text-[13px] text-content-primary",
 												!isActive &&
-													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
+													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 											)}
 										>
 											{chat.title}
@@ -264,26 +258,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
+										<ChatDiffStats chat={chat} />
 										<div
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
@@ -311,10 +286,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 											// The timestamp swaps out for the actions trigger on
-											// hover; without menu actions there is no trigger, so
-											// keep the timestamp visible.
+											// hover or while a menu is open. Without menu actions,
+											// there is no trigger, so keep the timestamp visible.
 											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
+												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
 											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
@@ -353,7 +328,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											size="icon"
 											variant="subtle"
 											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}

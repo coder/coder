@@ -15,11 +15,11 @@ on Kubernetes or `journalctl -u coder` if you deployed Coder on a host
 machine/VM.
 
 - To change the log format/location, you can set
-  [`CODER_LOGGING_HUMAN`](../../reference/cli/server.md#--log-human) and
-  [`CODER_LOGGING_JSON`](../../reference/cli/server.md#--log-json) server config.
+  [`CODER_LOGGING_HUMAN`](../../reference/cli/server/index.md#--log-human) and
+  [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json) server config.
   options.
 - To only display certain types of logs, use
-  the[`CODER_LOG_FILTER`](../../reference/cli/server.md#-l---log-filter) server
+  the[`CODER_LOG_FILTER`](../../reference/cli/server/index.md#-l---log-filter) server
   config. Using `.*` will result in the `DEBUG` log level being used.
 
 > [!NOTE]
@@ -32,14 +32,14 @@ Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs
 
-Logs for [external provisioners](../provisioners/index.md) are structured
-[and configured](../../reference/cli/provisioner_start.md#--log-human) similarly
+Logs for [external provisioners](../../install/operate/provisioners/index.md) are structured
+[and configured](../../reference/cli/provisioner/start.md#--log-human) similarly
 to `coderd` logs. Use these logs to troubleshoot and monitor the Terraform
 operations behind workspaces and templates.
 
 ## Workspace Logs
 
-The [Coder agent](../infrastructure/architecture.md#agents) inside workspaces
+The [Coder agent](../../install/plan/architecture.md#agents) inside workspaces
 provides useful logs around workspace-to-server and client-to-workspace
 connections. For Kubernetes workspaces, these are typically the pod logs as the
 agent runs via the container entrypoint.
@@ -52,7 +52,7 @@ Agent logs are also stored in the workspace filesystem by default:
   to see where logs are stored.
 
 > [!NOTE]
-> Logs are truncated once they reach 5MB in size.
+> Logs are truncated once they reach 5&nbsp;MB in size.
 
 Startup script logs are also stored in the temporary directory of macOS and
 Linux workspaces.

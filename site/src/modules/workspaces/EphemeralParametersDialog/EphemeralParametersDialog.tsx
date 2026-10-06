@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -21,7 +20,9 @@ type EphemeralParametersDialogProps = {
 	templateVersionId: string;
 };
 
-export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
+export const EphemeralParametersDialog: React.FC<
+	EphemeralParametersDialogProps
+> = ({
 	open,
 	onClose,
 	onContinue,

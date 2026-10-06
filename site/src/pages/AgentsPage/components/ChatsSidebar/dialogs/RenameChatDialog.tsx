@@ -1,14 +1,7 @@
 import { SparklesIcon } from "lucide-react";
-import {
-	type FC,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import type { Chat } from "#/api/typesGenerated";
+import { type Chat, MaxChatTitleRunes } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -43,7 +36,7 @@ const splitGeneratedTitleGraphemes = (title: string): string[] => {
 	return Array.from(title);
 };
 
-export const RenameChatDialog: FC<RenameChatDialogProps> = ({
+export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 	chat,
 	onRename,
 	onPropose,
@@ -301,7 +294,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 								}
 							}}
 							disabled={isRenamingChat || isGeneratingTitle}
-							maxLength={200}
+							maxLength={MaxChatTitleRunes}
 							aria-label="Chat title"
 							aria-invalid={generateTitleError ? true : undefined}
 							aria-describedby={generateTitleError ? errorId : undefined}

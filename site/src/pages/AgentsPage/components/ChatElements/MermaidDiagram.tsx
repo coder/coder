@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { Maximize2Icon, TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
 import { getErrorMessage } from "#/api/errors";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -17,7 +17,7 @@ type MermaidDiagramProps = {
 	source: string;
 	/** Rendered below the error message so the viewer can still read
 	 * the diagram source when Mermaid rejects it. */
-	fallback: ReactNode;
+	fallback: React.ReactNode;
 };
 
 // Elements that can trigger a network request or navigation when the
@@ -174,6 +174,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					className="block [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
 					// Output is sanitized by DOMPurify before it reaches React, so
 					// the only HTML here is Mermaid's own SVG markup.
+					// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 					dangerouslySetInnerHTML={{ __html: state.svg }}
 				/>
 				<span
@@ -192,6 +193,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<div
 						style={{ width: fittedWidth(state.svg) }}
 						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border-default bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+						// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 						dangerouslySetInnerHTML={{ __html: state.svg }}
 					/>
 				</Lightbox>

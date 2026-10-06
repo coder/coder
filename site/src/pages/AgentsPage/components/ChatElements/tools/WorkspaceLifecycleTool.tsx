@@ -1,6 +1,6 @@
-import type { FC } from "react";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
+import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
 type WorkspaceLifecycleToolProps = {
@@ -10,11 +10,11 @@ type WorkspaceLifecycleToolProps = {
 	workspaceName: string;
 	isError: boolean;
 	errorMessage?: string;
-	noBuild?: boolean;
+	noBuild: boolean;
 	labelOverride?: string;
 };
 
-export const WorkspaceLifecycleTool: FC<WorkspaceLifecycleToolProps> = ({
+export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
 	action,
 	status,
 	buildId,
@@ -52,6 +52,10 @@ export const WorkspaceLifecycleTool: FC<WorkspaceLifecycleToolProps> = ({
 			<ToolCall.Header iconName={`${action}_workspace`} label={label} />
 			<ToolCall.Content>
 				<WorkspaceBuildLogSection status={status} buildId={buildId} />
+				{/* The backend does not wait for an agent after a stop build. */}
+				{action === "start" && (
+					<WorkspaceAgentLogSection status={status} buildId={buildId} />
+				)}
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -262,6 +263,45 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 		Path:  filePath,
 		IsDir: false,
 	})
+
+	// The file and process tools return the same results as Coder Agents.
+	callJSON := func(name string, args map[string]any, out any) {
+		t.Helper()
+		res, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		require.NoError(t, err)
+		require.Len(t, res.Content, 1)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent type, got %T", res.Content[0])
+		require.False(t, res.IsError, "tool %s failed: %s", name, text.Text)
+		require.NoError(t, json.Unmarshal([]byte(text.Text), out))
+	}
+
+	var edited workspacetools.EditFilesResult
+	callJSON(toolsdk.ToolNameWorkspaceEditFiles, map[string]any{
+		"workspace": r.Workspace.Name,
+		"files": []map[string]any{{
+			"path":  filePath,
+			"edits": []map[string]any{{"old_text": "hello", "new_text": "goodbye"}},
+		}},
+	}, &edited)
+	require.True(t, edited.OK)
+	require.Len(t, edited.Files, 1)
+	require.Contains(t, edited.Files[0].Diff, "+goodbye from mcp")
+
+	var read workspacetools.ReadFileResult
+	callJSON(toolsdk.ToolNameWorkspaceReadFile, map[string]any{
+		"workspace": r.Workspace.Name,
+		"path":      filePath,
+	}, &read)
+	require.Equal(t, "1\tgoodbye from mcp", read.Content)
+
+	var executed workspacetools.ExecuteResult
+	callJSON(toolsdk.ToolNameWorkspaceExecute, map[string]any{
+		"workspace": r.Workspace.Name,
+		"command":   "echo executed",
+	}, &executed)
+	require.True(t, executed.Success, "result: %+v", executed)
+	require.Equal(t, "executed\n", executed.Output)
 }
 
 func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {

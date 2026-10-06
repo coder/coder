@@ -1,5 +1,4 @@
 import { isAxiosError } from "axios";
-import type { FC } from "react";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { Link } from "../Link/Link";
 import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
@@ -11,7 +10,7 @@ type ErrorAlertProps = Readonly<
 	}
 >;
 
-export const ErrorAlert: FC<ErrorAlertProps> = ({
+export const ErrorAlert: React.FC<ErrorAlertProps> = ({
 	error,
 	showDebugDetail = true,
 	...alertProps

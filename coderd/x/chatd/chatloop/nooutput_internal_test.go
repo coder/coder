@@ -9,6 +9,7 @@ import (
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -105,6 +106,80 @@ func TestGenerateAssistant_SilentNoOutputFinish(t *testing.T) {
 
 		_, _, err := generate(t, unterminatedReasoning(fantasy.FinishReasonLength))
 		require.NoError(t, err)
+	})
+
+	t.Run("LengthFinishResolvesTruncatedToolCalls", func(t *testing.T) {
+		t.Parallel()
+
+		reasoning := []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning-1"},
+			{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning-1", Delta: "planning"},
+			{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reasoning-1"},
+		}
+		tests := []struct {
+			name            string
+			maxOutputTokens *int64
+			toolParts       []fantasy.StreamPart
+			wantError       string
+		}{
+			{
+				name:            "TruncatedToolCall",
+				maxOutputTokens: ptr.Ref(int64(8192)),
+				toolParts: []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-1", ToolCallName: "write_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-1", Delta: `{"path":"a.txt","content":"abc`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-1"},
+					{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "write_file", ToolCallInput: `{"path":"a.txt","content":"abc`},
+				},
+				wantError: "This tool call was not executed because the response reached the output token limit (8192 tokens) while writing its input. Split the content into smaller tool calls.",
+			},
+			{
+				name: "DanglingToolInput",
+				toolParts: []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "call-1", ToolCallName: "write_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-1", Delta: `{"path":"a.txt","content":"abc`},
+				},
+				wantError: "This tool call was not executed because the response reached the output token limit while writing its input. Split the content into smaller tool calls.",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				parts := append(append([]fantasy.StreamPart{}, reasoning...), tt.toolParts...)
+				parts = append(parts, fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength})
+				model := &chattest.FakeModel{
+					ProviderName: "anthropic",
+					ModelName:    "test-model",
+					StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+						return streamFromParts(parts), nil
+					},
+				}
+				outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+					Model:        model,
+					Messages:     []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+					CallTemplate: fantasy.Call{MaxOutputTokens: tt.maxOutputTokens},
+				})
+				require.NoError(t, err)
+
+				content := outcome.Step.Content
+				require.Len(t, content, 3)
+				reasoningContent, ok := fantasy.AsContentType[fantasy.ReasoningContent](content[0])
+				require.True(t, ok)
+				require.Equal(t, "planning", reasoningContent.Text)
+				toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](content[1])
+				require.True(t, ok)
+				require.Equal(t, "call-1", toolCall.ToolCallID)
+				require.Equal(t, "write_file", toolCall.ToolName)
+				toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](content[2])
+				require.True(t, ok)
+				require.Equal(t, "call-1", toolResult.ToolCallID)
+				require.Equal(t, "write_file", toolResult.ToolName)
+				resultErr, ok := toolResult.Result.(fantasy.ToolResultOutputContentError)
+				require.True(t, ok)
+				require.EqualError(t, resultErr.Error, tt.wantError)
+			})
+		}
 	})
 
 	t.Run("EmptyTextWithUnknownFinishErrors", func(t *testing.T) {

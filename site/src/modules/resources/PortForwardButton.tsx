@@ -8,7 +8,7 @@ import {
 	ShareIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "react-query";
 import * as Yup from "yup";
 import {
@@ -70,7 +70,7 @@ type PortForwardButtonProps = {
 	template: Template;
 };
 
-export const PortForwardButton: FC<PortForwardButtonProps> = ({
+export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 	host,
 	workspace,
 	template,
@@ -173,7 +173,7 @@ type ShareLevelOptionsProps = {
 	canSharePublic: boolean;
 };
 
-const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
+const ShareLevelOptions: React.FC<ShareLevelOptionsProps> = ({
 	canShareAuthenticated,
 	canSharePublic,
 }) => (
@@ -204,7 +204,7 @@ const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
 	</>
 );
 
-export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
+export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 	host,
 	workspace,
 	agent,

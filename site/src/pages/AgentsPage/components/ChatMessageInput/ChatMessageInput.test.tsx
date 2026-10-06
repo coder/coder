@@ -1,21 +1,25 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-	createRef,
-	type FC,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
+const requiredProps = () => ({
+	placeholder: "Type a message...",
+	initialValue: "",
+	onChange: vi.fn(),
+	onEnter: vi.fn(),
+	sendShortcut: DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	disabled: false,
+	hasWorkspace: false,
+});
+
 const renderWithQueryClient = (
-	children: ReactNode,
+	children: React.ReactNode,
 	queryClient: QueryClient = createTestQueryClient(),
 ) => {
 	return render(
@@ -23,7 +27,7 @@ const renderWithQueryClient = (
 	);
 };
 
-const InitialValueHarness: FC<{ initialValue: string }> = ({
+const InitialValueHarness: React.FC<{ initialValue: string }> = ({
 	initialValue,
 }) => {
 	const inputRef = useRef<ChatMessageInputRef>(null);
@@ -37,6 +41,7 @@ const InitialValueHarness: FC<{ initialValue: string }> = ({
 		<>
 			<div data-testid="observed-value">{observedValue}</div>
 			<ChatMessageInput
+				{...requiredProps()}
 				ref={inputRef}
 				initialValue={initialValue}
 				aria-label="Chat message input"
@@ -45,7 +50,7 @@ const InitialValueHarness: FC<{ initialValue: string }> = ({
 	);
 };
 
-const QueuedReplacementHarness: FC<{
+const QueuedReplacementHarness: React.FC<{
 	initialValue: string;
 	replacementValue: string;
 }> = ({ initialValue, replacementValue }) => {
@@ -61,6 +66,7 @@ const QueuedReplacementHarness: FC<{
 		<>
 			<div data-testid="observed-value">{observedValue}</div>
 			<ChatMessageInput
+				{...requiredProps()}
 				ref={inputRef}
 				initialValue={initialValue}
 				aria-label="Chat message input"
@@ -157,6 +163,7 @@ describe("ChatMessageInput", () => {
 					const onEnter = vi.fn();
 					renderWithQueryClient(
 						<ChatMessageInput
+							{...requiredProps()}
 							ref={inputRef}
 							aria-label="Chat message input"
 							sendShortcut={shortcut}
@@ -215,10 +222,14 @@ describe("ChatMessageInput", () => {
 		});
 	});
 
-	it("returns updated content even without an external onChange prop", async () => {
+	it("returns content inserted through the ref handle", async () => {
 		const inputRef = { current: null as ChatMessageInputRef | null };
 		renderWithQueryClient(
-			<ChatMessageInput ref={inputRef} aria-label="Chat message input" />,
+			<ChatMessageInput
+				{...requiredProps()}
+				ref={inputRef}
+				aria-label="Chat message input"
+			/>,
 		);
 
 		await waitFor(() => {

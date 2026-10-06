@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -17,7 +16,7 @@ type CancelJobConfirmationDialogProps = {
 	cancelProvisionerJob?: typeof API.cancelProvisionerJob;
 };
 
-export const CancelJobConfirmationDialog: FC<
+export const CancelJobConfirmationDialog: React.FC<
 	CancelJobConfirmationDialogProps
 > = ({
 	job,

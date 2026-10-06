@@ -67,9 +67,9 @@ Examples:
 			client.HTTPClient = &http.Client{
 				Transport: &codersdk.HeaderTransport{
 					Transport: http.DefaultTransport,
-					Header: map[string][]string{
+					Provider: codersdk.StaticHeaderProvider{Header: http.Header{
 						codersdk.BypassRatelimitHeader: {"true"},
-					},
+					}},
 				},
 			}
 			reg := prometheus.NewRegistry()

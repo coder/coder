@@ -275,17 +275,22 @@ describe("api.ts", () => {
 				.spyOn(axiosInstance, "get")
 				.mockResolvedValueOnce({ data: MockOrganizationAISpendReport });
 
-			const result = await API.getOrganizationAISpendUsers("my-org", {
-				period_start: "2026-07-01T00:00:00Z",
-				period_end: "2026-08-01T00:00:00Z",
-				provider_name: "openai",
-				limit: 10,
-				offset: 20,
-			});
+			const result = await API.experimental.getOrganizationAISpendUsers(
+				"my-org",
+				{
+					period_start: "2026-07-01T00:00:00Z",
+					period_end: "2026-08-01T00:00:00Z",
+					provider_name: "openai",
+					limit: 10,
+					offset: 20,
+				},
+			);
 
 			expect(getSpy).toHaveBeenCalledTimes(1);
 			const [url] = getSpy.mock.calls[0];
-			expect(url).toContain("/api/v2/organizations/my-org/ai/spend/users?");
+			expect(url).toContain(
+				"/api/experimental/organizations/my-org/ai/spend/users?",
+			);
 			expect(url).toContain("provider_name=openai");
 			expect(url).toContain("limit=10");
 			expect(url).toContain("offset=20");
@@ -297,7 +302,7 @@ describe("api.ts", () => {
 				.spyOn(axiosInstance, "get")
 				.mockResolvedValueOnce({ data: MockOrganizationAISpendReport });
 
-			await API.getOrganizationAISpendUsers("my-org", {
+			await API.experimental.getOrganizationAISpendUsers("my-org", {
 				provider_name: "openai",
 				limit: 0,
 				offset: 0,
@@ -305,7 +310,7 @@ describe("api.ts", () => {
 
 			const [url] = getSpy.mock.calls[0];
 			expect(url).toBe(
-				"/api/v2/organizations/my-org/ai/spend/users?provider_name=openai",
+				"/api/experimental/organizations/my-org/ai/spend/users?provider_name=openai",
 			);
 		});
 	});

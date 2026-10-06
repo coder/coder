@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -19,7 +18,7 @@ type VersionRowProps = {
 	onArchiveClick?: (version: TemplateVersion) => void;
 };
 
-export const VersionRow: FC<VersionRowProps> = ({
+export const VersionRow: React.FC<VersionRowProps> = ({
 	version,
 	isActive,
 	isLatest,

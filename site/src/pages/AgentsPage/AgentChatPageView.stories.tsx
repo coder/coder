@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { useState } from "react";
 import { Outlet } from "react-router";
 import {
 	expect,
@@ -85,7 +85,9 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 });
 
 const buildEditing = (
-	overrides: Partial<ComponentProps<typeof AgentChatPageView>["editing"]> = {},
+	overrides: Partial<
+		React.ComponentProps<typeof AgentChatPageView>["editing"]
+	> = {},
 ) => ({
 	chatInputRef: { current: null },
 	editorInitialValue: "",
@@ -100,7 +102,7 @@ const buildEditing = (
 	...overrides,
 });
 
-const buildGitWatcher = (): ComponentProps<
+const buildGitWatcher = (): React.ComponentProps<
 	typeof AgentChatPageView
 >["gitWatcher"] => ({
 	repositories: new Map(),
@@ -152,14 +154,14 @@ const collapsedSidebarRouter = reactRouterParameters({
 // story cares about.
 // ---------------------------------------------------------------------------
 type StoryProps = Omit<
-	Partial<ComponentProps<typeof AgentChatPageView>>,
+	Partial<React.ComponentProps<typeof AgentChatPageView>>,
 	"editing" | "chat"
 > & {
-	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
+	editing?: Partial<React.ComponentProps<typeof AgentChatPageView>["editing"]>;
 	chat?: Partial<TypesGen.Chat>;
 };
 
-const StoryAgentChatPageView: FC<StoryProps> = ({
+const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	editing,
 	chat,
 	...overrides
@@ -184,7 +186,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
-		handleCommit: fn(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
@@ -193,8 +194,10 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
-		mcpServers: [] as ComponentProps<typeof AgentChatPageView>["mcpServers"],
-		selectedMCPServerIds: [] as ComponentProps<
+		mcpServers: [] as React.ComponentProps<
+			typeof AgentChatPageView
+		>["mcpServers"],
+		selectedMCPServerIds: [] as React.ComponentProps<
 			typeof AgentChatPageView
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
@@ -202,6 +205,14 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		unsupportedProviderNames: [],
+		onReasoningEffortChange: fn(),
+		isModelCatalogLoading: false,
+		onPlanModeToggle: fn(),
+		isWorkspaceLoading: false,
+		onImplementPlan: fn(),
+		onSendAskUserQuestionResponse: fn(),
+		urlTransform: (url: string) => url,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -755,6 +766,9 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -775,6 +789,9 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -794,6 +811,9 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel
 		/>
 	),
@@ -815,6 +835,9 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -1242,7 +1265,7 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 
 const underflowFetchSpy = fn();
 
-const UnderflowPaginationStory: FC = () => {
+const UnderflowPaginationStory: React.FC = () => {
 	const [store] = useState(() =>
 		buildStoreWithMessages([
 			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
@@ -1327,7 +1350,7 @@ export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
 
 const retryFetchSpy = fn();
 
-const RetryPaginationStory: FC = () => {
+const RetryPaginationStory: React.FC = () => {
 	const [store] = useState(() =>
 		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
 	);

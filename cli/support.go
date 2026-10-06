@@ -134,7 +134,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				cliLog.Debug(inv.Context(), "running as owner")
 				client.HTTPClient.Transport = &codersdk.HeaderTransport{
 					Transport: client.HTTPClient.Transport,
-					Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
+					Provider:  codersdk.StaticHeaderProvider{Header: http.Header{codersdk.BypassRatelimitHeader: {"true"}}},
 				}
 			} else if !ok {
 				cliLog.Warn(inv.Context(), "not running as owner, not all information available")

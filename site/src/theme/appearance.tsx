@@ -1,10 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type ReactNode,
-	useContext,
-	useMemo,
-} from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ExternalImageModeStyles } from "#/theme/externalImages";
 
 /**
@@ -27,10 +21,10 @@ const AppearanceContext = createContext<Appearance | undefined>(undefined);
 
 type AppearanceProviderProps = {
 	externalImages: ExternalImageModeStyles;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-export const AppearanceProvider: FC<AppearanceProviderProps> = ({
+export const AppearanceProvider: React.FC<AppearanceProviderProps> = ({
 	externalImages,
 	children,
 }) => {

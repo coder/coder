@@ -1,35 +1,158 @@
-import { render } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { API } from "#/api/api";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { createMockWebSocket } from "#/testHelpers/websockets";
+import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { Tool } from "./Tool";
-
-const CHAT_BUILD_ID = "bound-build-id";
 
 afterEach(() => {
 	vi.restoreAllMocks();
 });
 
 describe("Tool workspace lifecycle rows", () => {
-	it("streams build logs for a running stop_workspace call", () => {
-		const watchBuildLogs = vi
-			.spyOn(apiModule, "watchBuildLogsByBuildId")
-			.mockImplementation(() => createMockWebSocket("ws://test")[0]);
+	it.each(
+		[
+			{ name: "start_workspace", streamsAgentLogs: true },
+			{ name: "create_workspace", streamsAgentLogs: true },
+			{ name: "stop_workspace", streamsAgentLogs: false },
+		].flatMap((row) => [
+			{ ...row, status: "running" as const },
+			{ ...row, status: "completed" as const },
+		]),
+	)(
+		"$name $status shows its build's logs, agent logs: $streamsAgentLogs",
+		async ({ name, status, streamsAgentLogs }) => {
+			const buildId = MockWorkspace.latest_build.id;
+			const isRunning = status === "running";
+			const watchBuildLogs = vi
+				.spyOn(apiModule, "watchBuildLogsByBuildId")
+				.mockImplementation(() => createMockWebSocket("ws://test")[0]);
+			const getBuildLogs = vi
+				.spyOn(API, "getWorkspaceBuildLogs")
+				.mockResolvedValue([]);
+			const watchAgentLogs = vi
+				.spyOn(apiModule, "watchWorkspaceAgentLogs")
+				.mockImplementation(
+					(agentId) =>
+						new OneWayWebSocket({
+							apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+							websocketInit: (url, protocol) =>
+								createMockWebSocket(url, protocol)[0],
+						}),
+				);
+			vi.spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(
+				workspaceByIdKey(MockWorkspace.id),
+				MockWorkspace,
+			);
 
-		render(
+			// Completed rows omit the binding so only the result build_id matches.
+			render(
+				<QueryClientProvider client={queryClient}>
+					<ChatWorkspaceContext
+						value={{
+							workspaceId: MockWorkspace.id,
+							buildId: isRunning ? buildId : undefined,
+							agentId: MockWorkspaceAgent.id,
+						}}
+					>
+						<Tool
+							name={name}
+							status={status}
+							result={isRunning ? undefined : { build_id: buildId }}
+							organizationId="organization-id"
+							mcpServers={[]}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
+						/>
+					</ChatWorkspaceContext>
+				</QueryClientProvider>,
+			);
+			if (!isRunning) {
+				await userEvent.click(screen.getByRole("button", { expanded: false }));
+			}
+
+			if (isRunning) {
+				expect(watchBuildLogs).toHaveBeenCalledWith(buildId, expect.anything());
+			} else {
+				await waitFor(() => {
+					expect(getBuildLogs).toHaveBeenCalledWith(buildId);
+				});
+			}
+			if (streamsAgentLogs) {
+				expect(watchAgentLogs).toHaveBeenCalledWith(
+					MockWorkspaceAgent.id,
+					expect.anything(),
+				);
+			} else {
+				expect(watchAgentLogs).not.toHaveBeenCalled();
+			}
+		},
+	);
+});
+
+describe("Tool manage_automations label", () => {
+	it.each([
+		"constructor",
+		"toString",
+		"__proto__",
+		"hasOwnProperty",
+		"unknown_action",
+	])("falls back to the generic label for action %s", (action) => {
+		renderComponent(
+			<Tool
+				name="manage_automations"
+				status="error"
+				isError
+				args={{ action }}
+				result={{ error: "unknown action" }}
+				organizationId="organization-id"
+				mcpServers={[]}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
+			/>,
+		);
+
+		screen.getByText("Manage automations");
+	});
+});
+
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
-				<ChatWorkspaceContext value={{ buildId: CHAT_BUILD_ID }}>
-					<Tool name="stop_workspace" status="running" />
-				</ChatWorkspaceContext>
+				<Tool
+					name="custom_tool"
+					organizationId="organization-id"
+					mcpServers={[]}
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
 			</QueryClientProvider>,
 		);
 
-		expect(watchBuildLogs).toHaveBeenCalledWith(
-			CHAT_BUILD_ID,
-			expect.anything(),
-		);
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
 	});
 });

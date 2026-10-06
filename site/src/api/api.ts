@@ -377,6 +377,16 @@ export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
 const mcpServerOAuth2DisconnectPath = (id: string) =>
 	`/api/v2/mcp/servers/${encodeURIComponent(id)}/oauth2/disconnect`;
 
+// Headers for chat file upload endpoints that stream the raw File as
+// the request body. The filename travels in Content-Disposition using
+// RFC 5987 encoding to support non-ASCII characters; placing the raw
+// name directly in the header causes XMLHttpRequest to throw because
+// HTTP headers only allow ISO-8859-1 code points.
+const chatFileUploadHeaders = (file: File) => ({
+	"Content-Type": file.type || "application/octet-stream",
+	"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+});
+
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
@@ -1316,6 +1326,26 @@ class ApiMethods {
 		);
 
 		return response.data;
+	};
+
+	getWorkspaceBuild = async (
+		buildId: string,
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
+			`/api/v2/workspacebuilds/${buildId}`,
+		);
+
+		return response.data;
+	};
+
+	reportWorkspaceBuildDebugClick = async (
+		buildId: string,
+		req: TypesGen.WorkspaceBuildDebugEventRequest,
+	): Promise<void> => {
+		await this.axios.post(
+			`/api/v2/workspacebuilds/${buildId}/debug-events`,
+			req,
+		);
 	};
 
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
@@ -3101,25 +3131,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getOrganizationAISpendUsers = async (
-		organizationId: string,
-		{ limit, offset, ...filter }: OrganizationAISpendParams,
-	): Promise<TypesGen.OrganizationAISpendReport> => {
-		// Like the Go SDK, a zero page value means the server default; the
-		// endpoint rejects an explicit limit=0.
-		const url = getURLWithSearchParams(
-			`/api/v2/organizations/${organizationId}/ai/spend/users`,
-			{
-				...filter,
-				limit: limit !== undefined && limit > 0 ? limit : undefined,
-				offset: offset !== undefined && offset > 0 ? offset : undefined,
-			},
-		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
-		return response.data;
-	};
-
 	getAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			"/api/v2/ai/providers",
@@ -3209,11 +3220,29 @@ class ExperimentalApiMethods {
 
 	getChatsByWorkspace = async (
 		workspaceIds: readonly string[],
+		signal?: AbortSignal,
 	): Promise<Record<string, string>> => {
 		const res = await this.axios.get("/api/v2/chats/by-workspace", {
 			params: { workspace_ids: workspaceIds.join(",") },
+			signal,
 		});
 		return res.data;
+	};
+
+	uploadChatWorkspaceFile = async (
+		chatId: string,
+		file: File,
+		signal?: AbortSignal,
+	): Promise<TypesGen.UploadChatWorkspaceFileResponse> => {
+		const response = await this.axios.post(
+			`/api/v2/chats/${chatId}/workspace-files`,
+			file,
+			{
+				headers: chatFileUploadHeaders(file),
+				signal,
+			},
+		);
+		return response.data;
 	};
 
 	uploadChatFile = async (
@@ -3224,14 +3253,7 @@ class ExperimentalApiMethods {
 			`/api/v2/chats/files?organization=${organizationId}`,
 			file,
 			{
-				headers: {
-					"Content-Type": file.type || "application/octet-stream",
-					// Use RFC 5987 encoding for the filename to support
-					// non-ASCII characters. Placing the raw name directly in
-					// the header causes XMLHttpRequest to throw because HTTP
-					// headers only allow ISO-8859-1 code points.
-					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-				},
+				headers: chatFileUploadHeaders(file),
 			},
 		);
 		return response.data;
@@ -3259,26 +3281,78 @@ class ExperimentalApiMethods {
 		await this.axios.patch(`/api/v2/chats/${chatId}/acl`, req);
 	};
 
-	getChats = async (req?: {
-		after_id?: string;
-		limit?: number;
-		offset?: number;
-		q?: string;
-	}): Promise<TypesGen.Chat[]> => {
+	getChats = async (
+		req?: {
+			after_id?: string;
+			limit?: number;
+			offset?: number;
+			q?: string;
+			automation_id?: string;
+		},
+		signal?: AbortSignal,
+	): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
 			getURLWithSearchParams("/api/v2/chats", req),
+			{ signal },
 		);
 		return response.data;
 	};
-	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
+	createChatProject = async (
+		organizationId: string,
+		req: TypesGen.CreateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProject = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.patch<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
+	};
+
+	getChat = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,
+			{ signal },
 		);
 		return response.data;
 	};
-	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+	getChatCost = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatCost> => {
 		const response = await this.axios.get<TypesGen.ChatCost>(
 			`/api/v2/chats/${chatId}/cost`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -3413,10 +3487,37 @@ class ExperimentalApiMethods {
 
 	getChatDiffContents = async (
 		chatId: string,
+		ref?: TypesGen.DiffStatusRef,
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
+			{
+				params: ref
+					? { origin: ref.remote_origin, branch: ref.git_branch }
+					: {},
+				signal,
+			},
 		);
+		return response.data;
+	};
+
+	getOrganizationAISpendUsers = async (
+		organizationId: string,
+		{ limit, offset, ...filter }: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		// Like the Go SDK, a zero page value means the server default; the
+		// endpoint rejects an explicit limit=0.
+		const url = getURLWithSearchParams(
+			`/api/experimental/organizations/${organizationId}/ai/spend/users`,
+			{
+				...filter,
+				limit: limit !== undefined && limit > 0 ? limit : undefined,
+				offset: offset !== undefined && offset > 0 ? offset : undefined,
+			},
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
 		return response.data;
 	};
 
@@ -3539,6 +3640,26 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	getOrganizationChatSystemPrompt = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationChatSystemPromptResponse> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationChatSystemPromptResponse>(
+				`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			);
+		return response.data;
+	};
+
+	updateOrganizationChatSystemPrompt = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/config/system-prompt`,
+			req,
+		);
 	};
 
 	getChatPersonalModelOverridesAdminSettings =
@@ -3826,6 +3947,74 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatModel>(
 			chatModelPath(organizationId, modelId),
 		);
+		return response.data;
+	};
+
+	getChatAutomations = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatAutomation[]> => {
+		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+		);
+		return response.data;
+	};
+
+	createChatAutomation = async (
+		organizationId: string,
+		req: TypesGen.CreateChatAutomationRequest,
+	): Promise<TypesGen.CreateChatAutomationResponse> => {
+		const response =
+			await this.axios.post<TypesGen.CreateChatAutomationResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+				req,
+			);
+		return response.data;
+	};
+
+	previewChatAutomationSchedule = async (
+		organizationId: string,
+		req: TypesGen.ChatAutomationSchedulePreviewRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatAutomationSchedulePreviewResponse> => {
+		const response =
+			await this.axios.post<TypesGen.ChatAutomationSchedulePreviewResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/schedule-preview`,
+				req,
+				{ signal },
+			);
+		return response.data;
+	};
+
+	updateChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+		req: TypesGen.UpdateChatAutomationRequest,
+	): Promise<TypesGen.ChatAutomation> => {
+		const response = await this.axios.patch<TypesGen.ChatAutomation>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	runChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<TypesGen.ChatAutomationRunResponse> => {
+		const response = await this.axios.post<TypesGen.ChatAutomationRunResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/runs`,
+		);
+		return response.data;
+	};
+
+	rotateChatAutomationSecret = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<TypesGen.RotateChatAutomationSecretResponse> => {
+		const response =
+			await this.axios.post<TypesGen.RotateChatAutomationSecretResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/secret/rotate`,
+			);
 		return response.data;
 	};
 

@@ -30,6 +30,10 @@ const sessionViewerPermissions: Permissions = {
 	viewAnyAIBridgeInterception: true,
 };
 const auth = { permissions: sessionViewerPermissions };
+const entitledAIBridge = { enabled: true, entitlement: "entitled" } as const;
+const dashboard: {
+	aibridge: { enabled: boolean; entitlement: "entitled" | "not_entitled" };
+} = { aibridge: entitledAIBridge };
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
@@ -40,9 +44,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: {
 			...MockEntitlements,
-			features: withDefaultFeatures({
-				aibridge: { enabled: true, entitlement: "entitled" },
-			}),
+			features: withDefaultFeatures({ aibridge: dashboard.aibridge }),
 		},
 	}),
 }));
@@ -50,6 +52,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 afterEach(() => {
 	vi.restoreAllMocks();
 	auth.permissions = sessionViewerPermissions;
+	dashboard.aibridge = entitledAIBridge;
 });
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
@@ -81,7 +84,7 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		[MockOrganization2.id]: true,
 	});
 	const buildReport = (
-		params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+		params: Parameters<typeof API.experimental.getOrganizationAISpendUsers>[1],
 	): OrganizationAISpendReport => ({
 		...MockOrganizationAISpendReport,
 		...period,
@@ -94,7 +97,7 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		...report,
 	});
 	const spendSpy = vi
-		.spyOn(API, "getOrganizationAISpendUsers")
+		.spyOn(API.experimental, "getOrganizationAISpendUsers")
 		.mockImplementation(async (_organizationId, params) => buildReport(params));
 	return { spendSpy, buildReport };
 }
@@ -135,7 +138,7 @@ it("requests the default organization and switches organizations from the first 
 	);
 
 	await user.click(
-		screen.getByRole("button", {
+		screen.getByRole("combobox", {
 			name: `Organization ${MockOrganization.display_name}`,
 		}),
 	);
@@ -172,9 +175,7 @@ it("requests no spend for a denied organization until another one is picked", as
 	await screen.findByRole("alert");
 	expect(spendSpy).not.toHaveBeenCalled();
 
-	await user.click(
-		screen.getByRole("button", { name: /Select an organization/ }),
-	);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
@@ -307,20 +308,56 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("provider_name");
 });
 
-it("applies the provider filter and resets pagination", async () => {
-	const user = userEvent.setup();
-	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
-	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
-	await waitFor(() =>
-		expect(spendSpy).toHaveBeenCalledWith(
-			MockOrganization.id,
-			expect.objectContaining({ provider_name: "openai", offset: 0 }),
-		),
-	);
-	expect(searchParam(router, "provider_name")).toBe("openai");
-	expect(searchParam(router, "page")).toBeNull();
+it.each([
+	{
+		button: "Select provider",
+		option: /OpenAI/,
+		key: "provider_name",
+		value: "openai",
+	},
+	{
+		button: "Select client",
+		option: /Claude Code/,
+		key: "client",
+		value: "Claude Code",
+	},
+	{ button: "Select model", option: /gpt-4o/, key: "model", value: "gpt-4o" },
+] as const)(
+	"applies and clears the $key filter and resets pagination",
+	async ({ button, option, key, value }) => {
+		const user = userEvent.setup();
+		const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+		await screen.findByRole("table", { name: "Spend by user" });
+		await user.click(screen.getByRole("button", { name: button }));
+		await user.click(await screen.findByRole("option", { name: option }));
+		await waitFor(() =>
+			expect(spendSpy).toHaveBeenCalledWith(
+				MockOrganization.id,
+				expect.objectContaining({ [key]: value, offset: 0 }),
+			),
+		);
+		expect(searchParam(router, key)).toBe(value);
+		expect(searchParam(router, "page")).toBeNull();
+
+		await user.click(screen.getByRole("button", { name: button }));
+		await user.click(await screen.findByRole("option", { name: option }));
+		await waitFor(() => expect(searchParam(router, key)).toBeNull());
+		// The cleared request is sent after the URL updates, so wait for it.
+		await waitFor(() => {
+			const lastParams = spendSpy.mock.lastCall?.[1];
+			expect(lastParams?.[key]).toBeUndefined();
+			expect(lastParams).toMatchObject({ offset: 0 });
+		});
+	},
+);
+
+it("sends no filter option requests when AI Gateway is unavailable", async () => {
+	dashboard.aibridge = { enabled: false, entitlement: "not_entitled" };
+	renderSpend(`${initialSearch}&provider_name=openai`);
+	await screen.findByText("Get access with a Coder trial");
+	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
+	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
+	expect(API.getAIBridgeClients).not.toHaveBeenCalled();
 });
 
 it("requests the next page offset", async () => {
