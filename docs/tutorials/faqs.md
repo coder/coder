@@ -19,7 +19,7 @@ Visit <https://coder.com/trial> or contact
 
 <summary>You can add a license through the UI or CLI</summary>
 
-<!-- copied from docs/admin/licensing/index.md -->
+<!-- copied from docs/install/prepare/licensing.md -->
 
 <div class="tabs">
 

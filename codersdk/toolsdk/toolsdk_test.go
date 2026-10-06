@@ -2048,18 +2048,6 @@ func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsd
 	return ret, err
 }
 
-// TestEditFileTools_DecodeDeprecatedKeys pins that deprecated-key
-// MCP args survive decoding into the typed edit args.
-func TestEditFileTools_DecodeDeprecatedKeys(t *testing.T) {
-	t.Parallel()
-
-	var multi toolsdk.WorkspaceEditFilesArgs
-	require.NoError(t, json.Unmarshal([]byte(
-		`{"workspace":"w","files":[{"path":"/p","edits":[{"search":"foo","replace":"bar"}]}]}`), &multi))
-	require.Equal(t, "foo", multi.Files[0].Edits[0].OldText)
-	require.Equal(t, "bar", multi.Files[0].Edits[0].NewText)
-}
-
 func TestWithRecovery(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {

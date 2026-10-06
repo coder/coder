@@ -11,6 +11,7 @@ import {
 import {
 	chatEntitiesFamilyKey,
 	chatListFamilyKey,
+	chatMessagesKey,
 	chatSearchFamilyKey,
 } from "./chats";
 
@@ -59,9 +60,13 @@ describe("chat project mutations", () => {
 
 	it("refreshes chat lists, searches, and entities after a delete", async () => {
 		const queryClient = seed();
+		const messagesKey = chatMessagesKey("chat-1");
+		queryClient.setQueryData(messagesKey, {});
 		await settle(deleteChatProject(queryClient));
 		for (const key of [...projectKeys, ...chatKeys]) {
 			expect(isInvalidated(queryClient, key)).toBe(true);
 		}
+		// A chat's nested queries do not depend on its project.
+		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 });
