@@ -7,41 +7,30 @@ import type {
 	StreamState,
 } from "./types";
 
-/**
- * A run of consecutive assistant step rows that the timeline can fold into
- * one "Worked for" disclosure.
- */
 export type WorkingBlock = {
-	/** Newest row's key, stable across paging; live blocks use liveKey. */
+	/** Follows the newest row, so prepending older history never changes it. */
 	key: string;
 	/**
-	 * Turn anchor plus position in the turn. Unchanged across the
-	 * live-to-complete handoff, so expansion recorded while live survives.
+	 * Unchanged across the live-to-complete handoff, so expansion recorded
+	 * while live survives.
 	 */
 	liveKey: string;
 	rowIndices: number[];
-	/** Distinct visible tools across the block. */
+	/** Distinct visible tools, not rows. */
 	stepCount: number;
 	failedCount: number;
-	/** The turn is still active and this block is where it is working. */
 	isLive: boolean;
-	/** Older history exists that may contain earlier rows of this block. */
+	/** Unloaded older history may hold earlier rows of this block. */
 	isPartial: boolean;
-	/** Earliest and latest part timestamps (epoch ms); absent when unknown. */
+	/** Epoch ms. */
 	startedAt?: number;
 	endedAt?: number;
 };
 
 export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
-	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
-	/**
-	 * Whether the live row may be folded into the block: the turn is
-	 * starting a step or streaming one. Retry, reconnect, and interrupt
-	 * callouts render inside the live row, so it must stay visible outside
-	 * any block in those phases.
-	 */
+	/** False while retry, reconnect, or interrupt callouts render in the row. */
 	isLiveRowCollapsible: boolean;
 	liveBlocks: readonly RenderBlock[];
 	liveTools: readonly MergedTool[];
