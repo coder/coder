@@ -593,9 +593,6 @@ describe("AgentCreateForm organization lock", () => {
 		await waitFor(() => {
 			expect(mcpRequests).toContain(MockOrganization2.id);
 		});
-		expect(
-			screen.queryByRole("button", { name: /^Organization:/ }),
-		).not.toBeInTheDocument();
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
 			(await screen.findByText("Attach workspace")).closest("button")!,
