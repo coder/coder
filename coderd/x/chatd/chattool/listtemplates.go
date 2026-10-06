@@ -159,6 +159,8 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			signalsByTemplate, signalsErr := loadTemplateRankingSignals(
 				ctx, db, options.OwnerID, organizationID, templateIDs, now,
 			)
+			// Ranking signals only order the results, so a read failure
+			// still returns every visible template.
 			if signalsErr != nil {
 				options.Logger.Warn(ctx, "failed to load template ranking signals",
 					slog.F("owner_id", options.OwnerID),
