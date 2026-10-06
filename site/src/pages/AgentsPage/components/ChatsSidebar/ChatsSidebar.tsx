@@ -130,13 +130,30 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		experiments.includes("chat-projects") && organizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
+	const sidebarView = sidebarViewFromPath(location.pathname);
+	const viewedProjectId =
+		sidebarView.panel === "chats" ? sidebarView.projectId : undefined;
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
+	const deleteProjectMutation = useMutation({
+		...deleteChatProject(queryClient),
+		// Leaves the deleted project's page before the project list refetches,
+		// so the page never shows "Project not found". A pending mutation picks
+		// up each render's options, so this reads the current location.
+		onSuccess: (_, project) => {
+			if (viewedProjectId === project.id) {
+				navigate(
+					{ pathname: "/agents", search: location.search },
+					{ replace: true },
+				);
+			}
+		},
+	});
 
 	// Each dialog keeps its content after closing so the exit animation does
 	// not flash empty.
@@ -229,8 +246,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
@@ -293,9 +308,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
-				viewedProjectId={
-					sidebarView.panel === "chats" ? sidebarView.projectId : undefined
-				}
+				viewedProjectId={viewedProjectId}
 				isSettingsPanel={isSettingsPanel}
 				isChatsActive={
 					!activeChatId &&

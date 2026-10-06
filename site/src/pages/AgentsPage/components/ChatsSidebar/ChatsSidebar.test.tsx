@@ -409,7 +409,7 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requestCount).toBe(2));
 	});
 
-	it("deletes the selected project and its drafts after confirmation", async () => {
+	it("deletes the viewed project and its drafts, then leaves its page", async () => {
 		const user = userEvent.setup();
 		const draftKeys = draftStorageKeys(MockChatProject.id);
 		localStorage.setItem(draftKeys.text, "project draft");
@@ -429,8 +429,12 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
 				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
 			</Wrapper>,
 		);
 
@@ -453,6 +457,11 @@ describe("ChatsSidebar projects", () => {
 			expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		});
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				/^\/agents$/,
+			),
+		);
 	});
 
 	it("reports a failed project deletion", async () => {
