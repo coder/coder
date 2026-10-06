@@ -557,6 +557,7 @@ type sqlcQuerier interface {
 	// model_available mirrors GetEnabledChatModelConfigByID: it is false when the
 	// referenced config or its provider is disabled or deleted.
 	GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]GetChatOrganizationModelOverridesByContextRow, error)
+	GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (ChatOrganizationSystemPrompt, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
@@ -1811,6 +1812,7 @@ type sqlcQuerier interface {
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
 	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
+	UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error)
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
