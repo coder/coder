@@ -171,6 +171,16 @@ export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: responseStreamState,
 };
 
+/** A leading heading that is still streaming keeps the default title. */
+export const StreamingThinkingHeading: Story = {
+	args: buildStreamRenderState([
+		{
+			type: "reasoning",
+			text: "**Checking the co",
+		},
+	]),
+};
+
 /** Tool-only streams use running tool affordances instead of generic thinking. */
 export const RunningToolsSuppressThinkingActivity: Story = {
 	args: buildStreamRenderState([

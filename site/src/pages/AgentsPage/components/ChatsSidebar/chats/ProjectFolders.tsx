@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useRef } from "react";
 import { NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -23,10 +22,6 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
-import {
-	rowActionsTriggerProps,
-	stopRowContextMenu,
-} from "../tree/rowMenuEvents";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -34,15 +29,8 @@ export type ProjectDialogMode =
 	| { mode: "create" }
 	| { mode: "edit"; project: ChatProject };
 
-/** `trigger` receives focus when the dialog closes. */
-export type OpenProjectDialog = (
-	mode: ProjectDialogMode,
-	trigger?: HTMLElement | null,
-) => void;
-export type DeleteProject = (
-	project: ChatProject,
-	trigger?: HTMLElement | null,
-) => void;
+export type OpenProjectDialog = (mode: ProjectDialogMode) => void;
+export type DeleteProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
@@ -102,6 +90,11 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					/>
 				)}
 				{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
+				{!isLoading && !error && projects.length === 0 && (
+					<p className="m-0 px-2.5 py-1 text-xs text-content-secondary">
+						No projects yet
+					</p>
+				)}
 				{projects.length > 0 && (
 					<div className="flex flex-col gap-0.5">
 						{projects.map((project) => (
@@ -112,10 +105,8 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 								expanded={Boolean(expandedProjectIds[project.id])}
 								locationSearch={location.search}
 								onToggle={() => onToggle(project.id)}
-								onEdit={(trigger) =>
-									onOpenProjectDialog({ mode: "edit", project }, trigger)
-								}
-								onDelete={(trigger) => onDelete(project, trigger)}
+								onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
+								onDelete={() => onDelete(project)}
 								emptyMessage={emptyMessage}
 							/>
 						))}
@@ -132,8 +123,8 @@ type ProjectFolderProps = {
 	readonly expanded: boolean;
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
-	readonly onEdit: (trigger: HTMLElement | null) => void;
-	readonly onDelete: (trigger: HTMLElement | null) => void;
+	readonly onEdit: () => void;
+	readonly onDelete: () => void;
 	readonly emptyMessage: string;
 };
 
@@ -148,15 +139,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	emptyMessage,
 }) => {
 	const projectPath: To = {
-		pathname: buildAgentProjectPath(project.id),
+		pathname: buildAgentProjectPath({ projectId: project.id }),
 		search: locationSearch,
 	};
-	// Menu items unmount on select, so dialogs return focus to the control
-	// that opened the menu: the actions button, or the project link for the
-	// context menu.
-	const projectLinkRef = useRef<HTMLAnchorElement>(null);
-	const projectActionsButtonRef = useRef<HTMLButtonElement>(null);
-
 	return (
 		<div>
 			<ContextMenu>
@@ -176,7 +161,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							/>
 						</Button>
 						<NavLink
-							ref={projectLinkRef}
 							to={projectPath}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
 						>
@@ -190,26 +174,47 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
-									ref={projectActionsButtonRef}
 									variant="subtle"
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
 									aria-label={`Open project actions for ${project.name}`}
-									{...rowActionsTriggerProps}
+									// Keeps a right-click on this button from also
+									// opening the row's context menu.
+									onContextMenuCapture={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+									}}
+									onMouseDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
+									onPointerDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
 								>
 									<EllipsisVerticalIcon />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								align="end"
-								onContextMenu={stopRowContextMenu}
+								// Portaled, but React events still bubble to the row's
+								// context-menu trigger and would open a second menu.
+								onContextMenu={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+								}}
 							>
 								<ProjectActionsMenuItems
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
-									onEdit={() => onEdit(projectActionsButtonRef.current)}
-									onDelete={() => onDelete(projectActionsButtonRef.current)}
+									onEdit={onEdit}
+									onDelete={onDelete}
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -220,8 +225,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
-						onEdit={() => onEdit(projectLinkRef.current)}
-						onDelete={() => onDelete(projectLinkRef.current)}
+						onEdit={onEdit}
+						onDelete={onDelete}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>

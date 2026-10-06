@@ -107,7 +107,8 @@ func IsActorHeader(name string) bool {
 }
 
 // headersFromActor maps supported actor attributes to configured header names.
-// Attributes with no destination and unknown mapping keys are ignored.
+// Attributes with no destination, empty values (including a nil ID), and
+// unknown mapping keys are ignored. The API key ID is never forwarded.
 // No headers are returned if actor is nil.
 func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]string) map[string]string {
 	if actor == nil {
@@ -115,13 +116,11 @@ func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]strin
 	}
 
 	headers := make(map[string]string, len(actorHeaderNames))
-	if name := actorHeaderNames[ActorAttributeID]; name != "" {
-		headers[name] = actor.ID
+	if name := actorHeaderNames[ActorAttributeID]; name != "" && actor.ID != uuid.Nil {
+		headers[name] = actor.ID.String()
 	}
-	if name := actorHeaderNames[ActorAttributeUsername]; name != "" {
-		if username, ok := actor.Metadata["Username"].(string); ok && username != "" {
-			headers[name] = username
-		}
+	if name := actorHeaderNames[ActorAttributeUsername]; name != "" && actor.Username != "" {
+		headers[name] = actor.Username
 	}
 	if name := actorHeaderNames[ActorAttributeEmail]; name != "" && actor.Email != "" {
 		headers[name] = actor.Email
