@@ -662,7 +662,8 @@ CREATE TYPE resource_type AS ENUM (
     'experiment_rule',
     'chat_project',
     'chat_automation',
-    'chat_project_memory'
+    'chat_project_memory',
+    'chat_organization_system_prompt'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2262,6 +2263,15 @@ CREATE TABLE chat_organization_model_overrides (
     reasoning_effort text,
     CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
+
+CREATE TABLE chat_organization_system_prompts (
+    organization_id uuid NOT NULL,
+    system_prompt text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_organization_system_prompts IS 'Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.';
 
 CREATE TABLE chat_project_instructions (
     project_id uuid NOT NULL,
@@ -4570,6 +4580,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_organization_system_prompts
+    ADD CONSTRAINT chat_organization_system_prompts_pkey PRIMARY KEY (organization_id);
+
 ALTER TABLE ONLY chat_project_instructions
     ADD CONSTRAINT chat_project_instructions_pkey PRIMARY KEY (project_id);
 
@@ -5490,6 +5503,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_organization_system_prompts
+    ADD CONSTRAINT chat_organization_system_prompts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_project_instructions
     ADD CONSTRAINT chat_project_instructions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

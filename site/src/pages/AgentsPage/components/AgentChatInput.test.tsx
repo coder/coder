@@ -64,6 +64,11 @@ const inputProps = {
 	modelSelectorPlaceholder: "Select model",
 	hasModelOptions: true,
 	canConfigureAgentSetup: false,
+	initialValue: "",
+	onContentChange: vi.fn(),
+	planModeEnabled: false,
+	onPlanModeToggle: vi.fn(),
+	isModelCatalogLoading: false,
 } satisfies React.ComponentProps<typeof AgentChatInput>;
 
 const mockSentryMCP: TypesGen.MCPServerConfig = {
@@ -160,6 +165,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -189,6 +199,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -333,6 +348,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -381,6 +401,10 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -405,6 +429,10 @@ describe("AgentChatInput", () => {
 			modelSelectorPlaceholder: "Select model",
 			hasModelOptions: true,
 			canConfigureAgentSetup: false,
+			onContentChange: vi.fn(),
+			planModeEnabled: false,
+			onPlanModeToggle: vi.fn(),
+			isModelCatalogLoading: false,
 		};
 
 		stubViewport(false);
@@ -450,6 +478,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -490,6 +523,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -516,6 +554,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -561,6 +604,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -596,6 +644,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -635,6 +688,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -677,6 +735,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 
@@ -717,6 +780,11 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
 			/>,
 		);
 

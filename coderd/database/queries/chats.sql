@@ -2080,7 +2080,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 
@@ -2092,7 +2092,7 @@ FROM
 WHERE
     chat_id = ANY(@chat_ids::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 
