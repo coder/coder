@@ -2910,7 +2910,7 @@ export const updateOrganizationChatModelOverride = (
 	},
 });
 
-const organizationChatSystemPromptKey = (organizationId: string) =>
+export const organizationChatSystemPromptKey = (organizationId: string) =>
 	[...chatConfigKey, "organization-system-prompt", organizationId] as const;
 
 export const organizationChatSystemPrompt = (organizationId: string) => ({
