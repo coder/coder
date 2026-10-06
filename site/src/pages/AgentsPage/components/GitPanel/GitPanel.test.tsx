@@ -54,6 +54,9 @@ function renderGitPanel(input: ChatMessageInputRef) {
 		<GitPanel
 			repositories={new Map([[repoRoot, repo]])}
 			onRefresh={() => true}
+			isExpanded={false}
+			isGitStatusLoading={false}
+			everDirty={new Set()}
 			chatInputRef={{ current: input }}
 		/>,
 	);

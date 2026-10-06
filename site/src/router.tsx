@@ -363,9 +363,6 @@ const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
 );
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
-const ChatBoardPage = lazy(
-	() => import("./pages/AgentsPage/exp/chatBoard/ChatBoardRoute"),
-);
 const AgentAutomationsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAutomationsPage"),
 );
@@ -897,14 +894,6 @@ export const router = createBrowserRouter(
 						/>
 					</Route>
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
-					<Route
-						path="board"
-						element={
-							<Suspense fallback={<AgentChatPageSkeleton />}>
-								<ChatBoardPage />
-							</Suspense>
-						}
-					/>
 					<Route
 						path="automations"
 						element={

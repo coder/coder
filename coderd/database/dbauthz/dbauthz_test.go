@@ -1468,6 +1468,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatOrganizationModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
+	s.Run("GetChatOrganizationSystemPrompt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		dbm.EXPECT().GetChatOrganizationSystemPrompt(gomock.Any(), orgID).Return(database.ChatOrganizationSystemPrompt{OrganizationID: orgID}, nil).AnyTimes()
+		check.Args(orgID).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionRead)
+	}))
+	s.Run("UpsertChatOrganizationSystemPrompt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		arg := database.UpsertChatOrganizationSystemPromptParams{OrganizationID: orgID, SystemPrompt: "prompt"}
+		dbm.EXPECT().UpsertChatOrganizationSystemPrompt(gomock.Any(), arg).Return(database.ChatOrganizationSystemPrompt{OrganizationID: orgID, SystemPrompt: "prompt"}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
+	}))
 	s.Run("DeleteChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()

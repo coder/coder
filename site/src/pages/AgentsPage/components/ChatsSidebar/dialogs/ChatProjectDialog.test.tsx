@@ -33,6 +33,17 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 	};
 };
 
+// A disabled Save button does not submit. Dispatching submit checks that the
+// handler itself drops an unchanged edit.
+const submitForm = (save: HTMLElement) => {
+	if (!(save instanceof HTMLButtonElement)) {
+		throw new Error("Save is not a button");
+	}
+	save.form?.dispatchEvent(
+		new Event("submit", { bubbles: true, cancelable: true }),
+	);
+};
+
 describe("ChatProjectDialog", () => {
 	it("fills the form from the project passed when the dialog opens and submits it", async () => {
 		const user = userEvent.setup();
@@ -73,21 +84,22 @@ describe("ChatProjectDialog", () => {
 
 		await user.click(screen.getByLabelText(/Name/));
 		await user.paste("🚀".repeat(64));
-		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "🚀".repeat(64) }),
 		);
+	});
+
+	it("does not save a name over the limit", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
 
 		await user.click(screen.getByLabelText(/Name/));
-		await user.paste("🚀");
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
-		);
+		await user.paste("🚀".repeat(65));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("measures the length limit after trimming", async () => {
@@ -97,16 +109,8 @@ describe("ChatProjectDialog", () => {
 		await user.type(screen.getByLabelText(/Name/), "Launch");
 		await user.click(screen.getByLabelText("Description"));
 		await user.paste(`${"d".repeat(1024)} `);
-		expect(screen.getByLabelText("Description")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByLabelText("Icon"));
 		await user.paste(`${"i".repeat(256)} `);
-		expect(screen.getByLabelText("Icon")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
@@ -138,6 +142,7 @@ describe("ChatProjectDialog", () => {
 			project: { ...MockChatProject, description: "notes\n" },
 		});
 
+		submitForm(screen.getByRole("button", { name: "Save" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
@@ -158,16 +163,21 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog({ project: MockChatProject });
 
 		await user.type(screen.getByLabelText(/Name/), " ");
+		submitForm(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("does not save an edit that changes nothing", async () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog({ project: MockChatProject });
+		const save = screen.getByRole("button", { name: "Save" });
 
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		submitForm(save);
+		await user.click(save);
+		await user.click(screen.getByLabelText(/Name/));
+		await user.keyboard("{Enter}");
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
@@ -189,6 +199,51 @@ describe("ChatProjectDialog", () => {
 		await user.keyboard("{Escape}");
 
 		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("does not close while a save is pending before the caller's isSubmitting turns on", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
+		const { props } = renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("submits once when Save is double-clicked before the save settles", async () => {
+		const user = userEvent.setup();
+		// The caller's isSubmitting has not caught up yet, so only the dialog's
+		// own pending submit can stop the second click.
+		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
+		renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("can save again after a save fails", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi
+			.fn<DialogProps["onSubmit"]>()
+			.mockRejectedValueOnce(new Error("Save failed"))
+			.mockResolvedValueOnce(undefined);
+		renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		const save = screen.getByRole("button", { name: "Save" });
+		await user.click(save);
+		// Wait for the failed submit to release the form before retrying.
+		await waitFor(() => expect(save).toBeEnabled());
+		await user.click(save);
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
 	});
 
 	it("discards unsaved edits when it is closed and reopened", async () => {
