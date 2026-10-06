@@ -37,11 +37,9 @@ export const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 				onOpenChange={setIsDialogOpen}
 				isSubmitting={updateProjectMutation.isPending}
 				error={updateProjectMutation.error}
-				onSubmit={(request) => {
-					updateProjectMutation.mutate(
-						{ project, request },
-						{ onSuccess: () => setIsDialogOpen(false) },
-					);
+				onSubmit={async (request) => {
+					await updateProjectMutation.mutateAsync({ project, request });
+					setIsDialogOpen(false);
 				}}
 			/>
 		</div>
