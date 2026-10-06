@@ -28,7 +28,13 @@ const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 	<TooltipProvider>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="shrink-0 flex items-center">{children}</div>
+				<button
+					type="button"
+					aria-label="About sessions"
+					className="m-0 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{children}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent
 				side="top"

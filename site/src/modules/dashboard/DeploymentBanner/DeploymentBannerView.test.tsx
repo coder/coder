@@ -1,5 +1,9 @@
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AppFamilyName, SessionCountApp } from "#/api/typesGenerated";
-import { groupSessionApps } from "./DeploymentBannerView";
+import { MockDeploymentStats } from "#/testHelpers/entities";
+import { render } from "#/testHelpers/renderHelpers";
+import { DeploymentBannerView, groupSessionApps } from "./DeploymentBannerView";
 
 const app = (
 	count: number,
@@ -33,5 +37,31 @@ describe("groupSessionApps", () => {
 
 	it("handles a deployment that reported no apps", () => {
 		expect(groupSessionApps()).toEqual(new Map());
+	});
+});
+
+describe("DeploymentBannerView", () => {
+	it("exposes stat tooltips to keyboard and screen reader users", async () => {
+		const user = userEvent.setup();
+		render(<DeploymentBannerView stats={MockDeploymentStats} />);
+
+		const trigger = await screen.findByRole("button", {
+			name: "Deployment status",
+		});
+		await user.tab();
+		expect(trigger).toHaveFocus();
+		await waitFor(() =>
+			expect(trigger).toHaveAccessibleDescription(
+				"Status of your Coder deployment. Only visible for admins!",
+			),
+		);
+
+		const transmission = screen.getByRole("button", { name: "Transmission" });
+		act(() => transmission.focus());
+		await waitFor(() =>
+			expect(transmission).toHaveAccessibleDescription(
+				/^Activity in the last ~\d+ minutes$/,
+			),
+		);
 	});
 });
