@@ -536,7 +536,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
 		}
-		const liveItemKeys = nextLiveBlockKeys.itemKeys;
 
 		if (renderRows.length === 0) {
 			return null;
@@ -711,7 +710,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const member = renderRows[rowIndex];
 							return member.type === "message" ? [member.key] : [];
 						});
-						const itemKey = liveItemKeys.get(block.key) ?? block.key;
+						const itemKey =
+							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
 						const expanded =
 							expandedBlocks.get(
 								memberKeys.findLast((key) => expandedBlocks.has(key)) ??

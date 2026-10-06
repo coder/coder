@@ -45,8 +45,9 @@ export const emptyLiveBlockKeys: LiveBlockKeys = {
 };
 
 /**
- * Scroller item keys of blocks that rendered live, kept once they complete or
- * paging re-keys them, so an open block does not remount.
+ * Keeps the scroller item keys of blocks that rendered live once they complete
+ * or paging re-keys them, so an open block does not remount. Returns `state`
+ * itself when nothing changed, so callers can set it during render.
  */
 export const reconcileLiveBlockKeys = (
 	blocks: readonly WorkingBlock[],
