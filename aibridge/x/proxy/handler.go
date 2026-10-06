@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -41,6 +42,7 @@ type forwardingHandler struct {
 	connections *http.Transport
 	// transport sends forwarded requests over connections.
 	transport http.RoundTripper
+	failover  keypool.KeyFailoverConfig
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
 	breaker   *circuitbreaker.ProviderCircuitBreakers
@@ -70,6 +72,7 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 		tracer:      tracer,
 		connections: connections,
 		transport:   apidump.NewPassthroughMiddleware(connections, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		failover:    prov.KeyFailoverConfig(logger),
 		inflight:    inflight,
 		recorder:    rec,
 		breaker:     circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
@@ -83,7 +86,7 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
 			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
 		},
-		Transport:     h.transport,
+		Transport:     h,
 		FlushInterval: -1,
 		ErrorLog:      slog.Stdlib(context.Background(), h.logger, slog.LevelWarn),
 	}
@@ -93,6 +96,12 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 // Requests in flight keep their connections until they finish.
 func (h *forwardingHandler) CloseIdleConnections() {
 	h.connections.CloseIdleConnections()
+}
+
+// RoundTrip forwards through the provider's key pool, or uses the selected BYOK
+// credential without retrying against pooled keys.
+func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
+	return keypool.NewKeyFailoverTransport(h.transport, h.failover).RoundTrip(r)
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
