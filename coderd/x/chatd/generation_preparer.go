@@ -467,7 +467,10 @@ func (server *Server) prepareGeneration(
 			if err != nil {
 				return xerrors.Errorf("get MCP server user tokens: %w", err)
 			}
-			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpTokens, err = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			if err != nil {
+				return err
+			}
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
 			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
