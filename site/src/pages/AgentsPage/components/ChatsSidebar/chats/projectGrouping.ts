@@ -1,4 +1,4 @@
-import type { Chat, ChatProject } from "#/api/typesGenerated";
+import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 
 type ChatsGroupedByProject = {
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
@@ -33,4 +33,37 @@ export const groupChatsByProject = (
 		}
 	}
 	return { chatsByProjectId, unfiledChats };
+};
+
+/**
+ * Maps project IDs to their organization's name for projects whose name is
+ * also used in another organization, so same-named projects stay
+ * distinguishable.
+ */
+export const getOrganizationLabels = (
+	projects: readonly ChatProject[],
+	organizations: readonly Organization[],
+): ReadonlyMap<string, string> => {
+	const organizationIdsByName = new Map<string, Set<string>>();
+	for (const project of projects) {
+		const name = project.name.toLowerCase();
+		const organizationIds = organizationIdsByName.get(name) ?? new Set();
+		organizationIds.add(project.organization_id);
+		organizationIdsByName.set(name, organizationIds);
+	}
+
+	const labels = new Map<string, string>();
+	for (const project of projects) {
+		const name = project.name.toLowerCase();
+		if ((organizationIdsByName.get(name)?.size ?? 0) < 2) {
+			continue;
+		}
+		const organization = organizations.find(
+			(org) => org.id === project.organization_id,
+		);
+		if (organization) {
+			labels.set(project.id, organization.display_name || organization.name);
+		}
+	}
+	return labels;
 };

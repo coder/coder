@@ -21,7 +21,14 @@ const meta: Meta<typeof OrganizationAgentSettings> = {
 	args: {
 		organization: MockDefaultOrganization,
 		canEdit: true,
+		canViewInstructions: true,
 		showAdvisor: true,
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatSystemPrompt",
+		).mockResolvedValue({ system_prompt: "" });
 	},
 };
 export default meta;
@@ -108,6 +115,33 @@ export const SavesOverrideForSelectedOrganization: Story = {
 			).toHaveBeenCalledWith(MockDefaultOrganization.id, "explore", {
 				model_config_id: MockChatModel.id,
 			});
+		});
+	},
+};
+
+export const WithOrganizationInstructions: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockResolvedValue({
+			models: [
+				{
+					...MockChatModel,
+					organization_id: MockDefaultOrganization.id,
+					is_default: true,
+				},
+			],
+			providers: [MockChatModelProviderDescriptor],
+			unsupported_providers: [],
+		});
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
+		spyOn(
+			API.experimental,
+			"getOrganizationChatSystemPrompt",
+		).mockResolvedValue({
+			system_prompt:
+				"Use the platform team's templates and run make lint before opening a pull request.",
 		});
 	},
 };

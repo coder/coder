@@ -182,11 +182,17 @@ type Chat struct {
 	LastTurnSummary *string      `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
-	Summary    *string         `json:"summary"`
+	Summary *string `json:"summary"`
+	// DiffStatus is the primary pull request. It is the ref with the
+	// most recent git report.
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	// DiffStatuses lists every ref the chat tracks. The order is
+	// stable and follows the first report of each ref. DiffStatus
+	// marks the primary.
+	DiffStatuses []ChatDiffStatus `json:"diff_statuses,omitempty"`
+	CreatedAt    time.Time        `json:"created_at" format:"date-time"`
+	UpdatedAt    time.Time        `json:"updated_at" format:"date-time"`
+	Archived     bool             `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -1007,6 +1013,18 @@ type ChatSystemPromptResponse struct {
 type UpdateChatSystemPromptRequest struct {
 	SystemPrompt               string `json:"system_prompt"`
 	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
+}
+
+// OrganizationChatSystemPromptResponse is the response body for the
+// organization chat system prompt endpoint.
+type OrganizationChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateOrganizationChatSystemPromptRequest is the request body for updating
+// an organization's chat system prompt.
+type UpdateOrganizationChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
 }
 
 // ChatPlanModeInstructionsResponse is the response body for the
@@ -1830,6 +1848,8 @@ type ChatGitChange struct {
 // a PR has been opened.
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
+	RemoteOrigin     *string    `json:"remote_origin,omitempty"`
+	GitBranch        *string    `json:"git_branch,omitempty"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
 	PullRequestTitle string     `json:"pull_request_title"`
@@ -1848,6 +1868,20 @@ type ChatDiffStatus struct {
 	ReviewerCount    *int32     `json:"reviewer_count,omitempty"`
 	RefreshedAt      *time.Time `json:"refreshed_at,omitempty" format:"date-time"`
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
+}
+
+// DiffStatusRef identifies one ref that a chat tracks. A chat has
+// one diff status for each ref.
+type DiffStatusRef struct {
+	RemoteOrigin string `json:"remote_origin"`
+	GitBranch    string `json:"git_branch"`
+}
+
+// ChangedDiffStatus is the diff status of one ref after a change.
+// When the ref has no stored status, Status has only chat_id.
+type ChangedDiffStatus struct {
+	Ref    DiffStatusRef   `json:"ref"`
+	Status *ChatDiffStatus `json:"status"`
 }
 
 // ChatDiffContents represents the resolved diff text for a chat.
@@ -2139,6 +2173,10 @@ type ChatWatchEvent struct {
 	Kind      ChatWatchEventKind   `json:"kind"`
 	Chat      Chat                 `json:"chat"`
 	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	// ChangedDiffStatus is set when Kind is
+	// ChatWatchEventKindDiffStatusChange. It identifies the ref that
+	// changed.
+	ChangedDiffStatus *ChangedDiffStatus `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.
@@ -2728,6 +2766,38 @@ func (c *Client) UpdateOrganizationChatModelOverride(ctx context.Context, organi
 	}
 	var resp ChatModelOverrideResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationChatSystemPrompt returns the organization's chat system
+// prompt. New chats in the organization receive it after the deployment
+// system prompt.
+func (c *Client) OrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID) (OrganizationChatSystemPromptResponse, error) {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return OrganizationChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationChatSystemPromptResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateOrganizationChatSystemPrompt replaces the organization's chat system
+// prompt. An empty prompt clears it.
+func (c *Client) UpdateOrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID, req UpdateOrganizationChatSystemPromptRequest) error {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
@@ -3542,8 +3612,14 @@ func (c *Client) ProposeChatTitle(ctx context.Context, chatID uuid.UUID) (Propos
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.
-func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff", chatID), nil)
+// Without options, it returns the primary ref's diff. Pass
+// WithChatDiffStatusRef to select another ref the chat tracks.
+func (c *Client) GetChatDiffContents(
+	ctx context.Context,
+	chatID uuid.UUID,
+	opts ...RequestOption,
+) (ChatDiffContents, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff", chatID), nil, opts...)
 	if err != nil {
 		return ChatDiffContents{}, err
 	}
@@ -3553,6 +3629,15 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, ReadBodyAsJSON(res, &diff)
+}
+
+// WithChatDiffStatusRef selects the ref for GetChatDiffContents.
+// The ref must match a ref that the chat tracks.
+func WithChatDiffStatusRef(ref DiffStatusRef) RequestOption {
+	return func(r *http.Request) {
+		WithQueryParam("origin", ref.RemoteOrigin)(r)
+		WithQueryParam("branch", ref.GitBranch)(r)
+	}
 }
 
 // UploadChatFile uploads a file for use in chat messages.

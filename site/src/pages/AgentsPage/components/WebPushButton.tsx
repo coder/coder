@@ -1,6 +1,4 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
-import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -8,41 +6,20 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
+import type { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
 type WebPushButtonProps = {
-	webPush?: ReturnType<typeof useWebpushNotifications>;
-	onToggle?: () => Promise<void> | void;
+	webPush: ReturnType<typeof useWebpushNotifications>;
+	onToggle: () => Promise<void> | void;
 };
 
 export const WebPushButton: React.FC<WebPushButtonProps> = ({
 	webPush,
 	onToggle,
 }) => {
-	const internalWebPush = useWebpushNotifications();
-	const webPushState = webPush ?? internalWebPush;
-
-	if (!webPushState.enabled) {
+	if (!webPush.enabled) {
 		return null;
 	}
-
-	const handleClick = async () => {
-		if (onToggle) {
-			await onToggle();
-			return;
-		}
-
-		try {
-			if (webPushState.subscribed) {
-				await webPushState.unsubscribe();
-			} else {
-				await webPushState.subscribe();
-			}
-		} catch (error) {
-			const action = webPushState.subscribed ? "disable" : "enable";
-			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
-		}
-	};
 
 	return (
 		<Tooltip>
@@ -50,18 +27,18 @@ export const WebPushButton: React.FC<WebPushButtonProps> = ({
 				<Button
 					variant="subtle"
 					size="icon"
-					disabled={webPushState.loading}
-					onClick={handleClick}
+					disabled={webPush.loading}
+					onClick={onToggle}
 					aria-label={
-						webPushState.subscribed
+						webPush.subscribed
 							? "Disable notifications"
 							: "Enable notifications"
 					}
 					className="size-7 text-content-secondary hover:text-content-primary"
 				>
-					{webPushState.loading ? (
+					{webPush.loading ? (
 						<Spinner size="sm" loading />
-					) : webPushState.subscribed ? (
+					) : webPush.subscribed ? (
 						<BellIcon className="text-content-success" />
 					) : (
 						<BellOffIcon className="text-content-secondary" />
@@ -69,9 +46,7 @@ export const WebPushButton: React.FC<WebPushButtonProps> = ({
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				{webPushState.subscribed
-					? "Disable notifications"
-					: "Enable notifications"}
+				{webPush.subscribed ? "Disable notifications" : "Enable notifications"}
 			</TooltipContent>
 		</Tooltip>
 	);

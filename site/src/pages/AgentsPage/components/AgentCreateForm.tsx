@@ -197,9 +197,9 @@ type OrganizationResolution = {
 	denial: "product" | "locked-organization" | null;
 	/**
 	 * The user's own organization choice is in effect: permissions are settled
-	 * and no lock applies. Gates the selector and fallback adoption. Skipping
-	 * adoption while locked keeps the locked organization out of
-	 * `selectedOrganizationIdStorageKey`.
+	 * and no lock applies. Gates the selector, fallback adoption, and writes to
+	 * `selectedOrganizationIdStorageKey`, so a lock never changes the user's
+	 * saved organization.
 	 */
 	isUserOrgSelectionActive: boolean;
 };
@@ -446,7 +446,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		}
 	}
 	useEffect(() => {
-		if (!orgSelectionSettled) {
+		// A locked form neither saves nor clears the user's organization, even
+		// when the saved one has since been revoked.
+		if (!isUserOrgSelectionActive) {
 			return;
 		}
 		if (selectedOrg) {
@@ -454,7 +456,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, selectedOrg]);
+	}, [isUserOrgSelectionActive, selectedOrg]);
 	useEffect(() => {
 		// A project's workspace is not the user's default.
 		if (isLocked) {
