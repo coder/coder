@@ -206,7 +206,7 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
    ```
 
    The first deployment takes about 15 minutes in full mode on `c7i.xlarge`
-   (VM setup, image pulls, and the first build) and about 5 minutes in
+   (VM setup, image pulls, and the first build) and about 8 minutes in
    frontend mode. Later rebuilds take a few minutes. In full mode, site-only
    changes take seconds. Give up after 45 minutes for a first deployment and 25
    minutes otherwise.
