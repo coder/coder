@@ -3,6 +3,7 @@ import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
@@ -22,11 +23,12 @@ import {
 	Table,
 	TableBody,
 	TableCell,
-	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
@@ -609,121 +611,79 @@ export const UserCompactionThresholdSettings: React.FC<
 	);
 	const shouldShowActions =
 		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
-
-	if (isThresholdsLoading) {
-		return (
-			<div className="flex flex-col gap-2">
-				<ContextCompactionHeader
-					hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
-				/>
-				<div className="flex items-center gap-2 text-sm text-content-secondary">
-					<Spinner loading className="size-4" />
-					Loading thresholds...
-				</div>
-			</div>
-		);
-	}
-
-	if (thresholdsError != null) {
-		return (
-			<div className="flex flex-col gap-2">
-				<ContextCompactionHeader
-					hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
-				/>
-				<p className="m-0 text-xs text-content-destructive">
-					{getErrorMessage(
-						thresholdsError,
-						"Failed to load compaction thresholds.",
-					)}
-				</p>
-			</div>
-		);
-	}
+	const isTableLoading = isThresholdsLoading || isLoadingModels === true;
+	const showRows =
+		!isTableLoading && thresholdsError == null && enabledModels.length > 0;
+	// A failed load is the alert above the table. The in-table empty state is
+	// only for a successful load with no enabled models.
+	const blockingError =
+		thresholdsError != null ||
+		(!isLoadingModels && modelsError != null && enabledModels.length === 0);
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-4">
 			<ContextCompactionHeader
 				hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
 			/>
-			{isLoadingModels ? (
-				<div className="flex items-center gap-2 text-sm text-content-secondary">
-					<Spinner loading className="size-4" />
-					Loading models...
-				</div>
-			) : modelsError && enabledModels.length === 0 ? (
+			{thresholdsError != null && <ErrorAlert error={thresholdsError} />}
+			{modelsError != null && <ErrorAlert error={modelsError} />}
+			{showRows && compactionTriggerLoadErrors.length > 0 && (
 				<p className="m-0 text-xs text-content-destructive">
-					{getErrorMessage(modelsError, "Failed to load model configurations.")}
-				</p>
-			) : enabledModels.length === 0 ? (
-				<p className="m-0 text-xs text-content-secondary">
-					No enabled chat models available. An administrator must configure chat
-					models before compaction thresholds can be set.
-				</p>
-			) : (
-				<>
-					{modelsError && (
-						<p className="m-0 text-xs text-content-destructive">
-							{getErrorMessage(
-								modelsError,
-								"Some organization models could not be loaded.",
-							)}
-						</p>
+					{getErrorMessage(
+						compactionTriggerLoadErrors[0]?.error,
+						"Failed to load organization compaction settings.",
 					)}
-					{compactionTriggerLoadErrors.length > 0 && (
-						<p className="m-0 text-xs text-content-destructive">
-							{getErrorMessage(
-								compactionTriggerLoadErrors[0]?.error,
-								"Failed to load organization compaction settings.",
-							)}
-							<span className="block">
-								Effective values in{" "}
-								{compactionTriggerLoadErrors
-									.map(
-										({ organizationID }) =>
-											organizationNameByID.get(organizationID) ??
-											organizationID,
-									)
-									.join(", ")}{" "}
-								ignore the organization override. Reload the page to retry.
-							</span>
-						</p>
-					)}
-					{organizationOptions.length > 1 && activeOrganization && (
-						<div>
-							<OrganizationAutocomplete
-								value={activeOrganization}
-								ariaLabel={`Organization ${getOrganizationLabel(
-									activeOrganization,
-									organizationOptions,
-								)}`}
-								options={organizationOptions}
-								triggerClassName="w-60"
-								optionsTabbable
-								onChange={(organization) => {
-									if (!organization) {
-										return;
-									}
-									setSelectedOrganizationID(organization.id);
-								}}
+					<span className="block">
+						Effective values in{" "}
+						{compactionTriggerLoadErrors
+							.map(
+								({ organizationID }) =>
+									organizationNameByID.get(organizationID) ?? organizationID,
+							)
+							.join(", ")}{" "}
+						ignore the organization override. Reload the page to retry.
+					</span>
+				</p>
+			)}
+			{showRows && organizationOptions.length > 1 && activeOrganization && (
+				<OrganizationAutocomplete
+					value={activeOrganization}
+					ariaLabel={`Organization ${getOrganizationLabel(
+						activeOrganization,
+						organizationOptions,
+					)}`}
+					options={organizationOptions}
+					triggerClassName="w-60"
+					optionsTabbable
+					onChange={(organization) => {
+						if (!organization) {
+							return;
+						}
+						setSelectedOrganizationID(organization.id);
+					}}
+				/>
+			)}
+			{!blockingError && (
+				<Table aria-label="Compaction thresholds">
+					<TableHeader>
+						<TableRow>
+							<TableHead>Model</TableHead>
+							<TableHead className="whitespace-nowrap">Context</TableHead>
+							<TableHead className="whitespace-nowrap">Default</TableHead>
+							<TableHead className="whitespace-nowrap">Threshold</TableHead>
+							<TableHead className="whitespace-nowrap">Effective</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{isTableLoading ? (
+							<TableLoader />
+						) : enabledModels.length === 0 ? (
+							<TableEmpty
+								message="No enabled chat models"
+								description="An administrator must configure chat models before compaction thresholds can be set."
 							/>
-						</div>
-					)}
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="text-content-secondary">Model</TableHead>
-								<TableHead className="w-0 whitespace-nowrap">Context</TableHead>
-								<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
-								<TableHead className="w-0 whitespace-nowrap">
-									Threshold
-								</TableHead>
-								<TableHead className="w-0 whitespace-nowrap">
-									Effective
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{visibleModels.map((modelConfig) => (
+						) : (
+							visibleModels.map((modelConfig) => (
 								<CompactionThresholdRow
 									key={modelConfig.id}
 									modelConfig={modelConfig}
@@ -750,49 +710,45 @@ export const UserCompactionThresholdSettings: React.FC<
 									}}
 									onReset={() => handleReset(modelConfig.id)}
 								/>
-							))}
-						</TableBody>
-						<TableFooter className="bg-transparent">
-							<TableRow className="border-0">
-								<TableCell colSpan={5} className="border-0 p-0">
-									<div className="mt-2 flex h-6 items-center justify-end gap-2 px-3">
-										{isSavedVisible ? (
-											<TemporarySavedState />
-										) : (
-											shouldShowActions && (
-												<>
-													<Button
-														size="xs"
-														variant="outline"
-														type="button"
-														onClick={handleCancelAll}
-														disabled={hasAnyPending}
-													>
-														Cancel
-													</Button>
-													{dirtyRows.length > 0 && (
-														<Button
-															size="xs"
-															type="button"
-															className="h-6"
-															disabled={hasAnyPending}
-															onClick={handleSaveAll}
-														>
-															{hasAnyPending && <Spinner loading size="sm" />}
-															{hasAnyPending
-																? "Saving..."
-																: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-														</Button>
-													)}
-												</>
-											)
-										)}
-									</div>
-								</TableCell>
-							</TableRow>
-						</TableFooter>
-					</Table>
-				</>
+							))
+						)}
+					</TableBody>
+				</Table>
+			)}
+			{showRows && (
+				<div className="flex h-6 items-center justify-end gap-2">
+					{isSavedVisible ? (
+						<TemporarySavedState />
+					) : (
+						shouldShowActions && (
+							<>
+								<Button
+									size="xs"
+									variant="outline"
+									type="button"
+									onClick={handleCancelAll}
+									disabled={hasAnyPending}
+								>
+									Cancel
+								</Button>
+								{dirtyRows.length > 0 && (
+									<Button
+										size="xs"
+										type="button"
+										className="h-6"
+										disabled={hasAnyPending}
+										onClick={handleSaveAll}
+									>
+										{hasAnyPending && <Spinner loading size="sm" />}
+										{hasAnyPending
+											? "Saving..."
+											: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
+									</Button>
+								)}
+							</>
+						)
+					)}
+				</div>
 			)}
 		</div>
 	);
