@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -538,6 +539,70 @@ func TestSecretList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		assert.Contains(t, output.Stderr(), "No secrets found.")
+	})
+}
+
+func TestSecretListWorkspaceBuild(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+	setupCtx := testutil.Context(t, testutil.WaitMedium)
+	_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "user-token", Value: "u", EnvName: "TOKEN",
+	})
+	require.NoError(t, err)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "build-token", Value: ptr.Ref("b"), EnvName: "TOKEN"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	cases := []struct {
+		name string
+		args []string
+		env  map[string]string
+	}{
+		{name: "InsideWorkspace", env: map[string]string{"CODER_WORKSPACE_BUILD_ID": workspace.LatestBuild.ID.String()}},
+		{name: "InsideWorkspaceOlderServer", env: map[string]string{"CODER_WORKSPACE_ID": workspace.ID.String()}},
+		{name: "WorkspaceFlag", args: []string{"--workspace", workspace.Name}},
+		{name: "BuildIDFlag", args: []string{"--build-id", workspace.LatestBuild.ID.String()}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, append([]string{"secret", "list"}, tc.args...)...)
+			for k, v := range tc.env {
+				inv.Environ.Set(k, v)
+			}
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, client, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run())
+
+			out := output.Stdout()
+			assert.Contains(t, out, "SOURCE")
+			assert.Contains(t, out, "REPLACED BY")
+			assert.Contains(t, out, "build-token")
+			assert.Contains(t, out, "env: build-token")
+		})
+	}
+
+	t.Run("NameWithFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "user-token", "--build-id", workspace.LatestBuild.ID.String())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.ErrorContains(t, inv.WithContext(ctx).Run(), "cannot be used with a secret name")
 	})
 }
 

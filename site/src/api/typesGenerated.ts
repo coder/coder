@@ -11721,8 +11721,8 @@ export interface UserRoles {
 
 // From codersdk/usersecrets.go
 /**
- * UserSecret represents a user secret's metadata. The secret value
- * is never included in API responses.
+ * UserSecret is the previous name of WorkspaceSecret, kept for backwards
+ * compatibility.
  */
 export interface UserSecret {
 	readonly id: string;
@@ -11739,6 +11739,19 @@ export interface UserSecret {
 	readonly enabled: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly source: WorkspaceSecretSource;
+	/**
+	 * EnvReplacedBy is the ID of the secret delivered on this secret's
+	 * env_name instead of it. Only set when listing secrets for a
+	 * workspace build.
+	 */
+	readonly env_replaced_by?: string;
+	/**
+	 * FileReplacedBy is the ID of the secret delivered on this secret's
+	 * file_path instead of it. Only set when listing secrets for a
+	 * workspace build.
+	 */
+	readonly file_replaced_by?: string;
 }
 
 // From codersdk/usersecretvalidation.go
@@ -12773,6 +12786,41 @@ export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
+// From codersdk/usersecrets.go
+/**
+ * WorkspaceSecret represents a secret's metadata. The secret value is never
+ * included in API responses.
+ */
+export interface WorkspaceSecret {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly env_name: string;
+	readonly file_path: string;
+	/**
+	 * Enabled controls whether the secret is injected into workspaces.
+	 * Disabled secrets remain visible and editable, but are not added
+	 * to the agent manifest, so they are not exposed as environment
+	 * variables or written to secret files.
+	 */
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly source: WorkspaceSecretSource;
+	/**
+	 * EnvReplacedBy is the ID of the secret delivered on this secret's
+	 * env_name instead of it. Only set when listing secrets for a
+	 * workspace build.
+	 */
+	readonly env_replaced_by?: string;
+	/**
+	 * FileReplacedBy is the ID of the secret delivered on this secret's
+	 * file_path instead of it. Only set when listing secrets for a
+	 * workspace build.
+	 */
+	readonly file_replaced_by?: string;
+}
+
 // From codersdk/workspacesecrets.go
 /**
  * WorkspaceSecretInjectionTargetRequiredDetail explains that a workspace
@@ -12831,6 +12879,14 @@ export interface WorkspaceSecretInput {
  */
 export const WorkspaceSecretRemovalWithFieldsDetail =
 	"A null value removes the secret, so env_name, file_path, and ephemeral must not be set. Set value to set the secret."; //nolint:gosec // G101: message text, not a hardcoded credential.
+
+// From codersdk/usersecrets.go
+export type WorkspaceSecretSource = "build" | "user";
+
+export const WorkspaceSecretSources: WorkspaceSecretSource[] = [
+	"build",
+	"user",
+];
 
 // From codersdk/workspacesharing.go
 /**

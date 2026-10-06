@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspacesecrets"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -141,7 +142,7 @@ func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request)
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
-// @Success 201 {object} codersdk.UserSecret
+// @Success 201 {object} codersdk.WorkspaceSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets [post]
@@ -221,7 +222,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.ImportUserSecretsRequest true "Import secrets request"
-// @Success 201 {array} codersdk.UserSecret
+// @Success 201 {array} codersdk.WorkspaceSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response "Request body exceeds 8 MiB"
@@ -351,12 +352,16 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List user secrets
+// @Description With workspace_build set, the response also includes that
+// @Description build's workspace secrets, and reports which secrets are
+// @Description replaced on their env_name or file_path by another secret.
 // @ID list-user-secrets
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
-// @Success 200 {array} codersdk.UserSecret
+// @Param workspace_build query string false "Workspace build ID owned by the user" format(uuid)
+// @Success 200 {array} codersdk.WorkspaceSecret
 // @Router /api/v2/users/{user}/secrets [get]
 func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
@@ -370,8 +375,108 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 		})
 		return
 	}
+	out := db2sdk.UserSecrets(secrets)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecrets(secrets))
+	rawBuildID := r.URL.Query().Get("workspace_build")
+	if rawBuildID == "" {
+		httpapi.Write(ctx, rw, http.StatusOK, out)
+		return
+	}
+	buildID, err := uuid.Parse(rawBuildID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid workspace_build.",
+			Validations: []codersdk.ValidationError{
+				{Field: "workspace_build", Detail: "Must be a workspace build ID."},
+			},
+		})
+		return
+	}
+
+	// These reads are authorized as the caller, so a build the caller
+	// cannot see is a 404 before its owner is compared.
+	build, err := api.Database.GetWorkspaceBuildByID(ctx, buildID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if workspace.OwnerID != user.ID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The workspace build does not belong to this user.",
+			Validations: []codersdk.ValidationError{
+				{Field: "workspace_build", Detail: "Must be a build of one of the user's workspaces."},
+			},
+		})
+		return
+	}
+
+	buildSecrets, err := api.Database.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{
+		WorkspaceID:      workspace.ID,
+		WorkspaceBuildID: build.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing workspace secrets.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	for _, s := range buildSecrets {
+		out = append(out, db2sdk.WorkspaceBuildSecret(s))
+	}
+	applySecretReplacements(out, api.userSecretFilePathBlocked())
+
+	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// applySecretReplacements records on each secret which other secret is
+// delivered on its env_name or file_path instead, using the same rules as
+// the agent manifest.
+//
+//nolint:revive // blocked is deployment configuration, not caller control coupling.
+func applySecretReplacements(secrets []codersdk.WorkspaceSecret, blocked bool) {
+	policy := workspacesecrets.FilePathAllowed
+	if blocked {
+		policy = workspacesecrets.FilePathBlocked
+	}
+	candidates := make([]workspacesecrets.Secret, len(secrets))
+	for i, s := range secrets {
+		candidates[i] = workspacesecrets.Secret{
+			ID:       s.ID,
+			Source:   s.Source,
+			Name:     s.Name,
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Enabled:  s.Enabled,
+		}
+	}
+	for i, r := range workspacesecrets.Resolve(candidates, policy) {
+		if r.EnvReplacedBy.Valid {
+			secrets[i].EnvReplacedBy = &r.EnvReplacedBy.UUID
+		}
+		if r.FileReplacedBy.Valid {
+			secrets[i].FileReplacedBy = &r.FileReplacedBy.UUID
+		}
+	}
 }
 
 // @Summary Get a user secret by name
@@ -381,7 +486,7 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
-// @Success 200 {object} codersdk.UserSecret
+// @Success 200 {object} codersdk.WorkspaceSecret
 // @Router /api/v2/users/{user}/secrets/{name} [get]
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
@@ -416,7 +521,7 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
 // @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
-// @Success 200 {object} codersdk.UserSecret
+// @Success 200 {object} codersdk.WorkspaceSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets/{name} [patch]

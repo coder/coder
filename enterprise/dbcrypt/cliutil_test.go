@@ -464,7 +464,7 @@ func TestUpdateEncryptedWorkspaceSecretValueSkipsCleared(t *testing.T) {
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, first.Workspace.ID)
+	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: first.Workspace.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.True(t, history[0].ClearedAt.Valid, "row stays cleared")
