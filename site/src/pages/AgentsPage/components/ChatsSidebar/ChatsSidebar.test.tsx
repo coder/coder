@@ -492,6 +492,42 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
+	it("names the organization when deleting a project whose name is shared", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockDefaultOrganization, MockOrganization2]}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+		expect(
+			await screen.findByRole("dialog", {
+				name: `Delete "${MockChatProject.name}" from ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(

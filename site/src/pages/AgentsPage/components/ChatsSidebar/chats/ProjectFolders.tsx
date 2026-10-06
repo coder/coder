@@ -27,6 +27,7 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
 export type ProjectDialogState =
@@ -35,38 +36,6 @@ export type ProjectDialogState =
 
 export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
-
-/**
- * Maps project IDs to their organization's name for projects whose name is
- * also used in another organization, so same-named rows stay distinguishable.
- */
-const getOrganizationLabels = (
-	projects: readonly ChatProject[],
-	organizations: readonly Organization[],
-): ReadonlyMap<string, string> => {
-	const organizationIdsByName = new Map<string, Set<string>>();
-	for (const project of projects) {
-		const name = project.name.toLowerCase();
-		const organizationIds = organizationIdsByName.get(name) ?? new Set();
-		organizationIds.add(project.organization_id);
-		organizationIdsByName.set(name, organizationIds);
-	}
-
-	const labels = new Map<string, string>();
-	for (const project of projects) {
-		const name = project.name.toLowerCase();
-		if ((organizationIdsByName.get(name)?.size ?? 0) < 2) {
-			continue;
-		}
-		const organization = organizations.find(
-			(org) => org.id === project.organization_id,
-		);
-		if (organization) {
-			labels.set(project.id, organization.display_name || organization.name);
-		}
-	}
-	return labels;
-};
 
 type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];

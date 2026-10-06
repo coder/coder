@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
-import { groupChatsByProject } from "./projectGrouping";
+import {
+	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
+import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
 
 describe("groupChatsByProject", () => {
 	it("files chats under a loaded project and leaves the rest unfiled", () => {
@@ -44,5 +48,47 @@ describe("groupChatsByProject", () => {
 
 		expect(grouped.chatsByProjectId.size).toBe(0);
 		expect(grouped.unfiledChats).toEqual([mockFiledChat]);
+	});
+});
+
+describe("getOrganizationLabels", () => {
+	const organizations = [MockDefaultOrganization, MockOrganization2];
+
+	it("labels projects whose name is used in another organization", () => {
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other",
+			name: MockChatProject.name.toUpperCase(),
+			organization_id: MockOrganization2.id,
+		};
+
+		const labels = getOrganizationLabels(
+			[MockChatProject, mockOtherProject],
+			organizations,
+		);
+
+		expect(labels.get(MockChatProject.id)).toBe(
+			MockDefaultOrganization.display_name,
+		);
+		expect(labels.get(mockOtherProject.id)).toBe(
+			MockOrganization2.display_name,
+		);
+	});
+
+	it("leaves unique names and same-organization duplicates unlabeled", () => {
+		const mockSameOrganizationProject = { ...MockChatProject, id: "same" };
+		const mockUniqueProject = {
+			...MockChatProject,
+			id: "unique",
+			name: "Unique",
+			organization_id: MockOrganization2.id,
+		};
+
+		const labels = getOrganizationLabels(
+			[MockChatProject, mockSameOrganizationProject, mockUniqueProject],
+			organizations,
+		);
+
+		expect(labels.size).toBe(0);
 	});
 });
