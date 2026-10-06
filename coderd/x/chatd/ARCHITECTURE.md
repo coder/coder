@@ -118,6 +118,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 ### Transitions used by the HTTP endpoints
 
+TODO(chat-automations removal): The `PromoteQueuedMessage` and `Interrupt` items below mention the queue promotion guard and automations, which were removed with the chat automations experiment. The author needs to update them.
+
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
@@ -132,6 +134,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
 
 ### Transitions used by the chat worker
+
+TODO(chat-automations removal): The `FinishInterruption` and `FinishTurn` items below mention the queue promotion guard, which was removed with the chat automations experiment. The author needs to update them.
 
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
@@ -148,6 +152,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Automation admission and the queue promotion guard
+
+TODO(chat-automations removal): This section describes automation admission (`AdmitInTx`), provenance columns and the queue promotion guard, which were removed with the chat automations experiment. The author needs to remove or rewrite it.
 
 Automations (rows in `chat_automations`) deliver messages to chats through the same `Create` and `SendMessage` transitions that users go through. Two mechanisms make that safe: an admission callback that runs inside the transition's transaction, and a guard that drops stale automation messages instead of promoting them.
 
@@ -171,6 +177,8 @@ A transaction that takes automation locks out of this order can deadlock. For ex
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
 A transition between input state `A` and output state `B` is allowed only if it's listed in the diagram below (`A --> B: Transition Name`). If a transition is not allowed, the core state machine implementation must reject it.
+
+TODO(chat-automations removal): The `guard deleted` and `stale target` transitions in this diagram come from the queue promotion guard, which was removed with the chat automations experiment. The author needs to update the diagram.
 
 ```mermaid
 stateDiagram-v2
@@ -482,6 +490,8 @@ The write paths maintain exactly one default whenever an organization has at lea
 
 ### `POST /api/v2/chats`
 
+TODO(chat-automations removal): The admission callback and `manage_automations_enabled` paragraphs below describe code removed with the chat automations experiment. The author needs to update them.
+
 This endpoint uses `Create(initialMessages)`:
 
 - `N -> Create(initialMessages) -> R0`
@@ -497,6 +507,8 @@ If the request sets `title`, the chat is created with a `user` title and automat
 The request can turn on `manage_automations_enabled`, the interim per-chat switch that offers the [`manage_automations` tool](#the-manage_automations-tool). The switch defaults to off. Turning it on returns 400 unless the `chat-automations` experiment is on for the chat owner, which is the resolved `owner_id` rather than the caller, so a creator acting through `owner_id` may set it for an owner who has the experiment.
 
 ### `PATCH /api/v2/chats/{chat}`
+
+TODO(chat-automations removal): The `manage_automations_enabled` paragraph below describes code removed with the chat automations experiment. The author needs to update it.
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 
@@ -520,6 +532,8 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 `manage_automations_enabled` updates write the switch directly and emit no state transition. Only the chat owner may change the switch: any other caller who may update the chat, such as an administrator, gets 403. The endpoint checks this, and the rules for turning the switch on, before it writes any field of the request. Turning the switch on returns 400 for a sub-agent chat or when the `chat-automations` experiment is off for the chat owner. Turning it off is always accepted, even with the experiment off. The audit entry of the update tracks the switch.
 
 ### `POST /api/v2/chats/{chat}/messages`
+
+TODO(chat-automations removal): The queue promotion guard and admission callback paragraphs below describe code removed with the chat automations experiment. The author needs to update them.
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
@@ -560,6 +574,8 @@ Other input states are not supported.
 
 ### `POST /api/experimental/chat-automations/{automation}/events`
 
+TODO(chat-automations removal): This endpoint was removed with the chat automations experiment. The author needs to remove this section.
+
 A webhook automation with an `existing_chat` target delivers an event to its chat. The caller has no Coder session: the handler compares the SHA-256 of the bearer secret with the stored hash in constant time, and only then checks the `chat-automations` experiment for the automation owner and reads the body (at most 256 KiB of JSON). An unknown automation, a schedule automation, and a wrong secret get the same 401. The route sits outside the `/api/experimental` group, and its rate limiter keys every caller by one endpoint key, so varying the automation id in the path does not reset the caller's budget.
 
 The delivery runs as the automation owner and uses `SendMessage(m, queue)`, always with `busy_behavior=queue`, so an automation never interrupts a running turn. `m` has two text parts: the automation's prompt, and the event body inside `<automation_event_data>` tags with a header that labels it as untrusted data. The body is HTML-escaped JSON, so it keeps its value and cannot close the tags. Lifecycle hooks see `m` before the transaction, as for any other send. Before the send, the delivery makes the checks listed below on unlocked reads, so a refused event never reaches the hooks.
@@ -590,6 +606,8 @@ Other input states are not supported.
 
 ### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
+TODO(chat-automations removal): The paragraph about disabling or deleting an automation describes code removed with the chat automations experiment. The author needs to update it.
+
 This endpoint uses `DeleteQueuedMessage(qid)`:
 
 - `E1 -> DeleteQueuedMessage(qid) -> E0` if removing the last queued message
@@ -606,6 +624,8 @@ No other input states are supported.
 Disabling or deleting an automation also removes its queued messages through `DeleteQueuedMessage`, one row per chat transaction, as chatd. Chatd runs this cleanup because an organization admin can disable or delete a member's automation without being allowed to write that member's chats. Disabling first commits an automation-only update that increments the automation's `queue_generation` and touches no chat row, then deletes each of the automation's queued rows whose `queue_generation` is below the new value. Disabling an already disabled automation increments the generation again, so a retry also removes rows that an earlier attempt missed. Deleting removes the automation row first, which needs only delete permission on the automation, and then deletes every queued row that carries its `automation_id`. Each row goes through the transition above, so queue versions and clients update as for a manual delete, and running turns are not interrupted. A row that was already promoted or deleted is skipped. The cleanup runs after the automation change commits and only logs its failures: the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) discards any row left behind, because its automation is disabled with a newer generation or no longer exists.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
+
+TODO(chat-automations removal): The queue promotion guard paragraph below describes code removed with the chat automations experiment. The author needs to update it.
 
 This endpoint uses `PromoteQueuedMessage(qid)`:
 
@@ -1199,6 +1219,8 @@ Each candidate is archived the same way as an archive through `PATCH /api/v2/cha
 
 ## Automation schedule loop
 
+TODO(chat-automations removal): The schedule loop was removed with the chat automations experiment. The author needs to remove this section.
+
 Every coderd instance runs the schedule loop of its chat worker: one scan at start, then one scan every 30 seconds. A schedule automation stores its cron expression, its time zone, a `schedule_revision`, and a cursor, `schedule_next_run_at`, which is the next occurrence to run. The cursor is computed in the schedule's time zone, so a daily run keeps its wall-clock time across daylight-saving changes.
 
 A scan reads the enabled schedule automations whose cursor is at or before now, oldest cursor first, without taking locks, in pages of 500 until a page comes back short, so rows that stay due never hide the rows behind them. The read leaves out automations of deleted or inactive owners and `existing_chat` automations whose target chat is gone or archived; their cursors stay where they are. The scan decides the `chat-automations` experiment once per owner, outside any transaction, and drops the automations of owners who have it off without writing their cursors. The scan then handles each remaining automation, publishing up to eight at a time so an occurrence that waits for a lock or a slow hook does not hold back the others past the grace window:
@@ -1214,6 +1236,8 @@ A chat that a `new_chat` schedule automation creates is titled with the automati
 
 ### Run now
 
+TODO(chat-automations removal): The run-now endpoint was removed with the chat automations experiment. The author needs to remove this section.
+
 `POST /api/experimental/organizations/{organization}/chat-automations/{automation}/runs` publishes the saved prompt of a schedule automation immediately. The route sits behind the same experiment check for the caller as the other management routes and loads the automation as the caller, so an automation the caller cannot read, or one in another organization, is not found. Only the owner may run an automation: an organization admin or site owner who can update it gets 403, checked before anything else about the automation is revealed. A webhook automation gets 400, and a disabled automation gets 409.
 
 The run goes through the same publish path as a scheduled occurrence, as the owner, but with no occurrence: nothing checks or moves the cursor, and the automation row is not written, so `schedule_next_run_at` and `schedule_revision` stay as they were and the next scheduled run happens as planned. Every other admission check is the same as for an occurrence, including the owner's experiment, the enabled check under the automation lock, When busy, and the queue shares. Refusals map to the webhook endpoint's responses: a busy chat with When busy `skip`, an unavailable target, or an unavailable `new_chat` model gets 409; a target chat whose model is unavailable when no default model is configured gets 400, as a person's message does; a full queue or a full automation share gets 429; an inactive owner or an owner who may not write the chat gets 403; a hook denial gets the hook's response. An accepted run returns 202 with the input and chat ids.
@@ -1221,6 +1245,8 @@ The run goes through the same publish path as a scheduled occurrence, as the own
 A chat that a `new_chat` automation creates this way is titled with the automation name followed by the time of the run in the schedule's time zone, and the endpoint records the same audit entry for it as the webhook endpoint.
 
 ## The `manage_automations` tool
+
+TODO(chat-automations removal): The `manage_automations` tool was removed with the chat automations experiment. The author needs to remove this section.
 
 The `manage_automations` tool lets the agent of a chat manage the chat owner's automations. It supports `list`, `get`, `create`, `update`, `enable`, `disable`, `delete`, and `run_now`. The create and update fields are rejected on the other actions, and `automation_id` on `create`, so no field is silently dropped.
 
