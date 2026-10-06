@@ -19,3 +19,5 @@ func apiRoot(w http.ResponseWriter, r *http.Request) {
 		Message: "👋",
 	})
 }
+
+// eph-uat fixture: G1 backend change

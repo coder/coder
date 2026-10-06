@@ -1538,3 +1538,5 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	)
 	return reconciler, prebuilds.NewEnterpriseClaimer()
 }
+
+// eph-uat fixture: G1 enterprise change
