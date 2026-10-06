@@ -122,12 +122,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		currentUserId,
 	} = props;
 	const { organizations, experiments } = useDashboard();
-	const organizationId: string | undefined =
+	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
-	// The sidebar lists the user's projects across organizations and creates
-	// new ones in the default organization.
+	// The sidebar lists the user's projects across organizations.
 	const chatProjectsEnabled =
-		experiments.includes("chat-projects") && organizationId !== undefined;
+		experiments.includes("chat-projects") &&
+		initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -178,17 +178,20 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	};
 	const closeProjectDialog = () => setIsProjectDialogOpen(false);
 
-	const handleProjectSubmit = (values: ChatProjectFormValues) => {
+	const handleProjectSubmit = ({
+		organizationId,
+		...request
+	}: ChatProjectFormValues) => {
 		if (projectDialog.mode === "edit") {
 			updateProjectMutation.mutate(
-				{ project: projectDialog.project, request: values },
+				{ project: projectDialog.project, request },
 				{ onSuccess: closeProjectDialog },
 			);
 			return;
 		}
 		if (organizationId) {
 			createProjectMutation.mutate(
-				{ organizationId, request: values },
+				{ organizationId, request },
 				{
 					onSuccess: (project) => {
 						closeProjectDialog();
@@ -335,6 +338,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				recentChats={chats}
 			/>
 			<ChatProjectDialog
+				organizations={organizations}
+				initialOrganizationId={initialOrganizationId}
 				project={
 					projectDialog.mode === "edit" ? projectDialog.project : undefined
 				}
