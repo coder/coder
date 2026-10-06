@@ -33,6 +33,7 @@ const getDisplayState = (
 		parsed: parseMessageContent(message.content),
 		hideActions: false,
 		hasActiveStream: false,
+		isAwaitingFirstStreamChunk: false,
 		...overrides,
 	});
 
@@ -445,6 +446,7 @@ describe("deriveMessageDisplayState", () => {
 				parsed: parsedContent,
 				hideActions: false,
 				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
 			}).shouldHide,
 		).toBe(true);
 	});

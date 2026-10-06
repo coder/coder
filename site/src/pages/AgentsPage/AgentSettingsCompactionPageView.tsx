@@ -3,10 +3,10 @@ import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
 export type AgentSettingsCompactionPageViewProps = {
-	models: readonly TypesGen.ChatModel[] | undefined;
+	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
-	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
+	compactionModelIDByOrganization: ReadonlyMap<string, string>;
 	modelsError: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -41,7 +41,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 				description="Customize when conversations with models are automatically compacted."
 			/>
 			<UserCompactionThresholdSettings
-				models={models ?? []}
+				models={models}
 				providerTypeByID={providerTypeByID}
 				organizations={organizations}
 				compactionModelIDByOrganization={compactionModelIDByOrganization}

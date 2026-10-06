@@ -89,7 +89,7 @@ export const WithOrganizationPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		);
@@ -161,7 +161,7 @@ export const ProviderNotFound: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Provider not found")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).toBeVisible();
@@ -175,7 +175,7 @@ export const LoadError: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Failed to load models")).toBeVisible();
 		await expect(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).toBeVisible();

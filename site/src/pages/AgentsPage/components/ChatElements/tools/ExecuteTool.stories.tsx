@@ -14,6 +14,9 @@ const meta: Meta<typeof ExecuteTool> = {
 	args: {
 		status: "completed",
 		isError: false,
+		errorText: "",
+		isBackgrounded: false,
+		shellToolDisplayMode: "auto",
 		transcriptBlocks: [],
 	},
 };
@@ -141,6 +144,7 @@ export const ConnectionError: Story = {
 		status: "error",
 		isError: true,
 		shellToolDisplayMode: "auto",
+		errorText: stoppedWorkspaceError,
 		transcriptBlocks: [{ kind: "error", text: stoppedWorkspaceError }],
 	},
 };
@@ -151,6 +155,7 @@ export const OutputWithError: Story = {
 		command: "go test ./...",
 		status: "completed",
 		isBackgrounded: true,
+		errorText: "command timed out after 10s",
 		transcriptBlocks: [
 			{
 				kind: "output",
