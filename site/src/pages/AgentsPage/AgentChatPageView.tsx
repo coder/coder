@@ -131,6 +131,7 @@ type AgentChatPageViewProps = {
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -293,6 +294,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
+	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -968,6 +970,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										reasoningEffort={reasoningEffort}
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
+										onManageAutomationsToggle={onManageAutomationsToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}

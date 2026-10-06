@@ -105,3 +105,9 @@ type DRPCAgentClient210 interface {
 type DRPCAgentClient211 interface {
 	DRPCAgentClient210
 }
+
+// DRPCAgentClient212 is the Agent API at v2.12. It adds the ability to track a
+// client session id with connections. No new RPCs.
+type DRPCAgentClient212 interface {
+	DRPCAgentClient211
+}

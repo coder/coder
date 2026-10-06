@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { FolderIcon, FolderOpenIcon } from "lucide-react";
+import { useState } from "react";
 import type { ChatProject } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
@@ -9,18 +10,26 @@ type ChatProjectIconProps = {
 	readonly className?: string;
 };
 
-/** The project's chosen icon, or a folder glyph when none is set. */
+/**
+ * The project's icon, or a folder glyph when none is set or it fails to load.
+ * `expanded` only changes the folder glyph.
+ */
 export const ChatProjectIcon: React.FC<ChatProjectIconProps> = ({
 	project,
 	expanded = false,
 	className,
 }) => {
-	if (project.icon) {
+	// Remembers which URL failed, so a new icon gets a fresh attempt.
+	const [failedIcon, setFailedIcon] = useState<string>();
+
+	if (project.icon && project.icon !== failedIcon) {
+		const icon = project.icon;
 		return (
 			<ExternalImage
-				src={project.icon}
+				src={icon}
 				alt=""
 				className={cn("shrink-0 object-contain", className)}
+				onError={() => setFailedIcon(icon)}
 			/>
 		);
 	}

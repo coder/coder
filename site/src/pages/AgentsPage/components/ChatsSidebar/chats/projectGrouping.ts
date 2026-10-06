@@ -8,9 +8,9 @@ type ChatsGroupedByProject = {
 /**
  * Splits chats into their project folders. While projects are loading, chats
  * with a project are held back so they do not jump from the unfiled list into
- * a folder. Once loaded, a chat whose project is not in `projects` (another
- * organization, not owned, or the request failed) stays unfiled so it never
- * disappears from the sidebar.
+ * a folder. Once loaded, a chat whose project is not in `projects`, for
+ * example because the request failed, stays unfiled so it never disappears
+ * from the sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],

@@ -50,6 +50,11 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import {
+	AutomationsMobileLink,
+	AutomationsNavItem,
+} from "../../Automations/AutomationsNavItem";
+import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -193,22 +198,25 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		visibleChatIDs.has(chatID),
 	);
 
-	const pinnedChats = visibleRootIDs
+	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.filter((chat): chat is Chat => chat !== undefined);
+	// Pin order is the owner's sidebar preference and the server ranks it
+	// per owner, so another user's chat stays out of the sortable Pinned
+	// section regardless of its pin_order.
+	const ownedChats = visibleRootChats.filter((chat) =>
+		canManageChat(chat, currentUserId),
+	);
+	const pinnedChats = ownedChats
+		.filter((chat) => chat.pin_order > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
-	const unpinnedChats = visibleRootIDs
-		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
-	const sharedWithYouChats = unpinnedChats.filter(
-		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	const sharedWithYouChats = visibleRootChats.filter(
+		(chat) => !canManageChat(chat, currentUserId),
 	);
 	// The board experiment may regroup this list; off, it passes through.
 	const boardEnabled = useChatBoardEnabled();
 	const board = boardSidebarChats(
-		unpinnedChats.filter(
-			(chat) => !chat.shared || chat.owner_id === currentUserId,
-		),
+		ownedChats.filter((chat) => chat.pin_order === 0),
 		boardEnabled,
 	);
 	const boardGroups = board.groups;
@@ -519,6 +527,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					/>
 				)}
 				<ChatBoardNavItem locationSearch={locationSearch} />
+				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				{chatProjectsEnabled && (
@@ -564,6 +573,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									<SearchIcon />
 								</Button>
 							)}
+							<AutomationsMobileLink />
 							<FilterPopover
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}

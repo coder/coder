@@ -14,6 +14,10 @@ func (i *interceptionBase) chatCompletionRequestBody() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	body, err = i.req.applyPreservedFields(body)
+	if err != nil {
+		return nil, err
+	}
 	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) {
 		return body, nil
 	}
@@ -34,8 +38,10 @@ func (i *interceptionBase) chatCompletionRequestBody() ([]byte, error) {
 	return patched, nil
 }
 
+// chatCompletionRequestOptions reports whether the upstream body must be
+// sent as raw bytes because the typed params cannot reproduce it.
 func (i *interceptionBase) chatCompletionRequestOptions(opts []option.RequestOption) ([]option.RequestOption, bool, error) {
-	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) {
+	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) && len(i.req.PreservedFields) == 0 {
 		return opts, false, nil
 	}
 	body, err := i.chatCompletionRequestBody()
