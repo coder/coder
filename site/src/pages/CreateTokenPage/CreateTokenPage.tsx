@@ -12,7 +12,7 @@ import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizo
 import { Loader } from "#/components/Loader/Loader";
 import { pageTitle } from "#/utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
-import { type CreateTokenData, NANO_HOUR } from "./utils";
+import { type CreateTokenData, NANO_DAY } from "./utils";
 
 const initialValues: CreateTokenData = {
 	name: "",
@@ -63,7 +63,7 @@ const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 			saveToken(
 				{
 					lifetime: Math.min(
-						Math.round(values.lifetime * 24 * NANO_HOUR),
+						Math.round(values.lifetime * NANO_DAY),
 						tokenConfig?.max_token_lifetime || Number.POSITIVE_INFINITY,
 					),
 					token_name: values.name,

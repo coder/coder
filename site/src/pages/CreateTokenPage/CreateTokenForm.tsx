@@ -27,7 +27,7 @@ import {
 	customLifetimeDay,
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
-	NANO_HOUR,
+	NANO_DAY,
 } from "./utils";
 
 dayjs.extend(utc);
@@ -134,8 +134,7 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 											{lt.label}
 										</SelectItem>
 									))}
-									{(!maxTokenLifetime ||
-										maxTokenLifetime >= 24 * NANO_HOUR) && (
+									{(!maxTokenLifetime || maxTokenLifetime >= NANO_DAY) && (
 										<SelectItem value={String(customLifetimeDay.value)}>
 											{customLifetimeDay.label}
 										</SelectItem>
@@ -163,7 +162,7 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 									max={
 										maxTokenLifetime
 											? dayjs()
-													.add(maxTokenLifetime / NANO_HOUR / 24, "day")
+													.add(maxTokenLifetime / NANO_DAY, "day")
 													.format("YYYY-MM-DD")
 											: undefined
 									}
