@@ -132,10 +132,9 @@ type Evaluation struct {
 }
 
 // AddConditionalDependency makes unit wait for dependsOn to reach the given
-// requirement. These dependencies are independent of the exact-status
-// dependencies added by AddDependency. Adding the same edge again with the
-// same requirement does nothing. Adding it with a different requirement is an
-// error, and the first edge stands.
+// requirement. Both units must be registered first. These dependencies are
+// independent of the ones added by AddDependency. Re-adding an edge with the
+// same requirement does nothing; with a different requirement it is an error.
 func (m *Manager) AddConditionalDependency(unit ID, dependsOn ID, requirement Requirement) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -147,6 +146,10 @@ func (m *Manager) AddConditionalDependency(unit ID, dependsOn ID, requirement Re
 		return xerrors.Errorf("dependency name cannot be empty: %w", ErrUnitIDRequired)
 	case !m.registered(unit):
 		return xerrors.Errorf("dependent unit %q must be registered first: %w", unit, ErrUnitNotFound)
+	case !m.registered(dependsOn):
+		// Unlike AddDependency. A prerequisite that is never registered could
+		// never satisfy the edge, so the dependent would wait forever.
+		return xerrors.Errorf("prerequisite unit %q must be registered first: %w", dependsOn, ErrUnitNotFound)
 	case !requirement.valid():
 		return xerrors.Errorf("dependency from %q to %q requires %q: %w", unit, dependsOn, requirement, ErrInvalidRequirement)
 	}
@@ -252,8 +255,6 @@ func (m *Manager) evaluateUnsafe(id ID) (Evaluation, error) {
 
 	evaluation := Evaluation{Decision: DecisionRunnable}
 	for _, edge := range m.conditionalGraph.GetForwardAdjacentVertices(id) {
-		// An unregistered prerequisite has an empty outcome, which satisfies
-		// nothing and is not impossible, so the dependent keeps waiting.
 		outcome := m.units[edge.To].outcome
 		if edge.Edge.satisfiedBy(outcome) {
 			continue

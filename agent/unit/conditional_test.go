@@ -26,6 +26,10 @@ func TestManager_ConditionalDependencyValidation(t *testing.T) {
 		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
 		err = manager.AddConditionalDependency(unitB, unitA, unit.RequirementSuccess)
 		require.ErrorIs(t, err, unit.ErrUnitNotFound)
+		err = manager.AddConditionalDependency(unitA, unitB, unit.RequirementSuccess)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
+
+		require.NoError(t, manager.Register(unitB))
 		err = manager.AddConditionalDependency(unitA, unitB, "unknown")
 		require.ErrorIs(t, err, unit.ErrInvalidRequirement)
 		err = manager.AddConditionalDependency(unitA, unitB, "")
@@ -243,24 +247,22 @@ func TestManager_EvaluateRequirementByOutcome(t *testing.T) {
 
 	decisions := map[unit.Requirement]map[unit.Outcome]unit.Decision{
 		unit.RequirementSuccess: {
-			unit.OutcomeNotRegistered: unit.DecisionWaiting,
-			unit.OutcomePending:       unit.DecisionWaiting,
-			unit.OutcomeRunning:       unit.DecisionWaiting,
-			unit.OutcomeSucceeded:     unit.DecisionRunnable,
-			unit.OutcomeFailed:        unit.DecisionSkip,
-			unit.OutcomeTimedOut:      unit.DecisionSkip,
-			unit.OutcomeSkipped:       unit.DecisionSkip,
-			unit.OutcomeCanceled:      unit.DecisionWaiting,
+			unit.OutcomePending:   unit.DecisionWaiting,
+			unit.OutcomeRunning:   unit.DecisionWaiting,
+			unit.OutcomeSucceeded: unit.DecisionRunnable,
+			unit.OutcomeFailed:    unit.DecisionSkip,
+			unit.OutcomeTimedOut:  unit.DecisionSkip,
+			unit.OutcomeSkipped:   unit.DecisionSkip,
+			unit.OutcomeCanceled:  unit.DecisionWaiting,
 		},
 		unit.RequirementCompletion: {
-			unit.OutcomeNotRegistered: unit.DecisionWaiting,
-			unit.OutcomePending:       unit.DecisionWaiting,
-			unit.OutcomeRunning:       unit.DecisionWaiting,
-			unit.OutcomeSucceeded:     unit.DecisionRunnable,
-			unit.OutcomeFailed:        unit.DecisionRunnable,
-			unit.OutcomeTimedOut:      unit.DecisionRunnable,
-			unit.OutcomeSkipped:       unit.DecisionRunnable,
-			unit.OutcomeCanceled:      unit.DecisionWaiting,
+			unit.OutcomePending:   unit.DecisionWaiting,
+			unit.OutcomeRunning:   unit.DecisionWaiting,
+			unit.OutcomeSucceeded: unit.DecisionRunnable,
+			unit.OutcomeFailed:    unit.DecisionRunnable,
+			unit.OutcomeTimedOut:  unit.DecisionRunnable,
+			unit.OutcomeSkipped:   unit.DecisionRunnable,
+			unit.OutcomeCanceled:  unit.DecisionWaiting,
 		},
 	}
 
@@ -269,13 +271,8 @@ func TestManager_EvaluateRequirementByOutcome(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%s", requirement, outcome), func(t *testing.T) {
 				t.Parallel()
 
-				manager := unit.NewManager()
-				require.NoError(t, manager.Register(unitA))
-				if outcome != unit.OutcomeNotRegistered {
-					require.NoError(t, manager.Register(unitB))
-				}
-				require.NoError(t, manager.AddConditionalDependency(unitA, unitB, requirement))
-				if outcome != unit.OutcomeNotRegistered && outcome != unit.OutcomePending {
+				manager := conditionalManager(t, requirement)
+				if outcome != unit.OutcomePending {
 					require.NoError(t, manager.UpdateOutcome(unitB, outcome))
 				}
 
@@ -335,24 +332,19 @@ func TestManager_Evaluate(t *testing.T) {
 		require.Empty(t, evaluation.UnmetDependencies)
 	})
 
-	t.Run("UnregisteredPrerequisiteWaits", func(t *testing.T) {
+	t.Run("UnregisteredPrerequisiteIsRejected", func(t *testing.T) {
 		t.Parallel()
 
 		manager := unit.NewManager()
 		require.NoError(t, manager.Register(unitA))
-		require.NoError(t, manager.AddConditionalDependency(unitA, unitB, unit.RequirementSuccess))
+		err := manager.AddConditionalDependency(unitA, unitB, unit.RequirementSuccess)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 
+		// No edge was added, so the dependent is not left waiting on it.
 		evaluation, err := manager.Evaluate(unitA)
 		require.NoError(t, err)
-		require.Equal(t, unit.DecisionWaiting, evaluation.Decision)
-		require.Equal(t, unit.OutcomeNotRegistered, evaluation.UnmetDependencies[0].CurrentOutcome)
-
-		// Registering the prerequisite later is enough for the edge to work.
-		require.NoError(t, manager.Register(unitB))
-		require.NoError(t, manager.UpdateOutcome(unitB, unit.OutcomeSucceeded))
-		evaluation, err = manager.Evaluate(unitA)
-		require.NoError(t, err)
 		require.Equal(t, unit.DecisionRunnable, evaluation.Decision)
+		require.Empty(t, evaluation.UnmetDependencies)
 	})
 
 	t.Run("CanceledPrerequisiteKeepsWaiting", func(t *testing.T) {
