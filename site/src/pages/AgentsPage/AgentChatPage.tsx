@@ -26,7 +26,6 @@ import {
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
-	updateChatManageAutomations,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -54,7 +53,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -84,7 +82,6 @@ import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
 } from "./utils/draftStorage";
-import { canToggleManageAutomations } from "./utils/manageAutomations";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -121,7 +118,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const { organizations, experiments } = useDashboard();
-	const automationsExperimentEnabled = useAutomationsEnabled();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
@@ -333,20 +329,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
-	const updateChatManageAutomationsBase =
-		updateChatManageAutomations(queryClient);
-	const {
-		isPending: isUpdateChatManageAutomationsPending,
-		mutate: updateChatManageAutomationsMutate,
-	} = useMutation({
-		...updateChatManageAutomationsBase,
-		onError: (error, variables, context) => {
-			updateChatManageAutomationsBase.onError(error, variables, context);
-			toast.error(
-				getErrorMessage(error, "Failed to update automations setting."),
-			);
-		},
-	});
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -507,9 +489,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		isCompactPending ||
 		isClearPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending ||
-		isUpdateChatWorkspacePending ||
-		isUpdateChatManageAutomationsPending;
+		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -786,20 +766,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
-					onManageAutomationsToggle={
-						chat &&
-						canToggleManageAutomations({
-							chat,
-							viewerId: currentUser.id,
-							automationsExperimentEnabled,
-						})
-							? (enabled) =>
-									updateChatManageAutomationsMutate({
-										chatId: agentId,
-										enabled,
-									})
-							: undefined
-					}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}

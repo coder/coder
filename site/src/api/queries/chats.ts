@@ -1153,11 +1153,6 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
-type UpdateChatManageAutomationsVariables = {
-	chatId: string;
-	enabled: boolean;
-};
-
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 const toChatPlanModePayload = (
@@ -1456,17 +1451,12 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
-type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
-
-// The list rollback reads the field from the entity snapshot.
-const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
-	queryClient: QueryClient,
-	field: K,
-) => ({
-	onMutate: async (
-		chatId: string,
-		value: TypesGen.Chat[K],
-	): Promise<OptimisticChatUpdateContext> => {
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: toChatPlanModePayload(planMode),
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1474,20 +1464,25 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: value } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				[field]: value,
+				plan_mode: planMode,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
-		chatId: string,
-		context: OptimisticChatUpdateContext | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
 	) => {
 		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
@@ -1496,49 +1491,17 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		}
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: previousChat[field] } : chat,
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
-
-export const updateChatPlanMode = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(queryClient, "plan_mode");
-	return {
-		mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			API.experimental.updateChat(chatId, {
-				plan_mode: toChatPlanModePayload(planMode),
-			}),
-		onMutate: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			optimistic.onMutate(chatId, planMode),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatPlanModeVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
-
-export const updateChatManageAutomations = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(
-		queryClient,
-		"manage_automations_enabled",
-	);
-	return {
-		mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			API.experimental.updateChat(chatId, {
-				manage_automations_enabled: enabled,
-			}),
-		onMutate: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			optimistic.onMutate(chatId, enabled),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatManageAutomationsVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>

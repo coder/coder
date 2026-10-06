@@ -50,9 +50,6 @@ const (
 	// number of virtual desktop recordings that each Coder server stores
 	// at the same time.
 	DefaultChatMaxConcurrentRecordingUploads = 25
-	// DefaultChatMaxAutomationsPerOwner is the default maximum number of
-	// chat automations one user can own across all organizations.
-	DefaultChatMaxAutomationsPerOwner = 50
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
@@ -216,9 +213,6 @@ type Chat struct {
 	// without headers. Only the single-chat GET sets it.
 	// Experimental.
 	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
-	// ManageAutomationsEnabled offers the manage_automations tool to this
-	// chat's agent. Experimental.
-	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -383,13 +377,6 @@ type ChatMessage struct {
 	// the queue (edits create a new message without it) or when a server
 	// version that did not record the link created it.
 	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
-	// AutomationID is the chat automation that delivered this message,
-	// if any. The automation may since have been deleted.
-	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
-	// InputID identifies the automation input that produced this
-	// message: a webhook delivery or a schedule occurrence. It is set
-	// only when AutomationID is set.
-	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -777,10 +764,6 @@ type CreateChatRequest struct {
 	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
 	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
 	ClientType       ChatClientType           `json:"client_type,omitempty"`
-	// ManageAutomationsEnabled offers the manage_automations tool to the
-	// chat's agent. Enabling it requires the chat-automations experiment
-	// for the chat owner. Experimental.
-	ManageAutomationsEnabled bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
@@ -842,11 +825,6 @@ type UpdateChatRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
-	// ManageAutomationsEnabled turns the manage_automations tool on or
-	// off for a root chat. Only the chat owner may set it. Enabling it
-	// requires the chat-automations experiment for the owner; disabling
-	// is always accepted. Experimental.
-	ManageAutomationsEnabled *bool `json:"manage_automations_enabled,omitempty"`
 }
 
 // ChatBusyBehavior controls what happens when a user sends a message
@@ -1957,13 +1935,6 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	// AutomationID is the chat automation that queued this message, if
-	// any. The automation may since have been deleted.
-	AutomationID *uuid.UUID `json:"automation_id,omitempty" format:"uuid"`
-	// InputID identifies the automation input that produced this
-	// message: a webhook delivery or a schedule occurrence. It is set
-	// only when AutomationID is set.
-	InputID *uuid.UUID `json:"input_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
@@ -2267,10 +2238,6 @@ type ListChatsOptions struct {
 	Source    ChatListSource
 	Labels    map[string]string
 	ProjectID *uuid.UUID
-	// AutomationID filters to chats the automation created or sent
-	// messages to. The server ignores it unless the chat-automations
-	// experiment is enabled for the caller.
-	AutomationID uuid.UUID
 	Pagination
 }
 
@@ -2306,13 +2273,6 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
 				}
-				r.URL.RawQuery = q.Encode()
-			})
-		}
-		if opts.AutomationID != uuid.Nil {
-			reqOpts = append(reqOpts, func(r *http.Request) {
-				q := r.URL.Query()
-				q.Set("automation_id", opts.AutomationID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}

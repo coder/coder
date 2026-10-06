@@ -113,7 +113,6 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
-	updateChatManageAutomations,
 	updateChatModel,
 	updateChatModelACL,
 	updateChatPlanMode,
@@ -723,51 +722,6 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
-	});
-});
-
-describe("updateChatManageAutomations", () => {
-	it("sends the requested value", async () => {
-		const queryClient = createTestQueryClient();
-		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
-		const mutation = updateChatManageAutomations(queryClient);
-
-		await mutation.mutationFn({ chatId: "chat-1", enabled: true });
-		await mutation.mutationFn({ chatId: "chat-1", enabled: false });
-
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
-			manage_automations_enabled: true,
-		});
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
-			manage_automations_enabled: false,
-		});
-	});
-
-	it("updates the caches optimistically and rolls back on error", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const chat = makeChat(chatId);
-		seedInfiniteChats(queryClient, [chat]);
-		queryClient.setQueryData(chatEntityKey(chatId), chat);
-
-		const mutation = updateChatManageAutomations(queryClient);
-		const variables = { chatId, enabled: true };
-		const context = await mutation.onMutate(variables);
-
-		expect(readInfiniteChats(queryClient)?.[0].manage_automations_enabled).toBe(
-			true,
-		);
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.manage_automations_enabled,
-		).toBe(true);
-
-		mutation.onError(new Error("forbidden"), variables, context);
-
-		expect(
-			readInfiniteChats(queryClient)?.[0].manage_automations_enabled,
-		).toBeUndefined();
-		expect(queryClient.getQueryData(chatEntityKey(chatId))).toEqual(chat);
 	});
 });
 

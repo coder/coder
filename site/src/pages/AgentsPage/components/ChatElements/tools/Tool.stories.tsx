@@ -6,7 +6,6 @@ import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
-import { MockChatAutomation } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -2057,44 +2056,6 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 			path: "docs/runbooks/incident.md",
 		},
 		result: {},
-	},
-};
-
-// ---------------------------------------------------------------------------
-// manage_automations stories
-// ---------------------------------------------------------------------------
-
-export const ManageAutomationsCreated: Story = {
-	args: {
-		name: "manage_automations",
-		status: "completed",
-		args: {
-			action: "create",
-			name: MockChatAutomation.name,
-			kind: MockChatAutomation.kind,
-			target_mode: MockChatAutomation.target_mode,
-		},
-		result: { automation: MockChatAutomation },
-	},
-};
-
-export const ManageAutomationsFailed: Story = {
-	args: {
-		name: "manage_automations",
-		status: "error",
-		isError: true,
-		args: { action: "run_now", automation_id: MockChatAutomation.id },
-		result: {
-			error: "the automation is disabled: enable it before running it",
-		},
-	},
-};
-
-export const ManageAutomationsRunning: Story = {
-	args: {
-		name: "manage_automations",
-		status: "running",
-		args: { action: "list" },
 	},
 };
 

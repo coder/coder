@@ -6,10 +6,7 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import {
-	createTestQueryClient,
-	renderComponent,
-} from "#/testHelpers/renderHelpers";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
@@ -96,26 +93,4 @@ describe("Tool workspace lifecycle rows", () => {
 			}
 		},
 	);
-});
-
-describe("Tool manage_automations label", () => {
-	it.each([
-		"constructor",
-		"toString",
-		"__proto__",
-		"hasOwnProperty",
-		"unknown_action",
-	])("falls back to the generic label for action %s", (action) => {
-		renderComponent(
-			<Tool
-				name="manage_automations"
-				status="error"
-				isError
-				args={{ action }}
-				result={{ error: "unknown action" }}
-			/>,
-		);
-
-		screen.getByText("Manage automations");
-	});
 });

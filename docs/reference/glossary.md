@@ -63,12 +63,6 @@ Structured logs of user and admin operations.
 This is a Premium feature.
 Refer to [Audit logs](../admin/security/audit-logs.md).
 
-### Automation (Coder Agents)
-
-A saved prompt that a webhook or a schedule sends to a Coder Agents chat with the automation owner's permissions.
-In [early access](./feature-stages.md#early-access-features).
-Refer to [Automations](../ai-coder/agents/automations.md).
-
 ### Autostop requirement
 
 A template or deployment setting that forcibly stops workspaces on a recurring cadence, for example to apply updates.

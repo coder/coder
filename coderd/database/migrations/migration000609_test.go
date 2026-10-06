@@ -32,6 +32,7 @@ func TestMigrationChatTablesConcurrentTraffic(t *testing.T) {
 	}{
 		{from: 608, file: "000609_chat_automations.up.sql"},
 		{from: 610, file: "000611_chat_manage_automations_enabled.up.sql"},
+		{from: 613, file: "000614_remove_chat_automations.up.sql"},
 	} {
 		t.Run(m.file, func(t *testing.T) {
 			t.Parallel()

@@ -614,18 +614,6 @@ Must be at least 1.
 - YAML key: `chat.maxAttachmentsPerChat`
 - Default value: `50`
 
-### Max automations per owner
-
-Maximum number of chat automations one user can own across all organizations.
-Creating one more fails with HTTP 409.
-Must be at least 1.
-
-- Type: `int`
-- Environment variable: `CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER`
-- CLI flag: [`--chat-max-automations-per-owner`](../../reference/cli/server/index.md#--chat-max-automations-per-owner)
-- YAML key: `chat.maxAutomationsPerOwner`
-- Default value: `50`
-
 ### Max concurrent recording uploads
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time.

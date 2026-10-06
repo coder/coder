@@ -31,11 +31,7 @@ vi.mock("../../components/AgentCreateForm", () => ({
 			type="button"
 			onClick={(e) => {
 				const button = e.currentTarget;
-				void onCreateChat({
-					message: "Hello",
-					organizationId: "org-1",
-					manageAutomationsEnabled: false,
-				})
+				void onCreateChat({ message: "Hello", organizationId: "org-1" })
 					.catch(() => undefined)
 					.finally(() => button.setAttribute("data-settled", "true"));
 			}}

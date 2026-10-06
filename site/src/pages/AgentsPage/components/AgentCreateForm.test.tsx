@@ -45,12 +45,7 @@ import {
 	emptyInputStorageKey,
 } from "./AgentCreateForm";
 
-const dashboard = vi.hoisted(
-	(): { showOrganizations: boolean; experiments: string[] } => ({
-		showOrganizations: false,
-		experiments: [],
-	}),
-);
+const dashboard = vi.hoisted(() => ({ showOrganizations: false }));
 
 vi.mock("#/modules/dashboard/useDashboard", async () => {
 	const { MockDefaultOrganization, MockOrganization2 } = await import(
@@ -60,7 +55,6 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 		useDashboard: () => ({
 			organizations: [MockDefaultOrganization, MockOrganization2],
 			showOrganizations: dashboard.showOrganizations,
-			experiments: dashboard.experiments,
 		}),
 	};
 });
@@ -480,49 +474,6 @@ const userDraftAttachments = JSON.stringify([
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
-});
-
-describe("AgentCreateForm manage automations toggle", () => {
-	beforeEach(() => {
-		localStorage.clear();
-		dashboard.showOrganizations = false;
-		dashboard.experiments = [];
-	});
-
-	it("sends the enabled toggle with the create options", async () => {
-		dashboard.experiments = ["chat-automations"];
-		const { onCreateChat } = renderForm();
-
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
-		await submitMessage("check the nightly build every morning");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
-	});
-
-	it("sends the toggle as off once the chat-automations experiment turns off", async () => {
-		dashboard.experiments = ["chat-automations"];
-		const { onCreateChat, rerender } = renderForm();
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("menuitemcheckbox", {
-				name: "Manage automations",
-			}),
-		);
-		await user().keyboard("{Escape}");
-
-		dashboard.experiments = [];
-		rerender({});
-		await submitMessage("check the nightly build every morning");
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
-	});
 });
 
 describe("AgentCreateForm prefill", () => {

@@ -43,11 +43,7 @@ vi.mock("../../components/AgentCreateForm", () => ({
 		<button
 			type="button"
 			onClick={() =>
-				void onCreateChat({
-					message: "Hello",
-					organizationId: "org-1",
-					manageAutomationsEnabled: false,
-				})
+				void onCreateChat({ message: "Hello", organizationId: "org-1" })
 			}
 		>
 			send
