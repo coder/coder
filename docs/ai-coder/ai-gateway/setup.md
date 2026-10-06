@@ -29,10 +29,6 @@ A standalone process does not read `CODER_AI_GATEWAY_ENABLED` from its own envir
 However, this setting must remain enabled on `coderd`.
 It is required for gateway key management endpoints to work and for standalone replicas to connect to the control plane.
 
-To run only standalone gateways, set `CODER_AI_GATEWAY_EMBEDDED_ENABLED=false` on `coderd` while keeping `CODER_AI_GATEWAY_ENABLED=true`.
-The embedded setting defaults to `true`.
-Before turning it off, configure [standalone routing for Coder Agents](./standalone.md#coder-agents) and move any other clients using the embedded endpoint.
-
 ## Configure Providers
 
 Configure at least one provider before exposing AI Gateway to end users.

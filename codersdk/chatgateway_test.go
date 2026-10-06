@@ -37,7 +37,6 @@ func TestChatGatewayConfiguration(t *testing.T) {
 			var dv codersdk.DeploymentValues
 			opts := dv.Options()
 			require.NoError(t, opts.SetDefaults())
-			require.True(t, dv.AI.BridgeConfig.EmbeddedEnabled.Value())
 			require.NoError(t, dv.AI.Chat.AIGatewayURL.Set(tc.target))
 			dv.AI.Chat.AIGatewayKey = serpent.String(tc.key)
 			err := dv.Validate()

@@ -609,7 +609,6 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"CODER_AI_BUDGET_PERIOD":                  {},
 		"CODER_AI_BUDGET_POLICY":                  {},
 		"CODER_AI_GATEWAY_ENABLED":                {},
-		"CODER_AI_GATEWAY_EMBEDDED_ENABLED":       {},
 		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS": {},
 		"CODER_AI_GATEWAY_RETENTION":              {},
 

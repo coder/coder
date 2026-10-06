@@ -170,14 +170,8 @@ AI GATEWAY OPTIONS:
           --ai-gateway-structured-logging-source=gateway to keep exporting these
           records to a SIEM instead.
 
-      --ai-gateway-embedded-enabled bool, $CODER_AI_GATEWAY_EMBEDDED_ENABLED (default: true)
-          Start the embedded AI Gateway when AI Gateway functionality is
-          enabled. Disable when serving inference exclusively through standalone
-          Gateways.
-
       --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
-          Enable AI Gateway functionality, including Coder Agents and standalone
-          Gateway connections.
+          Whether to start an in-memory AI Gateway instance.
 
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
           Maximum number of concurrent AI Gateway requests per replica. Set to 0

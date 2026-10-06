@@ -2292,8 +2292,7 @@ func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
 			}
 			if mode == "standalone" {
 				// Endpoint availability is a request-time concern, not a startup gate.
-				args = append(args, "--ai-gateway-embedded-enabled=false",
-					"--chat-ai-gateway-url=http://127.0.0.1:1", "--chat-ai-gateway-key=test-key")
+				args = append(args, "--chat-ai-gateway-url=http://127.0.0.1:1", "--chat-ai-gateway-key=test-key")
 			}
 			inv, cfg := clitest.New(t, args...)
 

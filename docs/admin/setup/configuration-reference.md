@@ -403,20 +403,9 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 - YAML key: `ai_gateway.disable_content_recording`
 - Default value: `false`
 
-### Embedded enabled
-
-Start the embedded AI Gateway when AI Gateway functionality is enabled.
-Disable when serving inference exclusively through standalone Gateways.
-
-- Type: `bool`
-- Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
-- CLI flag: [`--ai-gateway-embedded-enabled`](../../reference/cli/server/index.md#--ai-gateway-embedded-enabled)
-- YAML key: `ai_gateway.embedded_enabled`
-- Default value: `true`
-
 ### Enabled
 
-Enable AI Gateway functionality, including Coder Agents and standalone Gateway connections.
+Whether to start an in-memory AI Gateway instance.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`

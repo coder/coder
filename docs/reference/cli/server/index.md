@@ -1916,18 +1916,7 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Enable AI Gateway functionality, including Coder Agents and standalone Gateway connections.
-
-### --ai-gateway-embedded-enabled
-
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>bool</code>                               |
-| Environment | <code>$CODER_AI_GATEWAY_EMBEDDED_ENABLED</code> |
-| YAML        | <code>ai_gateway.embedded_enabled</code>        |
-| Default     | <code>true</code>                               |
-
-Start the embedded AI Gateway when AI Gateway functionality is enabled. Disable when serving inference exclusively through standalone Gateways.
+Whether to start an in-memory AI Gateway instance.
 
 ### --ai-gateway-retention
 

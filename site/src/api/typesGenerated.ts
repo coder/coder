@@ -39,7 +39,6 @@ export type AIBridgeAttribution = Record<string, string>;
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
-	readonly embedded_enabled: boolean;
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */

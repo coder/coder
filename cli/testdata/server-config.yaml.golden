@@ -982,14 +982,9 @@ aibridge:
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
 ai_gateway:
-  # Enable AI Gateway functionality, including Coder Agents and standalone Gateway
-  # connections.
+  # Whether to start an in-memory AI Gateway instance.
   # (default: true, type: bool)
   enabled: true
-  # Start the embedded AI Gateway when AI Gateway functionality is enabled. Disable
-  # when serving inference exclusively through standalone Gateways.
-  # (default: true, type: bool)
-  embedded_enabled: true
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
   # requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the "mcp-server-http"
