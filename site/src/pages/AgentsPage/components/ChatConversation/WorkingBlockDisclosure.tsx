@@ -37,9 +37,11 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
+
 	if (block.startedAt === undefined) {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
+
 	const elapsed = humanDurationShort(Math.max(0, now - block.startedAt));
 	return (
 		<ToolCall.Label>{`Working for ${atLeast(block)}${elapsed}`}</ToolCall.Label>
@@ -51,6 +53,7 @@ const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 	if (block.startedAt === undefined || block.endedAt === undefined) {
 		return `Completed ${steps}`;
 	}
+
 	const duration = humanDurationShort(
 		Math.max(0, block.endedAt - block.startedAt),
 	);
@@ -64,6 +67,7 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 			return node;
 		}
 	}
+
 	return null;
 };
 
@@ -85,6 +89,7 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 		if (!didPrependIntoBlock(previous.memberIds, this.props.memberIds)) {
 			return null;
 		}
+
 		return this.content?.offsetHeight ?? null;
 	}
 
@@ -97,11 +102,13 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 		if (!content || heightBefore === null) {
 			return;
 		}
+
 		const delta = content.offsetHeight - heightBefore;
 		const viewport = getScrollParent(content);
 		if (delta === 0 || !viewport) {
 			return;
 		}
+
 		// When the same page also prepends rows above the block, MessageScroller
 		// restores the block's own top edge from a MutationObserver callback,
 		// which runs after this update and would cancel a synchronous adjustment.
