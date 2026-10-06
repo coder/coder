@@ -1,5 +1,5 @@
 import { PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -42,7 +42,7 @@ type MCPServersPageViewProps = {
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 };
 
-const MCPServersPageView: FC<MCPServersPageViewProps> = ({
+const MCPServersPageView: React.FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,

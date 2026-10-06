@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -12,7 +11,7 @@ type ChatSummaryPanelProps = {
 	isVisible: boolean;
 };
 
-export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
+export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
@@ -26,7 +25,7 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
 
-	let content: ReactNode = null;
+	let content: React.ReactNode = null;
 	if (chatQuery.isError) {
 		content = <ErrorAlert error={chatQuery.error} />;
 	} else if (chatData) {

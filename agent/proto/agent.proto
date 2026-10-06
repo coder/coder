@@ -394,6 +394,7 @@ message Connection {
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
+	string client_session_id = 8;
 }
 
 message ReportConnectionRequest {

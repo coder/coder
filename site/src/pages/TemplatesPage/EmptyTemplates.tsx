@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -40,7 +39,7 @@ type EmptyTemplatesProps = {
 	isUsingFilter: boolean;
 };
 
-export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	canCreateTemplates,
 	templateBuilderEnabled,
 	examples,

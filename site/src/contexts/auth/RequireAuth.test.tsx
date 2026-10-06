@@ -1,6 +1,5 @@
 import { renderHook, screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { MockPermissions, MockUserOwner } from "#/testHelpers/entities";
@@ -53,7 +52,7 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
 		updateProfile: vi.fn(),
 		...override,
 	};
-	const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+	const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
 		return (
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AuthContext.Provider value={value}>{children}</AuthContext.Provider>

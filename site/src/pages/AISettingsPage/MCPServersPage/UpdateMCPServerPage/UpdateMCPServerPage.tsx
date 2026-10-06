@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
@@ -27,7 +26,7 @@ import {
 } from "../organizationParam";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
-const UpdateMCPServerPage: FC = () => {
+const UpdateMCPServerPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const { serverId } = useParams<{ serverId: string }>();

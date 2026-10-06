@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -205,10 +206,8 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 
 	rolename := chi.URLParam(r, "roleName")
 
-	// Catch requests that try to delete system roles. Retired built-in
-	// names skip this: they stay reserved for creation and updates, but a
-	// custom role that predates the reservation must remain deletable.
-	if !rbac.IsRetiredRoleName(rolename) && !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
+	// Catch requests that try to delete system roles.
+	if !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
 		return
 	}
 
@@ -293,8 +292,8 @@ func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
 
 func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRequest, rw http.ResponseWriter) bool {
 	// This check is not ideal, but we cannot enforce a unique role name in the db against
-	// the built-in role names.
-	if rbac.ReservedRoleName(req.Name) {
+	// the built-in role names. Custom role names are stored lowercase.
+	if rbac.ReservedRoleName(strings.ToLower(req.Name)) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Reserved role name",
 			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", req.Name),

@@ -28,10 +28,13 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			onOrganizationChange={onOrganizationChange}
 			isOrganizationsLoading={false}
 			organizationsError={null}
-			dateRange={undefined}
+			period={{
+				start: new Date("2026-03-05T12:00:00Z"),
+				end: new Date("2026-03-12T12:00:00Z"),
+				preset: "last_7d",
+			}}
 			minDate={undefined}
-			isRetentionLoading
-			onDateRangeChange={vi.fn()}
+			onPeriodChange={vi.fn()}
 			filterMenus={undefined}
 			reportQuery={pendingReportQuery}
 		/>,
@@ -44,7 +47,7 @@ it("reports the organization picked from the switcher", async () => {
 	const { onOrganizationChange } = renderView(MockOrganization);
 
 	await user.click(
-		screen.getByRole("button", {
+		screen.getByRole("combobox", {
 			name: `Organization ${MockOrganization.display_name}`,
 		}),
 	);
@@ -59,9 +62,7 @@ it("reports the organization picked to recover from a denied one", async () => {
 	const user = userEvent.setup();
 	const { onOrganizationChange } = renderView(undefined);
 
-	await user.click(
-		screen.getByRole("button", { name: /Select an organization/ }),
-	);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);

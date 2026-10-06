@@ -1,7 +1,10 @@
 package keypool_test
 
 import (
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,4 +69,55 @@ func TestNewKeyFailoverTransport(t *testing.T) {
 			}
 		})
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// eofCountingReader counts how many times the wrapped reader is read to EOF.
+type eofCountingReader struct {
+	io.Reader
+	eofs int
+}
+
+func (r *eofCountingReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if errors.Is(err, io.EOF) {
+		r.eofs++
+	}
+	return n, err
+}
+
+func TestKeyFailoverTransportReadsBodyOnce(t *testing.T) {
+	t.Parallel()
+
+	pool, err := keypool.New("test", []string{"k0", "k1"}, quartz.NewMock(t), nil)
+	require.NoError(t, err)
+	var bodies []string
+	rt := keypool.NewKeyFailoverTransport(roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		bodies = append(bodies, string(body))
+		status := http.StatusOK
+		if len(bodies) == 1 {
+			status = http.StatusUnauthorized
+		}
+		return &http.Response{StatusCode: status, Body: http.NoBody}, nil
+	}), keypool.KeyFailoverConfig{
+		Pool:          pool,
+		IsBYOK:        func(*http.Request) bool { return false },
+		InjectAuthKey: func(*http.Header, string) {},
+	})
+
+	body := &eofCountingReader{Reader: strings.NewReader("payload")}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://example.test", body)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, []string{"payload", "payload"}, bodies)
+	require.Equal(t, 1, body.eofs)
 }

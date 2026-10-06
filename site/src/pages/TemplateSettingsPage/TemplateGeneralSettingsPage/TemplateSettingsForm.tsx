@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { LockIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import * as Yup from "yup";
 import {
 	CORSBehaviors,
@@ -79,7 +78,7 @@ type TemplateSettingsFormProps = {
 	portSharingControlsEnabled: boolean;
 };
 
-export const TemplateSettingsForm: FC<TemplateSettingsFormProps> = ({
+export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	template,
 	onSubmit,
 	onCancel,

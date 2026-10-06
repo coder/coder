@@ -79,7 +79,9 @@ func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 type CreateChatArgs struct {
 	Prompt         string            `json:"prompt"`
 	OrganizationID string            `json:"organization_id"`
+	OwnerID        string            `json:"owner_id"`
 	ModelConfigID  string            `json:"model_config_id"`
+	Title          string            `json:"title,omitempty"`
 	Labels         map[string]string `json:"labels,omitempty"`
 }
 
@@ -99,9 +101,17 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 					"type":        "string",
 					"description": "Organization UUID.",
 				},
+				"owner_id": map[string]any{
+					"type":        "string",
+					"description": "Optional UUID of the user who owns the chat. Defaults to you. The chat runs with the owner's credentials, so creating it for another user requires site-wide owner authority. The owner must be an active member of the chat's organization; pass organization_id explicitly when it differs from your default.",
+				},
 				"model_config_id": map[string]any{
 					"type":        "string",
 					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Must belong to the chat's organization. When omitted, the server uses an applicable personal override or the organization's default model.",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": fmt.Sprintf("Optional chat title, trimmed and kept as the user's title, at most %d Unicode code points. When omitted the server derives one from the prompt and may later replace it with a generated title.", codersdk.MaxChatTitleRunes),
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -121,6 +131,17 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		if err != nil {
 			return ChatToolStatus{}, err
 		}
+		var ownerID *uuid.UUID
+		if args.OwnerID != "" {
+			id, err := uuid.Parse(args.OwnerID)
+			if err != nil {
+				return ChatToolStatus{}, xerrors.New("owner_id must be a valid UUID")
+			}
+			if id == uuid.Nil {
+				return ChatToolStatus{}, xerrors.New("owner_id must be a valid nonzero UUID")
+			}
+			ownerID = &id
+		}
 		var modelConfigID *uuid.UUID
 		if args.ModelConfigID != "" {
 			id, err := uuid.Parse(args.ModelConfigID)
@@ -129,12 +150,18 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			}
 			modelConfigID = &id
 		}
+		var title *string
+		if args.Title != "" {
+			title = &args.Title
+		}
 		chat, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: orgID,
+			OwnerID:        ownerID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: args.Prompt,
 			}},
+			Title:         title,
 			ModelConfigID: modelConfigID,
 			Labels:        args.Labels,
 		})
@@ -468,7 +495,7 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 				},
 				"query": map[string]any{
 					"type":        "string",
-					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, source:<created_by_me|shared_with_me>. Quote values containing spaces or colons (URLs always need quoting), e.g. search:\"failed deployment\" or diff_url:\"https://github.com/org/repo/pull/1\".",
+					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed|none>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, status:<waiting|running|error|requires_action|interrupting>, source:<created_by_me|shared_with_me>. Quote values containing spaces or colons (URLs always need quoting), e.g. search:\"failed deployment\" or diff_url:\"https://github.com/org/repo/pull/1\".",
 				},
 				"limit": map[string]any{
 					"type":        "integer",

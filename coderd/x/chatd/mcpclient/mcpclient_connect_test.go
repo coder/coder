@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/safedial"
 )
@@ -94,7 +93,7 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 
 	start := time.Now()
 	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
-		[]database.MCPServerConfig{
+		[]mcpclient.Server{
 			makeConfig("blackhole", bh.url()),
 			makeConfig("healthy", healthy.URL),
 		},
@@ -153,7 +152,7 @@ func TestConnectAll_SlowServerStillConnects(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("slow", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	t.Cleanup(cleanup)
 
 	require.Equal(t, []string{"slow__echo"}, toolNames(tools))
@@ -192,7 +191,7 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 
 	start := time.Now()
 	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
-		[]database.MCPServerConfig{makeConfig("late", ts.URL)},
+		[]mcpclient.Server{makeConfig("late", ts.URL)},
 		timeout,
 		func() { reaperDone <- struct{}{} },
 	)
@@ -254,7 +253,7 @@ func TestConnectAll_CleanupPromptWhenServerWedges(t *testing.T) {
 	t.Cleanup(release)
 
 	cfg := makeConfig("wedge", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	require.Equal(t, []string{"wedge__echo"}, toolNames(tools))
 
 	start := time.Now()
@@ -308,7 +307,7 @@ func TestConnectAll_NoToolsWedgedCloseWithinBudget(t *testing.T) {
 
 	cfg := makeConfig("notools", ts.URL)
 	start := time.Now()
-	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
+	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
 

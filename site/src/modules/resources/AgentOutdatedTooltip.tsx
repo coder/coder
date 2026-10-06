@@ -1,5 +1,5 @@
 import { RotateCcwIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	HelpPopover,
@@ -19,7 +19,7 @@ type AgentOutdatedTooltipProps = {
 	onUpdate: () => void;
 };
 
-export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
+export const AgentOutdatedTooltip: React.FC<AgentOutdatedTooltipProps> = ({
 	agent,
 	serverVersion,
 	status,

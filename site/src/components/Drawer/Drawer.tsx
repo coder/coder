@@ -35,7 +35,7 @@ const DrawerOverlay: React.FC<
 	return (
 		<DialogPrimitive.Overlay
 			className={cn(
-				"fixed inset-0 z-50 bg-overlay",
+				"fixed inset-0 z-50 bg-overlay ease-out-strong",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out",
 				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 				"data-[state=open]:duration-300 data-[state=closed]:duration-100",
@@ -48,7 +48,7 @@ const DrawerOverlay: React.FC<
 
 const drawerContentVariants = cva(
 	cn(
-		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform",
+		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform ease-out-strong",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=open]:duration-500 data-[state=closed]:duration-300",
 	),

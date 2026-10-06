@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -42,7 +41,9 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
+export const RetentionPeriodSettings: React.FC<
+	RetentionPeriodSettingsProps
+> = ({
 	retentionDaysData,
 	isRetentionDaysLoading,
 	isRetentionDaysLoadError,

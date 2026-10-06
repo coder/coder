@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -45,7 +45,7 @@ type ExpandableTextProps = {
 	expandToMatch?: boolean;
 };
 
-const ExpandableText: FC<ExpandableTextProps> = ({
+const ExpandableText: React.FC<ExpandableTextProps> = ({
 	maxHeight,
 	text,
 	className,
@@ -118,7 +118,7 @@ type CollapseButtonProps = {
 	className?: string;
 };
 
-const CollapseButton: FC<CollapseButtonProps> = ({
+const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
 	onClick,
 	children,
@@ -150,7 +150,7 @@ type BracketConnectorProps = {
 	hideBottomLine?: boolean;
 };
 
-const BracketConnector: FC<BracketConnectorProps> = ({
+const BracketConnector: React.FC<BracketConnectorProps> = ({
 	children,
 	contentClassName,
 	firstRowHeight = "2rem",
@@ -182,7 +182,7 @@ type ThinkingBlockProps = {
 	text: string;
 };
 
-const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
+const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
 			<LoaderIcon className="size-icon-xs text-content-secondary" />
@@ -209,7 +209,7 @@ type ToolCallBlockProps = {
 	highlight: string;
 };
 
-const ToolCallBlock: FC<ToolCallBlockProps> = ({
+const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
@@ -274,7 +274,7 @@ type AgenticActionItemProps = {
 	highlight: string;
 };
 
-const AgenticActionItem: FC<AgenticActionItemProps> = ({
+const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 	action,
 	matchedToolCallIds,
 	highlight,
@@ -331,7 +331,7 @@ type ThreadItemProps = {
 	highlight: string;
 };
 
-const ThreadItem: FC<ThreadItemProps> = ({
+const ThreadItem: React.FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchPromptMatch,
@@ -509,7 +509,7 @@ type SessionTimelineProps = {
 	onFetchNextPage: () => void;
 };
 
-export const SessionTimeline: FC<SessionTimelineProps> = ({
+export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
 	networkCallSummary,

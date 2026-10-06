@@ -1,16 +1,19 @@
 package terraform
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
+
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
 type scriptOrderSelectorKind int
@@ -21,6 +24,8 @@ const (
 	scriptOrderSelectorModule
 )
 
+var errScriptOrderConfigModuleNotFound = xerrors.New("script order configuration module not found")
+
 type scriptOrderSelector struct {
 	kind        scriptOrderSelectorKind
 	name        string
@@ -28,13 +33,17 @@ type scriptOrderSelector struct {
 }
 
 type scriptOrderSelectorResolution struct {
-	// contains the sorted, deduplicated Terraform addresses of all
+	// Contains the sorted, deduplicated Terraform addresses of all
 	// concrete scripts selected.
 	addresses []string
-	// For module selectors, distinguishes a declared module call with
-	// no resolved scripts from an unknown module selector. Scripts
-	// may resolve to no instances when a module conditionally sets
-	// their count to zero.
+	// Populated only for empty unindexed script selectors. It
+	// distinguishes a declared resource with no concrete instances,
+	// such as one with count = 0, from an unknown resource selector.
+	scriptResourceDeclared bool
+	// Populated for every module selector. It distinguishes a
+	// declared module call with no resolved scripts from an unknown
+	// module selector. Scripts may resolve to no instances when a
+	// module conditionally sets their count to zero.
 	moduleCallDeclared bool
 }
 
@@ -49,67 +58,57 @@ func invalidScriptOrderSelectorError(raw string) error {
 // parseScriptOrderSelector currently limits selectors to scripts in
 // the declaring module and whole child module calls.
 func parseScriptOrderSelector(raw string) (scriptOrderSelector, error) {
-	traversal, err := parseTerraformAddressTraversal(raw)
+	modulePath, moduleErr := tfaddr.ParseModulePath(raw)
+	if moduleErr == nil {
+		steps := modulePath.Steps()
+		if len(steps) != 1 {
+			return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
+		}
+		if steps[0].InstanceKey() != cty.NilVal {
+			return scriptOrderSelector{}, xerrors.Errorf(
+				"module selector %q must select all module instances", raw,
+			)
+		}
+		return scriptOrderSelector{
+			kind: scriptOrderSelectorModule,
+			name: steps[0].Name(),
+		}, nil
+	}
+
+	// A selector that is not a module path may be a managed resource.
+	address, err := tfaddr.ParseManagedResourceAddress(raw)
 	if err != nil {
 		return scriptOrderSelector{},
 			xerrors.Errorf("parse script order selector %q: %w", raw, err)
 	}
-	if len(traversal) < 2 {
+	if address.ModulePath().String() != "" {
 		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
 	}
 
-	root, rootOK := traversal[0].(hcl.TraverseRoot)
-	name, nameOK := traversal[1].(hcl.TraverseAttr)
-	if !rootOK || !nameOK {
-		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
-	}
-
-	instanceKey := cty.NilVal
-	position := 2
-	if position < len(traversal) {
-		index, ok := traversal[position].(hcl.TraverseIndex)
-		if !ok {
-			return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
-		}
-		instanceKey, err = parseTerraformInstanceKey(index.Key)
-		if err != nil {
-			return scriptOrderSelector{},
-				xerrors.Errorf("parse script order selector %q instance key: %w", raw, err)
-		}
-		position++
-	}
-	if position != len(traversal) {
-		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
-	}
-
-	switch root.Name {
+	switch address.ResourceType() {
 	case "coder_script":
 		return scriptOrderSelector{
 			kind:        scriptOrderSelectorScript,
-			name:        name.Name,
-			instanceKey: instanceKey,
-		}, nil
-	case "module":
-		if instanceKey != cty.NilVal {
-			return scriptOrderSelector{}, xerrors.Errorf("module selector %q must select all module instances", raw)
-		}
-		return scriptOrderSelector{
-			kind: scriptOrderSelectorModule,
-			name: name.Name,
+			name:        address.ResourceName(),
+			instanceKey: address.InstanceKey(),
 		}, nil
 	default:
-		return scriptOrderSelector{}, xerrors.Errorf("script order selector %q must select a coder_script or module", raw)
+		return scriptOrderSelector{}, xerrors.Errorf(
+			"script order selector %q must select a coder_script or module", raw,
+		)
 	}
 }
 
 // resolveScriptOrderSelector expands a selector relative to its
-// declaring module. For module selectors, it also reports whether the
-// module call is declared so callers can distinguish an empty module
-// call from an unknown selector.
+// declaring module. For selectors with no resolved scripts, it also
+// reports whether the selected resource or module call is declared so
+// callers can distinguish an empty declaration from an unknown selector.
 //
-// `modules` is the evaluated module tree and its concrete script instances.
-// `planConfig` contains declared module calls, including calls with no
-// instances after evaluation.
+// `modules` contains one or more evaluated module trees and their
+// concrete script instances. During plan conversion, it may include
+// prior state filtered to data resources alongside planned values.
+// `planConfig` contains resource and module call declarations, including
+// declarations with no instances after evaluation.
 // `selector` must have been produced by parseScriptOrderSelector.
 func resolveScriptOrderSelector(
 	modules []*tfjson.StateModule,
@@ -117,18 +116,10 @@ func resolveScriptOrderSelector(
 	moduleAddress string,
 	selector scriptOrderSelector,
 ) (scriptOrderSelectorResolution, error) {
-	if selector.kind != scriptOrderSelectorScript && selector.kind != scriptOrderSelectorModule {
+	if selector.kind != scriptOrderSelectorScript &&
+		selector.kind != scriptOrderSelectorModule {
 		return scriptOrderSelectorResolution{},
 			xerrors.Errorf("unknown script order selector kind %d", selector.kind)
-	}
-
-	var resolution scriptOrderSelectorResolution
-	if selector.kind == scriptOrderSelectorModule {
-		declared, err := isModuleCallInConfig(planConfig, moduleAddress, selector.name)
-		if err != nil {
-			return scriptOrderSelectorResolution{}, err
-		}
-		resolution.moduleCallDeclared = declared
 	}
 
 	resolved := map[string]struct{}{}
@@ -152,7 +143,34 @@ func resolveScriptOrderSelector(
 		}
 	}
 
-	resolution.addresses = slices.Sorted(maps.Keys(resolved))
+	resolution := scriptOrderSelectorResolution{
+		addresses: slices.Sorted(maps.Keys(resolved)),
+	}
+	switch selector.kind {
+	case scriptOrderSelectorScript:
+		// Only unindexed selectors may be valid without concrete
+		// instances. The caller rejects missing indexed instances.
+		if selector.instanceKey == cty.NilVal && len(resolution.addresses) == 0 {
+			declared, err := isCoderScriptResourceInConfig(
+				planConfig, moduleAddress, selector.name,
+			)
+			if err != nil {
+				return scriptOrderSelectorResolution{}, err
+			}
+			resolution.scriptResourceDeclared = declared
+		}
+	case scriptOrderSelectorModule:
+		// Always validate module selectors against the plan config.
+		// This distinguishes unknown selectors from declared calls
+		// with no scripts.
+		declared, err := isModuleCallInConfig(
+			planConfig, moduleAddress, selector.name,
+		)
+		if err != nil {
+			return scriptOrderSelectorResolution{}, err
+		}
+		resolution.moduleCallDeclared = declared
+	}
 	return resolution, nil
 }
 
@@ -167,22 +185,73 @@ func isModuleCallInConfig(
 		return false, xerrors.New("terraform plan configuration is required to resolve a module selector")
 	}
 
-	module := config.RootModule
-	if declaringModuleAddress != "" {
-		modulePath, err := parseStateModuleAddress(declaringModuleAddress)
-		if err != nil {
-			return false, err
-		}
-		for _, step := range modulePath.steps {
-			call := module.ModuleCalls[step.name]
-			if call == nil || call.Module == nil {
-				return false, nil
-			}
-			module = call.Module
-		}
+	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
+	if xerrors.Is(err, errScriptOrderConfigModuleNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
 	}
 
 	return module.ModuleCalls[name] != nil, nil
+}
+
+// isCoderScriptResourceInConfig reports whether `name` is a managed
+// coder_script resource in the configuration of the declaring module
+// instance.
+func isCoderScriptResourceInConfig(
+	config *tfjson.Config,
+	declaringModuleAddress string,
+	name string,
+) (bool, error) {
+	if config == nil || config.RootModule == nil {
+		return false, xerrors.New(
+			"cannot validate empty coder_script selector because Terraform plan configuration is unavailable",
+		)
+	}
+
+	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
+	if xerrors.Is(err, errScriptOrderConfigModuleNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, resource := range module.Resources {
+		if resource != nil &&
+			resource.Mode == tfjson.ManagedResourceMode &&
+			resource.Type == "coder_script" &&
+			resource.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// configModuleForAddress maps an evaluated module-instance address to
+// its configuration. Instance keys are ignored because repeated
+// module instances share one configuration.
+func configModuleForAddress(
+	root *tfjson.ConfigModule,
+	moduleAddress string,
+) (*tfjson.ConfigModule, error) {
+	module := root
+	if moduleAddress == "" {
+		return module, nil
+	}
+
+	modulePath, err := parseStateModuleAddress(moduleAddress)
+	if err != nil {
+		return nil, err
+	}
+	for _, step := range modulePath.Steps() {
+		call := module.ModuleCalls[step.Name()]
+		if call == nil || call.Module == nil {
+			return nil, errScriptOrderConfigModuleNotFound
+		}
+		module = call.Module
+	}
+	return module, nil
 }
 
 func resolveScriptOrderScriptSelector(
@@ -206,7 +275,7 @@ func resolveScriptOrderScriptSelector(
 			return err
 		}
 		if selector.instanceKey != cty.NilVal &&
-			!terraformInstanceKeysEqual(address.instanceKey, selector.instanceKey) {
+			!tfaddr.InstanceKeysEqual(address.InstanceKey(), selector.instanceKey) {
 			continue
 		}
 		resolved[resource.Address] = struct{}{}
@@ -230,7 +299,8 @@ func resolveScriptOrderModuleSelector(
 		if err != nil {
 			return err
 		}
-		if len(modulePath.steps) == 0 || modulePath.steps[len(modulePath.steps)-1].name != selector.name {
+		steps := modulePath.Steps()
+		if len(steps) == 0 || steps[len(steps)-1].Name() != selector.name {
 			continue
 		}
 		if err := collectModuleCoderScriptAddresses(child, resolved); err != nil {
@@ -271,25 +341,25 @@ func collectModuleCoderScriptAddresses(
 // dependencies to the wrong resource.
 func parseStateResourceAddress(
 	module *tfjson.StateModule, resource *tfjson.StateResource,
-) (*terraformManagedResourceAddress, error) {
-	address, err := parseTerraformManagedResourceAddress(resource.Address)
+) (*tfaddr.ManagedResourceAddress, error) {
+	address, err := tfaddr.ParseManagedResourceAddress(resource.Address)
 	if err != nil {
 		return nil, xerrors.Errorf("parse Terraform resource address %q: %w", resource.Address, err)
 	}
 	// Defensive: TF should always emit an address consistent with
 	// these state fields.
-	if address.modulePath.String() != module.Address ||
-		address.resourceType != resource.Type ||
-		address.resourceName != resource.Name {
+	if address.ModulePath().String() != module.Address ||
+		address.ResourceType() != resource.Type ||
+		address.ResourceName() != resource.Name {
 		return nil, xerrors.Errorf("Terraform resource address %q does not match its state fields", resource.Address)
 	}
 	return &address, nil
 }
 
-func parseStateModuleAddress(address string) (terraformModulePath, error) {
-	parsed, err := parseTerraformModulePath(address)
+func parseStateModuleAddress(address string) (tfaddr.ModulePath, error) {
+	parsed, err := tfaddr.ParseModulePath(address)
 	if err != nil {
-		return terraformModulePath{}, xerrors.Errorf("parse module address %q: %w", address, err)
+		return tfaddr.ModulePath{}, xerrors.Errorf("parse module address %q: %w", address, err)
 	}
 	return parsed, nil
 }
@@ -309,18 +379,22 @@ func walkStateModuleTree(module *tfjson.StateModule, visit func(*tfjson.StateMod
 	return nil
 }
 
-type scriptOrderRequirement string
+// ScriptOrderRequirement describes the prerequisite outcome required
+// by a dependency.
+type ScriptOrderRequirement string
 
 const (
-	scriptOrderRequirementSuccess    scriptOrderRequirement = "success"
-	scriptOrderRequirementCompletion scriptOrderRequirement = "completion"
+	ScriptOrderRequirementSuccess    ScriptOrderRequirement = "success"
+	ScriptOrderRequirementCompletion ScriptOrderRequirement = "completion"
 )
 
-type scriptOrderPhase string
+// ScriptOrderPhase identifies the lifecycle phase, start or stop,
+// containing a graph.
+type ScriptOrderPhase string
 
 const (
-	scriptOrderPhaseStart scriptOrderPhase = "start"
-	scriptOrderPhaseStop  scriptOrderPhase = "stop"
+	ScriptOrderPhaseStart ScriptOrderPhase = "start"
+	ScriptOrderPhaseStop  ScriptOrderPhase = "stop"
 )
 
 type scriptOrderAttributes struct {
@@ -347,7 +421,8 @@ type resolvedScriptOrderSelector struct {
 	// addresses contains the concrete coder_script instances selected
 	// by `raw`. For example, "coder_script.setup" can expand to
 	// "coder_script.setup[0]" and "coder_script.setup[1]". It may be
-	// empty for a declared module call with no script instances.
+	// empty for a declared unindexed coder_script resource or module
+	// call with no script instances.
 	addresses []string
 }
 
@@ -355,11 +430,12 @@ type resolvedScriptOrderSelector struct {
 // selectors before phase filtering.
 type scriptOrderRuleDeclaration struct {
 	dataSourceAddress string
-	ruleIndex         int
-	declaredPhase     scriptOrderPhase
-	requirement       scriptOrderRequirement
-	run               []resolvedScriptOrderSelector
-	after             []resolvedScriptOrderSelector
+	// Rule's zero-based index in the data source, used for diagnostics.
+	ruleIndex     int
+	declaredPhase ScriptOrderPhase
+	requirement   ScriptOrderRequirement
+	run           []resolvedScriptOrderSelector
+	after         []resolvedScriptOrderSelector
 }
 
 // collectScriptOrderRuleDeclarations decodes coder_script_order data
@@ -460,40 +536,39 @@ func collectScriptOrderDataSources(
 	return srcs, nil
 }
 
-func parseScriptOrderRequirement(raw string) (scriptOrderRequirement, error) {
-	switch scriptOrderRequirement(raw) {
-	case "", scriptOrderRequirementSuccess:
-		return scriptOrderRequirementSuccess, nil
-	case scriptOrderRequirementCompletion:
-		return scriptOrderRequirementCompletion, nil
+func parseScriptOrderRequirement(raw string) (ScriptOrderRequirement, error) {
+	switch ScriptOrderRequirement(raw) {
+	case "", ScriptOrderRequirementSuccess:
+		return ScriptOrderRequirementSuccess, nil
+	case ScriptOrderRequirementCompletion:
+		return ScriptOrderRequirementCompletion, nil
 	default:
 		return "", xerrors.Errorf(
 			"requires must be %q or %q, got %q",
-			scriptOrderRequirementSuccess, scriptOrderRequirementCompletion, raw,
+			ScriptOrderRequirementSuccess, ScriptOrderRequirementCompletion, raw,
 		)
 	}
 }
 
-func parseScriptOrderPhase(raw string) (scriptOrderPhase, error) {
-	switch scriptOrderPhase(raw) {
+func parseScriptOrderPhase(raw string) (ScriptOrderPhase, error) {
+	switch ScriptOrderPhase(raw) {
 	case "":
 		return "", nil
-	case scriptOrderPhaseStart:
-		return scriptOrderPhaseStart, nil
-	case scriptOrderPhaseStop:
-		return scriptOrderPhaseStop, nil
+	case ScriptOrderPhaseStart:
+		return ScriptOrderPhaseStart, nil
+	case ScriptOrderPhaseStop:
+		return ScriptOrderPhaseStop, nil
 	default:
 		return "", xerrors.Errorf(
 			"phase must be %q or %q, got %q",
-			scriptOrderPhaseStart, scriptOrderPhaseStop, raw,
+			ScriptOrderPhaseStart, ScriptOrderPhaseStop, raw,
 		)
 	}
 }
 
-// resolveScriptOrderSelectors resolves one run or after field. A
-// selector naming a declared child module call may expand to no
-// scripts, but a script selector must resolve to at least one
-// concrete instance.
+// resolveScriptOrderSelectors resolves one run or after field. An
+// unindexed selector naming a declared script resource or child module
+// call may expand to no scripts.
 func resolveScriptOrderSelectors(
 	modules []*tfjson.StateModule,
 	planConfig *tfjson.Config,
@@ -535,14 +610,26 @@ func resolveScriptOrderSelectors(
 		switch selector.kind {
 		case scriptOrderSelectorScript:
 			if len(resolution.addresses) == 0 {
-				return nil, scriptOrderRuleError(
-					dataSource.address,
-					ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q expanded to no coder_script resources",
-						selectorField, raw,
-					),
-				)
+				if selector.instanceKey != cty.NilVal {
+					return nil, scriptOrderRuleError(
+						dataSource.address,
+						ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q expanded to no coder_script resources",
+							selectorField, raw,
+						),
+					)
+				}
+				if !resolution.scriptResourceDeclared {
+					return nil, scriptOrderRuleError(
+						dataSource.address,
+						ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q does not name a declared coder_script resource",
+							selectorField, raw,
+						),
+					)
+				}
 			}
 		case scriptOrderSelectorModule:
 			if !resolution.moduleCallDeclared {
@@ -577,7 +664,7 @@ func resolveScriptOrderSelectors(
 func scriptOrderRuleError(dataSourceAddress string, ruleIndex int, err error) error {
 	return xerrors.Errorf(
 		"script order data source %q rule %d: %w",
-		dataSourceAddress, ruleIndex, err,
+		truncateScriptOrderDiagnosticValue(dataSourceAddress), ruleIndex, err,
 	)
 }
 
@@ -603,8 +690,8 @@ type resolvedScriptOrderRule struct {
 	dataSourceAddress string
 	ruleIndex         int
 	runtimeAddress    string
-	phase             scriptOrderPhase
-	requirement       scriptOrderRequirement
+	phase             ScriptOrderPhase
+	requirement       ScriptOrderRequirement
 	run               []resolvedScriptOrderSelector
 	after             []resolvedScriptOrderSelector
 }
@@ -612,7 +699,7 @@ type resolvedScriptOrderRule struct {
 type scriptOrderPhaseFilterWarning struct {
 	dataSourceAddress            string
 	ruleIndex                    int
-	inferredPhase                scriptOrderPhase
+	inferredPhase                ScriptOrderPhase
 	moduleSelectorsWithOmissions []string
 }
 
@@ -636,6 +723,29 @@ func (w scriptOrderPhaseFilterWarning) String() string {
 type resolvedScriptOrder struct {
 	rules    []resolvedScriptOrderRule
 	warnings []scriptOrderPhaseFilterWarning
+}
+
+// ScriptOrder contains one deterministic dependency graph per runtime
+// and lifecycle phase. Independent groups within the same runtime and
+// phase are disconnected components of the same graph.
+type ScriptOrder struct {
+	Graphs []ScriptOrderGraph
+}
+
+// ScriptOrderGraph contains dependencies for one runtime and
+// lifecycle phase. Scripts in the graph are identified by the
+// dependent and prerequisite addresses in Dependencies.
+type ScriptOrderGraph struct {
+	RuntimeAddress string
+	Phase          ScriptOrderPhase
+	Dependencies   []ScriptOrderDependency
+}
+
+// ScriptOrderDependency makes DependentAddress wait for PrerequisiteAddress.
+type ScriptOrderDependency struct {
+	DependentAddress    string
+	PrerequisiteAddress string
+	Requirement         ScriptOrderRequirement
 }
 
 // resolveScriptOrder collects rule declarations and resolves their
@@ -790,11 +900,11 @@ func validateScriptOrderSelectedScripts(
 // determineScriptOrderRulePhase returns the rule phase and whether it
 // was inferred rather than explicitly declared. An empty phase with
 // inferred false means every selector resolved only to declared
-// module calls with no scripts.
+// script resources or module calls with no scripts.
 func determineScriptOrderRulePhase(
 	declaration scriptOrderRuleDeclaration,
 	scripts map[string]scriptOrderScript,
-) (scriptOrderPhase, bool, error) {
+) (ScriptOrderPhase, bool, error) {
 	if declaration.declaredPhase != "" {
 		return declaration.declaredPhase, false, nil
 	}
@@ -840,7 +950,7 @@ func determineScriptOrderRulePhase(
 					"expand to both start and stop scripts; set phase to %q or %q",
 				one.selector.field, one.selector.raw, one.phase, one.address,
 				two.selector.field, two.selector.raw, two.phase, two.address,
-				scriptOrderPhaseStart, scriptOrderPhaseStop,
+				ScriptOrderPhaseStart, ScriptOrderPhaseStop,
 			),
 		)
 	}
@@ -848,14 +958,15 @@ func determineScriptOrderRulePhase(
 		return moduleSelectorPhases[0].phase, true, nil
 	}
 
-	// Every selector names a declared module call with no concrete scripts.
+	// Every selector names a declared script resource or module call
+	// with no concrete scripts.
 	return "", false, nil
 }
 
 // scriptOrderObservedPhase records the first selector and script
 // address observed for a lifecycle phase.
 type scriptOrderObservedPhase struct {
-	phase    scriptOrderPhase
+	phase    ScriptOrderPhase
 	selector resolvedScriptOrderSelector
 	address  string
 }
@@ -871,7 +982,7 @@ func collectScriptOrderObservedPhases(
 	scripts map[string]scriptOrderScript,
 	kind scriptOrderSelectorKind,
 ) []scriptOrderObservedPhase {
-	observed := map[scriptOrderPhase]scriptOrderObservedPhase{}
+	observed := map[ScriptOrderPhase]scriptOrderObservedPhase{}
 	for _, selector := range slices.Concat(run, after) {
 		if selector.kind != kind {
 			continue
@@ -897,7 +1008,7 @@ func collectScriptOrderObservedPhases(
 
 func validateScriptOrderResourceSelectorPhases(
 	declaration scriptOrderRuleDeclaration,
-	phase scriptOrderPhase,
+	phase ScriptOrderPhase,
 	scripts map[string]scriptOrderScript,
 ) error {
 	for _, selector := range slices.Concat(declaration.run, declaration.after) {
@@ -928,15 +1039,15 @@ func validateScriptOrderResourceSelectorPhases(
 // were omitted.
 func filterScriptOrderModuleSelectorAddressesByPhase(
 	selectors []resolvedScriptOrderSelector,
-	phase scriptOrderPhase,
+	phase ScriptOrderPhase,
 	scripts map[string]scriptOrderScript,
 ) ([]resolvedScriptOrderSelector, []string) {
 	result := make([]resolvedScriptOrderSelector, 0, len(selectors))
 	var filtered []string
 	for _, selector := range selectors {
 		// determineScriptOrderRulePhase returns an empty phase only
-		// when every selector names a declared module call that
-		// expanded to no scripts.
+		// when every selector names a declared script resource or
+		// module call that expanded to no scripts.
 		if selector.kind != scriptOrderSelectorModule || phase == "" {
 			result = append(result, selector)
 			continue
@@ -1021,12 +1132,12 @@ func validateScriptOrderNoSelfDependency(
 	after []resolvedScriptOrderSelector,
 ) error {
 	afterSelectorsByAddress := map[string]string{}
-	for _, selection := range scriptOrderAddressSelections(after) {
+	for _, selection := range uniqueScriptOrderAddressSelections(after) {
 		if _, ok := afterSelectorsByAddress[selection.address]; !ok {
 			afterSelectorsByAddress[selection.address] = selection.selector
 		}
 	}
-	for _, runSelection := range scriptOrderAddressSelections(run) {
+	for _, runSelection := range uniqueScriptOrderAddressSelections(run) {
 		afterSelector, ok := afterSelectorsByAddress[runSelection.address]
 		if ok {
 			return scriptOrderRuleError(
@@ -1065,12 +1176,19 @@ func hasResolvedScriptOrderAddresses(selectors []resolvedScriptOrderSelector) bo
 	return false
 }
 
-func scriptOrderAddressSelections(
+// uniqueScriptOrderAddressSelections retains the first selector that
+// expands to each address so diagnostics remain deterministic.
+func uniqueScriptOrderAddressSelections(
 	selectors []resolvedScriptOrderSelector,
 ) []scriptOrderAddressSelection {
+	seen := map[string]struct{}{}
 	var result []scriptOrderAddressSelection
 	for _, selector := range selectors {
 		for _, addr := range selector.addresses {
+			if _, ok := seen[addr]; ok {
+				continue
+			}
+			seen[addr] = struct{}{}
 			result = append(result, scriptOrderAddressSelection{
 				selector: selector.raw,
 				address:  addr,
@@ -1080,12 +1198,12 @@ func scriptOrderAddressSelections(
 	return result
 }
 
-func scriptOrderScriptPhase(script scriptOrderScript) scriptOrderPhase {
+func scriptOrderScriptPhase(script scriptOrderScript) ScriptOrderPhase {
 	switch {
 	case script.runOnStart && !script.runOnStop:
-		return scriptOrderPhaseStart
+		return ScriptOrderPhaseStart
 	case script.runOnStop && !script.runOnStart:
-		return scriptOrderPhaseStop
+		return ScriptOrderPhaseStop
 	default:
 		// Validation rejects scripts configured for both phases or neither.
 		return ""
@@ -1104,4 +1222,355 @@ func findResolvedScriptOrderSelector(
 		}
 	}
 	return resolvedScriptOrderSelector{}
+}
+
+// scriptOrderGraphKey contains only graph identity fields so it
+// remains comparable for use as a map key.
+type scriptOrderGraphKey struct {
+	runtimeAddress string
+	phase          ScriptOrderPhase
+}
+
+// scriptOrderEdge stores the dependency requirement and the Terraform
+// declaration retained for validation diagnostics.
+type scriptOrderEdge struct {
+	requirement       ScriptOrderRequirement
+	dataSourceAddress string
+	ruleIndex         int
+	runSelector       string
+	afterSelector     string
+}
+
+type scriptOrderCycleEdge struct {
+	dependentAddress    string
+	prerequisiteAddress string
+	edge                scriptOrderEdge
+}
+
+// scriptOrderGraphAccumulator holds mutable construction state for
+// one runtime-and-phase graph before it is validated and converted to
+// ScriptOrderGraph.
+type scriptOrderGraphAccumulator struct {
+	// Dependent address -> prerequisite address -> scriptOrderEdge
+	dependencies map[string]map[string]scriptOrderEdge
+	// Tracks unique edges for preallocating ScriptOrderGraph.Dependencies.
+	dependencyCount int
+}
+
+type scriptOrderCombinationBudget struct {
+	used  int
+	limit int
+}
+
+const (
+	// Diagnostic values are template-controlled, so bound their length
+	// to keep provisioner diagnostics well below the dRPC message limit.
+	maxScriptOrderDiagnosticValueRunes = 256
+	// A cycle can contain many edges, so bound their count as well.
+	maxScriptOrderCycleDiagnosticEdges = 20
+)
+
+// maxScriptOrderCandidateDependencies bounds the number of run/after
+// script combinations before graph construction can exhaust provisioner
+// CPU or memory. It applies across all runtime and phase graphs in one
+// conversion and remains well above typical script counts.
+// TODO(PLAT-554): Benchmark large script-order graphs and tune this limit.
+const maxScriptOrderCandidateDependencies = 100_000
+
+// buildScriptOrderGraphs combines resolved rules into deterministic
+// graphs scoped by runtime and lifecycle phase. It deduplicates
+// identical edges, enforces the dependency-combination limit, and
+// rejects conflicting requirements and cycles.
+func buildScriptOrderGraphs(rules []resolvedScriptOrderRule) (ScriptOrder, error) {
+	return buildScriptOrderGraphsWithCombinationLimit(
+		rules,
+		maxScriptOrderCandidateDependencies,
+	)
+}
+
+func buildScriptOrderGraphsWithCombinationLimit(
+	rules []resolvedScriptOrderRule,
+	combinationLimit int,
+) (ScriptOrder, error) {
+	graphs := map[scriptOrderGraphKey]*scriptOrderGraphAccumulator{}
+	budget := scriptOrderCombinationBudget{limit: combinationLimit}
+	for _, rule := range rules {
+		key := scriptOrderGraphKey{
+			runtimeAddress: rule.runtimeAddress,
+			phase:          rule.phase,
+		}
+		graph := graphs[key]
+		if graph == nil {
+			graph = &scriptOrderGraphAccumulator{
+				dependencies: map[string]map[string]scriptOrderEdge{},
+			}
+			graphs[key] = graph
+		}
+
+		if err := addScriptOrderRuleEdges(graph, rule, &budget); err != nil {
+			return ScriptOrder{}, err
+		}
+	}
+
+	keys := slices.SortedFunc(maps.Keys(graphs), func(a, b scriptOrderGraphKey) int {
+		return cmp.Or(
+			cmp.Compare(a.runtimeAddress, b.runtimeAddress),
+			cmp.Compare(a.phase, b.phase),
+		)
+	})
+	var result ScriptOrder
+	for _, key := range keys {
+		graph := graphs[key]
+		if cycle := findScriptOrderCycle(graph); cycle != nil {
+			return ScriptOrder{}, scriptOrderCycleError(cycle)
+		}
+		result.Graphs = append(result.Graphs, scriptOrderGraphResult(key, graph))
+	}
+	return result, nil
+}
+
+func addScriptOrderRuleEdges(
+	graph *scriptOrderGraphAccumulator,
+	rule resolvedScriptOrderRule,
+	budget *scriptOrderCombinationBudget,
+) error {
+	runSelections := uniqueScriptOrderAddressSelections(rule.run)
+	afterSelections := uniqueScriptOrderAddressSelections(rule.after)
+	// Check the rule against the full limit before multiplying to
+	// avoid integer overflow. The cumulative budget check follows
+	// once the product is safe to calculate.
+	if len(afterSelections) > 0 &&
+		len(runSelections) > budget.limit/len(afterSelections) {
+		return scriptOrderRuleError(
+			rule.dataSourceAddress,
+			rule.ruleIndex,
+			xerrors.Errorf(
+				"run selectors resolve to %d scripts and after selectors resolve to %d scripts; the rule creates one dependency for each run/after script combination, exceeding the overall limit of %d combinations across all script ordering rules",
+				len(runSelections), len(afterSelections), budget.limit,
+			),
+		)
+	}
+	comboCount := len(runSelections) * len(afterSelections)
+	if comboCount > budget.limit-budget.used {
+		return scriptOrderRuleError(
+			rule.dataSourceAddress,
+			rule.ruleIndex,
+			xerrors.Errorf(
+				"script ordering rules are limited to %d run/after script combinations in total; %d from earlier rules together with %d from this rule exceed the limit",
+				budget.limit, budget.used, comboCount,
+			),
+		)
+	}
+	budget.used += comboCount
+
+	// A rule declares a dependency for every run/after selection
+	// pair. Explicit transitive edges are retained because
+	// requirements are evaluated independently for each edge.
+	for _, run := range runSelections {
+		prerequisites := graph.dependencies[run.address]
+		if prerequisites == nil {
+			prerequisites = map[string]scriptOrderEdge{}
+			graph.dependencies[run.address] = prerequisites
+		}
+		for _, after := range afterSelections {
+			if existing, ok := prerequisites[after.address]; ok {
+				if existing.requirement != rule.requirement {
+					return scriptOrderRuleError(
+						rule.dataSourceAddress,
+						rule.ruleIndex,
+						xerrors.Errorf(
+							"run selector %q and after selector %q declare script %q after %q with requires %q, conflicting with requires %q from data source %q rule %d",
+							truncateScriptOrderDiagnosticValue(run.selector),
+							truncateScriptOrderDiagnosticValue(after.selector),
+							truncateScriptOrderDiagnosticValue(run.address),
+							truncateScriptOrderDiagnosticValue(after.address),
+							rule.requirement, existing.requirement,
+							truncateScriptOrderDiagnosticValue(existing.dataSourceAddress),
+							existing.ruleIndex,
+						),
+					)
+				}
+				continue
+			}
+			prerequisites[after.address] = scriptOrderEdge{
+				requirement:       rule.requirement,
+				dataSourceAddress: rule.dataSourceAddress,
+				ruleIndex:         rule.ruleIndex,
+				runSelector:       run.selector,
+				afterSelector:     after.selector,
+			}
+			graph.dependencyCount++
+		}
+	}
+	return nil
+}
+
+func scriptOrderGraphResult(
+	key scriptOrderGraphKey,
+	graph *scriptOrderGraphAccumulator,
+) ScriptOrderGraph {
+	dependencies := make([]ScriptOrderDependency, 0, graph.dependencyCount)
+	for dependentAddr, prereq := range graph.dependencies {
+		for prereqAddr, edge := range prereq {
+			dependencies = append(dependencies, ScriptOrderDependency{
+				DependentAddress:    dependentAddr,
+				PrerequisiteAddress: prereqAddr,
+				Requirement:         edge.requirement,
+			})
+		}
+	}
+	// Dependency order has no runtime semantics; sort it for deterministic output.
+	slices.SortFunc(dependencies, func(a, b ScriptOrderDependency) int {
+		return cmp.Or(
+			cmp.Compare(a.DependentAddress, b.DependentAddress),
+			cmp.Compare(a.PrerequisiteAddress, b.PrerequisiteAddress),
+			cmp.Compare(a.Requirement, b.Requirement),
+		)
+	})
+	return ScriptOrderGraph{
+		RuntimeAddress: key.runtimeAddress,
+		Phase:          key.phase,
+		Dependencies:   dependencies,
+	}
+}
+
+// findScriptOrderCycle returns the edges of one deterministic cycle
+// in traversal order. It returns nil when the graph is acyclic.
+func findScriptOrderCycle(
+	graph *scriptOrderGraphAccumulator,
+) []scriptOrderCycleEdge {
+	// A valid graph can contain a chain as long as the overall
+	// dependency limit permits, so use an explicit traversal stack
+	// instead of recursion.
+	const (
+		unvisited = iota
+		visiting
+		visited
+	)
+	visitStates := map[string]int{}
+	stackPositions := map[string]int{}
+	type stackFrame struct {
+		address       string
+		prerequisites []string
+		nextPrereqIdx int
+	}
+
+	// Sort roots and prerequisites so the same graph produces the
+	// same cycle diagnostic.
+	for _, rootAddr := range slices.Sorted(maps.Keys(graph.dependencies)) {
+		if visitStates[rootAddr] != unvisited {
+			continue
+		}
+
+		visitStates[rootAddr] = visiting
+		stackPositions[rootAddr] = 0
+		stack := []stackFrame{{
+			address: rootAddr,
+			prerequisites: slices.Sorted(
+				maps.Keys(graph.dependencies[rootAddr]),
+			),
+		}}
+		for len(stack) > 0 {
+			frame := &stack[len(stack)-1]
+			if frame.nextPrereqIdx == len(frame.prerequisites) {
+				visitStates[frame.address] = visited
+				delete(stackPositions, frame.address)
+				stack = stack[:len(stack)-1]
+				continue
+			}
+
+			prereq := frame.prerequisites[frame.nextPrereqIdx]
+			frame.nextPrereqIdx++
+			switch visitStates[prereq] {
+			case unvisited:
+				visitStates[prereq] = visiting
+				stackPositions[prereq] = len(stack)
+				stack = append(stack, stackFrame{
+					address: prereq,
+					prerequisites: slices.Sorted(
+						maps.Keys(graph.dependencies[prereq]),
+					),
+				})
+			case visiting:
+				cycleStart := stackPositions[prereq]
+				cycle := make([]scriptOrderCycleEdge, 0, len(stack)-cycleStart)
+				for i := cycleStart; i < len(stack)-1; i++ {
+					dependent := stack[i].address
+					nextPrereq := stack[i+1].address
+					cycle = append(cycle, scriptOrderCycleEdge{
+						dependentAddress:    dependent,
+						prerequisiteAddress: nextPrereq,
+						edge:                graph.dependencies[dependent][nextPrereq],
+					})
+				}
+				// Include the closing edge so diagnostics describe
+				// the complete cycle.
+				dependent := stack[len(stack)-1].address
+				cycle = append(cycle, scriptOrderCycleEdge{
+					dependentAddress:    dependent,
+					prerequisiteAddress: prereq,
+					edge:                graph.dependencies[dependent][prereq],
+				})
+				return cycle
+			}
+		}
+	}
+	return nil
+}
+
+func scriptOrderCycleError(cycle []scriptOrderCycleEdge) error {
+	renderedEdges := min(len(cycle), maxScriptOrderCycleDiagnosticEdges)
+	path := make([]string, 1, renderedEdges+1)
+	path[0] = truncateScriptOrderDiagnosticValue(cycle[0].dependentAddress)
+	details := make([]string, 0, renderedEdges)
+	// Cycle detection follows dependent-to-prerequisite edges.
+	// Present them in reverse so the arrows match execution order.
+	for _, cycleEdge := range slices.Backward(cycle) {
+		if len(details) == renderedEdges {
+			break
+		}
+		dependentAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.dependentAddress,
+		)
+		prereqAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.prerequisiteAddress,
+		)
+		dataSourceAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.dataSourceAddress,
+		)
+		runSelector := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.runSelector,
+		)
+		afterSelector := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.afterSelector,
+		)
+		path = append(path, dependentAddr)
+		details = append(details, fmt.Sprintf(
+			"%q after %q from run selector %q and after selector %q "+
+				"(data source %q rule %d)",
+			dependentAddr, prereqAddr, runSelector, afterSelector,
+			dataSourceAddr, cycleEdge.edge.ruleIndex,
+		))
+	}
+	omitted := len(cycle) - renderedEdges
+	if omitted > 0 {
+		path = append(path, "…", path[0])
+	}
+	message := fmt.Sprintf(
+		"script order dependency cycle: %s; cycle edges: %s",
+		strings.Join(path, " -> "),
+		strings.Join(details, "; "),
+	)
+	if omitted > 0 {
+		message += fmt.Sprintf("; %d cycle edges omitted", omitted)
+	}
+	return xerrors.New(message)
+}
+
+func truncateScriptOrderDiagnosticValue(value string) string {
+	return stringutil.Truncate(
+		value,
+		maxScriptOrderDiagnosticValueRunes,
+		stringutil.TruncateWithEllipsis,
+	)
 }

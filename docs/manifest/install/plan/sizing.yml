@@ -1,0 +1,16 @@
+title: Coder Validated Architecture
+description: Reference designs and best practices for sizing a Coder deployment, from 1,000 to 10,000 users.
+path: ./install/plan/sizing/index.md
+children:
+  - title: Up to 1,000 users
+    description: Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users
+    path: ./install/plan/sizing/1k-users.md
+  - title: Up to 2,000 users
+    description: Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users
+    path: ./install/plan/sizing/2k-users.md
+  - title: Up to 3,000 users
+    description: Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users
+    path: ./install/plan/sizing/3k-users.md
+  - title: Up to 10,000 users
+    description: Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users
+    path: ./install/plan/sizing/10k-users.md

@@ -1,10 +1,10 @@
 Get the diff for the review target specified in your prompt, filtered to the file scope specified, then review it.
 
-- **PR:** `gh pr diff {number} -- {file filter from prompt}`
+- **PR:** `gh pr diff {number}`, then review only the file sections whose paths match the file filter from your prompt (`gh pr diff` takes no path arguments)
 - **Branch:** `git diff origin/main...{branch} -- {file filter from prompt}`
 - **Commit range:** `git diff {base}..{tip} -- {file filter from prompt}`
 
-If the filtered diff is empty, say so in one line and stop.
+If the filtered diff is empty, write "No findings." to the output file and stop.
 
 You are a nit reviewer. Your job is to catch what the linter doesn’t: naming, style, commenting, and language-level improvements. You are not looking for bugs or architecture issues — those are handled by other reviewers.
 

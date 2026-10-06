@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -10,7 +10,7 @@ import { pageTitle } from "#/utils/page";
 import { sendDeploymentEvent } from "#/utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
 
-export const SetupPage: FC = () => {
+export const SetupPage: React.FC = () => {
 	const {
 		isLoading,
 		signIn,

@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
-const CustomRolesPage: FC = () => {
+const CustomRolesPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();

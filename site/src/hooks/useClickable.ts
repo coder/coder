@@ -1,9 +1,4 @@
-import {
-	type KeyboardEventHandler,
-	type MouseEventHandler,
-	type RefObject,
-	useRef,
-} from "react";
+import { useRef } from "react";
 
 // Literally any object (ideally an HTMLElement) that has a .click method
 type ClickableElement = {
@@ -23,13 +18,22 @@ export type UseClickableResult<
 	TElement extends ClickableElement = ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = Readonly<{
-	ref: RefObject<TElement | null>;
+	ref: React.RefObject<TElement | null>;
 	tabIndex: 0;
 	role: TRole;
-	onClick: MouseEventHandler<TElement>;
-	onKeyDown: KeyboardEventHandler<TElement>;
-	onKeyUp: KeyboardEventHandler<TElement>;
+	onClick: React.MouseEventHandler<TElement>;
+	onKeyDown: React.KeyboardEventHandler<TElement>;
+	onKeyUp: React.KeyboardEventHandler<TElement>;
 }>;
+
+/**
+ * True when the event's target is outside `currentTarget` in the DOM, as with
+ * events React bubbles from portaled dialogs and menus.
+ */
+export const isFromPortal = (event: React.SyntheticEvent<unknown>): boolean =>
+	event.currentTarget instanceof Node &&
+	event.target instanceof Node &&
+	!event.currentTarget.contains(event.target);
 
 /**
  * Exposes props that let you turn traditionally non-interactive elements into
@@ -39,32 +43,39 @@ export const useClickable = <
 	TElement extends ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 >(
-	onClick: MouseEventHandler<TElement>,
+	onClick: React.MouseEventHandler<TElement>,
 	role?: TRole,
 ): UseClickableResult<TElement, TRole> => {
 	const ref = useRef<TElement>(null);
 
 	return {
 		ref,
-		onClick,
+		onClick: (event) => {
+			if (!isFromPortal(event)) {
+				onClick(event);
+			}
+		},
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 
 		/*
-		 * Native buttons are programmed to handle both space and enter, but they're
-		 * each handled via different event handlers.
-		 *
-		 * 99% of the time, you shouldn't be able to tell the difference, but one
-		 * edge case behavior is that holding down Enter will continually fire
-		 * events, while holding down Space won't fire anything until you let go.
+		 * Mirrors native buttons: Enter activates on keydown (repeats while held),
+		 * Space on keyup. Keys typed into descendants, including portaled dialogs,
+		 * must not activate it.
 		 */
 		onKeyDown: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === "Enter") {
 				ref.current?.click();
 				event.stopPropagation();
 			}
 		},
 		onKeyUp: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === " ") {
 				ref.current?.click();
 				event.stopPropagation();

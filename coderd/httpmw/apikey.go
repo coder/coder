@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -130,6 +131,16 @@ func (c *OAuth2Configs) IsZero() bool {
 const (
 	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
 	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
+
+	// accessTokenQueryParam is the RFC 6750 query parameter name.
+	accessTokenQueryParam = "access_token"
+	// bearerPrefix is compared case-insensitively per RFC 6750.
+	bearerPrefix = "bearer "
+
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryMessage = "OAuth2 access token in the URL query string was ignored."
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryDetail = "OAuth 2.1 section 5.1 requires resource servers to ignore access tokens in the URL query string. Send the token in the Authorization header as a bearer token."
 )
 
 type ExtractAPIKeyConfig struct {
@@ -233,6 +244,7 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 // request. It performs all security-critical checks:
 //   - Token extraction and parsing
 //   - Database lookup + secret hash validation
+//   - Refusal of OAuth2 provider tokens sent only in the URL query string
 //   - Expiry check
 //   - OIDC/OAuth token refresh (if applicable)
 //   - API key LastUsed / ExpiresAt DB updates
@@ -248,7 +260,7 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
-	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
 	}
@@ -492,8 +504,10 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	}, nil
 }
 
-func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
-	key, valErr := apiKeyFromRequestValidate(ctx, db, sessionTokenFunc, r)
+// APIKeyFromRequest returns the API key that authenticates r, or the error
+// response for the caller to write.
+func APIKeyFromRequest(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+	key, valErr := apiKeyFromRequestValidate(ctx, db, logger, sessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr.Response, false
 	}
@@ -501,7 +515,7 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 	return key, codersdk.Response{}, true
 }
 
-func apiKeyFromRequestValidate(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
+func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
 		tokenFunc = sessionTokenFunc
@@ -559,6 +573,33 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, sessionTo
 			Response: codersdk.Response{
 				Message: SignedOutErrorMessage,
 				Detail:  "API key secret is invalid.",
+			},
+		}
+	}
+
+	// OAuth 2.1 section 5.1 requires resource servers to ignore access tokens
+	// in the URL query string. Coder session tokens still work in the query
+	// string because browsers cannot set headers on WebSocket connections.
+	if key.LoginType == database.LoginTypeOAuth2ProviderApp && tokenOnlyInQuery(r, token) {
+		fields := []slog.Field{
+			slog.F("api_key_id", key.ID),
+			slog.F("user_id", key.UserID),
+			slog.F("path", r.URL.Path),
+			slog.F("remote_addr", r.RemoteAddr),
+			slog.F("user_agent", r.UserAgent()),
+		}
+		// The app ID is what the admin pages list, so include it when the
+		// token row can be found.
+		//nolint:gocritic // OAuth2 system context, only used to name the app in the log.
+		if appToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID); err == nil {
+			fields = append(fields, slog.F("app_id", appToken.AppID))
+		}
+		logger.Warn(ctx, "oauth2 access token ignored: sent in the URL query string", fields...)
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: oauth2TokenInQueryMessage,
+				Detail:  oauth2TokenInQueryDetail,
 			},
 		}
 	}
@@ -857,6 +898,11 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 	switch code {
 	case http.StatusUnauthorized:
 		switch {
+		case response.Message == oauth2TokenInQueryMessage:
+			// The query token was ignored, so the request carried no usable
+			// credentials. RFC 6750 section 3 says not to include an error
+			// code in that case.
+			return fmt.Sprintf(`Bearer realm="coder", resource_metadata=%q`, resourceMetadata)
 		case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
 			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token has expired", resource_metadata=%q`, resourceMetadata)
 		case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
@@ -934,6 +980,9 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 // 4. RFC 6750 Authorization: Bearer header
 // 5. RFC 6750 access_token query parameter
 //
+// apiKeyFromRequestValidate refuses OAuth2 provider tokens found only in the
+// coder_session_token or access_token query parameter.
+//
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
 	// Prioritize existing Coder custom authentication methods first
@@ -955,20 +1004,49 @@ func APITokenFromRequest(r *http.Request) string {
 	}
 
 	// RFC 6750 Bearer Token support (added as fallback methods)
-	// Check Authorization: Bearer <token> header (case-insensitive per RFC 6750)
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
-		// Skip "Bearer " (7 characters) and trim surrounding whitespace
-		return strings.TrimSpace(authHeader[7:])
+	if bearer := bearerToken(r); bearer != "" {
+		return bearer
 	}
 
 	// Check access_token query parameter
-	accessToken := r.URL.Query().Get("access_token")
+	accessToken := r.URL.Query().Get(accessTokenQueryParam)
 	if accessToken != "" {
 		return strings.TrimSpace(accessToken)
 	}
 
 	return ""
+}
+
+// bearerToken returns the trimmed token from an Authorization: Bearer header,
+// or an empty string when the header is absent or uses another scheme.
+func bearerToken(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len(bearerPrefix):])
+}
+
+// tokenOnlyInQuery reports whether token is in the coder_session_token or
+// access_token query parameter and not in the session cookie, the
+// Coder-Session-Token header, or the Authorization: Bearer header.
+func tokenOnlyInQuery(r *http.Request, token string) bool {
+	query := r.URL.Query()
+	// APITokenFromRequest trims the query value, so compare trimmed values.
+	matches := func(value string) bool { return strings.TrimSpace(value) == token }
+	inQuery := slices.ContainsFunc(query[codersdk.SessionTokenCookie], matches) ||
+		slices.ContainsFunc(query[accessTokenQueryParam], matches)
+	if !inQuery {
+		return false
+	}
+
+	if cookie, err := r.Cookie(codersdk.SessionTokenCookie); err == nil && cookie.Value == token {
+		return false
+	}
+	if r.Header.Get(codersdk.SessionTokenHeader) == token {
+		return false
+	}
+	return bearerToken(r) != token
 }
 
 // SplitAPIToken verifies the format of an API key and returns the split ID and

@@ -1,5 +1,5 @@
 import { KeyIcon } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import type { AuthMethods } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -10,7 +10,7 @@ type OAuthSignInFormProps = {
 	authMethods?: AuthMethods;
 };
 
-export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
+export const OAuthSignInForm: React.FC<OAuthSignInFormProps> = ({
 	isSigningIn,
 	redirectTo,
 	authMethods,
@@ -68,7 +68,7 @@ type OidcIconProps = {
 	iconUrl: string;
 };
 
-const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
+const OidcIcon: React.FC<OidcIconProps> = ({ iconUrl }) => {
 	const hookId = useId();
 	const oidcId = `${hookId}-oidc`;
 

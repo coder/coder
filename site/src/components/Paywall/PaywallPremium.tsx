@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import {
 	PaywallCTALink,
@@ -16,7 +15,7 @@ import {
 
 const DEFAULT_HERO_SUBTITLE = "Start an unlimited 30-day trial today";
 
-const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
+const PaywallPremiumHeader: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -24,7 +23,7 @@ const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"relative isolate overflow-hidden rounded-lg py-12 mb-8",
+				"relative isolate overflow-hidden rounded py-12 mb-8",
 				"flex flex-col items-center justify-center px-6 text-center",
 				className,
 			)}
@@ -35,7 +34,7 @@ const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-const PaywallPremiumContent: FC<React.ComponentProps<"div">> = ({
+const PaywallPremiumContent: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -62,7 +61,7 @@ const PaywallPremium = ({
 	return (
 		<div
 			className={cn(
-				"rounded-lg border border-solid border-border-default bg-surface-primary p-2",
+				"rounded-xl border border-solid border-border-default bg-surface-primary p-2",
 				className,
 			)}
 			{...props}

@@ -1,13 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { defaultUrlTransform } from "streamdown";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import { MockChatAutomation } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
+import {
+	MockStoppingWorkspace,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceAgentLogs,
+	MockWorkspaceBuild,
+	MockWorkspaceBuildLogs,
+} from "#/testHelpers/entities";
+import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
@@ -28,9 +38,15 @@ const meta: Meta<typeof Tool> = {
 	component: Tool,
 	args: {
 		organizationId: MockChatModel.organization_id,
+		mcpServers: [],
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -166,6 +182,14 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 			started: true,
 			workspace_name: "agent-icons",
 			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "stop_workspace",
+		result: {
+			stopped: true,
+			workspace_name: "agent-icons",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
 	},
@@ -2044,6 +2068,44 @@ export const AttachFileLabelFallsBackToPathBasename: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// manage_automations stories
+// ---------------------------------------------------------------------------
+
+export const ManageAutomationsCreated: Story = {
+	args: {
+		name: "manage_automations",
+		status: "completed",
+		args: {
+			action: "create",
+			name: MockChatAutomation.name,
+			kind: MockChatAutomation.kind,
+			target_mode: MockChatAutomation.target_mode,
+		},
+		result: { automation: MockChatAutomation },
+	},
+};
+
+export const ManageAutomationsFailed: Story = {
+	args: {
+		name: "manage_automations",
+		status: "error",
+		isError: true,
+		args: { action: "run_now", automation_id: MockChatAutomation.id },
+		result: {
+			error: "the automation is disabled: enable it before running it",
+		},
+	},
+};
+
+export const ManageAutomationsRunning: Story = {
+	args: {
+		name: "manage_automations",
+		status: "running",
+		args: { action: "list" },
+	},
+};
+
+// ---------------------------------------------------------------------------
 // Tool failure display stories
 // ---------------------------------------------------------------------------
 
@@ -2529,6 +2591,251 @@ export const StartWorkspaceQuotaReached: Story = {
 	},
 };
 
+export const StartWorkspaceAgentLogsStreaming: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+			"/workspaceagents/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						...MockWorkspaceAgentLogs,
+						{
+							...MockWorkspaceAgentLogs[0],
+							id: 900001,
+							output: "\u001b[32m✔\u001b[0m code-server installed",
+						},
+						{
+							...MockWorkspaceAgentLogs[0],
+							id: 900002,
+							output: "Downloading  10%\rDownloading  60%\rDownloading 100%",
+						},
+					]),
+				},
+			],
+		},
+	},
+};
+
+export const StartWorkspaceAgentNotInLatestBuild: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: "agent-from-previous-build",
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+		},
+	},
+};
+
+export const StartWorkspaceAgentNoLogs: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+			"/workspaceagents/": [],
+		},
+	},
+};
+
+export const StartWorkspaceCompletedWithAgentLogs: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: MockWorkspace.name,
+			agent_status: "ready",
+			build_id: MockWorkspace.latest_build.id,
+		},
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [
+			{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace },
+			{
+				key: workspaceBuildLogs(MockWorkspace.latest_build.id).queryKey,
+				data: MockWorkspaceBuildLogs,
+			},
+		],
+		webSocket: {
+			"/workspaceagents/": [
+				{ event: "message", data: JSON.stringify(MockWorkspaceAgentLogs) },
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: `Started ${MockWorkspace.name}` }),
+		);
+		await canvas.findByRole("region", { name: "Workspace agent startup log" });
+	},
+};
+
+// ---------------------------------------------------------------------------
+// stop_workspace stories
+// ---------------------------------------------------------------------------
+
+export const StopWorkspaceRunning: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: MockStoppingWorkspace.id }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const StopWorkspaceCompleted: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			stopped: true,
+			workspace_name: "my-project",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+					.queryKey,
+				data: MockWorkspaceBuildLogs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Stopped my-project" }),
+		);
+	},
+};
+
+export const StopWorkspaceAlreadyStopped: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			stopped: true,
+			workspace_name: "my-project",
+			no_build: true,
+		},
+	},
+};
+
+export const StopWorkspaceError: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "workspace was deleted; use create_workspace to make a new one",
+		},
+	},
+};
+
+export const StopWorkspaceBuildFailed: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			error: "workspace stop build failed: terraform destroy failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+					.queryKey,
+				data: [],
+			},
+		],
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -2677,19 +2984,31 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						organizationId="organization-id"
+						mcpServers={[]}
+						urlTransform={defaultUrlTransform}
+						isStreaming={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						hasUserResponseAfterAskQuestion={false}
+						onImageClick={fn()}
+						onTextFileClick={fn()}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
 							name={tool.name}
+							organizationId="organization-id"
+							mcpServers={[]}
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
+							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
 							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
-							subagentVariants={tool.subagentVariants}
+							subagentTitles={new Map()}
+							subagentVariants={tool.subagentVariants ?? new Map()}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -2755,14 +3074,17 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 						>
 							<Tool
 								name={tool.name}
+								organizationId="organization-id"
+								mcpServers={[]}
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}
-								isError={tool.isError}
+								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
-								subagentVariants={tool.subagentVariants}
+								subagentTitles={new Map()}
+								subagentVariants={tool.subagentVariants ?? new Map()}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

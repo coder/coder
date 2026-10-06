@@ -117,4 +117,35 @@ describe("buildChatInputContent", () => {
 			hasContent: true,
 		});
 	});
+
+	it("appends workspace file references after attachments", () => {
+		expect(
+			buildChatInputContent({
+				message: "",
+				attachments: [{ fileId: "file-1", mediaType: "image/png" }],
+				workspaceUploads: [
+					{
+						path: "/home/coder/uploads/data.zip",
+						name: "data.zip",
+						size: 42,
+						mediaType: "",
+						workspaceId: "ws-1",
+					},
+				],
+			}),
+		).toEqual({
+			content: [
+				{ type: "file", file_id: "file-1" },
+				{
+					type: "workspace-file-reference",
+					workspace_file_path: "/home/coder/uploads/data.zip",
+					workspace_file_name: "data.zip",
+					workspace_file_size: 42,
+					workspace_file_media_type: "application/octet-stream",
+					workspace_file_workspace_id: "ws-1",
+				},
+			],
+			hasContent: true,
+		});
+	});
 });

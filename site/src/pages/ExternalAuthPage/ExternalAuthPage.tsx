@@ -1,5 +1,4 @@
 import { isAxiosError } from "axios";
-import type { FC } from "react";
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
@@ -19,7 +18,7 @@ import { Welcome } from "#/components/Welcome/Welcome";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
-const ExternalAuthPage: FC = () => {
+const ExternalAuthPage: React.FC = () => {
 	const { provider } = useParams() as { provider: string };
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
