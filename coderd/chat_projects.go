@@ -36,7 +36,7 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsByOwnerID(ctx, apiKey.UserID)
+	projects, err := api.Database.GetChatProjectsAccessibleByUserID(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",

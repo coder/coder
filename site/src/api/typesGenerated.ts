@@ -778,6 +778,7 @@ export type APIKeyScope =
 	| "chat_project_memory:delete"
 	| "chat_project_memory:read"
 	| "chat_project:read"
+	| "chat_project:share"
 	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
@@ -1039,6 +1040,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:delete",
 	"chat_project_memory:read",
 	"chat_project:read",
+	"chat_project:share",
 	"chat_project:update",
 	"chat:read",
 	"chat:share",
@@ -3588,6 +3590,22 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectACL lists who a chat project is shared with. Sharing with the
+ * whole organization is a group entry for the organization's Everyone
+ * group, whose ID is the organization ID.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectUser[];
+	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+export interface ChatProjectGroup extends Group {
+	readonly role: ChatProjectRole;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3600,6 +3618,16 @@ export interface ChatProjectMemory {
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "admin" | "" | "use";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+export interface ChatProjectUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -10829,6 +10857,17 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectACL changes only the listed principals.
+ * ChatProjectRoleDeleted removes an entry. Use the organization ID as the
+ * group ID to share with the whole organization.
+ */
+export interface UpdateChatProjectACL {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
 }
 
 // From codersdk/chats.go
