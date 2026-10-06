@@ -82,8 +82,13 @@ type ChatProjectDialogProps = {
 	 * outlives the dialog.
 	 */
 	readonly error: unknown;
-	/** Receives all three fields, trimmed, including unchanged ones on edit. */
-	readonly onSubmit: (values: ChatProjectFormValues) => void;
+	/**
+	 * Receives all three fields, trimmed, including unchanged ones on edit.
+	 * Return the save's promise (for example from `mutateAsync`) so Save stays
+	 * disabled until it settles. A rejection is ignored here; report it
+	 * through `error`.
+	 */
+	readonly onSubmit: (values: ChatProjectFormValues) => unknown;
 };
 
 export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
@@ -120,7 +125,7 @@ type ChatProjectFormProps = {
 	readonly isSubmitting: boolean;
 	readonly error: unknown;
 	readonly onCancel: () => void;
-	readonly onSubmit: (values: ChatProjectFormValues) => void;
+	readonly onSubmit: ChatProjectDialogProps["onSubmit"];
 };
 
 const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
@@ -138,7 +143,15 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		},
 		validateOnMount: true,
 		validationSchema,
-		onSubmit: (values) => onSubmit(trimValues(values)),
+		// Formik keeps isSubmitting set until this settles, so a second click
+		// cannot submit again before the caller's isSubmitting turns on.
+		onSubmit: async (values) => {
+			try {
+				await onSubmit(trimValues(values));
+			} catch {
+				// The caller shows the failure through the error prop.
+			}
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
 	const nameField = getFieldHelpers("name", {
@@ -154,9 +167,10 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 		measureLength,
 	});
 	const isUnchanged = isUnchangedEdit(project, form.values, form.initialValues);
-	const canSave = form.isValid && !isUnchanged && !isSubmitting;
+	const isSaving = isSubmitting || form.isSubmitting;
+	const canSave = form.isValid && !isUnchanged && !isSaving;
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-		if (isSubmitting || isUnchanged) {
+		if (isSaving || isUnchanged) {
 			event.preventDefault();
 			return;
 		}
@@ -211,7 +225,7 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 						Cancel
 					</Button>
 					<Button type="submit" disabled={!canSave}>
-						<Spinner loading={isSubmitting} />
+						<Spinner loading={isSaving} />
 						Save
 					</Button>
 				</DialogFooter>
