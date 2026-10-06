@@ -111,6 +111,11 @@ const Wrapper: React.FC<WrapperProps> = ({
 	);
 };
 
+const ProjectLocationProbe: React.FC = () => {
+	const location = useLocation();
+	return <div data-testid="location-pathname">{location.pathname}</div>;
+};
+
 const defaultSidebarFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
@@ -279,13 +284,17 @@ describe("ChatsSidebar projects", () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		let requestOrganizationID: string | undefined;
+		let isProjectCreated = false;
 		server.use(
-			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(isProjectCreated ? [MockChatProject] : []),
+			),
 			http.post(
 				"/api/experimental/organizations/:organizationId/chats/projects",
 				async ({ request, params }) => {
 					requestOrganizationID = String(params.organizationId);
 					requestBody = await request.json();
+					isProjectCreated = true;
 					return HttpResponse.json(MockChatProject);
 				},
 			),
@@ -294,6 +303,7 @@ describe("ChatsSidebar projects", () => {
 		render(
 			<Wrapper experiments={["chat-projects"]}>
 				<ChatsSidebar {...defaultProps} chats={[]} />
+				<ProjectLocationProbe />
 			</Wrapper>,
 		);
 
@@ -319,6 +329,14 @@ describe("ChatsSidebar projects", () => {
 				icon: "",
 			});
 		});
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
+				`/agents/projects/${MockChatProject.id}`,
+			),
+		);
+		expect(
+			await screen.findByRole("link", { name: MockChatProject.name }),
+		).toHaveAttribute("aria-current", "page");
 	});
 
 	it("uses the first accessible organization when no default is available", async () => {

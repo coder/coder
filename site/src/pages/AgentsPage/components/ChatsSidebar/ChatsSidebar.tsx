@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -17,6 +17,7 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
@@ -127,6 +128,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const chatProjectsEnabled =
 		experiments.includes("chat-projects") && organizationId !== undefined;
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const projectsQuery = useQuery({
 		...chatProjects(),
 		enabled: chatProjectsEnabled,
@@ -168,7 +170,15 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		if (organizationId) {
 			createProjectMutation.mutate(
 				{ organizationId, request: values },
-				{ onSuccess: closeProjectDialog },
+				{
+					onSuccess: (project) => {
+						closeProjectDialog();
+						navigate({
+							pathname: buildAgentProjectPath({ projectId: project.id }),
+							search: location.search,
+						});
+					},
+				},
 			);
 		}
 	};
