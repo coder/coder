@@ -289,7 +289,7 @@ export const OrganizationFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const filter = await canvas.findByRole("button", {
+		const filter = await canvas.findByRole("combobox", {
 			name: `Organization ${modelsOrganization.display_name}`,
 		});
 
@@ -325,7 +325,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 		// Switch to the other organization: the draft belongs to a hidden
 		// row, so the save actions must disappear.
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${modelsOrganization.display_name}`,
 			}),
 		);
@@ -353,7 +353,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 
 		// Switching back restores the hidden draft and its save action.
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		);
