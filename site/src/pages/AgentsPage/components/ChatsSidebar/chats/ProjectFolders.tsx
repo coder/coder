@@ -1,12 +1,7 @@
 import { cn } from "cn";
-import {
-	ChevronRightIcon,
-	EllipsisVerticalIcon,
-	PlusIcon,
-	SquarePenIcon,
-} from "lucide-react";
+import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink, type To, useLocation } from "react-router";
+import { NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -28,6 +23,7 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
@@ -235,7 +231,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									e.stopPropagation();
 								}}
 							>
-								<ProjectFolderMenuItems
+								<ProjectActionsMenuItems
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
@@ -247,7 +243,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent>
-					<ProjectFolderMenuItems
+					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
@@ -272,41 +268,3 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		</div>
 	);
 };
-
-type ProjectFolderMenuItem = typeof DropdownMenuItem | typeof ContextMenuItem;
-type ProjectFolderMenuSeparator =
-	| typeof DropdownMenuSeparator
-	| typeof ContextMenuSeparator;
-
-type ProjectFolderMenuItemsProps = {
-	readonly Item: ProjectFolderMenuItem;
-	readonly Separator: ProjectFolderMenuSeparator;
-	readonly projectPath: To;
-	readonly onEdit: () => void;
-	readonly onDelete: () => void;
-};
-
-const ProjectFolderMenuItems: React.FC<ProjectFolderMenuItemsProps> = ({
-	Item,
-	Separator,
-	projectPath,
-	onEdit,
-	onDelete,
-}) => (
-	<>
-		<Item asChild>
-			<Link to={projectPath}>
-				<SquarePenIcon />
-				New chat
-			</Link>
-		</Item>
-		<Separator />
-		<Item onSelect={onEdit}>Edit project</Item>
-		<Item
-			className="text-content-destructive focus:text-content-destructive"
-			onSelect={onDelete}
-		>
-			Delete project
-		</Item>
-	</>
-);

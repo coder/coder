@@ -76,13 +76,10 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		onCreateChat,
 		isCreating,
 		project,
-		header,
-		footer,
 	}: AgentCreateFormProps) => {
 		renderedProjects.push(project);
 		return (
 			<div>
-				{header}
 				<button
 					type="button"
 					disabled={isCreating}
@@ -97,7 +94,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 				>
 					Create chat
 				</button>
-				{footer}
 			</div>
 		);
 	};

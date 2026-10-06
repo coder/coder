@@ -56,6 +56,7 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
 import {
 	chatProjectDescriptionMaxChars,
 	chatProjectNameMaxChars,
@@ -268,7 +269,14 @@ const defaultQueries = [
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
-	decorators: [withDashboardProvider],
+	decorators: [
+		(Story) => (
+			<AgentCreateFormFrame>
+				<Story />
+			</AgentCreateFormFrame>
+		),
+		withDashboardProvider,
+	],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,
@@ -341,7 +349,9 @@ export const ProjectComposer: Story = {
 			...MockChatProject,
 			organization_id: MockDefaultOrganization.id,
 		},
-		header: (
+	},
+	render: (args) => (
+		<div className="flex flex-col gap-2">
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
@@ -349,8 +359,9 @@ export const ProjectComposer: Story = {
 					description: "d".repeat(chatProjectDescriptionMaxChars),
 				}}
 			/>
-		),
-	},
+			<AgentCreateForm {...args} />
+		</div>
+	),
 };
 
 export const ProjectComposerOrganizationDenied: Story = {
@@ -361,8 +372,13 @@ export const ProjectComposerOrganizationDenied: Story = {
 	},
 	args: {
 		project: { ...MockChatProject, organization_id: MockOrganization2.id },
-		header: <ProjectComposerHeader project={MockChatProject} />,
 	},
+	render: (args) => (
+		<div className="flex flex-col gap-2">
+			<ProjectComposerHeader project={MockChatProject} />
+			<AgentCreateForm {...args} />
+		</div>
+	),
 	beforeEach: () => {
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: true,
@@ -375,8 +391,8 @@ export const ProjectComposerUnlistedOrganizationDenied: Story = {
 	parameters: ProjectComposerOrganizationDenied.parameters,
 	args: {
 		project: { ...MockChatProject, organization_id: "unlisted-organization" },
-		header: <ProjectComposerHeader project={MockChatProject} />,
 	},
+	render: ProjectComposerOrganizationDenied.render,
 	beforeEach: () => {
 		mockPermittedOrganizations({ [MockDefaultOrganization.id]: true });
 	},
@@ -388,12 +404,14 @@ export const ProjectComposerProductDenied: Story = {
 		...ProjectComposerOrganizationDenied.args,
 		canCreateChat: false,
 	},
+	render: ProjectComposerOrganizationDenied.render,
 	beforeEach: ProjectComposerOrganizationDenied.beforeEach,
 };
 
 export const ProjectComposerNoOrganizationPermitted: Story = {
 	parameters: ProjectComposerOrganizationDenied.parameters,
 	args: ProjectComposerOrganizationDenied.args,
+	render: ProjectComposerOrganizationDenied.render,
 	beforeEach: () => {
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: false,

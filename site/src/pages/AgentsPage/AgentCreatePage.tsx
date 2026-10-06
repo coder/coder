@@ -38,6 +38,7 @@ import {
 	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
+import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { ProjectComposerFooter } from "./components/ProjectComposerFooter";
@@ -399,6 +400,30 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		}
 	};
 
+	const form = (
+		<AgentCreateForm
+			key={
+				debugPrefill
+					? debugBuildId
+					: linkPrompt
+						? `prompt:${linkPrompt}`
+						: "draft"
+			}
+			project={project}
+			onCreateChat={handleCreateChat}
+			isCreating={createMutation.isPending}
+			createError={createMutation.error}
+			canCreateChat={permissions.createChat}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			aiGatewayDisabled={aiGatewayDisabled}
+			workspaceCount={workspacesQuery.data?.count}
+			workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+			workspacesError={workspacesQuery.error}
+			isWorkspacesLoading={workspacesQuery.isLoading}
+			prefill={prefill}
+		/>
+	);
+
 	return (
 		<>
 			<AgentPageHeader
@@ -450,29 +475,17 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
-				<AgentCreateForm
-					key={
-						debugPrefill
-							? debugBuildId
-							: linkPrompt
-								? `prompt:${linkPrompt}`
-								: "draft"
-					}
-					project={project}
-					header={project && <ProjectComposerHeader project={project} />}
-					footer={project && <ProjectComposerFooter project={project} />}
-					onCreateChat={handleCreateChat}
-					isCreating={createMutation.isPending}
-					createError={createMutation.error}
-					canCreateChat={permissions.createChat}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					aiGatewayDisabled={aiGatewayDisabled}
-					workspaceCount={workspacesQuery.data?.count}
-					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-					workspacesError={workspacesQuery.error}
-					isWorkspacesLoading={workspacesQuery.isLoading}
-					prefill={prefill}
-				/>
+				<AgentCreateFormFrame>
+					{project ? (
+						<div className="flex flex-col gap-2">
+							<ProjectComposerHeader project={project} />
+							{form}
+							<ProjectComposerFooter project={project} />
+						</div>
+					) : (
+						form
+					)}
+				</AgentCreateFormFrame>
 			)}
 		</>
 	);
