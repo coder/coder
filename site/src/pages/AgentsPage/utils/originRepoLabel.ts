@@ -1,34 +1,25 @@
-// The repository an origin names, such as "coder/coder" from
-// "https://github.com/coder/coder.git". Falls back to the raw
-// origin when the URL carries no owner/repo path.
-export const originRepoLabel = (remoteOrigin: string | undefined): string => {
-	if (!remoteOrigin) {
-		return "";
-	}
-
+// The repository path an origin names, such as "coder/coder" from
+// "https://github.com/coder/coder.git".
+export const originRepoLabel = (origin: string): string => {
 	let path: string;
 	try {
-		path = new URL(remoteOrigin).pathname;
+		path = new URL(origin).pathname;
 	} catch {
-		// Not a URL. An scp-style remote such as
-		// "git@github.com:coder/coder.git" separates the host from
-		// the path with a colon, so treat it like a slash.
-		path = remoteOrigin.replaceAll(":", "/");
+		// An scp-style remote such as "git@github.com:coder/coder.git"
+		// is not a URL. Its path follows the colon.
+		path = origin.slice(origin.indexOf(":") + 1);
 	}
 
-	const segments = path
-		.split("/")
-		.filter(Boolean)
-		.map((segment) =>
-			segment.endsWith(".git") ? segment.slice(0, -4) : segment,
-		);
+	// A URL path starts with a slash, and an origin can end with one.
+	// Dropping empty segments removes both from the label.
+	let repoPath = path.split("/").filter(Boolean).join("/");
 
-	const owner = segments.at(-2);
-	const repo = segments.at(-1);
-
-	if (owner && repo) {
-		return `${owner}/${repo}`;
+	// Clone URLs often end in ".git", but the repository name does not
+	// include it.
+	if (repoPath.endsWith(".git")) {
+		repoPath = repoPath.slice(0, -".git".length);
 	}
 
-	return remoteOrigin;
+	// A host-only origin has no path, so show the origin itself.
+	return repoPath || origin;
 };

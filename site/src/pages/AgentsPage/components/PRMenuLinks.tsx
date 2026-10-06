@@ -22,7 +22,10 @@ export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({ prStatuses }) => {
 
 	return prStatuses.map((status) => {
 		const config = getPRIconConfig(status);
-		const repo = hasMultipleOrigins && originRepoLabel(status.remote_origin);
+		const repo =
+			hasMultipleOrigins &&
+			status.remote_origin &&
+			originRepoLabel(status.remote_origin);
 		const number = prNumber(status);
 		const title = status.pull_request_title.trim();
 

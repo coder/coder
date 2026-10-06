@@ -235,10 +235,10 @@ const buildRemoteItem = (
 	const draft = status.pull_request_draft;
 	// head_branch falls back for legacy rows that predate git_branch.
 	const branchName = status.git_branch || status.head_branch;
-	const originLabel = hasMultipleOrigins
-		? originRepoLabel(status.remote_origin)
-		: undefined;
-	const originPrefix = originLabel ? `${originLabel} · ` : "";
+	const originPrefix =
+		hasMultipleOrigins && status.remote_origin
+			? `${originRepoLabel(status.remote_origin)} · `
+			: "";
 	if (prNumber) {
 		return {
 			kind: "remote",
