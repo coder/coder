@@ -780,7 +780,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -911,6 +911,12 @@ lint/actions/zizmor:
 lint/mise-versions:
 	./scripts/check_mise_versions.sh
 .PHONY: lint/mise-versions
+
+# Fails when the docs-gen filter in .github/workflows/ci.yaml misses a docs
+# file make gen writes.
+lint/docs-gen-filter:
+	go run ./scripts/docsgenfiltercheck $(GEN_FILES)
+.PHONY: lint/docs-gen-filter
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -1114,7 +1120,10 @@ GEN_FILES := \
 	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 	$(AIBRIDGED_MOCKS)
 
-# all gen targets should be added here and to gen/mark-fresh
+# all gen targets should be added here and to gen/mark-fresh. Generated files
+# and inputs under any path in the docs filter in .github/workflows/ci.yaml
+# must also match its docs-gen filter, or CI skips gen for docs-only PRs that
+# edit them. lint/docs-gen-filter checks generated files but not inputs.
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
 # start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=

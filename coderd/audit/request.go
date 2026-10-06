@@ -155,6 +155,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.ID.String()[:8]
 	case database.ChatProject:
 		return typed.Name
+	case database.ChatProjectMemory:
+		return typed.Name
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
 	case database.ChatAutomation:
@@ -170,6 +172,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.ChatInstructionSettings:
 		return typed.Name
 	case database.ChatOperationalSettings:
+		return ""
+	case database.ChatOrganizationSystemPrompt:
 		return ""
 	case database.ExperimentRule:
 		return typed.Experiment
@@ -270,6 +274,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatProject:
 		return typed.ID
+	case database.ChatProjectMemory:
+		return typed.ID
 	case database.ChatModelConfig:
 		return typed.ID
 	case database.ChatAutomation:
@@ -285,6 +291,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatOperationalSettings:
 		return typed.ID
+	case database.ChatOrganizationSystemPrompt:
+		return typed.OrganizationID
 	case database.ExperimentRule:
 		// Derived from the experiment name by experiments.AuditRecord.
 		return typed.ID
@@ -359,6 +367,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChat
 	case database.ChatProject:
 		return database.ResourceTypeChatProject
+	case database.ChatProjectMemory:
+		return database.ResourceTypeChatProjectMemory
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
 	case database.ChatAutomation:
@@ -373,6 +383,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
 		return database.ResourceTypeChatOperationalSettings
+	case database.ChatOrganizationSystemPrompt:
+		return database.ResourceTypeChatOrganizationSystemPrompt
 	case database.ExperimentRule:
 		return database.ResourceTypeExperimentRule
 	default:
@@ -459,6 +471,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.ChatProject:
 		return true
+	case database.ChatProjectMemory:
+		return true
 	case database.ChatModelConfig:
 		return true
 	case database.ChatAutomation:
@@ -477,6 +491,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.ChatOperationalSettings:
 		return false
+	case database.ChatOrganizationSystemPrompt:
+		return true
 	case database.ExperimentRule:
 		// Deployment settings, not scoped to any organization.
 		return false

@@ -1936,6 +1936,24 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
+func TestMemoryInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"chat instruction",
+		nil,
+		"<memory>\n- release: Release process\n</memory>",
+		"user prompt",
+		systemPromptBehaviorContext{},
+	)
+	text := systemPromptText(t, prompt)
+	memoryIndex := strings.Index(text, "<memory>")
+	require.Greater(t, memoryIndex, strings.Index(text, "chat instruction"))
+	require.Less(t, memoryIndex, strings.Index(text, "user prompt"))
+}
+
 func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -1951,6 +1969,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 		),
+		"",
 		"",
 		systemPromptBehaviorContext{},
 	)
@@ -1981,6 +2000,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 		"",
 		"",
 		resolved,
+		"",
 		"",
 		systemPromptBehaviorContext{},
 	)
