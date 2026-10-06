@@ -26,7 +26,7 @@ const baseArgs: InstructionsPageViewProps = {
 		plan_mode_instructions:
 			"Use a numbered checklist for implementation plans.",
 	},
-	deploymentInstructionsLoadError: null,
+	deploymentInstructionsError: null,
 	onSaveSystemPrompt: fn(async () => undefined),
 	onSavePlanModeInstructions: fn(async () => undefined),
 	onResetSystemPromptSave: fn(),
@@ -446,7 +446,7 @@ const RefetchPromptWrapper: React.FC = () => {
 				Simulate system prompt refetch
 			</button>
 			<InstructionsPageView
-				canEditDeploymentConfig
+				{...baseArgs}
 				systemPromptData={{
 					system_prompt: systemPromptValue,
 					include_default_system_prompt: false,
@@ -455,7 +455,6 @@ const RefetchPromptWrapper: React.FC = () => {
 				planModeInstructionsData={{
 					plan_mode_instructions: "Baseline plan mode guidance.",
 				}}
-				deploymentInstructionsLoadError={null}
 				onSaveSystemPrompt={fn()}
 				onSavePlanModeInstructions={fn()}
 				onResetSystemPromptSave={fn()}
@@ -463,13 +462,6 @@ const RefetchPromptWrapper: React.FC = () => {
 				isSaving={false}
 				isSaveSystemPromptError={false}
 				isSavePlanModeInstructionsError={true}
-				organization={undefined}
-				organizations={[]}
-				onSelectOrganization={fn()}
-				requestedOrganizationDenied={false}
-				isOrganizationAccessLoading={false}
-				organizationAccessError={null}
-				organizationInstructions={null}
 			/>
 		</>
 	);
@@ -536,6 +528,14 @@ export const WithOrganizationInstructions: Story = {
 	parameters: pixelCapture,
 };
 
+export const SingleOrganization: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		organizations: [MockDefaultOrganization],
+	},
+	parameters: pixelCapture,
+};
+
 export const OrganizationInstructionsOnly: Story = {
 	args: { ...organizationInstructionsArgs, canEditDeploymentConfig: false },
 	parameters: pixelCapture,
@@ -554,8 +554,18 @@ export const DeploymentInstructionsLoadError: Story = {
 	args: {
 		...organizationInstructionsArgs,
 		systemPromptData: undefined,
-		deploymentInstructionsLoadError: mockApiError({
+		deploymentInstructionsError: mockApiError({
 			message: "Failed to load the deployment system prompt.",
+		}),
+	},
+	parameters: pixelCapture,
+};
+
+export const DeploymentInstructionsRefetchError: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		deploymentInstructionsError: mockApiError({
+			message: "Failed to refresh the deployment system prompt.",
 		}),
 	},
 	parameters: pixelCapture,

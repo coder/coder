@@ -29,11 +29,6 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-const mockSavedPrompts: Record<string, string> = {
-	[MockDefaultOrganization.id]: "Default organization guidance.",
-	[MockOrganization2.id]: "Second organization guidance.",
-};
-
 const mockInstructionsApi = ({
 	canEdit = true,
 	readableOrganizations = [MockDefaultOrganization, MockOrganization2],
@@ -50,7 +45,10 @@ const mockInstructionsApi = ({
 		API.experimental,
 		"getOrganizationChatSystemPrompt",
 	).mockImplementation(async (organizationId) => ({
-		system_prompt: mockSavedPrompts[organizationId] ?? "",
+		system_prompt:
+			organizationId === MockOrganization2.id
+				? "Second organization guidance."
+				: "Default organization guidance.",
 	}));
 	return vi
 		.spyOn(API.experimental, "updateOrganizationChatSystemPrompt")
@@ -65,21 +63,13 @@ const renderPage = () =>
 		),
 	);
 
-// Switching organizations remounts the field, so query it on every retry.
-const findInstructions = async (value: string) => {
-	const getField = () =>
-		screen.getByRole("textbox", { name: "Organization instructions" });
-	await waitFor(() => expect(getField()).toHaveValue(value));
-	return getField();
-};
-
 it("saves edits to the organization picked in the picker", async () => {
 	const updateSystemPrompt = mockInstructionsApi();
 	const user = userEvent.setup();
 	renderPage();
 
 	await user.type(
-		await findInstructions("Default organization guidance."),
+		await screen.findByDisplayValue("Default organization guidance."),
 		" Unsaved.",
 	);
 	await user.click(
@@ -91,7 +81,7 @@ it("saves edits to the organization picked in the picker", async () => {
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
 	await user.type(
-		await findInstructions("Second organization guidance."),
+		await screen.findByDisplayValue("Second organization guidance."),
 		" Edited.",
 	);
 	await user.click(screen.getByRole("button", { name: "Save" }));
@@ -122,7 +112,9 @@ it("keeps the instructions read-only for viewers", async () => {
 	const user = userEvent.setup();
 	renderPage();
 
-	const field = await findInstructions("Default organization guidance.");
+	const field = await screen.findByDisplayValue(
+		"Default organization guidance.",
+	);
 	await user.type(field, " Edited.");
 
 	expect(field).toHaveValue("Default organization guidance.");
@@ -134,17 +126,18 @@ it("keeps an unsaved edit when a background refetch fails", async () => {
 	const { queryClient } = renderPage();
 
 	await user.type(
-		await findInstructions("Default organization guidance."),
+		await screen.findByDisplayValue("Default organization guidance."),
 		" Edited.",
 	);
 	vi.mocked(API.experimental.getOrganizationChatSystemPrompt).mockRejectedValue(
 		new Error("prompt unavailable"),
 	);
-	const queryKey = organizationChatSystemPromptKey(MockDefaultOrganization.id);
-	await act(() => queryClient.invalidateQueries({ queryKey }));
-	await waitFor(() =>
-		expect(queryClient.getQueryState(queryKey)?.status).toBe("error"),
+	await act(() =>
+		queryClient.invalidateQueries({
+			queryKey: organizationChatSystemPromptKey(MockDefaultOrganization.id),
+		}),
 	);
+	await screen.findByText("prompt unavailable");
 
 	await user.click(screen.getByRole("button", { name: "Save" }));
 	await waitFor(() =>

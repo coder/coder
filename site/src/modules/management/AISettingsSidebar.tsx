@@ -3,7 +3,7 @@ import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
-import { instructionsOrganizations } from "#/pages/AISettingsPage/InstructionsPage/instructionsOrganizations";
+import { readableInstructionsOrganizations } from "#/pages/AISettingsPage/InstructionsPage/readableInstructionsOrganizations";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
@@ -36,7 +36,7 @@ export const AISettingsSidebar: React.FC = () => {
 			}
 			canShareOrganizationMCPServers={organizationMCPSharing.canShare}
 			canViewOrganizationInstructions={
-				instructionsOrganizations(
+				readableInstructionsOrganizations(
 					organizations,
 					accessibleOrgsQuery.permissionsByOrganization,
 				).length > 0

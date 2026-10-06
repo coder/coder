@@ -5,7 +5,7 @@ import type { OrganizationPermissions } from "#/modules/permissions/organization
  * Returns the organizations whose instructions the user can read, which
  * requires read access to the organization's chat model configurations.
  */
-export const instructionsOrganizations = (
+export const readableInstructionsOrganizations = (
 	organizations: readonly Organization[],
 	permissionsByOrganization:
 		| Readonly<Record<string, OrganizationPermissions | undefined>>

@@ -27,7 +27,7 @@ export type InstructionsPageViewProps = {
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
 		| undefined;
-	deploymentInstructionsLoadError: unknown;
+	deploymentInstructionsError: unknown;
 	onSaveSystemPrompt: (
 		req: TypesGen.UpdateChatSystemPromptRequest,
 	) => Promise<void> | void;
@@ -50,7 +50,7 @@ export type InstructionsPageViewProps = {
 
 export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 	canEditDeploymentConfig,
-	deploymentInstructionsLoadError,
+	deploymentInstructionsError,
 	organization,
 	organizations,
 	onSelectOrganization,
@@ -71,10 +71,10 @@ export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 		{canEditDeploymentConfig && (
 			<SettingsSection
 				title="Deployment instructions"
-				description="Apply to chats in every organization."
+				description="Added to chats in every organization."
 			>
 				<DeploymentInstructions
-					loadError={deploymentInstructionsLoadError}
+					error={deploymentInstructionsError}
 					{...formProps}
 				/>
 			</SettingsSection>
@@ -99,42 +99,41 @@ export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 	</div>
 );
 
-type DeploymentInstructionsProps = Omit<
-	InstructionsFormProps,
-	"systemPromptData" | "planModeInstructionsData"
+type DeploymentInstructionsProps = Pick<
+	InstructionsPageViewProps,
+	keyof InstructionsFormProps
 > & {
-	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
-	planModeInstructionsData:
-		| TypesGen.ChatPlanModeInstructionsResponse
-		| undefined;
-	loadError: unknown;
+	error: unknown;
 };
 
 const DeploymentInstructions: React.FC<DeploymentInstructionsProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
-	loadError,
+	error,
 	...formProps
 }) => {
-	if (loadError != null) {
-		return <ErrorAlert error={loadError} />;
-	}
-
 	// Without this gate, Formik would initialize from empty query fallbacks and
 	// keep those values after query data loads.
 	if (
 		systemPromptData === undefined ||
 		planModeInstructionsData === undefined
 	) {
-		return <Loader label="Loading deployment instructions" />;
+		return error != null ? (
+			<ErrorAlert error={error} />
+		) : (
+			<Loader label="Loading deployment instructions" />
+		);
 	}
 
 	return (
-		<InstructionsForm
-			systemPromptData={systemPromptData}
-			planModeInstructionsData={planModeInstructionsData}
-			{...formProps}
-		/>
+		<>
+			{error != null && <ErrorAlert error={error} />}
+			<InstructionsForm
+				systemPromptData={systemPromptData}
+				planModeInstructionsData={planModeInstructionsData}
+				{...formProps}
+			/>
+		</>
 	);
 };
 

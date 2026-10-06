@@ -17,8 +17,8 @@ import {
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { InstructionsPageView } from "./InstructionsPageView";
-import { instructionsOrganizations } from "./instructionsOrganizations";
 import { OrganizationInstructions } from "./OrganizationInstructions";
+import { readableInstructionsOrganizations } from "./readableInstructionsOrganizations";
 
 const InstructionsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
@@ -30,7 +30,7 @@ const InstructionsPage: React.FC = () => {
 			organizations.map((organization) => organization.id),
 		),
 	);
-	const readableOrganizations = instructionsOrganizations(
+	const readableOrganizations = readableInstructionsOrganizations(
 		organizations,
 		organizationPermissionsQuery.data,
 	);
@@ -73,9 +73,8 @@ const InstructionsPage: React.FC = () => {
 				canEditDeploymentConfig={permissions.editDeploymentConfig}
 				systemPromptData={systemPromptQuery.data}
 				planModeInstructionsData={planModeInstructionsQuery.data}
-				deploymentInstructionsLoadError={
-					splitModelQueryErrors(systemPromptQuery, planModeInstructionsQuery)
-						.loadError
+				deploymentInstructionsError={
+					systemPromptQuery.error ?? planModeInstructionsQuery.error
 				}
 				onSaveSystemPrompt={saveSystemPromptMutation.mutateAsync}
 				onSavePlanModeInstructions={
