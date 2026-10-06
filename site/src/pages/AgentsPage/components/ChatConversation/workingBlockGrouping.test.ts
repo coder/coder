@@ -107,6 +107,7 @@ const group = (
 	const entries = parseMessagesWithMergedTools(messages);
 	const hasLive = options.isTurnActive ?? false;
 	const rows = assignTimelineRows(buildDisplayMessages(entries), hasLive);
+
 	return {
 		rows,
 		blocks: groupWorkingBlocks(rows, entries, {
@@ -173,6 +174,7 @@ describe("groupWorkingBlocks", () => {
 		const thinking = message("assistant", [reasoning("Just thinking", at(1))]);
 		const answer = message("assistant", [text("Done.")], at(2));
 		const { blocks } = group([prompt, thinking, answer]);
+
 		expect(blocks).toEqual([]);
 	});
 
@@ -277,89 +279,49 @@ describe("groupWorkingBlocks", () => {
 		});
 	});
 
-	it("splits blocks at a user message hidden from the rows", () => {
-		const first = user("One");
-		const firstSteps = step("a", 1, 2);
-		const hiddenPrompt = message(
+	it("keeps a context-only user message inside the turn", () => {
+		const prompt = user("Build it");
+		const createWorkspace = [
+			message("assistant", [call("w", at(1), "create_workspace")], at(1)),
+			message(
+				"tool",
+				[result("w", at(2), { name: "create_workspace" })],
+				at(2),
+			),
+		];
+		const contextFiles = message(
 			"user",
 			[{ type: "context-file", context_file_path: "/AGENTS.md" }],
-			at(10),
+			at(2),
 		);
-		const secondSteps = step("b", 11, 12);
-		const { rows, blocks } = group([
-			first,
-			...firstSteps,
-			hiddenPrompt,
-			...secondSteps,
-		]);
-
-		expect(rows).toHaveLength(3);
-		expect(blocks).toHaveLength(2);
-		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([firstSteps[0].id]);
-		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 2000);
-		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([secondSteps[0].id]);
-		expect(blocks[1].liveKey).toBe(`working:live:message:${hiddenPrompt.id}:0`);
-	});
-
-	it("stops the span at a hidden prompt when the next turn opens without a row", () => {
-		const prompt = user("Go");
-		const steps = step("a", 1, 2);
-		const hiddenPrompt = message(
-			"user",
-			[{ type: "context-file", context_file_path: "/AGENTS.md" }],
-			at(10),
-		);
-		// Provider-executed parts are timestamped but render nothing.
-		const search = message(
-			"assistant",
-			[
-				{
-					type: "tool-call",
-					tool_call_id: "s",
-					tool_name: "web_search",
-					provider_executed: true,
-					created_at: at(11),
-				},
-			],
-			at(11),
-		);
-		const searchResult = message(
-			"tool",
-			[
-				{
-					type: "tool-result",
-					tool_call_id: "s",
-					tool_name: "web_search",
-					provider_executed: true,
-					result: { output: "s" },
-					created_at: at(12),
-				},
-			],
-			at(12),
-		);
-		const answer = message("assistant", [text("Done.")], at(13));
+		const steps = [...step("a", 3, 4), ...step("b", 5, 6)];
+		const answer = message("assistant", [text("Done.")], at(7));
 		const { rows, blocks } = group([
 			prompt,
+			...createWorkspace,
+			contextFiles,
 			...steps,
-			hiddenPrompt,
-			search,
-			searchResult,
 			answer,
 		]);
 
-		expect(rowIds(rows, [0, 1, 2])).toEqual([
-			prompt.id,
-			steps[0].id,
-			answer.id,
-		]);
 		expect(blocks).toHaveLength(1);
-		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 2000);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			createWorkspace[0].id,
+			steps[0].id,
+			steps[2].id,
+		]);
+		expect(blocks[0]).toMatchObject({
+			stepCount: 3,
+			startedAt: WORKING_FIXTURE_START + 1000,
+			endedAt: WORKING_FIXTURE_START + 6000,
+		});
 	});
 
 	it("reports no duration when parts carry no timestamps", () => {
 		const prompt = user("Go");
 		const steps = [...step("a"), ...step("b")];
 		const { blocks } = group([prompt, ...steps]);
+
 		expect(blocks[0].startedAt).toBeUndefined();
 		expect(blocks[0].endedAt).toBeUndefined();
 		expect(blocks[0].stepCount).toBe(2);
@@ -396,16 +358,8 @@ describe("groupWorkingBlocks", () => {
 		const prompt = user("Go");
 		const steps = step("a", 1, 2);
 		const { blocks } = group([prompt, ...steps], { hasMoreMessages: true });
-		expect(blocks[0].isPartial).toBe(false);
 
-		const hiddenPrompt = message("user", [
-			{ type: "skill", skill_name: "review" },
-		]);
-		const afterHidden = group([hiddenPrompt, ...step("b", 3, 4)], {
-			hasMoreMessages: true,
-		});
-		expect(afterHidden.blocks).toHaveLength(1);
-		expect(afterHidden.blocks[0].isPartial).toBe(false);
+		expect(blocks[0].isPartial).toBe(false);
 	});
 
 	describe("live turns", () => {
@@ -415,6 +369,7 @@ describe("groupWorkingBlocks", () => {
 			options: Partial<GroupWorkingBlocksOptions> = {},
 		) => {
 			const { streamState, streamTools } = buildStreamRenderState(parts);
+
 			return group(messages, {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
@@ -445,26 +400,6 @@ describe("groupWorkingBlocks", () => {
 			});
 		});
 
-		it("starts a new live block after a user message hidden from the rows", () => {
-			const prompt = user("Go");
-			const steps = step("a", 1, 2);
-			const hiddenPrompt = message(
-				"user",
-				[{ type: "skill", skill_name: "review" }],
-				at(3),
-			);
-			const { rows, blocks } = groupLive(
-				[prompt, ...steps, hiddenPrompt],
-				[call("b", at(4))],
-			);
-
-			expect(blocks).toHaveLength(2);
-			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
-			expect(blocks[0].isLive).toBe(false);
-			expect(rowIds(rows, blocks[1].rowIndices)).toEqual(["live"]);
-			expect(blocks[1].key).toBe(`working:live:message:${hiddenPrompt.id}:0`);
-		});
-
 		it("keeps the block live while the final answer streams outside it", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
@@ -490,6 +425,7 @@ describe("groupWorkingBlocks", () => {
 
 		it("does not start a block from an idle live row", () => {
 			const { blocks } = groupLive([user("Go")], []);
+
 			expect(blocks).toEqual([]);
 		});
 
@@ -593,15 +529,18 @@ describe("groupWorkingBlocks", () => {
 			const running = groupLive(steps, [call("c", at(5))], {
 				hasMoreMessages: true,
 			});
+
 			expect(running.blocks[0]).toMatchObject({
 				isLive: true,
 				isPartial: true,
 				key: "working:live:head:0",
 				liveKey: "working:live:head:0",
 			});
+
 			const done = group([...steps, ...step("c", 5, 6)], {
 				hasMoreMessages: true,
 			});
+
 			expect(done.blocks[0].liveKey).toBe("working:live:head:0");
 			expect(done.blocks[0].isPartial).toBe(true);
 		});

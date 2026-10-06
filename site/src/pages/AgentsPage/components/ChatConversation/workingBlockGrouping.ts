@@ -7,16 +7,12 @@ import type {
 	StreamState,
 } from "./types";
 
-/**
- * A run of consecutive assistant step rows that the timeline can fold into
- * one "Worked for" disclosure.
- */
 export type WorkingBlock = {
-	/** Newest row's key, stable across paging; live blocks use liveKey. */
+	/** Follows the newest row, so prepending older history never changes it. */
 	key: string;
 	/**
-	 * Turn anchor plus position in the turn. Unchanged across the
-	 * live-to-complete handoff, so expansion recorded while live survives.
+	 * Unchanged across the live-to-complete handoff, so expansion recorded
+	 * while live survives.
 	 */
 	liveKey: string;
 	rowIndices: number[];
@@ -26,28 +22,21 @@ export type WorkingBlock = {
 	 * at the front when history is prepended into that row.
 	 */
 	memberIds: number[];
-	/** Distinct visible tools across the block. */
+	/** Distinct visible tools, not rows. */
 	stepCount: number;
 	failedCount: number;
-	/** The turn is still active and this block is where it is working. */
 	isLive: boolean;
-	/** Older history exists that may contain earlier rows of this block. */
+	/** Unloaded older history may hold earlier rows of this block. */
 	isPartial: boolean;
-	/** Earliest and latest part timestamps (epoch ms); absent when unknown. */
+	/** Epoch ms. */
 	startedAt?: number;
 	endedAt?: number;
 };
 
 export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
-	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
-	/**
-	 * Whether the live row may be folded into the block: the turn is
-	 * starting a step or streaming one. Retry, reconnect, and interrupt
-	 * callouts render inside the live row, so it must stay visible outside
-	 * any block in those phases.
-	 */
+	/** False while retry, reconnect, or interrupt callouts render in the row. */
 	isLiveRowCollapsible: boolean;
 	liveBlocks: readonly RenderBlock[];
 	liveTools: readonly MergedTool[];
@@ -80,10 +69,12 @@ const getStepRowContent = (
 	options: GroupWorkingBlocksOptions,
 ): RowContent | undefined => {
 	let content: RowContent;
+
 	if (row.type === "live") {
 		if (!options.isLiveRowCollapsible) {
 			return undefined;
 		}
+
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
 		if (content.visibleBlocks.length === 0) {
 			return content;
@@ -93,15 +84,19 @@ const getStepRowContent = (
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
 			return undefined;
 		}
+
 		content = getVisibleContent(parsed.blocks, parsed.tools);
 	}
+
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
 		return undefined;
 	}
+
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
 		return undefined;
 	}
+
 	// A tool still running while the turn is parked (requires_action) is
 	// waiting on a client, so it stays visible like a question.
 	if (
@@ -110,10 +105,12 @@ const getStepRowContent = (
 	) {
 		return undefined;
 	}
+
 	const last = visibleBlocks[visibleBlocks.length - 1];
 	if (last.type !== "tool" && last.type !== "thinking") {
 		return undefined;
 	}
+
 	return content;
 };
 
@@ -127,6 +124,7 @@ const getPartTimestamps = (entry: ParsedMessageEntry) =>
 		if (part.type === "reasoning") {
 			return [part.created_at, part.completed_at];
 		}
+
 		return part.type === "tool-call" || part.type === "tool-result"
 			? [part.created_at]
 			: [];
@@ -151,29 +149,13 @@ export const groupWorkingBlocks = (
 		ordinal: number;
 		containsLiveRow: boolean;
 	};
+
 	const drafts: Draft[] = [];
 	let current: Draft | undefined;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
-	// A user message made only of context files or skills has no row but
-	// still ends the turn before it.
-	const userMessageIds = entries
-		.filter((entry) => entry.message.role === "user")
-		.map((entry) => entry.message.id);
-	let lastMessageId = Number.NEGATIVE_INFINITY;
+
 	for (const [index, row] of rows.entries()) {
-		const ids = rowMessageIds(row);
-		const hiddenUserId = userMessageIds.find(
-			(id) => id > lastMessageId && ids.every((rowId) => id < rowId),
-		);
-		if (hiddenUserId !== undefined) {
-			current = undefined;
-			anchorKey = `message:${hiddenUserId}`;
-			ordinal = 0;
-		}
-		if (ids.length > 0) {
-			lastMessageId = Math.max(...ids);
-		}
 		const content = getStepRowContent(row, options);
 		if (!content) {
 			current = undefined;
@@ -183,6 +165,7 @@ export const groupWorkingBlocks = (
 			}
 			continue;
 		}
+
 		if (!current) {
 			// The stream opens empty before every step. That row extends a
 			// block that is already working but never starts one, so a turn's
@@ -190,6 +173,7 @@ export const groupWorkingBlocks = (
 			if (content.visibleBlocks.length === 0) {
 				continue;
 			}
+
 			current = {
 				rowIndices: [],
 				tools: new Map(),
@@ -200,8 +184,10 @@ export const groupWorkingBlocks = (
 			ordinal += 1;
 			drafts.push(current);
 		}
+
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
+
 		for (const tool of content.visibleTools) {
 			current.tools.set(tool.id, tool);
 		}
@@ -218,7 +204,7 @@ export const groupWorkingBlocks = (
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
 	);
-	const lastUserMessageId = Math.max(...userMessageIds);
+
 	const messageIdAfter = (lastRowIndex: number): number => {
 		for (let i = lastRowIndex + 1; i < rows.length; i++) {
 			const ids = rowMessageIds(rows[i]);
@@ -226,42 +212,54 @@ export const groupWorkingBlocks = (
 				return Math.min(...ids);
 			}
 		}
+
 		return Number.POSITIVE_INFINITY;
 	};
+
+	// Entries and blocks are both in ascending message ID order and block
+	// spans never overlap, so one cursor walks the entries once.
+	let entryIndex = 0;
 
 	return blockDrafts.map((draft) => {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
-		// The newest block is still working unless a prompt, visible or hidden,
-		// follows its last step.
-		const lastMemberId = Math.max(...memberIds);
+
 		const isLive =
 			options.isTurnActive &&
-			(draft.containsLiveRow ||
-				(lastRowIndex >= lastMessageRowIndex &&
-					lastMemberId > lastUserMessageId));
+			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
-		// The span covers hidden tool-result messages up to the next row but
-		// never passes the next prompt, whose provider-executed parts can
-		// carry timestamps.
+		// The span covers hidden tool-result messages up to the next row.
 		const fromId = Math.min(...memberIds);
-		const toId = Math.min(
-			messageIdAfter(lastRowIndex),
-			...userMessageIds.filter((id) => id > lastMemberId),
-		);
-		const times = [
-			...entries
-				.filter(({ message }) => message.id >= fromId && message.id < toId)
-				.flatMap(getPartTimestamps),
-			draft.containsLiveRow ? options.streamState?.startedAt : undefined,
-		]
+		const toId = messageIdAfter(lastRowIndex);
+		while (
+			entryIndex < entries.length &&
+			entries[entryIndex].message.id < fromId
+		) {
+			entryIndex++;
+		}
+
+		const spanTimestamps: Array<string | undefined> = [];
+		while (
+			entryIndex < entries.length &&
+			entries[entryIndex].message.id < toId
+		) {
+			spanTimestamps.push(...getPartTimestamps(entries[entryIndex]));
+			entryIndex++;
+		}
+
+		if (draft.containsLiveRow) {
+			spanTimestamps.push(options.streamState?.startedAt);
+		}
+
+		const times = spanTimestamps
 			.map(parseTimestamp)
 			.filter((time) => time !== undefined);
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
 		const tools = Array.from(draft.tools.values());
+
 		return {
 			key,
 			liveKey,
@@ -272,12 +270,7 @@ export const groupWorkingBlocks = (
 				(tool) => tool.isError || tool.status === "error",
 			).length,
 			isLive,
-			// A loaded prompt, visible or hidden, bounds the block even when the
-			// block's first row is the page's first row.
-			isPartial:
-				options.hasMoreMessages &&
-				firstRowIndex === 0 &&
-				draft.anchorKey === undefined,
+			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,
 			endedAt: isLive || times.length === 0 ? undefined : Math.max(...times),
 		};

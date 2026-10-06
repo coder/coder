@@ -868,7 +868,7 @@ describe("applyMessagePartToStreamState", () => {
 });
 
 describe("startedAt", () => {
-	it("records the earliest reasoning or tool part timestamp", () => {
+	it("keeps the first reasoning or tool part timestamp", () => {
 		const thinking = applyMessagePartToStreamState(null, {
 			type: "reasoning",
 			text: "Plan",
@@ -879,7 +879,9 @@ describe("startedAt", () => {
 			text: " more",
 			created_at: "2026-03-10T00:00:02.000Z",
 		});
+
 		expect(delta?.startedAt).toBe("2026-03-10T00:00:02.000Z");
+
 		const called = applyMessagePartToStreamState(delta, {
 			type: "tool-call",
 			tool_call_id: "x",
@@ -895,6 +897,7 @@ describe("startedAt", () => {
 			type: "text",
 			text: "Hi",
 		});
+
 		expect(state?.startedAt).toBeUndefined();
 	});
 });
