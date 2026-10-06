@@ -231,6 +231,20 @@ describe("ChatProjectDialog", () => {
 		expect(props.onOpenChange).not.toHaveBeenCalled();
 	});
 
+	it("does not close while a save is pending before the caller's isSubmitting turns on", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
+		const { props } = renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
 	it("submits once when Save is double-clicked before the save settles", async () => {
 		const user = userEvent.setup();
 		// The caller's isSubmitting has not caught up yet, so only the dialog's

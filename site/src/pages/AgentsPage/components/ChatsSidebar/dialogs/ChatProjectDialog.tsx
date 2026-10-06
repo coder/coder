@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
+import { useState } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type { ChatProject } from "#/api/typesGenerated";
@@ -99,10 +100,19 @@ export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 	error,
 	onSubmit,
 }) => {
+	// Covers the window between Save and the caller's isSubmitting update.
+	const [isSaving, setIsSaving] = useState(false);
+	const isPending = isSubmitting || isSaving;
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen && !isSubmitting) {
+		if (!nextOpen && !isPending) {
 			onOpenChange(false);
 		}
+	};
+	const handleSubmit = (values: ChatProjectFormValues) => {
+		setIsSaving(true);
+		return Promise.resolve()
+			.then(() => onSubmit(values))
+			.finally(() => setIsSaving(false));
 	};
 
 	return (
@@ -110,10 +120,10 @@ export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 			<DialogContent aria-describedby={undefined}>
 				<ChatProjectForm
 					project={project}
-					isSubmitting={isSubmitting}
+					isSubmitting={isPending}
 					error={error}
 					onCancel={() => handleOpenChange(false)}
-					onSubmit={onSubmit}
+					onSubmit={handleSubmit}
 				/>
 			</DialogContent>
 		</Dialog>
