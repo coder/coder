@@ -1,0 +1,133 @@
+{"type":"text","level":3,"timestamp":1791290086298,"text":"@devcontainers/cli 0.87.0. Node.js v22.19.0. linux 6.8.0-139-generic x64."}
+{"type":"start","level":2,"timestamp":1791290086298,"text":"Run: docker buildx version"}
+{"type":"stop","level":2,"timestamp":1791290086368,"text":"Run: docker buildx version","startTimestamp":1791290086298}
+{"type":"text","level":2,"timestamp":1791290086368,"text":"github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a\r\n"}
+{"type":"text","level":2,"timestamp":1791290086368,"text":"\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"start","level":2,"timestamp":1791290086368,"text":"Run: docker version --format {{.Server.Version}}"}
+{"type":"stop","level":2,"timestamp":1791290086392,"text":"Run: docker version --format {{.Server.Version}}","startTimestamp":1791290086368}
+{"type":"text","level":2,"timestamp":1791290086392,"text":"27.5.1\r\n"}
+{"type":"text","level":2,"timestamp":1791290086392,"text":"\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"start","level":2,"timestamp":1791290086392,"text":"Run: docker -v"}
+{"type":"stop","level":2,"timestamp":1791290086408,"text":"Run: docker -v","startTimestamp":1791290086392}
+{"type":"start","level":2,"timestamp":1791290086408,"text":"Resolving Remote"}
+{"type":"start","level":2,"timestamp":1791290086411,"text":"Run: git rev-parse --show-cdup"}
+{"type":"stop","level":2,"timestamp":1791290086415,"text":"Run: git rev-parse --show-cdup","startTimestamp":1791290086411}
+{"type":"start","level":2,"timestamp":1791290086416,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1791290086436,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json","startTimestamp":1791290086416}
+{"type":"start","level":2,"timestamp":1791290086436,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor"}
+{"type":"stop","level":2,"timestamp":1791290086453,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor","startTimestamp":1791290086436}
+{"type":"start","level":2,"timestamp":1791290086549,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1791290086566,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json","startTimestamp":1791290086549}
+{"type":"start","level":2,"timestamp":1791290086567,"text":"Run: docker inspect --type image alpine:3.20"}
+{"type":"stop","level":2,"timestamp":1791290086591,"text":"Run: docker inspect --type image alpine:3.20","startTimestamp":1791290086567}
+{"type":"text","level":1,"timestamp":1791290086592,"text":"workspace root: /code/waitfor"}
+{"type":"text","level":1,"timestamp":1791290086592,"text":"No user features to update"}
+{"type":"start","level":2,"timestamp":1791290086593,"text":"Run: docker events --format {{json .}} --filter event=start"}
+{"type":"start","level":2,"timestamp":1791290086596,"text":"Starting container"}
+{"type":"start","level":3,"timestamp":1791290086596,"text":"Run: docker run --sig-proxy=false -a STDOUT -a STDERR --mount type=bind,source=/code/waitfor,target=/workspaces/waitfor -l devcontainer.local_folder=/code/waitfor -l devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json --entrypoint /bin/sh -l devcontainer.metadata=[{\"onCreateCommand\":\"echo onCreateCommand\",\"updateContentCommand\":\"echo updateContentCommand\",\"postCreateCommand\":\"echo postCreateCommand\",\"postStartCommand\":\"echo postStartCommand\",\"postAttachCommand\":\"echo postAttachCommand\",\"waitFor\":\"onCreateCommand\"}] alpine:3.20 -c echo Container started"}
+{"type":"stop","level":2,"timestamp":1791290087008,"text":"Starting container","startTimestamp":1791290086596}
+{"type":"start","level":2,"timestamp":1791290087009,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json"}
+{"type":"raw","level":3,"timestamp":1791290087011,"text":"Container started\n"}
+{"type":"stop","level":2,"timestamp":1791290087011,"text":"Run: docker events --format {{json .}} --filter event=start","startTimestamp":1791290086593}
+{"type":"stop","level":2,"timestamp":1791290087026,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/waitfor --filter label=devcontainer.config_file=/code/waitfor/.devcontainer/devcontainer.json","startTimestamp":1791290087009}
+{"type":"start","level":2,"timestamp":1791290087026,"text":"Run: docker inspect --type container 69514095df3e"}
+{"type":"stop","level":2,"timestamp":1791290087044,"text":"Run: docker inspect --type container 69514095df3e","startTimestamp":1791290087026}
+{"type":"start","level":2,"timestamp":1791290087045,"text":"Inspecting container"}
+{"type":"start","level":2,"timestamp":1791290087045,"text":"Run: docker inspect --type container 69514095df3ef617df9791bd7583fbf778854893787771c0520471761c90d1d1"}
+{"type":"stop","level":2,"timestamp":1791290087064,"text":"Run: docker inspect --type container 69514095df3ef617df9791bd7583fbf778854893787771c0520471761c90d1d1","startTimestamp":1791290087045}
+{"type":"stop","level":2,"timestamp":1791290087064,"text":"Inspecting container","startTimestamp":1791290087045}
+{"type":"start","level":2,"timestamp":1791290087065,"text":"Run in container: /bin/sh"}
+{"type":"start","level":2,"timestamp":1791290087067,"text":"Run in container: uname -m"}
+{"type":"text","level":2,"timestamp":1791290087129,"text":"x86_64\n"}
+{"type":"text","level":2,"timestamp":1791290087129,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087129,"text":"Run in container: uname -m","startTimestamp":1791290087067}
+{"type":"start","level":2,"timestamp":1791290087129,"text":"Run in container: (cat /etc/os-release || cat /usr/lib/os-release) 2>/dev/null"}
+{"type":"text","level":2,"timestamp":1791290087131,"text":"NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.20.10\nPRETTY_NAME=\"Alpine Linux v3.20\"\nHOME_URL=\"https://alpinelinux.org/\"\nBUG_REPORT_URL=\"https://gitlab.alpinelinux.org/alpine/aports/-/issues\"\n"}
+{"type":"text","level":2,"timestamp":1791290087131,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087131,"text":"Run in container: (cat /etc/os-release || cat /usr/lib/os-release) 2>/dev/null","startTimestamp":1791290087129}
+{"type":"start","level":2,"timestamp":1791290087131,"text":"Run in container:  (command -v getent >/dev/null 2>&1 && getent passwd 'root' || grep -E '^root|^[^:]*:[^:]*:root:' /etc/passwd || true)"}
+{"type":"stop","level":2,"timestamp":1791290087133,"text":"Run in container:  (command -v getent >/dev/null 2>&1 && getent passwd 'root' || grep -E '^root|^[^:]*:[^:]*:root:' /etc/passwd || true)","startTimestamp":1791290087131}
+{"type":"start","level":2,"timestamp":1791290087133,"text":"Run in container: test -f '/var/devcontainer/.patchEtcEnvironmentMarker'"}
+{"type":"text","level":2,"timestamp":1791290087134,"text":""}
+{"type":"text","level":2,"timestamp":1791290087134,"text":""}
+{"type":"text","level":2,"timestamp":1791290087134,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1791290087134,"text":"Run in container: test -f '/var/devcontainer/.patchEtcEnvironmentMarker'","startTimestamp":1791290087133}
+{"type":"start","level":2,"timestamp":1791290087134,"text":"Run in container: test ! -f '/var/devcontainer/.patchEtcEnvironmentMarker' && set -o noclobber && mkdir -p '/var/devcontainer' && { > '/var/devcontainer/.patchEtcEnvironmentMarker' ; } 2> /dev/null"}
+{"type":"text","level":2,"timestamp":1791290087136,"text":""}
+{"type":"text","level":2,"timestamp":1791290087136,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087136,"text":"Run in container: test ! -f '/var/devcontainer/.patchEtcEnvironmentMarker' && set -o noclobber && mkdir -p '/var/devcontainer' && { > '/var/devcontainer/.patchEtcEnvironmentMarker' ; } 2> /dev/null","startTimestamp":1791290087134}
+{"type":"start","level":2,"timestamp":1791290087136,"text":"Run in container: cat >> /etc/environment <<'etcEnvironmentEOF'"}
+{"type":"text","level":2,"timestamp":1791290087137,"text":""}
+{"type":"text","level":2,"timestamp":1791290087137,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087137,"text":"Run in container: cat >> /etc/environment <<'etcEnvironmentEOF'","startTimestamp":1791290087136}
+{"type":"start","level":2,"timestamp":1791290087137,"text":"Run in container: test -f '/var/devcontainer/.patchEtcProfileMarker'"}
+{"type":"text","level":2,"timestamp":1791290087138,"text":""}
+{"type":"text","level":2,"timestamp":1791290087138,"text":""}
+{"type":"text","level":2,"timestamp":1791290087138,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1791290087138,"text":"Run in container: test -f '/var/devcontainer/.patchEtcProfileMarker'","startTimestamp":1791290087137}
+{"type":"start","level":2,"timestamp":1791290087138,"text":"Run in container: test ! -f '/var/devcontainer/.patchEtcProfileMarker' && set -o noclobber && mkdir -p '/var/devcontainer' && { > '/var/devcontainer/.patchEtcProfileMarker' ; } 2> /dev/null"}
+{"type":"text","level":2,"timestamp":1791290087139,"text":""}
+{"type":"text","level":2,"timestamp":1791290087139,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087139,"text":"Run in container: test ! -f '/var/devcontainer/.patchEtcProfileMarker' && set -o noclobber && mkdir -p '/var/devcontainer' && { > '/var/devcontainer/.patchEtcProfileMarker' ; } 2> /dev/null","startTimestamp":1791290087138}
+{"type":"start","level":2,"timestamp":1791290087139,"text":"Run in container: sed -i -E 's/((^|\\s)PATH=)([^\\$]*)$/\\1${PATH:-\\3}/g' /etc/profile || true"}
+{"type":"text","level":2,"timestamp":1791290087141,"text":""}
+{"type":"text","level":2,"timestamp":1791290087141,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087141,"text":"Run in container: sed -i -E 's/((^|\\s)PATH=)([^\\$]*)$/\\1${PATH:-\\3}/g' /etc/profile || true","startTimestamp":1791290087139}
+{"type":"text","level":2,"timestamp":1791290087141,"text":"userEnvProbe: loginInteractiveShell (default)"}
+{"type":"text","level":1,"timestamp":1791290087141,"text":"LifecycleCommandExecutionMap: {\n    \"onCreateCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"echo onCreateCommand\"\n        }\n    ],\n    \"updateContentCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"echo updateContentCommand\"\n        }\n    ],\n    \"postCreateCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"echo postCreateCommand\"\n        }\n    ],\n    \"postStartCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"echo postStartCommand\"\n        }\n    ],\n    \"postAttachCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"echo postAttachCommand\"\n        }\n    ],\n    \"initializeCommand\": []\n}"}
+{"type":"text","level":2,"timestamp":1791290087141,"text":"userEnvProbe: not found in cache"}
+{"type":"text","level":2,"timestamp":1791290087141,"text":"userEnvProbe shell: /bin/sh"}
+{"type":"start","level":2,"timestamp":1791290087141,"text":"Run in container: /bin/sh -lic echo -n 4cfd094a-2005-45a9-8b0a-3317e63113fd; cat /proc/self/environ; echo -n 4cfd094a-2005-45a9-8b0a-3317e63113fd"}
+{"type":"start","level":2,"timestamp":1791290087142,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.onCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.onCreateCommandMarker'"}
+{"type":"text","level":2,"timestamp":1791290087144,"text":""}
+{"type":"text","level":2,"timestamp":1791290087144,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087144,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.onCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.onCreateCommandMarker'","startTimestamp":1791290087142}
+{"type":"raw","level":3,"timestamp":1791290087144,"text":"\u001b[1mRunning the onCreateCommand from devcontainer.json...\u001b[0m\r\n\r\n","channel":"postCreate"}
+{"type":"progress","name":"Running onCreateCommand...","status":"running","stepDetail":"echo onCreateCommand","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087209,"text":"Run in container: /bin/sh -lic echo -n 4cfd094a-2005-45a9-8b0a-3317e63113fd; cat /proc/self/environ; echo -n 4cfd094a-2005-45a9-8b0a-3317e63113fd","startTimestamp":1791290087141}
+{"type":"text","level":1,"timestamp":1791290087209,"text":"4cfd094a-2005-45a9-8b0a-3317e63113fdHOSTNAME=69514095df3e\u0000SHLVL=1\u0000HOME=/root\u0000PAGER=less\u0000LC_COLLATE=C\u0000PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\u0000LANG=C.UTF-8\u0000PWD=/\u0000CHARSET=UTF-8\u00004cfd094a-2005-45a9-8b0a-3317e63113fd"}
+{"type":"text","level":1,"timestamp":1791290087209,"text":"\u001b[1m\u001b[31m/bin/sh: can't access tty; job control turned off\u001b[39m\u001b[22m\r\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"text","level":1,"timestamp":1791290087209,"text":"userEnvProbe parsed: {\n  \"HOSTNAME\": \"69514095df3e\",\n  \"SHLVL\": \"1\",\n  \"HOME\": \"/root\",\n  \"PAGER\": \"less\",\n  \"LC_COLLATE\": \"C\",\n  \"PATH\": \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n  \"LANG\": \"C.UTF-8\",\n  \"PWD\": \"/\",\n  \"CHARSET\": \"UTF-8\"\n}"}
+{"type":"text","level":2,"timestamp":1791290087209,"text":"userEnvProbe PATHs:\nProbe:     '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\nContainer: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'"}
+{"type":"start","level":2,"timestamp":1791290087210,"text":"Run in container: /bin/sh -c echo onCreateCommand","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087273,"text":"onCreateCommand\n","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087277,"text":"Run in container: /bin/sh -c echo onCreateCommand","startTimestamp":1791290087210,"channel":"postCreate"}
+{"type":"progress","name":"Running onCreateCommand...","status":"succeeded","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087277,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.updateContentCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.updateContentCommandMarker'"}
+{"type":"text","level":2,"timestamp":1791290087279,"text":""}
+{"type":"text","level":2,"timestamp":1791290087279,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087279,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.updateContentCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.updateContentCommandMarker'","startTimestamp":1791290087277}
+{"type":"raw","level":3,"timestamp":1791290087279,"text":"\u001b[1mRunning the updateContentCommand from devcontainer.json...\u001b[0m\r\n\r\n","channel":"postCreate"}
+{"type":"progress","name":"Running updateContentCommand...","status":"running","stepDetail":"echo updateContentCommand","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087279,"text":"Run in container: /bin/sh -c echo updateContentCommand","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087345,"text":"updateContentCommand\n","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087348,"text":"Run in container: /bin/sh -c echo updateContentCommand","startTimestamp":1791290087279,"channel":"postCreate"}
+{"type":"progress","name":"Running updateContentCommand...","status":"succeeded","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087348,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.postCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.postCreateCommandMarker'"}
+{"type":"text","level":2,"timestamp":1791290087350,"text":""}
+{"type":"text","level":2,"timestamp":1791290087351,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087351,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.postCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.612627332Z}\" != '2026-10-06T12:34:46.612627332Z' ] && echo '2026-10-06T12:34:46.612627332Z' > '/root/.devcontainer/.postCreateCommandMarker'","startTimestamp":1791290087348}
+{"type":"raw","level":3,"timestamp":1791290087351,"text":"\u001b[1mRunning the postCreateCommand from devcontainer.json...\u001b[0m\r\n\r\n","channel":"postCreate"}
+{"type":"progress","name":"Running postCreateCommand...","status":"running","stepDetail":"echo postCreateCommand","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087351,"text":"Run in container: /bin/sh -c echo postCreateCommand","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087420,"text":"postCreateCommand\n","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087425,"text":"Run in container: /bin/sh -c echo postCreateCommand","startTimestamp":1791290087351,"channel":"postCreate"}
+{"type":"progress","name":"Running postCreateCommand...","status":"succeeded","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087426,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.postStartCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.730606451Z}\" != '2026-10-06T12:34:46.730606451Z' ] && echo '2026-10-06T12:34:46.730606451Z' > '/root/.devcontainer/.postStartCommandMarker'"}
+{"type":"text","level":2,"timestamp":1791290087428,"text":""}
+{"type":"text","level":2,"timestamp":1791290087428,"text":""}
+{"type":"stop","level":2,"timestamp":1791290087428,"text":"Run in container: mkdir -p '/root/.devcontainer' && CONTENT=\"$(cat '/root/.devcontainer/.postStartCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2026-10-06T12:34:46.730606451Z}\" != '2026-10-06T12:34:46.730606451Z' ] && echo '2026-10-06T12:34:46.730606451Z' > '/root/.devcontainer/.postStartCommandMarker'","startTimestamp":1791290087426}
+{"type":"raw","level":3,"timestamp":1791290087428,"text":"\u001b[1mRunning the postStartCommand from devcontainer.json...\u001b[0m\r\n\r\n","channel":"postCreate"}
+{"type":"progress","name":"Running postStartCommand...","status":"running","stepDetail":"echo postStartCommand","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087428,"text":"Run in container: /bin/sh -c echo postStartCommand","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087494,"text":"postStartCommand\n","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087497,"text":"Run in container: /bin/sh -c echo postStartCommand","startTimestamp":1791290087428,"channel":"postCreate"}
+{"type":"progress","name":"Running postStartCommand...","status":"succeeded","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087498,"text":"\u001b[1mRunning the postAttachCommand from devcontainer.json...\u001b[0m\r\n\r\n","channel":"postCreate"}
+{"type":"progress","name":"Running postAttachCommand...","status":"running","stepDetail":"echo postAttachCommand","channel":"postCreate"}
+{"type":"start","level":2,"timestamp":1791290087498,"text":"Run in container: /bin/sh -c echo postAttachCommand","channel":"postCreate"}
+{"type":"raw","level":3,"timestamp":1791290087556,"text":"postAttachCommand\n","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087560,"text":"Run in container: /bin/sh -c echo postAttachCommand","startTimestamp":1791290087498,"channel":"postCreate"}
+{"type":"progress","name":"Running postAttachCommand...","status":"succeeded","channel":"postCreate"}
+{"type":"stop","level":2,"timestamp":1791290087560,"text":"Resolving Remote","startTimestamp":1791290086408}
+{"outcome":"success","containerId":"69514095df3ef617df9791bd7583fbf778854893787771c0520471761c90d1d1","remoteUser":"root","remoteWorkspaceFolder":"/workspaces/waitfor"}
