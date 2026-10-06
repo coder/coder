@@ -219,11 +219,18 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
-	it("shows the Chats empty state when every chat is in a project", async () => {
+	it("shows the Chats empty state once every chat is known to be in a project", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
 		);
 		const mockProjectChat = buildChat({
 			id: "project-chat",
@@ -238,6 +245,11 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
+		// The chat's project is still loading, so its chat may yet be unfiled.
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		expect(screen.queryByText("No agents yet")).toBeNull();
+
+		resolveProjects();
 		await screen.findByRole("link", { name: MockChatProject.name });
 		expect(screen.getByText("No agents yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();

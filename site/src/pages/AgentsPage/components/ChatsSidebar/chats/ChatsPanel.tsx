@@ -428,8 +428,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				}))
 	).filter((section) => section.chats.length > 0);
 	// Project chats live only in their folders, so a Chats section whose
-	// chats are all filed is empty.
+	// chats are all filed is empty. While projects load, chats with a project
+	// are held back, so the section is not known to be empty yet.
+	const isWithholdingProjectChats =
+		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
 	const isShowingEmptyState =
+		!isWithholdingProjectChats &&
 		pinnedChats.length === 0 &&
 		sharedWithYouChats.length === 0 &&
 		chatSections.length === 0;
