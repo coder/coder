@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -1936,7 +1937,11 @@ func TestCreateChatAsUser(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
-		require.ErrorContains(t, err, "not active")
+		responder, ok := httperror.IsResponder(err)
+		require.True(t, ok, "want a responder error, got %v", err)
+		status, resp := responder.Response()
+		require.Equal(t, http.StatusForbidden, status)
+		require.Contains(t, resp.Message, "not active")
 
 		chats, err := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
 			OwnedOnly: true,
@@ -1944,6 +1949,95 @@ func TestCreateChatAsUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, chats)
+	})
+
+	t.Run("AccountStatus", func(t *testing.T) {
+		t.Parallel()
+
+		activationAudits := func(userID uuid.UUID) int {
+			count := 0
+			for _, log := range mAudit.AuditLogs() {
+				if log.ResourceType == database.ResourceTypeUser && log.ResourceID == userID && log.Action == database.AuditActionWrite {
+					count++
+				}
+			}
+			return count
+		}
+		cases := []struct {
+			name        string
+			status      database.UserStatus
+			lastSeenAgo time.Duration
+			wantSeen    bool
+		}{
+			{name: "DormantIsActivated", status: database.UserStatusDormant, lastSeenAgo: 100 * 24 * time.Hour, wantSeen: true},
+			{name: "SeenRecentlyKeepsLastSeen", status: database.UserStatusActive, lastSeenAgo: 30 * time.Minute},
+			{name: "SeenOverAnHourAgoUpdatesLastSeen", status: database.UserStatusActive, lastSeenAgo: 2 * time.Hour, wantSeen: true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+				systemCtx := dbauthz.AsSystemRestricted(ctx)
+				now := dbtime.Now()
+				lastSeen := now.Add(-tc.lastSeenAgo)
+				_, err := api.Database.UpdateUserLastSeenAt(systemCtx, database.UpdateUserLastSeenAtParams{
+					ID:         member.ID,
+					LastSeenAt: lastSeen,
+					UpdatedAt:  now,
+				})
+				require.NoError(t, err)
+				_, err = api.Database.UpdateUserStatus(systemCtx, database.UpdateUserStatusParams{
+					ID:        member.ID,
+					Status:    tc.status,
+					UpdatedAt: now,
+				})
+				require.NoError(t, err)
+				auditsBefore := activationAudits(member.ID)
+
+				_, err = api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
+				require.NoError(t, err)
+
+				user, err := api.Database.GetUserByID(systemCtx, member.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.UserStatusActive, user.Status)
+				if tc.wantSeen {
+					require.True(t, user.LastSeenAt.After(lastSeen), "last_seen_at stayed at %s", user.LastSeenAt)
+				} else {
+					require.True(t, lastSeen.Equal(user.LastSeenAt), "last_seen_at changed from %s to %s", lastSeen, user.LastSeenAt)
+				}
+				wantAudits := auditsBefore
+				if tc.status == database.UserStatusDormant {
+					wantAudits++
+				}
+				require.Equal(t, wantAudits, activationAudits(member.ID))
+			})
+		}
+	})
+
+	t.Run("ChatDaemonError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		file, err := memberClient.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "attached.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+		req := helloRequest(firstUser.OrganizationID)
+		req.Content = append(req.Content, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: file.ID})
+		_, err = api.CreateChatAsUser(ctx, member.ID, req)
+		require.NoError(t, err)
+
+		// A file links to at most one chat, so chatd rejects the second chat.
+		_, err = api.CreateChatAsUser(ctx, member.ID, req)
+		responder, ok := httperror.IsResponder(err)
+		require.True(t, ok, "want a responder error, got %v", err)
+		status, resp := responder.Response()
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, "Chat attachment unavailable.", resp.Message)
+		require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
 	})
 }
 

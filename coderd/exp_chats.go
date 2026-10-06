@@ -1631,20 +1631,16 @@ func (api *API) createChat(
 // CreateChatAsUser creates a root chat as userID with the validation, the
 // errors, and the audit entry of POST /api/v2/chats. It is for in-process
 // callers that act for a user without an HTTP request. ctx does not need an
-// RBAC actor. Validation failures implement httperror.Responder.
+// RBAC actor. Errors from the checks and from the chat daemon implement
+// httperror.Responder with the status and response of the HTTP endpoint.
 func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req codersdk.CreateChatRequest) (codersdk.Chat, error) {
 	if api.chatDaemon == nil {
 		return codersdk.Chat{}, httperror.NewResponseError(http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
 	}
-	actor, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	ctx, err := api.actAsUser(ctx, userID)
 	if err != nil {
-		return codersdk.Chat{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.Chat{}, err
 	}
-	// The API key middleware rejects HTTP callers that are not active.
-	if status != database.UserStatusActive {
-		return codersdk.Chat{}, xerrors.Errorf("user %s is %s, not active", userID, status)
-	}
-	ctx = dbauthz.As(ctx, actor)
 
 	auditor := api.Auditor.Load()
 	if auditor == nil {
@@ -1677,10 +1673,89 @@ func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req code
 	chat, err := api.createChat(ctx, aReq, userID, req)
 	if err != nil {
 		api.writeCreateChatError(ctx, sw, err)
-		return codersdk.Chat{}, err
+		return codersdk.Chat{}, recordedChatError(rw, err)
 	}
 	sw.WriteHeader(http.StatusCreated)
 	return chat, nil
+}
+
+// actAsUser returns ctx with the RBAC actor of userID, for in-process
+// callers that act for a user without an API key. It treats the call like
+// an API request with the user's key: it activates a dormant user and
+// records the user as seen at most once an hour, so that the user does
+// not become dormant. A user who is not active afterwards, such as a
+// suspended user, is refused with a 403.
+func (api *API) actAsUser(ctx context.Context, userID uuid.UUID) (context.Context, error) {
+	//nolint:gocritic // The API key middleware also updates the user as the system.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	user, err := api.Database.GetUserByID(systemCtx, userID)
+	if err != nil {
+		return nil, xerrors.Errorf("get user: %w", err)
+	}
+	if user.Deleted {
+		return nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "User is deleted.",
+		})
+	}
+	switch user.Status {
+	case database.UserStatusDormant:
+		_, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
+		if err != nil {
+			return nil, xerrors.Errorf("activate dormant user: %w", err)
+		}
+	case database.UserStatusActive:
+		if now := dbtime.Now(); now.Sub(user.LastSeenAt) > time.Hour {
+			_, err = api.Database.UpdateUserLastSeenAt(systemCtx, database.UpdateUserLastSeenAtParams{
+				ID:         userID,
+				LastSeenAt: now,
+				UpdatedAt:  now,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("update user last_seen_at: %w", err)
+			}
+		}
+	}
+
+	actor, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		return nil, xerrors.Errorf("load user authorization: %w", err)
+	}
+	if status != database.UserStatusActive {
+		return nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate the account.", status),
+		})
+	}
+	return dbauthz.As(ctx, actor), nil
+}
+
+// chatResponseError is an error from an in-process chat helper. It carries
+// the response that the matching HTTP endpoint sends for the error and
+// unwraps to the cause.
+type chatResponseError struct {
+	status   int
+	response codersdk.Response
+	err      error
+}
+
+var _ httperror.Responder = (*chatResponseError)(nil)
+
+func (e *chatResponseError) Error() string { return e.err.Error() }
+
+func (e *chatResponseError) Unwrap() error { return e.err }
+
+func (e *chatResponseError) Response() (int, codersdk.Response) { return e.status, e.response }
+
+// recordedChatError returns err with the response that rec recorded for
+// it, so that in-process callers can classify err by HTTP status.
+func recordedChatError(rec *httptest.ResponseRecorder, err error) error {
+	if _, ok := httperror.IsResponder(err); ok {
+		return err
+	}
+	var resp codersdk.Response
+	if json.Unmarshal(rec.Body.Bytes(), &resp) != nil {
+		return err
+	}
+	return &chatResponseError{status: rec.Code, response: resp, err: err}
 }
 
 // writeCreateChatError writes the HTTP response for an error from createChat.
