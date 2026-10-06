@@ -1018,9 +1018,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 				iconUrl={mcpServer?.icon_url}
 				serverName={mcpServer?.display_name}
 				label={
-					modelIntent ? (
-						formatModelIntentLabel(modelIntent)
-					) : (
+					formatModelIntentLabel(modelIntent) || (
 						<ToolLabel
 							name={name}
 							args={args}

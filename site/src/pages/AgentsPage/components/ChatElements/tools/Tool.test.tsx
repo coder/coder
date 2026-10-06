@@ -132,3 +132,27 @@ describe("Tool manage_automations label", () => {
 		screen.getByText("Manage automations");
 	});
 });
+
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<Tool
+					name="custom_tool"
+					organizationId="organization-id"
+					mcpServers={[]}
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
+	});
+});

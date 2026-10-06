@@ -50,9 +50,7 @@ const getProcessOutputLabel = ({
 	isFailed: boolean;
 }): string => {
 	const trimmedCommand = command?.trim() ?? "";
-	const intent = modelIntent
-		? sanitizeExecuteModelIntent(modelIntent, trimmedCommand)
-		: "";
+	const intent = sanitizeExecuteModelIntent(modelIntent, trimmedCommand);
 	if (intent) {
 		return intent;
 	}
