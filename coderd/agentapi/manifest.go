@@ -153,6 +153,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		AgentName:                workspaceAgent.Name,
 		OwnerUsername:            workspace.OwnerUsername,
 		WorkspaceId:              workspace.ID[:],
+		WorkspaceBuildId:         a.WorkspaceBuildID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     envs,
