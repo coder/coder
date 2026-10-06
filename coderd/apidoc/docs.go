@@ -25491,7 +25491,7 @@ const docTemplate = `{
                 "chat-automations"
             ],
             "x-enum-comments": {
-                "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "ExperimentAIGatewayReverseProxy": "Unsafe: when no MCP servers are configured, uses reverse proxy routing that records no token usage or spend for intercepted routes, so budgets cannot limit them.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -25523,7 +25523,7 @@ const docTemplate = `{
                 "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
-                "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "Unsafe: when no MCP servers are configured, uses reverse proxy routing that records no token usage or spend for intercepted routes, so budgets cannot limit them.",
                 "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",

@@ -2104,7 +2104,10 @@ communicating directly.`,
 		Description: "Add configured headers identifying the authenticated user to intercepted upstream requests. " +
 			"Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. " +
 			"When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. " +
-			"Client headers starting with X-AI-Bridge-Actor are always removed.",
+			"Client headers starting with X-AI-Bridge-Actor are always removed. " +
+			"When the ai-gateway-reverse-proxy experiment selects reverse proxy mode, this option has no effect on intercepted routes: " +
+			"AI Gateway adds no actor headers and forwards client-supplied values at configured actor-header destinations unchanged, " +
+			"so upstream systems must not trust those headers as user identity.",
 		Flag:    "ai-gateway-send-actor-headers",
 		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:   &c.AI.BridgeConfig.SendActorHeaders,
@@ -5522,7 +5525,7 @@ const (
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
-	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
+	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Unsafe: when no MCP servers are configured, uses reverse proxy routing that records no token usage or spend for intercepted routes, so budgets cannot limit them.
 	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
