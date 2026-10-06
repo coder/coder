@@ -336,12 +336,27 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		useState(activeProjectId);
 	if (activeProjectId !== seenActiveProjectId) {
 		// Arriving at a project clears an earlier collapse. A collapse made while
-		// there remains until the next arrival.
+		// there remains until the next arrival. The folder being left keeps its
+		// state, so navigating never collapses a folder.
 		setSeenActiveProjectId(activeProjectId);
-		if (activeProjectId && activeProjectId in projectFolderOverrides) {
+		const keepsLeftFolderOpen =
+			seenActiveProjectId !== undefined &&
+			!(seenActiveProjectId in projectFolderOverrides);
+		const clearsArrivalOverride =
+			activeProjectId !== undefined &&
+			activeProjectId in projectFolderOverrides;
+		if (keepsLeftFolderOpen || clearsArrivalOverride) {
 			setProjectFolderOverrides((prev) => {
 				const next = { ...prev };
-				delete next[activeProjectId];
+				if (
+					seenActiveProjectId !== undefined &&
+					!(seenActiveProjectId in prev)
+				) {
+					next[seenActiveProjectId] = true;
+				}
+				if (activeProjectId !== undefined) {
+					delete next[activeProjectId];
+				}
 				return next;
 			});
 		}

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -505,6 +505,70 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
 			"aria-current",
 		);
+	});
+
+	it("keeps other folders open when opening a chat in another project", async () => {
+		const user = userEvent.setup();
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "chat-project-2",
+			name: "Research",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+		const mockFirstProjectChat = buildChat({
+			id: "first-project-chat",
+			title: "First project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+		const mockOtherProjectChat = buildChat({
+			id: "other-project-chat",
+			title: "Other project chat",
+			organization_id: mockOtherProject.organization_id,
+			project_id: mockOtherProject.id,
+		});
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${mockFirstProjectChat.id}`}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={
+							<ChatsSidebar
+								{...defaultProps}
+								chats={[mockFirstProjectChat, mockOtherProjectChat]}
+							/>
+						}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Expand ${mockOtherProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("link", { name: /Other project chat/ }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("link", { name: /Other project chat/ }),
+			).toHaveAttribute("aria-current", "page"),
+		);
+		expect(
+			screen.getByRole("button", { name: `Collapse ${MockChatProject.name}` }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
+		).toBeInTheDocument();
 	});
 });
 
