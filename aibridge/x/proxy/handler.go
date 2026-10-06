@@ -1,14 +1,17 @@
 package proxy
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,19 +32,21 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
 type forwardingHandler struct {
 	provider  provider.Provider
 	logger    slog.Logger
+	metrics   *metrics.Metrics
 	tracer    trace.Tracer
 	transport http.RoundTripper
 	failover  keypool.KeyFailoverConfig
+	breaker   *circuitbreaker.ProviderCircuitBreakers
 	proxy     *httputil.ReverseProxy
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
-	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
@@ -56,12 +61,13 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 	h := &forwardingHandler{
 		provider:  prov,
 		logger:    logger,
+		metrics:   m,
 		tracer:    tracer,
 		transport: apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 		failover:  prov.KeyFailoverConfig(logger),
+		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 		inflight:  inflight,
 		recorder:  rec,
-		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 	}
 	h.proxy = &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
@@ -70,15 +76,12 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 		},
 		Transport:     h,
 		FlushInterval: -1,
-		ErrorLog:      slog.Stdlib(context.Background(), logger.With(slog.F("provider", prov.Name())), slog.LevelWarn),
+		ErrorHandler: func(_ http.ResponseWriter, r *http.Request, err error) {
+			observationFromContext(r.Context()).err = err
+		},
+		ErrorLog: slog.Stdlib(context.Background(), logger.With(slog.F("provider", prov.Name())), slog.LevelWarn),
 	}
 	return h, nil
-}
-
-// RoundTrip forwards through the provider's key pool, or uses the selected BYOK
-// credential without retrying against pooled keys.
-func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
-	return keypool.NewKeyFailoverTransport(h.transport, h.failover).RoundTrip(r)
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
@@ -124,12 +127,12 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err error
-	defer func() { h.finishForwarding(ctx, record, err) }()
+	state := &responseObservation{credentialHint: record.CredentialHint, client: w}
+	defer func() { h.finishForwarding(ctx, record, state.err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
-	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound, _ := h.prepareForwarding(r, cred)
-		return h.forward(rw, outbound)
+	state.err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
+		outbound, body := h.prepareForwarding(r.WithContext(context.WithValue(ctx, observationContextKey{}, state)), cred)
+		return h.forward(rw, outbound, body, state)
 	})
 }
 
@@ -240,8 +243,8 @@ func (*forwardingHandler) prepareForwarding(r *http.Request, cred credential.Cre
 	return r, body
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request) error {
-	// TODO: forward only when lifecycle recording is connected.
+func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ *requestBuffer, _ *responseObservation) error {
+	// TODO: connect forwardPrepared only when lifecycle recording is connected.
 	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
 	return nil
 }
@@ -249,3 +252,115 @@ func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request) error 
 func (*forwardingHandler) finishForwarding(context.Context, *recorder.InterceptionRecord, error) {
 	// TODO: finalize the outcome and lifecycle records, including breaker rejection.
 }
+
+// forwardPrepared delivers the prepared request and observes its terminal response.
+func (h *forwardingHandler) forwardPrepared(w http.ResponseWriter, r *http.Request, _ *requestBuffer, state *responseObservation) error {
+	ctx := r.Context()
+	writer := &errorCapturingWriter{ResponseWriter: w, client: state.client}
+	defer func() {
+		if state.err == nil {
+			state.err = writer.Error()
+		}
+		if state.body != nil && !state.body.closed {
+			_ = state.body.Close()
+		}
+	}()
+	h.proxy.ServeHTTP(writer, r)
+	if state.body == nil && state.err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](state.err); ok {
+			routing.WriteRequestBodyTooLarge(ctx, writer)
+		} else {
+			h.logger.Warn(ctx, "upstream proxy error", slog.Error(state.err))
+			http.Error(writer, "upstream proxy error", http.StatusBadGateway)
+		}
+	}
+	if writer.Error() != nil || (state.body != nil && !state.body.eof) {
+		if state.err == nil {
+			state.err = writer.Error()
+		}
+		panic(http.ErrAbortHandler)
+	}
+	return state.err
+}
+
+// RoundTrip observes only the final response returned by key failover. Its
+// callbacks and bookkeeping belong to this request, not the shared proxy.
+func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
+	state := observationFromContext(r.Context())
+	cfg := h.failover
+	if cfg.Pool != nil {
+		inject, build := cfg.InjectAuthKey, cfg.BuildKeyPoolResponse
+		cfg.InjectAuthKey = func(header *http.Header, key string) {
+			state.credentialHint = utils.MaskSecret(key)
+			inject(header, key)
+		}
+		cfg.BuildKeyPoolResponse = func(err *keypool.Error) *http.Response {
+			state.err = err
+			return build(err)
+		}
+	}
+	resp, err := keypool.NewKeyFailoverTransport(h.transport, cfg).RoundTrip(r)
+	if err != nil {
+		return resp, err
+	}
+	if resp.StatusCode == http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		return nil, xerrors.New("upstream protocol upgrades are not supported")
+	}
+	state.status = resp.StatusCode
+	state.body = &observedBody{ReadCloser: resp.Body}
+	resp.Body = state.body
+	return resp, nil
+}
+
+type errorCapturingWriter struct {
+	http.ResponseWriter
+	client http.ResponseWriter
+	// ReverseProxy's initial flush can run on its timer goroutine.
+	err atomic.Pointer[error]
+}
+
+func (w *errorCapturingWriter) WriteHeader(status int) {
+	if status >= 100 && status < 200 {
+		// The existing breaker tracks the first status. Informational responses
+		// must reach the client without hiding the final status from the breaker.
+		w.client.WriteHeader(status)
+		return
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *errorCapturingWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err == nil && n < len(p) {
+		err = io.ErrShortWrite
+	}
+	w.recordError(err)
+	return n, err
+}
+
+func (w *errorCapturingWriter) recordError(err error) {
+	if err != nil {
+		w.err.CompareAndSwap(nil, &err)
+	}
+}
+
+func (w *errorCapturingWriter) Error() error {
+	if err := w.err.Load(); err != nil {
+		return *err
+	}
+	return nil
+}
+
+func (w *errorCapturingWriter) FlushError() error {
+	// The breaker wrapper only exposes Flush, which discards flush errors.
+	err := http.NewResponseController(w.client).Flush()
+	w.recordError(err)
+	return err
+}
+
+func (w *errorCapturingWriter) Flush() { _ = w.FlushError() }
+func (w *errorCapturingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return http.NewResponseController(w.ResponseWriter).Hijack()
+}
+func (w *errorCapturingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
