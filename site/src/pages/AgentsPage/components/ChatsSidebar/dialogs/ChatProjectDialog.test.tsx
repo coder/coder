@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
@@ -31,6 +31,17 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 		rerenderWith: (next: Partial<DialogProps>) =>
 			view.rerender(<ChatProjectDialog {...allProps} {...next} />),
 	};
+};
+
+// A disabled Save button does not submit. Dispatching submit checks that the
+// handler itself drops an unchanged edit.
+const submitForm = (save: HTMLElement) => {
+	if (!(save instanceof HTMLButtonElement)) {
+		throw new Error("Save is not a button");
+	}
+	save.form?.dispatchEvent(
+		new Event("submit", { bubbles: true, cancelable: true }),
+	);
 };
 
 describe("ChatProjectDialog", () => {
@@ -138,6 +149,7 @@ describe("ChatProjectDialog", () => {
 			project: { ...MockChatProject, description: "notes\n" },
 		});
 
+		submitForm(screen.getByRole("button", { name: "Save" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
@@ -166,8 +178,13 @@ describe("ChatProjectDialog", () => {
 	it("does not save an edit that changes nothing", async () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog({ project: MockChatProject });
+		const save = screen.getByRole("button", { name: "Save" });
 
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(save).toBeDisabled();
+		submitForm(save);
+		await user.click(save);
+		await user.click(screen.getByLabelText(/Name/));
+		await user.keyboard("{Enter}");
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
@@ -180,6 +197,51 @@ describe("ChatProjectDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("explains that a name is required once the field is left empty", async () => {
+		const user = userEvent.setup();
+		renderDialog();
+
+		await user.click(screen.getByLabelText(/Name/));
+		await user.tab();
+
+		expect(screen.getByText("Name is required.")).toBeVisible();
+	});
+
+	it("shows a save error that is not tied to a field", () => {
+		renderDialog({
+			error: mockApiError({
+				message:
+					"You can have at most 100 chat projects. Delete a project to create another.",
+			}),
+		});
+
+		expect(screen.getByText(/at most 100 chat projects/)).toBeVisible();
+		expect(screen.queryByText("Response data")).not.toBeInTheDocument();
+	});
+
+	it("shows an API field error on the field", async () => {
+		const user = userEvent.setup();
+		const message = "Name must be at most 64 characters.";
+		const { props, rerenderWith } = renderDialog();
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(props.onSubmit).toHaveBeenCalled();
+
+		rerenderWith({
+			error: mockApiError({
+				message,
+				validations: [{ field: "name", detail: message }],
+			}),
+		});
+
+		expect(screen.getAllByText(message)).toHaveLength(1);
+		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
+			"aria-invalid",
+			"true",
+		);
 	});
 
 	it("does not close while saving", async () => {

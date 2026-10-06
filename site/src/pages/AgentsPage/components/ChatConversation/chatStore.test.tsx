@@ -1928,6 +1928,7 @@ describe("useChatStore", () => {
 						chatID,
 						chatMessages: [existingMessage],
 						chatRecord: buildChat(chatID),
+						chatRecordUpdatedAt: 0,
 						chatMessagesData: {
 							messages: [existingMessage],
 							queued_messages: initialQueued,
