@@ -18,6 +18,8 @@ export type ChatTreeContextValue = {
 	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly dragInstructionsId: string;
+	/** Extra content under the age in a row's right column. Absent unless an experiment supplies it. */
+	readonly renderTrailing?: (chat: Chat) => React.ReactNode;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
