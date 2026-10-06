@@ -16617,6 +16617,29 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+func TestChatCreateWorkspace_BindFailureCreatesNoWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+	user := coderdtest.CreateFirstUser(t, rawClient)
+	tv := dbfake.TemplateVersion(t, api.Database).Seed(database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	}).Do()
+
+	// The chat does not exist, so the bind inside the create transaction fails.
+	_, _, err := coderd.ChatCreateWorkspace(api, ctx, user.UserID, uuid.New(), codersdk.CreateWorkspaceRequest{
+		TemplateID: tv.Template.ID,
+		Name:       "chat-bind-fails",
+	})
+	require.ErrorContains(t, err, "bind chat to workspace")
+
+	workspaces, err := rawClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+	require.NoError(t, err)
+	require.Empty(t, workspaces.Workspaces)
+}
+
 //nolint:tparallel,paralleltest // Subtests share one auditor and coderdtest instance.
 func TestChatOperationalSettingsAuditDeniedWrites(t *testing.T) {
 	t.Parallel()

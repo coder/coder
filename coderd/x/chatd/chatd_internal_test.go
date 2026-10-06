@@ -1268,6 +1268,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1316,12 +1317,12 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	require.Equal(t, workspaceAgent, gotAgent)
 }
 
-// expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
+// expectAgentBindingTx lets persistBuildAgentBinding's transaction and
 // context re-pin run against a mock store. The re-pin fires whenever a turn
-// rebinds a chat to a different agent; these agent-switch tests set up no
-// context snapshot, so it takes the no-snapshot clear path. The re-pin
-// behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
-func expectBestEffortContextRepin(db *dbmock.MockStore) {
+// rebinds a chat to a different agent; these tests set up no context
+// snapshot, so it takes the no-snapshot clear path. The re-pin behavior
+// itself is covered by TestPersistBuildAgentBindingRepinsContext.
+func expectAgentBindingTx(db *dbmock.MockStore) {
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) }).AnyTimes()
 	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
@@ -1336,7 +1337,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1393,7 +1394,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1681,7 +1682,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
 				expectLiveWorkspace(db, workspaceID)
 				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{{ID: agentID}}, nil)
 				db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: uuid.New()}, nil)
-				db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), gomock.Any()).Return(database.Chat{}, dbErr)
+				db.EXPECT().InTx(gomock.Any(), gomock.Any()).Return(dbErr)
 			},
 			wantErr: dbErr,
 		},
@@ -1724,6 +1725,7 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	deletedWorkspaceID := uuid.New()
 	replacementWorkspaceID := uuid.New()
@@ -1829,6 +1831,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
@@ -2465,7 +2468,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
