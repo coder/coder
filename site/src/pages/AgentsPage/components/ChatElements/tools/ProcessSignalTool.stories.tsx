@@ -10,6 +10,11 @@ const meta: Meta<typeof Tool> = {
 		name: "process_signal",
 		organizationId: "organization-id",
 		mcpServers: [],
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 };
 export default meta;

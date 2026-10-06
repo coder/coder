@@ -45,6 +45,11 @@ const meta: Meta<typeof Tool> = {
 		name: "propose_plan",
 		organizationId: "organization-id",
 		mcpServers: [],
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({ routing: { path: "/" } }),

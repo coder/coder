@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, within } from "storybook/test";
+import { expect, fn, screen, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
 import { AssistantOutput } from "./AssistantOutput";
 import {
@@ -27,6 +27,11 @@ const LiveAssistantOutput = ({
 		tools={streamTools}
 		isStreaming={liveStatus.phase === "streaming"}
 		liveStatus={liveStatus}
+		subagentTitles={new Map()}
+		subagentVariants={new Map()}
+		hasUserResponseAfterAskQuestion={false}
+		onImageClick={fn()}
+		onTextFileClick={fn()}
 	/>
 );
 
