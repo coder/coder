@@ -174,13 +174,17 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 ) database.ChatQueuedMessage {
 	t.Helper()
 
-	queued, err := db.InsertChatQueuedMessage(
-		dbauthz.AsSystemRestricted(ctx),
-		database.InsertChatQueuedMessageParams{
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	chat, err := db.GetChatByID(sysCtx, chatID)
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(
+		sysCtx,
+		database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:          chatID,
 			Content:         content,
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+			CreatedBy:       chat.OwnerID,
 		},
 	)
 	require.NoError(t, err)

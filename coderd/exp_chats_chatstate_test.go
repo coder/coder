@@ -795,16 +795,18 @@ func driveChatToInvalidWaitingWithQueue(
 
 	// Seed the queue with one row attributed to the chat owner. The
 	// content is a minimal valid JSON payload; only the row's
-	// presence matters for ClassifyExecutionState. The owner_id is
-	// filled from the chat row by the SQL.
+	// presence matters for ClassifyExecutionState.
+	chat, err := api.Database.GetChatByID(sysCtx, chatID)
+	require.NoError(t, err)
 	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("queued"),
 	})
 	require.NoError(t, err)
-	_, err = api.Database.InsertChatQueuedMessage(sysCtx, database.InsertChatQueuedMessageParams{
+	_, err = api.Database.InsertChatQueuedMessageWithCreator(sysCtx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        chatID,
 		Content:       rawContent.RawMessage,
 		ModelConfigID: uuid.NullUUID{},
+		CreatedBy:     chat.OwnerID,
 	})
 	require.NoError(t, err)
 
