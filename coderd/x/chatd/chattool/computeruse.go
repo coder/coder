@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -397,6 +398,10 @@ func (t *computerUseTool) captureSharedScreenshot(
 	}
 
 	response := fantasy.NewImageResponse(screenData, "image/png")
+	// Attachment limits skip storage but still return the screenshot.
+	if len(screenData) > maxAttachmentSize {
+		return response, nil
+	}
 
 	attachment, err := storeScreenshotAttachment(
 		ctx,
@@ -404,12 +409,13 @@ func (t *computerUseTool) captureSharedScreenshot(
 		attachmentName,
 		screenResp.ScreenshotData,
 	)
-	if err != nil {
-		t.logger.Warn(ctx, "failed to persist screenshot attachment",
-			slog.F("attachment_name", attachmentName),
-			slog.Error(err),
-		)
+	if errors.Is(err, ErrChatFileCapExceeded) {
 		return response, nil
+	}
+	if err != nil {
+		return fantasy.NewTextErrorResponse(
+			xerrors.Errorf("store screenshot attachment: %w", err).Error(),
+		), nil
 	}
 	return WithAttachments(response, attachment), nil
 }
