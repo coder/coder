@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "#/components/Toaster/toast";
 import type { Plan, Write } from "./boardApi";
 import type { BoardStorage } from "./boardStorage";
 

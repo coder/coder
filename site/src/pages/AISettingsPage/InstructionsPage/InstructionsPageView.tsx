@@ -1,7 +1,6 @@
 import { useFormik } from "formik";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -12,6 +11,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import { TextPreviewDialog } from "#/pages/AgentsPage/components/TextPreviewDialog";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 

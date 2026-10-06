@@ -1,7 +1,6 @@
 import { Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import {
 	customNotificationTemplates,
@@ -20,6 +19,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

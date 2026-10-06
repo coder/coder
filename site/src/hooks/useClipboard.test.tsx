@@ -12,7 +12,7 @@
 
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,

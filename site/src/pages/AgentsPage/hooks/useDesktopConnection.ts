@@ -1,7 +1,7 @@
 import RFB from "@novnc/novnc/lib/rfb";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 export type DesktopConnectionStatus =
 	| "idle"

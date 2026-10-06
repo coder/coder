@@ -1,7 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { toast } from "sonner";
 import {
 	afterEach,
 	beforeAll,
@@ -12,6 +11,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
+import { toast } from "#/components/Toaster/toast";
 import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {

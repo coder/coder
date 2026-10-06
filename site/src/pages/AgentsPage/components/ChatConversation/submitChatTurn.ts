@@ -1,9 +1,9 @@
-import { toast } from "sonner";
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import {

@@ -5,7 +5,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	automationChats,
@@ -22,6 +21,7 @@ import type {
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { useDashboard } from "#/modules/dashboard/useDashboard";

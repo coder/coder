@@ -14,7 +14,6 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
@@ -26,6 +25,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

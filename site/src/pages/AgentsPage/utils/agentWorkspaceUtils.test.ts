@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({
+vi.mock("#/components/Toaster/toast", () => ({
 	toast: {
 		error: vi.fn(),
 		info: vi.fn(),
@@ -9,12 +9,12 @@ vi.mock("sonner", () => ({
 	},
 }));
 
-import { toast } from "sonner";
 import {
 	PrebuildsSystemUserID,
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,

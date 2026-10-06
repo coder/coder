@@ -1,8 +1,8 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

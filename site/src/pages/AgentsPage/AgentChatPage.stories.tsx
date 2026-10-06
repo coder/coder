@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -24,6 +23,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspaceByIdKey, workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
 	MockChatMessage,

@@ -1,6 +1,5 @@
 import { useId, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -8,6 +7,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import type { MutationCallbacks } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 

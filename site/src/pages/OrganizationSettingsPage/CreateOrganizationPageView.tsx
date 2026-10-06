@@ -3,7 +3,6 @@ import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
-import { toast } from "sonner";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import { createOrganization } from "#/api/queries/organizations";
@@ -21,6 +20,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { toast } from "#/components/Toaster/toast";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";

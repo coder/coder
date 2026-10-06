@@ -1,10 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type * as Sonner from "sonner";
-import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat, ChatStatus } from "#/api/typesGenerated";
+import type * as ToastModule from "#/components/Toaster/toast";
+import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -12,8 +12,8 @@ import type { CreateChatOptions } from "../../components/AgentCreateForm";
 import ChatBoardPage from "./ChatBoardPage";
 
 // The page shell mounts the Toaster; only the toast calls are replaced.
-vi.mock("sonner", async (importOriginal) => ({
-	...(await importOriginal<typeof Sonner>()),
+vi.mock("#/components/Toaster/toast", async (importOriginal) => ({
+	...(await importOriginal<typeof ToastModule>()),
 	toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 

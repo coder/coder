@@ -4,7 +4,6 @@ import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	updateDeadline,
@@ -14,6 +13,7 @@ import type { Template, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { TopbarData, TopbarIcon } from "#/components/FullPageLayout/Topbar";
 import { Link, type LinkProps } from "#/components/Link/Link";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

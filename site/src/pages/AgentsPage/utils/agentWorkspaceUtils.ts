@@ -1,11 +1,11 @@
 import { isAxiosError } from "axios";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	PrebuildsSystemUserID,
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 /**
  * Returns the moment a workspace's identity transferred to its

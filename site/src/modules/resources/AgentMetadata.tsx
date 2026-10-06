@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { watchAgentMetadata } from "#/api/api";
 import type {
 	ServerSentEvent,
@@ -9,6 +8,7 @@ import type {
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

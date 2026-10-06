@@ -1,7 +1,6 @@
 import { RadioIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Abbr } from "#/components/Abbr/Abbr";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -18,6 +17,7 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getLatencyColor } from "#/utils/latency";

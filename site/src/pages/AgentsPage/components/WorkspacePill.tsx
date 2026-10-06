@@ -10,7 +10,6 @@ import {
 import { useEffect, useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import type {
@@ -26,6 +25,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

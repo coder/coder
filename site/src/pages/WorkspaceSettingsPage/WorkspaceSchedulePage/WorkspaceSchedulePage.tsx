@@ -2,7 +2,6 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { templateByName } from "#/api/queries/templates";
@@ -18,6 +17,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import {
 	scheduleChanged,
 	scheduleToAutostart,

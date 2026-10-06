@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
@@ -37,6 +36,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";

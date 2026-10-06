@@ -13,7 +13,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -56,6 +55,7 @@ import {
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,

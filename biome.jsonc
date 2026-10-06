@@ -68,6 +68,10 @@
 								]
 							},
 							// "#/components/Stack/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
+							"sonner": {
+								"message": "Import toast from #/components/Toaster/toast so error toasts stay until dismissed (WCAG 2.2.1).",
+								"importNames": ["toast"]
+							},
 							"lodash": "Use lodash/<name> instead."
 						}
 					}
@@ -112,6 +116,17 @@
 				"**/DiffViewer/parseDiff.ts",
 				"**/DiffViewer/parseDiff.test.ts"
 			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
+					}
+				}
+			}
+		},
+		{
+			// toast.ts is the single choke point allowed to import Sonner's toast.
+			"includes": ["**/components/Toaster/toast.ts"],
 			"linter": {
 				"rules": {
 					"style": {

@@ -1,8 +1,8 @@
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { toast } from "#/components/Toaster/toast";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {

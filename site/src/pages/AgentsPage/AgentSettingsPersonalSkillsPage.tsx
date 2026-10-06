@@ -3,7 +3,6 @@ import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createUserSkill,
@@ -13,6 +12,7 @@ import {
 	userSkills,
 } from "#/api/queries/userSkills";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type PersonalSkillDeleteState,

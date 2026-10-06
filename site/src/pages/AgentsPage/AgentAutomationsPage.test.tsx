@@ -4,10 +4,10 @@ import userEvent, {
 } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { QueryClient } from "react-query";
-import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
 	MockChatAutomation,

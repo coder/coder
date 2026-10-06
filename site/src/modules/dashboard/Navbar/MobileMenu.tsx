@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +25,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
+import { toast } from "#/components/Toaster/toast";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { getLatencyColor } from "#/utils/latency";
 import {
